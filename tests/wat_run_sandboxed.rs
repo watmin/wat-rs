@@ -119,10 +119,10 @@ fn main_writes_to_both_stdout_and_stderr() {
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
                                   -> :wat::core::unit)
-               (:wat::core::let*
-                 (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout \"one\"))
-                  ((_ :wat::core::unit) (:wat::io::IOWriter/println stdout \"two\"))
-                  ((_ :wat::core::unit) (:wat::io::IOWriter/println stderr \"oops\")))
+               (:wat::core::do
+                 (:wat::io::IOWriter/println stdout \"one\")
+                 (:wat::io::IOWriter/println stdout \"two\")
+                 (:wat::io::IOWriter/println stderr \"oops\")
                  ()))"
             (:wat::core::Vector :wat::core::String)
             :wat::core::None))
@@ -177,10 +177,10 @@ fn print_without_newline_does_not_split_into_lines() {
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
                                   -> :wat::core::unit)
-               (:wat::core::let*
-                 (((_ :wat::core::unit) (:wat::io::IOWriter/print stdout \"a\"))
-                  ((_ :wat::core::unit) (:wat::io::IOWriter/print stdout \"b\"))
-                  ((_ :wat::core::unit) (:wat::io::IOWriter/print stdout \"c\")))
+               (:wat::core::do
+                 (:wat::io::IOWriter/print stdout \"a\")
+                 (:wat::io::IOWriter/print stdout \"b\")
+                 (:wat::io::IOWriter/print stdout \"c\")
                  ()))"
             (:wat::core::Vector :wat::core::String)
             :wat::core::None))
@@ -494,8 +494,8 @@ fn main_reads_multiple_stdin_lines() {
                                   -> :wat::core::unit)
                (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::unit
                  ((Some line)
-                   (:wat::core::let*
-                     (((_ :wat::core::unit) (:wat::io::IOWriter/println w line)))
+                   (:wat::core::do
+                     (:wat::io::IOWriter/println w line)
                      (:my::echo-all r w)))
                  (:None ())))
              (:wat::core::define (:user::main

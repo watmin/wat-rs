@@ -48,8 +48,8 @@ fn harness_injects_stdin_lines() {
         (:wat::core::define (:echo-loop (r :wat::io::IOReader) (w :wat::io::IOWriter) -> :wat::core::unit)
           (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::unit
             ((:wat::core::Some line)
-              (:wat::core::let*
-                (((_ :wat::core::unit) (:wat::io::IOWriter/println w line)))
+              (:wat::core::do
+                (:wat::io::IOWriter/println w line)
                 (:echo-loop r w)))
             (:wat::core::None ())))
         (:wat::core::define
@@ -111,9 +111,9 @@ fn harness_main_signature_mismatch() {
 #[test]
 fn harness_captures_stderr() {
     let src = main_body(
-        r##"(:wat::core::let*
-              (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout "out-line"))
-               ((_ :wat::core::unit) (:wat::io::IOWriter/println stderr "err-line")))
+        r##"(:wat::core::do
+              (:wat::io::IOWriter/println stdout "out-line")
+              (:wat::io::IOWriter/println stderr "err-line")
               ())"##,
     );
     let h = Harness::from_source(&src).expect("freeze");

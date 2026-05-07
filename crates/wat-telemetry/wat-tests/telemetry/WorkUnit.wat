@@ -515,8 +515,8 @@
      ((result :wat::core::i64)
       (:wat::telemetry::WorkUnit/scope ns tags
         (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
-          (:wat::core::let*
-            (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
+          (:wat::core::do
+            (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))
             42)))))
     (:wat::test::assert-eq result 42)))
 
@@ -535,8 +535,8 @@
     (((thr-and-pair :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
       (:test::wu-spawn-stub-scope-str
         (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
-          (:wat::core::let*
-            (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :requests))))
+          (:wat::core::do
+            (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :requests))
             (:wat::telemetry::WorkUnit/uuid wu)))))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-pair))
      ((str-and-rx :(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)) (:wat::core::second thr-and-pair))
@@ -561,8 +561,8 @@
     (((thr-and-pair :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
       (:test::wu-spawn-stub-scope-str
         (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
-          (:wat::core::let*
-            (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5)))
+          (:wat::core::do
+            (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5)
             (:wat::telemetry::WorkUnit/uuid wu)))))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-pair))
      ((str-and-rx :(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)) (:wat::core::second thr-and-pair))
@@ -710,8 +710,8 @@
     (((thr-and-pair :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)))
       (:test::wu-spawn-stub-scope-i64
         (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
-          (:wat::core::let*
-            (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
+          (:wat::core::do
+            (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))
             42))))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-pair))
      ((i64-and-rx :(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)) (:wat::core::second thr-and-pair))

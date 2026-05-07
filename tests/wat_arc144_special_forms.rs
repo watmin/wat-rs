@@ -87,11 +87,9 @@ fn three_probes(name_keyword: &str) -> Vec<String> {
               (:wat::edn::write sig-opt))
              ((body-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::body-of {name})))
-            (:wat::core::let*
-              (((_ :wat::core::unit)
-                (:wat::io::IOWriter/println stdout def-rendered))
-               ((_ :wat::core::unit)
-                (:wat::io::IOWriter/println stdout sig-rendered)))
+            (:wat::core::do
+              (:wat::io::IOWriter/println stdout def-rendered)
+              (:wat::io::IOWriter/println stdout sig-rendered)
               (:wat::core::match body-opt
                 -> :wat::core::unit
                 ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "body-fail"))

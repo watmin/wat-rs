@@ -193,19 +193,16 @@ fn named_define_as_stream_map_fn() {
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
-                  (:wat::core::let*
-                    (((_ :wat::core::unit)
-                      (:wat::core::Result/expect -> :wat::core::unit
-                        (:wat::kernel::send tx 1)
-                        "producer: tx disconnected on send 1"))
-                     ((_ :wat::core::unit)
-                      (:wat::core::Result/expect -> :wat::core::unit
-                        (:wat::kernel::send tx 2)
-                        "producer: tx disconnected on send 2"))
-                     ((_ :wat::core::unit)
-                      (:wat::core::Result/expect -> :wat::core::unit
-                        (:wat::kernel::send tx 3)
-                        "producer: tx disconnected on send 3")))
+                  (:wat::core::do
+                    (:wat::core::Result/expect -> :wat::core::unit
+                      (:wat::kernel::send tx 1)
+                      "producer: tx disconnected on send 1")
+                    (:wat::core::Result/expect -> :wat::core::unit
+                      (:wat::kernel::send tx 2)
+                      "producer: tx disconnected on send 2")
+                    (:wat::core::Result/expect -> :wat::core::unit
+                      (:wat::kernel::send tx 3)
+                      "producer: tx disconnected on send 3")
                     ()))))
              ((doubled :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::map source :my::double))

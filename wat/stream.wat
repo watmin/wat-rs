@@ -177,8 +177,8 @@
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::unit
     ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::core::let*
-        (((_ :wat::core::unit) (handler v)))
+      (:wat::core::do
+        (handler v)
         (:wat::stream::for-each-drain rx handler)))
     ((:wat::core::Ok :wat::core::None) ())
     ((:wat::core::Err _died) ())))
@@ -284,8 +284,8 @@
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
     ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::core::let*
-        (((_ :wat::core::unit) (f v)))
+      (:wat::core::do
+        (f v)
         (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
           ((:wat::core::Ok _) (:wat::stream::inspect-worker in out f))
           ((:wat::core::Err _) ()))))

@@ -143,8 +143,8 @@ fn match_mixes_unit_and_tagged_arms() {
           (:wat::core::let*
             (((line1 :wat::core::String) (:my::act (:my::Event::Open 7.5)))
              ((line2 :wat::core::String) (:my::act :my::Event::Hold)))
-            (:wat::core::let*
-              (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout line1)))
+            (:wat::core::do
+              (:wat::io::IOWriter/println stdout line1)
               (:wat::io::IOWriter/println stdout line2))))
     "##;
     assert_eq!(run(src), vec!["7.5".to_string(), "hold".to_string()]);

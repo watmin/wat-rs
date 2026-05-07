@@ -100,9 +100,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) n)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "hcs-helper-get-empty-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "hcs-helper-get-empty-died" "")
              n)))))
 
    ;; ─── Layer 2 helper — spawn → pop → put(one) → finish → drop → join
@@ -139,9 +138,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) 1)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "hcs-helper-put-one-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "hcs-helper-put-one-died" "")
              0)))))
 
    ;; ─── Layer 3a sub-helper — score Option<HolonAST> slot vs presence ─
@@ -216,9 +214,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) p)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "hcs-helper-put-then-get-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "hcs-helper-put-then-get-died" "")
              0)))))
 
    ;; ─── Layer 4a sub-helper — put two entries then probe three keys ──
@@ -289,9 +286,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "hcs-helper-get-many-keys-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "hcs-helper-get-many-keys-died" "")
              0)))))
 
    ;; ─── Layer 5a sub-helper — put 3 keys at cap=2, probe all 3 ───────
@@ -362,9 +358,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "hcs-eviction-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "hcs-eviction-died" "")
              0)))))
 
    ;; ─── Layer 6a sub-helper — put + get one key on a handle, score ───
@@ -417,9 +412,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "hcs-multi-client-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "hcs-multi-client-died" "")
              0)))))
    ))
 

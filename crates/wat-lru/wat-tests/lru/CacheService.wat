@@ -82,9 +82,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) n)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "lru-helper-get-empty-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "lru-helper-get-empty-died" "")
              n)))))
 
    ;; ─── Layer 2 helper — spawn → pop → put(one) → finish → drop → join
@@ -118,9 +117,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) 1)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "lru-helper-put-one-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "lru-helper-put-one-died" "")
              0)))))
 
    ;; ─── Layer 3a sub-helper — put one entry then get the same key ───
@@ -181,9 +179,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) v)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "lru-helper-put-then-get-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "lru-helper-put-then-get-died" "")
              0)))))
 
    ;; ─── Layer 4a sub-helper — score Option<i64> slot vs presence ─────
@@ -263,9 +260,8 @@
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
-           (:wat::core::let*
-             (((_ :wat::core::unit)
-               (:wat::test::assert-eq "lru-helper-get-many-keys-died" "")))
+           (:wat::core::do
+             (:wat::test::assert-eq "lru-helper-get-many-keys-died" "")
              0)))))
    ))
 

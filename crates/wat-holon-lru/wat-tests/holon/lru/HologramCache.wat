@@ -46,9 +46,9 @@
        (k2 :wat::holon::HolonAST)
        (v  :wat::holon::HolonAST)
        -> :wat::core::unit)
-     (:wat::core::let*
-       (((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k1 v))
-        ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k2 v)))
+     (:wat::core::do
+       (:wat::holon::lru::HologramCache/put store k1 v)
+       (:wat::holon::lru::HologramCache/put store k2 v)
        ()))
 
    ;; ─── hc-get-found? ───────────────────────────────────────────────

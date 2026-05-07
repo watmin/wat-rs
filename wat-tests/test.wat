@@ -137,13 +137,13 @@
           (((actual :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/actual f)))
           (:wat::core::match actual -> :wat::core::unit
             ((:wat::core::Some a)
-              (:wat::core::let*
-                (((_ :wat::core::unit) (:wat::test::assert-contains a "cosine"))
-                 ((_ :wat::core::unit) (:wat::test::assert-contains a "floor"))
-                 ((_ :wat::core::unit) (:wat::test::assert-contains a "dim"))
-                 ((_ :wat::core::unit) (:wat::test::assert-contains a "sigma"))
-                 ((_ :wat::core::unit) (:wat::test::assert-contains
-                            a "min-sigma-to-pass")))
+              (:wat::core::do
+                (:wat::test::assert-contains a "cosine")
+                (:wat::test::assert-contains a "floor")
+                (:wat::test::assert-contains a "dim")
+                (:wat::test::assert-contains a "sigma")
+                (:wat::test::assert-contains
+                            a "min-sigma-to-pass")
                 ()))
             (:wat::core::None (:wat::kernel::assertion-failed!
                      "actual slot empty — explanation should populate it"
@@ -165,9 +165,9 @@
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
-            (:wat::core::let*
-              (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout "alpha"))
-               ((_ :wat::core::unit) (:wat::io::IOWriter/println stdout "beta")))
+            (:wat::core::do
+              (:wat::io::IOWriter/println stdout "alpha")
+              (:wat::io::IOWriter/println stdout "beta")
               ())))
         (:wat::core::Vector :wat::core::String)))
      ((expected :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "alpha" "beta")))
