@@ -1,16 +1,51 @@
 # Arc 136 — `:wat::core::do` form (sequential side-effect chain)
 
-**Status:** opened 2026-05-03. **Block on arc 135 closure** before
-shipping — this arc requires a sweep of every `((_ :wat::core::unit) ...)`
-chain in the codebase, and that sweep is cleanest after the
-*complectēns* cleanup ships.
+**Status:** opened 2026-05-03. Arc 135 closed (unblocked).
+
+**Revised 2026-05-06** through three user clarifications:
+
+1. *"do is value bearing, so it should be typed"* — REQUIRES `-> :T`
+   at HEAD (matches `let`/`let*`/`if`/`match`/`cond`/
+   `Option/expect`/`Result/expect`). Original draft predated arc 145's
+   REQUIRED-`-> :T` stance and assumed untyped expansion; dead.
+
+2. *"i don't think do is a macro... i think its just a form the runtime
+   provides... the exception case would be confusing having it be a long
+   let chain"* — Implementation Option A-revised (pure macro expanding
+   to typed `let*`) FAILS Honest. Error messages from the macroexpansion
+   would surface against let*'s shape with anonymous unit-bindings — a
+   form the user didn't write. Substrate special form locks (Option B);
+   the diagnostic stream tells the truth about the source form.
+
+3. *"do is value bearing — same concern as let"* with the Clojure
+   reference (`https://clojuredocs.org/clojure.core/do`):
+   Non-final forms' return types are UNCONSTRAINED (Clojure-faithful).
+   Each non-final is type-checked normally for internal consistency, but
+   its resulting type is silently discarded. Only the final form's type
+   unifies with `-> :T`. This is MORE permissive than the let*-with-unit-
+   bindings crutch, which required each non-final to be `:unit`-typed
+   via the binding slot. Existing migration sites are still clean (today's
+   crutch sites all have :unit-returning non-finals — otherwise they'd
+   already be broken under arc 145).
+
+Q1 (placement) follows arc 145's HEAD position: bindings/non-finals
+are setup; the form's contract is the FINAL form; `-> :T` declares
+that contract before any forms.
+
+Per `feedback_inscription_immutable.md` the prior shape stays as
+historical record. Earlier drafts of this DESIGN locked Option
+A-revised (the macro path); those drafts were Honest-wrong per
+direction (2). The revised DESIGN below replaces Option A-revised's
+lock with Option B's lock; the original "Rejected: Option B" framing
+was the misjudgment direction (2) corrected.
 
 ## TL;DR
 
-Mint `(:wat::core::do form1 form2 form3 ...)` as a sequential
-evaluation form: evaluate forms left-to-right; return the value of
-the last. Replaces the let*-with-`((_ :wat::core::unit) ...)`
-crutch that propagates through every test file.
+Mint `(:wat::core::do -> :T form1 form2 form3 ...)` as a typed
+sequential evaluation form: evaluate forms left-to-right; return the
+value of the last; declared return type is `:T`. Replaces the
+let*-with-`((_ :wat::core::unit) ...)` crutch that propagates
+through every test file.
 
 ## Provenance
 
@@ -36,13 +71,14 @@ degrade against this pattern:
 
 ```scheme
 ;; ❌ Today's crutch — let* with anonymous unit bindings.
-(:wat::core::let*
+;; Post-arc-145, this becomes typed; the noise compounds:
+(:wat::core::let* -> :wat::core::unit
   (((_ :wat::core::unit) (:wat::test::assert-eq v1 e1))
    ((_ :wat::core::unit) (:wat::test::assert-eq v2 e2)))
   (:wat::test::assert-eq v3 e3))
 
-;; ✓ With (:wat::core::do ...) — three forms, clean intent.
-(:wat::core::do
+;; ✓ With (:wat::core::do -> :T ...) — declared once, three forms, clean intent.
+(:wat::core::do -> :wat::core::unit
   (:wat::test::assert-eq v1 e1)
   (:wat::test::assert-eq v2 e2)
   (:wat::test::assert-eq v3 e3))
@@ -65,51 +101,82 @@ Clojure; familiar to anyone reading modern Lisp.
 
 ## Semantics
 
-- `(:wat::core::do)` — zero forms; evaluates to `()` (unit).
-- `(:wat::core::do form1)` — single form; evaluates to form1's value.
-- `(:wat::core::do form1 form2 ... formN)` — evaluates form1, discards its result, ..., evaluates formN, returns formN's value.
+Clojure-faithful sequential evaluation with a typed return contract.
 
-Type rule: each form except the last must have type `:wat::core::unit` (or `:wat::core::Vector<...>` / etc. — any return type whose value can be discarded). The last form's type IS the do-form's type. The substrate enforces unit-or-discardable on non-final forms — same rule that lets* applies to its non-final bindings via the `((_ :unit) ...)` shape.
+- `(:wat::core::do -> :T)` — zero forms; ill-formed (parse error). A do with a declared `:T` and no body has nothing to produce that value; the form would lie.
+- `(:wat::core::do -> :T form1)` — single form; evaluates to form1's value; form1's inferred type unifies with `:T`.
+- `(:wat::core::do -> :T form1 form2 ... formN)` — evaluates form1, discards its result, ..., evaluates formN, returns formN's value. formN's inferred type unifies with `:T`.
 
-## Implementation surface
+Type rule:
+- **Non-final forms** are type-checked normally for internal consistency (each form must parse + check), but their resulting types are UNCONSTRAINED. The substrate evaluates each non-final and silently discards the result. This matches Clojure's `do` semantics: non-finals are pure side effect; their values are intentionally dropped.
+- **Final form** unifies with the declared `-> :T`. Mismatch surfaces a TypeMismatch at the final form's position with the do-form's contract clearly named in the diagnostic.
+- **Untyped form** `(:wat::core::do f1 f2)` without `-> :T` is a parse error post-arc-136. Mirrors arc 145's MalformedForm migration-hint shape.
+- **`:Any` is forbidden** — the substrate has no wildcard type. `:T` is concrete or parametric.
 
-Three options:
+This is MORE permissive than the let*-with-unit-bindings crutch it replaces. The crutch's `((_ :wat::core::unit) expr)` slot REQUIRED expr to be `:unit`-typed (via the binding's declared type). Existing crutch sites all have :unit-returning non-finals (otherwise they'd already be broken under arc 145's typed let*). Migration to do: clean for all current sites; opens future sites where a non-unit value should just be discarded without binding ceremony.
 
-### Option A — Pure macro (preferred)
+## Implementation surface — Option B (substrate special form, locked 2026-05-06)
 
-`(:wat::core::defmacro do (forms) -> :ast ...)` — expands to the
-let*-with-unit-bindings shape we already have. ~10 LOC of wat in
-`wat/core/...wat` (or wherever core macros live).
+Substrate-level special form alongside `if`/`match`/`cond`/`let`/
+`let*`/`try`/`Option/expect`/`Result/expect` — every value-bearing
+core form in the substrate is a special form, and `do` joins that
+set. ~150 LOC across `src/check.rs` + `src/runtime.rs` +
+`src/special_forms.rs` + new `tests/wat_arc136_do_form.rs`.
 
-```scheme
-(:wat::core::defmacro
-  (:wat::core::do (forms :wat::core::Vector<wat::core::ast>) -> :wat::core::ast)
-  ;; Expand (:do f1 f2 f3) → (:let* (((_ :unit) f1) ((_ :unit) f2)) f3)
-  ;; Empty → ()
-  ;; Single form → form
-  ...)
-```
+### Substrate edits (sketch)
 
-Pros: no substrate change; fastest path to ship.
-Cons: error messages still reference let*; expanded form looks like the crutch.
+- `src/check.rs::infer_do(args, ...)`:
+  - args[0] = `->` Symbol (verify; else MalformedForm migration-hint)
+  - args[1] = `:T` Keyword (parse via `parse_type_expr`)
+  - args[2..N-1] = non-final forms; `infer` each (must internally type-check) but DO NOT unify against anything (type discarded)
+  - args[N] = final form; `infer` and unify with declared `:T`; mismatch surfaces TypeMismatch on `:wat::core::do` `body`
+  - return declared `:T`
 
-### Option B — Built-in special form
+- `src/runtime.rs::eval_do(args, env, ...)`:
+  - Skip args[0..2] (`->` + `:T`)
+  - Iterate args[2..N-1]; `eval` each; discard each result
+  - `eval` args[N]; return its value
+  - Tail-call: `eval_do_tail` mirrors but jumps into final form's tail context
+  - Incremental step (`step_do`): single-step semantics for the eval-step!
+    interpreter; preserve `-> :T` tokens verbatim when rebuilding intermediate forms
 
-Substrate-level `eval_form_do` in `runtime.rs` + type-check arm in
-`check.rs` (mirrors `eval_let_star`). Tighter type-checking; cleaner
-diagnostics; but more code.
+- `src/special_forms.rs`:
+  - Register `:wat::core::do` with sketch `(-> <T> <form>...)` — variadic non-final + final form positions
+  - Reflectable via arc 144's lookup-form trio
 
-Pros: errors say "do form" not "let*"; no expansion noise in macroexpand.
-Cons: ~150 LOC across substrate.
+### Why substrate special form (the four-questions re-run)
 
-### Option C — A macro PLUS a substrate-known shape
+After user direction (2): `do` is a runtime form, not a macro.
 
-The macro expands to `let*` BUT the type checker special-cases the
-`((_ :unit) ...)` shape and reports errors as "do form". Sugar
-without surgery. Probably more complex than B in practice.
+- **Obvious?** YES. `(:wat::core::do -> :T f1 f2 f3)` reads cleanly; substrate handles directly; errors say "do form."
+- **Simple?** YES. ~150 LOC across the established substrate pattern. Each piece (infer arm, eval arm, registry sketch, test file) is atomic; composition follows the pattern shared with `if`/`match`/`let`/`let*`/`try`/`option::expect`/`result::expect`. More LOC than a macro, but the SAME shape as siblings — uniform composition.
+- **Honest?** YES. Errors say "do form" because the form IS "do form." No macroexpansion noise; the diagnostic stream tells the truth about the source form. Substrate-as-teacher doctrine + arc 145's typed-let pattern both align.
+- **Good UX?** YES. Diagnostics surface against what the user wrote. Substrate-as-teacher per arc 145 sweep 1b loop: write `-> :T`; iterate per error; converge on honest contract.
 
-**Recommendation: Option A first.** Ship the macro, sweep the
-codebase. If diagnostic quality matters later, promote to B.
+### Rejected: Option A-revised (pure macro expanding to typed `let*`)
+
+Earlier drafts of this DESIGN locked Option A-revised: a defmacro
+consuming `-> :T` and emitting a typed `let*` with unit-discarded
+non-final bindings. ~15 LOC of wat; no substrate change.
+
+**Rejection rationale (Honest):** the macro lies via expansion.
+When type-check fails on `(:wat::core::do -> :T f1 f2 f3)`, the
+diagnostic surfaces against the macroexpanded `let*`-with-anonymous-
+unit-bindings shape — a form the user did NOT write. Caller has to
+mentally decompile the macroexpansion to understand the error. The
+"macroexpand surfaces the underlying shape if asked" framing was
+papering over the lie — from the caller's perspective, the
+diagnostic doesn't tell the truth about what they typed.
+
+The Honest test fails at the consumer surface even when it passes
+at the source-availability surface. Stop at first NO. Option
+A-revised is dead.
+
+**Cost of the Honest cut:** ~150 LOC vs ~15 LOC. The user direction
+"build complexity up from simplicity composition" picks the
+honest-and-larger over the dishonest-and-smaller. The substrate
+ALREADY has the special-form pattern; adding `do` to that family
+follows established composition. No new entity kind; no novel shape.
 
 ## Sweep scope
 
@@ -119,31 +186,76 @@ Once the form ships, every wat-tests file gets a sweep:
 grep -rn '((_ :wat::core::unit)' wat-tests/ crates/*/wat-tests/ | wc -l
 ```
 
-Estimated 100+ sites. Most replace cleanly:
+Estimated 100+ sites. Note: arc 145 sweep 1b will have ALREADY
+typed every existing `let*` with `-> :T` before arc 136 runs —
+so the sweep target is typed `let*`-with-unit-bindings, not
+untyped. The `:T` carries through the transform unchanged:
+
 ```
-(:wat::core::let*
+(:wat::core::let* -> :T
   (((_ :wat::core::unit) FORM-1)
    ((_ :wat::core::unit) FORM-2))
   FORM-3)
 ```
 becomes:
 ```
-(:wat::core::do FORM-1 FORM-2 FORM-3)
+(:wat::core::do -> :T FORM-1 FORM-2 FORM-3)
 ```
 
+Pure mechanical 1:1 transform. The `-> :T` arc-145 already added
+maps directly to the `do`'s `-> :T` slot.
+
+The do form is MORE permissive at non-final positions than the
+let*-with-unit-bindings crutch. Today's `((_ :unit) FORM-i)` slot
+required FORM-i to be `:unit`-typed (binding-slot type-check).
+After arc 136, `(:do -> :T FORM-i ... FORM-N)` allows FORM-i to
+be ANY type — its value is discarded. Existing crutch sites all
+have :unit-returning non-finals (otherwise arc 145 would already
+have rejected them); the migration is clean. Future sites where
+"discard non-unit return without binding ceremony" is wanted
+become first-class.
+
 Some sites are MIXED — `((_ :unit) ...)` interspersed with real
-bindings. Those stay as let*. Phase-2 judgment.
+bindings. Those stay as `let*`. Phase-2 judgment.
 
 ## Slice plan
 
-- **Slice 1** — mint the macro at `wat/core/...wat` (or wherever
-  core macros live). Add ~5 unit tests covering empty / single /
-  multiple / type-error cases.
-- **Slice 2** — sweep. Replace pure `((_ :unit) ...)` chains with
-  `(:wat::core::do ...)`. Mixed bindings stay let*. Workspace
-  green throughout.
-- **Slice 3** — closure. INSCRIPTION + USER-GUIDE row + WAT-
-  CHEATSHEET note + memory pointer.
+**Sequencing constraint:** arc 145 must close before arc 136
+slice 1 spawns. Arc 145's sweep 1b types every existing `let*`
+with `-> :T`; arc 136's slice 2 then sweeps those typed `let*`-
+with-unit-bindings into typed `do`. If arc 136 runs before arc
+145 ships, the sweep target shape is wrong (untyped) and the
+transform breaks.
+
+- **Slice 1a (substrate)** — mint `:wat::core::do` as a substrate
+  special form per the Implementation surface sketch above:
+  - `infer_do` arm in `src/check.rs` (mirror `infer_let_star`'s
+    HEAD-position `-> :T` parsing + migration-hint MalformedForm)
+  - `eval_do` + `eval_do_tail` + `step_do` arms in `src/runtime.rs`
+  - Registry sketch update in `src/special_forms.rs`
+  - 6-10 unit tests in new `tests/wat_arc136_do_form.rs`:
+    - Empty: `(do -> :T)` parse error
+    - Single: `(do -> :T f)` returns f's value
+    - Multi: `(do -> :T f1 f2 f3)` evaluates all, returns f3's value, discards f1/f2 results
+    - Final-form type-error: declared `-> :i64` but final form returns String
+    - Non-final value discarded: a non-final form returning non-unit type evaluates cleanly (final form's type is the contract)
+    - Untyped `(do f1 f2)` parse error with migration-hint MalformedForm
+    - Reflection round-trip via lookup-form
+  - This substrate change MAY break consumer sites that the user
+    didn't intend to discard non-final results — sweep 1b (below)
+    catches those via substrate-as-teacher.
+- **Slice 1b (consumer migration)** — sweep ~100+ typed `let*`-with-
+  unit-bindings sites → typed `do`. Substrate-as-teacher loop per
+  arc 145's discipline:
+  - For each `(:let* -> :T (((_ :unit) f) ...) body)` site, transform to `(:do -> :T f ... body)`
+  - Run cargo test; mixed-binding sites (real bindings + unit-discards interspersed) stay `let*` and surface no error
+  - Iterate per cargo error until 0-failed
+  - Per `feedback_simple_is_uniform_composition.md`: N identical 1:1 transforms IS simple
+  - Atomic commit with slice 1a per recovery doc § 7
+- **Slice 2 (closure)** — INSCRIPTION + 058 row + USER-GUIDE entry +
+  WAT-CHEATSHEET note + cross-references to arc 145 (typed-let
+  precedent) + arc 108 (typed-`-> :T` precedent for value-bearing
+  forms). Pre-INSCRIPTION grep mandatory per FM 11.
 
 ## Cross-references
 
@@ -154,7 +266,9 @@ bindings. Those stay as let*. Phase-2 judgment.
 
 ## When to start
 
-After arc 135 closes (all 8 cleanup-queue files shipped + INSCRIPTION). The compositional rewrites flowing through arc 135 will end up using the let*-with-unit-bindings pattern; arc 136 sweeps that to the new form. Sequential — don't thrash both at once.
+After arc 145 closes (typed-let substrate + consumer migration shipped). Arc 145's sweep 1b types every existing `let*`-with-unit-bindings chain with `-> :T`; arc 136's slice 2 then sweeps those typed chains into typed `do`. Running arc 136 before arc 145 ships breaks the sweep target shape.
+
+Original (pre-arc-145-revision) sequencing rationale: arc 135 closed first to land cleanup before the do-form sweep. That rationale still holds (arc 135 closed); the new gate is arc 145.
 
 ## Why this matters
 
