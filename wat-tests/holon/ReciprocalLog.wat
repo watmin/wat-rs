@@ -21,7 +21,7 @@
 ;; ─── 1. expansion equivalence ──────────────────────────────────
 
 (:deftest :wat-tests::holon::ReciprocalLog::test-expansion-matches-explicit-log
-  (:wat::core::let*
+  (:wat::core::let
     (((sugar :wat::holon::HolonAST)
       (:wat::holon::ReciprocalLog 2.0 1.5))
      ((explicit :wat::holon::HolonAST)
@@ -33,7 +33,7 @@
 ;; ─── 2. reference value = 1.0 self-coincidence ─────────────────
 
 (:deftest :wat-tests::holon::ReciprocalLog::test-value-1-coincides-with-itself
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST)
       (:wat::holon::ReciprocalLog 2.0 1.0))
      ((b :wat::holon::HolonAST)
@@ -45,7 +45,7 @@
 ;; ─── 3. value = n saturates distinguishably from value = 1 ─────
 
 (:deftest :wat-tests::holon::ReciprocalLog::test-upper-bound-not-coincident-with-reference
-  (:wat::core::let*
+  (:wat::core::let
     (((ref :wat::holon::HolonAST)
       (:wat::holon::ReciprocalLog 2.0 1.0))
      ((upper :wat::holon::HolonAST)
@@ -57,7 +57,7 @@
 ;; ─── 4. different N for same value encodes differently ─────────
 
 (:deftest :wat-tests::holon::ReciprocalLog::test-different-n-differs-for-same-value
-  (:wat::core::let*
+  (:wat::core::let
     (((tight :wat::holon::HolonAST)
       (:wat::holon::ReciprocalLog 2.0 1.5))
      ((wide :wat::holon::HolonAST)

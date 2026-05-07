@@ -36,7 +36,7 @@ fn raise_data_round_trips_through_failure_message() {
     let src = r##"
         (:wat::core::define
           (:user::main -> :wat::core::Option<wat::holon::HolonAST>)
-          (:wat::core::let*
+          (:wat::core::let
             (((forms :wat::core::Vector<wat::WatAST>)
               (:wat::test::program
                 (:wat::core::define (:user::main

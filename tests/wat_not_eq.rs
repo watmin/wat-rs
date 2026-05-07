@@ -95,7 +95,7 @@ fn eq_on_enum_unit_variants() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((a :my::Color) :my::Color::Red)
              ((b :my::Color) :my::Color::Red)
              ((c :my::Color) :my::Color::Blue))

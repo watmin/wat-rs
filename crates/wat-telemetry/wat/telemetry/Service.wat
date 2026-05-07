@@ -136,7 +136,7 @@
     (dispatcher :fn(wat::core::Vector<E>)->wat::core::nil)
     (stats-translator :fn(wat::telemetry::Stats)->wat::core::Vector<E>)
     -> :wat::telemetry::Step<G>)
-  (:wat::core::let*
+  (:wat::core::let
     (((gate :G)
       (:wat::telemetry::MetricsCadence/gate cadence))
      ((tick-fn :fn(G,wat::telemetry::Stats)->(G,wat::core::bool))
@@ -148,7 +148,7 @@
       (:wat::telemetry::MetricsCadence/new gate' tick-fn)))
     (:wat::core::if fired
       -> :wat::telemetry::Step<G>
-      (:wat::core::let*
+      (:wat::core::let
         (((entries :wat::core::Vector<E>) (stats-translator stats))
          ((_dispatch :wat::core::nil) (dispatcher entries)))
         (:wat::core::Tuple
@@ -188,7 +188,7 @@
     (req-entries :wat::core::Vector<E>)
     (ack :wat::telemetry::AckTx)
     -> :wat::telemetry::Pending<E>)
-  (:wat::core::let*
+  (:wat::core::let
     (((entries :wat::core::Vector<E>) (:wat::core::first acc))
      ((acks :wat::core::Vector<wat::telemetry::AckTx>) (:wat::core::second acc))
      ((entries' :wat::core::Vector<E>) (:wat::core::concat entries req-entries))
@@ -211,7 +211,7 @@
     (first-entries :wat::core::Vector<E>)
     (indexed :wat::telemetry::IndexedDriverPair<E>)
     -> :wat::telemetry::Pending<E>)
-  (:wat::core::let*
+  (:wat::core::let
     (((pair :wat::telemetry::DriverPair<E>) (:wat::core::first indexed))
      ((idx :wat::core::i64) (:wat::core::second indexed))
      ((rx :wat::telemetry::ReqRx<E>) (:wat::core::first pair))
@@ -236,7 +236,7 @@
     (first-entries :wat::core::Vector<E>)
     (init :wat::telemetry::Pending<E>)
     -> :wat::telemetry::Pending<E>)
-  (:wat::core::let*
+  (:wat::core::let
     (((indices :wat::core::Vector<wat::core::i64>)
       (:wat::core::range 0 (:wat::core::length pairs)))
      ((indexed :wat::core::Vector<wat::telemetry::IndexedDriverPair<E>>)
@@ -267,7 +267,7 @@
     (stats :wat::telemetry::Stats)
     (batch-size :wat::core::i64)
     -> :wat::telemetry::Stats)
-  (:wat::core::let*
+  (:wat::core::let
     (((max-prev :wat::core::i64)
       (:wat::telemetry::Stats/max-batch-size stats))
      ((max' :wat::core::i64)
@@ -305,7 +305,7 @@
     (dispatcher :fn(wat::core::Vector<E>)->wat::core::nil)
     (stats-translator :fn(wat::telemetry::Stats)->wat::core::Vector<E>)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((init :wat::telemetry::Pending<E>)
       (:wat::core::Tuple
         (:wat::core::Vector :E)
@@ -340,7 +340,7 @@
     -> :wat::core::nil)
   (:wat::core::if (:wat::core::empty? pairs) -> :wat::core::nil
     :wat::core::nil
-    (:wat::core::let*
+    (:wat::core::let
       (((rxs :wat::core::Vector<wat::telemetry::ReqRx<E>>)
         (:wat::telemetry::pair-rxs pairs))
        ((chosen :wat::kernel::Chosen<wat::telemetry::Request<E>>)
@@ -370,7 +370,7 @@
     (ack-rx :wat::telemetry::AckRx)
     (entries :wat::core::Vector<E>)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((_send :wat::core::nil)
       (:wat::core::Result/expect -> :wat::core::nil
         (:wat::kernel::send req-tx entries)
@@ -411,7 +411,7 @@
     (dispatcher :fn(wat::core::Vector<E>)->wat::core::nil)
     (stats-translator :fn(wat::telemetry::Stats)->wat::core::Vector<E>)
     -> :wat::telemetry::Spawn<E>)
-  (:wat::core::let*
+  (:wat::core::let
     (((req-pairs :wat::core::Vector<wat::telemetry::ReqChannel<E>>)
       (:wat::core::map
         (:wat::core::range 0 count)
@@ -431,7 +431,7 @@
         (:wat::core::lambda
           ((rp+ap :wat::telemetry::Connection<E>)
            -> :wat::telemetry::Handle<E>)
-          (:wat::core::let*
+          (:wat::core::let
             (((rp :wat::telemetry::ReqChannel<E>) (:wat::core::first rp+ap))
              ((ap :wat::telemetry::AckChannel) (:wat::core::second rp+ap))
              ((req-tx :wat::telemetry::ReqTx<E>) (:wat::core::first rp))
@@ -443,7 +443,7 @@
         (:wat::core::lambda
           ((rp+ap :wat::telemetry::Connection<E>)
            -> :wat::telemetry::DriverPair<E>)
-          (:wat::core::let*
+          (:wat::core::let
             (((rp :wat::telemetry::ReqChannel<E>) (:wat::core::first rp+ap))
              ((ap :wat::telemetry::AckChannel) (:wat::core::second rp+ap))
              ((req-rx :wat::telemetry::ReqRx<E>) (:wat::core::second rp))

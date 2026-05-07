@@ -197,14 +197,14 @@
     (reply-tx :wat::lru::ReplyTx<V>)
     (state :wat::lru::State<K,V>)
     -> :wat::lru::State<K,V>)
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<K,V>)
       (:wat::lru::State/cache state))
      ((stats :wat::lru::Stats)
       (:wat::lru::State/stats state)))
     (:wat::core::match req -> :wat::lru::State<K,V>
       ((:wat::lru::Request::Get probes)
-        (:wat::core::let*
+        (:wat::core::let
           (((results :wat::core::Vector<wat::core::Option<V>>)
             (:wat::core::map probes
               (:wat::core::lambda ((k :K) -> :wat::core::Option<V>)
@@ -234,12 +234,12 @@
               (:wat::lru::Stats/cache-size stats))))
           (:wat::lru::State/new cache stats')))
       ((:wat::lru::Request::Put entries)
-        (:wat::core::let*
+        (:wat::core::let
           (((_ :wat::core::Vector<wat::core::Option<(K,V)>>)
             (:wat::core::map entries
               (:wat::core::lambda
                 ((entry :wat::lru::Entry<K,V>) -> :wat::core::Option<(K,V)>)
-                (:wat::core::let*
+                (:wat::core::let
                   (((k :K) (:wat::core::first entry))
                    ((v :V) (:wat::core::second entry)))
                   (:wat::lru::LocalCache::put cache k v)))))
@@ -269,7 +269,7 @@
     (reporter :wat::lru::Reporter)
     (metrics-cadence :wat::lru::MetricsCadence<G>)
     -> :wat::lru::Step<K,V,G>)
-  (:wat::core::let*
+  (:wat::core::let
     (((stats :wat::lru::Stats)
       (:wat::lru::State/stats state))
      ((gate :G)
@@ -282,7 +282,7 @@
      ((cadence' :wat::lru::MetricsCadence<G>)
       (:wat::lru::MetricsCadence/new gate' tick-fn)))
     (:wat::core::if fired -> :wat::lru::Step<K,V,G>
-      (:wat::core::let*
+      (:wat::core::let
         (((cache :wat::lru::LocalCache<K,V>)
           (:wat::lru::State/cache state))
          ((final-stats :wat::lru::Stats)
@@ -317,7 +317,7 @@
     -> :wat::core::nil)
   (:wat::core::match (:wat::core::get driver-pairs idx) -> :wat::core::nil
     ((:wat::core::Some pair)
-      (:wat::core::let*
+      (:wat::core::let
         (((reply-tx :wat::lru::ReplyTx<V>)
           (:wat::core::second pair))
          ((after-handle :wat::lru::State<K,V>)
@@ -348,7 +348,7 @@
     (reporter :wat::lru::Reporter)
     (metrics-cadence :wat::lru::MetricsCadence<G>)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<K,V>)
       (:wat::lru::LocalCache::new capacity))
      ((initial :wat::lru::State<K,V>)
@@ -370,7 +370,7 @@
     -> :wat::core::nil)
   (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::nil
     :wat::core::nil
-    (:wat::core::let*
+    (:wat::core::let
       (((req-rxs :wat::core::Vector<wat::lru::ReqRx<K,V>>)
         (:wat::core::map driver-pairs
           (:wat::core::lambda
@@ -410,7 +410,7 @@
     (handle :wat::lru::Handle<K,V>)
     (probes :wat::core::Vector<K>)
     -> :wat::core::Vector<wat::core::Option<V>>)
-  (:wat::core::let*
+  (:wat::core::let
     (((req-tx :wat::lru::ReqTx<K,V>)
       (:wat::core::first handle))
      ((reply-rx :wat::lru::ReplyRx<V>)
@@ -439,7 +439,7 @@
     (handle :wat::lru::Handle<K,V>)
     (entries :wat::core::Vector<wat::lru::Entry<K,V>>)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((req-tx :wat::lru::ReqTx<K,V>)
       (:wat::core::first handle))
      ((reply-rx :wat::lru::ReplyRx<V>)
@@ -482,7 +482,7 @@
     (reporter :wat::lru::Reporter)
     (metrics-cadence :wat::lru::MetricsCadence<G>)
     -> :wat::lru::Spawn<K,V>)
-  (:wat::core::let*
+  (:wat::core::let
     ;; N request pairs and N reply pairs in lock-step. The pair index
     ;; is preserved so Handle[i] and DriverPair[i] correspond to the
     ;; same slot.

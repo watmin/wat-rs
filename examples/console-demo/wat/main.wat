@@ -42,7 +42,7 @@
   (:demo::run
     (logger :wat::telemetry::ConsoleLogger)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (;; Routine flow → stdout
      ((_a :wat::core::nil)
       (:wat::telemetry::ConsoleLogger/info logger
@@ -95,7 +95,7 @@
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((con-spawn :wat::console::Spawn)
       (:wat::console::spawn stdout stderr 1))
      ((con-pool :wat::kernel::HandlePool<wat::console::Handle>)
@@ -103,7 +103,7 @@
      ((con-driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::core::second con-spawn))
      ((_inner :wat::core::nil)
-      (:wat::core::let*
+      (:wat::core::let
         (((handle :wat::console::Handle)
           (:wat::kernel::HandlePool::pop con-pool))
          ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish con-pool))

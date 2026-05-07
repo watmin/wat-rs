@@ -56,7 +56,7 @@ fn pipe_returns_writer_reader_tuple() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((pair :(wat::io::IOWriter,wat::io::IOReader))
               (:wat::kernel::pipe))
              ((_w :wat::io::IOWriter) (:wat::core::first pair))
@@ -73,7 +73,7 @@ fn pipe_writeln_then_read_line_round_trips() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((pair :(wat::io::IOWriter,wat::io::IOReader))
               (:wat::kernel::pipe))
              ((w :wat::io::IOWriter) (:wat::core::first pair))
@@ -89,7 +89,7 @@ fn pipe_multiple_writelns_read_line_by_line() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::String)
-          (:wat::core::let*
+          (:wat::core::let
             (((pair :(wat::io::IOWriter,wat::io::IOReader))
               (:wat::kernel::pipe))
              ((w :wat::io::IOWriter) (:wat::core::first pair))
@@ -115,7 +115,7 @@ fn pipe_write_string_then_read_exact_bytes() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((pair :(wat::io::IOWriter,wat::io::IOReader))
               (:wat::kernel::pipe))
              ((w :wat::io::IOWriter) (:wat::core::first pair))
@@ -136,7 +136,7 @@ fn pipe_preserves_utf8_lines() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((pair :(wat::io::IOWriter,wat::io::IOReader))
               (:wat::kernel::pipe))
              ((w :wat::io::IOWriter) (:wat::core::first pair))

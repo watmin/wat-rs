@@ -92,7 +92,7 @@ fn user_function_lookup_define_emits_define_head() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :user::greet))
              ((rendered :wat::core::String)
@@ -130,7 +130,7 @@ fn user_function_signature_and_body_return_some() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::signature-of :user::add))
              ((body-opt :wat::core::Option<wat::holon::HolonAST>)
@@ -191,7 +191,7 @@ fn primitive_lookup_define_and_signature_smoke() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :wat::core::foldl))
              ((sig-opt :wat::core::Option<wat::holon::HolonAST>)
@@ -224,7 +224,7 @@ fn special_form_lookup_define_smoke() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :wat::core::if))
              ((rendered :wat::core::String)
@@ -265,7 +265,7 @@ fn type_lookup_define_smoke() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :my::Pair))
              ((rendered :wat::core::String)
@@ -304,7 +304,7 @@ fn dispatch_length_lookup_define_emits_define_dispatch_head() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :wat::core::length))
              ((rendered :wat::core::String)
@@ -351,7 +351,7 @@ fn dispatch_length_signature_and_body_shape() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::signature-of :wat::core::length))
              ((body-opt :wat::core::Option<wat::holon::HolonAST>)

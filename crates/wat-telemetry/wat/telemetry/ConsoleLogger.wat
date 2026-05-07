@@ -58,7 +58,7 @@
     (level :wat::core::keyword)
     (entry :E)
     -> :wat::core::String)
-  (:wat::core::let*
+  (:wat::core::let
     (((caller :wat::core::keyword)
       (:wat::telemetry::ConsoleLogger/caller logger))
      ((format :wat::telemetry::Console::Format)
@@ -90,7 +90,7 @@
     (level :wat::core::keyword)
     (line :wat::core::String)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((handle :wat::console::Handle)
       (:wat::telemetry::ConsoleLogger/con-handle logger))
      ((to-stderr :wat::core::bool)
@@ -111,7 +111,7 @@
     (level :wat::core::keyword)
     (entry :E)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((now-fn :fn(wat::core::nil)->wat::time::Instant)
       (:wat::telemetry::ConsoleLogger/now-fn logger))
      ((now :wat::time::Instant) (now-fn :wat::core::nil))

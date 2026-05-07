@@ -59,7 +59,7 @@ fn vector_construct_via_encode() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((v1 :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((v2 :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x"))))
             (:wat::io::IOWriter/println stdout
@@ -77,7 +77,7 @@ fn vector_distinct_atoms_distinct_vectors() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "alpha")))
              ((vb :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "beta"))))
             (:wat::io::IOWriter/println stdout
@@ -101,7 +101,7 @@ fn vector_as_struct_field_roundtrip() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((e :my::Engram) (:my::Engram/new "alpha" v))
              ((retrieved :wat::holon::Vector) (:my::Engram/vec e)))
@@ -123,7 +123,7 @@ fn polymorphic_cosine_ast_ast() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::holon::HolonAST) (:wat::holon::Atom "x"))
              ((b :wat::holon::HolonAST) (:wat::holon::Atom "x"))
              ((c :wat::core::f64) (:wat::holon::cosine a b)))
@@ -142,7 +142,7 @@ fn polymorphic_cosine_vector_vector() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((vb :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((c :wat::core::f64) (:wat::holon::cosine va vb)))
@@ -161,7 +161,7 @@ fn polymorphic_cosine_ast_vector_mixed() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::holon::HolonAST) (:wat::holon::Atom "x"))
              ((vb :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((c :wat::core::f64) (:wat::holon::cosine a vb)))
@@ -180,7 +180,7 @@ fn polymorphic_cosine_vector_ast_mixed() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((b :wat::holon::HolonAST) (:wat::holon::Atom "x"))
              ((c :wat::core::f64) (:wat::holon::cosine va b)))
@@ -201,7 +201,7 @@ fn polymorphic_dot_vector_vector() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((vb :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((d :wat::core::f64) (:wat::holon::dot va vb)))
@@ -223,7 +223,7 @@ fn polymorphic_simhash_ast_and_vector_agree() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((ast :wat::holon::HolonAST) (:wat::holon::Atom "alpha"))
              ((vec :wat::holon::Vector) (:wat::holon::encode ast))
              ((k-ast :wat::core::i64) (:wat::holon::simhash ast))
@@ -245,7 +245,7 @@ fn polymorphic_cosine_rejects_string() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((bad :f64) (:wat::holon::cosine "hello" "world")))
+          (:wat::core::let (((bad :f64) (:wat::holon::cosine "hello" "world")))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string bad))))
     "##;
     let err = run_expecting_check_error(src);
@@ -270,7 +270,7 @@ fn vector_encode_deterministic_across_calls() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::holon::HolonAST)
               (:wat::holon::Bind
                 (:wat::holon::Atom "role")

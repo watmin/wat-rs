@@ -45,7 +45,7 @@ fn sort_by_ascending_i64() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 3 1 4 1 5 9 2 6))
              ((sorted :wat::core::Vector<wat::core::i64>)
               (:wat::core::sort-by xs
@@ -69,7 +69,7 @@ fn sort_by_descending_f64() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 1.5 0.5 2.5 1.0))
              ((sorted :wat::core::Vector<wat::core::f64>)
               (:wat::core::sort-by xs
@@ -93,7 +93,7 @@ fn sort_by_string() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "banana" "apple" "cherry"))
              ((sorted :wat::core::Vector<wat::core::String>)
               (:wat::core::sort-by xs
@@ -113,7 +113,7 @@ fn sort_by_empty_vec() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64))
              ((sorted :wat::core::Vector<wat::core::i64>)
               (:wat::core::sort-by xs
@@ -134,7 +134,7 @@ fn sort_by_tuple_first_field_key() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<(wat::core::i64,wat::core::String)>)
               (:wat::core::Vector :(wat::core::i64,wat::core::String)
                 (:wat::core::Tuple 30 "alice")

@@ -39,7 +39,7 @@
        -> :wat::holon::HolonAST
        ((:wat::core::Ok h) h)
        ((:wat::core::Err _) (:wat::holon::leaf 0)))))
-  (:wat::core::let*
+  (:wat::core::let
     (((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
      ((noise :wat::holon::HolonAST) (:wat::holon::Atom "noise"))
      ;; x contains y plus a noise atom — x has a real y-component.
@@ -60,7 +60,7 @@
        -> :wat::holon::HolonAST
        ((:wat::core::Ok h) h)
        ((:wat::core::Err _) (:wat::holon::leaf 0)))))
-  (:wat::core::let*
+  (:wat::core::let
     (((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
      ((noise :wat::holon::HolonAST) (:wat::holon::Atom "noise"))
      ;; x contains y plus a noise atom — x has a real y-component

@@ -25,7 +25,7 @@
        (time-ns :wat::core::i64)
        (msg :wat::core::String)
        -> :wat::telemetry::Event)
-     (:wat::core::let*
+     (:wat::core::let
        (((ns-ast    :wat::holon::HolonAST) (:wat::holon::leaf :test::reader))
         ((cal-ast   :wat::holon::HolonAST) (:wat::holon::leaf :test::reader::roundtrip))
         ((lvl-ast   :wat::holon::HolonAST) (:wat::holon::leaf :info))
@@ -46,7 +46,7 @@
      (:test::reader::write-three
        (pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
        -> :wat::core::nil)
-     (:wat::core::let*
+     (:wat::core::let
        (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
@@ -69,7 +69,7 @@
      (:test::reader::write-fixture
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-     (:wat::core::let*
+     (:wat::core::let
        (((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
            :wat::telemetry::Event
@@ -97,7 +97,7 @@
 ;; below.
 (:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-roundtrip-three-logs
-  (:wat::core::let*
+  (:wat::core::let
     (;; Phase 1 — write fixture. Auto-deleting TempFile so the
      ;; .db unlinks at let* scope exit (Drop fires when the
      ;; binding's Arc-count reaches zero); no /tmp leak across
@@ -128,7 +128,7 @@
 ;; should yield only the {2000, 3000} pair.
 (:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-since-narrowing
-  (:wat::core::let*
+  (:wat::core::let
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
@@ -156,7 +156,7 @@
 ;; Slice 2 — Until cutoff drops the newer rows.
 (:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-until-narrowing
-  (:wat::core::let*
+  (:wat::core::let
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
@@ -182,7 +182,7 @@
 ;; Slice 2 — Since AND Until compose to a window.
 (:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-since-and-until-window
-  (:wat::core::let*
+  (:wat::core::let
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
@@ -213,7 +213,7 @@
 ;; atom-value extracts the original message string.
 (:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-data-ast-extracts-holon
-  (:wat::core::let*
+  (:wat::core::let
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
@@ -249,7 +249,7 @@
 ;; explicit atom-value step — the lift goes straight to T.
 (:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-data-value-lifts-string
-  (:wat::core::let*
+  (:wat::core::let
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)

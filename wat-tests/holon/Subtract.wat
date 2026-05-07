@@ -10,7 +10,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Subtract::test-self-presence-above-floor
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "alice"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "bob"))
      ((diff :wat::holon::HolonAST) (:wat::holon::Subtract a b)))
@@ -18,7 +18,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Subtract::test-unrelated-presence-below-floor
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "alice"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "bob"))
      ((c :wat::holon::HolonAST) (:wat::holon::Atom "charlie"))

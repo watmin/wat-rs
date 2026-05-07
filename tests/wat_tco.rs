@@ -127,7 +127,7 @@ fn tail_call_inside_let_star_body_propagates() {
     let src = r#"
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((next :wat::core::i64) (:wat::core::i64::-,2 n 1)))
             (:wat::core::if (:wat::core::<= n 0) -> :wat::core::i64
               0
@@ -184,7 +184,7 @@ fn try_inside_tail_recursive_function_short_circuits() {
             (:wat::core::Ok n)))
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((valid :wat::core::i64) (:wat::core::Result/try (:app::check n))))
             (:wat::core::if (:wat::core::= valid 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
               (:wat::core::Ok 0)
@@ -212,7 +212,7 @@ fn try_inside_tail_recursive_function_propagates_err() {
             (:wat::core::Ok n)))
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((valid :wat::core::i64) (:wat::core::Result/try (:app::check n))))
             (:wat::core::if (:wat::core::<= valid (:wat::core::i64::-,2 0 1)) -> :wat::core::Result<wat::core::i64,wat::core::String>
               (:wat::core::Ok 0)
@@ -246,7 +246,7 @@ fn lambda_tail_call_via_let_bound_symbol() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((f :fn(wat::core::i64)->wat::core::i64)
               (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
                 (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64 0 n))))
@@ -285,7 +285,7 @@ fn named_define_tail_calls_lambda_param() {
           (f n))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((double :fn(wat::core::i64)->wat::core::i64)
               (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64)
                 (:wat::core::i64::*,2 x 2))))

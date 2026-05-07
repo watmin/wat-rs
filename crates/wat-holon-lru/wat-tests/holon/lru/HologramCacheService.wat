@@ -45,9 +45,9 @@
    ;; their Sender clones drop before outer join (arc 117/126 check).
    (:wat::core::define
      (:test::hcs-spawn-and-drop -> :wat::core::nil)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::holon::lru::HologramCacheService::Spawn)
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
@@ -75,9 +75,9 @@
    ;; the result-vec length.
    (:wat::core::define
      (:test::hcs-helper-get-empty -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver-and-n :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::holon::lru::HologramCacheService::Spawn)
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
@@ -113,9 +113,9 @@
    ;; trips up.
    (:wat::core::define
      (:test::hcs-helper-put-one -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::holon::lru::HologramCacheService::Spawn)
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
@@ -167,7 +167,7 @@
        (k :wat::holon::HolonAST)
        (v :wat::holon::HolonAST)
        -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((_put :wat::core::nil)
          (:wat::holon::lru::HologramCacheService/put handle
            (:wat::core::Vector :wat::holon::lru::HologramCacheService::Entry
@@ -188,9 +188,9 @@
    ;; down. Returns 1 on Some hit, 0 on miss / Err join.
    (:wat::core::define
      (:test::hcs-helper-put-then-get -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver-and-p :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::holon::lru::HologramCacheService::Spawn)
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
@@ -227,7 +227,7 @@
      (:test::hcs-probe-three-on-handle
        (handle :wat::holon::lru::HologramCacheService::Handle)
        -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((_put :wat::core::nil)
          (:wat::holon::lru::HologramCacheService/put handle
            (:wat::core::Vector :wat::holon::lru::HologramCacheService::Entry
@@ -262,9 +262,9 @@
    ;; packed presence pattern — the deftest body asserts against 110.
    (:wat::core::define
      (:test::hcs-helper-get-many-keys -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver-and-pat :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::holon::lru::HologramCacheService::Spawn)
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
@@ -299,7 +299,7 @@
      (:test::hcs-eviction-on-handle
        (handle :wat::holon::lru::HologramCacheService::Handle)
        -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((_put :wat::core::nil)
          (:wat::holon::lru::HologramCacheService/put handle
            (:wat::core::Vector :wat::holon::lru::HologramCacheService::Entry
@@ -335,9 +335,9 @@
    ;; Returns the packed presence pattern — deftest body asserts 011.
    (:wat::core::define
      (:test::hcs-eviction -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver-and-pat :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::holon::lru::HologramCacheService::Spawn)
              (:wat::holon::lru::HologramCacheService/spawn 1 2
                :wat::holon::lru::HologramCacheService/null-reporter
@@ -382,9 +382,9 @@
    ;; two clients' hit/miss bits. Both hit → 11.
    (:wat::core::define
      (:test::hcs-multi-client -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver-and-pat :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::holon::lru::HologramCacheService::Spawn)
              (:wat::holon::lru::HologramCacheService/spawn 2 16
                :wat::holon::lru::HologramCacheService/null-reporter

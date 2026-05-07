@@ -308,7 +308,7 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
                                   -> :wat::core::nil)
-               (:wat::core::let*
+               (:wat::core::let
                  (((_ :wat::core::nil) (:wat::io::IOWriter/println stdout \"before panic\"))
                   ((_ :wat::holon::BundleResult)
                    (:wat::holon::Bundle

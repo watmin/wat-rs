@@ -111,7 +111,7 @@
     -> :wat::core::nil)
   (:wat::core::if (:wat::core::empty? pairs) -> :wat::core::nil
     :wat::core::nil
-    (:wat::core::let*
+    (:wat::core::let
       (((rxs :wat::core::Vector<wat::console::ReqRx>)
         (:wat::core::map pairs
           (:wat::core::lambda
@@ -125,7 +125,7 @@
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::nil
         ((:wat::core::Ok (:wat::core::Some tagged))
-          (:wat::core::let*
+          (:wat::core::let
             (((tag :wat::core::i64) (:wat::core::first tagged))
              ((msg :wat::core::String) (:wat::core::second tagged))
              ((_ :wat::core::i64) (:wat::core::if (:wat::core::= tag 0) -> :wat::core::i64
@@ -160,7 +160,7 @@
     -> :wat::core::nil)
   (:wat::core::match (:wat::core::get pairs idx) -> :wat::core::nil
     ((:wat::core::Some pair)
-      (:wat::core::let*
+      (:wat::core::let
         (((ack-tx :wat::console::AckTx)
           (:wat::core::second pair)))
         (:wat::core::Result/expect -> :wat::core::nil
@@ -190,7 +190,7 @@
     (handle :wat::console::Handle)
     (msg :wat::core::String)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((tx :wat::console::ReqTx) (:wat::core::first handle))
      ((ack-rx :wat::console::AckRx) (:wat::core::second handle))
      ((_send :wat::core::nil)
@@ -208,7 +208,7 @@
     (handle :wat::console::Handle)
     (msg :wat::core::String)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((tx :wat::console::ReqTx) (:wat::core::first handle))
      ((ack-rx :wat::console::AckRx) (:wat::core::second handle))
      ((_send :wat::core::nil)
@@ -238,7 +238,7 @@
     (stderr :wat::io::IOWriter)
     (count :wat::core::i64)
     -> :wat::console::Spawn)
-  (:wat::core::let*
+  (:wat::core::let
     ;; Build N request pairs and N ack pairs in lock-step. The
     ;; index of the request pair matches the index of the ack
     ;; pair — this is what makes pair-by-index ack routing

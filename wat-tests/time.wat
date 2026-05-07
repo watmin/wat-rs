@@ -18,7 +18,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-now-returns-instant
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((i :wat::time::Instant) (:wat::time::now))
      ((s :wat::core::i64) (:wat::time::epoch-seconds i)))
     ;; Sanity: now is post-2020 (> 1577836800 = 2020-01-01T00:00:00Z).
@@ -30,7 +30,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-at-zero-is-epoch
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((i :wat::time::Instant) (:wat::time::at 0))
      ((s :wat::core::String) (:wat::time::to-iso8601 i 0)))
     (:wat::test::assert-eq s "1970-01-01T00:00:00Z")))
@@ -40,7 +40,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-at-millis-matches-at
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::time::Instant) (:wat::time::at 1))
      ((b :wat::time::Instant) (:wat::time::at-millis 1000))
      ((sa :wat::core::i64) (:wat::time::epoch-seconds a))
@@ -52,7 +52,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-at-nanos-matches-at-millis
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::time::Instant) (:wat::time::at-millis 1000))
      ((b :wat::time::Instant) (:wat::time::at-nanos 1000000000))
      ((ma :wat::core::i64) (:wat::time::epoch-millis a))
@@ -64,12 +64,12 @@
 
 (:wat::test::deftest :wat-tests::time::test-iso8601-roundtrip-3-digits
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((parsed :wat::core::Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "2026-04-25T14:30:42.123Z")))
     (:wat::core::match parsed -> :wat::core::nil
       ((:wat::core::Some i)
-        (:wat::core::let*
+        (:wat::core::let
           (((s :wat::core::String) (:wat::time::to-iso8601 i 3)))
           (:wat::test::assert-eq s "2026-04-25T14:30:42.123Z")))
       (:wat::core::None
@@ -81,12 +81,12 @@
 
 (:wat::test::deftest :wat-tests::time::test-iso8601-roundtrip-9-digits
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((parsed :wat::core::Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "2026-04-25T14:30:42.123456789Z")))
     (:wat::core::match parsed -> :wat::core::nil
       ((:wat::core::Some i)
-        (:wat::core::let*
+        (:wat::core::let
           (((s :wat::core::String) (:wat::time::to-iso8601 i 9)))
           (:wat::test::assert-eq s "2026-04-25T14:30:42.123456789Z")))
       (:wat::core::None
@@ -99,7 +99,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-iso8601-parse-failure-is-none
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((parsed :wat::core::Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "not-a-real-iso-string"))
      ((is-none? :wat::core::bool)
@@ -113,7 +113,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-to-iso8601-digits-zero
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((i :wat::time::Instant) (:wat::time::at-millis 1234567890123))
      ((s :wat::core::String) (:wat::time::to-iso8601 i 0)))
     (:wat::test::assert-eq s "2009-02-13T23:31:30Z")))
@@ -123,7 +123,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-to-iso8601-clamps-digits-high
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((i :wat::time::Instant) (:wat::time::at 0))
      ;; digits = 42 should clamp to 9 — 9 zeroes for the epoch.
      ((s :wat::core::String) (:wat::time::to-iso8601 i 42)))
@@ -134,7 +134,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-to-iso8601-clamps-digits-low
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((i :wat::time::Instant) (:wat::time::at 0))
      ;; digits = -5 should clamp to 0 — no fractional portion.
      ((s :wat::core::String) (:wat::time::to-iso8601 i -5)))
@@ -145,7 +145,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-elapsed-via-subtract
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((start :wat::time::Instant) (:wat::time::now))
      ((end :wat::time::Instant) (:wat::time::now))
      ((s-start :wat::core::i64) (:wat::time::epoch-millis start))
@@ -162,7 +162,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-epoch-accessors-consistent
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((i :wat::time::Instant) (:wat::time::at-millis 1234567890123))
      ((sec :wat::core::i64) (:wat::time::epoch-seconds i))
      ((ms :wat::core::i64) (:wat::time::epoch-millis i))
@@ -180,51 +180,51 @@
 
 (:wat::test::deftest :wat-tests::time::test-duration-nanosecond
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((d :wat::time::Duration) (:wat::time::Nanosecond 42)))
     ;; Sanity: round-trip via render. 42 ns is the input.
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 42ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-microsecond
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((d :wat::time::Duration) (:wat::time::Microsecond 1)))
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-millisecond
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((d :wat::time::Duration) (:wat::time::Millisecond 1)))
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-second
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((d :wat::time::Duration) (:wat::time::Second 1)))
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-minute
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((d :wat::time::Duration) (:wat::time::Minute 1)))
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 60000000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-hour
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((d :wat::time::Duration) (:wat::time::Hour 1)))
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 3600000000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-day
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((d :wat::time::Duration) (:wat::time::Day 1)))
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 86400000000000ns>")))
 
 ;; Compositional sanity — arithmetic relationships.
 (:wat::test::deftest :wat-tests::time::test-duration-hour-equals-60-minutes
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((h :wat::time::Duration) (:wat::time::Hour 1))
      ((m60 :wat::time::Duration) (:wat::time::Minute 60)))
     ;; Same nanos count → same Duration → same render.
@@ -232,7 +232,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-duration-day-equals-24-hours
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((d :wat::time::Duration) (:wat::time::Day 1))
      ((h24 :wat::time::Duration) (:wat::time::Hour 24)))
     (:wat::test::assert-eq (:wat::core::show d) (:wat::core::show h24))))
@@ -240,7 +240,7 @@
 ;; Zero is a valid non-negative Duration.
 (:wat::test::deftest :wat-tests::time::test-duration-zero-is-valid
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((d :wat::time::Duration) (:wat::time::Hour 0)))
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 0ns>")))
 
@@ -258,7 +258,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-instant-sub-duration-yields-instant
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((origin :wat::time::Instant) (:wat::time::at 1000000))
      ((one-min :wat::time::Duration) (:wat::time::Minute 1))
      ((earlier :wat::time::Instant) (:wat::time::- origin one-min))
@@ -271,7 +271,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-instant-add-duration-yields-instant
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((origin :wat::time::Instant) (:wat::time::at 1000000))
      ((one-hour :wat::time::Duration) (:wat::time::Hour 1))
      ((later :wat::time::Instant) (:wat::time::+ origin one-hour))
@@ -284,7 +284,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-instant-sub-instant-yields-duration
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((later :wat::time::Instant) (:wat::time::at 1000060))
      ((earlier :wat::time::Instant) (:wat::time::at 1000000))
      ;; Instant - Instant -> Duration. RHS dispatch picks the right arm.
@@ -295,7 +295,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-add-then-sub-roundtrips
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((origin :wat::time::Instant) (:wat::time::at 1000000))
      ((d :wat::time::Duration) (:wat::time::Day 1))
      ((later :wat::time::Instant) (:wat::time::+ origin d))
@@ -309,7 +309,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-zero-duration-is-identity-for-add
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((origin :wat::time::Instant) (:wat::time::at 1000000))
      ((zero :wat::time::Duration) (:wat::time::Hour 0))
      ((same :wat::time::Instant) (:wat::time::+ origin zero))
@@ -321,7 +321,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-instant-sub-self-is-zero-duration
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((t :wat::time::Instant) (:wat::time::at 1000000))
      ((d :wat::time::Duration) (:wat::time::- t t)))
     ;; Same instant - itself = 0 ns Duration.
@@ -335,7 +335,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-ago-is-before-now
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((past :wat::time::Instant)
       (:wat::time::ago (:wat::time::Hour 1)))
      ((now-i :wat::time::Instant) (:wat::time::now))
@@ -356,7 +356,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-from-now-is-after-now
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((future :wat::time::Instant)
       (:wat::time::from-now (:wat::time::Hour 1)))
      ((now-i :wat::time::Instant) (:wat::time::now))
@@ -372,7 +372,7 @@
 (:wat::test::deftest :wat-tests::time::test-ago-zero-equals-now
   ()
   ;; (ago (Hour 0)) = (now). Tolerance: same-second.
-  (:wat::core::let*
+  (:wat::core::let
     (((past :wat::time::Instant)
       (:wat::time::ago (:wat::time::Hour 0)))
      ((now-i :wat::time::Instant) (:wat::time::now))
@@ -386,7 +386,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-from-now-zero-equals-now
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((future :wat::time::Instant)
       (:wat::time::from-now (:wat::time::Day 0)))
      ((now-i :wat::time::Instant) (:wat::time::now))
@@ -405,7 +405,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-hours-ago-equivalent-to-ago-hour
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((via-sugar :wat::time::Instant) (:wat::time::hours-ago 1))
      ((now-i :wat::time::Instant) (:wat::time::now))
      ((delta-via-sugar :wat::core::i64)
@@ -421,7 +421,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-days-from-now-is-future
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((future :wat::time::Instant) (:wat::time::days-from-now 1))
      ((now-i :wat::time::Instant) (:wat::time::now))
      ((delta-s :wat::core::i64)
@@ -437,7 +437,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-minutes-ago
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((past :wat::time::Instant) (:wat::time::minutes-ago 5))
      ((now-i :wat::time::Instant) (:wat::time::now))
      ((delta-s :wat::core::i64)
@@ -453,7 +453,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-seconds-from-now
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((future :wat::time::Instant) (:wat::time::seconds-from-now 60))
      ((now-i :wat::time::Instant) (:wat::time::now))
      ((delta-s :wat::core::i64)
@@ -468,7 +468,7 @@
 
 (:wat::test::deftest :wat-tests::time::test-zero-hours-ago-is-roughly-now
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((past :wat::time::Instant) (:wat::time::hours-ago 0))
      ((now-i :wat::time::Instant) (:wat::time::now))
      ((delta-s :wat::core::i64)

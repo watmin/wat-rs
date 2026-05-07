@@ -26,7 +26,7 @@
      (:test::Edn::send-one
        (pool :wat::telemetry::HandlePool<test::Edn::Event>)
        -> :wat::core::nil)
-     (:wat::core::let*
+     (:wat::core::let
        (((handle :wat::telemetry::Handle<test::Edn::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
@@ -50,7 +50,7 @@
      (:test::Edn::auto-spawn-one
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-     (:wat::core::let*
+     (:wat::core::let
        (((spawn :wat::telemetry::Spawn<test::Edn::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
            :test::Edn::Event
@@ -67,7 +67,7 @@
 
 
 (:deftest :wat-telemetry-sqlite::edn-newtypes::test-tagged-and-notag-bind
-  (:wat::core::let*
+  (:wat::core::let
     (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::Edn::auto-spawn-one
         "/tmp/wat-sqlite-test-edn-newtypes-001.db"))

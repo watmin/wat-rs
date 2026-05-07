@@ -68,7 +68,7 @@ const PROLOGUE_VALID: &str = r#"
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((p :test::PaperResolved)
       (:test::PaperResolved/new "Grace" 7.5))
      ((b :wat::core::bool)
@@ -90,7 +90,7 @@ const PROLOGUE_INVALID: &str = r#"
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((p :test::PaperResolved)
       (:test::PaperResolved/new "Grace" 7.5))
      ((b :wat::core::bool)
@@ -202,7 +202,7 @@ fn rejects_arity_zero() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((b :bool) (:wat::core::if true -> :bool true (:wat::form::matches?))))
             (:wat::io::IOWriter/println stdout "ok")))
     "#;

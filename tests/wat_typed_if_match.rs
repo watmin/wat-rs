@@ -110,7 +110,7 @@ fn typed_match_on_none_returns_none_arm() {
     // checker knows the scrutinee is Option<i64>.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((o :wat::core::Option<wat::core::i64>) :wat::core::None))
             (:wat::core::match o -> :wat::core::i64
               ((:wat::core::Some v) v)
@@ -250,7 +250,7 @@ fn typed_if_result_flows_into_enclosing_let_bind() {
     // flows out.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((x :wat::core::i64) (:wat::core::if true -> :wat::core::i64 10 20)))
             x))
     "#;
@@ -261,7 +261,7 @@ fn typed_if_result_flows_into_enclosing_let_bind() {
 fn typed_match_result_flows_into_enclosing_let_bind() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::String)
-          (:wat::core::let*
+          (:wat::core::let
             (((s :wat::core::String)
               (:wat::core::match (:wat::core::Some 1) -> :wat::core::String
                 ((:wat::core::Some _) "yes")
@@ -308,7 +308,7 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
     let src = r#"
         (:wat::core::define
           (:user::main -> :wat::core::String)
-          (:wat::core::let*
+          (:wat::core::let
             (((handle :wat::kernel::Thread<(),()>)
               (:wat::kernel::spawn-thread
                 (:wat::core::lambda

@@ -41,7 +41,7 @@ fn library_construct_empty() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((lib :wat::holon::EngramLibrary) (:wat::holon::EngramLibrary/new 10000))
              ((n :wat::core::i64) (:wat::holon::EngramLibrary/len lib)))
             (:wat::io::IOWriter/println stdout
@@ -59,7 +59,7 @@ fn library_add_subspace_then_count() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((lib :wat::holon::EngramLibrary) (:wat::holon::EngramLibrary/new 10000))
              ((sub :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 4))
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
@@ -87,7 +87,7 @@ fn library_match_returns_named_pairs() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((lib :wat::holon::EngramLibrary) (:wat::holon::EngramLibrary/new 10000))
              ((sub :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 4))
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))

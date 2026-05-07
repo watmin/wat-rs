@@ -5,7 +5,7 @@
   ((:wat::core::define
      (:test::make-3tuple<T> (mid :T) -> :(wat::core::i64,T,wat::core::String))
      (:wat::core::Tuple 42 mid "hello")))
-  (:wat::core::let*
+  (:wat::core::let
     (((triple :(wat::core::i64,wat::core::bool,wat::core::String))
       (:test::make-3tuple true))
      ((a :wat::core::i64) (:wat::core::first triple))

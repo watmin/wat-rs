@@ -56,7 +56,7 @@ fn newtype_construct_and_accessor_roundtrip() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((p :my::trading::Price) (:my::trading::Price/new 100.0))
              ((inner :wat::core::f64) (:my::trading::Price/0 p)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string inner))))
@@ -104,7 +104,7 @@ fn newtype_rejected_where_inner_expected() {
             (stderr :wat::io::IOWriter)
             -> :())
           ;; Pass a Price where an f64 is expected — type-checker should refuse.
-          (:wat::core::let*
+          (:wat::core::let
             (((p :my::trading::Price) (:my::trading::Price/new 100.0))
              ((bogus :f64) (:wat::core::f64::+,2 p 1.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string bogus))))
@@ -137,7 +137,7 @@ fn newtype_as_struct_field_roundtrip() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((p :my::trading::Price) (:my::trading::Price/new 99.5))
              ((o :my::Order)          (:my::Order/new "BTC" p 7))
              ((retrieved :my::trading::Price) (:my::Order/price o))
@@ -165,7 +165,7 @@ fn distinct_newtypes_over_same_inner_are_distinct_types() {
             (stderr :wat::io::IOWriter)
             -> :())
           ;; Pass an Amount where Price is expected — must fail.
-          (:wat::core::let*
+          (:wat::core::let
             (((a :my::trading::Amount) (:my::trading::Amount/new 50.0)))
             (:wat::io::IOWriter/println stdout (:my::trading::price-pretty a))))
     "##;

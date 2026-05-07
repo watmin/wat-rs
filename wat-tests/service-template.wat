@@ -146,7 +146,7 @@
        ;; protocol violation; expect makes the disconnect a panic so
        ;; the program tree learns the breakage instead of silent drop.
        ((:svc::Request::Ack reply-tx)
-         (:wat::core::let*
+         (:wat::core::let
            (((_ack :wat::core::nil)
              (:wat::core::Result/expect -> :wat::core::nil
                (:wat::kernel::send reply-tx ())
@@ -159,7 +159,7 @@
        ;; return state UNCHANGED. No counters bumped (a read should
        ;; not look like a mutation).
        ((:svc::Request::Get reply-tx)
-         (:wat::core::let*
+         (:wat::core::let
            (((_send :wat::core::nil)
              (:wat::core::Result/expect -> :wat::core::nil
                (:wat::kernel::send reply-tx state)
@@ -190,13 +190,13 @@
        (:wat::core::Result/expect -> :wat::core::nil
          (:wat::kernel::send out state)
          "Service/loop: out disconnected — parent dropped Thread/output before recv?")
-       (:wat::core::let*
+       (:wat::core::let
          (((chosen :wat::kernel::Chosen<svc::Request>) (:wat::kernel::select req-rxs))
           ((idx :wat::core::i64) (:wat::core::first chosen))
           ((maybe :wat::kernel::CommResult<svc::Request>) (:wat::core::second chosen)))
          (:wat::core::match maybe -> :wat::core::nil
            ((:wat::core::Ok (:wat::core::Some req))
-             (:wat::core::let*
+             (:wat::core::let
                (((next :svc::State) (:svc::Service/handle req state)))
                (:svc::Service/loop req-rxs next out)))
            ((:wat::core::Ok :wat::core::None)
@@ -221,7 +221,7 @@
    ;;   (:wat::kernel::Thread/join-result thr)  ; confirms clean exit
    (:wat::core::define
      (:svc::Service (count :wat::core::i64) -> :svc::Spawn)
-     (:wat::core::let*
+     (:wat::core::let
        (((pairs :wat::core::Vector<wat::kernel::Channel<svc::Request>>)
          (:wat::core::map
            (:wat::core::range 0 count)
@@ -262,9 +262,9 @@
    ;; arc 131. Pop-before-finish per arc 130 edge-case guidance.
    (:wat::core::define
      (:test::svc-spawn-and-shutdown -> :wat::core::nil)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver :wat::kernel::Thread<wat::core::nil,svc::State>)
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :svc::Spawn) (:svc::Service 1))
             ((pool :svc::ReqTxPool) (:wat::core::first spawn))
             ((d :wat::kernel::Thread<wat::core::nil,svc::State>) (:wat::core::second spawn))
@@ -310,7 +310,7 @@
        (push-expected :wat::core::i64)
        (ack-expected :wat::core::i64)
        -> :wat::core::nil)
-     (:wat::core::let*
+     (:wat::core::let
        (((_pc :wat::core::nil)
          (:wat::core::if (:wat::core::= (:svc::State/push-count state) push-expected)
            -> :wat::core::nil
@@ -340,9 +340,9 @@
    ;; → no channel-pair-deadlock fires.
    (:wat::core::define
      (:test::svc-full-sequence-and-verify -> :wat::core::nil)
-     (:wat::core::let*
+     (:wat::core::let
        (((thr :wat::kernel::Thread<wat::core::nil,svc::State>)
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :svc::Spawn) (:svc::Service 1))
             ((pool :svc::ReqTxPool) (:wat::core::first spawn))
             ((d :wat::kernel::Thread<wat::core::nil,svc::State>) (:wat::core::second spawn))
@@ -428,9 +428,9 @@
 ;; Spawns service, sends one Push, drops inner scope → driver delivers
 ;; final state on Thread/output → recv (discarded) → join.
 (:deftest :svc::test-svc-send-push
-  (:wat::core::let*
+  (:wat::core::let
     (((thr :wat::kernel::Thread<wat::core::nil,svc::State>)
-      (:wat::core::let*
+      (:wat::core::let
         (((spawn :svc::Spawn) (:svc::Service 1))
          ((pool :svc::ReqTxPool) (:wat::core::first spawn))
          ((d :wat::kernel::Thread<wat::core::nil,svc::State>) (:wat::core::second spawn))

@@ -9,25 +9,25 @@
 
 (:wat::test::deftest :wat-tests::edn::test-write-bool
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((s :wat::core::String) (:wat::edn::write true)))
     (:wat::test::assert-eq s "true")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-i64
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((s :wat::core::String) (:wat::edn::write 42)))
     (:wat::test::assert-eq s "42")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-string
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((s :wat::core::String) (:wat::edn::write "hello")))
     (:wat::test::assert-eq s "\"hello\"")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-unit
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((s :wat::core::String) (:wat::edn::write ())))
     (:wat::test::assert-eq s "nil")))
 
@@ -35,14 +35,14 @@
 
 (:wat::test::deftest :wat-tests::edn::test-write-vec-i64
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((v :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
      ((s :wat::core::String) (:wat::edn::write v)))
     (:wat::test::assert-eq s "[1 2 3]")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-vec-string
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((v :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "a" "b"))
      ((s :wat::core::String) (:wat::edn::write v)))
     (:wat::test::assert-eq s "[\"a\" \"b\"]")))
@@ -51,7 +51,7 @@
 
 (:wat::test::deftest :wat-tests::edn::test-write-tuple
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((t :(wat::core::i64,wat::core::String)) (:wat::core::Tuple 7 "x"))
      ((s :wat::core::String) (:wat::edn::write t)))
     (:wat::test::assert-eq s "[7 \"x\"]")))
@@ -60,14 +60,14 @@
 
 (:wat::test::deftest :wat-tests::edn::test-write-json-vec
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((v :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
      ((s :wat::core::String) (:wat::edn::write-json v)))
     (:wat::test::assert-eq s "[1,2,3]")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-json-string
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((s :wat::core::String) (:wat::edn::write-json "hi")))
     (:wat::test::assert-eq s "\"hi\"")))
 
@@ -79,7 +79,7 @@
 
 (:wat::test::deftest :wat-tests::edn::test-write-pretty-flat
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((v :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
      ((s :wat::core::String) (:wat::edn::write-pretty v)))
     (:wat::test::assert-eq s "[1 2 3]")))

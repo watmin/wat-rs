@@ -20,7 +20,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-make-empty
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-accept-any)))
@@ -31,7 +31,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-capacity-at-d-10000
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-accept-any)))
@@ -50,7 +50,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-put-increments-len
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-accept-any)))
@@ -64,7 +64,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-put-idempotent
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-accept-any)))
@@ -83,7 +83,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-non-therm-roundtrip
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-coincident)))
@@ -105,7 +105,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-roundtrip
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-coincident)))
@@ -124,7 +124,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-empty-store-returns-none
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-accept-any)))
@@ -145,7 +145,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-filter-always-rejects
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((reject-all :fn(wat::core::f64)->wat::core::bool)
       (:wat::core::lambda ((_ :wat::core::f64) -> :wat::core::bool) false))
      ((store :wat::holon::Hologram)
@@ -169,7 +169,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-slot-isolation
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-coincident)))
@@ -202,7 +202,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-slot-0-discriminates
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-coincident)))
@@ -229,7 +229,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-bracket-pair-finds-floor-slot
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-accept-any)))
@@ -250,7 +250,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-builds-canonical
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((built :wat::holon::HolonAST)
       (:wat::holon::therm-form 0.0 100.0 70.0))
      ((expected :wat::holon::HolonAST)
@@ -261,7 +261,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-clamps-oob-low
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((built :wat::holon::HolonAST)
       (:wat::holon::therm-form 0.0 100.0 -10.0))
      ((expected :wat::holon::HolonAST)
@@ -272,7 +272,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-clamps-oob-high
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((built :wat::holon::HolonAST)
       (:wat::holon::therm-form 0.0 100.0 110.0))
      ((expected :wat::holon::HolonAST)
@@ -287,7 +287,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-preserves-domain
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((built :wat::holon::HolonAST)
       (:wat::holon::therm-form 200.0 600.0 400.0))
      ((expected :wat::holon::HolonAST)
@@ -302,7 +302,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-roundtrips-via-hologram
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-coincident)))
@@ -321,12 +321,12 @@
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-presence-floor-positive
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((floor :wat::core::f64) (:wat::holon::presence-floor 10000)))
     (:wat::test::assert-eq (:wat::core::> floor 0.0) true)))
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-coincident-floor-positive
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((floor :wat::core::f64) (:wat::holon::coincident-floor 10000)))
     (:wat::test::assert-eq (:wat::core::> floor 0.0) true)))

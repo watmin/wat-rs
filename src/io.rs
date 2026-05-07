@@ -1188,7 +1188,7 @@ pub fn eval_kernel_pipe(args: &[WatAST]) -> Result<Value, RuntimeError> {
 // Caller idiom (tests, ad-hoc scripts):
 //
 // ```scheme
-// (:wat::core::let*
+// (:wat::core::let
 //   (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
 //    ((path :String) (:wat::io::TempFile/path tf))
 //    ;; ... use path ...

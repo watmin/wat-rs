@@ -248,6 +248,21 @@ pub enum CheckError {
         /// `:wat::core::unit` token.
         span: Span,
     },
+    /// Arc 154 — `:wat::core::let*` retired in favor of
+    /// `:wat::core::let` (Clojure-faithful single-letform vocabulary).
+    /// `:wat::core::let` adopts the sequential semantics that
+    /// `:wat::core::let*` carried; the parallel `:wat::core::let`
+    /// path retires (zero in-tree consumers per pre-arc grep).
+    /// Pattern 3 walker (substrate-as-teacher § "Three migration
+    /// patterns") mirrors `BareLegacyUnitName`'s shape: walks every
+    /// `WatAST::Keyword` looking for the retired FQDN; emits one
+    /// migration error per offending site; sweep 1b uses the
+    /// diagnostic stream as the work list.
+    BareLegacyLetStar {
+        /// Source location of the keyword carrying the retired
+        /// `:wat::core::let*` token.
+        span: Span,
+    },
     /// Arc 109 slice 1e — a bare substrate-named parametric type
     /// head (`Option`, `Result`, `HashMap`, `HashSet`) appears in
     /// user code. The four containers move under `:wat::core::*`;
@@ -519,6 +534,11 @@ impl fmt::Display for CheckError {
                 "':wat::core::unit' at {} is retired (arc 153); canonical FQDN is ':wat::core::nil'. Same role (singleton type, 'no meaningful return value'); rename ships the marker effect of a Lisp's nil while preserving wat's existing Option<T>::None / Some(t) discipline. Rename ':wat::core::unit' -> ':wat::core::nil' at the offending site.",
                 span
             ),
+            CheckError::BareLegacyLetStar { span } => write!(
+                f,
+                "':wat::core::let*' at {} is retired (arc 154); canonical FQDN is ':wat::core::let'. Same sequential semantics, single name (Clojure-faithful: Clojure's user-facing `let` IS the sequential primitive; `let*` is a substrate-internal form not part of normal user code). Rename ':wat::core::let*' -> ':wat::core::let' at the offending site.",
+                span
+            ),
             CheckError::BareLegacyContainerHead { head, fqdn, span } => write!(
                 f,
                 "bare container type '{}' at {} is retired (arc 109 slice 1e); canonical FQDN form is '{}'. Substrate-provided container types live under :wat::core::* (see arc 109 § B). Rename '{}' → '{}' at the offending site (works in both outer position like ':{}' → ':{}' and inner position like 'Vec<{}>' → 'Vec<{}>').",
@@ -764,6 +784,12 @@ impl CheckError {
                 Diagnostic::new("BareLegacyUnitName")
                     .field("retired", ":wat::core::unit")
                     .field("fqdn", ":wat::core::nil")
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyLetStar { span } => {
+                Diagnostic::new("BareLegacyLetStar")
+                    .field("retired", ":wat::core::let*")
+                    .field("fqdn", ":wat::core::let")
                     .field("location", format!("{}", span))
             }
             CheckError::BareLegacyContainerHead { head, fqdn, span } => {
@@ -1331,6 +1357,19 @@ pub fn check_program(
     // `:wat::core::nil` closed; in-tree consumers swept; the
     // walker pass would no longer fire.
 
+    // Arc 154 — refuse the retired `:wat::core::let*` keyword
+    // anywhere in the program. Sequential semantics moved under
+    // `:wat::core::let` (single-letform vocabulary; Clojure-faithful).
+    // Per Pattern 3: walks every keyword token in the AST and emits
+    // one `BareLegacyLetStar` per occurrence. Sweep 1b consumes the
+    // diagnostic stream as the work list.
+    for func in sym.functions.values() {
+        validate_legacy_let_star(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_legacy_let_star(form, &mut errors);
+    }
+
     // Arc 109 slice 9d — refuse the legacy `:wat::std::stream::*`
     // namespace prefix anywhere in the program. The stream stdlib
     // graduated to `:wat::stream::*` per § G's three-tier substrate
@@ -1816,6 +1855,38 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
     ("Vec", "wat::core::Vector"),       // slice 1f — rename + move
 ];
 
+/// Arc 154 — walk every `WatAST` node looking for a Keyword
+/// carrying the retired `:wat::core::let*` FQDN (any position —
+/// operator head, quoted form, etc.). Emit one
+/// `CheckError::BareLegacyLetStar` per offending site. Pattern 3
+/// (substrate-as-teacher § "Three migration patterns") mirroring
+/// arc 153's `walk_type_for_legacy_unit_name` precedent + arc 109
+/// slice 9d's `walk_for_legacy_stream` keyword-prefix shape.
+///
+/// Pure-keyword detection: `:wat::core::let*` is a fully-qualified
+/// keyword string (parses to `WatAST::Keyword`), not a TypeExpr —
+/// no parametric containment, no inner-position recursion needed.
+/// Single-token equality is sufficient. Sweep 1b reads the
+/// diagnostic stream and applies a mechanical 1:1 transform to
+/// `:wat::core::let` at each site.
+fn validate_legacy_let_star(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            if s == ":wat::core::let*" {
+                errors.push(CheckError::BareLegacyLetStar {
+                    span: span.clone(),
+                });
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                validate_legacy_let_star(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
 // Arc 153 slice 2 — `walk_type_for_legacy_unit_name` retired
 // per substrate-as-teacher § "Retire the hint when its window
 // closes." The walker shipped in slice 1a as the
@@ -2196,13 +2267,17 @@ fn walk_for_deadlock(
         return;
     }
 
-    if head == ":wat::core::let*" && items.len() >= 3 {
+    // Arc 154 — sequential semantics moved under `:wat::core::let`
+    // (single-letform vocabulary). Pre-arc-154 this matched
+    // `:wat::core::let*`. Dead code (parent `walk_for_deadlock` is
+    // dead-code-allowed) — updated for substrate self-consistency.
+    if head == ":wat::core::let" && items.len() >= 3 {
         let bindings = match &items[1] {
             WatAST::List(xs, _) => xs.clone(),
             _ => return,
         };
         let body_forms: Vec<WatAST> = items[2..].to_vec();
-        // Recurse into each binding's RHS first (catches nested let*'s).
+        // Recurse into each binding's RHS first (catches nested lets).
         for binding in &bindings {
             if let WatAST::List(parts, _) = binding {
                 if parts.len() == 2 {
@@ -2213,7 +2288,7 @@ fn walk_for_deadlock(
         for body_form in &body_forms {
             walk_for_deadlock(body_form, types, errors);
         }
-        // Run the structural rule at THIS let*'s scope.
+        // Run the structural rule at THIS let's scope.
         check_let_star_for_scope_deadlock(&bindings, &body_forms, types, errors);
         return;
     }
@@ -2561,12 +2636,16 @@ fn walk_for_pair_deadlock(
         return;
     }
 
-    if head == ":wat::core::let*" && items.len() >= 3 {
+    // Arc 154 — sequential semantics moved under `:wat::core::let`
+    // (single-letform vocabulary). Pre-arc-154 this matched
+    // `:wat::core::let*`. Active code: pair-deadlock walker; per-let
+    // scope construction unchanged (let is now sequential).
+    if head == ":wat::core::let" && items.len() >= 3 {
         let bindings = match &items[1] {
             WatAST::List(xs, _) => xs.clone(),
             _ => return,
         };
-        // Extend scope with this let*'s typed bindings (typed-name shape)
+        // Extend scope with this let's typed bindings (typed-name shape)
         // AND with synthetic pair-scope entries for tuple-destructure
         // bindings from make-bounded-channel / make-unbounded-channel
         // (arc 133). Both shapes end up in the same scope vec; the
@@ -3080,7 +3159,14 @@ fn infer_list(
             ":wat::core::if" => return infer_if(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::cond" => return infer_cond(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::let*" => return infer_let_star(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 154 — `:wat::core::let*` retired (single-letform
+            // vocabulary). The `validate_legacy_let_star` walker emits
+            // `BareLegacyLetStar` per offending site BEFORE inference
+            // dispatch reaches this arm; the fall-through here keeps
+            // type-checking through the sequential infer_let path so
+            // compound mismatches (legacy let* PLUS unrelated body
+            // type errors) all surface in one pass.
+            ":wat::core::let*" => return infer_let(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::do" => return infer_do(args, head_span, env, locals, fresh, subst, errors),
             // Arc 109 slice 1j — § D' Option/Result method forms.
             // Three retired verbs (Pattern 2 poison + dispatch) and
@@ -5442,6 +5528,14 @@ fn infer_cond(
     Some(apply_subst(&declared_ty, subst))
 }
 
+/// Sequential let — each binding's RHS is checked with the cumulatively
+/// extended locals so later bindings may reference earlier ones. Arc 154
+/// adopts sequential semantics under the canonical `:wat::core::let`
+/// keyword, retiring the parallel `let` (zero in-tree consumers per
+/// pre-arc grep) and the dual `let*` keyword (Clojure-faithful single-
+/// letform vocabulary). The migration walker
+/// `validate_legacy_let_star` emits `BareLegacyLetStar` per remaining
+/// `:wat::core::let*` source site for sweep 1b to consume.
 fn infer_let(
     args: &[WatAST],
     _head_span: &Span,
@@ -5458,13 +5552,30 @@ fn infer_let(
         WatAST::List(items, _) => items,
         _ => return None,
     };
-    // Each binding is either typed-single `((name :Type) rhs)` or
-    // untyped destructure `((a b ...) rhs)`. Parallel let — all RHSs
-    // see the OUTER locals, not each other.
     let mut extended = locals.clone();
     for pair in bindings {
-        process_let_binding(pair, env, locals, &mut extended, fresh, subst, errors, ":wat::core::let");
+        // Sequential let — thread the cumulative extended locals
+        // through each RHS. Pre-arc-154 this lived under
+        // `:wat::core::let*`; arc 154 collapses to one letform.
+        let cumulative = extended.clone();
+        process_let_binding(pair, env, &cumulative, &mut extended, fresh, subst, errors, ":wat::core::let");
     }
+
+    // Arc 133 — post-inference scope-deadlock check. Fires for BOTH
+    // typed-name bindings (arc 117 shape) and tuple-destructure
+    // bindings (arc 133 gap). Runs after all bindings are processed
+    // so `extended` holds the fully-inferred type for every bound name.
+    // The pre-inference structural walker (`validate_scope_deadlock`)
+    // was retired when this path was added — inference is now the
+    // single enforcement path, eliminating duplicate-firing.
+    check_let_star_for_scope_deadlock_inferred(
+        bindings,
+        &args[1],
+        &extended,
+        env.types(),
+        errors,
+    );
+
     infer(&args[1], env, &extended, fresh, subst, errors)
 }
 
@@ -6201,52 +6312,11 @@ fn node_contains_recv(node: &WatAST) -> bool {
     items.iter().any(node_contains_recv)
 }
 
-/// Sequential let — same binding shapes as parallel `let`, but each
-/// RHS is checked with the cumulatively extended locals so later
-/// bindings may reference earlier ones.
-fn infer_let_star(
-    args: &[WatAST],
-    _head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 2 {
-        return None;
-    }
-    let bindings = match &args[0] {
-        WatAST::List(items, _) => items,
-        _ => return None,
-    };
-    let mut extended = locals.clone();
-    for pair in bindings {
-        // let* threads the cumulative extended locals through each RHS.
-        // We pass `extended` as BOTH the RHS-inference scope and the
-        // mutable target; the parallel variant passes the outer
-        // `locals` as the RHS scope.
-        let cumulative = extended.clone();
-        process_let_binding(pair, env, &cumulative, &mut extended, fresh, subst, errors, ":wat::core::let*");
-    }
-
-    // Arc 133 — post-inference scope-deadlock check. Fires for BOTH
-    // typed-name bindings (arc 117 shape) and tuple-destructure
-    // bindings (arc 133 gap). Runs after all bindings are processed
-    // so `extended` holds the fully-inferred type for every bound name.
-    // The pre-inference structural walker (`validate_scope_deadlock`)
-    // was retired when this path was added — inference is now the
-    // single enforcement path, eliminating duplicate-firing.
-    check_let_star_for_scope_deadlock_inferred(
-        bindings,
-        &args[1],
-        &extended,
-        env.types(),
-        errors,
-    );
-
-    infer(&args[1], env, &extended, fresh, subst, errors)
-}
+// Arc 154 — `infer_let_star` retired; sequential semantics moved
+// under `infer_let` above (single-letform vocabulary). The
+// `:wat::core::let*` keyword still surfaces in user code during the
+// migration window; `validate_legacy_let_star` (Pattern 3 walker)
+// emits `BareLegacyLetStar` per offending site for sweep 1b.
 
 /// Type-check `(:wat::kernel::spawn <fn> arg1 arg2 ...)`.
 /// Variadic in the args (one per function parameter) — rank-1 HM
@@ -12608,7 +12678,7 @@ mod tests {
         let src = r#"
             (:wat::core::define
               (:my::deadlock-at-outer -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pair :wat::kernel::Channel<wat::core::i64>)
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
                  ((rx :wat::kernel::Receiver<wat::core::i64>)
@@ -12658,7 +12728,7 @@ mod tests {
                       (_stdout :wat::io::IOWriter)
                       (_stderr :wat::io::IOWriter)
                       -> :wat::core::nil)
-                    (:wat::core::let*
+                    (:wat::core::let
                       (((pair :wat::kernel::Channel<wat::core::i64>)
                         (:wat::kernel::make-bounded-channel :wat::core::i64 1))
                        ((rx :wat::kernel::Receiver<wat::core::i64>)
@@ -12720,7 +12790,7 @@ mod tests {
 
             (:wat::core::define
               (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pair :wat::kernel::Channel<wat::core::nil>)
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
                  ((tx :wat::kernel::Sender<wat::core::nil>)
@@ -12759,7 +12829,7 @@ mod tests {
 
             (:wat::core::define
               (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pair-a :wat::kernel::Channel<wat::core::nil>)
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
                  ((pair-b :wat::kernel::Channel<wat::core::nil>)
@@ -12804,7 +12874,7 @@ mod tests {
 
             (:wat::core::define
               (:my::pop-handle (_d :wat::core::nil) -> :my::Handle)
-              (:wat::core::let*
+              (:wat::core::let
                 (((p :wat::kernel::Channel<wat::core::nil>)
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
                  ((q :wat::kernel::Channel<wat::core::nil>)
@@ -12824,7 +12894,7 @@ mod tests {
 
             (:wat::core::define
               (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((handle :my::Handle) (:my::pop-handle))
                  ((req-tx :wat::kernel::Sender<wat::core::nil>)
                   (:wat::core::first handle))
@@ -12864,7 +12934,7 @@ mod tests {
 
             (:wat::core::define
               (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pair :wat::kernel::Channel<wat::core::nil>)
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
                  ((tx :wat::kernel::Sender<wat::core::nil>)
@@ -12913,7 +12983,7 @@ mod tests {
                       (_stdout :wat::io::IOWriter)
                       (_stderr :wat::io::IOWriter)
                       -> :wat::core::nil)
-                    (:wat::core::let*
+                    (:wat::core::let
                       (((pair :wat::kernel::Channel<wat::core::nil>)
                         (:wat::kernel::make-bounded-channel :wat::core::nil 1))
                        ((tx :wat::kernel::Sender<wat::core::nil>)
@@ -12972,7 +13042,7 @@ mod tests {
         let src = r#"
             (:wat::core::define
               (:my::deadlock-via-handlepool -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
                   (:wat::kernel::HandlePool::new
                     "pool"
@@ -13022,7 +13092,7 @@ mod tests {
         let src = r#"
             (:wat::core::define
               (:my::no-deadlock-on-bare-handlepool -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pool :wat::kernel::HandlePool<wat::core::i64>)
                   (:wat::kernel::HandlePool::new
                     "pool"
@@ -13082,7 +13152,7 @@ mod tests {
         let src = r#"
             (:wat::core::define
               (:my::typed-name-still-fires -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
                   (:wat::kernel::HandlePool::new
                     "pool"
@@ -13149,7 +13219,7 @@ mod tests {
         let src = r#"
             (:wat::core::define
               (:my::spawn-svc -> :(wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>,wat::kernel::Thread<wat::core::nil,wat::core::i64>))
-              (:wat::core::let*
+              (:wat::core::let
                 (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
                   (:wat::kernel::HandlePool::new
                     "pool"
@@ -13165,7 +13235,7 @@ mod tests {
 
             (:wat::core::define
               (:my::caller-via-destructure -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pool driver)
                   (:my::spawn-svc)))
                 (:wat::core::match
@@ -13210,7 +13280,7 @@ mod tests {
         let src = r#"
             (:wat::core::define
               (:my::spawn-clean -> :(wat::core::i64,wat::kernel::Thread<wat::core::nil,wat::core::nil>))
-              (:wat::core::let*
+              (:wat::core::let
                 (((counter :wat::core::i64) 42)
                  ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                   (:wat::kernel::spawn-thread
@@ -13223,7 +13293,7 @@ mod tests {
 
             (:wat::core::define
               (:my::clean-caller -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((counter driver)
                   (:my::spawn-clean)))
                 (:wat::core::match
@@ -13272,7 +13342,7 @@ mod tests {
 
             (:wat::core::define
               (:my::caller-destructure (_d :wat::core::nil) -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((tx rx)
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1)))
                 (:my::helper-pair tx rx)))
@@ -13316,7 +13386,7 @@ mod tests {
               ())
 
             (:wat::core::define (:my::caller -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)
                   (:wat::kernel::spawn-thread :my::worker))
                  ((tx :wat::kernel::Sender<wat::core::i64>)
@@ -13366,7 +13436,7 @@ mod tests {
               ())
 
             (:wat::core::define (:my::caller -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pair :wat::kernel::Channel<wat::core::i64>)
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
                  ((tx :wat::kernel::Sender<wat::core::i64>)
@@ -13424,7 +13494,7 @@ mod tests {
                 ((:wat::core::Err _) ())))
 
             (:wat::core::define (:my::caller -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((pair :wat::kernel::Channel<wat::core::i64>)
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
                  ((tx :wat::kernel::Sender<wat::core::i64>)

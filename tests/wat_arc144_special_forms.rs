@@ -76,7 +76,7 @@ fn three_probes(name_keyword: &str) -> Vec<String> {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define {name}))
              ((def-rendered :wat::core::String)
@@ -188,7 +188,7 @@ fn lookup_form_if_returns_special_form() {
 
 #[test]
 fn lookup_form_let_star_returns_special_form() {
-    let out = three_probes(":wat::core::let*");
+    let out = three_probes(":wat::core::let");
     assert_eq!(out.len(), 3);
     let define_line = &out[0];
     let signature_line = &out[1];
@@ -198,12 +198,12 @@ fn lookup_form_let_star_returns_special_form() {
         define_line
     );
     assert!(
-        define_line.contains(":wat::core::let*"),
+        define_line.contains(":wat::core::let"),
         "expected form name, got: {}",
         define_line
     );
     assert!(
-        signature_line.contains(":wat::core::let*")
+        signature_line.contains(":wat::core::let")
             && signature_line.contains("<bindings>")
             && signature_line.contains("<body>+"),
         "expected let* signature with <bindings>/<body>+, got: {}",
@@ -302,7 +302,7 @@ fn lookup_form_unknown_special_form_name_returns_none() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((d-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :wat::core::not-a-special-form))
              ((s-opt :wat::core::Option<wat::holon::HolonAST>)

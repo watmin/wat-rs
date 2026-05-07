@@ -108,7 +108,7 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
                      -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((program :wat::WatAST)
        (:wat::core::quote
          (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
@@ -201,7 +201,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
                      -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((program :wat::WatAST)
        (:wat::core::quote
          (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
@@ -504,7 +504,7 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
                                  (stdout :wat::io::IOWriter)
                                  (stderr :wat::io::IOWriter)
                                  -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((_ :wat::core::nil) (:wat::io::IOWriter/println stdout "READY")))
                 (:demo::loop stdout)))
         "#;
@@ -611,7 +611,7 @@ fn sigterm_cascades_two_levels_via_process_group() {
               (:wat::core::match (:wat::io::IOReader/read-line rx) -> :wat::core::nil
                 (:None ())
                 ((Some line)
-                  (:wat::core::let*
+                  (:wat::core::let
                     (((_ :wat::core::nil) (:wat::io::IOWriter/println out line)))
                     (:demo::forward-loop rx out)))))
 
@@ -620,7 +620,7 @@ fn sigterm_cascades_two_levels_via_process_group() {
                                  (stdout :wat::io::IOWriter)
                                  (stderr :wat::io::IOWriter)
                                  -> :wat::core::nil)
-              (:wat::core::let*
+              (:wat::core::let
                 (((_ :wat::core::nil) (:wat::io::IOWriter/println stdout "PARENT READY"))
                  ;; Grandchild source: prints GRANDCHILD READY then
                  ;; polls stopped?. Pgid inherited from parent (no
@@ -638,13 +638,13 @@ fn sigterm_cascades_two_levels_via_process_group() {
                                            (gstdout :wat::io::IOWriter)
                                            (gstderr :wat::io::IOWriter)
                                            -> :wat::core::nil)
-                        (:wat::core::let*
+                        (:wat::core::let
                           (((_ :wat::core::nil) (:wat::io::IOWriter/println gstdout "GRANDCHILD READY")))
                           (:demo::poll-loop))))))
                  ((rx :wat::io::IOReader)
                   (:wat::kernel::Process/stdout child))
                  ((_ :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
-                  (:wat::core::let*
+                  (:wat::core::let
                     (((_ :wat::core::nil) (:demo::forward-loop rx stdout)))
                     (:wat::kernel::Process/join-result child))))
                 ()))

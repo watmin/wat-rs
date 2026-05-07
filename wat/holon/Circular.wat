@@ -23,7 +23,7 @@
     (value :AST<wat::core::f64>)
     (period :AST<wat::core::f64>)
     -> :AST<wat::holon::HolonAST>)
-  `(:wat::core::let*
+  `(:wat::core::let
      (((frac :wat::core::f64)
        (:wat::core::/ ,value ,period))
       ((two-pi :wat::core::f64)

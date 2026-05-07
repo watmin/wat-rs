@@ -264,14 +264,14 @@
     (reply-tx :wat::holon::lru::HologramCacheService::ReplyTx)
     (state :wat::holon::lru::HologramCacheService::State)
     -> :wat::holon::lru::HologramCacheService::State)
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::holon::lru::HologramCache)
       (:wat::holon::lru::HologramCacheService::State/cache state))
      ((stats :wat::holon::lru::HologramCacheService::Stats)
       (:wat::holon::lru::HologramCacheService::State/stats state)))
     (:wat::core::match req -> :wat::holon::lru::HologramCacheService::State
       ((:wat::holon::lru::HologramCacheService::Request::Get probes)
-        (:wat::core::let*
+        (:wat::core::let
           (((results :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>)
             (:wat::core::map probes
               (:wat::core::lambda ((probe :wat::holon::HolonAST) -> :wat::core::Option<wat::holon::HolonAST>)
@@ -301,14 +301,14 @@
               (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))))
           (:wat::holon::lru::HologramCacheService::State/new cache stats')))
       ((:wat::holon::lru::HologramCacheService::Request::Put entries)
-        (:wat::core::let*
+        (:wat::core::let
           (;; HologramCache/put returns :unit (not Option eviction).
            ;; Map entries, discard results (all units).
            ((_ :wat::core::Vector<wat::core::nil>)
             (:wat::core::map entries
               (:wat::core::lambda
                 ((entry :wat::holon::lru::HologramCacheService::Entry) -> :wat::core::nil)
-                (:wat::core::let*
+                (:wat::core::let
                   (((k :wat::holon::HolonAST) (:wat::core::first entry))
                    ((v :wat::holon::HolonAST) (:wat::core::second entry)))
                   (:wat::holon::lru::HologramCache/put cache k v)))))
@@ -348,7 +348,7 @@
     (reporter :wat::holon::lru::HologramCacheService::Reporter)
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
     -> :wat::holon::lru::HologramCacheService::Step<G>)
-  (:wat::core::let*
+  (:wat::core::let
     (((stats :wat::holon::lru::HologramCacheService::Stats)
       (:wat::holon::lru::HologramCacheService::State/stats state))
      ((gate :G)
@@ -361,7 +361,7 @@
      ((cadence' :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
       (:wat::holon::lru::HologramCacheService::MetricsCadence/new gate' tick-fn)))
     (:wat::core::if fired -> :wat::holon::lru::HologramCacheService::Step<G>
-      (:wat::core::let*
+      (:wat::core::let
         (((cache :wat::holon::lru::HologramCache)
           (:wat::holon::lru::HologramCacheService::State/cache state))
          ((final-stats :wat::holon::lru::HologramCacheService::Stats)
@@ -395,7 +395,7 @@
     -> :wat::core::nil)
   (:wat::core::match (:wat::core::get driver-pairs idx) -> :wat::core::nil
     ((:wat::core::Some pair)
-      (:wat::core::let*
+      (:wat::core::let
         (((reply-tx :wat::holon::lru::HologramCacheService::ReplyTx)
           (:wat::core::second pair))
          ((after-handle :wat::holon::lru::HologramCacheService::State)
@@ -427,7 +427,7 @@
     (reporter :wat::holon::lru::HologramCacheService::Reporter)
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::holon::lru::HologramCache)
       (:wat::holon::lru::HologramCache/make
         (:wat::holon::filter-coincident)
@@ -451,7 +451,7 @@
     -> :wat::core::nil)
   (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::nil
     :wat::core::nil
-    (:wat::core::let*
+    (:wat::core::let
       (((req-rxs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqRx>)
         (:wat::core::map driver-pairs
           (:wat::core::lambda
@@ -491,7 +491,7 @@
     (handle :wat::holon::lru::HologramCacheService::Handle)
     (probes :wat::core::Vector<wat::holon::HolonAST>)
     -> :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>)
-  (:wat::core::let*
+  (:wat::core::let
     (((req-tx :wat::holon::lru::HologramCacheService::ReqTx)
       (:wat::core::first handle))
      ((reply-rx :wat::holon::lru::HologramCacheService::ReplyRx)
@@ -520,7 +520,7 @@
     (handle :wat::holon::lru::HologramCacheService::Handle)
     (entries :wat::core::Vector<wat::holon::lru::HologramCacheService::Entry>)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((req-tx :wat::holon::lru::HologramCacheService::ReqTx)
       (:wat::core::first handle))
      ((reply-rx :wat::holon::lru::HologramCacheService::ReplyRx)
@@ -564,7 +564,7 @@
     (reporter :wat::holon::lru::HologramCacheService::Reporter)
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
     -> :wat::holon::lru::HologramCacheService::Spawn)
-  (:wat::core::let*
+  (:wat::core::let
     ;; N request pairs and N reply pairs in lock-step. The pair index
     ;; is preserved so Handle[i] and DriverPair[i] correspond to the
     ;; same slot.

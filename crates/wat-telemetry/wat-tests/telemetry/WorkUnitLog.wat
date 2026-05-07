@@ -108,7 +108,7 @@
      (:test::wul-spawn-stub-and-emit-drain
        (body :fn(wat::telemetry::WorkUnitLog,wat::telemetry::WorkUnit,wat::kernel::Receiver<wat::telemetry::Event>)->wat::core::keyword)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
-     (:wat::core::let*
+     (:wat::core::let
        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
@@ -127,7 +127,7 @@
         ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
          (:wat::core::second spawn))
         ((kw :wat::core::keyword)
-         (:wat::core::let*
+         (:wat::core::let
            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
              (:wat::kernel::HandlePool::pop pool))
             ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
@@ -158,7 +158,7 @@
 ;; Layer 2 — wul-spawn-stub-and-emit-drain: body does nothing, returns sentinel.
 ;; Proves spawn + configure + pop + build wu + build logger lifecycle is clean.
 (:deftest :wat-telemetry::WorkUnitLog::test-wul-spawn-stub-and-emit-drain
-  (:wat::core::let*
+  (:wat::core::let
     (((thr-kw :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
       (:test::wul-spawn-stub-and-emit-drain
         (:wat::core::lambda
@@ -180,7 +180,7 @@
 ;; Log variant (not Metric) and that the level keyword survives
 ;; the lift (keyword → Atom → NoTag) + render round-trip.
 (:deftest :wat-telemetry::WorkUnitLog::test-info-emits-log-event
-  (:wat::core::let*
+  (:wat::core::let
     ;; Body: emit one /info, drain one event, return its level keyword.
     ;; wul-spawn-stub-and-emit-drain internalizes spawn + configure +
     ;; pop + wu + logger. Body lambda is the embedded test fixture.
@@ -191,7 +191,7 @@
            (wu :wat::telemetry::WorkUnit)
            (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
            -> :wat::core::keyword)
-          (:wat::core::let*
+          (:wat::core::let
             (((_log :wat::core::nil)
               (:wat::telemetry::WorkUnitLog/info logger wu (:wat::core::quote :hello))))
             (:test::wul-recv-level stub-rx)))))
@@ -210,7 +210,7 @@
 ;; order; we extract each level and check the SET of levels seen.
 
 (:deftest :wat-telemetry::WorkUnitLog::test-each-level-emits-log
-  (:wat::core::let*
+  (:wat::core::let
     ;; Body: emit debug + info + warn + error; drain four events;
     ;; assert first three; return the fourth level keyword.
     ;; wul-spawn-stub-and-emit-drain internalizes spawn + configure +
@@ -222,7 +222,7 @@
            (wu :wat::telemetry::WorkUnit)
            (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
            -> :wat::core::keyword)
-          (:wat::core::let*
+          (:wat::core::let
             (((data :wat::WatAST) (:wat::core::quote :payload))
              ((_d :wat::core::nil) (:wat::telemetry::WorkUnitLog/debug logger wu data))
              ((_i :wat::core::nil) (:wat::telemetry::WorkUnitLog/info  logger wu data))

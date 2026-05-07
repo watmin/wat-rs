@@ -58,7 +58,7 @@ fn harness_composes_multiple_deps_into_user_source() {
                                  (stdout :wat::io::IOWriter)
                                  (stderr :wat::io::IOWriter)
                                  -> :())
-              (:wat::core::let*
+              (:wat::core::let
                 (((_ :wat::core::i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-a::label)))
                  ((_ :wat::core::i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-b::label))))
                 ()))

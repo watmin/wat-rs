@@ -23,7 +23,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-template-collapses-tuning
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((rsi-70 :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
@@ -46,7 +46,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-template-distinguishes-ranges
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
@@ -68,7 +68,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-template-distinguishes-atoms
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((rsi :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
@@ -87,7 +87,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-slots-pre-order
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((bundled :wat::holon::BundleResult)
       (:wat::holon::Bundle
         (:wat::core::Vector :wat::holon::HolonAST
@@ -105,7 +105,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-slots-ranges-parallel
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((bundled :wat::holon::BundleResult)
       (:wat::holon::Bundle
         (:wat::core::Vector :wat::holon::HolonAST
@@ -125,7 +125,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-slots-empty-for-thermometer-free
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((form :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
@@ -142,7 +142,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-template-has-no-slots
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((form :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
@@ -156,7 +156,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-matches-self
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((form :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
@@ -174,7 +174,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-matches-close-slot
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((q :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
@@ -191,7 +191,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-matches-distant-slot
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((q :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
@@ -211,7 +211,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-matches-different-template
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((q :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
@@ -233,7 +233,7 @@
 
 (:wat::test::deftest :wat-tests::holon::term::test-matches-thermometer-free
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((q :wat::holon::HolonAST)
       (:wat::holon::Bind
         (:wat::holon::leaf :x)

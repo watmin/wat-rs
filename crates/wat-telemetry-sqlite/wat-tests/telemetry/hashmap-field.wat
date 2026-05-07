@@ -23,7 +23,7 @@
      (:test::Tagged::send-one
        (pool :wat::telemetry::HandlePool<test::Tagged::Event>)
        -> :wat::core::nil)
-     (:wat::core::let*
+     (:wat::core::let
        (((handle :wat::telemetry::Handle<test::Tagged::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
@@ -50,7 +50,7 @@
      (:test::Tagged::auto-spawn-one
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-     (:wat::core::let*
+     (:wat::core::let
        (((spawn :wat::telemetry::Spawn<test::Tagged::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
            :test::Tagged::Event
@@ -67,7 +67,7 @@
 
 
 (:deftest :wat-telemetry-sqlite::hashmap-field::test-tags-bind
-  (:wat::core::let*
+  (:wat::core::let
     (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::Tagged::auto-spawn-one
         "/tmp/wat-sqlite-test-hashmap-field-001.db"))

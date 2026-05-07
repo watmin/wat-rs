@@ -26,7 +26,7 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((proc :wat::kernel::Program<wat::core::i64,wat::core::i64>)
               (:wat::kernel::fork-program-ast
                 (:wat::core::Vector :wat::WatAST)))

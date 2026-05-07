@@ -51,7 +51,7 @@ fn program(body: &str) -> String {
 fn worked_example_matches() {
     let src = program(
         r#"
-        (:wat::core::let*
+        (:wat::core::let
           (((p :test::PaperResolved)
             (:test::PaperResolved/new "Grace" 7.5)))
           (:wat::form::matches? p
@@ -69,7 +69,7 @@ fn worked_example_matches() {
 fn worked_example_rejects_low_residue() {
     let src = program(
         r#"
-        (:wat::core::let*
+        (:wat::core::let
           (((p :test::PaperResolved)
             (:test::PaperResolved/new "Grace" 3.0)))
           (:wat::form::matches? p
@@ -87,7 +87,7 @@ fn worked_example_rejects_low_residue() {
 fn worked_example_rejects_wrong_outcome() {
     let src = program(
         r#"
-        (:wat::core::let*
+        (:wat::core::let
           (((p :test::PaperResolved)
             (:test::PaperResolved/new "Loss" 7.5)))
           (:wat::form::matches? p
@@ -117,7 +117,7 @@ fn comparison_lt_gt_le_ge() {
     ] {
         let high_src = program(&format!(
             r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((p :test::PaperResolved)
                 (:test::PaperResolved/new "Grace" 7.5)))
               (:wat::form::matches? p
@@ -130,7 +130,7 @@ fn comparison_lt_gt_le_ge() {
 
         let low_src = program(&format!(
             r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((p :test::PaperResolved)
                 (:test::PaperResolved/new "Grace" 3.0)))
               (:wat::form::matches? p
@@ -147,7 +147,7 @@ fn comparison_lt_gt_le_ge() {
 fn not_eq_works() {
     let src = program(
         r#"
-        (:wat::core::let*
+        (:wat::core::let
           (((p :test::PaperResolved)
             (:test::PaperResolved/new "Loss" 1.0)))
           (:wat::form::matches? p
@@ -166,7 +166,7 @@ fn and_both_must_hold() {
     let mk = |outcome: &str, residue: &str| {
         program(&format!(
             r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((p :test::PaperResolved)
                 (:test::PaperResolved/new "{outcome}" {residue})))
               (:wat::form::matches? p
@@ -187,7 +187,7 @@ fn or_at_least_one_must_hold() {
     let mk = |residue: &str| {
         program(&format!(
             r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((p :test::PaperResolved)
                 (:test::PaperResolved/new "Grace" {residue})))
               (:wat::form::matches? p
@@ -207,7 +207,7 @@ fn not_inverts() {
     let mk = |outcome: &str| {
         program(&format!(
             r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((p :test::PaperResolved)
                 (:test::PaperResolved/new "{outcome}" 5.0)))
               (:wat::form::matches? p
@@ -227,7 +227,7 @@ fn not_inverts() {
 fn where_uses_arbitrary_wat_expression() {
     let src = program(
         r#"
-        (:wat::core::let*
+        (:wat::core::let
           (((p :test::PaperResolved)
             (:test::PaperResolved/new "Graceful" 7.5)))
           (:wat::form::matches? p
@@ -243,7 +243,7 @@ fn where_uses_arbitrary_wat_expression() {
 fn where_can_fail() {
     let src = program(
         r#"
-        (:wat::core::let*
+        (:wat::core::let
           (((p :test::PaperResolved)
             (:test::PaperResolved/new "Loss" 7.5)))
           (:wat::form::matches? p
@@ -265,7 +265,7 @@ fn struct_type_mismatch_returns_false() {
         "{prologue}\n
         (:wat::core::struct :test::Other (x :i64))
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((o :test::Other) (:test::Other/new 42)))
             (:wat::form::matches? o
               (:test::PaperResolved
@@ -281,7 +281,7 @@ fn struct_type_mismatch_returns_false() {
 fn option_none_subject_returns_false() {
     let src = program(
         r#"
-        (:wat::core::let*
+        (:wat::core::let
           (((maybe :wat::core::Option<test::PaperResolved>) :wat::core::None))
           (:wat::form::matches? maybe
             (:test::PaperResolved
@@ -296,7 +296,7 @@ fn option_none_subject_returns_false() {
 fn option_some_subject_unwraps_one_level() {
     let src = program(
         r#"
-        (:wat::core::let*
+        (:wat::core::let
           (((p :test::PaperResolved)
             (:test::PaperResolved/new "Grace" 7.5))
            ((maybe :wat::core::Option<test::PaperResolved>) (:wat::core::Some p)))
@@ -328,7 +328,7 @@ fn non_struct_subject_returns_false() {
 fn binding_visible_in_later_clauses_including_where() {
     let src = program(
         r#"
-        (:wat::core::let*
+        (:wat::core::let
           (((p :test::PaperResolved)
             (:test::PaperResolved/new "Grace" 12.5)))
           (:wat::form::matches? p

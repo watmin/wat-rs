@@ -10,7 +10,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Sequential::test-self-identity
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
      ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
@@ -20,7 +20,7 @@
 
 (:wat::test::deftest :wat-tests::holon::Sequential::test-order-sensitivity
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
      ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))

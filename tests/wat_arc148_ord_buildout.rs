@@ -328,7 +328,7 @@ fn option_none_lt_some() {
     // :None < (Some 0) regardless of payload
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Option<wat::core::i64>) :wat::core::None)
              ((b :wat::core::Option<wat::core::i64>) (:wat::core::Some 0)))
             (:wat::core::< a b)))
@@ -340,7 +340,7 @@ fn option_none_lt_some() {
 fn option_some_gt_none() {
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Option<wat::core::i64>) (:wat::core::Some 99)))
             (:wat::core::> a :wat::core::None)))
     "#;
@@ -384,7 +384,7 @@ fn option_recursion_deep_via_nested_option() {
     // Some(Some(1)) < Some(Some(2))
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Option<wat::core::Option<wat::core::i64>>)
               (:wat::core::Some (:wat::core::Some 1)))
              ((b :wat::core::Option<wat::core::Option<wat::core::i64>>)
@@ -400,7 +400,7 @@ fn option_recursion_deep_via_nested_option() {
 fn result_err_lt_ok() {
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Result<wat::core::i64,wat::core::String>)
               (:wat::core::Err "boom"))
              ((b :wat::core::Result<wat::core::i64,wat::core::String>)
@@ -414,7 +414,7 @@ fn result_err_lt_ok() {
 fn result_ok_gt_err() {
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Result<wat::core::i64,wat::core::String>)
               (:wat::core::Ok 100))
              ((b :wat::core::Result<wat::core::i64,wat::core::String>)
@@ -428,7 +428,7 @@ fn result_ok_gt_err() {
 fn result_ok_le_same_payload() {
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Result<wat::core::i64,wat::core::String>)
               (:wat::core::Ok 5))
              ((b :wat::core::Result<wat::core::i64,wat::core::String>)
@@ -442,7 +442,7 @@ fn result_ok_le_same_payload() {
 fn result_err_ge_smaller_err_payload() {
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Result<wat::core::i64,wat::core::String>)
               (:wat::core::Err "z"))
              ((b :wat::core::Result<wat::core::i64,wat::core::String>)
@@ -459,7 +459,7 @@ fn result_recursion_shallow_same_variant_payload_decides() {
     // Both Err — payload (String) lex decides.
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Result<wat::core::i64,wat::core::String>)
               (:wat::core::Err "alpha"))
              ((b :wat::core::Result<wat::core::i64,wat::core::String>)
@@ -475,7 +475,7 @@ fn result_recursion_deep_via_ok_payload_tuple() {
     // i64 leaf.
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Result<(wat::core::i64,wat::core::i64),wat::core::String>)
               (:wat::core::Ok (:wat::core::Tuple 1 5)))
              ((b :wat::core::Result<(wat::core::i64,wat::core::i64),wat::core::String>)
@@ -492,7 +492,7 @@ fn algebra_vector_le_self() {
     // Same vector compared to itself: <= true (equal).
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x"))))
             (:wat::core::<= v v)))
     "#;
@@ -503,7 +503,7 @@ fn algebra_vector_le_self() {
 fn algebra_vector_ge_self() {
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x"))))
             (:wat::core::>= v v)))
     "#;
@@ -515,7 +515,7 @@ fn algebra_vector_lt_self_is_false() {
     // v < v should be false (equality holds).
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x"))))
             (:wat::core::< v v)))
     "#;
@@ -530,7 +530,7 @@ fn algebra_vector_distinct_atoms_have_some_order() {
     // is reachable without panicking — by OR'ing the two.
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "alpha")))
              ((vb :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "omega"))))
             (:wat::core::or (:wat::core::< va vb) (:wat::core::> va vb))))
@@ -546,7 +546,7 @@ fn hashmap_ord_raises_type_mismatch() {
     // values_compare returns None → eval_compare raises TypeMismatch.
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((m1 :wat::core::HashMap<wat::core::String,wat::core::i64>)
               (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 1))
              ((m2 :wat::core::HashMap<wat::core::String,wat::core::i64>)
@@ -565,7 +565,7 @@ fn hashmap_ord_raises_type_mismatch() {
 fn hashset_ord_raises_type_mismatch() {
     let src = r#"
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((s1 :wat::core::HashSet<wat::core::i64>)
               (:wat::core::HashSet :wat::core::i64 1 2))
              ((s2 :wat::core::HashSet<wat::core::i64>)
@@ -605,7 +605,7 @@ fn struct_ord_raises_type_mismatch() {
           (y :wat::core::i64))
 
         (:wat::core::define (:user::main -> :bool)
-          (:wat::core::let*
+          (:wat::core::let
             (((p :my::Point) (:my::Point/new 1 2))
              ((q :my::Point) (:my::Point/new 3 4)))
             (:wat::core::< p q)))

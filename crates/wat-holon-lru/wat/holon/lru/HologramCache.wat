@@ -56,7 +56,7 @@
     (key :wat::holon::HolonAST)
     (val :wat::holon::HolonAST)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((h :wat::holon::Hologram) (:wat::holon::lru::HologramCache/hologram store))
      ((lru :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::nil>)
       (:wat::holon::lru::HologramCache/lru store))
@@ -65,7 +65,7 @@
       (:wat::lru::LocalCache::put lru key :wat::core::nil)))
     (:wat::core::match evicted -> :wat::core::nil
       ((:wat::core::Some pair)
-        (:wat::core::let*
+        (:wat::core::let
           (((evicted-key :wat::holon::HolonAST) (:wat::core::first pair))
            ((_ :wat::core::Option<wat::holon::HolonAST>)
             (:wat::holon::Hologram/remove h evicted-key)))
@@ -83,7 +83,7 @@
     (store :wat::holon::lru::HologramCache)
     (probe :wat::holon::HolonAST)
     -> :wat::core::Option<wat::holon::HolonAST>)
-  (:wat::core::let*
+  (:wat::core::let
     (((h :wat::holon::Hologram) (:wat::holon::lru::HologramCache/hologram store))
      ((lru :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::nil>)
       (:wat::holon::lru::HologramCache/lru store)))
@@ -91,7 +91,7 @@
       (:wat::holon::Hologram/find h probe)
       -> :wat::core::Option<wat::holon::HolonAST>
       ((:wat::core::Some pair)
-        (:wat::core::let*
+        (:wat::core::let
           (((matched-key :wat::holon::HolonAST) (:wat::core::first pair))
            ((val :wat::holon::HolonAST) (:wat::core::second pair))
            ((_ :wat::core::Option<(wat::holon::HolonAST,wat::core::nil)>)

@@ -130,7 +130,7 @@ fn tuple_alias_works_at_hashmap_constructor_arg() {
         (:wat::core::typealias :my::KV :(wat::core::String,wat::core::i64))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((row :wat::core::HashMap<wat::core::String,wat::core::i64>)
               (:wat::core::HashMap :my::KV "a" 1 "b" 2))
              ((got :wat::core::Option<wat::core::i64>) (:wat::core::get row "b")))
@@ -152,7 +152,7 @@ fn alias_over_hashmap_passes_through_std_get() {
         (:wat::core::typealias :my::Row :wat::core::HashMap<wat::core::String,wat::core::i64>)
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((row :my::Row) (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 10 "b" 20))
              ((got :wat::core::Option<wat::core::i64>) (:wat::core::get row "a")))
             (:wat::core::match got -> :wat::core::i64
@@ -174,7 +174,7 @@ fn alias_over_fn_type_works_at_spawn() {
           :fn(rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::nil)
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((job :my::Job)
               (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
                 (:wat::core::do

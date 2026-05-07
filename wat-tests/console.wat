@@ -107,7 +107,7 @@
 
 ;; Layer 1 — stdout-first-line-or-empty: some case.
 (:deftest-console :wat-tests::std::service::Console::test-stdout-first-line-some
-  (:wat::core::let*
+  (:wat::core::let
     (((stdout :wat::core::Vector<wat::core::String>)
       (:wat::core::conj
         (:wat::core::conj
@@ -128,7 +128,7 @@
 
 ;; Layer 2 — stdout-contains-one?: true case.
 (:deftest-console :wat-tests::std::service::Console::test-stdout-contains-one-yes
-  (:wat::core::let*
+  (:wat::core::let
     (((stdout :wat::core::Vector<wat::core::String>)
       (:wat::core::conj
         (:wat::core::conj
@@ -142,7 +142,7 @@
 
 ;; Layer 2 — stdout-contains-one?: false case (not present).
 (:deftest-console :wat-tests::std::service::Console::test-stdout-contains-one-no
-  (:wat::core::let*
+  (:wat::core::let
     (((stdout :wat::core::Vector<wat::core::String>)
       (:wat::core::conj
         (:wat::core::Vector :wat::core::String)
@@ -154,7 +154,7 @@
 
 ;; Layer 2 — assert-stdout-has: passing case (msg present exactly once).
 (:deftest-console :wat-tests::std::service::Console::test-assert-stdout-has-pass
-  (:wat::core::let*
+  (:wat::core::let
     (((stdout :wat::core::Vector<wat::core::String>)
       (:wat::core::conj
         (:wat::core::conj
@@ -176,7 +176,7 @@
 ;;   - Producer blocks on ack-rx until driver writes (slice 5)
 
 (:deftest-console :wat-tests::std::service::Console::test-hello-world
-  (:wat::core::let*
+  (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
@@ -186,14 +186,14 @@
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
-            (:wat::core::let*
+            (:wat::core::let
               ;; Outer holds Console driver Thread. Inner owns the
               ;; spawn-tuple, pool, handle, and the out call. Inner
               ;; returns the Thread; pool drops at inner exit; outer
               ;; joins. SERVICE-PROGRAMS.md § "The lockstep" + arc 117
               ;; + arc 131.
               (((console-driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-                (:wat::core::let*
+                (:wat::core::let
                   (((spawn :wat::console::Spawn)
                     (:wat::console::spawn stdout stderr 1))
                    ((pool :wat::kernel::HandlePool<wat::console::Handle>)
@@ -228,7 +228,7 @@
 ;; Console/loop.
 
 (:deftest-console :wat-tests::std::service::Console::test-multi-writer
-  (:wat::core::let*
+  (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
@@ -244,7 +244,7 @@
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
-            (:wat::core::let*
+            (:wat::core::let
               ;; Outer holds only the console-driver Thread.
               ;; Middle owns spawn-tuple + pool + cd; the worker
               ;; spawns + joins live in a deeper inner-most let* so
@@ -254,16 +254,16 @@
               ;; returns unit; middle returns cd; outer joins the
               ;; console driver. SERVICE-PROGRAMS.md § "The lockstep".
               (((console-driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-                (:wat::core::let*
+                (:wat::core::let
                   (((spawn :wat::console::Spawn)
                     (:wat::console::spawn stdout stderr 3))
                    ((pool :wat::kernel::HandlePool<wat::console::Handle>)
                     (:wat::core::first spawn))
                    ((cd :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::second spawn))
                    ((_workers :wat::core::nil)
-                    (:wat::core::let*
+                    (:wat::core::let
                       (((w0 :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-                        (:wat::core::let*
+                        (:wat::core::let
                           (((h0 :wat::console::Handle)
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
@@ -273,7 +273,7 @@
                                -> :wat::core::nil)
                               (:my::worker h0 "alpha\n")))))
                        ((w1 :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-                        (:wat::core::let*
+                        (:wat::core::let
                           (((h1 :wat::console::Handle)
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
@@ -283,7 +283,7 @@
                                -> :wat::core::nil)
                               (:my::worker h1 "bravo\n")))))
                        ((w2 :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-                        (:wat::core::let*
+                        (:wat::core::let
                           (((h2 :wat::console::Handle)
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread

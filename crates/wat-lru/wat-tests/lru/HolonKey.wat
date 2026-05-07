@@ -24,7 +24,7 @@
 
 (:wat::test::deftest :wat-lru::test-local-cache-holon-key-roundtrip
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
      ((k :wat::holon::HolonAST)
@@ -44,7 +44,7 @@
 
 (:wat::test::deftest :wat-lru::test-local-cache-holon-key-distinguishes
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
      ((k1 :wat::holon::HolonAST) (:wat::holon::Atom (:wat::core::quote :a)))
@@ -67,7 +67,7 @@
 
 (:wat::test::deftest :wat-lru::test-local-cache-holon-key-structural-equal
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
      ((k1 :wat::holon::HolonAST)

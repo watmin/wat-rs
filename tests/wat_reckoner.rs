@@ -41,7 +41,7 @@ fn reckoner_discrete_construct_dims_labels() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((labels :wat::core::Vector<wat::holon::HolonAST>)
               (:wat::core::Vector :wat::holon::HolonAST
                 (:wat::holon::Atom "up")
@@ -68,7 +68,7 @@ fn reckoner_observe_then_predict() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((labels :wat::core::Vector<wat::holon::HolonAST>)
               (:wat::core::Vector :wat::holon::HolonAST
                 (:wat::holon::Atom "up")
@@ -101,7 +101,7 @@ fn reckoner_continuous_construct() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((r :wat::holon::Reckoner)
               (:wat::holon::Reckoner/new-continuous "cont" 10000 100 0.0 16))
              ((d :wat::core::i64) (:wat::holon::Reckoner/dims r)))

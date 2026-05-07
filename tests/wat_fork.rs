@@ -44,7 +44,7 @@ fn fork_child_writes_stdout_parent_reads_line() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -70,7 +70,7 @@ fn fork_child_writes_stderr_parent_reads_line() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -94,7 +94,7 @@ fn wait_child_returns_zero_on_success() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -130,7 +130,7 @@ fn wait_child_is_idempotent() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -157,7 +157,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -166,7 +166,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
-                    (:wat::core::let*
+                    (:wat::core::let
                       (((_ :wat::core::i64) (:wat::core::i64::+,2 1 "two")))
                       ()))))))
             (:wat::kernel::Process/join-result child)))
@@ -182,7 +182,7 @@ fn wait_child_surfaces_panic_exit_code() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -206,7 +206,7 @@ fn wait_child_surfaces_runtime_error_exit_code() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -215,7 +215,7 @@ fn wait_child_surfaces_runtime_error_exit_code() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
-                    (:wat::core::let*
+                    (:wat::core::let
                       (((_ :wat::core::u8) (:wat::core::u8 300)))
                       ()))))))
             (:wat::kernel::Process/join-result child)))
@@ -231,7 +231,7 @@ fn multiple_sequential_forks_no_leak() {
     let src = r#"
 
         (:wat::core::define (:my::one-fork<I,O> -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<I,O>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -244,7 +244,7 @@ fn multiple_sequential_forks_no_leak() {
             (:wat::kernel::Process/join-result child)))
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>) (:my::one-fork))
              ((b :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>) (:my::one-fork))
              ((c :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>) (:my::one-fork)))
@@ -265,7 +265,7 @@ fn wait_child_surfaces_nonzero_exit_code() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -283,7 +283,7 @@ fn fork_child_reads_stdin_from_parent() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program

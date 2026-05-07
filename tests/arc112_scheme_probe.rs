@@ -21,7 +21,7 @@ fn arc112_probe_spawn_program_parametric_return() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sr :wat::core::Result<wat::kernel::Process<wat::core::i64,wat::core::i64>,wat::kernel::StartupError>)
               (:wat::kernel::spawn-program "()" :wat::core::None)))
             ()))

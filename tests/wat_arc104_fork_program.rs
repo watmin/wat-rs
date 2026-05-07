@@ -62,7 +62,7 @@ fn fork_program_child_writes_stdout_parent_reads_line() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::io::IOWriter/println stdout \"hello-from-fork\"))")
              ((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
@@ -85,7 +85,7 @@ fn fork_program_round_trip_via_pipes() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line)))))")
              ((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
@@ -107,7 +107,7 @@ fn fork_program_clean_exit_code_via_wait_child() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,Vec<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil (:None ()) ((Some _) ())))")
              ((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
@@ -129,7 +129,7 @@ fn fork_program_parse_error_surfaces_as_exit_3() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,Vec<wat::kernel::ProcessDiedError>>)
-          (:wat::core::let*
+          (:wat::core::let
             (((bad-src :wat::core::String)
               "(:wat::core::define (:demo::not-main (x :i64) -> :i64) x)")
              ((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)

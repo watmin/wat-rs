@@ -62,7 +62,7 @@
 
 ;; Layer 2 — assert-line-once: passes when msg is present exactly once.
 (:deftest :wat-telemetry::Console::test-assert-line-once-pass
-  (:wat::core::let*
+  (:wat::core::let
     (((stdout :wat::core::Vector<wat::core::String>)
       (:wat::core::conj
         (:wat::core::conj
@@ -78,7 +78,7 @@
 ;; Verifies that 10, 20, and 30 each appear exactly once in stdout.
 
 (:deftest :wat-telemetry::Console::test-dispatcher-edn
-  (:wat::core::let*
+  (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
@@ -100,7 +100,7 @@
             (:my::dispatch-three-edn
               (handle :wat::console::Handle)
               -> :wat::core::nil)
-            (:wat::core::let*
+            (:wat::core::let
               (((d :my::Dispatcher)
                 (:wat::telemetry::Console/dispatcher
                   handle :wat::telemetry::Console::Format::Edn))
@@ -116,9 +116,9 @@
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
-            (:wat::core::let*
+            (:wat::core::let
               (((console-driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-                (:wat::core::let*
+                (:wat::core::let
                   (((spawn :wat::console::Spawn)
                     (:wat::console::spawn stdout stderr 1))
                    ((pool :wat::kernel::HandlePool<wat::console::Handle>)
@@ -143,7 +143,7 @@
 ;; ─── Test 2: JSON format renders wat::core::Vector<i64> as JSON array ──────────
 
 (:deftest :wat-telemetry::Console::test-dispatcher-json
-  (:wat::core::let*
+  (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
@@ -163,7 +163,7 @@
             (:my::dispatch-row-json
               (handle :wat::console::Handle)
               -> :wat::core::nil)
-            (:wat::core::let*
+            (:wat::core::let
               (((d :my::Dispatcher)
                 (:wat::telemetry::Console/dispatcher
                   handle :wat::telemetry::Console::Format::Json))
@@ -177,12 +177,12 @@
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
-            (:wat::core::let*
+            (:wat::core::let
               ;; Outer holds Console driver Thread; inner owns the
               ;; spawn-tuple, pool, handle, and dispatch work; inner
               ;; returns the Thread. SERVICE-PROGRAMS.md § "The lockstep".
               (((console-driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-                (:wat::core::let*
+                (:wat::core::let
                   (((spawn :wat::console::Spawn)
                     (:wat::console::spawn stdout stderr 1))
                    ((pool :wat::kernel::HandlePool<wat::console::Handle>)

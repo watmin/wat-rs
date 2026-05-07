@@ -78,7 +78,7 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
                 (:wat::runtime::signature-of :wat::core::foldl)
@@ -132,7 +132,7 @@ fn rename_callable_name_no_type_params() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
                 (:wat::runtime::signature-of :user::my-double)
@@ -190,7 +190,7 @@ fn rename_callable_name_error_from_mismatch() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
                 (:wat::runtime::signature-of :user::my-neg)
@@ -242,7 +242,7 @@ fn extract_arg_names_foldl_returns_three_names() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
                 (:wat::runtime::signature-of :wat::core::foldl)
@@ -301,7 +301,7 @@ fn extract_arg_names_zero_args_returns_empty() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
                 (:wat::runtime::signature-of :user::constant)
@@ -338,7 +338,7 @@ fn extract_arg_names_stops_before_return_type() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
                 (:wat::runtime::signature-of :user::my-add)
@@ -388,7 +388,7 @@ fn extract_arg_names_error_non_bundle() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((leaf :wat::holon::HolonAST)
               (:wat::holon::Atom :wat::core::foldl))
              ((names :wat::core::Vector<wat::core::keyword>)
@@ -440,7 +440,7 @@ fn rename_then_extract_preserves_arg_names() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
                 (:wat::runtime::signature-of :user::my-add)

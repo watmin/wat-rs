@@ -50,7 +50,7 @@ fn ast_entry_prints_hello() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((forms :wat::core::Vector<wat::WatAST>)
               (:wat::core::Vector :wat::WatAST
                 (:wat::core::quote (:wat::config::set-capacity-mode! :error))
@@ -89,7 +89,7 @@ fn ast_entry_captures_assertion_failure() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((forms :wat::core::Vector<wat::WatAST>)
               (:wat::core::Vector :wat::WatAST
                 (:wat::core::quote (:wat::config::set-capacity-mode! :error))

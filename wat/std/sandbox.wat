@@ -98,7 +98,7 @@
     (proc  :wat::kernel::Program<I,O>)
     (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
-  (:wat::core::let*
+  (:wat::core::let
     (((stdin-w :wat::io::IOWriter)   (:wat::kernel::Process/stdin proc))
      ((joined  :wat::core::String)              (:wat::core::string::join "\n" stdin))
      ((_n      :wat::core::i64)                 (:wat::io::IOWriter/write-string stdin-w joined))

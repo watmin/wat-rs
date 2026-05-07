@@ -12,7 +12,7 @@
 
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-roundtrip-via-eval
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((_outcome :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
@@ -25,7 +25,7 @@
               (_stdout :wat::io::IOWriter)
               (_stderr :wat::io::IOWriter)
               -> :wat::core::nil)
-            (:wat::core::let*
+            (:wat::core::let
               (((p :my::Pair) (:my::Pair/new 7 9))
                ((form :wat::WatAST) (:wat::core::struct->form p))
                ((roundtrip :wat::holon::HolonAST) (:wat::eval-ast! form))
@@ -39,7 +39,7 @@
 
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-quasiquote-splices-runtime-values
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((x :wat::core::i64) 42)
      ((y :wat::core::String) "hello")
      ((form :wat::WatAST)

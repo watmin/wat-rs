@@ -110,7 +110,7 @@
      (:test::wu-spawn-stub-scope-str
        (body :fn(wat::telemetry::WorkUnit)->wat::core::String)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
-     (:wat::core::let*
+     (:wat::core::let
        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
@@ -129,7 +129,7 @@
         ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
          (:wat::core::second spawn))
         ((result :wat::core::String)
-         (:wat::core::let*
+         (:wat::core::let
            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
              (:wat::kernel::HandlePool::pop pool))
             ((_finish :wat::core::nil)
@@ -149,7 +149,7 @@
      (:test::wu-spawn-stub-scope-unit
        (body :fn(wat::telemetry::WorkUnit)->wat::core::nil)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
-     (:wat::core::let*
+     (:wat::core::let
        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
@@ -168,7 +168,7 @@
         ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
          (:wat::core::second spawn))
         ((_ :wat::core::nil)
-         (:wat::core::let*
+         (:wat::core::let
            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
              (:wat::kernel::HandlePool::pop pool))
             ((_finish :wat::core::nil)
@@ -188,7 +188,7 @@
      (:test::wu-spawn-stub-scope-i64
        (body :fn(wat::telemetry::WorkUnit)->wat::core::i64)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)))
-     (:wat::core::let*
+     (:wat::core::let
        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
@@ -207,7 +207,7 @@
         ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
          (:wat::core::second spawn))
         ((result :wat::core::i64)
-         (:wat::core::let*
+         (:wat::core::let
            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
              (:wat::kernel::HandlePool::pop pool))
             ((_finish :wat::core::nil)
@@ -230,7 +230,7 @@
      (:test::wu-spawn-count-and-scope
        (body :fn(wat::telemetry::WorkUnit)->wat::core::nil)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
-     (:wat::core::let*
+     (:wat::core::let
        (((count-pair :wat::kernel::Channel<wat::core::i64>)
          (:wat::kernel::make-bounded-channel :wat::core::i64 4))
         ((count-tx :wat::kernel::Sender<wat::core::i64>)
@@ -249,7 +249,7 @@
         ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
          (:wat::core::second spawn))
         ((_ :wat::core::nil)
-         (:wat::core::let*
+         (:wat::core::let
            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
              (:wat::kernel::HandlePool::pop pool))
             ((_finish :wat::core::nil)
@@ -300,7 +300,7 @@
 ;; Layer 1 — wu-spawn-stub-scope-unit: runs a unit body; stub-rx receives
 ;; zero events (body does nothing). Proves spawn + scope lifecycle is clean.
 (:deftest :wat-telemetry::WorkUnit::test-wu-spawn-stub-scope-unit
-  (:wat::core::let*
+  (:wat::core::let
     (((thr-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
       (:test::wu-spawn-stub-scope-unit
         (:wat::core::lambda ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
@@ -313,7 +313,7 @@
 ;; Layer 1 — wu-spawn-count-and-scope: runs a unit body; count = 0
 ;; (body does nothing; make-scope ships empty vec → dispatcher sees len 0).
 (:deftest :wat-telemetry::WorkUnit::test-wu-spawn-count-and-scope
-  (:wat::core::let*
+  (:wat::core::let
     (((thr-cnt :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
       (:test::wu-spawn-count-and-scope
         (:wat::core::lambda ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
@@ -336,7 +336,7 @@
 ;; body that incrs one counter — scope ships one Event::Metric. recv-event-is-some
 ;; returns true.
 (:deftest :wat-telemetry::WorkUnit::test-wu-recv-event-is-some
-  (:wat::core::let*
+  (:wat::core::let
     (((thr-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
       (:test::wu-spawn-stub-scope-unit
         (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::nil)
@@ -352,7 +352,7 @@
 ;; ─── uuid is non-empty ────────────────────────────────────────────
 
 (:deftest :wat-telemetry::WorkUnit::test-uuid-non-empty
-  (:wat::core::let*
+  (:wat::core::let
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((id :wat::core::String) (:wat::telemetry::WorkUnit/uuid wu)))
     ;; A canonical 8-4-4-4-12 hex uuid is 36 chars — but :wat::core::String
@@ -367,7 +367,7 @@
 ;; ─── uuids are distinct across new() calls ───────────────────────
 
 (:deftest :wat-telemetry::WorkUnit::test-uuid-distinct
-  (:wat::core::let*
+  (:wat::core::let
     (((wu1 :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((wu2 :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((id1 :wat::core::String) (:wat::telemetry::WorkUnit/uuid wu1))
@@ -378,7 +378,7 @@
 ;; ─── counter on an absent key returns 0 ──────────────────────────
 
 (:deftest :wat-telemetry::WorkUnit::test-counter-default
-  (:wat::core::let*
+  (:wat::core::let
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :never-incremented))
      ((n :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name)))
@@ -388,7 +388,7 @@
 ;; ─── incr! then counter — single bump ────────────────────────────
 
 (:deftest :wat-telemetry::WorkUnit::test-incr-then-counter
-  (:wat::core::let*
+  (:wat::core::let
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :requests))
      ((_ :wat::core::nil) (:wat::telemetry::WorkUnit/incr! wu name))
@@ -399,7 +399,7 @@
 ;; ─── incr! many — accumulation across calls ──────────────────────
 
 (:deftest :wat-telemetry::WorkUnit::test-incr-many
-  (:wat::core::let*
+  (:wat::core::let
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :requests))
      ((_a :wat::core::nil) (:wat::telemetry::WorkUnit/incr! wu name))
@@ -412,7 +412,7 @@
 ;; ─── append-dt! then read ────────────────────────────────────────
 
 (:deftest :wat-telemetry::WorkUnit::test-append-dt-then-read
-  (:wat::core::let*
+  (:wat::core::let
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :sql-page))
      ((_a :wat::core::nil) (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
@@ -434,7 +434,7 @@
 ;; scope-close per the CloudWatch fanout).
 
 (:deftest :wat-telemetry::WorkUnit::test-timed-bumps-counter-records-duration
-  (:wat::core::let*
+  (:wat::core::let
     (((wu :wat::telemetry::WorkUnit)
       (:wat::telemetry::WorkUnit::new
         (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
@@ -452,7 +452,7 @@
 
 ;; Two timed calls under one name: counter = 2, durations has 2 samples.
 (:deftest :wat-telemetry::WorkUnit::test-timed-twice-accumulates
-  (:wat::core::let*
+  (:wat::core::let
     (((wu :wat::telemetry::WorkUnit)
       (:wat::telemetry::WorkUnit::new
         (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
@@ -474,7 +474,7 @@
 
 ;; Empty tags map round-trips through the constructor.
 (:deftest :wat-telemetry::WorkUnit::test-tags-empty
-  (:wat::core::let*
+  (:wat::core::let
     (((empty :wat::telemetry::Tags) (:wat-telemetry::empty-tags))
      ((wu  :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) empty))
      ((got :wat::telemetry::Tags)
@@ -485,7 +485,7 @@
 ;; Tags declared at new() are visible via :wat::telemetry::WorkUnit/tags
 ;; and readable via :wat::core::get.
 (:deftest :wat-telemetry::WorkUnit::test-tags-roundtrip
-  (:wat::core::let*
+  (:wat::core::let
     (((asset-key :wat::holon::HolonAST) (:wat::holon::Atom :asset))
      ((asset-val :wat::holon::HolonAST) (:wat::holon::Atom :BTC))
      ((stage-key :wat::holon::HolonAST) (:wat::holon::Atom :stage))
@@ -509,7 +509,7 @@
 ;; gains handles via WorkUnit/make-scope) is the smallest piece
 ;; of the HOF contract.
 (:deftest :wat-telemetry::WorkUnit::test-scope-passes-result
-  (:wat::core::let*
+  (:wat::core::let
     (((tags   :wat::telemetry::Tags) (:wat-telemetry::empty-tags))
      ((ns     :wat::holon::HolonAST) (:wat-telemetry::default-ns))
      ((result :wat::core::i64)
@@ -529,7 +529,7 @@
 ;; reading it inside the body and comparing it to the event's uuid
 ;; field confirms the row was built from the right work-unit.
 (:deftest :wat-telemetry::WorkUnit::test-build-counter-metric
-  (:wat::core::let*
+  (:wat::core::let
     ;; Body: incr! one counter, return the wu's uuid for the uuid-match check.
     ;; wu-spawn-stub-scope-str internalizes spawn + stub-channel + pop + scope.
     (((thr-and-pair :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
@@ -555,7 +555,7 @@
 ;; confirm the dispatched event IS an Event::Metric. uuid from inside
 ;; the body verifies the event was built from the same work-unit.
 (:deftest :wat-telemetry::WorkUnit::test-build-duration-metric
-  (:wat::core::let*
+  (:wat::core::let
     ;; Body: append-dt! one sample, return the wu's uuid for the uuid-match check.
     ;; wu-spawn-stub-scope-str internalizes spawn + stub-channel + pop + scope.
     (((thr-and-pair :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
@@ -583,7 +583,7 @@
 ;; sends the batch-length over a channel; we recv it and assert 0.
 ;; This also proves batch-log with an empty vec doesn't deadlock.
 (:deftest :wat-telemetry::WorkUnit::test-collect-metrics-empty
-  (:wat::core::let*
+  (:wat::core::let
     ;; Body: no mutations. wu-spawn-count-and-scope drains the count internally.
     (((thr-cnt :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
       (:test::wu-spawn-count-and-scope
@@ -614,14 +614,14 @@
 ;; row). The stub dispatcher forwards each event to stub-rx; we recv
 ;; both and confirm both arrived as Some.
 (:deftest :wat-telemetry::WorkUnit::test-collect-metrics-two-duration-samples
-  (:wat::core::let*
+  (:wat::core::let
     ;; Body: two append-dt! calls for the same name → two Event::Metric rows.
     ;; wu-spawn-stub-scope-unit internalizes spawn + stub-channel + pop + scope.
     ;; Returns (Thread, stub-rx); we drain TWO events from stub-rx.
     (((thr-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
       (:test::wu-spawn-stub-scope-unit
         (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((_a :wat::core::nil) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5))
              ((_b :wat::core::nil) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 1.5)))
             ()))))
@@ -643,7 +643,7 @@
 ;; a function whose return type IS a function type, returned as a
 ;; lambda value.
 (:deftest :wat-telemetry::WorkUnit::probe-fn-returning-fn
-  (:wat::core::let*
+  (:wat::core::let
     (((adder :fn(wat::core::i64)->wat::core::i64)
       (:wat-telemetry::probe::make-adder 10))
      ((sum :wat::core::i64) (adder 5)))
@@ -657,7 +657,7 @@
 ;; WorkUnit/namespace reads it back. Logs and metrics pull it from
 ;; the wu rather than threading it as a per-call parameter.
 (:deftest :wat-telemetry::WorkUnit::test-namespace-roundtrip
-  (:wat::core::let*
+  (:wat::core::let
     (((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags))
      ((ns   :wat::holon::HolonAST) (:wat::holon::Atom :my::function))
      ((wu   :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new ns tags))
@@ -673,7 +673,7 @@
 ;; specific to that T. If wat supports this, the closure factory
 ;; for WorkUnit/scope handles works directly.
 (:deftest :wat-telemetry::WorkUnit::probe-rank-2-i64
-  (:wat::core::let*
+  (:wat::core::let
     (((runner :fn(fn()->wat::core::i64)->wat::core::i64)
       (:wat-telemetry::probe::make-runner "i64-runner"))
      ((result :wat::core::i64) (runner (:wat::core::lambda (-> :wat::core::i64) 42))))
@@ -703,7 +703,7 @@
 ;;      CloudWatch model)
 ;;   7. assert result == 42 (body's T flowed through)
 (:deftest :wat-telemetry::WorkUnit::test-make-scope-ships-counter
-  (:wat::core::let*
+  (:wat::core::let
     ;; Body: incr! one counter, return 42 (body result flows through).
     ;; wu-spawn-stub-scope-i64 internalizes spawn + stub-channel + pop + scope.
     ;; Returns (Thread, (i64, stub-rx)); we drain ONE event from stub-rx.

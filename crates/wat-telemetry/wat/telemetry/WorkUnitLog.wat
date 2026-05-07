@@ -70,7 +70,7 @@
     (level  :wat::core::keyword)
     (data   :wat::WatAST)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((handle :wat::telemetry::SinkHandles)
       (:wat::telemetry::WorkUnitLog/handle logger))
      ((caller :wat::core::keyword)

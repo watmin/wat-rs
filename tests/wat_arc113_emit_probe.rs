@@ -18,7 +18,7 @@ fn child_assertion_writes_died_chain_to_stderr() {
     let src = r##"
         (:wat::core::define
           (:user::main -> :wat::core::Vector<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((proc :wat::kernel::Program<wat::core::i64,wat::core::i64>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
@@ -60,7 +60,7 @@ fn child_plain_exit_writes_panic_marker_to_stderr() {
     let src = r##"
         (:wat::core::define
           (:user::main -> :wat::core::Vector<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((proc :wat::kernel::Program<wat::core::i64,wat::core::i64>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program

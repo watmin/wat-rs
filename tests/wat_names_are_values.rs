@@ -58,7 +58,7 @@ fn named_define_is_a_function_value() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((f :fn(wat::core::i64)->wat::core::i64) :my::double)
              ((result :wat::core::i64) (f 21)))
             (:wat::io::IOWriter/println stdout
@@ -78,7 +78,7 @@ fn named_define_is_a_function_value() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((f :fn(wat::core::i64)->wat::core::i64) :my::double)
              ((result :wat::core::i64) (f 21)))
             (:wat::core::if (:wat::core::= result 42) -> :wat::core::nil
@@ -110,7 +110,7 @@ fn named_define_passes_to_higher_order_fn() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((result :wat::core::i64) (:my::apply-twice :my::inc 5)))
             (:wat::core::if (:wat::core::= result 7) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
@@ -138,7 +138,7 @@ fn polymorphic_named_define_instantiates_at_use_site() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((result :wat::core::i64) (:my::apply :my::identity 99)))
             (:wat::core::if (:wat::core::= result 99) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
@@ -162,7 +162,7 @@ fn unregistered_keyword_still_a_literal() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((tag :wat::core::keyword) :my-app::tag::user-event)
              ((same? :wat::core::bool) (:wat::core::= tag :my-app::tag::user-event)))
             (:wat::core::if same? -> :wat::core::nil
@@ -189,7 +189,7 @@ fn named_define_as_stream_map_fn() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)

@@ -47,7 +47,7 @@
     (qty     :i64)
     (price   :f64)
     -> :wat::telemetry::Event)
-  (:wat::core::let*
+  (:wat::core::let
     (((trade :demo::Trade) (:demo::Trade/new side qty price))
      ((form  :wat::WatAST) (:wat::core::struct->form trade))
      ((data  :wat::holon::HolonAST) (:wat::holon::from-watast form))
@@ -70,7 +70,7 @@
   (:demo::write-fixture
     (path :String)
     -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-  (:wat::core::let*
+  (:wat::core::let
     (((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
       (:wat::telemetry::Sqlite/auto-spawn
         :wat::telemetry::Event
@@ -132,7 +132,7 @@
     (stdout  :wat::io::IOWriter)
     (_stderr :wat::io::IOWriter)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (;; Auto-deleting fixture path.
      ((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))

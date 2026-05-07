@@ -29,9 +29,9 @@
    ;; ─── Layer 0 helper — spawn → pop → finish → drop → join ─────────
    (:wat::core::define
      (:test::lru-spawn-and-drop -> :wat::core::nil)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter
@@ -58,9 +58,9 @@
    ;; survive to the outer scope. Returns the result-vec length.
    (:wat::core::define
      (:test::lru-helper-get-empty -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver-and-n :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter
@@ -94,9 +94,9 @@
    ;; so a missing PutAck (driver died, wrong reply variant) trips up.
    (:wat::core::define
      (:test::lru-helper-put-one -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter
@@ -132,7 +132,7 @@
        (k :wat::core::String)
        (v :wat::core::i64)
        -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((_put :wat::core::nil)
          (:wat::lru::put handle
            (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>
@@ -155,9 +155,9 @@
    ;; surfacing the death).
    (:wat::core::define
      (:test::lru-helper-put-then-get -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver-and-v :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter
@@ -204,7 +204,7 @@
      (:test::lru-probe-three-on-handle
        (handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
        -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((_put :wat::core::nil)
          (:wat::lru::put handle
            (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>
@@ -236,9 +236,9 @@
    ;; packed presence pattern — the deftest body asserts against 110.
    (:wat::core::define
      (:test::lru-helper-get-many-keys -> :wat::core::i64)
-     (:wat::core::let*
+     (:wat::core::let
        (((driver-and-pat :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
-         (:wat::core::let*
+         (:wat::core::let
            (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter

@@ -14,7 +14,7 @@
 
 (:wat::test::deftest :wat-tests::holon::coincident::test-self-coincident
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "rsi")))
     (:wat::test::assert-eq
       (:wat::holon::coincident? a a)
@@ -24,7 +24,7 @@
 
 (:wat::test::deftest :wat-tests::holon::coincident::test-structurally-same
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST)
       (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v")))
      ((b :wat::holon::HolonAST)
@@ -37,7 +37,7 @@
 
 (:wat::test::deftest :wat-tests::holon::coincident::test-unrelated-not-coincident
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "alice"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "charlie")))
     (:wat::test::assert-eq
@@ -51,7 +51,7 @@
 ;; the atom itself.
 (:wat::test::deftest :wat-tests::holon::coincident::test-stricter-than-presence
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((bundled :wat::holon::BundleResult)
       (:wat::holon::Bundle
         (:wat::core::Vector :wat::holon::HolonAST
@@ -83,7 +83,7 @@
 ;; Coincident? has massive headroom for self-equivalence checks.
 (:wat::test::deftest :wat-tests::holon::coincident::test-self-cosine-within-floor
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((a :wat::holon::HolonAST)
       (:wat::holon::Bind (:wat::holon::Atom "rsi")
                          (:wat::holon::Thermometer 0.5 -1.0 1.0))))

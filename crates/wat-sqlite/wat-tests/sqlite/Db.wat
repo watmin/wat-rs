@@ -13,7 +13,7 @@
 
 (:wat::test::deftest :wat-tests::sqlite::Db::test-open-drop
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((db :wat::sqlite::Db)
       (:wat::sqlite::open "/tmp/wat-sqlite-test-001.db")))
     (:wat::test::assert-eq true true)))
@@ -23,7 +23,7 @@
 
 (:wat::test::deftest :wat-tests::sqlite::Db::test-execute-ddl
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((db :wat::sqlite::Db)
       (:wat::sqlite::open "/tmp/wat-sqlite-test-002.db"))
      ((_ :wat::core::nil)
@@ -36,7 +36,7 @@
 
 (:wat::test::deftest :wat-tests::sqlite::Db::test-execute-params
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((db :wat::sqlite::Db)
       (:wat::sqlite::open "/tmp/wat-sqlite-test-003.db"))
      ((_create :wat::core::nil)
@@ -71,7 +71,7 @@
 
 (:wat::test::deftest :wat-tests::sqlite::Db::test-pragma-wal
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((db :wat::sqlite::Db)
       (:wat::sqlite::open "/tmp/wat-sqlite-test-004.db"))
      ((_p :wat::core::nil)
@@ -92,7 +92,7 @@
 
 (:wat::test::deftest :wat-tests::sqlite::Db::test-begin-commit
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((db :wat::sqlite::Db)
       (:wat::sqlite::open "/tmp/wat-sqlite-test-005.db"))
      ((_p :wat::core::nil)

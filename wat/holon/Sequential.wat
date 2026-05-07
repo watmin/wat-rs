@@ -20,7 +20,7 @@
   (:wat::holon::Sequential
     (items :AST<List<wat::holon::HolonAST>>)
     -> :AST<wat::holon::HolonAST>)
-  `(:wat::core::let*
+  `(:wat::core::let
      (((positioned :wat::holon::Holons)
        (:wat::std::list::map-with-index ,items
          (:wat::core::lambda ((item :wat::holon::HolonAST) (i :wat::core::i64) -> :wat::holon::HolonAST)

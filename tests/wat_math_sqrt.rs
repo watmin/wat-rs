@@ -75,7 +75,7 @@ fn sqrt_round_trip_with_square() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((x :wat::core::f64) 7.5)
              ((rt :wat::core::f64) (:wat::std::math::sqrt (:wat::core::* x x))))
             (:wat::io::IOWriter/println stdout

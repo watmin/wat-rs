@@ -51,7 +51,7 @@ fn user_struct_constructor_and_accessor_round_trip() {
           (close :wat::core::f64))
 
         (:wat::core::define (:user::main -> :wat::core::f64)
-          (:wat::core::let*
+          (:wat::core::let
             (((b :my::market::Bar) (:my::market::Bar/new 1.0 2.0))
              ((o :wat::core::f64)             (:my::market::Bar/open b))
              ((c :wat::core::f64)             (:my::market::Bar/close b)))
@@ -78,7 +78,7 @@ fn user_method_can_use_auto_accessors_in_body() {
           (:wat::core::f64::-,2 (:my::market::Bar/high b) (:my::market::Bar/low b)))
 
         (:wat::core::define (:user::main -> :wat::core::f64)
-          (:wat::core::let*
+          (:wat::core::let
             (((b :my::market::Bar) (:my::market::Bar/new 10.0 3.0)))
             (:my::market::spread-of b)))
     "#;
@@ -98,7 +98,7 @@ fn struct_can_hold_heterogeneous_fields() {
           (volume :wat::core::i64))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((t :my::market::Tick)
               (:my::market::Tick/new "BTC" 50000.0 1000))
              ((v :wat::core::i64) (:my::market::Tick/volume t)))
@@ -124,7 +124,7 @@ fn structs_are_values_that_survive_rebinding() {
           (:my::Point/y p))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((p :my::Point) (:my::Point/new 3 7))
              ((q :my::Point) p))
             (:my::y-of q)))
@@ -191,7 +191,7 @@ fn accessor_returns_correct_field_type() {
           (volume :i64))
 
         (:wat::core::define (:user::main -> :wat::core::f64)
-          (:wat::core::let*
+          (:wat::core::let
             (((b :my::market::Bar) (:my::market::Bar/new 1.0 100)))
             (:my::market::Bar/volume b)))
     "#;
@@ -213,7 +213,7 @@ fn builtin_capacity_exceeded_struct_is_usable() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let*
+          (:wat::core::let
             (((e :wat::holon::CapacityExceeded)
               (:wat::holon::CapacityExceeded/new 200 100))
              ((cost   :wat::core::i64) (:wat::holon::CapacityExceeded/cost   e))

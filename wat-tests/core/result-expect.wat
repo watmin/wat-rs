@@ -11,7 +11,7 @@
 
 (:wat::test::deftest :wat-tests::core::result-expect::ok-i64
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((res :wat::core::Result<wat::core::i64,wat::core::String>) (:wat::core::Ok 99))
      ((v :wat::core::i64)
       (:wat::core::Result/expect -> :wat::core::i64
@@ -24,7 +24,7 @@
 
 (:wat::test::deftest :wat-tests::core::result-expect::ok-string
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((res :wat::core::Result<wat::core::String,wat::core::i64>) (:wat::core::Ok "yes"))
      ((v :wat::core::String)
       (:wat::core::Result/expect -> :wat::core::String
@@ -37,7 +37,7 @@
 
 (:wat::test::deftest :wat-tests::core::result-expect::err-panics-with-message
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
@@ -47,7 +47,7 @@
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
-            (:wat::core::let*
+            (:wat::core::let
               (((res :wat::core::Result<wat::core::i64,wat::core::String>) (:wat::core::Err "rundb crashed"))
                ((_v :wat::core::i64)
                 (:wat::core::Result/expect -> :wat::core::i64

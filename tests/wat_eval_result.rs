@@ -54,7 +54,7 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::let*
+          (:wat::core::let
             (((program :wat::WatAST) (:wat::core::quote (:wat::holon::Atom "hello"))))
             (:wat::eval-ast! program)))
     "#;
@@ -77,7 +77,7 @@ fn eval_ast_bang_mutation_form_surfaces_as_err() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::let*
+          (:wat::core::let
             (((program :wat::WatAST)
               (:wat::core::quote
                 (:wat::core::define (:evil (x :wat::core::i64) -> :wat::core::i64) x))))
@@ -152,7 +152,7 @@ fn try_propagates_eval_err_through_helper() {
           (:wat::core::Ok (:wat::core::Result/try (:wat::eval-ast! program))))
 
         (:wat::core::define (:user::main -> :wat::core::String)
-          (:wat::core::let*
+          (:wat::core::let
             (((bad :wat::WatAST)
               (:wat::core::quote
                 (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))))
@@ -175,7 +175,7 @@ fn eval_err_exposes_both_kind_and_message() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :(wat::core::String,wat::core::String))
-          (:wat::core::let*
+          (:wat::core::let
             (((bad :wat::WatAST)
               (:wat::core::quote
                 (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x)))

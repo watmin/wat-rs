@@ -79,7 +79,7 @@
     (dispatcher :fn(wat::sqlite::Db,wat::core::Vector<E>)->wat::core::nil)
     (stats-translator :fn(wat::telemetry::Stats)->wat::core::Vector<E>)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((db :wat::sqlite::Db) (:wat::sqlite::open path))
      ((_pre :wat::core::nil) (pre-install db))
      ((_install :wat::core::nil) (schema-install db))
@@ -118,7 +118,7 @@
     (dispatcher :fn(wat::sqlite::Db,wat::core::Vector<E>)->wat::core::nil)
     (stats-translator :fn(wat::telemetry::Stats)->wat::core::Vector<E>)
     -> :wat::telemetry::Spawn<E>)
-  (:wat::core::let*
+  (:wat::core::let
     (;; N request channels (client write, server read).
      ((req-pairs :wat::core::Vector<wat::telemetry::ReqChannel<E>>)
       (:wat::core::map
@@ -143,7 +143,7 @@
         (:wat::core::lambda
           ((rp+ap :wat::telemetry::Connection<E>)
            -> :wat::telemetry::Handle<E>)
-          (:wat::core::let*
+          (:wat::core::let
             (((rp :wat::telemetry::ReqChannel<E>) (:wat::core::first rp+ap))
              ((ap :wat::telemetry::AckChannel) (:wat::core::second rp+ap))
              ((req-tx :wat::telemetry::ReqTx<E>) (:wat::core::first rp))
@@ -156,7 +156,7 @@
         (:wat::core::lambda
           ((rp+ap :wat::telemetry::Connection<E>)
            -> :wat::telemetry::DriverPair<E>)
-          (:wat::core::let*
+          (:wat::core::let
             (((rp :wat::telemetry::ReqChannel<E>) (:wat::core::first rp+ap))
              ((ap :wat::telemetry::AckChannel) (:wat::core::second rp+ap))
              ((req-rx :wat::telemetry::ReqRx<E>) (:wat::core::second rp))
@@ -224,7 +224,7 @@
     (db :wat::sqlite::Db)
     (entries :wat::core::Vector<E>)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((_b :wat::core::nil) (:wat::sqlite::begin db))
      ((_d :wat::core::nil)
       (:wat::core::foldl entries :wat::core::nil
@@ -241,7 +241,7 @@
     (cadence :wat::telemetry::MetricsCadence<G>)
     (pre-install :fn(wat::sqlite::Db)->wat::core::nil)
     -> :wat::telemetry::Spawn<E>)
-  (:wat::core::let*
+  (:wat::core::let
     (((_prep :wat::core::nil) (:rust::sqlite::auto-prep enum-name)))
     (:wat::telemetry::Sqlite/spawn
       path count cadence

@@ -50,7 +50,7 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
     let src = r##"
         (:wat::core::define
           (:user::main -> :wat::core::Vector<wat::core::String>)
-          (:wat::core::let*
+          (:wat::core::let
             (((forms :wat::core::Vector<wat::WatAST>)
               (:wat::test::program
                 (:wat::core::define (:user::main

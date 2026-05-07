@@ -27,7 +27,7 @@
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
                      -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
      ((_ :wat::core::Option<(wat::core::String,wat::core::i64)>)

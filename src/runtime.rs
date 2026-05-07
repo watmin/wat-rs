@@ -2087,11 +2087,11 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), Runtime
 /// reassigns `cur_func`/`cur_args`, and re-iterates without stack
 /// growth. Everything else delegates to [`eval`].
 ///
-/// The tail-carrying forms (`if`, `match`, `let`, `let*`) have sibling
+/// The tail-carrying forms (`if`, `match`, `let`) have sibling
 /// tail-aware helpers (`eval_if_tail`, `eval_match_tail`,
-/// `eval_let_tail`, `eval_let_star_tail`) that reuse the same
-/// validation as their non-tail twins but dispatch the body through
-/// `eval_tail` rather than `eval`.
+/// `eval_let_tail`) that reuse the same validation as their non-tail
+/// twins but dispatch the body through `eval_tail` rather than `eval`.
+/// Arc 154 collapsed `let*` into `let` (single-letform vocabulary).
 ///
 /// Three tail-call shapes are detected (Stage 2 covers all three):
 ///
@@ -2125,7 +2125,14 @@ fn eval_tail(
                 ":wat::core::cond" => eval_cond_tail(args, &list_span, env, sym),
                 ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
                 ":wat::core::let" => eval_let_tail(args, &list_span, env, sym),
-                ":wat::core::let*" => eval_let_star_tail(args, &list_span, env, sym),
+                // Arc 154 — `:wat::core::let*` retired; the type
+                // checker's `validate_legacy_let_star` walker fires
+                // BareLegacyLetStar before runtime sees this. Fall
+                // through to the canonical sequential `eval_let_tail`
+                // so a stray runtime call (post-checker bypass)
+                // executes with the correct semantics rather than
+                // panicking on an unknown head.
+                ":wat::core::let*" => eval_let_tail(args, &list_span, env, sym),
                 ":wat::core::do" => eval_do_tail(args, &list_span, env, sym),
                 // A user-defined function call in tail position — signal.
                 // Head resolves in sym.functions; anything else (kernel/
@@ -2249,9 +2256,12 @@ fn eval_if_tail(
     }
 }
 
-/// Tail-position twin of [`eval_let`]. Bindings evaluate in the outer
-/// env (as with the non-tail form); the body runs through
-/// [`eval_tail`] so a tail-call inside it propagates.
+/// Tail-position twin of [`eval_let`]. Bindings accumulate
+/// sequentially (each RHS sees prior bindings); the body runs through
+/// [`eval_tail`] so a tail-call inside it propagates. Arc 154 — sequential
+/// semantics moved under the `:wat::core::let` keyword (single-letform
+/// vocabulary; Clojure-faithful). Pre-arc-154 this body lived under
+/// `eval_let_star_tail` and dispatched on `:wat::core::let*`.
 fn eval_let_tail(
     args: &[WatAST],
     list_span: &Span,
@@ -2280,58 +2290,6 @@ fn eval_let_tail(
             })
         }
     };
-    let mut builder = env.child();
-    for pair in binding_pairs {
-        let binding = parse_let_binding(pair)?;
-        match binding {
-            LetBinding::Single { name, rhs, .. } => {
-                let value = eval(rhs, env, sym)?;
-                builder = builder.bind(name, value);
-            }
-            LetBinding::Destructure { names, rhs } => {
-                let value = eval(rhs, env, sym)?;
-                let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
-                for (name, elem) in names.into_iter().zip(elements.into_iter()) {
-                    builder = builder.bind(name, elem);
-                }
-            }
-        }
-    }
-    let scope = builder.build();
-    eval_tail(body, &scope, sym)
-}
-
-/// Tail-position twin of [`eval_let_star`]. Bindings accumulate
-/// sequentially (each RHS sees prior bindings); the body runs through
-/// [`eval_tail`] so a tail-call inside it propagates.
-fn eval_let_star_tail(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 2 {
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::let*".into(),
-            reason: format!(
-                "expected (:wat::core::let* (((n1 :T1) e1) ...) body); got {} args",
-                args.len()
-            ),
-            span: list_span.clone(),
-        });
-    }
-    let bindings_form = &args[0];
-    let body = &args[1];
-    let binding_pairs = match bindings_form {
-        WatAST::List(items, _) => items,
-        _ => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::let*".into(),
-                reason: "bindings must be a list of ((name :Type) expr) pairs".into(),
-                span: bindings_form.span().clone(),
-            })
-        }
-    };
     let mut scope = env.clone();
     for pair in binding_pairs {
         let binding = parse_let_binding(pair)?;
@@ -2342,7 +2300,7 @@ fn eval_let_star_tail(
             }
             LetBinding::Destructure { names, rhs } => {
                 let value = eval(rhs, &scope, sym)?;
-                let elements = destructure_tuple(&value, names.len(), ":wat::core::let*")?;
+                let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
                 let mut builder = scope.child();
                 for (name, elem) in names.into_iter().zip(elements.into_iter()) {
                     builder = builder.bind(name, elem);
@@ -2601,7 +2559,12 @@ fn dispatch_keyword_head(
         ":wat::core::define" => Err(RuntimeError::DefineInExpressionPosition(list_span.clone())),
         ":wat::core::lambda" => eval_lambda(args, env),
         ":wat::core::let" => eval_let(args, list_span, env, sym),
-        ":wat::core::let*" => eval_let_star(args, list_span, env, sym),
+        // Arc 154 — `:wat::core::let*` retired; type checker fires
+        // `BareLegacyLetStar` walker on any source-level appearance.
+        // Fall through to the canonical sequential `eval_let` so a
+        // stray runtime call (post-checker bypass) executes with the
+        // correct semantics rather than panicking on an unknown head.
+        ":wat::core::let*" => eval_let(args, list_span, env, sym),
         ":wat::core::do" => eval_do(args, list_span, env, sym),
         ":wat::core::if" => eval_if(args, list_span, env, sym),
         ":wat::core::cond" => eval_cond(args, list_span, env, sym),
@@ -3608,6 +3571,18 @@ fn parse_lambda_signature(
     Ok((params, param_types, ret_type))
 }
 
+/// `(:wat::core::let (((n1 :T1) e1) ((n2 :T2) e2) ...) body)` —
+/// sequential let. Arc 154 collapsed `let*` into `let` (single-letform
+/// vocabulary; Clojure-faithful: Clojure's user-facing `let` IS the
+/// sequential primitive). The parallel `let` semantics retired (zero
+/// in-tree consumers per pre-arc grep).
+///
+/// Each RHS is evaluated in an environment that includes the PRIOR
+/// bindings. `n2`'s RHS can refer to `n1`; `n3`'s RHS can refer to both.
+///
+/// Rust-level semantics: cumulative `Environment` chain. Each binding
+/// commits to the env chain before the next RHS evaluates, so subsequent
+/// bindings can reference earlier ones.
 fn eval_let(
     args: &[WatAST],
     list_span: &Span,
@@ -3638,70 +3613,6 @@ fn eval_let(
         }
     };
 
-    let mut builder = env.child();
-    for pair in binding_pairs {
-        let binding = parse_let_binding(pair)?;
-        match binding {
-            LetBinding::Single { name, rhs, .. } => {
-                // Runtime ignores the declared type — the type checker
-                // already validated it. Parsing it above enforced that
-                // it exists (typed-let discipline).
-                let value = eval(rhs, env, sym)?; // eval in OUTER env, not cumulative let*
-                builder = builder.bind(name, value);
-            }
-            LetBinding::Destructure { names, rhs } => {
-                let value = eval(rhs, env, sym)?;
-                let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
-                for (name, elem) in names.into_iter().zip(elements.into_iter()) {
-                    builder = builder.bind(name, elem);
-                }
-            }
-        }
-    }
-    let scope = builder.build();
-    eval(body, &scope, sym)
-}
-
-/// `(:wat::core::let* (((n1 :T1) e1) ((n2 :T2) e2) ...) body)` —
-/// sequential let.
-///
-/// Same surface grammar as `:wat::core::let` but each RHS is evaluated
-/// in an environment that includes the PRIOR bindings. `n2`'s RHS can
-/// refer to `n1`; `n3`'s RHS can refer to both.
-///
-/// Rust-level semantics: cumulative `Environment` chain. Parallel `let`
-/// evaluates all RHSes in the outer env then commits; `let*` commits
-/// each binding before evaluating the next.
-fn eval_let_star(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 2 {
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::let*".into(),
-            reason: format!(
-                "expected (:wat::core::let* (((n1 :T1) e1) ...) body); got {} args",
-                args.len()
-            ),
-            span: list_span.clone(),
-        });
-    }
-    let bindings_form = &args[0];
-    let body = &args[1];
-
-    let binding_pairs = match bindings_form {
-        WatAST::List(items, _) => items,
-        _ => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::let*".into(),
-                reason: "bindings must be a list of ((name :Type) expr) pairs".into(),
-                span: bindings_form.span().clone(),
-            })
-        }
-    };
-
     // Sequential: each binding commits to the env chain before the next
     // RHS evaluates, so subsequent bindings can reference earlier ones.
     let mut scope = env.clone();
@@ -3709,12 +3620,15 @@ fn eval_let_star(
         let binding = parse_let_binding(pair)?;
         match binding {
             LetBinding::Single { name, rhs, .. } => {
+                // Runtime ignores the declared type — the type checker
+                // already validated it. Parsing it above enforced that
+                // it exists (typed-let discipline).
                 let value = eval(rhs, &scope, sym)?;
                 scope = scope.child().bind(name, value).build();
             }
             LetBinding::Destructure { names, rhs } => {
                 let value = eval(rhs, &scope, sym)?;
-                let elements = destructure_tuple(&value, names.len(), ":wat::core::let*")?;
+                let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
                 let mut builder = scope.child();
                 for (name, elem) in names.into_iter().zip(elements.into_iter()) {
                     builder = builder.bind(name, elem);
@@ -16324,7 +16238,13 @@ fn step_list(
     let args = &items[1..];
     match head_kw.as_str() {
         ":wat::core::if" => step_if(args, list_span, env, sym),
-        ":wat::core::let*" => step_let_star(args, list_span, env, sym),
+        // Arc 154 — sequential semantics under `:wat::core::let`.
+        ":wat::core::let" => step_let(args, list_span, env, sym),
+        // Arc 154 — `:wat::core::let*` retired; fall through to the
+        // canonical sequential `step_let` for stray runtime calls
+        // post-checker (the walker fires BareLegacyLetStar at type
+        // check time).
+        ":wat::core::let*" => step_let(args, list_span, env, sym),
         ":wat::core::do" => step_do(args, list_span, env, sym),
         ":wat::core::match" => step_match(args, list_span, env, sym),
         // Pure operations whose redex fires when all args are
@@ -16625,12 +16545,14 @@ fn step_if(
     }
 }
 
-/// `(:wat::core::let* (((n :T) e) ((n2 :T2) e2) ...) body)` — peel
+/// `(:wat::core::let (((n :T) e) ((n2 :T2) e2) ...) body)` — peel
 /// one binding per step. If the head binding's RHS is non-canonical,
 /// descend it and rebuild. If canonical, substitute name → RHS into
 /// remaining bindings and body, drop the now-bound first pair, return
-/// Next of the smaller form. Empty bindings → Next(body).
-fn step_let_star(
+/// Next of the smaller form. Empty bindings → Next(body). Arc 154
+/// renamed (was `step_let_star`) to canonical `step_let` after `let*`
+/// retired into `let` (single-letform vocabulary).
+fn step_let(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -16638,9 +16560,9 @@ fn step_let_star(
 ) -> Result<StepValue, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::let*".into(),
+            head: ":wat::core::let".into(),
             reason: format!(
-                "expected (:wat::core::let* bindings body); got {} args",
+                "expected (:wat::core::let bindings body); got {} args",
                 args.len()
             ),
             span: list_span.clone(),
@@ -16650,7 +16572,7 @@ fn step_let_star(
         WatAST::List(items, _) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::let*".into(),
+                head: ":wat::core::let".into(),
                 reason: "bindings must be a list".into(),
                 span: args[0].span().clone(),
             });
@@ -16667,7 +16589,7 @@ fn step_let_star(
         WatAST::List(p, _) if p.len() == 2 => p,
         _ => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::let*".into(),
+                head: ":wat::core::let".into(),
                 reason: "binding shape must be ((name :T) rhs)".into(),
                 span: bindings[0].span().clone(),
             });
@@ -16678,7 +16600,7 @@ fn step_let_star(
         WatAST::List(p, _) if p.len() == 2 => p,
         _ => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::let*".into(),
+                head: ":wat::core::let".into(),
                 reason: "binding name must be (name :T)".into(),
                 span: first[0].span().clone(),
             });
@@ -16688,7 +16610,7 @@ fn step_let_star(
         WatAST::Symbol(ident, _) => ident.clone(),
         _ => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::let*".into(),
+                head: ":wat::core::let".into(),
                 reason: "binding name must be a symbol".into(),
                 span: name_type[0].span().clone(),
             });
@@ -16708,7 +16630,7 @@ fn step_let_star(
         let mut new_bindings: Vec<WatAST> = bindings.clone();
         new_bindings[0] = new_first;
         let new_items = vec![
-            WatAST::Keyword(":wat::core::let*".into(), Span::unknown()),
+            WatAST::Keyword(":wat::core::let".into(), Span::unknown()),
             WatAST::List(new_bindings, args[0].span().clone()),
             body.clone(),
         ];
@@ -16727,7 +16649,7 @@ fn step_let_star(
         .map(|b| substitute(b, &name_ident, rhs))
         .collect();
     let new_items = vec![
-        WatAST::Keyword(":wat::core::let*".into(), Span::unknown()),
+        WatAST::Keyword(":wat::core::let".into(), Span::unknown()),
         WatAST::List(substituted_rest, args[0].span().clone()),
         new_body,
     ];
@@ -19193,7 +19115,7 @@ mod tests {
         // One side AST, the other side a pre-encoded Vector. Same
         // input shape `coincident?` accepts post arc 061.
         let result = eval_with_ctx(
-            r#"(:wat::core::let*
+            r#"(:wat::core::let
                  (((a :wat::holon::HolonAST) (:wat::holon::Atom "x"))
                   ((va :wat::holon::Vector) (:wat::holon::encode a)))
                  (:wat::holon::coincident-explain a va))"#,
@@ -19258,7 +19180,7 @@ mod tests {
             // position rather than the auto-generated `/coincident`
             // helper.
             let probe = format!(
-                r#"(:wat::core::let*
+                r#"(:wat::core::let
                      (((aa :wat::holon::HolonAST) {a})
                       ((bb :wat::holon::HolonAST) {b})
                       ((p :bool) (:wat::holon::coincident? aa bb))
@@ -19670,7 +19592,7 @@ mod tests {
         // MAP bind orthogonalizes. The presence of p in Bind(k,p) is
         // below the substrate's presence floor (15σ at d=1024).
         let result = eval_with_ctx(
-            r#"(:wat::core::let*
+            r#"(:wat::core::let
                  (((program :wat::holon::HolonAST) (:wat::holon::Atom "the-program"))
                   ((key :wat::holon::HolonAST) (:wat::holon::Atom "the-key"))
                   ((bound :wat::holon::HolonAST) (:wat::holon::Bind key program)))
@@ -19700,7 +19622,7 @@ mod tests {
         // well above the presence floor. MAP's bind(bind(k,p), k) ≈ p on
         // non-zero positions of k.
         let result = eval_with_ctx(
-            r#"(:wat::core::let*
+            r#"(:wat::core::let
                  (((program :wat::holon::HolonAST) (:wat::holon::Atom "the-program"))
                   ((key :wat::holon::HolonAST) (:wat::holon::Atom "the-key"))
                   ((bound :wat::holon::HolonAST) (:wat::holon::Bind key program))
@@ -20084,7 +20006,7 @@ mod tests {
     #[test]
     fn let_star_destructures_a_pair() {
         let src = r#"
-            (:wat::core::let* (((a b) p)) (:wat::core::i64::+,2 a b))
+            (:wat::core::let (((a b) p)) (:wat::core::i64::+,2 a b))
         "#;
         let p = pair(Value::i64(3), Value::i64(4));
         match eval_with_binding(src, "p", p).unwrap() {
@@ -20146,7 +20068,7 @@ mod tests {
         // match to unwrap. End-to-end shape the real kernel primitives
         // expose.
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((tx rx) (:wat::kernel::make-bounded-channel :i64 1))
                ((_sent :()) (:wat::core::Result/expect -> :()
                               (:wat::kernel::send tx 42)
@@ -20542,7 +20464,7 @@ mod tests {
     #[test]
     fn hashmap_get_hit_returns_some() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m :rust::std::collections::HashMap<String,i64>) (:wat::core::HashMap :(String,i64) "a" 10 "b" 20)))
               (:wat::core::match (:wat::core::get m "a") -> :i64
                 ((:wat::core::Some n) n)
@@ -20557,7 +20479,7 @@ mod tests {
     #[test]
     fn hashmap_get_miss_returns_none() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m :rust::std::collections::HashMap<String,i64>) (:wat::core::HashMap :(String,i64) "a" 10)))
               (:wat::core::match (:wat::core::get m "missing") -> :i64
                 ((:wat::core::Some n) n)
@@ -20572,13 +20494,13 @@ mod tests {
     #[test]
     fn hashmap_contains_tracks_membership() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m :rust::std::collections::HashMap<String,i64>) (:wat::core::HashMap :(String,i64) "a" 10)))
               (:wat::core::contains? m "a"))
         "#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
         let src_missing = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m :rust::std::collections::HashMap<String,i64>) (:wat::core::HashMap :(String,i64) "a" 10)))
               (:wat::core::contains? m "b"))
         "#;
@@ -20590,7 +20512,7 @@ mod tests {
         // "42" (String) and 42 (i64) should be distinct keys — type-tag
         // prefix in the canonical key string prevents collision.
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m :rust::std::collections::HashMap<String,i64>)
                 (:wat::core::HashMap :(String,i64) "42" 100)))
               (:wat::core::contains? m 42))
@@ -20629,7 +20551,7 @@ mod tests {
     #[test]
     fn assoc_adds_entry_returning_new_map() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m0 :rust::std::collections::HashMap<String,i64>)
                 (:wat::core::HashMap :(String,i64)))
                ((m1 :rust::std::collections::HashMap<String,i64>)
@@ -20647,7 +20569,7 @@ mod tests {
     #[test]
     fn assoc_overwrites_existing_key() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m0 :rust::std::collections::HashMap<String,i64>)
                 (:wat::core::HashMap :(String,i64) "count" 1))
                ((m1 :rust::std::collections::HashMap<String,i64>)
@@ -20666,7 +20588,7 @@ mod tests {
     fn assoc_preserves_original_map() {
         // Values-up: the input map is unchanged after assoc returns.
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m0 :rust::std::collections::HashMap<String,i64>)
                 (:wat::core::HashMap :(String,i64) "a" 10))
                ((m1 :rust::std::collections::HashMap<String,i64>)
@@ -20811,7 +20733,7 @@ mod tests {
     #[test]
     fn dissoc_removes_existing_key() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m0 :rust::std::collections::HashMap<String,i64>)
                 (:wat::core::HashMap :(String,i64) "a" 1 "b" 2))
                ((m1 :rust::std::collections::HashMap<String,i64>)
@@ -20829,7 +20751,7 @@ mod tests {
     #[test]
     fn dissoc_missing_key_is_no_op() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m0 :rust::std::collections::HashMap<String,i64>)
                 (:wat::core::HashMap :(String,i64) "a" 1))
                ((m1 :rust::std::collections::HashMap<String,i64>)
@@ -20848,7 +20770,7 @@ mod tests {
     fn dissoc_preserves_original_map() {
         // Values-up: input map still has the key after dissoc returns.
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((m0 :rust::std::collections::HashMap<String,i64>)
                 (:wat::core::HashMap :(String,i64) "a" 1 "b" 2))
                ((_m1 :rust::std::collections::HashMap<String,i64>)
@@ -20911,7 +20833,7 @@ mod tests {
         // (was: Vec×i64 valid-index). The honest check is "does the
         // returned keys Vec contain each known key string?"
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((ks :Vec<String>)
                 (:wat::core::keys
                   (:wat::core::HashMap :(String,i64) "alpha" 1 "beta" 2))))
@@ -21058,11 +20980,11 @@ mod tests {
 
     #[test]
     fn hashset_member_present_and_absent() {
-        let present = r#"(:wat::core::let*
+        let present = r#"(:wat::core::let
             (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "a" "b")))
             (:wat::core::contains? s "a"))"#;
         assert!(matches!(eval_expr(present).unwrap(), Value::bool(true)));
-        let absent = r#"(:wat::core::let*
+        let absent = r#"(:wat::core::let
             (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "a" "b")))
             (:wat::core::contains? s "z"))"#;
         assert!(matches!(eval_expr(absent).unwrap(), Value::bool(false)));
@@ -21072,7 +20994,7 @@ mod tests {
 
     #[test]
     fn vec_get_hit_returns_some_at_valid_index() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
             (:wat::core::match (:wat::core::get xs 1) -> :i64
               ((:wat::core::Some v) v)
@@ -21082,7 +21004,7 @@ mod tests {
 
     #[test]
     fn vec_get_out_of_range_returns_none() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
             (:wat::core::match (:wat::core::get xs 5) -> :bool
               ((:wat::core::Some _) false)
@@ -21092,7 +21014,7 @@ mod tests {
 
     #[test]
     fn vec_get_negative_index_returns_none() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
             (:wat::core::match (:wat::core::get xs -1) -> :bool
               ((:wat::core::Some _) false)
@@ -21110,7 +21032,7 @@ mod tests {
 
     #[test]
     fn assoc_on_vec_rejects_post_slice4() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
             (:wat::core::assoc xs 1 99))"#;
         let err = eval_expr(src).unwrap_err();
@@ -21124,7 +21046,7 @@ mod tests {
 
     #[test]
     fn hashset_conj_adds_element() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((s0 :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "a" "b"))
              ((s1 :rust::std::collections::HashSet<String>) (:wat::core::conj s0 "c")))
             (:wat::core::contains? s1 "c"))"#;
@@ -21133,7 +21055,7 @@ mod tests {
 
     #[test]
     fn hashset_conj_values_up_preserves_input() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((s0 :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "a" "b"))
              ((_  :rust::std::collections::HashSet<String>) (:wat::core::conj s0 "c")))
             (:wat::core::contains? s0 "c"))"#;
@@ -21148,7 +21070,7 @@ mod tests {
     // `(< i (length xs))` directly.
     #[test]
     fn vec_contains_existing_element_returns_true() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
             (:wat::core::contains? xs 20))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
@@ -21156,7 +21078,7 @@ mod tests {
 
     #[test]
     fn vec_contains_missing_element_returns_false() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
             (:wat::core::contains? xs 99))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
@@ -21164,7 +21086,7 @@ mod tests {
 
     #[test]
     fn vec_contains_negative_missing_element_returns_false() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
             (:wat::core::contains? xs -1))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
@@ -21178,7 +21100,7 @@ mod tests {
     #[test]
     fn hashset_contains_existing_element_returns_true() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "apple" "banana")))
               (:wat::core::contains? s "apple"))
         "#;
@@ -21188,7 +21110,7 @@ mod tests {
     #[test]
     fn hashset_contains_missing_element_returns_false() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "apple")))
               (:wat::core::contains? s "banana"))
         "#;
@@ -21346,7 +21268,7 @@ mod tests {
         // A HashSet carrying only the String "42" shouldn't report
         // membership for the i64 42 (type-tagged canonical key).
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "42")))
               (:wat::core::contains? s 42))
         "#;
@@ -21368,7 +21290,7 @@ mod tests {
 
     #[test]
     fn hashmap_length_returns_entry_count() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((m :rust::std::collections::HashMap<String,i64>)
               (:wat::core::HashMap :(String,i64) "a" 1 "b" 2 "c" 3)))
             (:wat::core::length m))"#;
@@ -21377,7 +21299,7 @@ mod tests {
 
     #[test]
     fn hashmap_length_empty_returns_zero() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((m :rust::std::collections::HashMap<String,i64>)
               (:wat::core::HashMap :(String,i64))))
             (:wat::core::length m))"#;
@@ -21386,7 +21308,7 @@ mod tests {
 
     #[test]
     fn hashset_length_returns_element_count() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((s :rust::std::collections::HashSet<String>)
               (:wat::core::HashSet :String "a" "b" "c")))
             (:wat::core::length s))"#;
@@ -21395,7 +21317,7 @@ mod tests {
 
     #[test]
     fn hashset_length_empty_returns_zero() {
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((s :rust::std::collections::HashSet<String>)
               (:wat::core::HashSet :String)))
             (:wat::core::length s))"#;
@@ -21405,7 +21327,7 @@ mod tests {
     #[test]
     fn vec_length_still_works_after_polymorphism() {
         // Sanity — the existing Vec arm is preserved.
-        let src = r#"(:wat::core::let*
+        let src = r#"(:wat::core::let
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
             (:wat::core::length xs))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
@@ -21416,7 +21338,7 @@ mod tests {
     #[test]
     fn try_recv_on_empty_queue_returns_none() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((tx rx) (:wat::kernel::make-bounded-channel :i64 1)))
               (:wat::core::match (:wat::kernel::try-recv rx) -> :bool
                 ((:wat::core::Ok (:wat::core::Some _)) false)
@@ -21432,7 +21354,7 @@ mod tests {
     #[test]
     fn try_recv_on_ready_queue_returns_some() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((tx rx) (:wat::kernel::make-bounded-channel :i64 1))
                ((_ :()) (:wat::core::Result/expect -> :()
                           (:wat::kernel::send tx 7)
@@ -21451,7 +21373,7 @@ mod tests {
     #[test]
     fn drop_accepts_sender_returns_unit() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((tx rx) (:wat::kernel::make-bounded-channel :i64 1)))
               (:wat::kernel::drop tx))
         "#;
@@ -21464,7 +21386,7 @@ mod tests {
     #[test]
     fn drop_accepts_receiver_returns_unit() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((tx rx) (:wat::kernel::make-bounded-channel :i64 1)))
               (:wat::kernel::drop rx))
         "#;
@@ -21503,7 +21425,7 @@ mod tests {
         // recovered vector cosines == 1.0 with the original
         // (byte-perfect round-trip).
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((v :wat::holon::Vector)
                 (:wat::holon::encode (:wat::holon::Atom "round-trip-test")))
                ((bs :Vec<u8>) (:wat::holon::vector-bytes v))
@@ -21531,7 +21453,7 @@ mod tests {
         // Same Vector → same bytes (substrate-level determinism;
         // arc 061 Q7).
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((v1 :wat::holon::Vector)
                 (:wat::holon::encode (:wat::holon::Atom "deterministic")))
                ((v2 :wat::holon::Vector)
@@ -21597,7 +21519,7 @@ mod tests {
         // coincide (arc 061: coincident? widened from HolonAST-only
         // to HolonAST | Vector).
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((v1 :wat::holon::Vector)
                 (:wat::holon::encode (:wat::holon::Atom "coincide-me")))
                ((v2 :wat::holon::Vector)
@@ -21616,7 +21538,7 @@ mod tests {
         // same AST should coincide (arc 061 polymorphism + arc 052's
         // mixed-input pair_values_to_vectors).
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((v :wat::holon::Vector)
                 (:wat::holon::encode (:wat::holon::Atom "mixed-input"))))
               (:wat::holon::coincident? v (:wat::holon::Atom "mixed-input")))
@@ -21662,7 +21584,7 @@ mod tests {
     fn bytes_from_hex_round_trip() {
         // hex → bytes → hex must reproduce the original.
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((bs1 :wat::core::Bytes)
                 (:wat::core::vec :u8
                   (:wat::core::u8 1)
@@ -21689,7 +21611,7 @@ mod tests {
     fn bytes_from_hex_accepts_mixed_case() {
         // Mixed case "AbCd" → 0xab 0xcd; same as lowercase "abcd".
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((mixed :Option<wat::core::Bytes>)
                 (:wat::core::Bytes::from-hex "AbCd"))
                ((lower :Option<wat::core::Bytes>)
@@ -22018,7 +21940,7 @@ mod tests {
         // and the round-trip is faithful to whichever side h
         // started on.
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((h1 :wat::holon::HolonAST)
                 (:wat::core::match
                   (:wat::holon::Bundle
@@ -22246,7 +22168,7 @@ mod tests {
                 :my::test::count-visit)
               -> :wat::core::i64
               ((:wat::core::Ok pair)
-                (:wat::core::let*
+                (:wat::core::let
                   (((terminal :wat::holon::HolonAST) (:wat::core::first pair))
                    ((count :wat::core::i64) (:wat::core::second pair))
                    ((value :wat::core::i64) (:wat::core::atom-value terminal))
@@ -22328,7 +22250,7 @@ mod tests {
             :my::test::skip-on-first)
           -> :wat::core::i64
           ((:wat::core::Ok pair)
-            (:wat::core::let*
+            (:wat::core::let
               (((terminal :wat::holon::HolonAST) (:wat::core::first pair))
                ((value :wat::core::i64) (:wat::core::atom-value terminal)))
               value))
@@ -22583,7 +22505,7 @@ mod tests {
         // `(let* (((x :wat::core::i64) 5)) (* x x))` — RHS canonical, peel,
         // substitute, then arithmetic fire.
         let h = step_drive_to_terminal(
-            "(:wat::core::let* (((x :wat::core::i64) 5)) (:wat::core::i64::*,2 x x))",
+            "(:wat::core::let (((x :wat::core::i64) 5)) (:wat::core::i64::*,2 x x))",
         );
         assert_eq!(h.as_i64(), Some(25));
     }
@@ -22594,7 +22516,7 @@ mod tests {
         // a's RHS is non-canonical → descend; then peel a; then peel
         // b; body alone reduces to terminal.
         let h = step_drive_to_terminal(
-            "(:wat::core::let* (((a :wat::core::i64) (:wat::core::i64::+,2 1 1)) ((b :wat::core::i64) a)) b)",
+            "(:wat::core::let (((a :wat::core::i64) (:wat::core::i64::+,2 1 1)) ((b :wat::core::i64) a)) b)",
         );
         assert_eq!(h.as_i64(), Some(2));
     }
@@ -22688,7 +22610,7 @@ mod tests {
             ("(:wat::core::i64::+,2 2 2)", 4),
             ("(:wat::core::i64::*,2 3 7)", 21),
             ("(:wat::core::if true -> :wat::core::i64 10 20)", 10),
-            ("(:wat::core::let* (((x :wat::core::i64) 5)) (:wat::core::i64::+,2 x 1))", 6),
+            ("(:wat::core::let (((x :wat::core::i64) 5)) (:wat::core::i64::+,2 x 1))", 6),
             ("(:wat::core::match (:wat::core::Some 7) -> :wat::core::i64 ((:wat::core::Some n) n) (:wat::core::None 0))", 7),
         ];
         for (form, expected) in forms {
@@ -22747,7 +22669,7 @@ mod tests {
                     ((:wat::eval::StepResult::AlreadyTerminal h) n)))
                 ((:wat::core::Err e) -1)))
             {}
-            (:wat::core::let*
+            (:wat::core::let
               (((sum :wat::holon::HolonAST)
                 (:my::test::step-to-terminal
                   (:wat::core::quote (:my::test::sum-to 3 0))))
@@ -22898,7 +22820,7 @@ mod tests {
         // post-arc-102). The arc-057 round-trip claim, now with
         // T = :i64 since arc 102 makes eval-ast! polymorphic.
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((form :wat::holon::HolonAST)
                 (:wat::holon::from-watast
                   (:wat::core::quote (:wat::core::i64::+,2 40 2))))
@@ -22920,7 +22842,7 @@ mod tests {
         // pipeline through arc 061's vector-bytes / bytes-vector
         // type-checks identically whichever annotation is used.
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((v :wat::holon::Vector)
                 (:wat::holon::encode (:wat::holon::Atom "alias-test")))
                ;; Annotate with the alias on one binding...
@@ -22952,7 +22874,7 @@ mod tests {
         // Two channels; send only to the second; select returns index 1
         // with the value.
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((tx0 rx0) (:wat::kernel::make-bounded-channel :i64 1))
                (((tx1 rx1)) (:wat::kernel::make-bounded-channel :i64 1)))
               ;; (this shape won't parse — rewrite below)
@@ -23026,7 +22948,7 @@ mod tests {
     #[test]
     fn handle_pool_pop_all_then_finish() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((pool :wat::kernel::HandlePool<i64>)
                 (:wat::kernel::HandlePool::new "test" (:wat::core::vec :i64 1 2 3)))
                ((a :i64) (:wat::kernel::HandlePool::pop pool))
@@ -23044,7 +22966,7 @@ mod tests {
     #[test]
     fn handle_pool_pop_from_empty_errors() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((pool :wat::kernel::HandlePool<i64>)
                 (:wat::kernel::HandlePool::new "empty" (:wat::core::vec :i64)))
                ((_ :i64) (:wat::kernel::HandlePool::pop pool)))
@@ -23057,7 +22979,7 @@ mod tests {
     #[test]
     fn handle_pool_finish_with_orphans_errors() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((pool :wat::kernel::HandlePool<i64>)
                 (:wat::kernel::HandlePool::new "orphaned" (:wat::core::vec :i64 1 2 3)))
                ((_ :()) (:wat::kernel::HandlePool::finish pool)))
@@ -23070,7 +22992,7 @@ mod tests {
     #[test]
     fn handle_pool_name_surfaces_in_error() {
         let src = r#"
-            (:wat::core::let*
+            (:wat::core::let
               (((pool :wat::kernel::HandlePool<i64>)
                 (:wat::kernel::HandlePool::new "named-pool" (:wat::core::vec :i64)))
                ((_ :i64) (:wat::kernel::HandlePool::pop pool)))

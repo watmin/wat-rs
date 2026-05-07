@@ -81,14 +81,14 @@
 
 (:deftest :wat-tests::holon::HologramCache::test-hc-make
   ;; hc-make constructs a non-empty-capacity store; len is 0 initially.
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 4))
      ((n :wat::core::i64) (:wat::holon::lru::HologramCache/len store)))
     (:wat::test::assert-eq n 0)))
 
 (:deftest :wat-tests::holon::HologramCache::test-hc-fill-two
   ;; hc-fill-two puts exactly two distinct entries; len becomes 2.
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 4))
      ((k1 :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((k2 :wat::holon::HolonAST) (:wat::holon::leaf :beta))
@@ -99,7 +99,7 @@
 
 (:deftest :wat-tests::holon::HologramCache::test-hc-get-found
   ;; hc-get-found? returns true for a key that was just put.
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 4))
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :av))
@@ -108,7 +108,7 @@
 
 (:deftest :wat-tests::holon::HologramCache::test-hc-get-evicted
   ;; hc-get-evicted? returns true for a key that was pushed out by eviction.
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 1))
      ((k1 :wat::holon::HolonAST) (:wat::holon::leaf :first))
      ((k2 :wat::holon::HolonAST) (:wat::holon::leaf :second))
@@ -120,7 +120,7 @@
 ;; ─── make + len + capacity: empty store ──────────────────────────
 
 (:deftest :wat-tests::holon::HologramCache::test-make-empty
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 16))
      ((n :wat::core::i64) (:wat::holon::lru::HologramCache/len store))
      ((cap :wat::core::i64) (:wat::holon::lru::HologramCache/capacity store)))
@@ -133,7 +133,7 @@
 ;; ─── put + get round-trip: self-cosine = 1.0 ─────────────────────
 
 (:deftest :wat-tests::holon::HologramCache::test-put-get-self-hit
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 16))
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :beta))
@@ -149,7 +149,7 @@
 ;; ─── len tracks puts ─────────────────────────────────────────────
 
 (:deftest :wat-tests::holon::HologramCache::test-len-tracks-puts
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 16))
      ((k1 :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v1 :wat::holon::HolonAST) (:wat::holon::leaf :av))
@@ -167,7 +167,7 @@
 ;; first key's get returns None.
 
 (:deftest :wat-tests::holon::HologramCache::test-lru-evicts-from-hologram
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 2))
      ((k1 :wat::holon::HolonAST) (:wat::holon::leaf :first))
      ((k2 :wat::holon::HolonAST) (:wat::holon::leaf :second))
@@ -190,7 +190,7 @@
 ;; should drop k2 (now LRU) instead of k1.
 
 (:deftest :wat-tests::holon::HologramCache::test-get-bumps-lru
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 2))
      ((k1 :wat::holon::HolonAST) (:wat::holon::leaf :first))
      ((k2 :wat::holon::HolonAST) (:wat::holon::leaf :second))
@@ -215,7 +215,7 @@
 ;; coincidence filter.
 
 (:deftest :wat-tests::holon::HologramCache::test-therm-roundtrip
-  (:wat::core::let*
+  (:wat::core::let
     (((store :wat::holon::lru::HologramCache) (:test::hc-make 16))
      ((k :wat::holon::HolonAST)
       (:wat::holon::therm-form 0.0 100.0 70.0))

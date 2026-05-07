@@ -51,7 +51,7 @@ fn simhash_deterministic_same_ast() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::holon::HolonAST)
               (:wat::holon::Bind
                 (:wat::holon::Atom "role")
@@ -75,7 +75,7 @@ fn simhash_atom_zero_stable() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((k1 :wat::core::i64) (:wat::holon::simhash (:wat::holon::Atom 0)))
              ((k2 :wat::core::i64) (:wat::holon::simhash (:wat::holon::Atom 0))))
             (:wat::io::IOWriter/println stdout
@@ -98,7 +98,7 @@ fn simhash_same_shape_zero_hamming() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((a :wat::holon::HolonAST)
               (:wat::holon::Bind
                 (:wat::holon::Atom "role")
@@ -131,7 +131,7 @@ fn simhash_distinct_atoms_distinct_keys() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((alpha :wat::holon::HolonAST) (:wat::holon::Atom "alpha"))
              ((beta  :wat::holon::HolonAST) (:wat::holon::Atom "beta"))
              ((k-a :wat::core::i64) (:wat::holon::simhash alpha))
@@ -153,7 +153,7 @@ fn simhash_result_works_in_arithmetic() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((k :wat::core::i64) (:wat::holon::simhash (:wat::holon::Atom "x")))
              ((doubled :wat::core::i64) (:wat::core::+ k k)))
             ;; Just checking the type-checker accepts arithmetic on

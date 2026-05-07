@@ -138,7 +138,7 @@
     (tags      :wat::telemetry::Tags)
     (body      :fn(wat::telemetry::WorkUnit)->T)
     -> :T)
-  (:wat::core::let*
+  (:wat::core::let
     (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new namespace tags))
      ((result :T)                        (body wu)))
     result))
@@ -165,7 +165,7 @@
     ((tags :wat::telemetry::Tags)
      (body :wat::telemetry::WorkUnit::Body<T>)
      -> :T)
-    (:wat::core::let*
+    (:wat::core::let
       (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new namespace tags))
        ((result :T)                        (body wu))
        ((start  :wat::core::i64) (:wat::telemetry::WorkUnit/started-epoch-nanos wu))
@@ -201,7 +201,7 @@
     (name :wat::holon::HolonAST)
     (body :fn()->T)
     -> :T)
-  (:wat::core::let*
+  (:wat::core::let
     (((_bump      :wat::core::nil)  (:wat::telemetry::WorkUnit/incr! wu name))
      ((start      :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
      ((result     :T)   (body))
@@ -311,7 +311,7 @@
     (start-time-ns :wat::core::i64)
     (end-time-ns   :wat::core::i64)
     -> :wat::core::Vector<wat::telemetry::Event>)
-  (:wat::core::let*
+  (:wat::core::let
     (((namespace      :wat::holon::HolonAST)        (:wat::telemetry::WorkUnit/namespace wu))
      ((uuid           :wat::core::String)                     (:wat::telemetry::WorkUnit/uuid wu))
      ((tags           :wat::telemetry::Tags)        (:wat::telemetry::WorkUnit/tags wu))
@@ -324,7 +324,7 @@
           ((acc :wat::core::Vector<wat::telemetry::Event>)
            (key :wat::holon::HolonAST)
            -> :wat::core::Vector<wat::telemetry::Event>)
-          (:wat::core::let*
+          (:wat::core::let
             (((count :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu key))
              ((event :wat::telemetry::Event)
               (:wat::telemetry::WorkUnit/scope::build-counter-metric
@@ -338,7 +338,7 @@
           ((acc :wat::core::Vector<wat::telemetry::Event>)
            (key :wat::holon::HolonAST)
            -> :wat::core::Vector<wat::telemetry::Event>)
-          (:wat::core::let*
+          (:wat::core::let
             (((samples :wat::core::Vector<wat::core::f64>)
               (:wat::telemetry::WorkUnit/durations wu key))
              ((per-name :wat::core::Vector<wat::telemetry::Event>)

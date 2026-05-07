@@ -103,9 +103,21 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     insert(&mut m, ":wat::core::cond", &["<clause>+"]);
     // Bindings: layout is `(let ((<name> <expr>)*) <body>+)` — the
     // bindings slot is a list of name/expr pairs; the type checker
-    // walks it specially (arc 057 et al.).
+    // walks it specially (arc 057 et al.). Arc 154 made `:wat::core::let`
+    // sequential (Clojure-faithful single-letform vocabulary;
+    // `:wat::core::let*` retired into `let`).
     insert(&mut m, ":wat::core::let", &["<bindings>", "<body>+"]);
-    insert(&mut m, ":wat::core::let*", &["<bindings>", "<body>+"]);
+    // Arc 154 — `:wat::core::let*` retired (single-letform vocabulary).
+    // The `validate_legacy_let_star` walker fires `BareLegacyLetStar`
+    // on every source-level appearance. Registry entry retained per
+    // the spawn-family precedent (arc 114 Pattern 2 poison): keeps
+    // `(help :wat::core::let*)` reflection-discoverable so the
+    // migration hint surfaces uniformly.
+    insert(
+        &mut m,
+        ":wat::core::let*",
+        &["<retired-use-let>"],
+    );
     // Arc 136 slice 1a — Clojure-faithful sequential side-effect chain.
     // `(:wat::core::do f1 f2 ... fN)` — variadic; one or more forms.
     // Non-finals' types are unconstrained (results discarded); the

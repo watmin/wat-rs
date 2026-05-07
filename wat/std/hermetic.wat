@@ -80,13 +80,13 @@
                :wat::core::None
                :wat::core::None))))
     (:wat::core::None
-     (:wat::core::let*
+     (:wat::core::let
        (((proc :wat::kernel::Program<I,O>)
          (:wat::kernel::fork-program-ast forms))
         ;; Write stdin (if any). An empty vec joins to "", which
         ;; write-all handles as a zero-byte write.
         ((_ :wat::core::i64)
-         (:wat::core::let*
+         (:wat::core::let
            (((stdin-wr :wat::io::IOWriter)
              (:wat::kernel::Process/stdin proc))
             ((joined :wat::core::String)

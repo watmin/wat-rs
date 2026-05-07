@@ -267,7 +267,7 @@ fn signature_of_foldl_renders_synthesised_shape() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::signature-of :wat::core::foldl))
              ((rendered :wat::core::String)
@@ -325,7 +325,7 @@ fn lookup_define_user_function_contains_define_keyword() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :user::my-square))
              ((rendered :wat::core::String)

@@ -85,7 +85,7 @@
   (:wat::stream::spawn-producer<T>
     (producer :wat::stream::Producer<T>)
     -> :wat::stream::Stream<T>)
-  (:wat::core::let*
+  (:wat::core::let
     (((pair :wat::kernel::Channel<T>)
       (:wat::kernel::make-bounded-channel :T 1))
      ((tx :wat::kernel::Sender<T>) (:wat::core::first pair))
@@ -135,7 +135,7 @@
     -> :wat::core::nil)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
     ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::core::let*
+      (:wat::core::let
         (((u :U) (f v)))
         (:wat::core::match (:wat::kernel::send out u) -> :wat::core::nil
           ((:wat::core::Ok _) (:wat::stream::map-worker in out f))
@@ -148,7 +148,7 @@
     (upstream :wat::stream::Stream<T>)
     (f :fn(T)->U)
     -> :wat::stream::Stream<U>)
-  (:wat::core::let*
+  (:wat::core::let
     (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::Channel<U>)
       (:wat::kernel::make-bounded-channel :U 1))
@@ -188,7 +188,7 @@
     (stream :wat::stream::Stream<T>)
     (handler :fn(T)->wat::core::nil)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((rx :wat::kernel::Receiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::second stream))
      ((_ :wat::core::nil) (:wat::stream::for-each-drain rx handler))
@@ -218,7 +218,7 @@
   (:wat::stream::collect<T>
     (stream :wat::stream::Stream<T>)
     -> :wat::core::Vector<T>)
-  (:wat::core::let*
+  (:wat::core::let
     (((rx :wat::kernel::Receiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::second stream))
      ((items :wat::core::Vector<T>)
@@ -253,7 +253,7 @@
     (upstream :wat::stream::Stream<T>)
     (pred :fn(T)->wat::core::bool)
     -> :wat::stream::Stream<T>)
-  (:wat::core::let*
+  (:wat::core::let
     (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::Channel<T>)
       (:wat::kernel::make-bounded-channel :T 1))
@@ -297,7 +297,7 @@
     (upstream :wat::stream::Stream<T>)
     (f :fn(T)->wat::core::nil)
     -> :wat::stream::Stream<T>)
-  (:wat::core::let*
+  (:wat::core::let
     (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::Channel<T>)
       (:wat::kernel::make-bounded-channel :T 1))
@@ -336,7 +336,7 @@
     (init :Acc)
     (f :fn(Acc,T)->Acc)
     -> :Acc)
-  (:wat::core::let*
+  (:wat::core::let
     (((rx :wat::kernel::Receiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::second stream))
      ((result :Acc) (:wat::stream::fold-drain rx init f))
@@ -389,7 +389,7 @@
     ;; demands totality.
     (:wat::core::match (:wat::core::first items) -> :wat::core::Option<wat::core::nil>
       ((:wat::core::Some item)
-        (:wat::core::let*
+        (:wat::core::let
           (((rest-items :wat::core::Vector<U>) (:wat::core::rest items)))
           (:wat::core::match (:wat::kernel::send out item) -> :wat::core::Option<wat::core::nil>
             ((:wat::core::Ok _)
@@ -407,7 +407,7 @@
     -> :wat::core::nil)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
     ((:wat::core::Ok (:wat::core::Some item))
-      (:wat::core::let*
+      (:wat::core::let
         (((stepped :(Acc,wat::core::Vector<U>)) (step acc item))
          ((new-acc :Acc) (:wat::core::first stepped))
          ((to-emit :wat::core::Vector<U>) (:wat::core::second stepped))
@@ -421,7 +421,7 @@
       ;; Upstream disconnected. Flush final state; drain whatever it
       ;; produced. Consumer-dropped during flush is swallowed silently
       ;; — same behavior chunks had for its final partial buffer.
-      (:wat::core::let*
+      (:wat::core::let
         (((final-emits :wat::core::Vector<U>) (flush acc))
          ((_ :wat::core::Option<wat::core::nil>)
           (:wat::stream::drain-items out final-emits)))
@@ -435,7 +435,7 @@
     (step :fn(Acc,T)->(Acc,wat::core::Vector<U>))
     (flush :fn(Acc)->wat::core::Vector<U>)
     -> :wat::stream::Stream<U>)
-  (:wat::core::let*
+  (:wat::core::let
     (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::Channel<U>)
       (:wat::kernel::make-bounded-channel :U 1))
@@ -472,7 +472,7 @@
     (item :T)
     (size :wat::core::i64)
     -> :wat::stream::ChunkStep<T>)
-  (:wat::core::let*
+  (:wat::core::let
     (((new-buffer :wat::core::Vector<T>) (:wat::core::conj buffer item)))
     (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size)
       -> :wat::stream::ChunkStep<T>
@@ -523,7 +523,7 @@
     (item :T)
     (key-fn :fn(T)->K)
     -> :wat::stream::KeyedChunkStep<K,T>)
-  (:wat::core::let*
+  (:wat::core::let
     (((last-key :wat::core::Option<K>) (:wat::core::first state))
      ((buffer :wat::core::Vector<T>) (:wat::core::second state))
      ((k :K) (key-fn item)))
@@ -549,7 +549,7 @@
   (:wat::stream::chunks-by-flush<T,K>
     (state :(wat::core::Option<K>,wat::core::Vector<T>))
     -> :wat::core::Vector<wat::core::Vector<T>>)
-  (:wat::core::let*
+  (:wat::core::let
     (((buffer :wat::core::Vector<T>) (:wat::core::second state)))
     (:wat::core::if (:wat::core::empty? buffer) -> :wat::core::Vector<wat::core::Vector<T>>
       (:wat::core::Vector :wat::core::Vector<T>)
@@ -590,13 +590,13 @@
     (item :T)
     (size :wat::core::i64)
     -> :wat::stream::ChunkStep<T>)
-  (:wat::core::let*
+  (:wat::core::let
     (((new-buf :wat::core::Vector<T>) (:wat::core::conj buffer item))
      ((new-len :wat::core::i64) (:wat::core::length new-buf)))
     (:wat::core::cond -> :wat::stream::ChunkStep<T>
       ;; Over-size — slide: drop first, emit trimmed window, keep trimmed.
       ((:wat::core::> new-len size)
-        (:wat::core::let*
+        (:wat::core::let
           (((trimmed :wat::core::Vector<T>) (:wat::core::rest new-buf)))
           (:wat::core::Tuple trimmed (:wat::core::Vector :wat::core::Vector<T> trimmed))))
       ;; Exactly size — first full window. Emit and keep.
@@ -669,7 +669,7 @@
     (upstream :wat::stream::Stream<T>)
     (n :wat::core::i64)
     -> :wat::stream::Stream<T>)
-  (:wat::core::let*
+  (:wat::core::let
     (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::Channel<T>)
       (:wat::kernel::make-bounded-channel :T 1))
@@ -713,7 +713,7 @@
     ;; :None arm is unreachable but type-required.
     (:wat::core::match (:wat::core::first pending) -> :wat::core::nil
       ((:wat::core::Some item)
-        (:wat::core::let*
+        (:wat::core::let
           (((rest-items :wat::core::Vector<U>) (:wat::core::rest pending)))
           (:wat::core::match (:wat::kernel::send out item) -> :wat::core::nil
             ((:wat::core::Ok _)
@@ -726,7 +726,7 @@
     (upstream :wat::stream::Stream<T>)
     (f :fn(T)->wat::core::Vector<U>)
     -> :wat::stream::Stream<U>)
-  (:wat::core::let*
+  (:wat::core::let
     (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::Channel<U>)
       (:wat::kernel::make-bounded-channel :U 1))

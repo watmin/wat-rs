@@ -47,7 +47,7 @@ fn mean_known_input() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
              ((m :wat::core::Option<wat::core::f64>) (:wat::std::stat::mean xs))
              ((v :wat::core::f64)
@@ -67,7 +67,7 @@ fn mean_empty_is_none() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64))
              ((m :wat::core::Option<wat::core::f64>) (:wat::std::stat::mean xs))
              ((label :wat::core::String)
@@ -89,7 +89,7 @@ fn variance_population_known_input() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
              ((v :wat::core::f64)
               (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
@@ -108,7 +108,7 @@ fn variance_single_point_zero() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 7.0))
              ((v :wat::core::f64)
               (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
@@ -128,7 +128,7 @@ fn stddev_known_input() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let*
+          (:wat::core::let
             (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
              ((sd :wat::core::f64)
               (:wat::core::match (:wat::std::stat::stddev xs) -> :wat::core::f64

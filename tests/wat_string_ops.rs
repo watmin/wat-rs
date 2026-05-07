@@ -116,7 +116,7 @@ fn length_counts_chars_not_bytes() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((n :wat::core::i64) (:wat::core::string::length "héllo")))
             (:wat::core::if (:wat::core::= n 5) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "chars")
@@ -146,7 +146,7 @@ fn split_produces_vec() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((pieces :wat::core::Vector<wat::core::String>)
               (:wat::core::string::split "a,b,c" ",")))
             (:wat::io::IOWriter/println stdout
@@ -164,7 +164,7 @@ fn split_empty_separator_rejected() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((_ :wat::core::Vector<wat::core::String>)
               (:wat::core::string::split "abc" "")))
             ()))
@@ -219,7 +219,7 @@ fn regex_invalid_pattern_errors() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((_ :wat::core::bool) (:wat::core::regex::matches? "[unclosed" "x")))
             ()))
     "#;

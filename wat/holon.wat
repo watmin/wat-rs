@@ -64,7 +64,7 @@
 (:wat::core::define
   (:wat::holon::filter-coincident
     -> :fn(wat::core::f64)->wat::core::bool)
-  (:wat::core::let*
+  (:wat::core::let
     (((floor :wat::core::f64)
       (:wat::holon::coincident-floor (:wat::config::dim-count))))
     (:wat::core::lambda ((cos :wat::core::f64) -> :wat::core::bool)
@@ -81,7 +81,7 @@
 (:wat::core::define
   (:wat::holon::filter-present
     -> :fn(wat::core::f64)->wat::core::bool)
-  (:wat::core::let*
+  (:wat::core::let
     (((floor :wat::core::f64)
       (:wat::holon::presence-floor (:wat::config::dim-count))))
     (:wat::core::lambda ((cos :wat::core::f64) -> :wat::core::bool)

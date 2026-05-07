@@ -31,7 +31,7 @@
      (:test::send-events
        (pool :wat::telemetry::HandlePool<test::Event>)
        -> :wat::core::nil)
-     (:wat::core::let*
+     (:wat::core::let
        (((handle :wat::telemetry::Handle<test::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
@@ -53,7 +53,7 @@
      (:test::auto-spawn-events
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-     (:wat::core::let*
+     (:wat::core::let
        (((spawn :wat::telemetry::Spawn<test::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
            :test::Event
@@ -70,7 +70,7 @@
 
 
 (:deftest :wat-telemetry-sqlite::auto-spawn::test-event-roundtrip
-  (:wat::core::let*
+  (:wat::core::let
     (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::auto-spawn-events
         "/tmp/wat-sqlite-test-auto-001.db"))

@@ -23,10 +23,10 @@
 (:wat::test::time-limit "200ms")
 (:wat::test::deftest :wat-tests::holon::lru::proofs::arc_119::step_B_single_put
   ()
-  (:wat::core::let*
+  (:wat::core::let
     ;; Outer holds the driver Thread; inner owns everything else.
     (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-      (:wat::core::let*
+      (:wat::core::let
         (((spawn :wat::holon::lru::HologramCacheService::Spawn)
           (:wat::holon::lru::HologramCacheService/spawn 1 4
             :wat::holon::lru::HologramCacheService/null-reporter

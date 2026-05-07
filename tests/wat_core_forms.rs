@@ -51,7 +51,7 @@ fn forms_captures_each_arg_as_wat_ast() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((captured :wat::core::Vector<wat::WatAST>)
               (:wat::core::forms (foo 1) (bar 2) (baz 3)))
              ((n :wat::core::i64) (:wat::core::length captured)))
@@ -73,7 +73,7 @@ fn forms_empty_produces_empty_vec() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((captured :wat::core::Vector<wat::WatAST>) (:wat::core::forms))
              ((n :wat::core::i64) (:wat::core::length captured)))
             (:wat::core::if (:wat::core::= n 0) -> :wat::core::nil
@@ -95,7 +95,7 @@ fn forms_args_are_not_evaluated() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((captured :wat::core::Vector<wat::WatAST>)
               (:wat::core::forms (:this::is::not::a::real::function 1 2 3)))
              ((n :wat::core::i64) (:wat::core::length captured)))
@@ -120,7 +120,7 @@ fn forms_composes_with_run_sandboxed_ast() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((program :wat::core::Vector<wat::WatAST>)
               (:wat::core::forms
                 (:wat::core::define
@@ -157,7 +157,7 @@ fn test_program_macro_expands_correctly() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((captured :wat::core::Vector<wat::WatAST>)
               (:wat::test::program (a 1) (b 2) (c 3)))
              ((n :wat::core::i64) (:wat::core::length captured)))
@@ -183,7 +183,7 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let*
+          (:wat::core::let
             (((r :wat::kernel::RunResult)
               (:wat::test::run-ast
                 (:wat::test::program

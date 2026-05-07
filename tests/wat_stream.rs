@@ -55,7 +55,7 @@ fn from_receiver_wraps_raw_queue_into_stream() {
     let src = r#"
 
         (:wat::core::define (:test::build-stream -> :wat::stream::Stream<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((pair :(rust::crossbeam_channel::Sender<wat::core::i64>,rust::crossbeam_channel::Receiver<wat::core::i64>))
               (:wat::kernel::make-bounded-channel :wat::core::i64 1))
              ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) (:wat::core::first pair))
@@ -86,7 +86,7 @@ fn from_receiver_composes_with_map() {
     let src = r#"
 
         (:wat::core::define (:test::build-stream -> :wat::stream::Stream<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((pair :(rust::crossbeam_channel::Sender<wat::core::i64>,rust::crossbeam_channel::Receiver<wat::core::i64>))
               (:wat::kernel::make-bounded-channel :wat::core::i64 1))
              ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) (:wat::core::first pair))
@@ -105,7 +105,7 @@ fn from_receiver_composes_with_map() {
             (:wat::stream::from-receiver rx handle)))
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>) (:test::build-stream))
              ((doubled :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::map source
@@ -142,7 +142,7 @@ fn spawn_producer_map_collect_doubles_each_value() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -171,7 +171,7 @@ fn three_stage_pipeline_map_map_collect() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((s0 :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -236,7 +236,7 @@ fn filter_keeps_only_passing_values() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -432,7 +432,7 @@ fn take_cuts_off_at_n_with_producer_that_would_send_more() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -462,7 +462,7 @@ fn take_returns_all_when_n_exceeds_available() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -484,7 +484,7 @@ fn take_zero_emits_nothing() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -507,7 +507,7 @@ fn take_composes_with_map() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -539,7 +539,7 @@ fn inspect_passes_values_through_unchanged() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -564,7 +564,7 @@ fn inspect_composes_between_map_and_collect() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((s0 :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -597,7 +597,7 @@ fn flat_map_expands_each_input_to_two_outputs() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -622,7 +622,7 @@ fn flat_map_empty_expansion_emits_nothing() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
@@ -646,7 +646,7 @@ fn flat_map_mixed_expansion_sizes() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
-          (:wat::core::let*
+          (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)

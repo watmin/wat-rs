@@ -14,7 +14,7 @@
 ;;                        (stdout :wat::io::IOWriter)
 ;;                        (stderr :wat::io::IOWriter)
 ;;                        -> :())
-;;     (:wat::core::let*
+;;     (:wat::core::let
 ;;       (((r :wat::kernel::RunResult)
 ;;         (:wat::test::run "(:user::main ...)" (:wat::core::Vector :wat::core::String))))
 ;;       (:wat::test::assert-stdout-is r
@@ -99,7 +99,7 @@
     (a :wat::holon::HolonAST)
     (b :wat::holon::HolonAST)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((expl :wat::holon::CoincidentExplanation)
       (:wat::holon::coincident-explain a b))
      ((ok :wat::core::bool)
@@ -148,7 +148,7 @@
     (result :wat::kernel::RunResult)
     (expected :wat::core::Vector<wat::core::String>)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((actual :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout result)))
     (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
       :wat::core::nil
@@ -176,7 +176,7 @@
     (result :wat::kernel::RunResult)
     (pattern :wat::core::String)
     -> :wat::core::nil)
-  (:wat::core::let*
+  (:wat::core::let
     (((stderr-lines :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stderr result)))
     (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::nil
       :wat::core::nil

@@ -17,7 +17,7 @@
 
 (:wat::test::deftest :wat-tests::core::option-expect::some-i64
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((opt :wat::core::Option<wat::core::i64>) (:wat::core::Some 42))
      ((v :wat::core::i64)
       (:wat::core::Option/expect -> :wat::core::i64
@@ -30,7 +30,7 @@
 
 (:wat::test::deftest :wat-tests::core::option-expect::some-string
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((opt :wat::core::Option<wat::core::String>) (:wat::core::Some "hello"))
      ((v :wat::core::String)
       (:wat::core::Option/expect -> :wat::core::String
@@ -43,7 +43,7 @@
 
 (:wat::test::deftest :wat-tests::core::option-expect::some-nested-option
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((opt :wat::core::Option<wat::core::Option<wat::core::i64>>) (:wat::core::Some (:wat::core::Some 7)))
      ((inner :wat::core::Option<wat::core::i64>)
       (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
@@ -60,7 +60,7 @@
 
 (:wat::test::deftest :wat-tests::core::option-expect::none-panics-with-message
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
@@ -70,7 +70,7 @@
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
-            (:wat::core::let*
+            (:wat::core::let
               (((opt :wat::core::Option<wat::core::i64>) :wat::core::None)
                ((_v :wat::core::i64)
                 (:wat::core::Option/expect -> :wat::core::i64

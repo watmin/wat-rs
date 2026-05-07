@@ -17,7 +17,7 @@
 
 (:wat::test::deftest :wat-lru::test-local-cache-put-then-get
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
      ((_ :wat::core::Option<(wat::core::String,wat::core::i64)>) (:wat::lru::LocalCache::put cache "answer" 42))
@@ -33,7 +33,7 @@
 
 (:wat::test::deftest :wat-lru::test-local-cache-miss-returns-none
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
      ((got :wat::core::Option<wat::core::i64>)
@@ -48,7 +48,7 @@
 
 (:wat::test::deftest :wat-lru::test-local-cache-put-overwrites
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
      ((_ :wat::core::Option<(wat::core::String,wat::core::i64)>) (:wat::lru::LocalCache::put cache "k" 1))
@@ -66,7 +66,7 @@
 
 (:wat::test::deftest :wat-lru::test-local-cache-evict-at-capacity
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<wat::core::i64,wat::core::i64>)
       (:wat::lru::LocalCache::new 2))
      ((_ :wat::core::Option<(wat::core::i64,wat::core::i64)>) (:wat::lru::LocalCache::put cache 1 10))
