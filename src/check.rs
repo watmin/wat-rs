@@ -3018,6 +3018,7 @@ fn infer_list(
             ":wat::core::cond" => return infer_cond(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::let*" => return infer_let_star(args, head_span, env, locals, fresh, subst, errors),
+            ":wat::core::do" => return infer_do(args, head_span, env, locals, fresh, subst, errors),
             // Arc 109 slice 1j — § D' Option/Result method forms.
             // Three retired verbs (Pattern 2 poison + dispatch) and
             // four new canonical heads (the three renames plus the
@@ -5160,6 +5161,51 @@ fn infer_if(
         }
     }
     Some(apply_subst(&declared_ty, subst))
+}
+
+/// `(:wat::core::do f1 f2 ... fN)` — Clojure-faithful sequential
+/// evaluation form. Arc 136 slice 1a.
+///
+/// Type rule:
+/// - args.is_empty() → MalformedForm "do form requires at least one form".
+/// - For args[0..N-1] (non-finals): `infer` each so it must internally
+///   type-check; the resulting type is INTENTIONALLY DISCARDED (no
+///   unification with anything). This matches Clojure's `do` semantics:
+///   non-finals are pure side effect; their values are dropped.
+/// - args[N-1] (final): `infer` and return its inferred type. The do
+///   form's inferred type IS the final form's inferred type. Recipient
+///   unification at the consuming site (binding slot, function declared
+///   return, argument position) is the static check.
+///
+/// No `-> :T` slot — the substrate's existing inference + recipient
+/// unification provides the static check arc 145 was attempting to add
+/// via REQUIRED `-> :T` (see arc 145 DESIGN top section, arc 136 DESIGN
+/// top section for the FOURTH amendment).
+fn infer_do(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.is_empty() {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::do".into(),
+            reason: "do form requires at least one form; got zero".into(),
+            span: head_span.clone(),
+        });
+        return None;
+    }
+    // Non-finals: type-check for internal consistency; discard the
+    // resulting type (no unification with anything).
+    let last_idx = args.len() - 1;
+    for arg in &args[..last_idx] {
+        let _ = infer(arg, env, locals, fresh, subst, errors);
+    }
+    // Final: its inferred type IS the do form's type.
+    infer(&args[last_idx], env, locals, fresh, subst, errors)
 }
 
 /// `(:wat::core::cond -> :T arm1 arm2 ... (:else default))`.

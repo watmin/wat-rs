@@ -106,6 +106,13 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // walks it specially (arc 057 et al.).
     insert(&mut m, ":wat::core::let", &["<bindings>", "<body>+"]);
     insert(&mut m, ":wat::core::let*", &["<bindings>", "<body>+"]);
+    // Arc 136 slice 1a — Clojure-faithful sequential side-effect chain.
+    // `(:wat::core::do f1 f2 ... fN)` — variadic; one or more forms.
+    // Non-finals' types are unconstrained (results discarded); the
+    // final form's inferred type IS the do form's type. No `-> :T`
+    // slot — the substrate's existing inference + recipient unification
+    // is the static check (per the FOURTH amendment to arc 136 DESIGN).
+    insert(&mut m, ":wat::core::do", &["<form>+"]);
     // Match: `(match <scrutinee> -> <T> <arm>+)`. The `->` and `<T>`
     // are part of the surface form (arc 091 / arc 098 grammar).
     insert(

@@ -2126,6 +2126,7 @@ fn eval_tail(
                 ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
                 ":wat::core::let" => eval_let_tail(args, &list_span, env, sym),
                 ":wat::core::let*" => eval_let_star_tail(args, &list_span, env, sym),
+                ":wat::core::do" => eval_do_tail(args, &list_span, env, sym),
                 // A user-defined function call in tail position — signal.
                 // Head resolves in sym.functions; anything else (kernel/
                 // algebra/config primitive, :rust:: shim) runs through
@@ -2353,6 +2354,30 @@ fn eval_let_star_tail(
     eval_tail(body, &scope, sym)
 }
 
+/// Tail-position twin of [`eval_do`]. Non-final forms are evaluated
+/// for their side effects (results discarded); the FINAL form is
+/// evaluated through [`eval_tail`] so a tail-call inside it propagates
+/// through the trampoline. Arc 136 slice 1a.
+fn eval_do_tail(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.is_empty() {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::do".into(),
+            reason: "do form requires at least one form; got zero".into(),
+            span: list_span.clone(),
+        });
+    }
+    let last_idx = args.len() - 1;
+    for arg in &args[..last_idx] {
+        let _ = eval(arg, env, sym)?;
+    }
+    eval_tail(&args[last_idx], env, sym)
+}
+
 /// Tail-position twin of [`eval_match`]. The matched arm's body is
 /// evaluated via [`eval_tail`] — a tail-call inside an arm body
 /// propagates through to `apply_function`'s trampoline.
@@ -2568,6 +2593,7 @@ fn dispatch_keyword_head(
         ":wat::core::lambda" => eval_lambda(args, env),
         ":wat::core::let" => eval_let(args, list_span, env, sym),
         ":wat::core::let*" => eval_let_star(args, list_span, env, sym),
+        ":wat::core::do" => eval_do(args, list_span, env, sym),
         ":wat::core::if" => eval_if(args, list_span, env, sym),
         ":wat::core::cond" => eval_cond(args, list_span, env, sym),
         ":wat::core::quote" => eval_quote(args, list_span),
@@ -3683,6 +3709,34 @@ fn eval_let_star(
         }
     }
     eval(body, &scope, sym)
+}
+
+/// `(:wat::core::do f1 f2 ... fN)` — Clojure-faithful sequential
+/// evaluation form. Arc 136 slice 1a.
+///
+/// Each non-final form is evaluated for its side effect; the resulting
+/// value is discarded. The FINAL form is evaluated; its value is
+/// returned as the do form's value. Empty arg list → MalformedForm
+/// (belt-and-suspenders for programs reaching the dispatcher without
+/// the checker having run; the type checker fires the same diagnostic).
+fn eval_do(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.is_empty() {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::do".into(),
+            reason: "do form requires at least one form; got zero".into(),
+            span: list_span.clone(),
+        });
+    }
+    let last_idx = args.len() - 1;
+    for arg in &args[..last_idx] {
+        let _ = eval(arg, env, sym)?;
+    }
+    eval(&args[last_idx], env, sym)
 }
 
 /// Verify `value` is a tuple of the expected arity and return its
@@ -16256,6 +16310,7 @@ fn step_list(
     match head_kw.as_str() {
         ":wat::core::if" => step_if(args, list_span, env, sym),
         ":wat::core::let*" => step_let_star(args, list_span, env, sym),
+        ":wat::core::do" => step_do(args, list_span, env, sym),
         ":wat::core::match" => step_match(args, list_span, env, sym),
         // Pure operations whose redex fires when all args are
         // primitive-canonical. We delegate the actual computation to
@@ -16661,6 +16716,52 @@ fn step_let_star(
         WatAST::List(substituted_rest, args[0].span().clone()),
         new_body,
     ];
+    Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
+}
+
+/// `(:wat::core::do f1 f2 ... fN)` — Clojure-faithful sequential
+/// evaluation form. Arc 136 slice 1a.
+///
+/// Single-step semantics for the eval-step! interpreter:
+/// - Empty arg list → MalformedForm (mirrors `eval_do`).
+/// - One remaining arg → `Next(arg)`; the do form is "transparent" once
+///   only the final form is left (matches Clojure's `(do x) ≡ x`).
+/// - Head non-canonical → step the head one rewrite, rebuild the do
+///   form with the stepped head in front, return `Next`.
+/// - Head canonical (and there's more than one arg) → drop the head
+///   (its result is discarded per do semantics) and return `Next` with
+///   the do form re-headed by the second arg.
+fn step_do(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<StepValue, RuntimeError> {
+    if args.is_empty() {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::do".into(),
+            reason: "do form requires at least one form; got zero".into(),
+            span: list_span.clone(),
+        });
+    }
+    if args.len() == 1 {
+        return Ok(StepValue::Next(args[0].clone()));
+    }
+    let head = &args[0];
+    if !is_step_canonical(head) {
+        let new_head = step_to_watast(head, env, sym)?;
+        let mut new_items: Vec<WatAST> = vec![
+            WatAST::Keyword(":wat::core::do".into(), Span::unknown()),
+            new_head,
+        ];
+        new_items.extend(args[1..].iter().cloned());
+        return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
+    }
+    // Head canonical — discard it; rebuild do form starting at args[1].
+    let mut new_items: Vec<WatAST> = vec![
+        WatAST::Keyword(":wat::core::do".into(), Span::unknown()),
+    ];
+    new_items.extend(args[1..].iter().cloned());
     Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
 }
 
