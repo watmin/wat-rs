@@ -1961,21 +1961,34 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
         WatAST::Keyword(k, _) => k.clone(),
         _ => return None,
     };
-    // Second arg must be (:wat::core::fn ARGS-VECTOR -> :RET BODY) —
-    // arc 167 slice 2 flat-shape: 5 elements total (head + 4 args).
+    // Second arg must be `(:wat::core::fn ...)`. Two shapes accepted
+    // during the arc 167 migration window:
+    //   - canonical (5 elements): head + ARGS-VECTOR + `->` + :RET + BODY
+    //   - legacy   (3 elements): head + sig-list + body
+    // Slice 4 retires the legacy arm after slice 3 sweep clears
+    // in-tree consumers.
     let fn_items = match &items[2] {
         WatAST::List(fn_items, _) => fn_items,
         _ => return None,
     };
-    if fn_items.len() != 5 {
-        return None;
-    }
-    match &fn_items[0] {
+    match &fn_items.first()? {
         WatAST::Keyword(k, _) if k == ":wat::core::fn" => {}
         _ => return None,
     }
-    let body = &fn_items[4];
-    let (params, param_types, ret_type) = parse_fn_signature(&fn_items[1..]).ok()?;
+    let (params, param_types, ret_type, body) = match fn_items.len() {
+        5 => {
+            let body = fn_items[4].clone();
+            let (p, pt, r) = parse_fn_signature(&fn_items[1..]).ok()?;
+            (p, pt, r, body)
+        }
+        3 => {
+            let body = fn_items[2].clone();
+            let (p, pt, r) = parse_legacy_fn_signature(&fn_items[1]).ok()?;
+            (p, pt, r, body)
+        }
+        _ => return None,
+    };
+    let body = &body;
     Some((
         name.clone(),
         Arc::new(Function {
@@ -3829,25 +3842,45 @@ fn eval_dispatch_call(
 /// (retired fall-through) route here.
 fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
     // Arc 167 slice 2 — flat-shape fn-form consumer.
-    // Form: (:wat::core::fn ARGS-VECTOR -> :RET-TYPE BODY)
+    // Canonical form: (:wat::core::fn ARGS-VECTOR -> :RET-TYPE BODY)
     //   args[0] = ARGS-VECTOR (WatAST::Vector with name <- :T triples)
     //   args[1] = `->` (WatAST::Symbol)
     //   args[2] = :RET-TYPE (WatAST::Keyword)
     //   args[3] = BODY (any AST)
-    if args.len() != 4 {
-        // arc 138: no span — eval_fn's signature predates list_span
-        // threading; the synthetic-AST branch (no source form) goes here.
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::fn".into(),
-            reason: format!(
-                "expected (:wat::core::fn [name <- :T ...] -> :Ret body); got {} args",
-                args.len()
-            ),
-            span: Span::unknown(),
-        });
-    }
-    let body = &args[3];
-    let (params, param_types, ret_type) = parse_fn_signature(args)?;
+    //
+    // Migration window — legacy nested-sig form
+    // `(:wat::core::fn ((p :T) ... -> :R) body)` (2 args after head)
+    // also parses successfully so existing stdlib + user code keeps
+    // running while the `BareLegacyFnSignature` walker fires migration
+    // diagnostics. Slice 4 retires the legacy parser arm after sweep
+    // (slice 3) clears all in-tree consumers; mirrors arc 113 / arc
+    // 154's "variant + Display + dispatch scaffolding stays; firing
+    // retires" pattern at the parser layer.
+    let (params, param_types, ret_type, body) = match args.len() {
+        4 => {
+            let body = &args[3];
+            let (p, pt, r) = parse_fn_signature(args)?;
+            (p, pt, r, body)
+        }
+        2 => {
+            // Legacy nested-sig path. args[0] is the sig list,
+            // args[1] is the body. parse_legacy_fn_signature consumes
+            // the legacy shape; walker emits diagnostics elsewhere.
+            let body = &args[1];
+            let (p, pt, r) = parse_legacy_fn_signature(&args[0])?;
+            (p, pt, r, body)
+        }
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: format!(
+                    "expected (:wat::core::fn [name <- :T ...] -> :Ret body); got {} args",
+                    args.len()
+                ),
+                span: Span::unknown(),
+            });
+        }
+    };
     Ok(Value::wat__core__fn(Arc::new(Function {
         name: None,
         params,
@@ -4012,6 +4045,93 @@ fn parse_fn_signature(
         i += 3;
     }
 
+    Ok((params, param_types, ret_type))
+}
+
+/// Legacy nested-sig fn parser (transitional scaffolding).
+///
+/// Arc 167 slice 2 — kept active during the migration window so
+/// existing stdlib + user code keeps running while the
+/// `BareLegacyFnSignature` walker fires migration diagnostics. Slice
+/// 4 retires this body after slice 3 sweep clears all in-tree
+/// consumers; mirrors arc 113's "variant + Display + dispatch
+/// scaffolding stays; firing retires" pattern at the parser layer.
+///
+/// Parses `((p1 :T1) (p2 :T2) ... -> :R)` — the pre-arc-167 fn-sig
+/// shape: a flat list of typed-name pairs followed by the `-> :R`
+/// arrow + return type. Same all-typed discipline per 058-029.
+fn parse_legacy_fn_signature(
+    sig: &WatAST,
+) -> Result<(Vec<String>, Vec<crate::types::TypeExpr>, crate::types::TypeExpr), RuntimeError> {
+    let sig_span = sig.span().clone();
+    let items = match sig {
+        WatAST::List(items, _) => items,
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: "legacy signature must be a list".into(),
+                span: sig_span,
+            });
+        }
+    };
+    let mut params = Vec::new();
+    let mut param_types = Vec::new();
+    let mut ret_type: Option<crate::types::TypeExpr> = None;
+    let mut saw_arrow = false;
+    for item in items {
+        if saw_arrow {
+            if ret_type.is_some() {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: "signature has more than one return type after '->'".into(),
+                    span: item.span().clone(),
+                });
+            }
+            match item {
+                WatAST::Keyword(k, _) => {
+                    ret_type = Some(parse_type_keyword(k)?);
+                }
+                other => {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::fn".into(),
+                        reason: format!(
+                            "return type after '->' must be a type keyword; got {}",
+                            ast_variant_name(other)
+                        ),
+                        span: other.span().clone(),
+                    });
+                }
+            }
+            continue;
+        }
+        match item {
+            WatAST::Symbol(s, _) if s.as_str() == "->" => {
+                saw_arrow = true;
+            }
+            WatAST::List(pair, _) => {
+                let (pname, ptype) = parse_param_pair(pair.clone())?;
+                params.push(pname);
+                param_types.push(ptype);
+            }
+            other => {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: format!(
+                        "unexpected signature element: {}",
+                        ast_variant_name(other)
+                    ),
+                    span: other.span().clone(),
+                });
+            }
+        }
+    }
+    let ret_type = ret_type.ok_or_else(|| RuntimeError::MalformedForm {
+        head: ":wat::core::fn".into(),
+        reason:
+            "fn signature must end with '-> :Type' (typed return is required per 058-029)"
+                .into(),
+        span: sig_span.clone(),
+    })?;
     Ok((params, param_types, ret_type))
 }
 

@@ -601,6 +601,14 @@ fn startup_from_forms_post_config(
         for form in &expanded_user {
             crate::check::validate_bare_legacy_primitives(form, &mut bare_errors);
         }
+        // Arc 167 slice 2 — legacy fn-sig walker. User forms only;
+        // stdlib carries legacy fn-sigs that slice 3 sweep migrates.
+        // Mirroring the bare-legacy-primitives pre-pass: substrate
+        // and stdlib audited via in-repo discipline; user code goes
+        // through the diagnostic stream.
+        for form in &expanded_user {
+            crate::check::validate_legacy_fn_signature(form, &mut bare_errors);
+        }
         if !bare_errors.is_empty() {
             return Err(StartupError::Check(crate::check::CheckErrors(bare_errors)));
         }

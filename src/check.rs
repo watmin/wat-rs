@@ -1605,17 +1605,16 @@ pub fn check_program(
         validate_bare_legacy_primitives(form, &mut errors);
     }
 
-    // Arc 167 slice 2 — refuse legacy nested-sig fn-form
-    // `(:wat::core::fn ((p :T) ... -> :R) body)`. Canonical shape is
-    // `(:wat::core::fn [p <- :T ...] -> :R body)`. Pattern 3 walker
-    // (substrate-as-teacher § "Three migration patterns"); slice 3
-    // sweep consumes the diagnostic stream as the work list.
-    for func in sym.functions.values() {
-        validate_legacy_fn_signature(&func.body, &mut errors);
-    }
-    for form in forms {
-        validate_legacy_fn_signature(form, &mut errors);
-    }
+    // Arc 167 slice 2 — legacy fn-sig walker `validate_legacy_fn_signature`
+    // wired in `freeze.rs` pre-pass (user forms only) rather than
+    // here. Mirrors the `validate_bare_legacy_primitives` placement:
+    // substrate and stdlib are authored against the canonical shape
+    // and audited via in-repo discipline; user code goes through the
+    // diagnostic stream pre-`register_defines`. Here in `check_program`
+    // walking `sym.functions.values()` would fire on stdlib functions
+    // whose bodies still carry legacy fn-sigs during the slice-2 window
+    // (slice 3 sweeps stdlib + user wat-tests + Rust test sources).
+    // Pattern 3 walker (substrate-as-teacher § "Three migration patterns").
 
     // Arc 153 slice 2 — signature-position walker call retired
     // (paired with `walk_type_for_legacy_unit_name` body
@@ -9521,16 +9520,34 @@ fn infer_fn(
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
     // Arc 167 slice 2 — flat-shape fn signature consumer.
-    // Form: (:wat::core::fn ARGS-VECTOR -> :RET-TYPE BODY)
-    //   args[0] = ARGS-VECTOR (WatAST::Vector with name <- :T triples)
-    //   args[1] = `->` (WatAST::Symbol)
-    //   args[2] = :RET-TYPE (WatAST::Keyword)
-    //   args[3] = BODY (any AST)
-    if args.len() != 4 {
-        return None;
-    }
-    let body = &args[3];
-    let (param_names, param_types, ret_type) = parse_fn_signature_for_check(args).ok()?;
+    // Canonical form (4 args): ARGS-VECTOR `->` :RET-TYPE BODY
+    // Legacy form (2 args): sig-list body
+    //
+    // Both shapes parse during the migration window so existing
+    // stdlib + user code keeps type-checking while the
+    // `BareLegacyFnSignature` walker fires migration diagnostics.
+    // Slice 4 retires the legacy arm after slice 3 sweep clears
+    // in-tree consumers.
+    let (param_names, param_types, ret_type, body) = match args.len() {
+        4 => {
+            let body = &args[3];
+            // Surface clear errors on malformed flat-shape (Vector at
+            // args[0] but inner triples malformed). Falls through to
+            // None only when the shape doesn't match our recognizers
+            // at all — which for a 4-arg fn with a Vector args[0]
+            // means a clear user error worth surfacing.
+            match parse_fn_signature_for_check_diag(args, errors) {
+                Some(parsed) => (parsed.0, parsed.1, parsed.2, body),
+                None => return None,
+            }
+        }
+        2 => {
+            let body = &args[1];
+            let (n, t, r) = parse_legacy_fn_signature_for_check(&args[0]).ok()?;
+            (n, t, r, body)
+        }
+        _ => return None,
+    };
 
     // Check body against declared return type under extended locals.
     let mut body_locals = outer_locals.clone();
@@ -9623,6 +9640,173 @@ fn parse_fn_signature_for_check(
         i += 3;
     }
     Ok((names, types, ret_type))
+}
+
+/// Diagnostic variant of [`parse_fn_signature_for_check`]: when the
+/// args[0] slot is a Vector (canonical new shape) but the inner
+/// triples are malformed, push a `MalformedForm` per offending site
+/// so the user sees a clear error rather than silent type-inference
+/// failure. Returns `None` only when the shape doesn't match the new
+/// layout at all (caller falls through to legacy / None).
+fn parse_fn_signature_for_check_diag(
+    args: &[WatAST],
+    errors: &mut Vec<CheckError>,
+) -> Option<(Vec<String>, Vec<TypeExpr>, TypeExpr)> {
+    if args.len() != 4 {
+        return None;
+    }
+    let args_vec = match &args[0] {
+        WatAST::Vector(items, _) => items,
+        _ => return None,
+    };
+    // args[1] must be `->`.
+    match &args[1] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: "fn signature missing `->` between args-vector and return type".into(),
+                span: other.span().clone(),
+            });
+            return None;
+        }
+    }
+    // args[2] must be the return-type keyword.
+    let ret_type = match &args[2] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(_) => return None,
+        },
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: "fn signature missing return-type keyword after `->`".into(),
+                span: other.span().clone(),
+            });
+            return None;
+        }
+    };
+    // Walk the args-vector in chunks of 3.
+    let mut names = Vec::new();
+    let mut types = Vec::new();
+    let mut i = 0;
+    while i < args_vec.len() {
+        let triple_pos = names.len();
+        if i + 2 >= args_vec.len() {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: format!(
+                    "fn arg-vector triple at position {} must be `name <- :T`; got incomplete trailing tokens",
+                    triple_pos
+                ),
+                span: args_vec[i].span().clone(),
+            });
+            return None;
+        }
+        let name = match &args_vec[i] {
+            WatAST::Symbol(s, _) => s.name.clone(),
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: format!(
+                        "fn arg-vector triple at position {} must be `name <- :T`; got non-symbol at name slot",
+                        triple_pos
+                    ),
+                    span: other.span().clone(),
+                });
+                return None;
+            }
+        };
+        match &args_vec[i + 1] {
+            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: format!(
+                        "fn arg-vector triple at position {} must be `name <- :T`; got non-`<-` token where `<-` was expected",
+                        triple_pos
+                    ),
+                    span: other.span().clone(),
+                });
+                return None;
+            }
+        }
+        let ty = match &args_vec[i + 2] {
+            WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+                Ok(t) => t,
+                Err(_) => return None,
+            },
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: format!(
+                        "fn arg-vector triple at position {} must be `name <- :T`; got non-keyword at type slot",
+                        triple_pos
+                    ),
+                    span: other.span().clone(),
+                });
+                return None;
+            }
+        };
+        names.push(name);
+        types.push(ty);
+        i += 3;
+    }
+    Some((names, types, ret_type))
+}
+
+/// Legacy nested-sig fn parser for the check pass (transitional
+/// scaffolding). Mirrors [`crate::runtime::parse_legacy_fn_signature`]
+/// for type inference; same migration-window discipline.
+///
+/// Parses `((p1 :T1) (p2 :T2) ... -> :R)`. Errors silenced; the
+/// `BareLegacyFnSignature` walker (firing in `freeze.rs` pre-pass)
+/// owns the user-facing migration error.
+fn parse_legacy_fn_signature_for_check(
+    sig: &WatAST,
+) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ()> {
+    let items = match sig {
+        WatAST::List(items, _) => items,
+        _ => return Err(()),
+    };
+    let mut names = Vec::new();
+    let mut types = Vec::new();
+    let mut ret: Option<TypeExpr> = None;
+    let mut saw_arrow = false;
+    for item in items {
+        if saw_arrow {
+            if ret.is_some() {
+                return Err(());
+            }
+            match item {
+                WatAST::Keyword(k, _) => {
+                    ret = Some(crate::types::parse_type_expr(k).map_err(|_| ())?);
+                }
+                _ => return Err(()),
+            }
+            continue;
+        }
+        match item {
+            WatAST::Symbol(s, _) if s.as_str() == "->" => saw_arrow = true,
+            WatAST::List(pair, _) => {
+                if pair.len() != 2 {
+                    return Err(());
+                }
+                let name = match &pair[0] {
+                    WatAST::Symbol(s, _) => s.name.clone(),
+                    _ => return Err(()),
+                };
+                let ty = match &pair[1] {
+                    WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|_| ())?,
+                    _ => return Err(()),
+                };
+                names.push(name);
+                types.push(ty);
+            }
+            _ => return Err(()),
+        }
+    }
+    Ok((names, types, ret.ok_or(())?))
 }
 
 fn infer_boolean_shortcircuit(
