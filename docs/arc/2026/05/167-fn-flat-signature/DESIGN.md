@@ -215,6 +215,29 @@ verifiable.
 `WatAST::Vector(Vec<WatAST>, Span)`. No fn/defn consumer changes
 yet. Existing wat code unaffected.
 
+**Critical scope constraint** (user direction 2026-05-08): vectors
+are **expressions in binding-syntax positions only**. Not value
+literals yet.
+
+> "i'm not ready to support vec literals as values... just vecs as
+> exprs... e.g. fn's args. `(fn [x <- i64] -> i64 (+ 0 x))` is
+> what i want to support now. `(conj [0 1] y)` — not this... we
+> don't know how to entertain this yet."
+
+This means:
+- Parser produces `WatAST::Vector` whenever it encounters `[...]`
+- `eval` arm on `WatAST::Vector` errors with a clear message
+  ("vector literals at value position are not supported in arc
+  167; vectors are currently consumed only in fn/defn signatures")
+- `check`/`infer` arm on `WatAST::Vector` similarly errors at
+  value/expression positions
+- The fn-sig consumer (slice 2) is the only legal Vector-consumer
+  position in arc 167. let-binding consumer (arc 168) follows.
+
+This keeps the substrate honest about what's supported. Future arcs
+extend the legal positions (vector literals as Value::Vec; let
+binding-vector; etc.) deliberately.
+
 **Substrate edits**:
 - `src/ast.rs`: add `Vector(Vec<WatAST>, Span)` variant to
   `WatAST`. Update `span()` accessor. Update `Display` impl if
@@ -223,6 +246,12 @@ yet. Existing wat code unaffected.
   alongside `(...)` lists, producing `WatAST::Vector`. wat-edn
   parses `[...]` as `Value::Vector` already; conversion path
   needs the new variant.
+- `src/runtime.rs` `eval` keyword arm: add `WatAST::Vector(_, span)
+  => Err(MalformedForm { reason: "vector literals at value
+  position are not supported (arc 167 scope: vectors consumed only
+  in fn/defn signatures); a future arc enables vector literals as
+  Value::Vec values.", span })`
+- `src/check.rs` `infer` arm: parallel error
 - Match-arm sweep: cargo build will name every site that needs an
   explicit `WatAST::Vector` arm. Most sites will just need
   `_ => ...` fallback or a no-op `WatAST::Vector(_, _) => ...`
@@ -232,19 +261,22 @@ yet. Existing wat code unaffected.
 
 **Tests**:
 - New `tests/wat_arc167_vector_ast.rs`:
-  1. `[1 2 3]` parses as `WatAST::Vector` (probe via reflection or
-     a substrate-level test).
+  1. `[1 2 3]` parses as `WatAST::Vector` (probe via debug
+     formatting or a substrate-level test).
   2. `[]` parses as empty Vector.
   3. Vector inside other forms (`(:wat::core::define ... [1 2 3])`)
-     parses correctly.
-  4. Vector at top-level position (currently no consumer; just
-     verifies it doesn't error).
+     parses cleanly at the parser layer.
+  4. Vector at value position errors with the
+     "vector-literals-not-supported" message (test asserts the
+     error text appears).
+  5. Empty top-level Vector also errors clearly.
 
 **Verification**:
 - `cargo build --release --workspace` green
 - `cargo test --release --workspace --no-fail-fast` 0 failed
-  (existing tests unaffected by the new variant; the foundation
-  sits inert until slice 2 wires the consumer)
+  (existing tests unaffected — they don't use `[...]` syntax yet;
+  the new error arm only fires on programs that include vectors at
+  value positions, which existing tests don't)
 
 ### Slice 2 — fn-sig vector consumer + walker + defn macro
 
