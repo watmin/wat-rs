@@ -106,24 +106,30 @@ Pre-condition: slice 2 consumer sweep complete (zero in-tree consumer
 keyword usage of legacy spellings; otherwise slice 3 substrate
 retirement breaks the workspace).
 
-### Slice 3e — Substrate container heads to FQDN — NEW per user direction 2026-05-07
+### Slice 3e — Substrate container heads to FQDN — SHIPPED at `25860be`
 
-User direction: *"wat internals are fully qualified - no exceptions
-... if there's a short form - its illegal... if the internal code
-is mapping to a rust primitive then we use the rust form."*
+User direction 2026-05-07: *"wat internals are fully qualified - no
+exceptions... if there's a short form - its illegal... if the internal
+code is mapping to a rust primitive then we use the rust form."*
 
-Substrate stores `head: "Vec"`, `head: "Option"`, etc. — short forms.
-These violate the FQDN rule for wat-internal storage. The
-parse_type_inner canonicalize step actively DOWNGRADES source FQDN
-to short form. This slice rewrites substrate-internal container
-head strings to FQDN form (`"wat::core::Vector"`, etc.) and deletes
-the downgrade arm. ~135 sites.
+Substrate stored `head: "Vec"`, `head: "Option"`, etc. — short forms.
+These violated the FQDN rule for wat-internal storage. Slice 3e
+rewrote substrate-internal container head strings to FQDN form
+(`"wat::core::Vector"`, etc.), deleted the downgrade arm, retired
+vestigial typealiases, and added a TEMPORARY canonicalize=true
+upgrade arm (bare → FQDN) bridging fixtures still using bare-form
+wat source. Waterfall 848 → 0 across 7 sweep iterations.
 
 ### Slice 3f — Substrate primitive paths to FQDN
 
 Same rule, separate category. `":i64"` → `":wat::core::i64"` etc.
 across substrate-internal storage. ~142 sites + 5 canonicalize arms
 reshape.
+
+Plus parallel work to slice 3e: Value::type_name primitive arms
+flip back to FQDN once the substrate-internal storage is FQDN
+(was reverted to bare in slice 3e to keep dispatch dispatch
+matching aligned during slice 3e atomicity).
 
 ### Slice 3g — User-source bare primitive sweep
 
@@ -132,11 +138,40 @@ substrate). Mass test-fixture sweep of bare `:i64`/`:f64`/`:String`/
 `:bool` to FQDN. ~4040 sites in tree. Last because it leverages all
 prior slice patterns + benefits from settled substrate foundation.
 
+### Slice 3h — Retire canonicalize=true upgrade arms (GATES ARC CLOSURE)
+
+The canonicalize=true upgrade arms in `parse_type_inner`
+(container heads, src/types.rs:1683-1694; primitive paths, slice
+3f extension) are TEMPORARY bridge scaffolding (same retirement
+shape as arc 111's `arc_111_migration_hint`, per substrate-as-
+teacher § "Retire the hint when its window closes").
+
+After slice 3g closes (test-fixture wat sources all FQDN), no bare
+raw_head/raw_path reaches `parse_type_inner` because:
+- Walker rejects bare user-source as fatal
+- Substrate Rust constructs FQDN strings directly
+- Test fixtures use FQDN
+
+At that point, slice 3h **deletes the upgrade arms**. The match
+arms come out; raw_head/raw_path passes through unchanged. The
+substrate is now FQDN-uniform without bridge scaffolding.
+
+**Verification:** post-deletion `cargo test --release --workspace`
+stays green (2041+/0). If any fixture or Rust site still constructs
+bare-form, the build/test will surface it; that becomes a Bucket A
+correction in the slice.
+
+**Arc 163 closure depends on slice 3h shipping.** Per user direction
+2026-05-07 (post-slice-3e): *"the current arc is closed when the
+temporary state is removed."*
+
 ### Slice 3z — closure
 
 INSCRIPTION + 058 changelog row. Sweep summary table:
 "retired surface | pre-fix sites | Bucket A renamed | Bucket B
-updated | Bucket C/D preserved | post-fix sites."
+updated | Bucket C/D preserved | post-fix sites." Documents the
+full waterfall + scaffolding-retirement pattern (FM 11 affirmative
+language; INSCRIPTION = DONE).
 
 ## Sources
 
