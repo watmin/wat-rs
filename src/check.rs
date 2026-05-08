@@ -1675,19 +1675,17 @@ pub fn check_program(
         validate_legacy_kernel_queue_path(form, &mut errors);
     }
 
-    // Arc 159 — fire `LegacyTypedLetBinding` on every `((name :T) expr)`
-    // binding inside any `:wat::core::let` form. Runs BEFORE type
-    // inference so legacy binding sites surface as structural migration
-    // errors (not type errors). Consumer sweep (slice 2) uses the
-    // diagnostic stream as the mechanical work list. Walker retires in
-    // slice 4 after the sweep clears all in-tree legacy sites; variant +
-    // Display stay as orphaned scaffolding per arc 113 precedent.
-    for func in sym.functions.values() {
-        validate_legacy_typed_let_binding(&func.body, &mut errors);
-    }
-    for form in forms {
-        validate_legacy_typed_let_binding(form, &mut errors);
-    }
+    // Arc 159 slice 3 — `validate_legacy_typed_let_binding` walker
+    // retired per substrate-as-teacher § "Retire the hint when its
+    // window closes." Walker shipped slice 1; sweep slice 2 cleared
+    // all in-tree `((name :T) expr)` binding sites; closure retires
+    // the firing body. `LegacyTypedLetBinding` variant + Display
+    // preserved as orphaned scaffolding (arc 113 precedent).
+    //
+    // Reintroduction recipe: see arc 153/154/155 walker shapes; mirror
+    // the binding-site detection at the inner-let-binding pair, recurse
+    // into `WatAST::List(items, _)` children, emit one CheckError per
+    // legacy binding site.
 
     // Arc 157 — refuse `:wat::core::def` in non-top-level positions.
     // Walk each program form BEFORE type inference so that position
@@ -2220,110 +2218,26 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 // retires). Future symbol-migration arcs reintroduce the pattern
 // with new variants per Pattern 3.
 
-// Arc 159 — `walk_for_legacy_typed_let_binding` fires one
-// `LegacyTypedLetBinding` per `((name :T) expr)` binding inside
-// any `:wat::core::let` form. Pattern 3 (substrate-as-teacher §
-// "Three migration patterns"): dedicated CheckError variant +
-// walker; consumer sweep (slice 2) uses the diagnostic stream as
-// the work list. Mirror of arc 154's `validate_legacy_let_star`
-// shape (binding-site detection rather than keyword detection).
+// Arc 159 slice 3 — `validate_legacy_typed_let_binding` +
+// `walk_for_legacy_typed_let_binding` + `check_binding_for_legacy_typed_shape`
+// retired per substrate-as-teacher § "Retire the hint when its
+// window closes." Walker shipped slice 1 to fire `LegacyTypedLetBinding`
+// on every `((name :T) expr)` binding inside any `:wat::core::let`
+// form; sweep slice 2 cleared all in-tree legacy binding sites;
+// closure retires the firing body. `LegacyTypedLetBinding` variant +
+// Display preserved as orphaned scaffolding (arc 113 precedent).
 //
-// **Binding shape discrimination (critical — arc 158 v1 lesson):**
-// - `(name rhs)` where name is `WatAST::Symbol` → NEW canonical shape;
-//   no-op (not legacy)
-// - `((name :T) rhs)` where binder is List, len==2, [0] Symbol, [1]
-//   Keyword → LEGACY; emit `LegacyTypedLetBinding`
-// - `((a b ...) rhs)` where binder is List, all elements Symbols →
-//   DESTRUCTURE; no-op (not legacy)
-//
-// **Slice 4 retirement.** Walker body retires after sweep clears all
-// in-tree legacy binding sites. `LegacyTypedLetBinding` variant +
-// Display stay as orphaned scaffolding (arc 113 precedent).
-
-/// Arc 159 — public entry point for the `LegacyTypedLetBinding` walker.
-/// Wired into `check_program` after the def-position walker (arc 157
-/// precedent). Walks all `:wat::core::let` forms in `node`, emitting
-/// `LegacyTypedLetBinding` per legacy `((name :T) expr)` binding shape.
-fn validate_legacy_typed_let_binding(node: &WatAST, errors: &mut Vec<CheckError>) {
-    walk_for_legacy_typed_let_binding(node, errors);
-}
-
-fn walk_for_legacy_typed_let_binding(node: &WatAST, errors: &mut Vec<CheckError>) {
-    match node {
-        WatAST::List(items, _) => {
-            // Check if this is a `:wat::core::let` form.
-            let is_let_form = matches!(
-                items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
-            );
-            if is_let_form && items.len() >= 2 {
-                // items[1] is the bindings list.
-                if let WatAST::List(bindings, _) = &items[1] {
-                    for pair in bindings {
-                        check_binding_for_legacy_typed_shape(pair, errors);
-                    }
-                }
-                // Recurse into the body (items[2] and beyond) so nested
-                // let forms are also walked.
-                for child in items.iter().skip(2) {
-                    walk_for_legacy_typed_let_binding(child, errors);
-                }
-                // Also recurse into the bindings' RHS exprs to catch
-                // nested lets inside binding RHSs.
-                if let WatAST::List(bindings, _) = &items[1] {
-                    for pair in bindings {
-                        if let WatAST::List(pair_items, _) = pair {
-                            if let Some(rhs) = pair_items.get(1) {
-                                walk_for_legacy_typed_let_binding(rhs, errors);
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Not a let form — recurse into all children.
-                for child in items {
-                    walk_for_legacy_typed_let_binding(child, errors);
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
-/// Check one binding pair for the legacy `((name :T) expr)` shape.
-/// Emits `LegacyTypedLetBinding` if the shape matches.
-/// No-op for: new-shape `(name expr)`, destructure `((a b ...) expr)`.
-fn check_binding_for_legacy_typed_shape(pair: &WatAST, errors: &mut Vec<CheckError>) {
-    let pair_items = match pair {
-        WatAST::List(items, _) if items.len() == 2 => items,
-        _ => return,
-    };
-    // New canonical shape: binder is a bare Symbol → no-op.
-    if matches!(&pair_items[0], WatAST::Symbol(_, _)) {
-        return;
-    }
-    // Binder must be a List for either legacy typed or destructure.
-    let binder = match &pair_items[0] {
-        WatAST::List(inner, _) => inner,
-        _ => return,
-    };
-    // Legacy typed: len==2, [0] Symbol, [1] Keyword.
-    // (Destructure: all elements are Symbols — no Keyword at [1].)
-    let is_legacy_typed = binder.len() == 2
-        && matches!(&binder[0], WatAST::Symbol(_, _))
-        && matches!(&binder[1], WatAST::Keyword(_, _));
-    if is_legacy_typed {
-        let binding_name = match &binder[0] {
-            WatAST::Symbol(ident, _) => ident.name.clone(),
-            _ => return,
-        };
-        errors.push(CheckError::LegacyTypedLetBinding {
-            binding_name,
-            span: pair.span().clone(),
-        });
-    }
-    // Destructure (`all elements are Symbols`) → no-op; not legacy.
-}
+// Reintroduction recipe (if a future arc needs walker-driven
+// migration on a similar inner-let-binding shape change):
+//   - public entry: walks all `:wat::core::let` forms; for each
+//     bindings-list pair, checks the binding shape; emits one
+//     CheckError per offending site
+//   - shape discrimination (the arc 158 v1 lesson):
+//     - `(name rhs)` where name is `WatAST::Symbol` → NEW canonical
+//     - `((name :T) rhs)` where binder is List len==2 [0]Symbol [1]Keyword → LEGACY
+//     - `((a b ...) rhs)` where binder is List, all elements Symbols → DESTRUCTURE
+//   - mirror arc 153/154/155 walker shapes; recurse into
+//     `WatAST::List(items, _)` children + binding RHSs for nested lets
 
 fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) {
     match ty {
@@ -15050,99 +14964,18 @@ mod tests {
         );
     }
 
-    // ─── Arc 159 — untyped let bindings walker + regression ─────────────
-
-    /// Arc 159 — walker fires on single legacy binding in new-shape aware
-    /// check context.
-    ///
-    /// Uses the unit-test `check` helper (does not run the full startup
-    /// pipeline, no stdlib .wat files). Verifies `LegacyTypedLetBinding`
-    /// fires for the legacy typed binding shape `((x :wat::core::i64) 2)`.
-    #[test]
-    fn arc159_walker_fires_on_legacy_binding() {
-        let src = r#"
-            (:wat::core::define (:user::main -> :wat::core::i64)
-              (:wat::core::let
-                (((x :wat::core::i64) 2))
-                x))
-        "#;
-        let err = check(src).expect_err("arc 159: legacy typed binding must fire walker");
-        assert!(
-            err.0
-                .iter()
-                .any(|e| matches!(e, CheckError::LegacyTypedLetBinding { binding_name, .. } if binding_name == "x")),
-            "arc 159 walker: expected LegacyTypedLetBinding for `x`; got: {:?}",
-            err.0
-        );
-    }
-
-    /// Arc 159 — new-shape binding passes the walker (no LegacyTypedLetBinding
-    /// for the entry-file binding).
-    ///
-    /// `(let ((x 2)) x)` must NOT fire `LegacyTypedLetBinding` for the
-    /// new-shape binding `x`. During the migration window the stdlib fires
-    /// ~951 entries (expected); this test confirms the ENTRY-FILE new-shape
-    /// binding does NOT appear among the fired errors by checking that no
-    /// error has `binding_name == "arc159_new_shape_x"` (a distinctive name).
-    #[test]
-    fn arc159_walker_does_not_fire_on_new_shape() {
-        // Use a distinctive binding name not found in stdlib.
-        let src = r#"
-            (:wat::core::define (:user::main -> :wat::core::i64)
-              (:wat::core::let
-                ((arc159_new_shape_x 2))
-                arc159_new_shape_x))
-        "#;
-        let result = check(src);
-        // Must not fire LegacyTypedLetBinding for the new-shape binding.
-        if let Err(ref errs) = result {
-            let has_entry_legacy = errs.0.iter().any(|e| {
-                matches!(
-                    e,
-                    CheckError::LegacyTypedLetBinding { binding_name, .. }
-                    if binding_name == "arc159_new_shape_x"
-                )
-            });
-            assert!(
-                !has_entry_legacy,
-                "arc 159 walker: new-shape binding `arc159_new_shape_x` must NOT fire LegacyTypedLetBinding; got: {:?}",
-                errs.0
-            );
-        }
-    }
-
-    /// Arc 159 — destructure binding does NOT fire walker.
-    ///
-    /// `((arc159_dest_a arc159_dest_b) p)` has a List binder with all Symbols
-    /// (no Keyword at [1]). The `is_legacy_typed` check must return false;
-    /// the walker must not fire for these distinctive names. The arc 158 v1
-    /// regression check at the CHECK level: sonnet 1a wrongly treated
-    /// `(a b)` as a legacy typed pair; arc 159 substrate must NOT.
-    #[test]
-    fn arc159_walker_does_not_fire_on_destructure() {
-        // Use distinctive names not found in stdlib.
-        let src = r#"
-            (:wat::core::define (:user::main -> :wat::core::i64)
-              (:wat::core::let
-                (((arc159_dest_a arc159_dest_b) p))
-                (:wat::core::i64::+,2 arc159_dest_a arc159_dest_b)))
-        "#;
-        let result = check(src);
-        if let Err(ref errs) = result {
-            let has_entry_legacy = errs.0.iter().any(|e| {
-                matches!(
-                    e,
-                    CheckError::LegacyTypedLetBinding { binding_name, .. }
-                    if binding_name == "arc159_dest_a" || binding_name == "arc159_dest_b"
-                )
-            });
-            assert!(
-                !has_entry_legacy,
-                "arc 159 walker: destructure names must NOT fire LegacyTypedLetBinding; got: {:?}",
-                errs.0
-            );
-        }
-    }
+    // ─── Arc 159 — untyped let bindings regression ─────────────
+    //
+    // Walker tests (arc159_walker_fires_on_legacy_binding,
+    // arc159_walker_does_not_fire_on_new_shape,
+    // arc159_walker_does_not_fire_on_destructure) retired in slice 3
+    // alongside the `validate_legacy_typed_let_binding` walker body.
+    // Variant + Display preserved as orphaned scaffolding (arc 113);
+    // the firing path is gone, so walker-firing assertions are vacuous.
+    // The remaining test (arc159_scope_deadlock_fires_on_new_shape_channel_binding)
+    // exercises arc 158a's `process_let_binding` extension that
+    // populates `extended` for new-shape bindings — a permanent feature
+    // independent of the retired walker.
 
     /// Arc 159 test 11 — ScopeDeadlock fires on new-shape Channel binding.
     ///
