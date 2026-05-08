@@ -149,7 +149,7 @@
   (:wat::lru::MetricsCadence/new
     :wat::core::nil
     (:wat::core::fn
-      ((gate :wat::core::nil) (_stats :wat::lru::Stats) -> :(wat::core::nil,wat::core::bool))
+      [gate <- :wat::core::nil _stats <- :wat::lru::Stats] -> :(wat::core::nil,wat::core::bool)
       (:wat::core::Tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
@@ -207,12 +207,12 @@
         (:wat::core::let
           ((results
             (:wat::core::map probes
-              (:wat::core::fn ((k :K) -> :wat::core::Option<V>)
+              (:wat::core::fn [k <- :K] -> :wat::core::Option<V>
                 (:wat::lru::LocalCache::get cache k))))
            (hit-count
             (:wat::list::reduce results 0
               (:wat::core::fn
-                ((acc :wat::core::i64) (slot :wat::core::Option<V>) -> :wat::core::i64)
+                [acc <- :wat::core::i64 slot <- :wat::core::Option<V>] -> :wat::core::i64
                 (:wat::core::match slot -> :wat::core::i64
                   ((:wat::core::Some _) (:wat::core::i64::+,2 acc 1))
                   (:wat::core::None acc)))))
@@ -238,7 +238,7 @@
           ((_
             (:wat::core::map entries
               (:wat::core::fn
-                ((entry :wat::lru::Entry<K,V>) -> :wat::core::Option<(K,V)>)
+                [entry <- :wat::lru::Entry<K,V>] -> :wat::core::Option<(K,V)>
                 (:wat::core::let
                   ((k (:wat::core::first entry))
                    (v (:wat::core::second entry)))
@@ -374,7 +374,7 @@
       ((req-rxs
         (:wat::core::map driver-pairs
           (:wat::core::fn
-            ((p :wat::lru::DriverPair<K,V>) -> :wat::lru::ReqRx<K,V>)
+            [p <- :wat::lru::DriverPair<K,V>] -> :wat::lru::ReqRx<K,V>
             (:wat::core::first p))))
        (chosen
         (:wat::kernel::select req-rxs))
@@ -489,39 +489,39 @@
     ((req-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::fn ((_i :wat::core::i64) -> :wat::lru::ReqChannel<K,V>)
+        (:wat::core::fn [_i <- :wat::core::i64] -> :wat::lru::ReqChannel<K,V>
           (:wat::kernel::make-bounded-channel :wat::lru::Request<K,V> 1))))
      (reply-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::fn ((_i :wat::core::i64) -> :wat::lru::ReplyChannel<V>)
+        (:wat::core::fn [_i <- :wat::core::i64] -> :wat::lru::ReplyChannel<V>
           (:wat::kernel::make-bounded-channel :wat::lru::Reply<V> 1))))
      ;; Client-side: Handle = (ReqTx, ReplyRx).
      (handles
       (:wat::std::list::zip
         (:wat::core::map req-pairs
-          (:wat::core::fn ((p :wat::lru::ReqChannel<K,V>) -> :wat::lru::ReqTx<K,V>)
+          (:wat::core::fn [p <- :wat::lru::ReqChannel<K,V>] -> :wat::lru::ReqTx<K,V>
             (:wat::core::first p)))
         (:wat::core::map reply-pairs
-          (:wat::core::fn ((p :wat::lru::ReplyChannel<V>) -> :wat::lru::ReplyRx<V>)
+          (:wat::core::fn [p <- :wat::lru::ReplyChannel<V>] -> :wat::lru::ReplyRx<V>
             (:wat::core::second p)))))
      ;; Driver-side: DriverPair = (ReqRx, ReplyTx) at matching index.
      (driver-pairs
       (:wat::std::list::zip
         (:wat::core::map req-pairs
-          (:wat::core::fn ((p :wat::lru::ReqChannel<K,V>) -> :wat::lru::ReqRx<K,V>)
+          (:wat::core::fn [p <- :wat::lru::ReqChannel<K,V>] -> :wat::lru::ReqRx<K,V>
             (:wat::core::second p)))
         (:wat::core::map reply-pairs
-          (:wat::core::fn ((p :wat::lru::ReplyChannel<V>) -> :wat::lru::ReplyTx<V>)
+          (:wat::core::fn [p <- :wat::lru::ReplyChannel<V>] -> :wat::lru::ReplyTx<V>
             (:wat::core::first p)))))
      (pool
       (:wat::kernel::HandlePool::new "CacheService" handles))
      (driver
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
-           -> :wat::core::nil)
+          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
+           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+           -> :wat::core::nil
           (:wat::lru::loop
             capacity driver-pairs reporter metrics-cadence)))))
     (:wat::core::Tuple pool driver)))

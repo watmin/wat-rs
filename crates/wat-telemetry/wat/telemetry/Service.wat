@@ -60,7 +60,7 @@
   (:wat::telemetry::MetricsCadence/new
     :wat::core::nil
     (:wat::core::fn
-      ((gate :wat::core::nil) (_stats :wat::telemetry::Stats) -> :(wat::core::nil,wat::core::bool))
+      [gate <- :wat::core::nil _stats <- :wat::telemetry::Stats] -> :(wat::core::nil,wat::core::bool)
       (:wat::core::Tuple gate false))))
 
 (:wat::core::define
@@ -243,9 +243,9 @@
       (:wat::std::list::zip pairs indices)))
     (:wat::core::foldl indexed init
       (:wat::core::fn
-        ((acc :wat::telemetry::Pending<E>)
-         (pair :wat::telemetry::IndexedDriverPair<E>)
-         -> :wat::telemetry::Pending<E>)
+        [acc <- :wat::telemetry::Pending<E>
+         pair <- :wat::telemetry::IndexedDriverPair<E>]
+         -> :wat::telemetry::Pending<E>
         (:wat::telemetry::maybe-merge acc first-idx first-entries pair)))))
 
 
@@ -256,7 +256,7 @@
     -> :wat::core::nil)
   (:wat::core::foldl ack-txs :wat::core::nil
     (:wat::core::fn
-      ((_acc :wat::core::nil) (tx :wat::telemetry::AckTx) -> :wat::core::nil)
+      [_acc <- :wat::core::nil tx <- :wat::telemetry::AckTx] -> :wat::core::nil
       (:wat::core::match (:wat::kernel::send tx :wat::core::nil) -> :wat::core::nil
         ((:wat::core::Ok _) :wat::core::nil)
         ((:wat::core::Err _) :wat::core::nil)))))
@@ -287,8 +287,8 @@
     -> :wat::core::Vector<wat::telemetry::ReqRx<E>>)
   (:wat::core::map pairs
     (:wat::core::fn
-      ((p :wat::telemetry::DriverPair<E>)
-       -> :wat::telemetry::ReqRx<E>)
+      [p <- :wat::telemetry::DriverPair<E>]
+       -> :wat::telemetry::ReqRx<E>
       (:wat::core::first p))))
 
 
@@ -416,21 +416,21 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
-          ((_i :wat::core::i64) -> :wat::telemetry::ReqChannel<E>)
+          [_i <- :wat::core::i64] -> :wat::telemetry::ReqChannel<E>
           (:wat::kernel::make-bounded-channel
             :wat::telemetry::Request<E> 1))))
      (ack-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
-          ((_i :wat::core::i64) -> :wat::telemetry::AckChannel)
+          [_i <- :wat::core::i64] -> :wat::telemetry::AckChannel
           (:wat::kernel::make-bounded-channel :wat::core::nil 1))))
      (handles
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::fn
-          ((rp+ap :wat::telemetry::Connection<E>)
-           -> :wat::telemetry::Handle<E>)
+          [rp+ap <- :wat::telemetry::Connection<E>]
+           -> :wat::telemetry::Handle<E>
           (:wat::core::let
             ((rp (:wat::core::first rp+ap))
              (ap (:wat::core::second rp+ap))
@@ -441,8 +441,8 @@
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::fn
-          ((rp+ap :wat::telemetry::Connection<E>)
-           -> :wat::telemetry::DriverPair<E>)
+          [rp+ap <- :wat::telemetry::Connection<E>]
+           -> :wat::telemetry::DriverPair<E>
           (:wat::core::let
             ((rp (:wat::core::first rp+ap))
              (ap (:wat::core::second rp+ap))
@@ -454,9 +454,9 @@
      (driver
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
-           -> :wat::core::nil)
+          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
+           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+           -> :wat::core::nil
           (:wat::telemetry::run
             driver-pairs cadence dispatcher stats-translator)))))
     (:wat::core::Tuple pool driver)))

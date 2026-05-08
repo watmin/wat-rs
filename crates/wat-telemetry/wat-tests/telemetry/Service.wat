@@ -35,9 +35,9 @@
      (:test::svc-tel-make-dispatcher
        (stub-tx :wat::kernel::Sender<wat::core::i64>)
        -> :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
-     (:wat::core::fn ((entries :wat::core::Vector<wat::core::i64>) -> :wat::core::nil)
+     (:wat::core::fn [entries <- :wat::core::Vector<wat::core::i64>] -> :wat::core::nil
        (:wat::core::foldl entries :wat::core::nil
-         (:wat::core::fn ((_acc :wat::core::nil) (e :wat::core::i64) -> :wat::core::nil)
+         (:wat::core::fn [_acc <- :wat::core::nil e <- :wat::core::i64] -> :wat::core::nil
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::nil
              ((:wat::core::Ok _) :wat::core::nil)
              ((:wat::core::Err _) :wat::core::nil))))))
@@ -50,7 +50,7 @@
      (:test::svc-tel-null-translator
        -> :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
      (:wat::core::fn
-       ((_s :wat::telemetry::Stats) -> :wat::core::Vector<wat::core::i64>)
+       [_s <- :wat::telemetry::Stats] -> :wat::core::Vector<wat::core::i64>
        (:wat::core::Vector :wat::core::i64)))
 
 
@@ -61,7 +61,7 @@
      (:test::svc-tel-active-translator
        -> :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
      (:wat::core::fn
-       ((_s :wat::telemetry::Stats) -> :wat::core::Vector<wat::core::i64>)
+       [_s <- :wat::telemetry::Stats] -> :wat::core::Vector<wat::core::i64>
        (:wat::core::Vector :wat::core::i64 -1)))
 
 
@@ -243,7 +243,7 @@
         (:wat::telemetry::MetricsCadence/new
           0
           (:wat::core::fn
-            ((g :wat::core::i64) (_s :wat::telemetry::Stats) -> :(wat::core::i64,wat::core::bool))
+            [g <- :wat::core::i64 _s <- :wat::telemetry::Stats] -> :(wat::core::i64,wat::core::bool)
             (:wat::core::Tuple 0 false)))))
      (driver
       (:wat::core::first thr-and-rx))
@@ -301,7 +301,7 @@
         (:wat::telemetry::MetricsCadence/new
           0
           (:wat::core::fn
-            ((g :wat::core::i64) (_s :wat::telemetry::Stats) -> :(wat::core::i64,wat::core::bool))
+            [g <- :wat::core::i64 _s <- :wat::telemetry::Stats] -> :(wat::core::i64,wat::core::bool)
             (:wat::core::Tuple 0 false)))))
      (driver
       (:wat::core::first thr-and-rx))
@@ -323,7 +323,7 @@
         (:wat::telemetry::MetricsCadence/new
           0
           (:wat::core::fn
-            ((g :wat::core::i64) (_s :wat::telemetry::Stats) -> :(wat::core::i64,wat::core::bool))
+            [g <- :wat::core::i64 _s <- :wat::telemetry::Stats] -> :(wat::core::i64,wat::core::bool)
             (:wat::core::Tuple 0 true)))))
      (driver
       (:wat::core::first thr-and-rx))

@@ -1961,21 +1961,22 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
         WatAST::Keyword(k, _) => k.clone(),
         _ => return None,
     };
-    // Second arg must be (:wat::core::fn sig body).
+    // Second arg must be `(:wat::core::fn ARGS-VECTOR -> :RET BODY)`
+    // — the canonical 5-element flat shape per arc 167.
     let fn_items = match &items[2] {
         WatAST::List(fn_items, _) => fn_items,
         _ => return None,
     };
-    if fn_items.len() != 3 {
-        return None;
-    }
-    match &fn_items[0] {
+    match &fn_items.first()? {
         WatAST::Keyword(k, _) if k == ":wat::core::fn" => {}
         _ => return None,
     }
-    let sig = &fn_items[1];
-    let body = &fn_items[2];
-    let (params, param_types, ret_type) = parse_fn_signature(sig).ok()?;
+    if fn_items.len() != 5 {
+        return None;
+    }
+    let body = fn_items[4].clone();
+    let (params, param_types, ret_type) = parse_fn_signature(&fn_items[1..]).ok()?;
+    let body = &body;
     Some((
         name.clone(),
         Arc::new(Function {
@@ -3828,21 +3829,24 @@ fn eval_dispatch_call(
 /// both `:wat::core::fn` (canonical) and `:wat::core::lambda`
 /// (retired fall-through) route here.
 fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
-    if args.len() != 2 {
-        // arc 138: no span — eval_fn's signature predates list_span
-        // threading; the synthetic-AST branch (no source form) goes here.
+    // Arc 167 — flat-shape fn-form consumer.
+    // Canonical form: (:wat::core::fn ARGS-VECTOR -> :RET-TYPE BODY)
+    //   args[0] = ARGS-VECTOR (WatAST::Vector with name <- :T triples)
+    //   args[1] = `->` (WatAST::Symbol)
+    //   args[2] = :RET-TYPE (WatAST::Keyword)
+    //   args[3] = BODY (any AST)
+    if args.len() != 4 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::fn".into(),
             reason: format!(
-                "expected (:wat::core::fn signature body); got {} args",
+                "expected (:wat::core::fn [name <- :T ...] -> :Ret body); got {} args",
                 args.len()
             ),
             span: Span::unknown(),
         });
     }
-    let sig = &args[0];
-    let body = &args[1];
-    let (params, param_types, ret_type) = parse_fn_signature(sig)?;
+    let body = &args[3];
+    let (params, param_types, ret_type) = parse_fn_signature(args)?;
     Ok(Value::wat__core__fn(Arc::new(Function {
         name: None,
         params,
@@ -3856,90 +3860,141 @@ fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
     })))
 }
 
-/// Parse a fn signature list `((p1 :T1) (p2 :T2) ... -> :R)`.
+/// Arc 167 — flat-shape fn signature parser.
 ///
-/// Arc 155 — formerly `parse_fn_signature`; renamed to mirror
-/// `eval_fn` (formerly `eval_lambda`). Error messages updated to
-/// reference `:wat::core::fn` (canonical form). The arc 138 shape
-/// note and all-typed discipline per 058-029 are preserved.
+/// Consumes the canonical fn-form layout:
 ///
-/// Per 058-029, fn expressions carry the SAME typing discipline as
-/// `define`: every parameter is `(name :Type)` and the return type
-/// is required. No "untyped fn" exists in wat — the language is
-/// strongly typed at every function boundary. This parser rejects a
-/// signature that omits a type annotation or the `-> :Return` tail.
+///   (:wat::core::fn  ARGS-VECTOR  ->  :RET-TYPE  BODY)
+///                      args[0]   args[1] args[2] args[3]
+///
+/// `ARGS-VECTOR` is a `WatAST::Vector` whose body is flat triples
+/// `name <- :T name <- :T ...` (empty vector → zero-arity fn). The
+/// `<-` token reads as "consumes" — input direction; the sibling
+/// `->` reads as "produces" — output direction. Arrows-as-duals.
+///
+/// Per 058-029, every parameter is typed and the return type is
+/// required. No "untyped fn" exists in wat. This parser rejects
+/// malformed flat-shape signatures with location-bearing errors.
 fn parse_fn_signature(
-    sig: &WatAST,
+    args: &[WatAST],
 ) -> Result<(Vec<String>, Vec<crate::types::TypeExpr>, crate::types::TypeExpr), RuntimeError> {
-    let sig_span = sig.span().clone();
-    let items = match sig {
-        WatAST::List(items, _) => items,
-        _ => {
+    // Arity check (eval_fn already gates this; defensive double-check).
+    if args.len() != 4 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::fn".into(),
+            reason: format!(
+                "expected (:wat::core::fn [name <- :T ...] -> :Ret body); got {} args after head",
+                args.len()
+            ),
+            span: Span::unknown(),
+        });
+    }
+    let args_vec_node = &args[0];
+    let arrow_node = &args[1];
+    let ret_type_node = &args[2];
+
+    // args[0] must be a Vector (the args-vector).
+    let args_vec = match args_vec_node {
+        WatAST::Vector(items, _) => items,
+        other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::fn".into(),
-                reason: "signature must be a list".into(),
-                span: sig_span,
+                reason: format!(
+                    "fn signature must be a vector `[name <- :T ...]`; got {}",
+                    ast_variant_name(other)
+                ),
+                span: other.span().clone(),
             });
         }
     };
+
+    // args[1] must be the symbol `->`.
+    match arrow_node {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: "fn signature missing `->` between args-vector and return type".into(),
+                span: other.span().clone(),
+            });
+        }
+    }
+
+    // args[2] must be the return-type keyword.
+    let ret_type = match ret_type_node {
+        WatAST::Keyword(k, _) => parse_type_keyword(k)?,
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: "fn signature missing return-type keyword after `->`".into(),
+                span: other.span().clone(),
+            });
+        }
+    };
+
+    // Walk the args-vector in chunks of 3: name <- :T.
     let mut params = Vec::new();
     let mut param_types = Vec::new();
-    let mut ret_type: Option<crate::types::TypeExpr> = None;
-    let mut saw_arrow = false;
-    for item in items {
-        if saw_arrow {
-            if ret_type.is_some() {
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::fn".into(),
-                    reason: "signature has more than one return type after '->'".into(),
-                    span: item.span().clone(),
-                });
-            }
-            match item {
-                WatAST::Keyword(k, _) => {
-                    ret_type = Some(parse_type_keyword(k)?);
-                }
-                other => {
-                    return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::fn".into(),
-                        reason: format!(
-                            "return type after '->' must be a type keyword; got {}",
-                            ast_variant_name(other)
-                        ),
-                        span: other.span().clone(),
-                    });
-                }
-            }
-            continue;
+    let mut i = 0;
+    while i < args_vec.len() {
+        let triple_pos = params.len();
+        if i + 2 >= args_vec.len() {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: format!(
+                    "fn arg-vector triple at position {} must be `name <- :T`; got incomplete trailing tokens (need 3 elements: name, `<-`, type)",
+                    triple_pos
+                ),
+                span: args_vec[i].span().clone(),
+            });
         }
-        match item {
-            WatAST::Symbol(s, _) if s.as_str() == "->" => {
-                saw_arrow = true;
-            }
-            WatAST::List(pair, _) => {
-                let (pname, ptype) = parse_param_pair(pair.clone())?;
-                params.push(pname);
-                param_types.push(ptype);
-            }
+        let pname = match &args_vec[i] {
+            WatAST::Symbol(s, _) => s.name.clone(),
             other => {
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::core::fn".into(),
                     reason: format!(
-                        "unexpected signature element: {}",
+                        "fn arg-vector triple at position {} must be `name <- :T`; got {} at name slot",
+                        triple_pos,
+                        ast_variant_name(other)
+                    ),
+                    span: other.span().clone(),
+                });
+            }
+        };
+        match &args_vec[i + 1] {
+            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
+            other => {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: format!(
+                        "fn arg-vector triple at position {} must be `name <- :T`; got {} where `<-` was expected",
+                        triple_pos,
                         ast_variant_name(other)
                     ),
                     span: other.span().clone(),
                 });
             }
         }
+        let ptype = match &args_vec[i + 2] {
+            WatAST::Keyword(k, _) => parse_type_keyword(k)?,
+            other => {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: format!(
+                        "fn arg-vector triple at position {} must be `name <- :T`; got {} at type slot",
+                        triple_pos,
+                        ast_variant_name(other)
+                    ),
+                    span: other.span().clone(),
+                });
+            }
+        };
+        params.push(pname);
+        param_types.push(ptype);
+        i += 3;
     }
-    let ret_type = ret_type.ok_or_else(|| RuntimeError::MalformedForm {
-        head: ":wat::core::fn".into(),
-        reason:
-            "fn signature must end with '-> :Type' (typed return is required per 058-029)"
-                .into(),
-        span: sig_span.clone(),
-    })?;
+
     Ok((params, param_types, ret_type))
 }
 
@@ -18718,7 +18773,7 @@ mod tests {
     fn fn_as_value() {
         // The fn produces a callable; invoking it inline.
         let result = eval_expr(
-            r#"((:wat::core::fn ((x :i64) (y :i64) -> :i64)
+            r#"((:wat::core::fn [x <- :i64 y <- :i64] -> :i64
                   (:wat::core::i64::+,2 x y))
                 3 4)"#,
         )
@@ -18731,7 +18786,7 @@ mod tests {
         let result = eval_expr(
             r#"(:wat::core::let
                  ((adder
-                   (:wat::core::fn ((x :i64) -> :i64)
+                   (:wat::core::fn [x <- :i64] -> :i64
                      (:wat::core::i64::+,2 x 10))))
                  (adder 5))"#,
         )
@@ -18746,7 +18801,7 @@ mod tests {
         let result = eval_expr(
             r#"(:wat::core::let ((n 100))
                  (:wat::core::let ((f
-                                  (:wat::core::fn ((x :i64) -> :i64)
+                                  (:wat::core::fn [x <- :i64] -> :i64
                                     (:wat::core::i64::+,2 x n))))
                    (:wat::core::let ((n 999))
                      (f 1))))"#,
@@ -20702,7 +20757,7 @@ mod tests {
         let src = r#"
             (:wat::core::map
               (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn ((x :i64) -> :i64) (:wat::core::i64::*,2 x 2)))
+              (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::*,2 x 2)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -20725,7 +20780,7 @@ mod tests {
             (:wat::core::foldl
               (:wat::core::Vector :i64 1 2 3 4)
               10
-              (:wat::core::fn ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
                 (:wat::core::i64::+,2 acc x)))
         "#;
         match eval_expr(src).unwrap() {
@@ -20816,7 +20871,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::Vector :i64 5 12 3 18 7)
-              (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 10)))
+              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::> x 10)))
         "#;
         let v = expect_some(eval_expr(src).unwrap());
         assert_eq!(expect_i64(v), 3); // index of 18 (last x > 10)
@@ -20827,7 +20882,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 99)))
+              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::> x 99)))
         "#;
         expect_none(eval_expr(src).unwrap());
     }
@@ -20837,7 +20892,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::Vector :i64)
-              (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 0)))
+              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::> x 0)))
         "#;
         expect_none(eval_expr(src).unwrap());
     }
@@ -20901,7 +20956,7 @@ mod tests {
         let src = r#"
             (:wat::std::list::map-with-index
               (:wat::core::Vector :i64 10 20 30)
-              (:wat::core::fn ((x :i64) (i :i64) -> :i64)
+              (:wat::core::fn [x <- :i64 i <- :i64] -> :i64
                 (:wat::core::i64::+,2 x i)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21134,7 +21189,7 @@ mod tests {
                   (:wat::core::Vector :i64 3)
                   (:wat::core::Vector :i64 4)))
               0
-              (:wat::core::fn ((acc :i64) (n :i64) -> :i64)
+              (:wat::core::fn [acc <- :i64 n <- :i64] -> :i64
                 (:wat::core::i64::+,2 acc n)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21374,7 +21429,7 @@ mod tests {
               (:wat::core::values
                 (:wat::core::HashMap :(String,i64) "a" 10 "b" 20 "c" 30))
               0
-              (:wat::core::fn ((acc :i64) (v :i64) -> :i64)
+              (:wat::core::fn [acc <- :i64 v <- :i64] -> :i64
                 (:wat::core::i64::+,2 acc v)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21644,7 +21699,7 @@ mod tests {
             (:wat::core::foldr
               (:wat::core::Vector :i64 1 2 3)
               0
-              (:wat::core::fn ((x :i64) (acc :i64) -> :i64)
+              (:wat::core::fn [x <- :i64 acc <- :i64] -> :i64
                 (:wat::core::i64::-,2 x acc)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21660,7 +21715,7 @@ mod tests {
             (:wat::core::foldl
               (:wat::core::Vector :i64 1 2 3)
               0
-              (:wat::core::fn ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
                 (:wat::core::i64::-,2 acc x)))
         "#;
         match eval_expr(src_l).unwrap() {
@@ -21674,7 +21729,7 @@ mod tests {
         let src = r#"
             (:wat::core::filter
               (:wat::core::Vector :i64 1 2 3 4 5)
-              (:wat::core::fn ((x :i64) -> :bool)
+              (:wat::core::fn [x <- :i64] -> :bool
                 (:wat::core::> x 2)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21697,7 +21752,7 @@ mod tests {
         let src = r#"
             (:wat::core::filter
               (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn ((x :i64) -> :i64) x))
+              (:wat::core::fn [x <- :i64] -> :i64 x))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
@@ -23755,7 +23810,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               ((x 2))
-              ((:wat::core::fn (-> :wat::core::i64) x)))
+              ((:wat::core::fn [] -> :wat::core::i64 x)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(2) => {}

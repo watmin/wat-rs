@@ -147,7 +147,7 @@
   ()
   (:wat::core::let
     ((reject-all
-      (:wat::core::fn ((_ :wat::core::f64) -> :wat::core::bool) false))
+      (:wat::core::fn [_ <- :wat::core::f64] -> :wat::core::bool false))
      (store
       (:wat::holon::Hologram/make reject-all))
      (k (:wat::holon::leaf :alpha))

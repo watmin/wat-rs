@@ -44,7 +44,7 @@
        (:wat::core::=
          (:wat::core::length
            (:wat::core::filter stdout
-             (:wat::core::fn ((s :wat::core::String) -> :wat::core::bool)
+             (:wat::core::fn [s <- :wat::core::String] -> :wat::core::bool
                (:wat::core::= s msg))))
          1)
        -> :wat::core::nil

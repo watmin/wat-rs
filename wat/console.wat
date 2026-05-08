@@ -115,8 +115,8 @@
       ((rxs
         (:wat::core::map pairs
           (:wat::core::fn
-            ((p :wat::console::DriverPair)
-             -> :wat::console::ReqRx)
+            [p <- :wat::console::DriverPair]
+             -> :wat::console::ReqRx
             (:wat::core::first p))))
        (chosen
         (:wat::kernel::select rxs))
@@ -247,29 +247,29 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
-          ((_i :wat::core::i64)
-           -> :(wat::console::ReqTx,wat::console::ReqRx))
+          [_i <- :wat::core::i64]
+           -> :(wat::console::ReqTx,wat::console::ReqRx)
           (:wat::kernel::make-bounded-channel
             :wat::console::Message 1))))
      (ack-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
-          ((_i :wat::core::i64)
-           -> :(wat::console::AckTx,wat::console::AckRx))
+          [_i <- :wat::core::i64]
+           -> :(wat::console::AckTx,wat::console::AckRx)
           (:wat::kernel::make-bounded-channel :wat::core::nil 1))))
      ;; Producer-side: pop a Handle = (req-Tx, ack-Rx).
      (handles
       (:wat::std::list::zip
         (:wat::core::map req-pairs
           (:wat::core::fn
-            ((p :(wat::console::ReqTx,wat::console::ReqRx))
-             -> :wat::console::ReqTx)
+            [p <- :(wat::console::ReqTx,wat::console::ReqRx)]
+             -> :wat::console::ReqTx
             (:wat::core::first p)))
         (:wat::core::map ack-pairs
           (:wat::core::fn
-            ((p :(wat::console::AckTx,wat::console::AckRx))
-             -> :wat::console::AckRx)
+            [p <- :(wat::console::AckTx,wat::console::AckRx)]
+             -> :wat::console::AckRx
             (:wat::core::second p)))))
      ;; Driver-side: Vec<DriverPair> = (req-Rx, ack-Tx) at the
      ;; matching index. select fires for idx i; pairs[i].second
@@ -278,21 +278,21 @@
       (:wat::std::list::zip
         (:wat::core::map req-pairs
           (:wat::core::fn
-            ((p :(wat::console::ReqTx,wat::console::ReqRx))
-             -> :wat::console::ReqRx)
+            [p <- :(wat::console::ReqTx,wat::console::ReqRx)]
+             -> :wat::console::ReqRx
             (:wat::core::second p)))
         (:wat::core::map ack-pairs
           (:wat::core::fn
-            ((p :(wat::console::AckTx,wat::console::AckRx))
-             -> :wat::console::AckTx)
+            [p <- :(wat::console::AckTx,wat::console::AckRx)]
+             -> :wat::console::AckTx
             (:wat::core::first p)))))
      (pool
       (:wat::kernel::HandlePool::new "Console" handles))
      (driver
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
-           -> :wat::core::nil)
+          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
+           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+           -> :wat::core::nil
           (:wat::console::loop driver-pairs stdout stderr)))))
     (:wat::core::Tuple pool driver)))

@@ -2163,6 +2163,17 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
                 walk_for_bare_primitives(item, errors);
             }
         }
+        WatAST::Vector(items, _) => {
+            // Arc 167 slice 3 — recurse into Vector children. Arc 167
+            // slice 1 minted `WatAST::Vector` for `[...]` syntax; slice
+            // 2's flat-shape fn-sig moved type keywords inside fn args
+            // into Vector position. Without this arm, bare primitives
+            // and bare retired keywords inside fn-arg-vectors evade the
+            // walker. Mirrors the List arm structurally.
+            for item in items {
+                walk_for_bare_primitives(item, errors);
+            }
+        }
         _ => {}
     }
 }
@@ -9422,12 +9433,22 @@ fn infer_fn(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    if args.len() != 2 {
+    // Arc 167 — flat-shape fn signature consumer.
+    // Canonical form (4 args): ARGS-VECTOR `->` :RET-TYPE BODY
+    if args.len() != 4 {
         return None;
     }
-    let sig = &args[0];
-    let body = &args[1];
-    let (param_names, param_types, ret_type) = parse_fn_signature_for_check(sig).ok()?;
+    let body = &args[3];
+    // Surface clear errors on malformed flat-shape (Vector at
+    // args[0] but inner triples malformed). Falls through to
+    // None only when the shape doesn't match our recognizers
+    // at all — which for a 4-arg fn with a Vector args[0]
+    // means a clear user error worth surfacing.
+    let (param_names, param_types, ret_type) =
+        match parse_fn_signature_for_check_diag(args, errors) {
+            Some(parsed) => parsed,
+            None => return None,
+        };
 
     // Check body against declared return type under extended locals.
     let mut body_locals = outer_locals.clone();
@@ -9458,55 +9479,176 @@ fn infer_fn(
     })
 }
 
-/// Mirror of [`crate::runtime::parse_fn_signature`] shape for the
-/// check pass — returns (names, types, ret). Errors are silenced; if
-/// the fn is malformed, runtime parsing catches it and the
-/// checker simply returns None.
+/// Arc 167 — mirror of [`crate::runtime::parse_fn_signature`]
+/// for the check pass. Consumes the flat-shape fn-form layout:
+///
+///   (:wat::core::fn  ARGS-VECTOR  ->  :RET-TYPE  BODY)
+///                      args[0]   args[1] args[2] args[3]
+///
+/// `ARGS-VECTOR` is a `WatAST::Vector` of flat triples
+/// `name <- :T name <- :T ...` (empty vector → zero-arity fn).
+///
+/// Returns (names, types, ret). Errors are silenced; if the fn is
+/// malformed, runtime parsing catches it and the checker simply
+/// returns None.
 fn parse_fn_signature_for_check(
-    sig: &WatAST,
+    args: &[WatAST],
 ) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ()> {
-    let items = match sig {
-        WatAST::List(items, _) => items,
+    if args.len() != 4 {
+        return Err(());
+    }
+    let args_vec = match &args[0] {
+        WatAST::Vector(items, _) => items,
         _ => return Err(()),
     };
+    // args[1] must be the symbol `->`.
+    match &args[1] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        _ => return Err(()),
+    }
+    // args[2] must be the return-type keyword.
+    let ret_type = match &args[2] {
+        WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|_| ())?,
+        _ => return Err(()),
+    };
+    // args_vec walks in chunks of 3: name <- :T.
     let mut names = Vec::new();
     let mut types = Vec::new();
-    let mut ret: Option<TypeExpr> = None;
-    let mut saw_arrow = false;
-    for item in items {
-        if saw_arrow {
-            if ret.is_some() {
-                return Err(());
-            }
-            match item {
-                WatAST::Keyword(k, _) => {
-                    ret = Some(crate::types::parse_type_expr(k).map_err(|_| ())?);
-                }
-                _ => return Err(()),
-            }
-            continue;
+    let mut i = 0;
+    while i < args_vec.len() {
+        if i + 2 >= args_vec.len() {
+            return Err(());
         }
-        match item {
-            WatAST::Symbol(s, _) if s.as_str() == "->" => saw_arrow = true,
-            WatAST::List(pair, _) => {
-                if pair.len() != 2 {
-                    return Err(());
-                }
-                let name = match &pair[0] {
-                    WatAST::Symbol(s, _) => s.name.clone(),
-                    _ => return Err(()),
-                };
-                let ty = match &pair[1] {
-                    WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|_| ())?,
-                    _ => return Err(()),
-                };
-                names.push(name);
-                types.push(ty);
-            }
+        let name = match &args_vec[i] {
+            WatAST::Symbol(s, _) => s.name.clone(),
+            _ => return Err(()),
+        };
+        match &args_vec[i + 1] {
+            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
             _ => return Err(()),
         }
+        let ty = match &args_vec[i + 2] {
+            WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|_| ())?,
+            _ => return Err(()),
+        };
+        names.push(name);
+        types.push(ty);
+        i += 3;
     }
-    Ok((names, types, ret.ok_or(())?))
+    Ok((names, types, ret_type))
+}
+
+/// Diagnostic variant of [`parse_fn_signature_for_check`]: when the
+/// args[0] slot is a Vector (canonical new shape) but the inner
+/// triples are malformed, push a `MalformedForm` per offending site
+/// so the user sees a clear error rather than silent type-inference
+/// failure. Returns `None` only when the shape doesn't match the new
+/// layout at all (caller falls through to legacy / None).
+fn parse_fn_signature_for_check_diag(
+    args: &[WatAST],
+    errors: &mut Vec<CheckError>,
+) -> Option<(Vec<String>, Vec<TypeExpr>, TypeExpr)> {
+    if args.len() != 4 {
+        return None;
+    }
+    let args_vec = match &args[0] {
+        WatAST::Vector(items, _) => items,
+        _ => return None,
+    };
+    // args[1] must be `->`.
+    match &args[1] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: "fn signature missing `->` between args-vector and return type".into(),
+                span: other.span().clone(),
+            });
+            return None;
+        }
+    }
+    // args[2] must be the return-type keyword.
+    let ret_type = match &args[2] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(_) => return None,
+        },
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: "fn signature missing return-type keyword after `->`".into(),
+                span: other.span().clone(),
+            });
+            return None;
+        }
+    };
+    // Walk the args-vector in chunks of 3.
+    let mut names = Vec::new();
+    let mut types = Vec::new();
+    let mut i = 0;
+    while i < args_vec.len() {
+        let triple_pos = names.len();
+        if i + 2 >= args_vec.len() {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: format!(
+                    "fn arg-vector triple at position {} must be `name <- :T`; got incomplete trailing tokens",
+                    triple_pos
+                ),
+                span: args_vec[i].span().clone(),
+            });
+            return None;
+        }
+        let name = match &args_vec[i] {
+            WatAST::Symbol(s, _) => s.name.clone(),
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: format!(
+                        "fn arg-vector triple at position {} must be `name <- :T`; got non-symbol at name slot",
+                        triple_pos
+                    ),
+                    span: other.span().clone(),
+                });
+                return None;
+            }
+        };
+        match &args_vec[i + 1] {
+            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: format!(
+                        "fn arg-vector triple at position {} must be `name <- :T`; got non-`<-` token where `<-` was expected",
+                        triple_pos
+                    ),
+                    span: other.span().clone(),
+                });
+                return None;
+            }
+        }
+        let ty = match &args_vec[i + 2] {
+            WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+                Ok(t) => t,
+                Err(_) => return None,
+            },
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::fn".into(),
+                    reason: format!(
+                        "fn arg-vector triple at position {} must be `name <- :T`; got non-keyword at type slot",
+                        triple_pos
+                    ),
+                    span: other.span().clone(),
+                });
+                return None;
+            }
+        };
+        names.push(name);
+        types.push(ty);
+        i += 3;
+    }
+    Some((names, types, ret_type))
 }
 
 fn infer_boolean_shortcircuit(
@@ -13637,7 +13779,7 @@ mod tests {
         assert!(check(
             r#"(:wat::core::let
                  ((doubler
-                   (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+                   (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
                      (:wat::core::i64::+,2 x x))))
                  true)"#
         )

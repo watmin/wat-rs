@@ -84,7 +84,7 @@
      (_pre (pre-install db))
      (_install (schema-install db))
      (curried
-      (:wat::core::fn ((entries :wat::core::Vector<E>) -> :wat::core::nil)
+      (:wat::core::fn [entries <- :wat::core::Vector<E>] -> :wat::core::nil
         (dispatcher db entries))))
     (:wat::telemetry::run
       pairs cadence curried stats-translator)))
@@ -124,7 +124,7 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
-          ((_i :wat::core::i64) -> :wat::telemetry::ReqChannel<E>)
+          [_i <- :wat::core::i64] -> :wat::telemetry::ReqChannel<E>
           (:wat::kernel::make-bounded-channel
             :wat::telemetry::Request<E> 1))))
      ;; N ack channels (server write, client read). Per arc 095:
@@ -134,15 +134,15 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
-          ((_i :wat::core::i64) -> :wat::telemetry::AckChannel)
+          [_i <- :wat::core::i64] -> :wat::telemetry::AckChannel
           (:wat::kernel::make-bounded-channel :wat::core::nil 1))))
      ;; Client-side Handles — (req-tx, ack-rx) pairs.
      (handles
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::fn
-          ((rp+ap :wat::telemetry::Connection<E>)
-           -> :wat::telemetry::Handle<E>)
+          [rp+ap <- :wat::telemetry::Connection<E>]
+           -> :wat::telemetry::Handle<E>
           (:wat::core::let
             ((rp (:wat::core::first rp+ap))
              (ap (:wat::core::second rp+ap))
@@ -154,8 +154,8 @@
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::fn
-          ((rp+ap :wat::telemetry::Connection<E>)
-           -> :wat::telemetry::DriverPair<E>)
+          [rp+ap <- :wat::telemetry::Connection<E>]
+           -> :wat::telemetry::DriverPair<E>
           (:wat::core::let
             ((rp (:wat::core::first rp+ap))
              (ap (:wat::core::second rp+ap))
@@ -168,9 +168,9 @@
      (driver
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
-           -> :wat::core::nil)
+          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
+           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+           -> :wat::core::nil
           (:wat::telemetry::Sqlite/run
             path driver-pairs cadence
             pre-install schema-install dispatcher stats-translator)))))
@@ -228,7 +228,7 @@
     ((_b (:wat::sqlite::begin db))
      (_d
       (:wat::core::foldl entries :wat::core::nil
-        (:wat::core::fn ((_acc :wat::core::nil) (e :E) -> :wat::core::nil)
+        (:wat::core::fn [_acc <- :wat::core::nil e <- :E] -> :wat::core::nil
           (:rust::sqlite::auto-dispatch db enum-name e)))))
     (:wat::sqlite::commit db)))
 
@@ -246,9 +246,9 @@
     (:wat::telemetry::Sqlite/spawn
       path count cadence
       pre-install
-      (:wat::core::fn ((db :wat::sqlite::Db) -> :wat::core::nil)
+      (:wat::core::fn [db <- :wat::sqlite::Db] -> :wat::core::nil
         (:rust::sqlite::auto-install-schemas db enum-name))
-      (:wat::core::fn ((db :wat::sqlite::Db) (entries :wat::core::Vector<E>) -> :wat::core::nil)
+      (:wat::core::fn [db <- :wat::sqlite::Db entries <- :wat::core::Vector<E>] -> :wat::core::nil
         (:wat::telemetry::Sqlite::auto-dispatch-batch
           enum-name db entries))
       :wat::telemetry::Sqlite::auto-empty-translator)))

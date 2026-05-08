@@ -636,7 +636,7 @@ on the form:
   (:wat::core::f64::*,2 2.0 :pi))          ;; sequential references work
 
 (:wat::core::def :greet
-  (:wat::core::fn ((name :wat::core::String) -> :wat::core::String)
+  (:wat::core::fn [name <- :wat::core::String] -> :wat::core::String
     (:wat::core::String::++ "hello, " name)))
 ```
 
@@ -650,7 +650,7 @@ local capture the def's expression as a closure:
 (:wat::core::let
   (((config :wat::core::i64) 42))
   (:wat::core::def :get-config
-    (:wat::core::fn (-> :wat::core::i64) config)))
+    (:wat::core::fn [] -> :wat::core::i64 config)))
 ;; :get-config is registered; calling it returns 42 — config
 ;; stays local to the let; only :get-config enters the module env.
 ```
@@ -681,19 +681,27 @@ depend on.
 eval-time redef flow (carrier present; gate inert because eval-time
 def-binding is not wired in arc 157).
 
-### `:wat::core::defn` — named-function binding (arc 166)
+### `:wat::core::defn` — named-function binding (arcs 166, 167)
 
 The user-facing form for naming a function. Composes
-`:wat::core::def` + `:wat::core::fn`:
+`:wat::core::def` + `:wat::core::fn`. The signature is a flat
+vector: each parameter is `name <- :T`, the return type follows
+the vector after `->`. The arrows are duals — `<-` consumes input
+into the slot, `->` produces output from the slot.
 
 ```scheme
 (:wat::core::defn :user::add
-  ((x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
+  [x <- :wat::core::i64
+   y <- :wat::core::i64]
+  -> :wat::core::i64
   (:wat::core::i64::+,2 x y))
 
 ;; expands at parse time to:
 (:wat::core::def :user::add
-  (:wat::core::fn ((x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
+  (:wat::core::fn
+    [x <- :wat::core::i64
+     y <- :wat::core::i64]
+    -> :wat::core::i64
     (:wat::core::i64::+,2 x y)))
 ```
 
@@ -710,7 +718,8 @@ see the desugaring.
 ```scheme
 ;; recursive defn — body sees :user::fact
 (:wat::core::defn :user::fact
-  ((n :wat::core::i64) -> :wat::core::i64)
+  [n <- :wat::core::i64]
+  -> :wat::core::i64
   (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
     1
     (:wat::core::i64::*,2 n
@@ -764,17 +773,31 @@ the bare `:()` type-position spelling); arc 153 renamed to
 `:wat::core::nil` for the marker effect; the legacy FQDN +
 migration scaffolding retired in arc 153 slice 2.
 
-### `fn` — anonymous function (arc 155)
+### `fn` — anonymous function (arcs 155, 167)
 
 ```scheme
-(:wat::core::fn ((x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
+(:wat::core::fn
+  [x <- :wat::core::i64
+   y <- :wat::core::i64]
+  -> :wat::core::i64
   (:wat::core::i64::+,2 x y))
 ```
 
-Same signature shape as `define`. Produces a
+Five-element form: `head + [args-vector] + -> + :ret + body`. Each
+arg is `name <- :T` inside the vector; the `->` arrow + return
+type are siblings of the vector, NOT inside it. The arrows are
+duals — `<-` consumes input INTO the slot; `->` produces output
+FROM the slot. Once the shape is read once, every wat function
+definition is mechanical.
+
+Produces a
 `:wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64`
-value — a first-class function you can pass around, store in a Vector,
-put in a struct.
+value — a first-class function you can pass around, store in a
+Vector, put in a struct.
+
+Zero-arg shape: `(:wat::core::fn [] -> :T body)` — the empty
+vector keeps the position marker; the return type still follows
+the `->`.
 
 Arc 155 collapsed the previous lambda / fn vocabulary into a
 single Clojure-faithful pair:

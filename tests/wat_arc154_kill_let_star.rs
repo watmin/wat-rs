@@ -186,7 +186,7 @@ fn fn_body_with_let_preserves_sequential() {
     // is invoked at call site; result is 7.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
              (:wat::core::let
                ((a x)
                 (b (:wat::core::i64::+,2 a 5)))

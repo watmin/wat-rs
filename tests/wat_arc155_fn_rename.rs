@@ -111,7 +111,7 @@ fn fn_keyword_operator_position_works() {
     // Post-sweep-1b: should return Ok.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
              x)
            5))
     "#;
@@ -150,11 +150,11 @@ fn bare_fn_type_post_retirement_walker_silent() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::fn
-             ((g :fn(wat::core::i64)->wat::core::i64)
+             [g <- :fn(wat::core::i64)->wat::core::i64]
               ->
-              :wat::core::i64)
+              :wat::core::i64
              (g 5))
-           (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x)))
+           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)))
     "#;
     let err = startup_err(src);
     assert!(
@@ -183,7 +183,7 @@ fn fqdn_fn_type_position_works() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:user::apply
-            (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
               x)
             42))
     "#;
@@ -210,7 +210,7 @@ fn fn_operator_keyword_does_not_fire_lowercase_fn_walker() {
     // (`:wat::core::fn` ≠ `:fn(` — different prefix.)
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
              x)
            7))
     "#;
@@ -241,7 +241,7 @@ fn fqdn_fn_type_does_not_fire_lowercase_fn_walker() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:user::apply
-            (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+,2 x 1))
             10))
     "#;
@@ -297,7 +297,7 @@ fn fn_body_in_tail_position_type_checks() {
           (:wat::core::i64::*,2 n 2))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::fn ((n :wat::core::i64) -> :wat::core::i64)
+          ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
              (:user::double n))
            5))
     "#;
@@ -331,7 +331,7 @@ fn mixed_canonical_fn_operator_and_fn_type_work_together() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:user::apply
-            (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+,2 x 1))
             5))
     "#;
@@ -358,7 +358,7 @@ fn fn_body_with_let_type_checks() {
     // operator composes with other renamed forms from today).
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
              (:wat::core::let
                ((a (:wat::core::i64::+,2 x 5))
                 (b (:wat::core::i64::*,2 a 2)))
@@ -389,7 +389,7 @@ fn reflection_fn_registry_entry_exists() {
     // + `eval_fn`.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::fn ((a :wat::core::i64) (b :wat::core::i64) -> :wat::core::i64)
+          ((:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
              (:wat::core::i64::+,2 a b))
            10 20))
     "#;
@@ -424,7 +424,7 @@ fn both_legacy_walkers_retired_silently_alias() {
               ->
               :wat::core::i64)
              (g 5))
-           (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x)))
+           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)))
     "#;
     let err = startup_err(src);
     assert!(

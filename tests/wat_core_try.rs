@@ -260,7 +260,7 @@ fn try_inside_result_returning_fn_propagates_to_fn() {
           (:wat::core::let
             ((f
               (:wat::core::fn
-                ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :wat::core::Result<wat::core::i64,wat::core::String>)
+                [r <- :wat::core::Result<wat::core::i64,wat::core::String>] -> :wat::core::Result<wat::core::i64,wat::core::String>
                 (:wat::core::Ok (:wat::core::Result/try r)))))
             (f (:wat::core::Err "fn-err"))))
     "#;
@@ -284,7 +284,7 @@ fn try_inside_non_result_fn_rejected_at_check() {
           (:wat::core::let
             ((f
               (:wat::core::fn
-                ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :wat::core::i64)
+                [r <- :wat::core::Result<wat::core::i64,wat::core::String>] -> :wat::core::i64
                 (:wat::core::Result/try r))))
             (:wat::core::Ok (f (:wat::core::Ok 1)))))
     "#;

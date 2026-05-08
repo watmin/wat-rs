@@ -132,13 +132,13 @@
 (:wat::core::define
   (:wat::core::i64::+ & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
   (:wat::core::foldl xs 0
-    (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
       (:wat::core::i64::+,2 acc x))))
 
 (:wat::core::define
   (:wat::core::i64::* & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
   (:wat::core::foldl xs 1
-    (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
       (:wat::core::i64::*,2 acc x))))
 
 ;; `:-` and `:/` require >= 1 arg. Express via fixed first param +
@@ -150,7 +150,7 @@
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
     (:wat::core::i64::-,2 0 first)
     (:wat::core::foldl xs first
-      (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
         (:wat::core::i64::-,2 acc x)))))
 
 (:wat::core::define
@@ -158,7 +158,7 @@
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
     (:wat::core::i64::/,2 1 first)
     (:wat::core::foldl xs first
-      (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
         (:wat::core::i64::/,2 acc x)))))
 
 ;; ─── Named-function binding ───────────────────────────────────────
@@ -187,26 +187,36 @@
 ;; extraction broadly across substrate forms; defn extends to take a
 ;; docstring at that time.
 
+;; Arc 167 slice 2 — flat-shape signature. defn forwards args/arrow/
+;; ret/body to fn unchanged via rest-binder splicing. The new fn shape
+;; is 5 elements at the form level: head + ARGS-VECTOR + `->` + :RET +
+;; BODY. defn takes a name keyword + the same 4 trailing pieces:
+;;
+;;   (:wat::core::defn :name [p <- :T q <- :T] -> :Ret body)
+;;     ↓ macro-expansion
+;;   (:wat::core::def :name (:wat::core::fn [p <- :T q <- :T] -> :Ret body))
+;;
+;; The rest-binder uses the variadic-defmacro shape per arc 150 / per
+;; `wat/test.wat` § :wat::test::program (`:AST<wat::core::Vector<wat::WatAST>>`).
 (:wat::core::defmacro
   (:wat::core::defn
     (name :AST<wat::core::nil>)
-    (sig  :AST<wat::core::nil>)
-    (body :AST<wat::core::nil>)
+    & (rest :AST<wat::core::Vector<wat::WatAST>>)
     -> :AST<wat::core::nil>)
-  `(:wat::core::def ,name (:wat::core::fn ,sig ,body)))
+  `(:wat::core::def ,name (:wat::core::fn ,@rest)))
 
 ;; f64 same-type variadic — :+/:*/:- / :/
 
 (:wat::core::define
   (:wat::core::f64::+ & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
   (:wat::core::foldl xs 0.0
-    (:wat::core::fn ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+    (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
       (:wat::core::f64::+,2 acc x))))
 
 (:wat::core::define
   (:wat::core::f64::* & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
   (:wat::core::foldl xs 1.0
-    (:wat::core::fn ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+    (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
       (:wat::core::f64::*,2 acc x))))
 
 (:wat::core::define
@@ -214,7 +224,7 @@
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
     (:wat::core::f64::-,2 0.0 first)
     (:wat::core::foldl xs first
-      (:wat::core::fn ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+      (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
         (:wat::core::f64::-,2 acc x)))))
 
 (:wat::core::define
@@ -222,5 +232,5 @@
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
     (:wat::core::f64::/,2 1.0 first)
     (:wat::core::foldl xs first
-      (:wat::core::fn ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+      (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
         (:wat::core::f64::/,2 acc x)))))

@@ -409,6 +409,37 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
                 paren_depth -= 1;
                 out.push(c);
             }
+            // Arc 167 slice 2 follow-on — `]` terminates a keyword
+            // when no `<...>` or `(...)` is currently open. The
+            // flat-shape fn signature `[x <- :T]` puts a keyword
+            // immediately before `]`; without this break, the
+            // keyword silently absorbs the `]` and the parser sees
+            // an unclosed bracket. Mirrors the `)` early-break above.
+            ']' => {
+                if angle_depth > 0 || paren_depth > 0 {
+                    // Inside a parametric type expression — `]` is
+                    // not legal here in current keyword grammar, but
+                    // preserve the byte so downstream parsing
+                    // surfaces a clearer error than a silent break.
+                    out.push(c);
+                } else {
+                    // Unmatched `]` — belongs to the enclosing
+                    // vector form.
+                    break;
+                }
+            }
+            '[' => {
+                // `[` is not legal inside a keyword (no parametric
+                // type uses `[`). Same treatment as `]`: when no
+                // bracket grouping is open, the `[` belongs to the
+                // enclosing form (a vector opener following an
+                // unspaced keyword).
+                if angle_depth > 0 || paren_depth > 0 {
+                    out.push(c);
+                } else {
+                    break;
+                }
+            }
             '<' => {
                 // Type-head `<` follows an alphanumeric (`Result<`,
                 // `Vec<`, ...). Operator `<` follows `::` — the
