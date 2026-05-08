@@ -23,7 +23,7 @@
       "Bash(false)",
       "Bash(mktemp *)",
       "Bash(bash -n *)",
-      "Bash(./scripts/*)",
+      "Bash(./scripts/**)",
       "Read",
       "Glob",
       "Grep",
