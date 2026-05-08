@@ -57,7 +57,7 @@
       (:wat::core::first handle))
      ((ack-rx :wat::telemetry::AckRx)
       (:wat::core::second handle))
-     ((entries :Vec<wat::telemetry::Event>)
+     ((entries :wat::core::Vector<wat::telemetry::Event>)
       (:wat::core::vec :wat::telemetry::Event
         (:demo::seed::log-event 1000 "alpha")
         (:demo::seed::log-event 2000 "beta")

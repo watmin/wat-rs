@@ -828,7 +828,7 @@ pub fn eval_ioreader_read(
     Ok(Value::Option(Arc::new(result.map(bytes_to_vec_u8_value))))
 }
 
-/// `(:wat::io::IOReader/read-all <reader>)` → `:Vec<u8>`.
+/// `(:wat::io::IOReader/read-all <reader>)` → `:wat::core::Vector<u8>`.
 pub fn eval_ioreader_read_all(
     args: &[WatAST],
     env: &Environment,
@@ -929,7 +929,7 @@ pub fn eval_iowriter_open_file(
     Ok(Value::io__IOWriter(writer))
 }
 
-/// `(:wat::io::IOWriter/to-bytes <writer>)` → `:Vec<u8>`. Clones the
+/// `(:wat::io::IOWriter/to-bytes <writer>)` → `:wat::core::Vector<u8>`. Clones the
 /// accumulated buffer. Only valid for `StringIoWriter` — real stdio
 /// doesn't snapshot (returns MalformedForm).
 pub fn eval_iowriter_to_bytes(

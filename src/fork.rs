@@ -414,7 +414,7 @@ fn emit_panics_to_stderr(
     write_direct_to_stderr(&line);
 }
 
-/// `(:wat::kernel::fork-program-ast (forms :Vec<wat::WatAST>)) ->
+/// `(:wat::kernel::fork-program-ast (forms :wat::core::Vector<wat::WatAST>)) ->
 /// :wat::kernel::ForkedChild`.
 ///
 /// Forks a fresh wat evaluation on top of the current runtime's

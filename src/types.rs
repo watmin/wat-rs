@@ -52,7 +52,7 @@ pub enum TypeExpr {
     /// rejection of the escape hatch. `parse_type_expr` refuses it at
     /// the parse layer.
     Path(String),
-    /// `:Vec<T>`, `:HashMap<K,V>`, `:my::ns::Container<wat::holon::HolonAST,f64>`.
+    /// `:wat::core::Vector<T>`, `:wat::core::HashMap<K,V>`, `:my::ns::Container<wat::holon::HolonAST,f64>`.
     Parametric {
         head: String,
         args: Vec<TypeExpr>,

@@ -94,7 +94,7 @@ impl WatSqliteDb {
     /// statement. Each `?N` placeholder in `sql` binds positionally to
     /// `params[N-1]` (1-indexed per SQLite/rusqlite convention).
     ///
-    /// `params` is wat-side typed as `:Vec<wat::sqlite::Param>`; the
+    /// `params` is wat-side typed as `:wat::core::Vector<wat::sqlite::Param>`; the
     /// type checker enforces every element is a Param variant before
     /// reaching this shim, so the runtime extraction below trusts the
     /// shape and panics with a diagnostic on any deviation (treated

@@ -773,7 +773,7 @@ fn arc_114_migration_hint(callee: &str, expected: &str, got: &str) -> Option<Str
          returning :wat::kernel::Thread<(),()>. \
          Replace (:wat::kernel::join h) and (:wat::kernel::join-result h) \
          with (:wat::kernel::Thread/join-result thr) returning \
-         :Result<:(),:Vec<wat::kernel::ThreadDiedError>>; match arms \
+         :wat::core::Result<:(),:wat::core::Vector<wat::kernel::ThreadDiedError>>; match arms \
          ((Ok _) ...) ((Err chain) ...). \
          Mini-TCP workers (docs/ZERO-MUTEX.md) close over caller-held \
          channels; substrate-allocated `_in` / `_out` stay unused. \
@@ -3928,7 +3928,7 @@ fn infer_list(
                 // Variadic sibling of quote. Every positional arg is
                 // DATA, captured as `:wat::WatAST`. The checker does
                 // not recurse into any of them. Return type is
-                // `:Vec<wat::WatAST>` regardless of arity (including
+                // `:wat::core::Vector<wat::WatAST>` regardless of arity (including
                 // zero, which produces an empty Vec).
                 return Some(TypeExpr::Parametric {
                     head: "Vec".into(),
@@ -4012,7 +4012,7 @@ fn infer_list(
             }
             ":wat::runtime::extract-arg-names" => {
                 // Arc 143 slice 3 — extract-arg-names.
-                // (head :HolonAST) -> :Vec<keyword>
+                // (head :HolonAST) -> :wat::core::Vector<keyword>
                 // First arg is a HolonAST (not a keyword), so normal
                 // type-scheme unification would fail on arc-009 call
                 // sites. Infer for side-effects; return the concrete type.
@@ -11471,7 +11471,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // (:wat::kernel::Thread/join-result thr) →
-    //   :Result<:(), :Vec<:wat::kernel::ThreadDiedError>>.
+    //   :wat::core::Result<:(), :wat::core::Vector<wat::kernel::ThreadDiedError>>.
     //
     // Arc 114 slice 1. Symmetric with `Process/join-result` (arc 112)
     // but for the in-thread satisfier. Threads share memory with the
@@ -11785,8 +11785,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // (:wat::kernel::extract-panics (lines :Vec<String>))
-    //   -> :Option<Vec<wat::kernel::ProcessDiedError>>
+    // (:wat::kernel::extract-panics (lines :wat::core::Vector<String>))
+    //   -> :wat::core::Option<Vec<wat::kernel::ProcessDiedError>>
     //
     // Arc 113 slice 3 — process side of the cascade. Stderr is the
     // diagnostic side channel; the child writes a tagged EDN line
@@ -11821,7 +11821,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // HandlePool — claim-or-panic discipline.
-    //   new    : ∀T. :String -> :Vec<T> -> :HandlePool<T>
+    //   new    : ∀T. :String -> :wat::core::Vector<T> -> :HandlePool<T>
     //   pop    : ∀T. :HandlePool<T> -> :T
     //   finish : ∀T. :HandlePool<T> -> :()
     env.register(
@@ -12407,7 +12407,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 143 slice 3 — HolonAST manipulation primitives.
     //
     // rename-callable-name (head :HolonAST) (from :keyword) (to :keyword) -> :HolonAST
-    // extract-arg-names    (head :HolonAST)                               -> :Vec<keyword>
+    // extract-arg-names    (head :HolonAST)                               -> :wat::core::Vector<keyword>
     //
     // The type-checker special-case in `infer_list` (check.rs:3126+) bypasses
     // normal type-unification for these primitives because the first argument

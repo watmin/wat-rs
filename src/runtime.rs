@@ -139,7 +139,7 @@ pub enum Value {
     /// `:u8` — unsigned 8-bit integer, 0..=255. Produced by
     /// `:wat::core::u8` (range-checked cast from i64), consumed by
     /// byte-oriented IO (`:wat::io::read`, `:wat::io::write`) and
-    /// `:Vec<u8>` carriers. Arithmetic is wrapping per Rust's
+    /// `:wat::core::Vector<u8>` carriers. Arithmetic is wrapping per Rust's
     /// default u8 semantics. Slice 1 of arc 008.
     u8(u8),
     f64(f64),
@@ -8744,7 +8744,7 @@ fn walk_match_clause(
 }
 
 
-/// `(:wat::core::forms f1 f2 ... fn)` → `:Vec<wat::WatAST>`.
+/// `(:wat::core::forms f1 f2 ... fn)` → `:wat::core::Vector<wat::WatAST>`.
 ///
 /// Variadic sibling of `quote`. Takes N unevaluated forms and returns
 /// a Vec of `:wat::WatAST` values — one per form, each captured as
@@ -8758,7 +8758,7 @@ fn walk_match_clause(
 /// program` macro expands directly to this.
 ///
 /// Like `quote`, this is a special form — arguments are NOT
-/// evaluated. The type checker returns `:Vec<wat::WatAST>`
+/// evaluated. The type checker returns `:wat::core::Vector<wat::WatAST>`
 /// unconditionally; see `check.rs::infer_list` for the handling.
 fn eval_forms(args: &[WatAST]) -> Result<Value, RuntimeError> {
     let items: Vec<Value> = args
@@ -10366,7 +10366,7 @@ fn eval_term_template(
     Ok(Value::holon__HolonAST(Arc::new(h.template())))
 }
 
-/// `(:wat::holon::term::slots form)` → `:Vec<f64>` (arc 073). Pre-order
+/// `(:wat::holon::term::slots form)` → `:wat::core::Vector<f64>` (arc 073). Pre-order
 /// list of every Thermometer value in the form. Empty for forms with
 /// no Thermometer leaves. Parallel in length and order to
 /// `:wat::holon::term::ranges`. The `TermStore::get` path uses these
@@ -10401,7 +10401,7 @@ fn eval_term_slots(
     Ok(Value::Vec(Arc::new(items)))
 }
 
-/// `(:wat::holon::term::ranges form)` → `:Vec<(f64,f64)>` (arc 073).
+/// `(:wat::holon::term::ranges form)` → `:wat::core::Vector<(f64,f64)>` (arc 073).
 /// Pre-order list of every Thermometer (min, max) pair in the form,
 /// parallel to `term::slots`. Used by `TermStore::get` to compute
 /// the per-slot tolerance window: `|q − stored| / (max − min)` against
@@ -11911,7 +11911,7 @@ fn eval_algebra_dot(
 /// **Composition with `wat-lru` for bidirectional caches.** The i64
 /// key plugs into `:rust::lru::LruCache<i64,V>` directly — values can
 /// be `:wat::holon::HolonAST` (one-AST-per-key, most-recent-wins) or
-/// `:Vec<wat::holon::HolonAST>` (full bucket). Cosine-rank within the
+/// `:wat::core::Vector<wat::holon::HolonAST>` (full bucket). Cosine-rank within the
 /// bucket if multiple matches.
 fn eval_algebra_simhash(
     args: &[WatAST],
@@ -12025,7 +12025,7 @@ fn eval_holon_encode(
 // the receiver's responsibility to know. V + K + F three-factor
 // verification UX.
 
-/// `(:wat::holon::vector-bytes vec)` → `:Vec<u8>` (arc 061).
+/// `(:wat::holon::vector-bytes vec)` → `:wat::core::Vector<u8>` (arc 061).
 /// Serialize a Vector to a portable byte buffer. Deterministic:
 /// same Vector → same bytes.
 fn eval_holon_vector_bytes(
@@ -12190,7 +12190,7 @@ fn eval_holon_bytes_vector(
 //
 // Text bridge for `:wat::core::Bytes`. The substrate's hermetic
 // stdout/stdin (and any future log-file or string-field channel) is
-// `:Vec<String>` — raw `:Bytes` doesn't ride that without an
+// `:wat::core::Vector<String>` — raw `:Bytes` doesn't ride that without an
 // encoding. Hex is the universally-readable choice: 1:2 byte-to-char,
 // trivially encodable, debuggable in dumps. Base64 / base32 ship
 // later under the same `:wat::core::Bytes::to-X` / `from-X` shape if
@@ -12586,7 +12586,7 @@ fn eval_holon_vector_bind(
 }
 
 /// `(:wat::holon::vector-bundle vs) -> :Vector` — superposition over
-/// a `:Vec<Vector>`. Arc 053.
+/// a `:wat::core::Vector<Vector>`. Arc 053.
 ///
 /// Mirrors `:wat::holon::Bundle` at the Vector tier. Empty Vec input
 /// errors (no zero-vector default — use the substrate's encode path
@@ -12740,7 +12740,7 @@ fn require_subspace(
     }
 }
 
-/// Arc 053 — wrap a `Vec<f64>` into a wat-tier `:Vec<f64>` Value.
+/// Arc 053 — wrap a `Vec<f64>` into a wat-tier `:wat::core::Vector<f64>` Value.
 fn vec_f64_to_value(xs: Vec<f64>) -> Value {
     Value::Vec(Arc::new(xs.into_iter().map(Value::f64).collect()))
 }
@@ -13258,7 +13258,7 @@ fn eval_reckoner_curve(
     })
 }
 
-/// `(:wat::holon::Reckoner/labels r) -> :Vec<i64>`
+/// `(:wat::holon::Reckoner/labels r) -> :wat::core::Vector<i64>`
 fn eval_reckoner_labels(
     args: &[WatAST],
     list_span: &Span,
@@ -13491,7 +13491,7 @@ fn eval_library_add(
     Ok(Value::Unit)
 }
 
-/// `(:wat::holon::EngramLibrary/match-vec lib probe top-k prefilter-k) -> :Vec<(String,f64)>`
+/// `(:wat::holon::EngramLibrary/match-vec lib probe top-k prefilter-k) -> :wat::core::Vector<(String,f64)>`
 fn eval_library_match_vec(
     args: &[WatAST],
     list_span: &Span,
@@ -14403,7 +14403,7 @@ fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError
     Ok(Value::f64(std::f64::consts::PI))
 }
 
-/// `(:wat::std::stat::mean :Vec<f64>) -> :Option<f64>`. Population
+/// `(:wat::std::stat::mean :wat::core::Vector<f64>) -> :wat::core::Option<f64>`. Population
 /// mean. None on empty input — matches `f64::min-of`/`max-of`'s
 /// reduction-empty convention.
 ///
@@ -14449,7 +14449,7 @@ fn eval_stat_mean(
     )))))
 }
 
-/// `(:wat::std::stat::variance :Vec<f64>) -> :Option<f64>`. Population
+/// `(:wat::std::stat::variance :wat::core::Vector<f64>) -> :wat::core::Option<f64>`. Population
 /// variance (divides by n). Matches numpy default `ddof=0`. None on
 /// empty input. Single-point input returns `Some(0.0)` (no spread).
 fn eval_stat_variance(
@@ -14498,7 +14498,7 @@ fn eval_stat_variance(
     Ok(Value::Option(Arc::new(Some(Value::f64(sq / n)))))
 }
 
-/// `(:wat::std::stat::stddev :Vec<f64>) -> :Option<f64>`. Square
+/// `(:wat::std::stat::stddev :wat::core::Vector<f64>) -> :wat::core::Option<f64>`. Square
 /// root of population variance.
 fn eval_stat_stddev(
     args: &[WatAST],
@@ -15034,7 +15034,7 @@ fn eval_kernel_spawn_thread(
 }
 
 /// `(:wat::kernel::Thread/join-result thr) ->
-/// :Result<:(), :Vec<:wat::kernel::ThreadDiedError>>` — arc 114 slice 1.
+/// :wat::core::Result<:(), :wat::core::Vector<wat::kernel::ThreadDiedError>>` — arc 114 slice 1.
 /// The in-thread sibling of arc 112's `Process/join-result`.
 ///
 /// Pulls the Thread's join-field ProgramHandle and recv's the
@@ -15669,7 +15669,7 @@ pub fn eval_process_died_error_to_failure(
 }
 
 /// Arc 113 slice 3 — `(:wat::kernel::extract-panics
-///   (lines :Vec<String>)) -> :Option<Vec<wat::kernel::ProcessDiedError>>`.
+///   (lines :wat::core::Vector<String>)) -> :wat::core::Option<Vec<wat::kernel::ProcessDiedError>>`.
 ///
 /// Walks `lines` from end to start; for each, attempts to parse it
 /// as a single EDN expression; if the result is `Tagged` with
@@ -22394,7 +22394,7 @@ mod tests {
         // Arc 102: pre-arc-102, a Vec result errored because
         // value_to_holon couldn't wrap it. With arc 102's revert,
         // Vec results pass through cleanly — caller binds
-        // T = :Vec<:i64> and (Ok xs) gets the Vec directly.
+        // T = :wat::core::Vector<i64> and (Ok xs) gets the Vec directly.
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!

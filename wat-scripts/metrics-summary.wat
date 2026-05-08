@@ -23,18 +23,18 @@
       (:wat::core::let
         (((handle :wat::sqlite::ReadHandle)
           (:wat::sqlite::open-readonly path))
-         ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
+         ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
           (:wat::core::vec :wat::telemetry::TimeConstraint))
          ;; Logs.
-         ((logs :Vec<wat::telemetry::Event>)
-          (:wat::std::stream::collect
+         ((logs :wat::core::Vector<wat::telemetry::Event>)
+          (:wat::stream::collect
             (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
          ((log-count :i64) (:wat::core::length logs))
          ;; Metrics — fresh handle (each stream's producer
          ;; thread re-opens its own connection; the original
          ;; ReadHandle stays in T0 and can be reused).
-         ((metrics :Vec<wat::telemetry::Event>)
-          (:wat::std::stream::collect
+         ((metrics :wat::core::Vector<wat::telemetry::Event>)
+          (:wat::stream::collect
             (:wat::telemetry::sqlite/stream-metrics handle no-constraints)))
          ((metric-count :i64) (:wat::core::length metrics)))
         (:wat::io::IOWriter/println stdout

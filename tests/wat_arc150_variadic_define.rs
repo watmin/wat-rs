@@ -13,7 +13,7 @@
 //! Coverage:
 //! - Variadic define called with zero rest-args → rest binds to empty Vec.
 //! - One rest-arg, many rest-args.
-//! - Variadic define with NO fixed params (only `& (rest :Vec<T>)`).
+//! - Variadic define with NO fixed params (only `& (rest :wat::core::Vector<T>)`).
 //! - Arity error: caller passes fewer than fixed-arity args.
 //! - Type error: rest-arg's type doesn't match the declared element type.
 //! - Reflection: `signature-of` round-trips the variadic shape.

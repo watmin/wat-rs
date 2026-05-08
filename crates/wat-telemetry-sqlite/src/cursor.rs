@@ -94,7 +94,7 @@ struct WhereClause {
     params: Vec<i64>,
 }
 
-/// Walk a `:Vec<wat::telemetry::TimeConstraint>` value and build
+/// Walk a `:wat::core::Vector<wat::telemetry::TimeConstraint>` value and build
 /// a WhereClause against the cursor's time column. `time_col` is
 /// `"time_ns"` for log cursors, `"start_time_ns"` for metric
 /// cursors. Bare-string column name is safe — both values are
@@ -109,7 +109,7 @@ fn parse_time_constraints(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
-                expected: ":Vec<wat::telemetry::TimeConstraint>",
+                expected: ":wat::core::Vector<wat::telemetry::TimeConstraint>",
                 got: other.type_name(),
                 // arc 138: no span — parse_time_constraints receives &Value, no WatAST trace available
                 span: wat::span::Span::unknown(),
@@ -634,7 +634,7 @@ fn scheme_cursor_new_inner(
             );
         }
     }
-    // #2 — :Vec<:wat::telemetry::TimeConstraint>
+    // #2 — :wat::core::Vector<wat::telemetry::TimeConstraint>
     if let Some(t) = ctx.infer(&args[1]) {
         let expected = TypeExpr::Parametric {
             head: "Vec".into(),
@@ -645,7 +645,7 @@ fn scheme_cursor_new_inner(
             ctx.push_type_mismatch(
                 op,
                 "#2",
-                ":Vec<wat::telemetry::TimeConstraint>".into(),
+                ":wat::core::Vector<wat::telemetry::TimeConstraint>".into(),
                 format!("{:?}", ctx.apply_subst(&t)),
                 args[1].span().clone(),
             );

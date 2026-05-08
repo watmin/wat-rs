@@ -52,7 +52,7 @@ pub fn eval_string_ends_with(
 ///
 /// Unicode scalar count — matches the user's mental model of "string
 /// length" for scripts that use grapheme-sized characters. For byte
-/// length, encode through `:Vec<u8>` and use that vec's `length`.
+/// length, encode through `:wat::core::Vector<u8>` and use that vec's `length`.
 pub fn eval_string_length(
     args: &[WatAST],
     env: &Environment,
@@ -72,7 +72,7 @@ pub fn eval_string_trim(
     Ok(Value::String(Arc::new(s.trim().to_string())))
 }
 
-/// `(:wat::core::string::split haystack sep)` → `:Vec<String>`.
+/// `(:wat::core::string::split haystack sep)` → `:wat::core::Vector<String>`.
 ///
 /// Splits every occurrence of `sep`. An empty `sep` — the edge case
 /// `str::split("")` would degenerate to per-char — is refused as a

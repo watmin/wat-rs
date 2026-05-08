@@ -23,10 +23,10 @@
       (:wat::core::let
         (((handle :wat::sqlite::ReadHandle)
           (:wat::sqlite::open-readonly path))
-         ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
+         ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
           (:wat::core::vec :wat::telemetry::TimeConstraint))
-         ((events :Vec<wat::telemetry::Event>)
-          (:wat::std::stream::collect
+         ((events :wat::core::Vector<wat::telemetry::Event>)
+          (:wat::stream::collect
             (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
          ((count :i64) (:wat::core::length events)))
         (:wat::io::IOWriter/println stdout

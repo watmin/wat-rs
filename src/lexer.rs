@@ -13,7 +13,7 @@
 //!     - `:wat::load-file!`
 //!     - `:wat::holon::Atom`
 //!     - `:crossbeam_channel::Sender<T>`
-//!     - `:Vec<T>`, `:HashMap<K,V>`, `:Option<T>`
+//!     - `:wat::core::Vector<T>`, `:wat::core::HashMap<K,V>`, `:wat::core::Option<T>`
 //!     - `:fn(T,U)->R`
 //!     - `:(T,U)` — a tuple-literal type.
 //!

@@ -1,4 +1,4 @@
-//! End-to-end tests for `:wat::std::stream` — the first slice of the
+//! End-to-end tests for `:wat::stream` — the first slice of the
 //! stream stdlib. Each test runs a real multi-thread pipeline through
 //! `startup_from_source` + `invoke_user_main`, demonstrating the
 //! idiomatic shape the trading-lab app will consume.

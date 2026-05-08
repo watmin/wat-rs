@@ -98,7 +98,7 @@
      ;; UNEVALUATED via :wat::core::forms (the variadic-quote
      ;; substrate); fork-program-ast hands them to startup_from_forms
      ;; in the child branch.
-     ((child-forms :Vec<wat::WatAST>)
+     ((child-forms :wat::core::Vector<wat::WatAST>)
       (:wat::core::forms
         (:wat::core::struct :demo::Ping
           (n :i64))

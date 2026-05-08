@@ -1,4 +1,4 @@
-;; :wat::std::stream — composable stage combinators over
+;; :wat::stream — composable stage combinators over
 ;; :wat::kernel::spawn-thread + crossbeam channels. Each combinator
 ;; spawns one worker thread and wires a bounded(1) queue; the
 ;; combinator returns a :wat::stream::Stream<T> — the pair
