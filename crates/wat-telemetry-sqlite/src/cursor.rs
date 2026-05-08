@@ -637,7 +637,7 @@ fn scheme_cursor_new_inner(
     // #2 — :wat::core::Vector<wat::telemetry::TimeConstraint>
     if let Some(t) = ctx.infer(&args[1]) {
         let expected = TypeExpr::Parametric {
-            head: "Vec".into(),
+            head: "wat::core::Vector".into(),
             args: vec![TypeExpr::Path(TIME_CONSTRAINT_TYPE_PATH.into())],
         };
         if !ctx.unify_types(&t, &expected) {
@@ -670,7 +670,7 @@ fn scheme_cursor_step(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeEx
     // Metric cursors return events of the same enum type — the
     // user pattern-matches the variant at the call site.
     Some(TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![TypeExpr::Path(EVENT_TYPE_PATH.into())],
     })
 }

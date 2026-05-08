@@ -822,7 +822,7 @@ fn reconstruct_struct(
 fn rewrap_option_field(fty: &crate::types::TypeExpr, v: Value) -> Value {
     let is_option = matches!(
         fty,
-        crate::types::TypeExpr::Parametric { head, .. } if head == "Option"
+        crate::types::TypeExpr::Parametric { head, .. } if head == "wat::core::Option"
     );
     if !is_option {
         return v;

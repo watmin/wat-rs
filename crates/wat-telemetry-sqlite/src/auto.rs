@@ -513,7 +513,7 @@ fn type_to_affinity(t: &TypeExpr) -> Option<&'static str> {
         // (write-notag) at bind time. Recognized after typealias
         // expansion so `:wat::telemetry::Tags` (alias to
         // `:HashMap<HolonAST,HolonAST>`) lands here.
-        TypeExpr::Parametric { head, .. } if head == "HashMap" => Some("TEXT NOT NULL"),
+        TypeExpr::Parametric { head, .. } if head == "wat::core::HashMap" => Some("TEXT NOT NULL"),
         _ => None,
     }
 }
@@ -547,7 +547,7 @@ fn value_to_tosql(
     // Path. Arc 091 slice 7 added this arm for the substrate's
     // own Event::Metric/Log `tags :wat::telemetry::Tags` fields.
     if let TypeExpr::Parametric { head, .. } = t {
-        if head == "HashMap" {
+        if head == "wat::core::HashMap" {
             if !matches!(v, Value::wat__std__HashMap(_)) {
                 return Err(RuntimeError::MalformedForm {
                     head: op.into(),

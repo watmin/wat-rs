@@ -548,7 +548,7 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
                             let inner_ts = rust_type_to_type_expr_tokens(inner, attr)?;
                             return Ok(quote! {
                                 ::wat::types::TypeExpr::Parametric {
-                                    head: "Option".into(),
+                                    head: "wat::core::Option".into(),
                                     args: vec![#inner_ts],
                                 }
                             });
@@ -566,7 +566,7 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
                             let inner_ts = rust_type_to_type_expr_tokens(inner, attr)?;
                             return Ok(quote! {
                                 ::wat::types::TypeExpr::Parametric {
-                                    head: "Vec".into(),
+                                    head: "wat::core::Vector".into(),
                                     args: vec![#inner_ts],
                                 }
                             });
@@ -589,7 +589,7 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
                             let e_ts = rust_type_to_type_expr_tokens(e, attr)?;
                             return Ok(quote! {
                                 ::wat::types::TypeExpr::Parametric {
-                                    head: "Result".into(),
+                                    head: "wat::core::Result".into(),
                                     args: vec![#t_ts, #e_ts],
                                 }
                             });

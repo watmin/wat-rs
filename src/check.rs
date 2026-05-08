@@ -3507,7 +3507,7 @@ fn infer(
                 });
             }
             Some(TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![fresh.fresh()],
             })
         }
@@ -3600,14 +3600,14 @@ fn infer_some_constructor(
             let _ = infer(arg, env, locals, fresh, subst, errors);
         }
         return Some(TypeExpr::Parametric {
-            head: "Option".into(),
+            head: "wat::core::Option".into(),
             args: vec![fresh.fresh()],
         });
     }
     let inner_ty = infer(&args[0], env, locals, fresh, subst, errors)
         .unwrap_or_else(|| fresh.fresh());
     Some(TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![inner_ty],
     })
 }
@@ -3647,7 +3647,7 @@ fn infer_ok_constructor(
             let _ = infer(arg, env, locals, fresh, subst, errors);
         }
         return Some(TypeExpr::Parametric {
-            head: "Result".into(),
+            head: "wat::core::Result".into(),
             args: vec![fresh.fresh(), fresh.fresh()],
         });
     }
@@ -3655,7 +3655,7 @@ fn infer_ok_constructor(
         .unwrap_or_else(|| fresh.fresh());
     let e_var = fresh.fresh();
     Some(TypeExpr::Parametric {
-        head: "Result".into(),
+        head: "wat::core::Result".into(),
         args: vec![t_ty, e_var],
     })
 }
@@ -3695,7 +3695,7 @@ fn infer_err_constructor(
             let _ = infer(arg, env, locals, fresh, subst, errors);
         }
         return Some(TypeExpr::Parametric {
-            head: "Result".into(),
+            head: "wat::core::Result".into(),
             args: vec![fresh.fresh(), fresh.fresh()],
         });
     }
@@ -3703,7 +3703,7 @@ fn infer_err_constructor(
         .unwrap_or_else(|| fresh.fresh());
     let t_var = fresh.fresh();
     Some(TypeExpr::Parametric {
-        head: "Result".into(),
+        head: "wat::core::Result".into(),
         args: vec![t_var, e_ty],
     })
 }
@@ -3931,7 +3931,7 @@ fn infer_list(
                 // `:wat::core::Vector<wat::WatAST>` regardless of arity (including
                 // zero, which produces an empty Vec).
                 return Some(TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::WatAST".into())],
                 });
             }
@@ -3984,7 +3984,7 @@ fn infer_list(
                     let _ = infer(&args[0], env, locals, fresh, subst, errors);
                 }
                 return Some(TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
                 });
             }
@@ -4028,7 +4028,7 @@ fn infer_list(
                     let _ = infer(&args[0], env, locals, fresh, subst, errors);
                 }
                 return Some(TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::core::keyword".into())],
                 });
             }
@@ -4362,7 +4362,7 @@ fn infer_list(
             .as_ref()
             .and_then(|rest_ty| match rest_ty {
                 TypeExpr::Parametric { head, args }
-                    if (head == "Vec" || head == "Vector") && args.len() == 1 =>
+                    if head == "wat::core::Vector" && args.len() == 1 =>
                 {
                     Some(args[0].clone())
                 }
@@ -4774,7 +4774,7 @@ fn infer_match(
         // fallback arm.
         if covers_result_ok_inner_some && covers_result_ok_inner_none {
             if let MatchShape::Result(ok_ty, _) = &shape {
-                if matches!(ok_ty, TypeExpr::Parametric { head, .. } if head == "Option") {
+                if matches!(ok_ty, TypeExpr::Parametric { head, .. } if head == "wat::core::Option") {
                     covers_result_ok = true;
                 }
             }
@@ -4899,11 +4899,11 @@ impl MatchShape {
     fn as_type(&self) -> TypeExpr {
         match self {
             MatchShape::Option(t) => TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![t.clone()],
             },
             MatchShape::Result(t, e) => TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![t.clone(), e.clone()],
             },
             MatchShape::Enum(path, args) => {
@@ -5497,7 +5497,7 @@ fn check_subpattern(
         // - `:enum::Variant` (unit) — valid at enum position.
         // - bare keyword payload (rare in pattern position) — error.
         WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => match expected_ty {
-            TypeExpr::Parametric { head, .. } if head == "Option" => Some(false),
+            TypeExpr::Parametric { head, .. } if head == "wat::core::Option" => Some(false),
             other => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -5604,7 +5604,7 @@ fn check_subpattern(
             if let Some(ident) = builtin_ident {
                 match (ident, expected_ty) {
                     ("Some", TypeExpr::Parametric { head: h, args })
-                        if h == "Option" && args.len() == 1 =>
+                        if h == "wat::core::Option" && args.len() == 1 =>
                     {
                         if items.len() != 2 {
                             errors.push(CheckError::MalformedForm {
@@ -5622,7 +5622,7 @@ fn check_subpattern(
                         return Some(false);
                     }
                     ("Ok", TypeExpr::Parametric { head: h, args })
-                        if h == "Result" && args.len() == 2 =>
+                        if h == "wat::core::Result" && args.len() == 2 =>
                     {
                         if items.len() != 2 {
                             errors.push(CheckError::MalformedForm {
@@ -5640,7 +5640,7 @@ fn check_subpattern(
                         return Some(false);
                     }
                     ("Err", TypeExpr::Parametric { head: h, args })
-                        if h == "Result" && args.len() == 2 =>
+                        if h == "wat::core::Result" && args.len() == 2 =>
                     {
                         if items.len() != 2 {
                             errors.push(CheckError::MalformedForm {
@@ -6747,7 +6747,7 @@ fn infer_try(
     let enclosing_reduced = reduce(&enclosing, subst, env.types());
     let enclosing_err_ty = match &enclosing_reduced {
         TypeExpr::Parametric { head, args: type_args }
-            if head == "Result" && type_args.len() == 2 =>
+            if head == "wat::core::Result" && type_args.len() == 2 =>
         {
             type_args[1].clone()
         }
@@ -6773,7 +6773,7 @@ fn infer_try(
     let arg_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
     let fresh_t = fresh.fresh();
     let expected = TypeExpr::Parametric {
-        head: "Result".into(),
+        head: "wat::core::Result".into(),
         args: vec![fresh_t.clone(), enclosing_err_ty],
     };
     if unify(&arg_ty, &expected, subst, env.types()).is_err() {
@@ -6851,7 +6851,7 @@ fn infer_option_try(
     let enclosing_reduced = reduce(&enclosing, subst, env.types());
     match &enclosing_reduced {
         TypeExpr::Parametric { head, args: type_args }
-            if head == "Option" && type_args.len() == 1 => {}
+            if head == "wat::core::Option" && type_args.len() == 1 => {}
         _ => {
             errors.push(CheckError::MalformedForm {
                 head: callee.into(),
@@ -6873,7 +6873,7 @@ fn infer_option_try(
     let arg_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
     let fresh_t = fresh.fresh();
     let expected = TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![fresh_t.clone()],
     };
     if unify(&arg_ty, &expected, subst, env.types()).is_err() {
@@ -6980,7 +6980,7 @@ fn infer_option_expect(
     // declared arm-result type.
     let opt_ty = infer(&args[2], env, locals, fresh, subst, errors)?;
     let expected_opt = TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![declared_ty.clone()],
     };
     if unify(&opt_ty, &expected_opt, subst, env.types()).is_err() {
@@ -7078,7 +7078,7 @@ fn infer_result_expect(
     let res_ty = infer(&args[2], env, locals, fresh, subst, errors)?;
     let fresh_e = fresh.fresh();
     let expected_res = TypeExpr::Parametric {
-        head: "Result".into(),
+        head: "wat::core::Result".into(),
         args: vec![declared_ty.clone(), fresh_e],
     };
     if unify(&res_ty, &expected_res, subst, env.types()).is_err() {
@@ -7628,10 +7628,10 @@ fn infer_positional_accessor(
             }
             // Vec<T>: return Option<T> (arc 047 — empty/short is a
             // runtime fact, signature surfaces it honestly).
-            TypeExpr::Parametric { head, args: targs } if head == "Vec" => {
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
                 if let Some(inner) = targs.first() {
                     return Some(TypeExpr::Parametric {
-                        head: "Option".into(),
+                        head: "wat::core::Option".into(),
                         args: vec![apply_subst(inner, subst)],
                     });
                 } else {
@@ -7948,7 +7948,7 @@ fn infer_hashset_constructor(
             span: head_span.clone(),
         });
         return Some(TypeExpr::Parametric {
-            head: "HashSet".into(),
+            head: "wat::core::HashSet".into(),
             args: vec![fresh.fresh()],
         });
     }
@@ -7987,7 +7987,7 @@ fn infer_hashset_constructor(
         }
     }
     Some(TypeExpr::Parametric {
-        head: "HashSet".into(),
+        head: "wat::core::HashSet".into(),
         args: vec![apply_subst(&t_ty, subst)],
     })
 }
@@ -8826,7 +8826,7 @@ fn infer_hashmap_constructor(
             span: head_span.clone(),
         });
         return Some(TypeExpr::Parametric {
-            head: "HashMap".into(),
+            head: "wat::core::HashMap".into(),
             args: vec![fresh.fresh(), fresh.fresh()],
         });
     }
@@ -8909,7 +8909,7 @@ fn infer_hashmap_constructor(
         }
     }
     Some(TypeExpr::Parametric {
-        head: "HashMap".into(),
+        head: "wat::core::HashMap".into(),
         args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
     })
 }
@@ -9297,7 +9297,7 @@ fn infer_list_constructor(
         });
         let t = fresh.fresh();
         return Some(TypeExpr::Parametric {
-            head: "Vec".into(),
+            head: "wat::core::Vector".into(),
             args: vec![t],
         });
     }
@@ -9337,7 +9337,7 @@ fn infer_list_constructor(
         }
     }
     Some(TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![apply_subst(&elem_ty, subst)],
     })
 }
@@ -9920,15 +9920,15 @@ fn register_builtins(env: &mut CheckEnv) {
     let string_ty = || TypeExpr::Path(":String".into());
     let unit_ty = || TypeExpr::Tuple(vec![]);
     let vec_u8_ty = || TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![u8_ty()],
     };
     let opt_vec_u8_ty = || TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![vec_u8_ty()],
     };
     let opt_string_ty = || TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![string_ty()],
     };
     let ioreader_ty = || TypeExpr::Path(":wat::io::IOReader".into());
@@ -10198,11 +10198,11 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![
                 string_ty(),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![string_ty()],
                 },
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![string_ty()],
                 },
             ],
@@ -10367,11 +10367,11 @@ fn register_builtins(env: &mut CheckEnv) {
     // Option to honestly signal empty/no-match. Same reasoning as
     // the polymorphism shift on first/second/third for Vec inputs.
     let opt = |inner: TypeExpr| TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![inner],
     };
     let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![inner],
     };
     env.register(
@@ -10423,15 +10423,15 @@ fn register_builtins(env: &mut CheckEnv) {
     // :Option<T>. No implicit coercion — every conversion is an
     // explicit named call at the call site.
     let opt_i64_ty = || TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![i64_ty()],
     };
     let opt_f64_ty = || TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![f64_ty()],
     };
     let opt_bool_ty = || TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![bool_ty()],
     };
     env.register(
@@ -10549,7 +10549,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty(), string_ty()],
             ret: TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![string_ty()],
             },
             rest_param_type: None,
@@ -10562,7 +10562,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![
                 string_ty(),
                 TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![string_ty()],
                 },
             ],
@@ -10696,7 +10696,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Path(":f64".into())],
             },
             rest_param_type: None,
@@ -10708,7 +10708,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Tuple(vec![
                     TypeExpr::Path(":f64".into()),
                     TypeExpr::Path(":f64".into()),
@@ -10788,7 +10788,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![hologram_ty(), holon_ty()],
             ret: TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![holon_ty()],
             },
             rest_param_type: None,
@@ -10800,7 +10800,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![hologram_ty(), holon_ty()],
             ret: TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Tuple(vec![holon_ty(), holon_ty()])],
             },
             rest_param_type: None,
@@ -10812,7 +10812,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![hologram_ty(), holon_ty()],
             ret: TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![holon_ty()],
             },
             rest_param_type: None,
@@ -10866,7 +10866,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // checking. A future pass may narrow arg types as real misuse
     // surfaces.
     let eval_result_ty = || TypeExpr::Parametric {
-        head: "Result".into(),
+        head: "wat::core::Result".into(),
         args: vec![
             holon_ty(),
             TypeExpr::Path(":wat::core::EvalError".into()),
@@ -10894,7 +10894,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![wat_ast_ty()],
             ret: TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Path("T".into()),
                     TypeExpr::Path(":wat::core::EvalError".into()),
@@ -10914,7 +10914,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![wat_ast_ty()],
             ret: TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Path(":wat::eval::StepResult".into()),
                     TypeExpr::Path(":wat::core::EvalError".into()),
@@ -10948,7 +10948,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Tuple(vec![
                         TypeExpr::Path(":wat::holon::HolonAST".into()),
@@ -11058,11 +11058,11 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![holon_ty()],
             }],
             ret: TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![
                     holon_ty(),
                     TypeExpr::Path(":wat::holon::CapacityExceeded".into()),
@@ -11132,7 +11132,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // variant). Return is uniform Result<bool, EvalError> — any
     // failure on either side arrives as Err<EvalError>.
     let eval_coincident_ret = || TypeExpr::Parametric {
-        head: "Result".into(),
+        head: "wat::core::Result".into(),
         args: vec![
             bool_ty(),
             TypeExpr::Path(":wat::core::EvalError".into()),
@@ -11300,7 +11300,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["I".into(), "O".into()],
             params: vec![TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Path(":wat::WatAST".into())],
             }],
             ret: process_ty(),
@@ -11316,7 +11316,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![
                 TypeExpr::Path(":String".into()),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ],
@@ -11347,7 +11347,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 112 — Process<I, O> phantom-param lift; uses the
     // `process_ty` closure declared above for fork-program-ast.
     let process_or_startup_error = || TypeExpr::Parametric {
-        head: "Result".into(),
+        head: "wat::core::Result".into(),
         args: vec![
             process_ty(),
             TypeExpr::Path(":wat::kernel::StartupError".into()),
@@ -11360,7 +11360,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![
                 TypeExpr::Path(":String".into()),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ],
@@ -11374,11 +11374,11 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["I".into(), "O".into()],
             params: vec![
                 TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::WatAST".into())],
                 },
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ],
@@ -11403,7 +11403,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `(:wat::kernel::Process/join-result proc)`.
     // Arc 113 — Err arm widens to Vec<ProcessDiedError> chain.
     let process_died_chain_ty = || TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
     };
     env.register(
@@ -11412,7 +11412,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["I".into(), "O".into()],
             params: vec![process_ty()],
             ret: TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Tuple(vec![]),
                     process_died_chain_ty(),
@@ -11483,7 +11483,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // immediate thread that died; tail captures whatever upstream
     // chain its panic carried.
     let thread_died_chain_ty = || TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
     };
     env.register(
@@ -11492,7 +11492,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["I".into(), "O".into()],
             params: vec![thread_ty()],
             ret: TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Tuple(vec![]),
                     thread_died_chain_ty(),
@@ -11519,7 +11519,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["I".into(), "O".into()],
             params: vec![process_ty(), TypeExpr::Path(":I".into())],
             ret: TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Tuple(vec![]),
                     process_died_chain_ty(),
@@ -11558,10 +11558,10 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["I".into(), "O".into()],
             params: vec![process_ty()],
             ret: TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Parametric {
-                        head: "Option".into(),
+                        head: "wat::core::Option".into(),
                         args: vec![TypeExpr::Path(":O".into())],
                     },
                     process_died_chain_ty(),
@@ -11626,21 +11626,21 @@ fn register_builtins(env: &mut CheckEnv) {
     // against a Vec<ThreadDiedError>; common shape `((Err chain)
     // (handle (:wat::core::Vector/first chain)))` to recover head.
     let died_chain_ty = || TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
     };
     let comm_ok_option_t = || TypeExpr::Parametric {
-        head: "Result".into(),
+        head: "wat::core::Result".into(),
         args: vec![
             TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![t_var()],
             },
             died_chain_ty(),
         ],
     };
     let comm_send_ret = || TypeExpr::Parametric {
-        head: "Result".into(),
+        head: "wat::core::Result".into(),
         args: vec![
             TypeExpr::Tuple(vec![]),
             died_chain_ty(),
@@ -11722,7 +11722,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![r_var()],
             }],
             ret: TypeExpr::Parametric {
-                head: "Result".into(),
+                head: "wat::core::Result".into(),
                 args: vec![
                     r_var(),
                     died_chain_ty(),
@@ -11807,13 +11807,13 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Path(":String".into())],
             }],
             ret: TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
                 }],
             },
@@ -11831,7 +11831,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![
                 TypeExpr::Path(":String".into()),
                 TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![t_var()],
                 },
             ],
@@ -11875,7 +11875,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Parametric {
                     head: "rust::crossbeam_channel::Receiver".into(),
                     args: vec![t_var()],
@@ -11931,7 +11931,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
             ret: TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Path(":wat::holon::Vector".into())],
             },
             rest_param_type: None,
@@ -11956,7 +11956,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":String".into())],
             ret: TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Path(":wat::core::Bytes".into())],
             },
             rest_param_type: None,
@@ -12031,7 +12031,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![vector_ty()],
             }],
             ret: vector_ty(),
@@ -12059,7 +12059,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 053: OnlineSubspace native value + 10 core methods.
     let subspace_ty = || TypeExpr::Path(":wat::holon::OnlineSubspace".into());
     let vec_f64_ty = || TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![f64_ty()],
     };
     env.register(
@@ -12152,7 +12152,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 i64_ty(),
                 i64_ty(),
                 TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
                 },
             ],
@@ -12185,11 +12185,11 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![reckoner_ty(), vector_ty()],
             ret: TypeExpr::Tuple(vec![
                 TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Tuple(vec![i64_ty(), f64_ty()])],
                 },
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![i64_ty()],
                 },
                 f64_ty(),
@@ -12213,7 +12213,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![reckoner_ty()],
             ret: TypeExpr::Parametric {
-                head: "Option".into(),
+                head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Tuple(vec![f64_ty(), f64_ty()])],
             },
             rest_param_type: None,
@@ -12225,7 +12225,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![reckoner_ty()],
             ret: TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![i64_ty()],
             },
             rest_param_type: None,
@@ -12306,7 +12306,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![library_ty(), vector_ty(), i64_ty(), i64_ty()],
             ret: TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Tuple(vec![string_ty(), f64_ty()])],
             },
             rest_param_type: None,
@@ -12336,7 +12336,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![library_ty()],
             ret: TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![string_ty()],
             },
             rest_param_type: None,
@@ -12373,7 +12373,7 @@ fn register_builtins(env: &mut CheckEnv) {
     //   body-of        — body only (:None for substrate primitives)
     let symbol_ty = || TypeExpr::Path(":wat::core::keyword".into());
     let opt_holon_ty = || TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
     };
     env.register(
@@ -12416,7 +12416,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // primitives.
     let holon_ty = || TypeExpr::Path(":wat::holon::HolonAST".into());
     let vec_kw_ty = || TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![TypeExpr::Path(":wat::core::keyword".into())],
     };
     env.register(
@@ -12472,11 +12472,11 @@ fn register_builtins(env: &mut CheckEnv) {
     // (matches numpy default ddof=0); all return :Option<f64> with
     // None on empty input (matches f64::min-of/max-of convention).
     let opt_f64_ty = || TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![f64_ty()],
     };
     let vec_f64_ty = || TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![f64_ty()],
     };
     for name in ["mean", "variance", "stddev"] {
@@ -12499,7 +12499,7 @@ fn register_builtins(env: &mut CheckEnv) {
     let instant_ty = || TypeExpr::Path(":wat::time::Instant".into());
     let string_ty = || TypeExpr::Path(":String".into());
     let opt_instant_ty = || TypeExpr::Parametric {
-        head: "Option".into(),
+        head: "wat::core::Option".into(),
         args: vec![instant_ty()],
     };
     env.register(
@@ -12633,7 +12633,7 @@ fn register_builtins(env: &mut CheckEnv) {
     let u_var = || TypeExpr::Path(":U".into());
     let acc_var = || TypeExpr::Path(":Acc".into());
     let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
-        head: "Vec".into(),
+        head: "wat::core::Vector".into(),
         args: vec![inner],
     };
     // :wat::core::length scheme retired; polymorphic under
@@ -12847,11 +12847,11 @@ fn register_builtins(env: &mut CheckEnv) {
     let k_var = || TypeExpr::Path(":K".into());
     let v_var = || TypeExpr::Path(":V".into());
     let hashmap_of = |k: TypeExpr, v: TypeExpr| TypeExpr::Parametric {
-        head: "HashMap".into(),
+        head: "wat::core::HashMap".into(),
         args: vec![k, v],
     };
     let hashset_of = |t: TypeExpr| TypeExpr::Parametric {
-        head: "HashSet".into(),
+        head: "wat::core::HashSet".into(),
         args: vec![t],
     };
 
@@ -12880,7 +12880,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![TypeExpr::Parametric {
-                head: "HashMap".into(),
+                head: "wat::core::HashMap".into(),
                 args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
             }],
             ret: i64_ty(),
@@ -12892,7 +12892,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Parametric {
-                head: "HashSet".into(),
+                head: "wat::core::HashSet".into(),
                 args: vec![t_var()],
             }],
             ret: i64_ty(),
@@ -13672,11 +13672,11 @@ mod tests {
         // Different parametric heads must NOT unify: Vec<i64> vs Option<i64>.
         let mut s = Subst::new();
         let vec_int = TypeExpr::Parametric {
-            head: "Vec".into(),
+            head: "wat::core::Vector".into(),
             args: vec![TypeExpr::Path(":i64".into())],
         };
         let option_int = TypeExpr::Parametric {
-            head: "Option".into(),
+            head: "wat::core::Option".into(),
             args: vec![TypeExpr::Path(":i64".into())],
         };
         assert!(unify(&vec_int, &option_int, &mut s, &TypeEnv::with_builtins()).is_err());
@@ -13701,7 +13701,7 @@ mod tests {
         let mut s = Subst::new();
         // α = List<α>  — would produce an infinite type.
         let cyclic = TypeExpr::Parametric {
-            head: "Vec".into(),
+            head: "wat::core::Vector".into(),
             args: vec![TypeExpr::Var(0)],
         };
         assert!(unify(&TypeExpr::Var(0), &cyclic, &mut s, &TypeEnv::with_builtins()).is_err());

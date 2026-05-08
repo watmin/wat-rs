@@ -313,7 +313,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::holon::BundleResult".into(),
         type_params: vec![],
         expr: TypeExpr::Parametric {
-            head: "Result".into(),
+            head: "wat::core::Result".into(),
             args: vec![
                 TypeExpr::Path(":wat::holon::HolonAST".into()),
                 TypeExpr::Path(":wat::holon::CapacityExceeded".into()),
@@ -338,7 +338,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::holon::Holons".into(),
         type_params: vec![],
         expr: TypeExpr::Parametric {
-            head: "Vec".into(),
+            head: "wat::core::Vector".into(),
             args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
         },
     }));
@@ -395,7 +395,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::core::Bytes".into(),
         type_params: vec![],
         expr: TypeExpr::Parametric {
-            head: "Vec".into(),
+            head: "wat::core::Vector".into(),
             args: vec![TypeExpr::Path(":u8".into())],
         },
     }));
@@ -430,99 +430,31 @@ fn register_builtin_types(env: &mut TypeEnv) {
         expr: TypeExpr::Tuple(vec![]),
     }));
 
-    // Arc 109 slice 1e — FQDN four-of-five parametric type heads.
-    // Promote Option / Result / HashMap / HashSet under
-    // :wat::core::*. Vec<T> is NOT in this slice (rides slice 1f
-    // because it couples with the rename to Vector and § D's verb
-    // companion).
+    // Arc 163 slice 3e — the typealiases for Option / Result /
+    // HashMap / HashSet / Vector are RETIRED. They were originally
+    // minted (arc 109 slices 1e + 1f) as transitional bridges
+    // between source FQDN (`:wat::core::Option<T>`) and substrate-
+    // internal bare-head storage (`Parametric { head: "Option", ... }`).
     //
-    //   typealias :wat::core::Option<T>     = :Option<T>
-    //   typealias :wat::core::Result<T,E>   = :Result<T,E>
-    //   typealias :wat::core::HashMap<K,V>  = :HashMap<K,V>
-    //   typealias :wat::core::HashSet<T>    = :HashSet<T>
+    // Slice 3e closed that bridge by promoting substrate-internal
+    // storage to FQDN: the head now reads `"wat::core::Option"`
+    // directly. The aliases became identity (alias `:wat::core::Option`
+    // mapped to `Parametric { head: "wat::core::Option", ... }`),
+    // which created an `expand_alias` self-reference loop.
     //
-    // Both spellings type-check during the deprecation window via
-    // alias resolution. The audit walker
-    // (`validate_bare_legacy_primitives`) detects the bare-source
-    // `Parametric.head` ("Option", "Result", etc.) and emits
-    // `BareLegacyContainerHead` per occurrence; the FQDN form
-    // parses to a Parametric with head "wat::core::Option" (or
-    // similar) — distinct string, audit walker passes silently.
+    // The aliases are now redundant: source FQDN flows through
+    // `parse_type_inner` unchanged to the FQDN head; bare forms
+    // are rejected by the BareLegacyContainerHead walker. No
+    // alias resolution is needed because no transformation is
+    // needed. Constructors / dispatch / type-checking match the
+    // FQDN head string directly.
     //
-    // `parse_type_inner`'s canonicalize=true path rewrites
-    // wat::core::Option → Option (etc.) at the head position so
-    // the substrate's existing special-case dispatch (which reads
-    // against bare head names) keeps working. canonicalize=false
-    // preserves source spelling for the walker.
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::core::Option".into(),
-        type_params: vec!["T".into()],
-        expr: TypeExpr::Parametric {
-            head: "Option".into(),
-            args: vec![TypeExpr::Path(":T".into())],
-        },
-    }));
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::core::Result".into(),
-        type_params: vec!["T".into(), "E".into()],
-        expr: TypeExpr::Parametric {
-            head: "Result".into(),
-            args: vec![
-                TypeExpr::Path(":T".into()),
-                TypeExpr::Path(":E".into()),
-            ],
-        },
-    }));
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::core::HashMap".into(),
-        type_params: vec!["K".into(), "V".into()],
-        expr: TypeExpr::Parametric {
-            head: "HashMap".into(),
-            args: vec![
-                TypeExpr::Path(":K".into()),
-                TypeExpr::Path(":V".into()),
-            ],
-        },
-    }));
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::core::HashSet".into(),
-        type_params: vec!["T".into()],
-        expr: TypeExpr::Parametric {
-            head: "HashSet".into(),
-            args: vec![TypeExpr::Path(":T".into())],
-        },
-    }));
-
-    // Arc 109 slice 1f — Vec<T> renames AND moves under
-    // :wat::core::*. The bare type form retires; the FQDN carries
-    // a NEW name (Vector, not Vec) per INVENTORY § B's "Vec is
-    // renamed AND moved" note.
-    //
-    //   typealias :wat::core::Vector<T> = :Vec<T>
-    //
-    // The internal canonical form stays "Vec" (head string) — the
-    // substrate's special-case dispatch reads against bare "Vec"
-    // throughout. The audit walker
-    // (`validate_bare_legacy_primitives`) detects bare-source
-    // `Parametric.head == "Vec"` and emits
-    // `BareLegacyContainerHead`; the FQDN form parses to a
-    // Parametric with head "wat::core::Vector" — distinct string,
-    // walker passes silently. parse_type_inner's canonicalize=true
-    // path rewrites "wat::core::Vector" → "Vec" so the existing
-    // dispatch keeps working.
-    //
-    // The constructor verb :wat::core::vec is poisoned in
-    // src/check.rs (Pattern 2 from SUBSTRATE-AS-TEACHER) with
-    // redirect to :wat::core::Vector; the new verb produces the
-    // same Parametric { head: "Vec", ... } shape internally.
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::core::Vector".into(),
-        type_params: vec!["T".into()],
-        expr: TypeExpr::Parametric {
-            head: "Vec".into(),
-            args: vec![TypeExpr::Path(":T".into())],
-        },
-    }));
+    // Constructor verbs (`:wat::core::Vector`, `:wat::core::HashMap`,
+    // `:wat::core::HashSet`) are still recognized by the runtime
+    // dispatcher (`runtime.rs eval_list_ctor`, etc.) and the
+    // type-checker (`check.rs infer_*_constructor`). Pattern 2
+    // poison still surfaces friendly redirects for legacy spellings
+    // (`:wat::core::vec`, `:Option<T>` etc.) at type-check time.
 
     // :wat::eval::StepResult — populated in the Ok slot of the :Result
     // returned by :wat::eval-step! (arc 068). Two variants distinguish
@@ -640,7 +572,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                     (
                         "failure".into(),
                         TypeExpr::Parametric {
-                            head: "Option".into(),
+                            head: "wat::core::Option".into(),
                             args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
                         },
                     ),
@@ -678,7 +610,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                     (
                         "failure".into(),
                         TypeExpr::Parametric {
-                            head: "Option".into(),
+                            head: "wat::core::Option".into(),
                             args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
                         },
                     ),
@@ -719,21 +651,21 @@ fn register_builtin_types(env: &mut TypeEnv) {
             (
                 "file".into(),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
             (
                 "line".into(),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":i64".into())],
                 },
             ),
             (
                 "symbol".into(),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
@@ -753,28 +685,28 @@ fn register_builtin_types(env: &mut TypeEnv) {
             (
                 "location".into(),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":wat::kernel::Location".into())],
                 },
             ),
             (
                 "frames".into(),
                 TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::kernel::Frame".into())],
                 },
             ),
             (
                 "actual".into(),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
             (
                 "expected".into(),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
@@ -793,21 +725,21 @@ fn register_builtin_types(env: &mut TypeEnv) {
             (
                 "stdout".into(),
                 TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
             (
                 "stderr".into(),
                 TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
             (
                 "failure".into(),
                 TypeExpr::Parametric {
-                    head: "Option".into(),
+                    head: "wat::core::Option".into(),
                     args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
                 },
             ),
@@ -1741,20 +1673,20 @@ fn parse_type_inner(
         }
         let inside = &rest[1..rest.len() - 1];
         let args = parse_type_list(inside, original, canonicalize, span)?;
-        // Arc 109 slice 1e — FQDN container heads canonicalize to
-        // bare so unify sees a single internal form. Audit walker
-        // (canonicalize=false) preserves source spelling so the
-        // diagnostic distinguishes bare from FQDN.
+        // Arc 163 slice 3e — FQDN IS the canonical storage form.
+        // canonicalize=true: bare legacy heads UPGRADE to FQDN so
+        // substrate-internal storage is uniform (e.g. typealias body
+        // `:Vec<T>` stores `head: "wat::core::Vector"`). Source FQDN
+        // flows through unchanged. canonicalize=false (audit-walker
+        // path): preserve source spelling so BareLegacyContainerHead
+        // walker can fire on bare user-source.
         let head = if canonicalize {
             match raw_head.as_str() {
-                "wat::core::Option" => "Option".to_string(),
-                "wat::core::Result" => "Result".to_string(),
-                "wat::core::HashMap" => "HashMap".to_string(),
-                "wat::core::HashSet" => "HashSet".to_string(),
-                // Arc 109 slice 1f — Vec<T> renames AND moves; FQDN
-                // form is :wat::core::Vector<T>. Internal canonical
-                // stays "Vec" so existing dispatch works.
-                "wat::core::Vector" => "Vec".to_string(),
+                "Vec" => "wat::core::Vector".to_string(),
+                "Option" => "wat::core::Option".to_string(),
+                "Result" => "wat::core::Result".to_string(),
+                "HashMap" => "wat::core::HashMap".to_string(),
+                "HashSet" => "wat::core::HashSet".to_string(),
                 _ => raw_head,
             }
         } else {
@@ -2342,7 +2274,7 @@ mod tests {
             assert_eq!(
                 a.expr,
                 TypeExpr::Parametric {
-                    head: "Vec".into(),
+                    head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":T".into())]
                 }
             );
@@ -2377,7 +2309,7 @@ mod tests {
         if let TypeDef::Alias(a) = env.get(":my::Scores").unwrap() {
             match &a.expr {
                 TypeExpr::Parametric { head, args } => {
-                    assert_eq!(head, "HashMap");
+                    assert_eq!(head, "wat::core::HashMap");
                     assert_eq!(args.len(), 2);
                     assert_eq!(args[0], TypeExpr::Path(":Atom".into()));
                     assert_eq!(args[1], TypeExpr::Path(":f64".into()));
@@ -2480,7 +2412,7 @@ mod tests {
         assert_eq!(
             parse_type_expr(":Vec<T>").unwrap(),
             TypeExpr::Parametric {
-                head: "Vec".into(),
+                head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Path(":T".into())]
             }
         );
@@ -2491,7 +2423,7 @@ mod tests {
         let t = parse_type_expr(":HashMap<String,fn(i32)->i32>").unwrap();
         match t {
             TypeExpr::Parametric { head, args } => {
-                assert_eq!(head, "HashMap");
+                assert_eq!(head, "wat::core::HashMap");
                 assert_eq!(args.len(), 2);
                 match &args[1] {
                     TypeExpr::Fn { args: fn_args, ret } => {
@@ -2607,7 +2539,7 @@ mod tests {
                 assert!(a.type_params.is_empty(), "non-parametric alias");
                 match &a.expr {
                     TypeExpr::Parametric { head, args } => {
-                        assert_eq!(head, "Result");
+                        assert_eq!(head, "wat::core::Result");
                         assert_eq!(args.len(), 2);
                         assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
                         assert_eq!(
@@ -2629,7 +2561,7 @@ mod tests {
         let expanded = expand_alias(&alias_ref, &env);
         match expanded {
             TypeExpr::Parametric { head, args } => {
-                assert_eq!(head, "Result");
+                assert_eq!(head, "wat::core::Result");
                 assert_eq!(args.len(), 2);
                 assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
                 assert_eq!(args[1], TypeExpr::Path(":wat::holon::CapacityExceeded".into()));
@@ -2652,7 +2584,7 @@ mod tests {
                 assert!(a.type_params.is_empty(), "non-parametric alias");
                 match &a.expr {
                     TypeExpr::Parametric { head, args } => {
-                        assert_eq!(head, "Vec");
+                        assert_eq!(head, "wat::core::Vector");
                         assert_eq!(args.len(), 1);
                         assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
                     }
@@ -2670,7 +2602,7 @@ mod tests {
         let expanded = expand_alias(&alias_ref, &env);
         match expanded {
             TypeExpr::Parametric { head, args } => {
-                assert_eq!(head, "Vec");
+                assert_eq!(head, "wat::core::Vector");
                 assert_eq!(args.len(), 1);
                 assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
             }

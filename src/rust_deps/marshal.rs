@@ -171,7 +171,7 @@ impl<T: FromWat> FromWat for Option<T> {
             },
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
-                expected: "Option",
+                expected: "wat::core::Option",
                 got: other.type_name(),
                 span, // arc 138 F4b: real span threaded through
             }),
@@ -257,7 +257,7 @@ impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
             },
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
-                expected: "Result",
+                expected: "wat::core::Result",
                 got: other.type_name(),
                 span, // arc 138 F4b: real span threaded through
             }),
@@ -282,7 +282,7 @@ impl<T: FromWat> FromWat for Vec<T> {
                 .collect::<Result<Vec<_>, _>>(),
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
-                expected: "Vec",
+                expected: "wat::core::Vector",
                 got: other.type_name(),
                 span, // arc 138 F4b: real span threaded through
             }),

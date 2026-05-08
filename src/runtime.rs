@@ -454,12 +454,16 @@ pub enum ProgramHandleInner {
 impl Value {
     pub fn type_name(&self) -> &'static str {
         match self {
+            // Arc 163 slice 3e — primitive arms revert to bare; full
+            // primitive-path FQDN sweep is slice 3f scope (155 sites).
+            // Container arms (Vector/Option/Result/HashMap/HashSet/etc.)
+            // stay FQDN because slice 3e flipped Parametric.head storage.
             Value::bool(_) => "bool",
             Value::i64(_) => "i64",
             Value::u8(_) => "u8",
             Value::f64(_) => "f64",
             Value::String(_) => "String",
-            Value::Vec(_) => "Vec",
+            Value::Vec(_) => "wat::core::Vector",
             Value::Unit => "()",
             Value::wat__core__keyword(_) => "wat::core::keyword",
             Value::wat__core__fn(_) => "wat::core::fn",
@@ -467,19 +471,19 @@ impl Value {
             Value::wat__WatAST(_) => "wat::WatAST",
             Value::crossbeam_channel__Sender(_) => "rust::crossbeam_channel::Sender",
             Value::crossbeam_channel__Receiver(_) => "rust::crossbeam_channel::Receiver",
-            Value::wat__std__HashMap(_) => "rust::std::collections::HashMap",
-            Value::wat__std__HashSet(_) => "rust::std::collections::HashSet",
+            Value::wat__std__HashMap(_) => "wat::core::HashMap",
+            Value::wat__std__HashSet(_) => "wat::core::HashSet",
             Value::RustOpaque(inner) => inner.type_path,
             Value::io__IOReader(_) => "wat::io::IOReader",
             Value::io__IOWriter(_) => "wat::io::IOWriter",
-            Value::Option(_) => "Option",
-            Value::Result(_) => "Result",
+            Value::Option(_) => "wat::core::Option",
+            Value::Result(_) => "wat::core::Result",
             Value::Tuple(_) => "tuple",
             Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
             Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
             Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
-            Value::Struct(_) => "Struct",
-            Value::Enum(_) => "Enum",
+            Value::Struct(_) => "wat::core::Struct",
+            Value::Enum(_) => "wat::core::Enum",
             Value::Vector(_) => "wat::holon::Vector",
             Value::OnlineSubspace(_) => "wat::holon::OnlineSubspace",
             Value::Reckoner(_) => "wat::holon::Reckoner",
@@ -2162,7 +2166,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
 fn is_vector_type(ty: &crate::types::TypeExpr) -> bool {
     match ty {
         crate::types::TypeExpr::Parametric { head, args } => {
-            (head == "Vec" || head == "Vector" || head == "wat::core::Vector")
+            (head == "wat::core::Vector")
                 && args.len() == 1
         }
         _ => false,
@@ -3631,42 +3635,25 @@ fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bo
             }
             // Concrete path. Compare against the value's type tag.
             let value_tag = v.type_name();
-            // Accept BOTH the FQDN form (`:wat::core::i64`) and the
-            // bare form (`:i64`) — both are legal user spellings; the
-            // type system treats them as the same type via parse-time
-            // canonicalization.
-            // Arc 153 slice 2 — `("wat::core::unit", "()")` arm
-            // retired alongside the typealias + walker (per
-            // substrate-as-teacher § "Retire the hint when its
-            // window closes"). All in-tree consumers spell the
-            // canonical `:wat::core::nil`; the parsed Path
-            // canonicalizes to `Tuple(vec![])` and uses the
-            // existing `()` tag match below.
+            // Compare against the value's FQDN type tag.
+            // Arc 163 slice 3e — type_name() now returns canonical
+            // FQDN for all arms; bare-form alias bridge retired.
             stripped == value_tag
-                || matches!(
-                    (stripped, value_tag),
-                    ("wat::core::i64", "i64")
-                        | ("wat::core::f64", "f64")
-                        | ("wat::core::bool", "bool")
-                        | ("wat::core::u8", "u8")
-                        | ("wat::core::String", "String")
-                        | ("wat::core::keyword", "wat::core::keyword")
-                )
         }
         TypeExpr::Parametric { head, .. } => {
             // Container-head matching only — type-vars in args are
             // wildcards at runtime (check-time has enforced shape).
             let value_tag = v.type_name();
             match head.as_str() {
-                "Vec" => value_tag == "Vec",
-                "HashMap" => value_tag == "rust::std::collections::HashMap",
-                "HashSet" => value_tag == "rust::std::collections::HashSet",
-                "Option" => value_tag == "Option",
-                "Result" => value_tag == "Result",
+                "wat::core::Vector" => value_tag == "wat::core::Vector",
+                "wat::core::HashMap" => value_tag == "wat::core::HashMap",
+                "wat::core::HashSet" => value_tag == "wat::core::HashSet",
+                "wat::core::Option" => value_tag == "wat::core::Option",
+                "wat::core::Result" => value_tag == "wat::core::Result",
                 _ => false,
             }
         }
-        TypeExpr::Tuple(_) => v.type_name() == "tuple",
+        TypeExpr::Tuple(_) => v.type_name() == "wat::core::tuple",
         TypeExpr::Fn { .. } => v.type_name() == "wat::core::fn",
         TypeExpr::Var(_) => true,
     }
@@ -5654,7 +5641,7 @@ fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>, RuntimeErr
         // call site (would expand the helper signature across ~30 callers).
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: "Vec",
+            expected: "wat::core::Vector",
             got: other.type_name(),
             span: Span::unknown(),
         }),
@@ -14564,7 +14551,7 @@ fn eval_handle_pool_new(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::HandlePool::new".into(),
-                expected: "Vec",
+                expected: "wat::core::Vector",
                 got: other.type_name(),
                 span: args[1].span().clone(),
             });
@@ -14711,7 +14698,7 @@ fn eval_kernel_select(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::select".into(),
-                expected: "Vec",
+                expected: "wat::core::Vector",
                 got: other.type_name(),
                 span: args[0].span().clone(),
             });
