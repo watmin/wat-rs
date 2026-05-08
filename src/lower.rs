@@ -24,11 +24,11 @@
 //! # What's NOT handled (yet)
 //!
 //! - Symbol references (a let-bound name, a define-registered function,
-//!   a lambda parameter) — requires resolution, which isn't in this
+//!   a fn parameter) — requires resolution, which isn't in this
 //!   slice.
 //! - Stdlib macros (`:wat::holon::Subtract`, `:wat::holon::Log`, etc.) — require
 //!   macro expansion before lowering reaches them.
-//! - Language forms (`define`, `lambda`, `let`, `if`, etc.) — require
+//! - Language forms (`define`, `fn`, `let`, `if`, etc.) — require
 //!   an evaluator, not just a lowering pass.
 //!
 //! Anything unsupported returns a [`LowerError`] naming the form.

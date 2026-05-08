@@ -2,12 +2,12 @@
 ;;
 ;; Focus: `with-state` (arc 006's Mealy-machine stream stage) and the
 ;; `chunks` rewrite on top of it. With arc 009 (names-are-values) shipped,
-;; step/flush are passed by name — no pass-through lambda ceremony.
+;; step/flush are passed by name — no pass-through fn ceremony.
 ;;
 ;; Each deftest's body runs in its own sandboxed frozen world; helper
 ;; defines written at this file's top level do NOT cross into the
 ;; sandbox. Everything a test needs (producer logic, step/flush)
-;; defines inline via lambda or uses foldl for producer iteration.
+;; defines inline via fn or uses foldl for producer iteration.
 
 
 ;; ─── chunks — rewritten on top of with-state ─────────────────────────
@@ -80,7 +80,7 @@
 
 (:wat::test::deftest :wat-tests::std::stream::test-with-state-dedupe-adjacent
   ()
-  ;; rune:complectens(inline-fixtures) — 8 outer bindings, but `step` and `flush` are inline lambda fixtures defining the Mealy stage — irreducible data; cannot be extracted without losing the test's self-contained definition of "dedupe" behavior
+  ;; rune:complectens(inline-fixtures) — 8 outer bindings, but `step` and `flush` are inline fn fixtures defining the Mealy stage — irreducible data; cannot be extracted without losing the test's self-contained definition of "dedupe" behavior
   ;; Input: 1 1 2 2 2 3 1 1 → expect 1 2 3 1.
   (:wat::core::let
     ((source (:wat::core::Vector :wat::core::i64 1 1 2 2 2 3 1 1))
@@ -144,7 +144,7 @@
 ;;
 ;; The canonical shape: `(:wat::core::map (:wat::core::Vector :wat::core::i64 1 2 3) double)`
 ;; transforms into `(:wat::core::Vector :wat::core::i64 2 4 6)`. Named define `double`
-;; passes by bare reference via the let*-bound lambda.
+;; passes by bare reference via the let*-bound fn.
 
 (:wat::test::deftest :wat-tests::std::stream::test-names-are-values-via-let-binding
   ()

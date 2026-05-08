@@ -415,7 +415,7 @@
 ;;
 ;; HologramCache's underlying LocalCache is thread-owned (lives in a
 ;; ThreadOwnedCell), so the cache MUST stay on the worker thread.
-;; Allocate inside the driver lambda; delegate to loop-step.
+;; Allocate inside the driver fn; delegate to loop-step.
 ;;
 ;; Arc 130: takes driver-pairs Vec<DriverPair> instead of bare req-rxs.
 ;; The driver uses the pair index to locate the matching ReplyTx after

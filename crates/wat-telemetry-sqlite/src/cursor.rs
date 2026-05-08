@@ -5,15 +5,15 @@
 //! and yield reified `:wat::telemetry::Event::Log` /
 //! `Event::Metric` values. The wat-side `(stream-logs handle q)`
 //! / `(stream-metrics handle q)` defines (slice 1d) wrap the
-//! cursor in a `:wat::stream::spawn-producer` lambda; the
-//! lambda calls `step!` per row and forwards through a bounded(1)
+//! cursor in a `:wat::stream::spawn-producer` fn; the
+//! fn calls `step!` per row and forwards through a bounded(1)
 //! channel to whatever `filter` / `for-each` stage the user
 //! composed downstream.
 //!
 //! # Thread model — three stages, two channels
 //!
 //! ```text
-//! T2 (Rust)        T1 (wat lambda)              T0 (consumer)
+//! T2 (Rust)        T1 (wat fn)                  T0 (consumer)
 //! ─────────        ───────────────              ────────────
 //! sqlite step ──▶  cursor.rx (this module's
 //! reify each row    bounded(1) channel)
@@ -32,7 +32,7 @@
 //! Drop-cascade discipline: when T0 stops pulling (consumer
 //! `for-each` returns / panics / drops its receiver), the
 //! substrate channel closes; T1's send returns `:None` next
-//! iteration, the lambda exits, T1 drops its end of THIS
+//! iteration, the fn exits, T1 drops its end of THIS
 //! module's channel; T2's send returns Err on next iteration,
 //! the Rust thread breaks out of its row loop and exits cleanly.
 //! Same shape as every other Stream<T> in the substrate.

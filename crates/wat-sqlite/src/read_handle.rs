@@ -63,8 +63,8 @@ pub(crate) fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
 /// Stores both the open `Connection` (the validation that the
 /// path is a real, openable sqlite file) AND the path itself.
 /// Consumers that want to spawn cursors inside a wat
-/// `spawn-producer` lambda (where the thread-owned ReadHandle
-/// can't follow the lambda capture) call `path()` to get the
+/// `spawn-producer` fn (where the thread-owned ReadHandle
+/// can't follow the fn capture) call `path()` to get the
 /// path back, capture that string, and re-open inside the
 /// producer thread.
 pub struct ReadHandle {
@@ -77,7 +77,7 @@ pub struct ReadHandle {
     pub conn: Connection,
     /// The path passed to `open`. Stashed so consumers can hand
     /// the string off to a different thread (capture into a
-    /// `spawn-producer` lambda) and re-open a fresh ReadHandle
+    /// `spawn-producer` fn) and re-open a fresh ReadHandle
     /// there. Connection itself doesn't expose `path()` cleanly
     /// for our flow, so we keep it ourselves.
     path: String,

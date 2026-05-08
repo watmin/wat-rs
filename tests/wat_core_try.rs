@@ -3,11 +3,11 @@
 //! Covered:
 //! - Happy path: `try` on `Ok(v)` evaluates to `v`.
 //! - Propagation: `try` on `Err(e)` short-circuits the enclosing
-//!   function/lambda, packaging `e` as that function's own `Err(e)`.
+//!   function, packaging `e` as that function's own `Err(e)`.
 //! - Multi-hop propagation across function boundaries.
 //! - Check-time refusals: bad arity, non-Result argument, `try` in a
 //!   non-Result-returning enclosing scope, mismatched `Err` types.
-//! - Integration with `let*`, `match` arms, and lambdas.
+//! - Integration with `let*`, `match` arms, and fns.
 //!
 //! Runtime design matches `crate::runtime::eval_try` +
 //! `apply_function`'s `TryPropagate` catch; type-check design matches
@@ -247,13 +247,13 @@ fn try_mismatched_err_types_rejected_at_check() {
     assert!(saw_type_mismatch, "expected TypeMismatch on :wat::core::Result/try; got {:?}", errs);
 }
 
-// ─── Lambda scope ─────────────────────────────────────────────────────
+// ─── Fn scope ─────────────────────────────────────────────────────────
 
 #[test]
-fn try_inside_result_returning_lambda_propagates_to_lambda() {
-    // The lambda itself is Result-returning, so try short-circuits the
-    // lambda. The outer function (also Result-returning) receives the
-    // lambda's Err as a Value::Result and wraps it back as-is.
+fn try_inside_result_returning_fn_propagates_to_fn() {
+    // The fn itself is Result-returning, so try short-circuits the
+    // fn. The outer function (also Result-returning) receives the
+    // fn's Err as a Value::Result and wraps it back as-is.
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
@@ -262,21 +262,21 @@ fn try_inside_result_returning_lambda_propagates_to_lambda() {
               (:wat::core::fn
                 ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :wat::core::Result<wat::core::i64,wat::core::String>)
                 (:wat::core::Ok (:wat::core::Result/try r)))))
-            (f (:wat::core::Err "lambda-err"))))
+            (f (:wat::core::Err "fn-err"))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
-            Err(Value::String(s)) if s.as_ref() == "lambda-err" => {}
-            other => panic!("expected Err(\"lambda-err\"); got {:?}", other),
+            Err(Value::String(s)) if s.as_ref() == "fn-err" => {}
+            other => panic!("expected Err(\"fn-err\"); got {:?}", other),
         },
         other => panic!("expected Result; got {:?}", other),
     }
 }
 
 #[test]
-fn try_inside_non_result_lambda_rejected_at_check() {
-    // Lambda's return type is :i64, not Result — the innermost
-    // enclosing scope for `try` is the lambda, not the outer fn.
+fn try_inside_non_result_fn_rejected_at_check() {
+    // Fn's return type is :i64, not Result — the innermost
+    // enclosing scope for `try` is the fn, not the outer fn.
     // MalformedForm fires.
     let src = r#"
 

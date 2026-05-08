@@ -29,7 +29,7 @@ use std::sync::{Arc, RwLock};
 ///
 /// Arc 037 slice 6: floors are functions of both d and the
 /// user-configurable sigma function. They're computed on first
-/// presence? / coincident? call at this d (one wat-lambda invocation
+/// presence? / coincident? call at this d (one wat-fn invocation
 /// per tier per sigma-setter, max) and cached thereafter as a simple
 /// field load. O(tiers) sigma invocations ever.
 pub struct Encoders {

@@ -1,6 +1,6 @@
 //! `Identifier` — bare-name references with scope tracking.
 //!
-//! Bare symbols (let-binding names, lambda parameters, match patterns,
+//! Bare symbols (let-binding names, fn parameters, match patterns,
 //! and their reference sites) need scope discrimination for hygienic
 //! macro expansion per Racket's sets-of-scopes model (Flatt 2016).
 //!
@@ -33,7 +33,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// A unique integer identifying a lexical scope — macro invocation,
-/// `let` / `lambda` / `match` scope, etc.
+/// `let` / `fn` / `match` scope, etc.
 ///
 /// `ScopeId`s are monotonically allocated by [`fresh_scope`] across the
 /// whole process; their numeric value is not meaningful, only their

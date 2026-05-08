@@ -11,8 +11,8 @@
 //!
 //! These tests verify spawn-thread accepts the various function-shape
 //! forms that bare-spawn used to accept (named keyword, let-bound
-//! lambda, inline lambda literal, lambda-valued param, closure-
-//! captured lambda) — but the contract under test is the mini-TCP
+//! fn, inline fn literal, fn-valued param, closure-
+//! captured fn) — but the contract under test is the mini-TCP
 //! shape: input flows in via the pipe, output flows out via the pipe,
 //! never via "return value." `Thread/join-result` confirms the body
 //! finished without panic.
@@ -93,10 +93,10 @@ fn spawn_thread_named_define_body() {
     assert!(matches!(run(src), Value::i64(42)));
 }
 
-// ─── Inline lambda literal body — the anonymous path ─────────────────
+// ─── Inline fn literal body — the anonymous path ─────────────────────
 
 #[test]
-fn spawn_thread_inline_lambda_body() {
+fn spawn_thread_inline_fn_body() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -151,7 +151,7 @@ fn spawn_thread_inline_lambda_body() {
 
 #[test]
 fn spawn_thread_closure_capture() {
-    // The body's lambda captures `delta` from the enclosing let*. The
+    // The body's fn captures `delta` from the enclosing let*. The
     // body still does mini-TCP — recv from `in`, send to `out` — but
     // the value sent uses the captured constant. Tests that closed_env
     // crosses the spawn boundary AND that the body uses its substrate
@@ -213,7 +213,7 @@ fn spawn_thread_closure_capture() {
 
 #[test]
 fn spawn_thread_rejects_non_callable_body() {
-    // 42 is neither a keyword path nor a lambda value. The checker's
+    // 42 is neither a keyword path nor a fn value. The checker's
     // TypeMismatch arm fires because spawn-thread's body parameter
     // expects :Fn(Receiver<I>,Sender<O>) -> :() and i64 doesn't unify.
     let src = r#"

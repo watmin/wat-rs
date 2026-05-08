@@ -185,7 +185,7 @@ impl WatMeasureWorkUnit {
     /// `counters[name]` by 1. If the key is absent, initializes
     /// to 1 with the original-key-Value stored alongside.
     ///
-    /// Panics if `name` is not a hashable Value (lambda, channel,
+    /// Panics if `name` is not a hashable Value (fn, channel,
     /// opaque handle). HolonAST + primitives all hash; this is the
     /// arc-057 contract.
     pub fn incr(&mut self, name: Value) {

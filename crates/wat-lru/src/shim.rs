@@ -76,7 +76,7 @@ impl WatLruCache {
     /// evicts the least-recently-used entry if insertion pushes past
     /// capacity. Key is canonicalized via `hashmap_key`, which now
     /// accepts every value type with a structural identity:
-    /// primitives plus `HolonAST` (per arc 057). Lambdas / handles /
+    /// primitives plus `HolonAST` (per arc 057). Fns / handles /
     /// other non-hashable values still error.
     ///
     /// Returns `Some((evicted_k, evicted_v))` if insertion pushed past

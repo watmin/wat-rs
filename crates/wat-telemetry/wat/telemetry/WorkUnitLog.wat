@@ -54,7 +54,7 @@
   (caller :wat::core::keyword)
   ;; Clock injection — a closure taking unit, returning a wall-
   ;; clock Instant. Tests pass a deterministic now-fn; production
-  ;; passes (lambda (_) (:wat::time::now)). Same pattern as arc 087.
+  ;; passes (fn ((_) -> :wat::time::Instant) (:wat::time::now)). Same pattern as arc 087.
   (now-fn :wat::core::Fn(wat::core::nil)->wat::time::Instant))
 
 

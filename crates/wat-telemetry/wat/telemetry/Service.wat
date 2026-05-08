@@ -97,7 +97,7 @@
 ;; A complete client/server connection — one ReqChannel and one
 ;; AckChannel that the spawn step distributes between Handle (client
 ;; side) and DriverPair (server side). Aliased so spawn's zip-and-map
-;; doesn't smear the verbose tuple form across every lambda body.
+;; doesn't smear the verbose tuple form across every fn body.
 (:wat::core::typealias :wat::telemetry::Connection<E>
   :(wat::telemetry::ReqChannel<E>,wat::telemetry::AckChannel))
 

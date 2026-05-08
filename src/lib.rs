@@ -16,7 +16,7 @@
 //!
 //! - [`ast`] — `WatAST`, the language-surface AST the parser produces.
 //!   Distinct from `wat::holon::HolonAST` — the WatAST carries `define`,
-//!   `lambda`, `struct`, `enum`, `newtype`, `typealias`, `load!`, `set-*!`,
+//!   `fn`, `struct`, `enum`, `newtype`, `typealias`, `load!`, `set-*!`,
 //!   `let`, `if`, `match`, `defmacro`, and all the language-level forms.
 //!   Algebra-core calls appear as `UpperCall` nodes that are lowered to
 //!   `HolonAST` at evaluation time.
@@ -43,7 +43,7 @@
 //! - [`hash`] — canonical-EDN serialization + SHA-256 hashing +
 //!   Ed25519 signature verification.
 //! - [`lower`] — `WatAST` algebra-core subtree → `wat::holon::HolonAST`.
-//! - [`runtime`] — AST-walker for `define` / `lambda` / `let` / `if`
+//! - [`runtime`] — AST-walker for `define` / `fn` / `let` / `if`
 //!   + algebra-core dispatch.
 //! - [`freeze`] — the 12-step startup pipeline that composes parse →
 //!   resolve → check → freeze into a single world.

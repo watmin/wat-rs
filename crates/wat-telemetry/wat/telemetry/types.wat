@@ -51,7 +51,7 @@
   :wat::telemetry::Handle<wat::telemetry::Event>)
 
 
-;; Body lambda's shape for the make-scope HOF — takes the wu the
+;; Body fn's shape for the make-scope HOF — takes the wu the
 ;; factory constructed; returns whatever T the caller wanted.
 ;; Aliased so call sites don't smear `:wat::core::Fn(WorkUnit)->T` across
 ;; every body declaration.

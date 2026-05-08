@@ -28,7 +28,7 @@
   (
    ;; ─── Layer 0 — pure builders ──────────────────────────────────
    ;;
-   ;; :test::svc-tel-make-dispatcher — build the stub dispatcher lambda.
+   ;; :test::svc-tel-make-dispatcher — build the stub dispatcher fn.
    ;; Captures stub-tx in a foldl; each entry is forwarded to the
    ;; stub channel so the test can drain them after join.
    (:wat::core::define

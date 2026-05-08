@@ -9,7 +9,7 @@
 //! reassigns `cur_func`/`cur_args` and re-iterates. Rust stack stays
 //! constant across arbitrary tail-recursion depth.
 //!
-//! Stage 1 scope: named defines (`sym.functions`). Lambda-valued
+//! Stage 1 scope: named defines (`sym.functions`). Fn-valued
 //! tail calls land in Stage 2; this file includes a negative-space
 //! note on that boundary.
 //!
@@ -232,14 +232,14 @@ fn try_inside_tail_recursive_function_propagates_err() {
     }
 }
 
-// ─── Stage 2: lambda-valued tail calls ────────────────────────────────
+// ─── Stage 2: fn-valued tail calls ────────────────────────────────
 
 #[test]
-fn lambda_tail_call_via_let_bound_symbol() {
+fn fn_tail_call_via_let_bound_symbol() {
     // Stage 2 detection path 1: bare-symbol head in tail position
-    // resolves to a lambda value in env. `f` is let-bound; calling
-    // `(f 42)` at main's tail fires eval_tail's env.lookup lambda
-    // check, emits TailCall, trampoline runs the lambda body.
+    // resolves to a fn value in env. `f` is let-bound; calling
+    // `(f 42)` at main's tail fires eval_tail's env.lookup fn
+    // check, emits TailCall, trampoline runs the fn body.
     //
     // Single depth — proves the detection path, not the depth. The
     // million-depth case comes via mutual alternation below.
@@ -256,9 +256,9 @@ fn lambda_tail_call_via_let_bound_symbol() {
 }
 
 #[test]
-fn inline_lambda_literal_tail_call() {
+fn inline_fn_literal_tail_call() {
     // Stage 2 detection path 2: the head is itself a list
-    // `(lambda ...)`. Evaluated non-tail; the resulting lambda value
+    // `(fn ...)`. Evaluated non-tail; the resulting fn value
     // triggers a TailCall emission from the List head arm.
     let src = r#"
 
@@ -271,10 +271,10 @@ fn inline_lambda_literal_tail_call() {
 }
 
 #[test]
-fn named_define_tail_calls_lambda_param() {
+fn named_define_tail_calls_fn_param() {
     // `:app::invoke`'s body is `(f n)` — a bare-symbol tail call
-    // where `f` is a parameter whose value is a lambda. Stage 2
-    // detects via env.lookup and TailCall fires with the lambda's
+    // where `f` is a parameter whose value is a fn. Stage 2
+    // detects via env.lookup and TailCall fires with the fn's
     // Arc<Function>.
     let src = r#"
 
@@ -295,20 +295,20 @@ fn named_define_tail_calls_lambda_param() {
 }
 
 #[test]
-fn inline_lambda_named_alternation_at_high_depth() {
+fn inline_fn_named_alternation_at_high_depth() {
     // The high-depth test that requires BOTH stages. `:app::go`
     // (named) recursion is Stage 1 TCO; each call creates a FRESH
-    // inline lambda literal in tail position and invokes it
+    // inline fn literal in tail position and invokes it
     // `((:wat::core::fn ...) state n)` — Stage 2 TCO on the
-    // List-head path. The lambda body, running inside the
+    // List-head path. The fn body, running inside the
     // trampoline's next iteration, tail-calls go again (Stage 1).
     //
-    // Without Stage 2, the inline-lambda tail call burns one Rust
+    // Without Stage 2, the inline-fn tail call burns one Rust
     // frame per iteration — overflows well before 100k. Constant
     // stack at 100k proves Stage 2 detection fires on the
-    // inline-lambda-literal head.
+    // inline-fn-literal head.
     //
-    // (The lambda is re-constructed each iteration — that's heap
+    // (The fn is re-constructed each iteration — that's heap
     // allocation, not stack. The test doesn't care about allocation
     // rate; it cares that stack stays flat.)
     let src = r#"
@@ -328,11 +328,11 @@ fn inline_lambda_named_alternation_at_high_depth() {
 
 // ─── What Stage 2 does NOT do ─────────────────────────────────────────
 
-// Mutual recursion between two let-bound LAMBDAS (lambda A tail-calls
-// lambda B, lambda B tail-calls lambda A, both bound in the same
-// `let*` block) requires letrec-style binding — each lambda's closure
+// Mutual recursion between two let-bound Fns (fn A tail-calls
+// fn B, fn B tail-calls fn A, both bound in the same
+// `let*` block) requires letrec-style binding — each fn's closure
 // must see the other name. wat's `let*` evaluates RHSes sequentially
-// in the prefix scope; a lambda bound first can't close over a name
+// in the prefix scope; a fn bound first can't close over a name
 // bound later, and the reverse direction can only reach backward.
 // No test here because the language doesn't offer the binding form.
 // Mutual recursion across NAMED defines works (see

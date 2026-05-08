@@ -3,9 +3,9 @@
 //! `startup_from_source` + `invoke_user_main`, demonstrating the
 //! idiomatic shape the trading-lab app will consume.
 //!
-//! Producers are passed as lambdas — user-defined wrappers like
+//! Producers are passed as fns — user-defined wrappers like
 //! `spawn-producer` accept `:fn(Sender<T>)->()` values. Keyword-path
-//! coercion (so a bare `:my::producer` works the same as a lambda)
+//! coercion (so a bare `:my::producer` works the same as a fn)
 //! is a future slice; today the wrapper pattern is explicit.
 //!
 //! Coverage:
@@ -255,7 +255,7 @@ fn filter_keeps_only_passing_values() {
                                  n)))))
             (:wat::stream::collect evens)))
     "#;
-    // Identity check inside the lambda — (n*2)/2 == n is always true.
+    // Identity check inside the fn — (n*2)/2 == n is always true.
     // Swap in a real parity check:
     let src = src.replace(
         "(:wat::core::= (:wat::core::i64::/,2 (:wat::core::i64::*,2 n 2) 2)\n                                 n)",

@@ -2745,7 +2745,7 @@ fn eval_list(
             apply_value(&callee, rest, env, sym)
         }
         WatAST::List(_, _) => {
-            // Inline fn call: ((lambda ...) arg1 arg2)
+            // Inline fn call: ((fn ...) arg1 arg2)
             let callee = eval(head, env, sym)?;
             apply_value(&callee, rest, env, sym)
         }
@@ -3558,7 +3558,7 @@ fn dispatch_keyword_head(
                     // Arc 157 — before the UnknownFunction path, check
                     // whether the call head names a `def`-bound value.
                     // A `def`-bound value (e.g. `:get-config`) may be a
-                    // lambda (closure); calling it via `(:get-config ...)`
+                    // fn (closure); calling it via `(:get-config ...)`
                     // should dispatch through `apply_function` rather than
                     // erroring. The canonical strip is skipped here —
                     // `def` names are registered verbatim.
@@ -5167,7 +5167,7 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
 
 /// Structural ordering on [`Value`] — returns `Some(Ordering)` for pairs
 /// whose types support ord, `None` for pairs whose shapes aren't ordered
-/// at all (e.g., HashMap, HashSet, Enum, Struct, HolonAST, unit, lambda).
+/// at all (e.g., HashMap, HashSet, Enum, Struct, HolonAST, unit, fn).
 ///
 /// Mirrors [`values_equal`]'s recursive shape (arc 148 slice 3): the
 /// arms accepted here are the ord-comparable subset of the arms accepted
@@ -6814,7 +6814,7 @@ fn eval_vec_sort_by(
 }
 
 /// `(:wat::core::map xs f)` → `Vec<U>`. Calls `f` on each element.
-/// `f` must be a callable Value (lambda or define-registered).
+/// `f` must be a callable Value (fn or define-registered).
 fn eval_vec_map(
     args: &[WatAST],
     env: &Environment,
@@ -7071,7 +7071,7 @@ fn eval_list_remove_at(
 /// storage. Type-tags prevent cross-type collision (`42` vs `"42"`).
 /// Accepts every value type whose identity has a well-defined
 /// structural hash — primitives plus `HolonAST` (per arc 057's closed
-/// algebra; structural Hash + Eq derive). Lambda / Function /
+/// algebra; structural Hash + Eq derive). Fn / Function /
 /// ProgramHandle / etc. error: their identity isn't structural.
 pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
     match v {
@@ -7833,7 +7833,7 @@ fn dispatch_to_signature_ast(mm: &crate::dispatch::Dispatch, sym: &SymbolTable) 
 /// or a function value (arc 009 "names are values" means keywords that
 /// refer to defined functions evaluate to their Function value). Returns
 /// `Some(name)` for both; `None` for any other value shape.
-fn name_from_keyword_or_lambda(v: &Value) -> Option<String> {
+fn name_from_keyword_or_fn(v: &Value) -> Option<String> {
     match v {
         Value::wat__core__keyword(k) => Some((**k).clone()),
         Value::wat__core__fn(f) => f.name.clone(),
@@ -8019,7 +8019,7 @@ fn eval_lookup_define(
         });
     }
     let v = eval(&args[0], env, sym)?;
-    let name = match name_from_keyword_or_lambda(&v) {
+    let name = match name_from_keyword_or_fn(&v) {
         Some(n) => n,
         None => {
             return Err(RuntimeError::TypeMismatch {
@@ -8109,7 +8109,7 @@ fn eval_signature_of(
         });
     }
     let v = eval(&args[0], env, sym)?;
-    let name = match name_from_keyword_or_lambda(&v) {
+    let name = match name_from_keyword_or_fn(&v) {
         Some(n) => n,
         None => {
             return Err(RuntimeError::TypeMismatch {
@@ -8197,7 +8197,7 @@ fn eval_body_of(
         });
     }
     let v = eval(&args[0], env, sym)?;
-    let name = match name_from_keyword_or_lambda(&v) {
+    let name = match name_from_keyword_or_fn(&v) {
         Some(n) => n,
         None => {
             return Err(RuntimeError::TypeMismatch {
@@ -8320,8 +8320,8 @@ fn eval_rename_callable_name(
 
     // Extract keyword strings from `from` and `to`.
     // Arc-009: known function names evaluate to their Function value, not
-    // a keyword literal. Use `name_from_keyword_or_lambda` to handle both.
-    let from_str = match name_from_keyword_or_lambda(&from_val) {
+    // a keyword literal. Use `name_from_keyword_or_fn` to handle both.
+    let from_str = match name_from_keyword_or_fn(&from_val) {
         Some(n) => n,
         None => {
             return Err(RuntimeError::TypeMismatch {
@@ -8332,7 +8332,7 @@ fn eval_rename_callable_name(
             });
         }
     };
-    let to_str = match name_from_keyword_or_lambda(&to_val) {
+    let to_str = match name_from_keyword_or_fn(&to_val) {
         Some(n) => n,
         None => {
             return Err(RuntimeError::TypeMismatch {
@@ -10605,7 +10605,7 @@ fn require_hologram(
     }
 }
 
-fn require_lambda(op: &str, v: Value) -> Result<Arc<Function>, RuntimeError> {
+fn require_fn(op: &str, v: Value) -> Result<Arc<Function>, RuntimeError> {
     match v {
         Value::wat__core__fn(f) => Ok(f),
         other => Err(RuntimeError::TypeMismatch {
@@ -10639,7 +10639,7 @@ fn eval_hologram_make(
             span: list_span.clone(),
         });
     }
-    let filter = require_lambda(OP, eval(&args[0], env, sym)?)?;
+    let filter = require_fn(OP, eval(&args[0], env, sym)?)?;
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let h = crate::hologram::Hologram::make(ctx.dim_count, filter);
     Ok(Value::Hologram(Arc::new(
@@ -13680,7 +13680,7 @@ fn apply_value(
 /// `docs/arc/2026/04/003-tail-call-optimization/DESIGN.md` for the
 /// full treatment.
 ///
-/// Lambda self-tail-calls still consume stack in Stage 1 — the
+/// Fn self-tail-calls still consume stack in Stage 1 — the
 /// evaluator's user-function-call detection keys on
 /// `sym.functions`, which holds named defines only. A fn body
 /// that tail-calls a *named* define IS covered: the signal fires
@@ -13705,7 +13705,7 @@ pub fn apply_function(
     // "recursion without stack growth."
     let callee_name_initial = match cur_func.name.clone() {
         Some(name) => name,
-        None => format!("<lambda@{}>", cur_func.body.span()),
+        None => format!("<fn@{}>", cur_func.body.span()),
     };
     let _frame_guard = FrameGuard::push(callee_name_initial, cur_span.clone());
 
@@ -13724,7 +13724,7 @@ pub fn apply_function(
                     return Err(RuntimeError::ArityMismatch {
                         op: match cur_func.name.clone() {
                             Some(name) => name,
-                            None => format!("<lambda@{}>", cur_func.body.span()),
+                            None => format!("<fn@{}>", cur_func.body.span()),
                         },
                         expected: fixed_arity,
                         got: actual_arity,
@@ -13737,7 +13737,7 @@ pub fn apply_function(
                     return Err(RuntimeError::ArityMismatch {
                         op: match cur_func.name.clone() {
                             Some(name) => name,
-                            None => format!("<lambda@{}>", cur_func.body.span()),
+                            None => format!("<fn@{}>", cur_func.body.span()),
                         },
                         expected: fixed_arity,
                         got: actual_arity,
@@ -13746,7 +13746,7 @@ pub fn apply_function(
                 }
             }
         }
-        // Build the call env: parent is the closed env (lambda) or a
+        // Build the call env: parent is the closed env (fn) or a
         // fresh root (define — the body resolves global names via sym).
         let parent = cur_func.closed_env.clone().unwrap_or_default();
         let mut builder = parent.child();
@@ -13796,7 +13796,7 @@ pub fn apply_function(
                 // tail calls don't deepen the stack; they substitute.
                 let next_name = match cur_func.name.clone() {
                     Some(name) => name,
-                    None => format!("<lambda@{}>", cur_func.body.span()),
+                    None => format!("<fn@{}>", cur_func.body.span()),
                 };
                 replace_top_frame(next_name, cur_span.clone());
                 continue;
@@ -15996,7 +15996,7 @@ fn eval_form_ast(
 /// Arc 066 — wrap a wat Value as a HolonAST Value. Used by
 /// `eval-ast!` to honor its `Result<HolonAST, EvalError>` scheme;
 /// returns TypeMismatch for Values that have no HolonAST
-/// representation (channels, lambdas, ProgramHandles, etc.).
+/// representation (channels, fns, ProgramHandles, etc.).
 ///
 /// Reuses arc 065's named-verb conventions: primitives lift via the
 /// matching HolonAST leaf constructor (same shape as
@@ -16166,7 +16166,7 @@ fn eval_walk(
             other => {
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
-                    expected: "wat::core::lambda — visitor (acc, form, step) → WalkStep<A>",
+                    expected: "wat::core::fn — visitor (acc, form, step) → WalkStep<A>",
                     got: other.type_name(),
                     span: args[2].span().clone(),
                 });
@@ -16525,7 +16525,7 @@ fn step_list(
     let head_kw = match head {
         WatAST::Keyword(k, _) => k.clone(),
         WatAST::Symbol(ident, sym_span) => {
-            // Bare-symbol heads (inline lambda call sites, let-bound
+            // Bare-symbol heads (inline fn call sites, let-bound
             // function values) need a higher-order step rule that
             // hasn't shipped yet. Phase 3 territory.
             return Err(RuntimeError::NoStepRule {
@@ -16618,7 +16618,7 @@ fn step_list(
         | ":wat::holon::Blend" => {
             step_holon_descend_then_fire(items, list_span, env, sym)
         }
-        // Bare fn/lambda terminal — Q6 of arc 068 DESIGN. A `(fn ...)`
+        // Bare fn terminal — Q6 of arc 068 DESIGN. A `(fn ...)`
         // form is its own canonical-form holon: no captures (a closure-
         // bearing fn would have already produced a Function value
         // with closed_env, not a literal `(fn ...)` form). Wrap as
@@ -16634,7 +16634,7 @@ fn step_list(
         _ => {
             // User-defined function looked up by full keyword path.
             // Top-level defines have closed_env=None; closures (from
-            // lambda) have it Some — we refuse those for now (Phase 3).
+            // fn) have it Some — we refuse those for now (Phase 3).
             if sym.functions.contains_key(&head_kw) {
                 step_user_call(items, list_span, env, sym, &head_kw)
             } else {
@@ -18569,11 +18569,11 @@ mod tests {
         ));
     }
 
-    // ─── Lambda + closures ──────────────────────────────────────────────
+    // ─── Fn + closures ──────────────────────────────────────────────────
 
     #[test]
     fn fn_as_value() {
-        // The lambda produces a callable; invoking it inline.
+        // The fn produces a callable; invoking it inline.
         let result = eval_expr(
             r#"((:wat::core::fn ((x :i64) (y :i64) -> :i64)
                   (:wat::core::i64::+,2 x y))
@@ -18598,7 +18598,7 @@ mod tests {
 
     #[test]
     fn closure_captures_enclosing_variable() {
-        // The lambda captures `n` from the outer let; even when invoked
+        // The fn captures `n` from the outer let; even when invoked
         // from a deeper scope, it sees the captured value.
         let result = eval_expr(
             r#"(:wat::core::let ((n 100))
@@ -21750,7 +21750,7 @@ mod tests {
     // Bare-spawn lib tests retired alongside the verbs they tested.
     // Mini-TCP is the contract: programs deliver values via output
     // pipes, not via join. spawn-thread + Thread/join-result coverage
-    // lives in tests/wat_spawn_lambda.rs (mini-TCP roundtrip on a
+    // lives in tests/wat_spawn_fn.rs (mini-TCP roundtrip on a
     // typed input/output channel pair). Process/join-result coverage
     // lives in tests/wat_arc103_spawn_program.rs.
 
@@ -23427,7 +23427,7 @@ mod tests {
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
-    // queue roundtrip across threads — covered by tests/wat_spawn_lambda.rs
+    // queue roundtrip across threads — covered by tests/wat_spawn_fn.rs
     // (mini-TCP shape on spawn-thread + Thread/join-result).
 
     /// Arc 140 slice 1 — runtime sandbox-scope leak fires when an

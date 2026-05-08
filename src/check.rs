@@ -32,9 +32,9 @@
 //!
 //! # What this does NOT catch (explicitly deferred)
 //!
-//! - **Lambda-value call-site typing.** Lambda values don't carry
+//! - **Fn-value call-site typing.** Fn values don't carry
 //!   structured signatures through [`crate::runtime::Function`] yet,
-//!   so calling a lambda stays Unknown at the check layer.
+//!   so calling a fn stays Unknown at the check layer.
 //! - **`:Union<T,U,V>` coproduct discipline.** `:Union` is a
 //!   first-class type form in the grammar; full subtype / variant
 //!   checks land when stdlib needs demand them.
@@ -1267,7 +1267,7 @@ impl CheckErrors {
 /// 2. **Enclosing return-type stack.** Pushed on entry to every
 ///    function body, popped on exit, consulted by
 ///    `infer_try` to unify the propagated `E` with the enclosing
-///    function/lambda's own `Err` variant. LIFO so the innermost
+///    function's own `Err` variant. LIFO so the innermost
 ///    enclosing scope wins — matches Rust's `?`-operator scoping.
 ///
 /// The parameter name in most call sites is still `fresh` by
@@ -1288,7 +1288,7 @@ impl InferCtx {
         v
     }
 
-    /// Push the declared return type of a function/lambda we are about
+    /// Push the declared return type of a function we are about
     /// to check. Paired with [`pop_enclosing_ret`].
     fn push_enclosing_ret(&mut self, ret: TypeExpr) {
         self.enclosing_rets.push(ret);
@@ -2051,7 +2051,7 @@ fn check_calls_for_sandbox_leak(
 
 // ─── Arc 117 — scope-deadlock prevention ──────────────────────────────
 //
-// At every `:wat::kernel::spawn-thread` call whose body lambda
+// At every `:wat::kernel::spawn-thread` call whose body fn
 // closure-captures a Receiver from a sibling `:wat::kernel::QueuePair`
 // AND `recv`s on that Receiver inside the body — the pair's Sender
 // clone outlives the worker; any `Thread/join-result` deadlocks. The
@@ -3471,7 +3471,7 @@ fn check_form(
 /// Infer the type of an expression, recording errors along the way.
 ///
 /// Returns `Some(type)` when a type can be assigned, `None` when the
-/// expression's type is opaque at this layer (e.g., lambda
+/// expression's type is opaque at this layer (e.g., fn
 /// application, user symbol that isn't a known local). Errors from
 /// nested calls are pushed to `errors`.
 fn infer(
@@ -6684,7 +6684,7 @@ fn validate_def_position_with_wrapper(
 ///
 /// Type rules:
 /// 1. Exactly one argument. Otherwise `ArityMismatch`.
-/// 2. The innermost enclosing function/lambda must declare its return
+/// 2. The innermost enclosing function must declare its return
 ///    type as `:Result<_, E>`. Otherwise `MalformedForm` — `try` has
 ///    nowhere to propagate to.
 /// 3. The argument's type must unify with `:Result<T, E>` where `E` is
@@ -6798,7 +6798,7 @@ fn infer_try(
 ///
 /// Type rules:
 /// 1. Exactly one argument.
-/// 2. The innermost enclosing function/lambda must declare its return
+/// 2. The innermost enclosing function must declare its return
 ///    type as `:Option<_>`. Otherwise `MalformedForm` — `Option/try`
 ///    has nowhere to propagate to.
 /// 3. The argument's type must unify with `:Option<T>`.
@@ -7240,7 +7240,7 @@ fn check_let_star_for_scope_deadlock_inferred(
         // Arc 134 — body-form narrowing. The deadlock shape arc 117/131
         // catches requires the spawned function's body to have a recv
         // call (a recv-loop on a Receiver paired with some sibling
-        // Sender). If the spawn-thread argument is an inline lambda
+        // Sender). If the spawn-thread argument is an inline fn
         // and its body contains NO `(:wat::kernel::recv ...)` calls
         // anywhere, no recv-loop can exist; no Sender's lifetime can
         // deadlock the thread. Exempt every Sender for this Thread.
@@ -7395,7 +7395,7 @@ fn spawn_thread_fn_body_has_no_recv(
 }
 
 /// True iff `rhs` is a spawn-thread / spawn-program / fork-program
-/// call whose function argument is an inline lambda whose body does
+/// call whose function argument is an inline fn whose body does
 /// not contain any kernel recv call. See
 /// `spawn_thread_fn_body_has_no_recv` for the framing.
 fn rhs_spawn_fn_has_no_recv(rhs: &WatAST) -> bool {
@@ -7413,19 +7413,19 @@ fn rhs_spawn_fn_has_no_recv(rhs: &WatAST) -> bool {
     );
     if !is_spawn { return false; }
     let fn_arg = &call[1];
-    // Must be an inline lambda — keyword-path arguments require
+    // Must be an inline fn — keyword-path arguments require
     // function-body lookup we don't perform here.
-    let WatAST::List(lambda_call, _) = fn_arg else { return false; };
-    if lambda_call.len() < 3 { return false; }
-    let lambda_head = match &lambda_call[0] {
+    let WatAST::List(fn_call, _) = fn_arg else { return false; };
+    if fn_call.len() < 3 { return false; }
+    let fn_head = match &fn_call[0] {
         WatAST::Keyword(k, _) => k.as_str(),
         _ => return false,
     };
     // Arc 155 slice 2 — only canonical `:wat::core::fn` recognized.
-    if lambda_head != ":wat::core::fn" { return false; }
-    // Lambda shape: (:wat::core::fn <param-list> body+)
+    if fn_head != ":wat::core::fn" { return false; }
+    // Fn shape: (:wat::core::fn <param-list> body+)
     // params are at index 1; body forms at index 2..
-    let body_forms = &lambda_call[2..];
+    let body_forms = &fn_call[2..];
     !body_forms.iter().any(node_contains_recv)
 }
 
@@ -9373,8 +9373,8 @@ fn infer_fn(
     for (name, ty) in param_names.iter().zip(param_types.iter()) {
         body_locals.insert(name.clone(), ty.clone());
     }
-    // Push this lambda's declared return type onto the enclosing-ret
-    // stack so `try` inside the body propagates to the lambda's
+    // Push this fn's declared return type onto the enclosing-ret
+    // stack so `try` inside the body propagates to the fn's
     // boundary (matches Rust's `?`-operator scoping — short-circuits
     // the innermost fn or closure, not the outer function).
     fresh.push_enclosing_ret(ret_type.clone());
@@ -9383,7 +9383,7 @@ fn infer_fn(
     if let Some(body_ty) = body_ty {
         if unify(&body_ty, &ret_type, subst, env.types()).is_err() {
             errors.push(CheckError::ReturnTypeMismatch {
-                function: format!("<lambda@{}>", body.span()),
+                function: format!("<fn@{}>", body.span()),
                 expected: format_type(&apply_subst(&ret_type, subst)),
                 got: format_type(&apply_subst(&body_ty, subst)),
                 span: body.span().clone(),
@@ -9875,7 +9875,7 @@ fn build_locals(
 
 fn derive_scheme_from_function(func: &Function) -> Option<TypeScheme> {
     // `runtime::Function` carries declared type-parameters, parameter
-    // types, and the return type since slice 7b. Lambdas (name = None)
+    // types, and the return type since slice 7b. Fns (name = None)
     // leave param_types empty and aren't statically typed here.
     //
     // Arc 150 — variadic functions carry their rest-param type in
@@ -13562,8 +13562,8 @@ mod tests {
 
     #[test]
     fn typed_let_binding_with_fn_value() {
-        // A lambda bound to a let with :fn(wat::core::i64)->wat::core::i64
-        // declaration. Declared type matches lambda's own signature, so it
+        // A fn bound to a let with :fn(wat::core::i64)->wat::core::i64
+        // declaration. Declared type matches the fn's own signature, so it
         // passes.
         assert!(check(
             r#"(:wat::core::let
@@ -14170,7 +14170,7 @@ mod tests {
         // canonical service-test mistake without the syntactic noise
         // of a parametric typealias declaration.
         //
-        // The lambda body has a `(recv _in)` so arc 134's body-form
+        // The fn body has a `(recv _in)` so arc 134's body-form
         // narrowing (no-recv → exempt) does NOT apply — the canonical
         // deadlock-prone shape requires the thread to actually have a
         // recv on its input. Without recv there is no recv-loop to
@@ -14283,7 +14283,7 @@ mod tests {
     fn arc_133_typed_name_binding_still_fires() {
         // Body has `(recv _in)` — the canonical deadlock-prone shape
         // requires the thread to actually call recv. Arc 134's body-
-        // form narrowing only exempts no-recv lambda bodies; this
+        // form narrowing only exempts no-recv fn bodies; this
         // test's body is recv-bearing so the rule still fires.
         let src = r#"
             (:wat::core::define
@@ -14508,7 +14508,7 @@ mod tests {
     /// shape.
     ///
     /// This test mirrors the canonical Thread/input/output pattern
-    /// from `tests/wat_spawn_lambda.rs` (the integration tests that
+    /// from `tests/wat_spawn_fn.rs` (the integration tests that
     /// surfaced the pre-arc-134 false positive) and locks it in as a
     /// regression guard.
     #[test]
@@ -14613,7 +14613,7 @@ mod tests {
     /// Pre-arc-134 (post-arc-133) this fired ScopeDeadlock on `pair`
     /// + `tx` because the rule only checked type-coexistence with
     /// the Thread, ignoring whether the spawn body actually had a
-    /// recv. Arc 134's body-form narrowing walks the inline lambda
+    /// recv. Arc 134's body-form narrowing walks the inline fn
     /// body looking for `(:wat::kernel::recv ...)`; absent → exempt.
     ///
     /// Regression guard for the wat_typealias false positive.
@@ -14661,7 +14661,7 @@ mod tests {
                     .collect();
                 assert!(
                     scope_deadlocks.is_empty(),
-                    "arc 134: spawn-thread inline lambda with no recv in body must NOT fire ScopeDeadlock (no recv-loop possible); got: {:?}",
+                    "arc 134: spawn-thread inline fn with no recv in body must NOT fire ScopeDeadlock (no recv-loop possible); got: {:?}",
                     scope_deadlocks
                 );
             }

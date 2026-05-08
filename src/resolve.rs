@@ -3,7 +3,7 @@
 //! After macro expansion, every keyword-path reference used in call
 //! position must resolve to one of:
 //!
-//! - A known `:wat::core::*` language form (define, lambda, let, if,
+//! - A known `:wat::core::*` language form (define, fn, let, if,
 //!   the builtin arithmetic / comparison / boolean ops, the list
 //!   constructor, the quasiquote forms, the type-declaration heads).
 //! - A root-level substrate form: `:wat::load-file!` / `:wat::load-string!` /

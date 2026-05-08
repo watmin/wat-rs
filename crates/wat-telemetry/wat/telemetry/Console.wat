@@ -58,12 +58,12 @@
 ;; slice 3) doesn't change that — we just iterate inside the
 ;; dispatcher instead of having Service/loop iterate for us.
 ;;
-;; Closure-over con-tx + format is wat-lambda-with-captured-environment
-;; per the lambda contract documented in the runtime.
+;; Closure-over con-tx + format is a wat-fn-with-captured-environment
+;; per the fn contract documented in the runtime.
 
 ;; ─── Internal — render a single entry into the line shape ───────
 ;;
-;; Lifted out of the dispatcher's lambda so the inner foldl reads
+;; Lifted out of the dispatcher's fn so the inner foldl reads
 ;; flat (one let* per function per memory `feedback_simple_forms_per_func`).
 (:wat::core::define
   (:wat::telemetry::Console::render-line<E>

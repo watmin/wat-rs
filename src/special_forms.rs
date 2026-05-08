@@ -2,7 +2,7 @@
 //!
 //! Special forms are syntactic constructs the type checker + runtime
 //! handle directly (not via dispatch through Function or TypeScheme).
-//! Examples: `:wat::core::if`, `let*`, `lambda`, `define`, `match`,
+//! Examples: `:wat::core::if`, `let*`, `fn`, `define`, `match`,
 //! `quasiquote`, `try`, retired-but-poisoned heads like
 //! `:wat::kernel::spawn`.
 //!

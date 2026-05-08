@@ -208,7 +208,7 @@
    ;; ─── Service constructor ─────────────────────────────────────
    ;;
    ;; Build N request channels, pool the senders (orphan detector at
-   ;; construction), spawn the driver lambda — the lambda closes over
+   ;; construction), spawn the driver fn — the fn closes over
    ;; req-rxs + initial state and forwards the substrate's `out`
    ;; Sender to Service/loop. Returns (pool, thread).
    ;;

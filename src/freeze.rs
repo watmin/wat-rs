@@ -292,7 +292,7 @@ impl fmt::Display for StartupError {
 
 /// Signature check for `set-presence-sigma!` / `set-coincident-sigma!`.
 /// Both expect `:fn(:i64) -> :i64` — takes dim, returns σ count.
-/// Lambdas that lack declared types skip the check (same policy as
+/// Fns that lack declared types skip the check (same policy as
 /// dim-router).
 fn check_sigma_fn_signature(
     setter: &str,

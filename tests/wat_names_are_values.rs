@@ -45,7 +45,7 @@ fn run_main_stdout(src: &str) -> Vec<String> {
 #[test]
 fn named_define_is_a_function_value() {
     // `:my::double` is registered as a define. Referencing it in
-    // expression position (not call-head) produces a lambda that can
+    // expression position (not call-head) produces a fn value that can
     // be called by the user via a symbol binding.
     let src = r##"
 
@@ -95,7 +95,7 @@ fn named_define_is_a_function_value() {
 fn named_define_passes_to_higher_order_fn() {
     // A user-defined higher-order function `:my::apply-twice` takes
     // `:wat::core::Fn(wat::core::i64)->wat::core::i64` and an `:i64`; calling it with `:my::inc` and
-    // `5` via the bare keyword path — no lambda wrapper — yields 7.
+    // `5` via the bare keyword path — no fn wrapper — yields 7.
     let src = r##"
 
         (:wat::core::define (:my::inc (n :wat::core::i64) -> :wat::core::i64)
@@ -177,7 +177,7 @@ fn unregistered_keyword_still_a_literal() {
 #[test]
 fn named_define_as_stream_map_fn() {
     // The canonical target: pass `:my::double` to `:wat::stream::map`
-    // without wrapping in a pass-through lambda.
+    // without wrapping in a pass-through fn.
     let src = r##"
 
         (:wat::core::define (:my::double (n :i64) -> :i64)

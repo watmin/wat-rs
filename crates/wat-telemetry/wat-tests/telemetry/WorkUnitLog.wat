@@ -183,7 +183,7 @@
   (:wat::core::let
     ;; Body: emit one /info, drain one event, return its level keyword.
     ;; wul-spawn-stub-and-emit-drain internalizes spawn + configure +
-    ;; pop + wu + logger. Body lambda is the embedded test fixture.
+    ;; pop + wu + logger. Body fn is the embedded test fixture.
     ((thr-kw
       (:test::wul-spawn-stub-and-emit-drain
         (:wat::core::fn
@@ -214,7 +214,7 @@
     ;; Body: emit debug + info + warn + error; drain four events;
     ;; assert first three; return the fourth level keyword.
     ;; wul-spawn-stub-and-emit-drain internalizes spawn + configure +
-    ;; pop + wu + logger. Body lambda is the embedded test fixture.
+    ;; pop + wu + logger. Body fn is the embedded test fixture.
     ((thr-kw
       (:test::wul-spawn-stub-and-emit-drain
         (:wat::core::fn

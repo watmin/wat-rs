@@ -172,11 +172,11 @@ fn nested_lets_compose_with_outer_visible_to_inner() {
     startup_ok(src);
 }
 
-// --- 6. Lambda body containing let -------------------------------------
+// --- 6. Fn body containing let -----------------------------------------
 
 #[test]
-fn lambda_body_with_let_preserves_sequential() {
-    // Sequential `let` inside a lambda body: `b` sees `a`. The lambda
+fn fn_body_with_let_preserves_sequential() {
+    // Sequential `let` inside a fn body: `b` sees `a`. The fn
     // is invoked at call site; result is 7.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)

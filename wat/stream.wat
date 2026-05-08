@@ -64,7 +64,7 @@
 ;;   KeyedChunkStep<K,T>    — chunks-by            : ((wat::core::Option<K>,buf), emits)
 ;;
 ;; Each `:wat::core::Tuple` step returns one of these. Naming the
-;; shapes keeps lambda return-type annotations from accumulating
+;; shapes keeps fn return-type annotations from accumulating
 ;; nested `<>`s at every site.
 (:wat::core::typealias
   :wat::stream::ChunkStep<T>
@@ -463,7 +463,7 @@
 ;;
 ;; Arc 006 inscription note: the pre-with-state chunks-worker was a
 ;; standalone tail-recursive state machine. Same semantics, different
-;; factoring — the state transitions now live in step/flush lambdas
+;; factoring — the state transitions now live in step/flush fns
 ;; instead of in-worker branches.
 
 (:wat::core::define
@@ -498,7 +498,7 @@
     -> :wat::stream::Stream<wat::core::Vector<T>>)
   ;; chunks-step takes (buf, item, size) — three args — but with-state
   ;; wants (buf, item). The `size` parameter has to close over the
-  ;; chunks caller's argument, so step is genuinely a lambda capturing
+  ;; chunks caller's argument, so step is genuinely a fn capturing
   ;; `size`, not a pass-through. chunks-flush takes (buf) exactly, so
   ;; it passes by name directly (arc 009 — names are values).
   (:wat::stream::with-state upstream
@@ -626,7 +626,7 @@
     (upstream :wat::stream::Stream<T>)
     (size :wat::core::i64)
     -> :wat::stream::Stream<wat::core::Vector<T>>)
-  ;; Both step and flush close over size — two lambda wrappers.
+  ;; Both step and flush close over size — two fn wrappers.
   (:wat::stream::with-state upstream
     (:wat::core::Vector :T)
     (:wat::core::fn ((buf :wat::core::Vector<T>) (item :T) -> :wat::stream::ChunkStep<T>)

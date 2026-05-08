@@ -3,7 +3,7 @@
 //! Distinct from `wat::holon::HolonAST`. `WatAST` represents everything the
 //! s-expression grammar admits at parse time: literals, keyword-path
 //! tokens, bare symbols, parenthesized forms. Classification into higher
-//! forms (`Define`, `Lambda`, `Struct`, `UpperCall`, macro invocations,
+//! forms (`Define`, `Fn`, `Struct`, `UpperCall`, macro invocations,
 //! …) happens at later passes (macro-expansion, name-resolution,
 //! lowering) dispatching on the head of a `List` whose first element is
 //! a `Keyword`.
@@ -56,7 +56,7 @@ pub enum WatAST {
     Keyword(String, Span),
 
     /// Bare identifier, as in `x`, `role`, `tmp`. Used in `let` bindings,
-    /// `lambda` parameter names, `match` patterns — the only places the
+    /// `fn` parameter names, `match` patterns — the only places the
     /// language admits bare names. The `Identifier` carries a scope
     /// set for macro hygiene (empty on fresh parse).
     Symbol(Identifier, Span),
@@ -64,7 +64,7 @@ pub enum WatAST {
     /// Parenthesized form `(head arg1 arg2 ...)`. Also covers
     /// empty list `()`. The first child is typically the head —
     /// a `Keyword` for language or algebra calls, a `Symbol` for
-    /// bare-scoped lambda/let invocation.
+    /// bare-scoped fn/let invocation.
     List(Vec<WatAST>, Span),
 }
 

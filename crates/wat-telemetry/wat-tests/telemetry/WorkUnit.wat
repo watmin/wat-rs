@@ -641,7 +641,7 @@
 ;; precedent in wat". Before the rank-2 closure factory for
 ;; WorkUnit/make-scope, this probe verifies the basic shape:
 ;; a function whose return type IS a function type, returned as a
-;; lambda value.
+;; fn value.
 (:deftest :wat-telemetry::WorkUnit::probe-fn-returning-fn
   (:wat::core::let
     ((adder

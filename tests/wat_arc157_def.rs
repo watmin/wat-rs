@@ -155,7 +155,7 @@ fn def_position_legal_do_splice() {
 /// that captures `config = 42` at load time.
 #[test]
 fn def_position_legal_let_splice_with_closure() {
-    // The let's body contains a def whose expr is a lambda capturing
+    // The let's body contains a def whose expr is a fn capturing
     // the let local `config`. Position check: let body at top-level →
     // splice-eligible. The type checker must accept this.
     let src = r#"
@@ -319,7 +319,7 @@ fn def_runtime_pi_in_let_addition() {
 #[test]
 fn def_runtime_let_splice_closure_capture() {
     // Top-level `let` with `config = 42` in scope; the def's expr is a
-    // lambda that captures `config`. Calling `:get-config` must return 42.
+    // fn that captures `config`. Calling `:get-config` must return 42.
     let src = r#"
         (:wat::core::let
           ((config 42))
