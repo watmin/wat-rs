@@ -1035,12 +1035,12 @@ mod tests {
             r#"
             (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<wat::holon::HolonAST>>) -> :AST<wat::holon::HolonAST>)
               `(:wat::holon::Bundle ,xs))
-            (:my::vocab::Concurrent (:wat::core::vec :wat::holon::HolonAST a b c))
+            (:my::vocab::Concurrent (:wat::core::Vector :wat::holon::HolonAST a b c))
             "#,
         )
         .unwrap();
         assert_eq!(forms.len(), 1);
-        // Expansion: (:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST a b c))
+        // Expansion: (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b c))
         match &forms[0] {
             WatAST::List(items, _) => {
                 assert_eq!(items.len(), 2);
@@ -1278,7 +1278,7 @@ mod tests {
             r#"
             (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
             (:wat::core::defmacro (:my::m (x :AST) -> :AST)
-              `(:wat::core::vec ,x))
+              `(:wat::core::Vector ,x))
             "#,
         )
         .unwrap_err();
@@ -1305,7 +1305,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::two (x :AST) (y :AST) -> :AST)
-              `(:wat::core::vec ,x ,y))
+              `(:wat::core::Vector ,x ,y))
             (:my::two 1)
             "#,
         )
@@ -1320,7 +1320,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::m (x :AST) -> :AST)
-              (:wat::core::vec :bogus x))
+              (:wat::core::Vector :bogus x))
             (:my::m 1)
             "#,
         )
@@ -1333,7 +1333,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::s (xs :AST) -> :AST)
-              `(:wat::core::vec ,@xs))
+              `(:wat::core::Vector ,@xs))
             (:my::s 42)
             "#,
         )
@@ -1593,7 +1593,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::two (x :AST) (y :AST) -> :AST)
-              `(:wat::core::vec ,x ,y))
+              `(:wat::core::Vector ,x ,y))
             (:my::two 1)
             "#,
         )
@@ -1738,7 +1738,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::trio -> :AST)
-              `(:wrapper ,@(:wat::core::vec :wat::core::i64 1 2 3)))
+              `(:wrapper ,@(:wat::core::Vector :wat::core::i64 1 2 3)))
             (:my::trio)
             "#,
         )

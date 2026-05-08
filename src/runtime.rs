@@ -3074,18 +3074,12 @@ fn dispatch_keyword_head(
         ":wat::core::or" => eval_or(args, env, sym),
 
         // List construction
-        // Arc 109 slice 1f — :wat::core::Vector is the canonical
-        // constructor; :wat::core::vec stays during the migration
-        // window (Pattern 2 poison surfaces a hint at type-check
-        // time but runtime keeps working). Both paths produce the
-        // same Value::List(Vec<Value>).
-        ":wat::core::vec" => eval_list_ctor(args, env, sym),
+        // Arc 163 slice 3d — `:wat::core::Vector` is canonical;
+        // legacy `:wat::core::vec` and `:wat::core::list` runtime
+        // arms retired. Type-checker Pattern 2 poison (check.rs:3840,
+        // 3858) still surfaces friendly redirect for users typing
+        // legacy keywords; runtime arm gone for defense-in-depth.
         ":wat::core::Vector" => eval_list_ctor(args, env, sym),
-        // Arc 109 slice 1g — :wat::core::list retires (was always
-        // a duplicate of vec); poisoned at type-check time with
-        // redirect to :wat::core::Vector. Runtime keeps working
-        // through the migration window.
-        ":wat::core::list" => eval_list_ctor(args, env, sym),
         // Arc 146 slice 3 — `:wat::core::conj` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch_keyword_head
         // guard above intercepts before reaching this arm; the
@@ -5582,7 +5576,7 @@ fn eval_or(
     Ok(Value::bool(false))
 }
 
-/// `(:wat::core::vec :T x1 x2 ...)` / `(:wat::core::list :T x1 x2 ...)` —
+/// `(:wat::core::Vector :T x1 x2 ...)` —
 /// typed list/vec constructor. First argument is a TYPE KEYWORD read by
 /// the type checker; the runtime transports any `Value`. Remaining args
 /// are element values. Matches the `make-bounded-channel` precedent for
@@ -5597,7 +5591,7 @@ fn eval_list_ctor(
         // arc 138: no span — leaf helper; threading list_span here would
         // require updating ~150 dispatcher arms.
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::vec".into(),
+            op: ":wat::core::Vector".into(),
             expected: 1,
             got: 0,
             span: Span::unknown(),
@@ -5606,7 +5600,7 @@ fn eval_list_ctor(
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
         // arc 138: no span — same rationale.
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::vec".into(),
+            head: ":wat::core::Vector".into(),
             reason: "first argument must be a type keyword (e.g., :i64)".into(),
             span: Span::unknown(),
         });
@@ -16477,7 +16471,7 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                         Some(HolonAST::blend(a, b, w1, w2))
                     }
                     // Source-form `:wat::holon::Bundle` is NOT a
-                    // value-shape — it takes a `(:wat::core::vec :T
+                    // value-shape — it takes a `(:wat::core::Vector :T
                     // …)` arg and runs the encoder/capacity check
                     // when fired. The lifted Bundle (bare list, no
                     // keyword head) IS handled by the bare-list
@@ -16809,13 +16803,10 @@ fn is_holon_arg_canonical(form: &WatAST) -> bool {
                 // be recursively canonical for the parent
                 // constructor to fire as a single step.
                 //
-                // Arc 163 slice 3c — accept canonical `:wat::core::Vector`
-                // alongside the retired `:wat::core::vec` /
-                // `:wat::core::list` keywords. The retired keywords
-                // stay through slice 3c (transitional during the
-                // arc 163 sweep); slice 3d removes them post-test-
-                // fixture migration.
-                ":wat::core::Vector" | ":wat::core::vec" | ":wat::core::list" => {
+                // Arc 163 slice 3d — retired `:wat::core::vec` /
+                // `:wat::core::list` keywords removed; only the
+                // canonical `:wat::core::Vector` arm remains.
+                ":wat::core::Vector" => {
                     items.len() >= 2
                         && matches!(items[1], WatAST::Keyword(_, _))
                         && items[2..].iter().all(is_holon_arg_canonical)
@@ -18663,7 +18654,7 @@ mod tests {
         // budget=32 and we Bundle 3 atoms).
         let v = eval_with_ctx(
             r#"(:wat::holon::Bundle
-                 (:wat::core::vec :wat::holon::HolonAST
+                 (:wat::core::Vector :wat::holon::HolonAST
                    (:wat::holon::Atom "a")
                    (:wat::holon::Atom "b")
                    (:wat::holon::Atom "c")))"#,
@@ -19292,7 +19283,7 @@ mod tests {
         // Easy case: a=Atom("a"), b=Bundle([Atom("a"), Atom("b"), Atom("c")]).
         // The Bundle contains Atom("a") — so presence? is true — but
         // the Bundle is NOT the same as the single atom.
-        let bundle_src = r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST
+        let bundle_src = r#"(:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST
                                (:wat::holon::Atom "a")
                                (:wat::holon::Atom "b")
                                (:wat::holon::Atom "c")))"#;
@@ -20446,30 +20437,28 @@ mod tests {
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
-    // ─── Vec/list primitives (Round 4a) ───────────────────────────────
+    // ─── Vector primitives (Round 4a) ───────────────────────────────
 
     #[test]
-    fn list_constructor_is_alias_for_vec() {
-        // Same runtime shape: both produce Value::Vec.
-        let v1 = eval_expr("(:wat::core::list :i64 1 2 3)").unwrap();
-        let v2 = eval_expr("(:wat::core::vec :i64 1 2 3)").unwrap();
-        match (v1, v2) {
-            (Value::Vec(a), Value::Vec(b)) => {
-                assert_eq!(a.len(), b.len());
-                for (x, y) in a.iter().zip(b.iter()) {
-                    match (x, y) {
-                        (Value::i64(xi), Value::i64(yi)) => assert_eq!(xi, yi),
-                        _ => panic!("expected matching i64 items"),
-                    }
+    fn vector_constructor_produces_vec() {
+        // Arc 163 slice 3d — :wat::core::Vector is the canonical constructor;
+        // :wat::core::vec and :wat::core::list are retired.
+        let v = eval_expr("(:wat::core::Vector :i64 1 2 3)").unwrap();
+        match v {
+            Value::Vec(a) => {
+                assert_eq!(a.len(), 3);
+                match (&a[0], &a[1], &a[2]) {
+                    (Value::i64(1), Value::i64(2), Value::i64(3)) => {}
+                    _ => panic!("expected [1, 2, 3]"),
                 }
             }
-            _ => panic!("expected Vec values"),
+            _ => panic!("expected Vec value"),
         }
     }
 
     #[test]
     fn length_of_three_element_vec() {
-        match eval_expr("(:wat::core::length (:wat::core::list :i64 1 2 3))").unwrap() {
+        match eval_expr("(:wat::core::length (:wat::core::Vector :i64 1 2 3))").unwrap() {
             Value::i64(3) => {}
             v => panic!("expected 3, got {:?}", v),
         }
@@ -20477,7 +20466,7 @@ mod tests {
 
     #[test]
     fn empty_true_on_empty_vec() {
-        match eval_expr("(:wat::core::empty? (:wat::core::list :i64))").unwrap() {
+        match eval_expr("(:wat::core::empty? (:wat::core::Vector :i64))").unwrap() {
             Value::bool(true) => {}
             v => panic!("expected true, got {:?}", v),
         }
@@ -20485,7 +20474,7 @@ mod tests {
 
     #[test]
     fn empty_false_on_nonempty_vec() {
-        match eval_expr("(:wat::core::empty? (:wat::core::list :i64 1))").unwrap() {
+        match eval_expr("(:wat::core::empty? (:wat::core::Vector :i64 1))").unwrap() {
             Value::bool(false) => {}
             v => panic!("expected false, got {:?}", v),
         }
@@ -20493,7 +20482,7 @@ mod tests {
 
     #[test]
     fn reverse_flips_order() {
-        match eval_expr("(:wat::core::reverse (:wat::core::list :i64 1 2 3))").unwrap() {
+        match eval_expr("(:wat::core::reverse (:wat::core::Vector :i64 1 2 3))").unwrap() {
             Value::Vec(items) => {
                 let ns: Vec<_> = items
                     .iter()
@@ -20535,7 +20524,7 @@ mod tests {
 
     #[test]
     fn take_first_n() {
-        match eval_expr("(:wat::core::take (:wat::core::list :i64 1 2 3 4 5) 3)").unwrap() {
+        match eval_expr("(:wat::core::take (:wat::core::Vector :i64 1 2 3 4 5) 3)").unwrap() {
             Value::Vec(items) => assert_eq!(items.len(), 3),
             v => panic!("expected Vec, got {:?}", v),
         }
@@ -20543,7 +20532,7 @@ mod tests {
 
     #[test]
     fn take_more_than_length_returns_full_vec() {
-        match eval_expr("(:wat::core::take (:wat::core::list :i64 1 2) 99)").unwrap() {
+        match eval_expr("(:wat::core::take (:wat::core::Vector :i64 1 2) 99)").unwrap() {
             Value::Vec(items) => assert_eq!(items.len(), 2),
             v => panic!("expected Vec, got {:?}", v),
         }
@@ -20551,7 +20540,7 @@ mod tests {
 
     #[test]
     fn drop_skips_first_n() {
-        match eval_expr("(:wat::core::drop (:wat::core::list :i64 1 2 3 4 5) 2)").unwrap() {
+        match eval_expr("(:wat::core::drop (:wat::core::Vector :i64 1 2 3 4 5) 2)").unwrap() {
             Value::Vec(items) => {
                 assert_eq!(items.len(), 3);
                 match &items[0] {
@@ -20567,7 +20556,7 @@ mod tests {
     fn map_doubles_every_element() {
         let src = r#"
             (:wat::core::map
-              (:wat::core::list :i64 1 2 3)
+              (:wat::core::Vector :i64 1 2 3)
               (:wat::core::fn ((x :i64) -> :i64) (:wat::core::i64::*,2 x 2)))
         "#;
         match eval_expr(src).unwrap() {
@@ -20589,7 +20578,7 @@ mod tests {
     fn foldl_sums_with_init() {
         let src = r#"
             (:wat::core::foldl
-              (:wat::core::list :i64 1 2 3 4)
+              (:wat::core::Vector :i64 1 2 3 4)
               10
               (:wat::core::fn ((acc :i64) (x :i64) -> :i64)
                 (:wat::core::i64::+,2 acc x)))
@@ -20603,7 +20592,7 @@ mod tests {
     #[test]
     fn list_window_builds_sliding_windows() {
         let src = r#"
-            (:wat::std::list::window (:wat::core::list :i64 1 2 3 4) 2)
+            (:wat::std::list::window (:wat::core::Vector :i64 1 2 3 4) 2)
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(outer) => {
@@ -20629,7 +20618,7 @@ mod tests {
     fn first_polymorphic_on_vec() {
         // Arc 047 — first on Vec returns Option<T>.
         let v = expect_some(
-            eval_expr("(:wat::core::first (:wat::core::list :i64 10 20 30))").unwrap(),
+            eval_expr("(:wat::core::first (:wat::core::Vector :i64 10 20 30))").unwrap(),
         );
         assert_eq!(expect_i64(v), 10);
     }
@@ -20637,13 +20626,13 @@ mod tests {
     #[test]
     fn first_on_empty_vec_returns_none() {
         // Arc 047 — first on empty Vec is None (used to error).
-        expect_none(eval_expr("(:wat::core::first (:wat::core::list :i64))").unwrap());
+        expect_none(eval_expr("(:wat::core::first (:wat::core::Vector :i64))").unwrap());
     }
 
     #[test]
     fn second_polymorphic_on_vec() {
         let v = expect_some(
-            eval_expr("(:wat::core::second (:wat::core::list :i64 10 20 30))").unwrap(),
+            eval_expr("(:wat::core::second (:wat::core::Vector :i64 10 20 30))").unwrap(),
         );
         assert_eq!(expect_i64(v), 20);
     }
@@ -20651,7 +20640,7 @@ mod tests {
     #[test]
     fn third_on_vec() {
         let v = expect_some(
-            eval_expr("(:wat::core::third (:wat::core::list :i64 10 20 30))").unwrap(),
+            eval_expr("(:wat::core::third (:wat::core::Vector :i64 10 20 30))").unwrap(),
         );
         assert_eq!(expect_i64(v), 30);
     }
@@ -20659,7 +20648,7 @@ mod tests {
     #[test]
     fn third_on_short_vec_returns_none() {
         // Arc 047 — out-of-range Vec index is None, not an error.
-        expect_none(eval_expr("(:wat::core::third (:wat::core::list :i64 10 20))").unwrap());
+        expect_none(eval_expr("(:wat::core::third (:wat::core::Vector :i64 10 20))").unwrap());
     }
 
     // ─── last + find-last-index + f64::max-of/min-of (arc 047) ────────────
@@ -20667,21 +20656,21 @@ mod tests {
     #[test]
     fn last_returns_some_for_non_empty() {
         let v = expect_some(
-            eval_expr("(:wat::core::last (:wat::core::list :i64 1 2 3 99))").unwrap(),
+            eval_expr("(:wat::core::last (:wat::core::Vector :i64 1 2 3 99))").unwrap(),
         );
         assert_eq!(expect_i64(v), 99);
     }
 
     #[test]
     fn last_returns_none_for_empty() {
-        expect_none(eval_expr("(:wat::core::last (:wat::core::list :i64))").unwrap());
+        expect_none(eval_expr("(:wat::core::last (:wat::core::Vector :i64))").unwrap());
     }
 
     #[test]
     fn find_last_index_returns_rightmost_match() {
         let src = r#"
             (:wat::core::find-last-index
-              (:wat::core::list :i64 5 12 3 18 7)
+              (:wat::core::Vector :i64 5 12 3 18 7)
               (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 10)))
         "#;
         let v = expect_some(eval_expr(src).unwrap());
@@ -20692,7 +20681,7 @@ mod tests {
     fn find_last_index_returns_none_for_no_match() {
         let src = r#"
             (:wat::core::find-last-index
-              (:wat::core::list :i64 1 2 3)
+              (:wat::core::Vector :i64 1 2 3)
               (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 99)))
         "#;
         expect_none(eval_expr(src).unwrap());
@@ -20702,7 +20691,7 @@ mod tests {
     fn find_last_index_returns_none_for_empty() {
         let src = r#"
             (:wat::core::find-last-index
-              (:wat::core::list :i64)
+              (:wat::core::Vector :i64)
               (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 0)))
         "#;
         expect_none(eval_expr(src).unwrap());
@@ -20711,7 +20700,7 @@ mod tests {
     #[test]
     fn f64_max_of_picks_largest() {
         let v = expect_some(
-            eval_expr("(:wat::core::f64::max-of (:wat::core::list :f64 -1.5 4.2 2.0 4.2 0.0))")
+            eval_expr("(:wat::core::f64::max-of (:wat::core::Vector :f64 -1.5 4.2 2.0 4.2 0.0))")
                 .unwrap(),
         );
         assert_eq!(expect_f64(v), 4.2);
@@ -20720,7 +20709,7 @@ mod tests {
     #[test]
     fn f64_min_of_picks_smallest() {
         let v = expect_some(
-            eval_expr("(:wat::core::f64::min-of (:wat::core::list :f64 -1.5 4.2 2.0 -1.5 0.0))")
+            eval_expr("(:wat::core::f64::min-of (:wat::core::Vector :f64 -1.5 4.2 2.0 -1.5 0.0))")
                 .unwrap(),
         );
         assert_eq!(expect_f64(v), -1.5);
@@ -20728,23 +20717,23 @@ mod tests {
 
     #[test]
     fn f64_max_of_singleton_returns_single() {
-        let v = expect_some(eval_expr("(:wat::core::f64::max-of (:wat::core::list :f64 7.5))").unwrap());
+        let v = expect_some(eval_expr("(:wat::core::f64::max-of (:wat::core::Vector :f64 7.5))").unwrap());
         assert_eq!(expect_f64(v), 7.5);
     }
 
     #[test]
     fn f64_max_of_empty_returns_none() {
-        expect_none(eval_expr("(:wat::core::f64::max-of (:wat::core::list :f64))").unwrap());
+        expect_none(eval_expr("(:wat::core::f64::max-of (:wat::core::Vector :f64))").unwrap());
     }
 
     #[test]
     fn f64_min_of_empty_returns_none() {
-        expect_none(eval_expr("(:wat::core::f64::min-of (:wat::core::list :f64))").unwrap());
+        expect_none(eval_expr("(:wat::core::f64::min-of (:wat::core::Vector :f64))").unwrap());
     }
 
     #[test]
     fn rest_drops_first() {
-        match eval_expr("(:wat::core::rest (:wat::core::list :i64 1 2 3))").unwrap() {
+        match eval_expr("(:wat::core::rest (:wat::core::Vector :i64 1 2 3))").unwrap() {
             Value::Vec(items) => {
                 assert_eq!(items.len(), 2);
                 match (&items[0], &items[1]) {
@@ -20758,7 +20747,7 @@ mod tests {
 
     #[test]
     fn rest_of_empty_errors() {
-        let err = eval_expr("(:wat::core::rest (:wat::core::list :i64))").unwrap_err();
+        let err = eval_expr("(:wat::core::rest (:wat::core::Vector :i64))").unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
@@ -20766,7 +20755,7 @@ mod tests {
     fn map_with_index_attaches_positions() {
         let src = r#"
             (:wat::std::list::map-with-index
-              (:wat::core::list :i64 10 20 30)
+              (:wat::core::Vector :i64 10 20 30)
               (:wat::core::fn ((x :i64) (i :i64) -> :i64)
                 (:wat::core::i64::+,2 x i)))
         "#;
@@ -20872,7 +20861,7 @@ mod tests {
     #[test]
     fn hashmap_composite_key_errors() {
         // Keys restricted to primitives in this slice.
-        let err = eval_expr(r#"(:wat::core::HashMap :(Vec<i64>,String) (:wat::core::list :i64 1 2) "x")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::HashMap :(Vec<i64>,String) (:wat::core::Vector :i64 1 2) "x")"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -20976,8 +20965,8 @@ mod tests {
         let src = r#"
             (:wat::core::length
               (:wat::core::concat
-                (:wat::core::vec :i64 1 2)
-                (:wat::core::vec :i64 3 4)))
+                (:wat::core::Vector :i64 1 2)
+                (:wat::core::Vector :i64 3 4)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(4) => {}
@@ -20994,11 +20983,11 @@ mod tests {
             (:wat::core::foldl
               (:wat::core::concat
                 (:wat::core::concat
-                  (:wat::core::vec :i64 1)
-                  (:wat::core::vec :i64 2))
+                  (:wat::core::Vector :i64 1)
+                  (:wat::core::Vector :i64 2))
                 (:wat::core::concat
-                  (:wat::core::vec :i64 3)
-                  (:wat::core::vec :i64 4)))
+                  (:wat::core::Vector :i64 3)
+                  (:wat::core::Vector :i64 4)))
               0
               (:wat::core::fn ((acc :i64) (n :i64) -> :i64)
                 (:wat::core::i64::+,2 acc n)))
@@ -21014,8 +21003,8 @@ mod tests {
         let src = r#"
             (:wat::core::length
               (:wat::core::concat
-                (:wat::core::vec :i64)
-                (:wat::core::vec :i64 1 2)))
+                (:wat::core::Vector :i64)
+                (:wat::core::Vector :i64 1 2)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(2) => {}
@@ -21025,8 +21014,8 @@ mod tests {
         let all_empty = r#"
             (:wat::core::length
               (:wat::core::concat
-                (:wat::core::vec :i64)
-                (:wat::core::vec :i64)))
+                (:wat::core::Vector :i64)
+                (:wat::core::Vector :i64)))
         "#;
         match eval_expr(all_empty).unwrap() {
             Value::i64(0) => {}
@@ -21041,10 +21030,10 @@ mod tests {
             (:wat::core::match
               (:wat::core::get
                 (:wat::core::concat
-                  (:wat::core::vec :i64 10)
+                  (:wat::core::Vector :i64 10)
                   (:wat::core::concat
-                    (:wat::core::vec :i64 20)
-                    (:wat::core::vec :i64 30)))
+                    (:wat::core::Vector :i64 20)
+                    (:wat::core::Vector :i64 30)))
                 0)
               -> :i64
               ((:wat::core::Some n) n)
@@ -21059,7 +21048,7 @@ mod tests {
     #[test]
     fn concat_non_vec_arg_rejected() {
         let err = eval_expr(
-            r#"(:wat::core::concat (:wat::core::vec :i64 1) 42)"#,
+            r#"(:wat::core::concat (:wat::core::Vector :i64 1) 42)"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
@@ -21339,7 +21328,7 @@ mod tests {
     #[test]
     fn vec_get_hit_returns_some_at_valid_index() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::vec :i64 10 20 30)))
+            ((xs (:wat::core::Vector :i64 10 20 30)))
             (:wat::core::match (:wat::core::get xs 1) -> :i64
               ((:wat::core::Some v) v)
               (:wat::core::None    -1)))"#;
@@ -21349,7 +21338,7 @@ mod tests {
     #[test]
     fn vec_get_out_of_range_returns_none() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::vec :i64 10 20 30)))
+            ((xs (:wat::core::Vector :i64 10 20 30)))
             (:wat::core::match (:wat::core::get xs 5) -> :bool
               ((:wat::core::Some _) false)
               (:wat::core::None    true)))"#;
@@ -21359,7 +21348,7 @@ mod tests {
     #[test]
     fn vec_get_negative_index_returns_none() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::vec :i64 10 20 30)))
+            ((xs (:wat::core::Vector :i64 10 20 30)))
             (:wat::core::match (:wat::core::get xs -1) -> :bool
               ((:wat::core::Some _) false)
               (:wat::core::None    true)))"#;
@@ -21377,7 +21366,7 @@ mod tests {
     #[test]
     fn assoc_on_vec_rejects_post_slice4() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::vec :i64 10 20 30)))
+            ((xs (:wat::core::Vector :i64 10 20 30)))
             (:wat::core::assoc xs 1 99))"#;
         let err = eval_expr(src).unwrap_err();
         assert!(
@@ -21415,7 +21404,7 @@ mod tests {
     #[test]
     fn vec_contains_existing_element_returns_true() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::vec :i64 10 20 30)))
+            ((xs (:wat::core::Vector :i64 10 20 30)))
             (:wat::core::contains? xs 20))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
@@ -21423,7 +21412,7 @@ mod tests {
     #[test]
     fn vec_contains_missing_element_returns_false() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::vec :i64 10 20 30)))
+            ((xs (:wat::core::Vector :i64 10 20 30)))
             (:wat::core::contains? xs 99))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
@@ -21431,7 +21420,7 @@ mod tests {
     #[test]
     fn vec_contains_negative_missing_element_returns_false() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::vec :i64 10 20 30)))
+            ((xs (:wat::core::Vector :i64 10 20 30)))
             (:wat::core::contains? xs -1))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
@@ -21463,7 +21452,7 @@ mod tests {
 
     #[test]
     fn hashset_rejects_composite_element() {
-        let err = eval_expr(r#"(:wat::core::HashSet :Vec<i64> (:wat::core::list :i64 1 2))"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::HashSet :Vec<i64> (:wat::core::Vector :i64 1 2))"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -21508,7 +21497,7 @@ mod tests {
         // (foldr [1 2 3] 0 -) = 1 - (2 - (3 - 0)) = 1 - (2 - 3) = 1 - (-1) = 2
         let src = r#"
             (:wat::core::foldr
-              (:wat::core::list :i64 1 2 3)
+              (:wat::core::Vector :i64 1 2 3)
               0
               (:wat::core::fn ((x :i64) (acc :i64) -> :i64)
                 (:wat::core::i64::-,2 x acc)))
@@ -21524,7 +21513,7 @@ mod tests {
         // (foldl [1 2 3] 0 -) = ((0 - 1) - 2) - 3 = -6
         let src_l = r#"
             (:wat::core::foldl
-              (:wat::core::list :i64 1 2 3)
+              (:wat::core::Vector :i64 1 2 3)
               0
               (:wat::core::fn ((acc :i64) (x :i64) -> :i64)
                 (:wat::core::i64::-,2 acc x)))
@@ -21539,7 +21528,7 @@ mod tests {
     fn filter_keeps_true_predicates() {
         let src = r#"
             (:wat::core::filter
-              (:wat::core::list :i64 1 2 3 4 5)
+              (:wat::core::Vector :i64 1 2 3 4 5)
               (:wat::core::fn ((x :i64) -> :bool)
                 (:wat::core::> x 2)))
         "#;
@@ -21562,7 +21551,7 @@ mod tests {
     fn filter_refuses_non_bool_predicate() {
         let src = r#"
             (:wat::core::filter
-              (:wat::core::list :i64 1 2 3)
+              (:wat::core::Vector :i64 1 2 3)
               (:wat::core::fn ((x :i64) -> :i64) x))
         "#;
         let err = eval_expr(src).unwrap_err();
@@ -21573,8 +21562,8 @@ mod tests {
     fn zip_pairs_shorter_length() {
         let src = r#"
             (:wat::std::list::zip
-              (:wat::core::list :i64 1 2 3)
-              (:wat::core::list :String "a" "b"))
+              (:wat::core::Vector :i64 1 2 3)
+              (:wat::core::Vector :String "a" "b"))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -21598,8 +21587,8 @@ mod tests {
     fn zip_empty_with_nonempty_is_empty() {
         let src = r#"
             (:wat::std::list::zip
-              (:wat::core::list :i64)
-              (:wat::core::list :i64 1 2 3))
+              (:wat::core::Vector :i64)
+              (:wat::core::Vector :i64 1 2 3))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => assert!(items.is_empty()),
@@ -21624,7 +21613,7 @@ mod tests {
 
     #[test]
     fn list_window_bigger_than_length_is_empty() {
-        match eval_expr("(:wat::std::list::window (:wat::core::list :i64 1 2) 5)").unwrap() {
+        match eval_expr("(:wat::std::list::window (:wat::core::Vector :i64 1 2) 5)").unwrap() {
             Value::Vec(items) => assert!(items.is_empty()),
             v => panic!("expected empty Vec, got {:?}", v),
         }
@@ -21672,7 +21661,7 @@ mod tests {
     fn vec_length_still_works_after_polymorphism() {
         // Sanity — the existing Vec arm is preserved.
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::vec :i64 10 20 30)))
+            ((xs (:wat::core::Vector :i64 10 20 30)))
             (:wat::core::length xs))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
     }
@@ -21820,7 +21809,7 @@ mod tests {
         let src = r#"
             (:wat::core::match
               (:wat::holon::bytes-vector
-                (:wat::core::vec :u8
+                (:wat::core::Vector :u8
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)))
@@ -21842,7 +21831,7 @@ mod tests {
         let src = r#"
             (:wat::core::match
               (:wat::holon::bytes-vector
-                (:wat::core::vec :u8
+                (:wat::core::Vector :u8
                   (:wat::core::u8 16)
                   (:wat::core::u8 39)
                   (:wat::core::u8 0)
@@ -21912,7 +21901,7 @@ mod tests {
         // 0xde 0xad 0xbe 0xef → "deadbeef" (lowercase, no spaces).
         let src = r#"
             (:wat::core::Bytes::to-hex
-              (:wat::core::vec :u8
+              (:wat::core::Vector :u8
                 (:wat::core::u8 222)   ;; 0xde
                 (:wat::core::u8 173)   ;; 0xad
                 (:wat::core::u8 190)   ;; 0xbe
@@ -21930,7 +21919,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               ((bs1
-                (:wat::core::vec :u8
+                (:wat::core::Vector :u8
                   (:wat::core::u8 1)
                   (:wat::core::u8 2)
                   (:wat::core::u8 254)
@@ -21942,7 +21931,7 @@ mod tests {
                 (:wat::core::match maybe-bs2 -> :wat::core::Bytes
                   ((:wat::core::Some b) b)
                   (:wat::core::None
-                    (:wat::core::vec :u8 (:wat::core::u8 0))))))
+                    (:wat::core::Vector :u8 (:wat::core::u8 0))))))
               (:wat::core::= bs1 bs2))
         "#;
         match eval_expr(src).unwrap() {
@@ -21981,7 +21970,7 @@ mod tests {
             v => panic!("expected 0 (empty Bytes), got {:?}", v),
         }
         let empty_encode = r#"
-            (:wat::core::Bytes::to-hex (:wat::core::vec :u8))
+            (:wat::core::Bytes::to-hex (:wat::core::Vector :u8))
         "#;
         match eval_expr(empty_encode).unwrap() {
             Value::String(s) => assert_eq!(&*s, ""),
@@ -22081,11 +22070,11 @@ mod tests {
     #[test]
     fn show_renders_vec_with_brackets() {
         assert_eq!(
-            show_str("(:wat::core::show (:wat::core::vec :i64 1 2 3))"),
+            show_str("(:wat::core::show (:wat::core::Vector :i64 1 2 3))"),
             "[1, 2, 3]"
         );
         assert_eq!(
-            show_str("(:wat::core::show (:wat::core::vec :i64))"),
+            show_str("(:wat::core::show (:wat::core::Vector :i64))"),
             "[]"
         );
     }
@@ -22288,7 +22277,7 @@ mod tests {
               ((h1
                 (:wat::core::match
                   (:wat::holon::Bundle
-                    (:wat::core::vec :wat::holon::HolonAST
+                    (:wat::core::Vector :wat::holon::HolonAST
                       (:wat::holon::leaf "role")
                       (:wat::holon::leaf "filler")))
                   -> :wat::holon::HolonAST
@@ -22405,7 +22394,7 @@ mod tests {
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
-                (:wat::core::quote (:wat::core::vec :i64 1 2 3)))
+                (:wat::core::quote (:wat::core::Vector :i64 1 2 3)))
               -> :i64
               ((:wat::core::Ok xs) (:wat::core::length xs))
               ((:wat::core::Err _) -1))
@@ -23082,7 +23071,7 @@ mod tests {
 
     #[test]
     fn step_holon_constructor_bundle() {
-        // `(:wat::holon::Bundle (:wat::core::vec :HolonAST (Atom "a")
+        // `(:wat::holon::Bundle (:wat::core::Vector :HolonAST (Atom "a")
         //                                                  (Atom "b")))`
         // — the vec list's elements are themselves holon-canonical
         // (Atom forms with primitive args). Bundle's arg recognizes
@@ -23099,7 +23088,7 @@ mod tests {
             (:my::test::step-to-terminal
               (:wat::core::quote
                 (:wat::holon::Bundle
-                  (:wat::core::vec :wat::holon::HolonAST
+                  (:wat::core::Vector :wat::holon::HolonAST
                     (:wat::holon::Atom "a")
                     (:wat::holon::Atom "b")))))
             "#,
@@ -23274,7 +23263,7 @@ mod tests {
     #[test]
     fn select_refuses_empty_vec() {
         let src = r#"
-            (:wat::kernel::select (:wat::core::vec :rust::crossbeam_channel::Receiver<i64>))
+            (:wat::kernel::select (:wat::core::Vector :rust::crossbeam_channel::Receiver<i64>))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
@@ -23283,7 +23272,7 @@ mod tests {
     #[test]
     fn select_refuses_non_receiver_element() {
         let src = r#"
-            (:wat::kernel::select (:wat::core::vec :i64 1 2 3))
+            (:wat::kernel::select (:wat::core::Vector :i64 1 2 3))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
@@ -23296,7 +23285,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               ((pool
-                (:wat::kernel::HandlePool::new "test" (:wat::core::vec :i64 1 2 3)))
+                (:wat::kernel::HandlePool::new "test" (:wat::core::Vector :i64 1 2 3)))
                (a (:wat::kernel::HandlePool::pop pool))
                (b (:wat::kernel::HandlePool::pop pool))
                (c (:wat::kernel::HandlePool::pop pool))
@@ -23314,7 +23303,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               ((pool
-                (:wat::kernel::HandlePool::new "empty" (:wat::core::vec :i64)))
+                (:wat::kernel::HandlePool::new "empty" (:wat::core::Vector :i64)))
                (_ (:wat::kernel::HandlePool::pop pool)))
               0)
         "#;
@@ -23327,7 +23316,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               ((pool
-                (:wat::kernel::HandlePool::new "orphaned" (:wat::core::vec :i64 1 2 3)))
+                (:wat::kernel::HandlePool::new "orphaned" (:wat::core::Vector :i64 1 2 3)))
                (_ (:wat::kernel::HandlePool::finish pool)))
               0)
         "#;
@@ -23340,7 +23329,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               ((pool
-                (:wat::kernel::HandlePool::new "named-pool" (:wat::core::vec :i64)))
+                (:wat::kernel::HandlePool::new "named-pool" (:wat::core::Vector :i64)))
                (_ (:wat::kernel::HandlePool::pop pool)))
               0)
         "#;
@@ -23428,7 +23417,7 @@ mod tests {
     #[test]
     fn handle_pool_refuses_non_string_name() {
         let src = r#"
-            (:wat::kernel::HandlePool::new 42 (:wat::core::vec :i64))
+            (:wat::kernel::HandlePool::new 42 (:wat::core::Vector :i64))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));

@@ -25,7 +25,7 @@
 //! - Arity mismatches in user-function and built-in calls at startup.
 //! - Type mismatches: `(:wat::core::i64::+,2 "hello" 3)`, `(:wat::core::< 1 "x")`
 //!   — `<` requires matching operand types.
-//! - Polymorphic failures: `(:wat::core::vec 1 "two" 3)` — list
+//! - Polymorphic failures: `(:wat::core::Vector 1 "two" 3)` — list
 //!   elements must unify to a common element type.
 //! - User-define body vs signature mismatches. Rigid type params
 //!   mean a body of `:i64` in a `∀T. T -> T` signature is rejected.

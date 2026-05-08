@@ -168,7 +168,7 @@ pub fn eval_string_join(
 /// separator and the args are passed positionally rather than packed
 /// into a `Vec<String>` — the natural form for "stitch a few strings
 /// together at the call site." Equivalent to
-/// `(:wat::core::string::join "" (:wat::core::vec :String s1 s2 ...))`
+/// `(:wat::core::string::join "" (:wat::core::Vector :String s1 s2 ...))`
 /// but spares the caller the Vec ceremony when concatenation is the
 /// goal and the arity is fixed at the call site.
 ///

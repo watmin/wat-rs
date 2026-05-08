@@ -13,7 +13,7 @@
 //!   (`HolonAST::i64/f64/bool_/string`) per arc 057, or `HolonAST::keyword`
 //!   for a keyword literal.
 //! - `(:wat::holon::Bind a b)` — both args recursively lowered.
-//! - `(:wat::holon::Bundle (:wat::core::vec ...))` — list form required;
+//! - `(:wat::holon::Bundle (:wat::core::Vector ...))` — list form required;
 //!   children recursively lowered.
 //! - `(:wat::holon::Permute child k)` — `k` must be an integer literal
 //!   (fits in `i32`).
@@ -59,7 +59,7 @@ pub enum LowerError {
     AtomNonLiteral(Span),
     /// A `Bind` expected two arguments; got some other count.
     BindArity(usize, Span),
-    /// A `Bundle` expected exactly one list argument `(:wat::core::vec ...)`.
+    /// A `Bundle` expected exactly one list argument `(:wat::core::Vector ...)`.
     BundleShape(Span),
     /// A `Permute` expected two arguments (child, integer step).
     PermuteArity(usize, Span),
@@ -102,7 +102,7 @@ impl fmt::Display for LowerError {
             ),
             LowerError::BundleShape(span) => write!(
                 f,
-                "{}(:wat::holon::Bundle ...) expects (:wat::core::vec ...) as its single argument",
+                "{}(:wat::holon::Bundle ...) expects (:wat::core::Vector ...) as its single argument",
                 span_prefix(span)
             ),
             LowerError::PermuteArity(n, span) => write!(
@@ -238,7 +238,7 @@ fn lower_bind(args: &[WatAST], head_span: Span) -> Result<HolonAST, LowerError> 
 }
 
 fn lower_bundle(args: &[WatAST], head_span: Span) -> Result<HolonAST, LowerError> {
-    // Expect exactly one argument: a (:wat::core::vec :T item ...) form.
+    // Expect exactly one argument: a (:wat::core::Vector :T item ...) form.
     // Typed form per 2026-04-19: the :T arg after the keyword is skipped
     // at lower time (it's for the checker).
     if args.len() != 1 {
@@ -251,7 +251,7 @@ fn lower_bundle(args: &[WatAST], head_span: Span) -> Result<HolonAST, LowerError
             let head = items.first().ok_or_else(|| LowerError::BundleShape(list_span.clone()))?;
             match head {
                 WatAST::Keyword(k, _)
-                    if k == ":wat::core::vec" || k == ":wat::core::Vector" =>
+                    if k == ":wat::core::Vector" =>
                 {
                     if items.len() < 2 {
                         return Err(LowerError::BundleShape(list_span.clone()));
@@ -389,7 +389,7 @@ mod tests {
     #[test]
     fn lower_bundle() {
         let ast = crate::parse_one!(
-            r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
+            r#"(:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();
@@ -463,7 +463,7 @@ mod tests {
 
     #[test]
     fn bundle_must_take_list_form() {
-        // Bundle directly with args, not (:wat::core::vec ...).
+        // Bundle directly with args, not (:wat::core::Vector ...).
         let ast = crate::parse_one!(
             r#"(:wat::holon::Bundle (:wat::holon::Atom "a") (:wat::holon::Atom "b"))"#,
         )
