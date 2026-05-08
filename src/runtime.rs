@@ -16802,13 +16802,20 @@ fn is_holon_arg_canonical(form: &WatAST) -> bool {
                 | ":wat::holon::Permute"
                 | ":wat::holon::Thermometer"
                 | ":wat::holon::Blend" => items[1..].iter().all(is_holon_arg_canonical),
-                // `(:wat::core::vec :T <elems>...)` — Bundle's input
-                // shape. The first arg is a type keyword (not
-                // evaluated, always canonical); subsequent args are
-                // the holon elements that must be recursively
-                // canonical for the parent constructor to fire as a
-                // single step.
-                ":wat::core::vec" | ":wat::core::list" => {
+                // `(:wat::core::Vector :T <elems>...)` — Bundle's
+                // canonical input shape. The first arg is a type
+                // keyword (not evaluated, always canonical);
+                // subsequent args are the holon elements that must
+                // be recursively canonical for the parent
+                // constructor to fire as a single step.
+                //
+                // Arc 163 slice 3c — accept canonical `:wat::core::Vector`
+                // alongside the retired `:wat::core::vec` /
+                // `:wat::core::list` keywords. The retired keywords
+                // stay through slice 3c (transitional during the
+                // arc 163 sweep); slice 3d removes them post-test-
+                // fixture migration.
+                ":wat::core::Vector" | ":wat::core::vec" | ":wat::core::list" => {
                     items.len() >= 2
                         && matches!(items[1], WatAST::Keyword(_, _))
                         && items[2..].iter().all(is_holon_arg_canonical)
