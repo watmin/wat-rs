@@ -1183,7 +1183,7 @@ pub fn eval_kernel_pipe(args: &[WatAST]) -> Result<Value, RuntimeError> {
 // Both types create a fresh file/dir under `std::env::temp_dir()`
 // at construction; Drop auto-unlinks (or `remove_dir_all`s) when
 // the wat value's Arc-count reaches zero — i.e., when the binding
-// goes out of `let*` scope and no one else holds the cell.
+// goes out of `let` scope and no one else holds the cell.
 //
 // Caller idiom (tests, ad-hoc scripts):
 //

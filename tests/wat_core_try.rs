@@ -7,7 +7,7 @@
 //! - Multi-hop propagation across function boundaries.
 //! - Check-time refusals: bad arity, non-Result argument, `try` in a
 //!   non-Result-returning enclosing scope, mismatched `Err` types.
-//! - Integration with `let*`, `match` arms, and fns.
+//! - Integration with `let`, `match` arms, and fns.
 //!
 //! Runtime design matches `crate::runtime::eval_try` +
 //! `apply_function`'s `TryPropagate` catch; type-check design matches
@@ -93,8 +93,8 @@ fn try_propagates_across_helper_function() {
 }
 
 #[test]
-fn try_chains_two_bindings_in_let_star() {
-    // try inside let* binding positions — the classic use. Each try
+fn try_chains_two_bindings_in_let() {
+    // try inside let binding positions — the classic use. Each try
     // unwraps its Result into the bound name; the final Ok wraps the
     // sum to satisfy the function's declared return type.
     let src = r#"
@@ -115,7 +115,7 @@ fn try_chains_two_bindings_in_let_star() {
 }
 
 #[test]
-fn try_short_circuits_let_star_on_first_err() {
+fn try_short_circuits_let_on_first_err() {
     // Err on the first binding propagates; subsequent bindings never
     // evaluate. The body never runs either.
     let src = r#"

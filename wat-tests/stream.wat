@@ -144,7 +144,7 @@
 ;;
 ;; The canonical shape: `(:wat::core::map (:wat::core::Vector :wat::core::i64 1 2 3) double)`
 ;; transforms into `(:wat::core::Vector :wat::core::i64 2 4 6)`. Named define `double`
-;; passes by bare reference via the let*-bound fn.
+;; passes by bare reference via the let-bound fn.
 
 (:wat::test::deftest :wat-tests::std::stream::test-names-are-values-via-let-binding
   ()

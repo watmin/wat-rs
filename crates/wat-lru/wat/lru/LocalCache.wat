@@ -10,7 +10,7 @@
 ;; guard is structural, not contended.
 ;;
 ;; Usage:
-;;   (let* (((cache :wat::lru::LocalCache<String,i64>)
+;;   (let (((cache :wat::lru::LocalCache<String,i64>)
 ;;           (:wat::lru::LocalCache::new 16))
 ;;          ((_ :()) (:wat::lru::LocalCache::put cache "k" 42)))
 ;;     (:wat::core::match (:wat::lru::LocalCache::get cache "k") -> :wat::core::i64

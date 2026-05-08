@@ -15,7 +15,7 @@
 ;;     when callers want the type-guard behavior.
 ;;   - `:wat::std::math::pi` was written bare in the proposal; it's a
 ;;     nullary primitive, called as `(:wat::std::math::pi)` here.
-;;   - let* bindings carry explicit `:wat::core::f64` types.
+;;   - let bindings carry explicit `:wat::core::f64` types.
 ;; Same math, enforcement-correct wat.
 
 (:wat::core::defmacro

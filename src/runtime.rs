@@ -222,7 +222,7 @@ pub enum Value {
     /// at the type level (heterogeneous vs homogeneous). Primarily
     /// produced by kernel primitives that return pairs
     /// (`make-bounded-channel`, `make-unbounded-channel`, `spawn`,
-    /// `select`) and destructured in `let` / `let*` via the
+    /// `select`) and destructured in `let` via the
     /// `((a b ...) rhs)` binder shape. The unit type `:()` stays on
     /// [`Value::Unit`] — tuples start at arity 1.
     Tuple(Arc<Vec<Value>>),
@@ -1227,7 +1227,7 @@ impl fmt::Display for RuntimeError {
             ),
             RuntimeError::NoStepRule { op, span } => write!(
                 f,
-                "{}:wat::eval-step!: no step rule for op {}; v1 covers arithmetic / logical / control flow / let* / match / function call / holon constructors. Fall back to :wat::eval-ast! for unrecognized heads.",
+                "{}:wat::eval-step!: no step rule for op {}; v1 covers arithmetic / logical / control flow / let / match / function call / holon constructors. Fall back to :wat::eval-ast! for unrecognized heads.",
                 span_prefix(span), op
             ),
             RuntimeError::TryPropagate(_) => write!(
@@ -3968,7 +3968,7 @@ fn eval_do(
 }
 
 /// Verify `value` is a tuple of the expected arity and return its
-/// elements cloned. Used by both `let` and `let*` destructure bindings.
+/// elements cloned. Used by `let` destructure bindings.
 fn destructure_tuple(
     value: &Value,
     expected_arity: usize,
@@ -3978,7 +3978,7 @@ fn destructure_tuple(
         Value::Tuple(items) => {
             if items.len() != expected_arity {
                 // arc 138: no span — destructure_tuple is called from let
-                // / let* binding evaluators with no per-binding span context;
+                // binding evaluators with no per-binding span context;
                 // the enclosing let form's span is one frame up.
                 Err(RuntimeError::MalformedForm {
                     head: op.into(),
@@ -4011,7 +4011,7 @@ fn destructure_tuple(
 /// Returns `(name, declared_type, rhs)`. Declared type is validated
 /// via [`crate::types::parse_type_expr`] so `:Any` and malformed
 /// type expressions are caught at this layer.
-/// One let / let* binding form.
+/// One let binding form.
 ///
 /// Two spec'd shapes — both honest about types. Bare-single
 /// `(name rhs)` is NOT accepted: every bound name's type must be
@@ -9208,7 +9208,7 @@ fn eval_err_ctor(
 /// Semantics on the inner Result:
 /// - `(Ok v)` — evaluates to `v`; execution continues.
 /// - `(Err e)` — raises [`RuntimeError::TryPropagate(e)`]. The walker
-///   unwinds through `let*` / `match` / `if` / any nested form until it
+///   unwinds through `let` / `match` / `if` / any nested form until it
 ///   reaches the innermost enclosing [`apply_function`], which catches
 ///   the signal and packages it as the function's own `Err(e)` return
 ///   value.
@@ -9261,7 +9261,7 @@ fn eval_try(
 /// Semantics on the inner Option:
 /// - `(Some v)` — evaluates to `v`; execution continues.
 /// - `:None` — raises [`RuntimeError::OptionPropagate`]. The walker
-///   unwinds through `let*` / `match` / `if` / any nested form until
+///   unwinds through `let` / `match` / `if` / any nested form until
 ///   it reaches the innermost enclosing [`apply_function`], which
 ///   catches the signal and packages it as the function's own
 ///   `Value::Option(Arc::new(None))` return value.
@@ -16317,7 +16317,7 @@ fn step_value_to_enum(sv: StepValue) -> Value {
 }
 
 /// Step a wat form one rewrite. Outer-driver for the per-shape step
-/// rules. Arc 068 covered literal/arithmetic/control flow/let*/match/
+/// rules. Arc 068 covered literal/arithmetic/control flow/let/match/
 /// holon-ctor/user-fn rules. Arc 070 prepends a structural-already-
 /// terminal check: if the form's WatAST recognizes as a value-shape
 /// (literal leaves, holon-constructor lists with all-value args,
@@ -16504,7 +16504,7 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
 }
 
 /// Dispatcher for a `List` form. Recognizes the head keyword and
-/// chooses the matching rule: special forms (if / let* / match) get
+/// chooses the matching rule: special forms (if / let / match) get
 /// dedicated rewrites; pure ops descend leftmost-non-canonical and
 /// fire-via-eval; user-defined functions descend args then β-reduce
 /// by substitution; effectful prefixes refuse with `EffectfulInStep`;
@@ -20341,7 +20341,7 @@ mod tests {
     }
 
     #[test]
-    fn let_star_destructures_a_pair() {
+    fn let_destructures_a_pair() {
         let src = r#"
             (:wat::core::let (((a b) p)) (:wat::core::i64::+,2 a b))
         "#;
@@ -22840,8 +22840,8 @@ mod tests {
     }
 
     #[test]
-    fn step_let_star_substitute() {
-        // `(let* ((x 5)) (* x x))` — RHS canonical, peel,
+    fn step_let_substitute() {
+        // `(let ((x 5)) (* x x))` — RHS canonical, peel,
         // substitute, then arithmetic fire.
         let h = step_drive_to_terminal(
             "(:wat::core::let ((x 5)) (:wat::core::i64::*,2 x x))",
@@ -22850,8 +22850,8 @@ mod tests {
     }
 
     #[test]
-    fn step_let_star_peel_first() {
-        // Multi-binding: `(let* ((a (+ 1 1)) (b a)) b)`.
+    fn step_let_peel_first() {
+        // Multi-binding: `(let ((a (+ 1 1)) (b a)) b)`.
         // a's RHS is non-canonical → descend; then peel a; then peel
         // b; body alone reduces to terminal.
         let h = step_drive_to_terminal(

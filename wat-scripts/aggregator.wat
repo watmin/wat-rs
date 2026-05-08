@@ -22,7 +22,7 @@
   (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
     (:wat::core::None ())
     ((:wat::core::Some line)
-     (:wat::core::let*
+     (:wat::core::let
        (((hit     :demo::Hit) (:wat::edn::read line))
         ((n       :i64)       (:demo::Hit/n hit))
         ((new-sum :i64)       (:wat::core::i64::+ sum n))

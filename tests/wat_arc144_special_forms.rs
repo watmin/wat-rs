@@ -187,7 +187,7 @@ fn lookup_form_if_returns_special_form() {
 }
 
 #[test]
-fn lookup_form_let_star_returns_special_form() {
+fn lookup_form_let_returns_special_form() {
     let out = three_probes(":wat::core::let");
     assert_eq!(out.len(), 3);
     let define_line = &out[0];
@@ -206,7 +206,7 @@ fn lookup_form_let_star_returns_special_form() {
         signature_line.contains(":wat::core::let")
             && signature_line.contains("<bindings>")
             && signature_line.contains("<body>+"),
-        "expected let* signature with <bindings>/<body>+, got: {}",
+        "expected let signature with <bindings>/<body>+, got: {}",
         signature_line
     );
     assert_eq!(out[2], "body-pass");

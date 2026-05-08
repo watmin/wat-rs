@@ -93,7 +93,7 @@
 
    ;; ─── Helpers — function-decomposed lockstep (Step 9) ────────
 
-   ;; Spawn + pop one handle + finish pool + drop. Two-level let*:
+   ;; Spawn + pop one handle + finish pool + drop. Two-level let:
    ;; outer holds the driver; inner owns the popped Sender. Returns
    ;; the driver for the test body to join.
    (:wat::core::define
@@ -118,7 +118,7 @@
        driver))
 
    ;; The inner-scope body — pop one handle + finish + drop. Lives
-   ;; in its own function so spawn-and-drop's outer let* stays simple.
+   ;; in its own function so spawn-and-drop's outer let stays simple.
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::drop-one-handle
        (pool :wat::telemetry::HandlePool<wat::core::i64>)

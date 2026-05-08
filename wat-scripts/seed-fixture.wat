@@ -19,7 +19,7 @@
     (time-ns :i64)
     (msg     :String)
     -> :wat::telemetry::Event)
-  (:wat::core::let*
+  (:wat::core::let
     (((data    :wat::holon::HolonAST) (:wat::holon::leaf msg))
      ((tagged  :wat::edn::Tagged) (:wat::edn::Tagged/new data))
      ((ns      :wat::edn::NoTag)
@@ -39,7 +39,7 @@
   (:demo::seed::write
     (path :String)
     -> :wat::kernel::ProgramHandle<()>)
-  (:wat::core::let*
+  (:wat::core::let
     (((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
       (:wat::telemetry::Sqlite/auto-spawn
         :wat::telemetry::Event
@@ -80,7 +80,7 @@
       (:wat::io::IOWriter/println stderr
         "seed-fixture: expected an output .db path on stdin"))
     ((:wat::core::Some path)
-      (:wat::core::let*
+      (:wat::core::let
         (((driver :wat::kernel::ProgramHandle<()>)
           (:demo::seed::write path))
          ((_join :()) (:wat::kernel::join driver)))

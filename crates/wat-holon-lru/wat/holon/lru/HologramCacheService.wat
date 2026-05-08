@@ -380,7 +380,7 @@
 
 ;; --- Helper — dispatch req to handle + send Reply on pairs[idx].second ---
 ;;
-;; Lifted out of loop-step to keep loop-step's outer let* one-let-deep
+;; Lifted out of loop-step to keep loop-step's outer let one-let-deep
 ;; per `feedback_simple_forms_per_func`. Looks up the DriverPair at idx,
 ;; extracts the ReplyTx, calls handle (which sends the reply on reply-tx),
 ;; ticks the window, recurses.

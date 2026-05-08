@@ -3,7 +3,7 @@
 ;; Three names, one shape. The runtime exposes channel endpoints as
 ;; `:rust::crossbeam_channel::Sender<T>` / `Receiver<T>` (the actual
 ;; Rust types). These aliases give the kernel-namespace short names
-;; that every let* binding, function signature, and Vec carrier
+;; that every let binding, function signature, and Vec carrier
 ;; reaches for — without forcing each caller to spell out the long
 ;; rust:: paths every time.
 ;;

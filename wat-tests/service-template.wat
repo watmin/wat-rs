@@ -258,7 +258,7 @@
    ;; exit. The driver delivers final State on Thread/output — recv it
    ;; (even though unused) so the driver's send doesn't fail. Join.
    ;; No requests sent — the narrowest possible lifecycle proof.
-   ;; Inner-let* lockstep per SERVICE-PROGRAMS.md § "The lockstep" and
+   ;; Inner-let lockstep per SERVICE-PROGRAMS.md § "The lockstep" and
    ;; arc 131. Pop-before-finish per arc 130 edge-case guidance.
    (:wat::core::define
      (:test::svc-spawn-and-shutdown -> :wat::core::nil)

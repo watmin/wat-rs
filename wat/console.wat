@@ -15,7 +15,7 @@
 ;;
 ;; The good wat program:
 ;;   (define (:user::main stdin stdout stderr -> :())
-;;     (let* ((pool console-driver) (Console stdout stderr N))
+;;     (let ((pool console-driver) (Console stdout stderr N))
 ;;       ...hand out handles, use them, drop them...
 ;;       (join console-driver)))
 ;;
@@ -148,7 +148,7 @@
 
 ;; --- Helper — send () on the ack-tx paired with rx[idx]. -----
 ;;
-;; Lifted out of the loop body so the loop's outer let* stays
+;; Lifted out of the loop body so the loop's outer let stays
 ;; one-let-deep per `feedback_simple_forms_per_func`. `(get pairs
 ;; idx)` returns Option per arc 047; an out-of-bounds idx (which
 ;; can't happen here since `select` returned a valid index over

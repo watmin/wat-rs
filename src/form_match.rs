@@ -5,7 +5,7 @@
 //! (`runtime.rs::eval_form_matches`). Macros expand before type-
 //! checking and can't query the struct registry, so the matcher
 //! ships as a substrate-recognized special form rather than a user
-//! defmacro — same shape as `:wat::core::let*` / `match` / `if`.
+//! defmacro — same shape as `:wat::core::let` / `match` / `if`.
 //!
 //! The classifier is intentionally structural-only. It decides what
 //! KIND of clause an AST node is; semantic validation (does the

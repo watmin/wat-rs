@@ -6,7 +6,7 @@
 ;; curated `:wat::telemetry::*` namespace.
 ;;
 ;; Usage:
-;;   (let* (((id :wat::core::String) (:wat::telemetry::uuid::v4)))
+;;   (let (((id :wat::core::String) (:wat::telemetry::uuid::v4)))
 ;;     ...)
 ;;
 ;; The `::` separator places `v4` as a free function under the

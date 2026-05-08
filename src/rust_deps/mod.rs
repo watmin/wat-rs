@@ -13,7 +13,7 @@
 //! ```text
 //! (:wat::core::use! :rust::lru::LruCache)
 //!
-//! (let* (((cache :rust::lru::LruCache<String,i64>)
+//! (let (((cache :rust::lru::LruCache<String,i64>)
 //!         (:rust::lru::LruCache<String,i64>::new 16)))
 //!   (:rust::lru::LruCache<String,i64>::put cache "x" 42)
 //!   (:rust::lru::LruCache<String,i64>::get cache "x"))

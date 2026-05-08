@@ -302,7 +302,7 @@
 ;; --- Helper — dispatch req to handle + send Reply on pairs[idx].second ---
 ;;
 ;; Lifted out of loop-step for the same reason Console lifts ack-at:
-;; keeps loop-step's outer let* one-let-deep per
+;; keeps loop-step's outer let one-let-deep per
 ;; `feedback_simple_forms_per_func`. Looks up the DriverPair at idx,
 ;; extracts the ReplyTx, calls handle (which sends the reply on reply-tx),
 ;; ticks the window, recurses.

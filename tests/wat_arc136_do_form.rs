@@ -268,15 +268,15 @@ fn do_nested_compose_cleanly() {
     assert_eq!(out, vec!["inner", "inner-final", "outer-final"]);
 }
 
-// ─── 10. Mixed with let*: types compose ─────────────────────────────────
+// ─── 10. Mixed with let: types compose ─────────────────────────────────
 
 #[test]
-fn do_inside_let_star_body_composes_types_cleanly() {
-    // A let* whose body is a do form — types compose: let*'s body slot
+fn do_inside_let_body_composes_types_cleanly() {
+    // A let whose body is a do form — types compose: let's body slot
     // expects whatever the recipient (here :user::main's -> :i64) wants;
     // body is a do form whose final form returns the bound x = 7. The
     // first non-final of the do uses the binding too (proves do sees the
-    // surrounding let*'s scope).
+    // surrounding let's scope).
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let

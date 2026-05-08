@@ -56,7 +56,7 @@
     -> :())
   (:wat::core::if (:wat::core::i64::>= round total) -> :()
     ()
-    (:wat::core::let*
+    (:wat::core::let
       (((ping :demo::Ping) (:demo::Ping/new round))
        ((_send :())
         (:wat::core::result::expect -> :()
@@ -91,7 +91,7 @@
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((total :i64) 5)
      ;; The child program — a fresh frozen world built by
      ;; fork-program-ast in process B. The forms are captured
@@ -112,7 +112,7 @@
           (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
             (:wat::core::None ())
             ((:wat::core::Some line)
-             (:wat::core::let*
+             (:wat::core::let
                (((ping :demo::Ping) (:wat::edn::read line))
                 ((n    :i64)         (:demo::Ping/n ping))
                 ((pong :demo::Pong) (:demo::Pong/new n))

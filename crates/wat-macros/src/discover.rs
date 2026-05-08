@@ -614,7 +614,7 @@ mod tests {
     fn scan_finds_simple_deftest() {
         let src = r#"
             (:wat::test::deftest :my::test-foo
-              (:wat::core::let* () ()))
+              (:wat::core::let () ()))
         "#;
         assert_eq!(names_only(src), vec![":my::test-foo".to_string()]);
     }
@@ -940,7 +940,7 @@ mod tests {
     fn scan_finds_deftest_hermetic() {
         let src = r#"
             (:wat::test::deftest-hermetic :my::forked
-              ((:wat::core::let* () ())))
+              ((:wat::core::let () ())))
         "#;
         assert_eq!(names_only(src), vec![":my::forked".to_string()]);
     }

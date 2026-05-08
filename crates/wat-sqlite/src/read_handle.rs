@@ -16,7 +16,7 @@
 //!   contract: filesystem / open errors are programmer-visible
 //!   inputs, not data-flow returns.
 //! - Drop closes the connection. No explicit close primitive
-//!   shipping in slice 1; let*-bind the handle inside a
+//!   shipping in slice 1; let-bind the handle inside a
 //!   `:user::main` body and the lexical end IS the close.
 //!
 //! # WAL coordination

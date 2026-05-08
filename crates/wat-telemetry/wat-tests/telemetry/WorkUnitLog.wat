@@ -16,7 +16,7 @@
 ;;   - calls /info (or /debug, /warn, /error) with a HolonAST data payload
 ;;   - drains ONE event off the stub queue and inspects it
 ;;
-;; recv only what we KNOW was sent — outer let* still holds stub-tx
+;; recv only what we KNOW was sent — outer let still holds stub-tx
 ;; until the body terminates, so an over-recv would block (the
 ;; gotcha called out in SERVICE-PROGRAMS.md).
 

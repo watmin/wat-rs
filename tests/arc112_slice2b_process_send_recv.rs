@@ -7,7 +7,7 @@
 //!     :Process<I,O>    -> :Result<:Option<O>, :wat::kernel::ProcessDiedError>
 //!
 //! Probe asserts that a wat program freezes successfully:
-//!   - process-send used in a let* binding (allowed — Result<()> doesn't
+//!   - process-send used in a let binding (allowed — Result<()> doesn't
 //!     gate on disconnection).
 //!   - process-recv used as a match-scrutinee (required by arc 110 +
 //!     arc 112 slice 3 grammar rule — silent disconnect is a compile

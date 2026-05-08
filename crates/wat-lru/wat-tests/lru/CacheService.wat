@@ -53,7 +53,7 @@
    ;;
    ;; One :wat::lru::get call with an empty probes vec. The helper verb
    ;; does send-AND-recv internally per arc 110's contract — no raw
-   ;; send/recv in test code. The inner let* owns the pool + handle so
+   ;; send/recv in test code. The inner let owns the pool + handle so
    ;; their Sender clones drop before the outer join; only (driver, n)
    ;; survive to the outer scope. Returns the result-vec length.
    (:wat::core::define

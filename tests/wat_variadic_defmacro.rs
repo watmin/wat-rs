@@ -6,7 +6,7 @@
 //! This is the last macro-system prereq for the `pipeline` one-liner
 //! composer (arc 004 item #5). With variadic, `(pipeline source
 //! stage1 stage2 stage3 sink)` becomes expressible as a single macro
-//! whose rest-param captures every stage and emits a let* chain.
+//! whose rest-param captures every stage and emits a let chain.
 //!
 //! Coverage:
 //!

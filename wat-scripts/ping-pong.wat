@@ -54,7 +54,7 @@
     -> :())
   (:wat::core::if (:wat::core::i64::>= round total) -> :()
     ()
-    (:wat::core::let*
+    (:wat::core::let
       (((ping :demo::Ping) (:demo::Ping/new round))
        ((_send :())
         (:wat::core::result::expect -> :()
@@ -89,7 +89,7 @@
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((total :i64) 5)
      ;; Read the child's source from disk. read-file routes through
      ;; the cli's FsLoader, same capability gate that handles

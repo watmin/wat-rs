@@ -247,7 +247,7 @@
             (:wat::core::let
               ;; Outer holds only the console-driver Thread.
               ;; Middle owns spawn-tuple + pool + cd; the worker
-              ;; spawns + joins live in a deeper inner-most let* so
+              ;; spawns + joins live in a deeper inner-most let so
               ;; that pool is NOT a sibling of the worker Threads
               ;; (arc 131 — HandlePool sibling to a Thread with
               ;; join-result is a structural deadlock). Inner-most

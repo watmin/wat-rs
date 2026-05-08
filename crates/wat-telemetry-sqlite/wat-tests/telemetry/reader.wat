@@ -99,7 +99,7 @@
 (:deftest :wat-telemetry-sqlite::reader::test-roundtrip-three-logs
   (:wat::core::let
     (;; Phase 1 — write fixture. Auto-deleting TempFile so the
-     ;; .db unlinks at let* scope exit (Drop fires when the
+     ;; .db unlinks at let scope exit (Drop fires when the
      ;; binding's Arc-count reaches zero); no /tmp leak across
      ;; test runs.
      (tf (:wat::io::TempFile/new))

@@ -186,12 +186,12 @@ mod tests {
     #[test]
     fn render_edn_simple() {
         let d = Diagnostic::new("TypeMismatch")
-            .field("callee", ":wat::core::let*")
+            .field("callee", ":wat::core::let")
             .field("expected", ":i64")
             .field("got", ":String");
         assert_eq!(
             render_edn(&d),
-            r#"#wat.diag/TypeMismatch {:callee ":wat::core::let*" :expected ":i64" :got ":String"}"#
+            r#"#wat.diag/TypeMismatch {:callee ":wat::core::let" :expected ":i64" :got ":String"}"#
         );
     }
 

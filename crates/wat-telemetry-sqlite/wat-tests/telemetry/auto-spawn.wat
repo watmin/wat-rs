@@ -25,7 +25,7 @@
        (forced :wat::core::bool)))
 
 
-   ;; Two-level let* helper — outer holds driver; inner sends
+   ;; Two-level let helper — outer holds driver; inner sends
    ;; entries + drops. Function-decomposed per Step 9.
    (:wat::core::define
      (:test::send-events

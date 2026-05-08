@@ -151,7 +151,7 @@ fn spawn_thread_inline_fn_body() {
 
 #[test]
 fn spawn_thread_closure_capture() {
-    // The body's fn captures `delta` from the enclosing let*. The
+    // The body's fn captures `delta` from the enclosing let. The
     // body still does mini-TCP — recv from `in`, send to `out` — but
     // the value sent uses the captured constant. Tests that closed_env
     // crosses the spawn boundary AND that the body uses its substrate

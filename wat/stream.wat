@@ -6,7 +6,7 @@
 ;;
 ;; Shape:
 ;;
-;;   (let* (((rx1 h1) (stream::spawn-producer :my::source))
+;;   (let (((rx1 h1) (stream::spawn-producer :my::source))
 ;;          ((rx2 h2) (stream::map rx1 :my::transform))
 ;;          ((result :()) (stream::for-each rx2 :my::handler))
 ;;          ((_ :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)

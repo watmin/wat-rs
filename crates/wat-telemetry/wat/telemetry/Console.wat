@@ -19,7 +19,7 @@
 ;;
 ;; Usage shape:
 ;;
-;;   (let* ((con-spawn (Console/spawn stdout stderr 2))
+;;   (let ((con-spawn (Console/spawn stdout stderr 2))
 ;;          (con-pool  (first con-spawn))
 ;;          (con-drv   (second con-spawn))
 ;;          (con-tx    (HandlePool::pop con-pool))
@@ -64,7 +64,7 @@
 ;; ─── Internal — render a single entry into the line shape ───────
 ;;
 ;; Lifted out of the dispatcher's fn so the inner foldl reads
-;; flat (one let* per function per memory `feedback_simple_forms_per_func`).
+;; flat (one let per function per memory `feedback_simple_forms_per_func`).
 (:wat::core::define
   (:wat::telemetry::Console::render-line<E>
     (entry :E)

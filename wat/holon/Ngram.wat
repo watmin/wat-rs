@@ -8,7 +8,7 @@
 ;;
 ;; The macro expansion references :wat::holon::Sequential at parse
 ;; time — the macro-expander recursively expands it inside the
-;; fn, so the emitted AST carries Sequential's let*-foldl
+;; fn, so the emitted AST carries Sequential's let-foldl
 ;; directly with no runtime call hop.
 ;;
 ;; Edge cases per Q2: n <= 0 produces an empty bundle (zero vector);

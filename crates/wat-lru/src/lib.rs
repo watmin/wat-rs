@@ -35,7 +35,7 @@
 //!                      (stdout :wat::io::IOWriter)
 //!                      (stderr :wat::io::IOWriter)
 //!                      -> :())
-//!   (:wat::core::let*
+//!   (:wat::core::let
 //!     (((cache :wat::lru::LocalCache<String,i64>)
 //!       (:wat::lru::LocalCache::new 16))
 //!      ((_ :Option<(String,i64)>) (:wat::lru::LocalCache::put cache "k" 42)))

@@ -24,7 +24,7 @@
   (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
     (:wat::core::None ())
     ((:wat::core::Some line)
-     (:wat::core::let*
+     (:wat::core::let
        (((ping :demo::Ping) (:wat::edn::read line))
         ((n    :i64)         (:demo::Ping/n ping))
         ((pong :demo::Pong) (:demo::Pong/new n))

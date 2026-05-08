@@ -275,7 +275,7 @@
 
 ;; Per-name duration fanout — one Event::Metric row per sample.
 ;; Helper extracted so collect-metric-events can stay one outer
-;; let* (per the "simple forms per func" feedback rule). The
+;; let (per the "simple forms per func" feedback rule). The
 ;; outer walker calls this once per duration-name; inside we
 ;; foldl over that name's samples Vec.
 (:wat::core::define

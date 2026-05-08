@@ -39,7 +39,7 @@
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-fail-populates-message
   ()
-  ;; rune:complectens(embedded-program) — outer let* has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
+  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
     ((r
       (:wat::test::run-ast
@@ -69,7 +69,7 @@
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-contains-fail-populates-actual
   ()
-  ;; rune:complectens(embedded-program) — outer let* has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
+  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
     ((r
       (:wat::test::run-ast
@@ -115,7 +115,7 @@
 ;; on the encoder's d at run time).
 (:wat::test::deftest :wat-tests::std::test::test-assert-coincident-fail-renders-explanation
   ()
-  ;; rune:complectens(embedded-program) — outer let* has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
+  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
     ((r
       (:wat::test::run-ast
@@ -193,7 +193,7 @@
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
   ()
-  ;; rune:complectens(embedded-program) — outer let* has 2 bindings (r, fail); bulk is a TWO-level nested embedded-program AST literal (fixture)
+  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is a TWO-level nested embedded-program AST literal (fixture)
   ;; Two-level nested sandbox: outer program runs inner program that runs silent program. The middle layer calls assert-stderr-matches
   ;; against the silent program's empty stderr; that assertion fires; the middle program's RunResult.failure is populated with
   ;; expected = "my-pattern". The outer inspects the middle's failure.

@@ -20,7 +20,7 @@
       (:wat::io::IOWriter/println stderr
         "metrics-summary: expected a .db path on stdin"))
     ((:wat::core::Some path)
-      (:wat::core::let*
+      (:wat::core::let
         (((handle :wat::sqlite::ReadHandle)
           (:wat::sqlite::open-readonly path))
          ((no-constraints :Vec<wat::telemetry::TimeConstraint>)

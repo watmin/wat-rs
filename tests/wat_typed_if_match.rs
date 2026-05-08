@@ -18,7 +18,7 @@
 //! - Wrong-arity forms rejected with guidance.
 //! - Then/else branch type mismatch surfaces a per-branch error.
 //! - Match arm body type mismatch surfaces a per-arm error.
-//! - Declared `:T` is the form's inferred result (so a `let*`
+//! - Declared `:T` is the form's inferred result (so a `let`
 //!   surrounding it sees `:T`, not "some branch type").
 //! - Nested typed forms compose normally.
 
@@ -245,7 +245,7 @@ fn if_non_bool_cond_rejected_at_check() {
 
 #[test]
 fn typed_if_result_flows_into_enclosing_let_bind() {
-    // The `let*` binding `x :i64` only unifies if infer_if reports
+    // The `let` binding `x :i64` only unifies if infer_if reports
     // `:i64` as the if-form's result type — proving the declared `:T`
     // flows out.
     let src = r#"

@@ -20,7 +20,7 @@
   (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :i64
     (:wat::core::None last)
     ((:wat::core::Some line)
-     (:wat::core::let*
+     (:wat::core::let
        (((partial :demo::Partial) (:wat::edn::read line))
         ((sum     :i64)           (:demo::Partial/sum partial)))
        (:demo::sink::loop stdin sum)))))
@@ -32,7 +32,7 @@
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((final :i64) (:demo::sink::loop stdin 0)))
     (:wat::io::IOWriter/println stdout
       (:wat::edn::write (:demo::Total/new final)))))

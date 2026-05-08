@@ -3,7 +3,7 @@
 //!
 //! Mechanism: when `eval_tail` recognizes a user-defined function call
 //! in tail position (the `:wat::core::if` then/else branches, the
-//! `:wat::core::match` arm bodies, the `:wat::core::let` / `let*`
+//! `:wat::core::match` arm bodies, the `:wat::core::let`
 //! body) it emits `RuntimeError::TailCall` instead of recursing
 //! through `apply_function`. `apply_function`'s trampoline loop
 //! reassigns `cur_func`/`cur_args` and re-iterates. Rust stack stays
@@ -20,7 +20,7 @@
 //! - Self-recursion through `match` (Console/loop-shape — Option arms)
 //!   at high depth succeeds.
 //! - Mutual recursion between two named defines at high depth.
-//! - Tail call nested inside a `let*` body (let* is tail-carrying).
+//! - Tail call nested inside a `let` body (let is tail-carrying).
 //! - Non-tail recursion still produces the correct result at modest
 //!   depth (confirms the TCO doesn't accidentally optimize non-tail
 //!   calls).
@@ -116,12 +116,12 @@ fn mutual_recursion_between_two_defines() {
     assert!(matches!(run(src), Value::bool(true)));
 }
 
-// ─── Tail call through let* body ──────────────────────────────────────
+// ─── Tail call through let body ──────────────────────────────────────
 
 #[test]
-fn tail_call_inside_let_star_body_propagates() {
-    // The `let*` body is the form's tail position — a call there
-    // should trigger TCO. Structured to also validate that the let*
+fn tail_call_inside_let_body_propagates() {
+    // The `let` body is the form's tail position — a call there
+    // should trigger TCO. Structured to also validate that the let
     // bindings are themselves NOT in tail position (their RHS runs
     // through plain eval).
     let src = r#"
@@ -330,8 +330,8 @@ fn inline_fn_named_alternation_at_high_depth() {
 
 // Mutual recursion between two let-bound Fns (fn A tail-calls
 // fn B, fn B tail-calls fn A, both bound in the same
-// `let*` block) requires letrec-style binding — each fn's closure
-// must see the other name. wat's `let*` evaluates RHSes sequentially
+// `let` block) requires letrec-style binding — each fn's closure
+// must see the other name. wat's `let` evaluates RHSes sequentially
 // in the prefix scope; a fn bound first can't close over a name
 // bound later, and the reverse direction can only reach backward.
 // No test here because the language doesn't offer the binding form.

@@ -42,7 +42,7 @@
   (:wat::core::match (:wat::io::IOReader/read-line in) -> :()
     (:wat::core::None ())
     ((:wat::core::Some line)
-     (:wat::core::let*
+     (:wat::core::let
        (((_ :()) (:wat::io::IOWriter/println out line)))
        (:demo::dispatch::pump in out)))))
 
@@ -59,7 +59,7 @@
     (job    :demo::Job)
     (stdout :wat::io::IOWriter)
     -> :Result<(),wat::kernel::StartupError>)
-  (:wat::core::let*
+  (:wat::core::let
     (((db-path :String) (:demo::Job/db-path job))
      ((qp      :String) (:demo::Job/query-program job))
      ((src     :String) (:wat::io::read-file qp))
@@ -89,7 +89,7 @@
       (:wat::io::IOWriter/println stderr
         "dispatch: expected a #demo/Job EDN line on stdin"))
     ((:wat::core::Some line)
-     (:wat::core::let*
+     (:wat::core::let
        (((job    :demo::Job)                            (:wat::edn::read line))
         ((result :Result<(),wat::kernel::StartupError>) (:demo::dispatch::run job stdout)))
        (:wat::core::match result -> :()
