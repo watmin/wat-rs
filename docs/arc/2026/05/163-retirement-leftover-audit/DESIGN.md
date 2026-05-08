@@ -106,7 +106,33 @@ Pre-condition: slice 2 consumer sweep complete (zero in-tree consumer
 keyword usage of legacy spellings; otherwise slice 3 substrate
 retirement breaks the workspace).
 
-### Slice 4 — closure
+### Slice 3e — Substrate container heads to FQDN — NEW per user direction 2026-05-07
+
+User direction: *"wat internals are fully qualified - no exceptions
+... if there's a short form - its illegal... if the internal code
+is mapping to a rust primitive then we use the rust form."*
+
+Substrate stores `head: "Vec"`, `head: "Option"`, etc. — short forms.
+These violate the FQDN rule for wat-internal storage. The
+parse_type_inner canonicalize step actively DOWNGRADES source FQDN
+to short form. This slice rewrites substrate-internal container
+head strings to FQDN form (`"wat::core::Vector"`, etc.) and deletes
+the downgrade arm. ~135 sites.
+
+### Slice 3f — Substrate primitive paths to FQDN
+
+Same rule, separate category. `":i64"` → `":wat::core::i64"` etc.
+across substrate-internal storage. ~142 sites + 5 canonicalize arms
+reshape.
+
+### Slice 3g — User-source bare primitive sweep
+
+Original SURVEY slice 3f (renumbered after 3e/3f introduced for
+substrate). Mass test-fixture sweep of bare `:i64`/`:f64`/`:String`/
+`:bool` to FQDN. ~4040 sites in tree. Last because it leverages all
+prior slice patterns + benefits from settled substrate foundation.
+
+### Slice 3z — closure
 
 INSCRIPTION + 058 changelog row. Sweep summary table:
 "retired surface | pre-fix sites | Bucket A renamed | Bucket B

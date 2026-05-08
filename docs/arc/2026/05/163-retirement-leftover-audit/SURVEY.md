@@ -94,26 +94,56 @@ comments + test fixtures.
 Path B is cheaper. Start with Path B; revisit Path A only if it's
 required for honest hard-retire.
 
-### Slice 3e — `:Vec<T>` walker firmness (MEDIUM)
+### Slice 3e — Walker firmness verify + substrate canonical-form
+finding (REVISED 2026-05-07)
 
-`BareLegacyContainerHead` walker fires on `:Vec<T>`, but the
-parser accepts `:Vec<T>` syntactically (per the typealias). Verify
-the walker emission is FATAL (fails check), not warning. If soft:
-make it fatal.
+**Walker firmness (audit-only, no edit needed):**
+`BareLegacyContainerHead` walker is HARD-fatal by construction.
+`check_program` (src/check.rs:1497) returns `Err(CheckErrors)` if
+any walker pushes an error; `validate_bare_legacy_primitives` (line
+2104) walks every form, uses `parse_type_expr_audit` which
+preserves bare spelling, walker fires `BareLegacyContainerHead` for
+all 5 entries (Option/Result/HashMap/HashSet/Vec) per
+BARE_CONTAINER_HEADS table at line 2151. Same shape as `BareLegacyPrimitive`.
 
-### Slice 3f — Bare primitive retirement (EXPENSIVE — last)
+**Substrate canonical-form finding (the real work — user direction
+2026-05-07):**
 
-`BareLegacyPrimitive` covers bare `:i64`, `:f64`, `:String`, `:bool`,
-maybe more. ~4040 sites total in tree (most in test fixtures).
+Pre-flight audit of substrate-internal storage revealed FQDN
+violation at the substrate level. User direction: *"wat internals
+are fully qualified - no exceptions... if there's a short form -
+its illegal... if the internal code is mapping to a rust primitive
+then we use the rust form... wat /must be/ fully qualified."*
 
-Two-step:
-1. Substrate audit: confirm walker present + emission level (warn
-   vs fatal). Make fatal if not already.
-2. Mass test-fixture sweep: bare → FQDN'd. Sonnet edits-only;
-   orchestrator verifies.
+Two distinct violations:
 
-This is the biggest piece; do last to leverage all prior slice
-patterns.
+| Substrate-internal storage | Current shape | Should be |
+|---|---|---|
+| Container heads (Parametric.head) | `"Vec"`, `"Option"`, `"Result"`, `"HashMap"`, `"HashSet"` | `"wat::core::Vector"`, `"wat::core::Option"`, etc. |
+| Primitive paths (TypeExpr::Path) | `":i64"`, `":f64"`, `":bool"`, `":String"`, `":u8"` | `":wat::core::i64"`, `":wat::core::f64"`, etc. |
+
+Plus `parse_type_inner`'s canonicalize step ACTIVELY DOWNGRADES
+source FQDN to the legacy short form (lines 60-72 + 103-109). That
+arm becomes identity (delete the rewrite) after slice 3e+3f.
+
+The Rust-form clause applies only WHERE the substrate reaches
+through a wat type to use its underlying Rust primitive (arithmetic
+dispatch, allocation). That's a separate concern from how the wat
+type representation is stored — wat-internal storage is FQDN.
+
+Slice plan revised:
+
+- **3e** — substrate-internal container heads to FQDN: all 5 heads
+  (`"Vec"` → `"wat::core::Vector"`, etc.). ~135 sites (118 writes +
+  9 reads + 7 match arms + 1 canonicalize arm to delete).
+- **3f** — substrate-internal primitive paths to FQDN: all 5
+  (`":i64"` → `":wat::core::i64"`, etc.). ~142 sites + 5
+  canonicalize arms reshape.
+- **3g** — user-source bare primitive sweep (~4040 sites; the
+  original SURVEY's slice 3f).
+
+Each slice atomic per category — uniform mechanical edit per type.
+Each subsequent slice operates on settled foundation.
 
 ### Slice 3z — closure (INSCRIPTION + 058 row)
 
