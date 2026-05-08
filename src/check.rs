@@ -3773,14 +3773,6 @@ fn infer_list(
             ":wat::core::if" => return infer_if(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::cond" => return infer_cond(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, head_span, env, locals, fresh, subst, errors),
-            // Arc 154 — `:wat::core::let*` retired (single-letform
-            // vocabulary). The `validate_legacy_let_star` walker emits
-            // `BareLegacyLetStar` per offending site BEFORE inference
-            // dispatch reaches this arm; the fall-through here keeps
-            // type-checking through the sequential infer_let path so
-            // compound mismatches (legacy let* PLUS unrelated body
-            // type errors) all surface in one pass.
-            ":wat::core::let*" => return infer_let(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::do" => return infer_do(args, head_span, env, locals, fresh, subst, errors),
             // Arc 109 slice 1j — § D' Option/Result method forms.
             // Three retired verbs (Pattern 2 poison + dispatch) and

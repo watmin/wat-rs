@@ -2335,14 +2335,6 @@ fn eval_tail(
                 ":wat::core::cond" => eval_cond_tail(args, &list_span, env, sym),
                 ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
                 ":wat::core::let" => eval_let_tail(args, &list_span, env, sym),
-                // Arc 154 — `:wat::core::let*` retired; the type
-                // checker's `validate_legacy_let_star` walker fires
-                // BareLegacyLetStar before runtime sees this. Fall
-                // through to the canonical sequential `eval_let_tail`
-                // so a stray runtime call (post-checker bypass)
-                // executes with the correct semantics rather than
-                // panicking on an unknown head.
-                ":wat::core::let*" => eval_let_tail(args, &list_span, env, sym),
                 ":wat::core::do" => eval_do_tail(args, &list_span, env, sym),
                 // A user-defined function call in tail position — signal.
                 // Head resolves in sym.functions; anything else (kernel/
@@ -2828,12 +2820,6 @@ fn dispatch_keyword_head(
         // BareLegacyLambda variant + Display retained as orphaned
         // scaffolding (arc 113 precedent); runtime fall-through retired.
         ":wat::core::let" => eval_let(args, list_span, env, sym),
-        // Arc 154 — `:wat::core::let*` retired; type checker fires
-        // `BareLegacyLetStar` walker on any source-level appearance.
-        // Fall through to the canonical sequential `eval_let` so a
-        // stray runtime call (post-checker bypass) executes with the
-        // correct semantics rather than panicking on an unknown head.
-        ":wat::core::let*" => eval_let(args, list_span, env, sym),
         ":wat::core::do" => eval_do(args, list_span, env, sym),
         ":wat::core::if" => eval_if(args, list_span, env, sym),
         ":wat::core::cond" => eval_cond(args, list_span, env, sym),
@@ -16533,11 +16519,6 @@ fn step_list(
         ":wat::core::if" => step_if(args, list_span, env, sym),
         // Arc 154 — sequential semantics under `:wat::core::let`.
         ":wat::core::let" => step_let(args, list_span, env, sym),
-        // Arc 154 — `:wat::core::let*` retired; fall through to the
-        // canonical sequential `step_let` for stray runtime calls
-        // post-checker (the walker fires BareLegacyLetStar at type
-        // check time).
-        ":wat::core::let*" => step_let(args, list_span, env, sym),
         ":wat::core::do" => step_do(args, list_span, env, sym),
         ":wat::core::match" => step_match(args, list_span, env, sym),
         // Pure operations whose redex fires when all args are
