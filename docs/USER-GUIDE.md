@@ -3264,7 +3264,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::signed-load-file!` / `signed-load-string!` | `<path-or-src> <sig-b64> <pk-b64>` | Ed25519 verified load |
 | `:wat::core::vec` | `:T v1 v2 ...` | `:Vec<T>` |
 | `:wat::core::list` | `:T v1 v2 ...` | `:Vec<T>` (alias) |
-| `:wat::core::tuple` | `v1 v2 ...` | `:(T1,T2,...)` |
+| `:wat::core::Tuple` | `v1 v2 ...` | `:(T1,T2,...)` |
 | `:wat::core::first` / `second` / `third` | `<tuple-or-vec>` | tuple → `T`; Vec → `Option<T>` (arc 047 — Vec accessors return Option to honestly signal empty/short) |
 | `:wat::core::last` | `<vec>` | `Option<T>` — `None` for empty, `Some(items[len-1])` otherwise (arc 047) |
 | `:wat::core::find-last-index` | `xs pred-fn` | `Option<i64>` — index of rightmost element where pred holds (arc 047); `None` if no match or empty |

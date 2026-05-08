@@ -516,8 +516,8 @@ exists; the last five are the standard verbs):
     0
     (:wat::core::lambda ((n :i64) (_s :Stats) -> :(i64,bool))
       (:wat::core::if (:wat::core::i64::>= n 99) -> :(i64,bool)
-        (:wat::core::tuple 0 true)
-        (:wat::core::tuple (:wat::core::i64::+ n 1) false)))))
+        (:wat::core::Tuple 0 true)
+        (:wat::core::Tuple (:wat::core::i64::+ n 1) false)))))
 ```
 
 The user's `:my::reporter` is `:fn(Report) -> :()` — a closure that
