@@ -149,12 +149,13 @@ Test set (10-13, ~250-400 LOC):
   protect destructure shapes).
 - Atomic commit with slice 1 when wat-rs workspace = 0-failed.
 
-### Slice 3 — holon-lab-trading consumer sweep
+### Slice 3 — substrate retirement + closure paperwork
 
-- Same sweep across lab repo. ~965 sites.
-- Separate atomic commit in lab repo.
-
-### Slice 4 — substrate retirement + closure paperwork
+**(originally numbered slice 4 — slice 3 lab sweep removed.
+Per memory `project_lab_reconstruction.md`: lab is being archived
+as reference; reconstruction tests fresh-user-follow-along; wat-rs
+is the durable substrate; substrate work doesn't wait for lab.
+Arc 159 closes on wat-rs scope alone.)
 
 - `walk_for_legacy_typed_let_binding` walker body retired per
   substrate-as-teacher § "Retire the hint" (arc 154/155 precedent).
@@ -233,6 +234,6 @@ Test set (10-13, ~250-400 LOC):
 - Slice 1: ~30-45 min Sonnet (substrate + 10-13 tests)
 - Slice 2: ~25-40 min Sonnet (~951 wat-rs sites, mechanical via
   Python script; atomic with slice 1)
-- Slice 3: ~25-40 min Sonnet (~965 lab sites, cross-repo)
-- Slice 4: ~25 min orchestrator (closure paperwork)
-- Total: ~2-2.5 hours wall-clock if Mode A clean throughout
+- Slice 3: ~25 min orchestrator (substrate walker retirement +
+  closure paperwork)
+- Total: ~1.5-2 hours wall-clock if Mode A clean throughout
