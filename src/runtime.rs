@@ -952,9 +952,9 @@ pub enum RuntimeError {
     DivisionByZero(Span),
     DuplicateDefine(String, Span),
     ReservedPrefix(String, Span),
-    /// `:wat::core::define` / `:wat::core::lambda` found in expression
+    /// `:wat::core::define` / `:wat::core::fn` found in expression
     /// position at runtime. Define is a top-level registration form;
-    /// lambda is fine in expression position. A caught-in-eval define
+    /// fn is fine in expression position. A caught-in-eval define
     /// means the caller confused the two phases.
     DefineInExpressionPosition(Span),
     /// A constrained `eval` (`eval_in_frozen`) found a mutation-inducing
@@ -1066,8 +1066,8 @@ pub enum RuntimeError {
     ///
     /// Stage 1 of the TCO arc (see `docs/arc/2026/04/003-*`) covers
     /// user-defined functions registered in the `SymbolTable`
-    /// (`define`-registered). Lambda self/mutual-tail-calls land in
-    /// Stage 2. A lambda's body that itself tail-calls a named
+    /// (`define`-registered). Fn self/mutual-tail-calls land in
+    /// Stage 2. A fn's body that itself tail-calls a named
     /// define is already covered — the signal fires at the named
     /// call, `apply_function`'s loop catches it just as it does for
     /// a named-define self-recursion.
@@ -2308,10 +2308,10 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), Runtime
 ///    fn-valued params and let-bound fns. Enables
 ///    Y-combinator-lite self-recursion (fn passed as argument)
 ///    without a letrec mechanism.
-/// 3. **Inline-lambda-literal head** `((lambda ...) args)` — the
+/// 3. **Inline-fn-literal head** `((fn ...) args)` — the
 ///    head evaluates to a fn value directly.
 ///
-/// Non-lambda, non-registered, non-form heads delegate to [`eval`]
+/// Non-fn, non-registered, non-form heads delegate to [`eval`]
 /// so error handling (NotCallable, UnboundSymbol, primitive
 /// dispatch, `Some`/`Ok`/`Err` constructors) is unchanged.
 fn eval_tail(
@@ -2363,8 +2363,8 @@ fn eval_tail(
                 eval(ast, env, sym)
             }
         }
-        // Inline fn-literal head `((lambda ...) args)`. Evaluate
-        // the head non-tail; if the value is a lambda, signal tail
+        // Inline fn-literal head `((fn ...) args)`. Evaluate
+        // the head non-tail; if the value is a fn, signal tail
         // call; otherwise delegate to `apply_value` with the
         // already-evaluated callee so we don't re-evaluate.
         WatAST::List(_, _) => {
@@ -2382,7 +2382,7 @@ fn eval_tail(
 
 /// Evaluate `raw_args` non-tail and emit a [`RuntimeError::TailCall`]
 /// carrying `func`. Shared helper for all three tail-call shapes
-/// (named define, bare-symbol fn, inline-lambda literal). Arity
+/// (named define, bare-symbol fn, inline-fn literal). Arity
 /// is enforced by [`apply_function`]'s trampoline loop on its next
 /// iteration. Arc 016 slice 2: carries `call_span` so the trampoline
 /// can refresh the call-stack frame with the new invocation's
