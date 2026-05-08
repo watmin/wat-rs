@@ -135,7 +135,7 @@ handled at every comm site.
 |---|---|
 | `:wat::core::if` | `(if cond -> :T then else)` — arc 108 made `-> :T` mandatory |
 | `:wat::core::cond` | `(cond -> :T (test-1 result-1) (test-2 result-2) ... (else default))` |
-| `:wat::core::let` | `(let ((name :T expr) ...) body)` — arc 154; sequential semantics (Clojure-faithful single-letform vocabulary; `let*` retired) |
+| `:wat::core::let` | `(let ((name expr) ...) body)` — arc 154 + arc 159; sequential semantics; per-binding type inferred from expression (no `:T` annotation; arc 159 dropped the wrapper); destructure shape `((a b) pair)` unchanged |
 | `:wat::core::do` | `(do form_1 form_2 ... form_N)` — arc 136; non-finals' types unconstrained, final form's type IS the do's type |
 | `:wat::core::match` | `(match scrutinee -> :T (pattern body) ...)` |
 | `:wat::core::define` | `(define (:user::name (arg :T) -> :Ret) body)` |
@@ -143,9 +143,11 @@ handled at every comm site.
 | `:wat::core::def` | `(def :name expr)` — arc 157; top-level value binding; type inferred from expr; redef is an error by default (opt in via `:wat::config::set-redef!`) |
 
 The `-> :T` is the result-type annotation; required on `if`,
-`cond`, `match`, `define`, and `fn`. NOT on `def` — type
-inferred from the expression (per arc 145's paid-for lesson;
-substrate's existing inference + recipient unification suffices).
+`cond`, `match`, `define`, and `fn`. NOT on `def` (arc 157) and
+NOT on `let` per-binding slots (arc 159) — type inferred from
+the expression (arc 145's paid-for lesson applied to both
+top-level and inner-binding positions; substrate's existing
+inference + recipient unification suffices).
 
 `:wat::core::def` is legal at top-level position only — file-root
 or direct child of a top-level `do` / `let` body (recursive

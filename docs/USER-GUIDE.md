@@ -747,18 +747,20 @@ arms — Path B retirement; not aliased). Bare `:fn(...)` retired in
 favor of `:wat::core::Fn(...)` per arc 109's FQDN doctrine (closes
 the fifth parametric type head — the four others FQDN'd in slice 1e).
 
-### `let` — sequential binding (arc 154)
+### `let` — sequential binding (arc 154 + arc 159)
 
 ```scheme
 (:wat::core::let
-  (((a :i64) 10)
-   ((b :i64) 20)
-   ((sum :i64) (:wat::core::i64::+ a b)))
+  ((a 10)
+   (b 20)
+   (sum (:wat::core::i64::+ a b)))
   sum)
 ```
 
-Every binding is typed. Sequential — later bindings can reference
-earlier ones. Body after the bindings is the result.
+Each binding's type is inferred from its expression — no per-binding
+`:T` annotation needed (arc 159 dropped the wrapper). Sequential —
+later bindings can reference earlier ones. Body after the bindings is
+the result.
 
 Single-letform vocabulary (Clojure-faithful). Pre-arc-154 wat had
 both `:wat::core::let` (parallel) and `:wat::core::let*` (sequential);
@@ -767,6 +769,26 @@ spelling retired (silently aliases to `let` via runtime scaffolding;
 documentation discouraged; the walker that flagged `let*` shipped in
 slice 1a then retired in slice 2 per substrate-as-teacher § "Retire
 the hint when its window closes").
+
+The legacy typed shape `((name :T) expr)` retired in arc 159 the
+same way: walker fired `LegacyTypedLetBinding` during the migration
+window; consumer sweep cleared all in-tree sites; walker body
+retired (variant + Display preserved as orphaned scaffolding per
+arc 113 precedent). Same lesson as arc 145 / arc 157 (`def`):
+declared type is redundant when inference suffices.
+
+Destructure binding stays unchanged:
+
+```scheme
+(:wat::core::let
+  (((a b) pair)
+   ((x y z) triple))
+  (:wat::core::i64::+ a (:wat::core::i64::+ x y)))
+```
+
+The substrate distinguishes destructure (binder children all
+Symbols) from the retired legacy typed binding (binder[1] is a
+Keyword) at parse time.
 
 ### `do` — sequential evaluation (arc 136)
 
