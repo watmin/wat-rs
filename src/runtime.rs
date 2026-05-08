@@ -1961,8 +1961,12 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
         WatAST::Keyword(k, _) => k.clone(),
         _ => return None,
     };
-    // Second arg must be `(:wat::core::fn ARGS-VECTOR -> :RET BODY)`
-    // — the canonical 5-element flat shape per arc 167.
+    // Second arg must be `(:wat::core::fn ARGS-VECTOR -> :RET body...)`
+    // — the canonical flat shape per arc 167. Arc 168 — body slot
+    // accepts 1+ trailing forms (implicit-do); the structural arity
+    // grows from "exactly 5 elements" to "5+ elements". An empty
+    // body (4-element form: head + sig-trio) is also legal —
+    // synthesizes `:wat::core::nil`.
     let fn_items = match &items[2] {
         WatAST::List(fn_items, _) => fn_items,
         _ => return None,
@@ -1971,12 +1975,23 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
         WatAST::Keyword(k, _) if k == ":wat::core::fn" => {}
         _ => return None,
     }
-    if fn_items.len() != 5 {
+    if fn_items.len() < 4 {
         return None;
     }
-    let body = fn_items[4].clone();
-    let (params, param_types, ret_type) = parse_fn_signature(&fn_items[1..]).ok()?;
-    let body = &body;
+    // Synthesize body via implicit-do over fn_items[4..]. Empty
+    // trailing slice → :wat::core::nil keyword; single → pass-through;
+    // multiple → (:wat::core::do f1 f2 ... fN).
+    let body = synthesize_fn_body(&fn_items[4..]);
+    // parse_fn_signature consumes the first 4 elements after the
+    // head: ARGS-VECTOR / `->` / :RET-TYPE / BODY-PLACEHOLDER. We pass
+    // the synthesized body so the existing arity-check (==4) holds.
+    let sig_args = [
+        fn_items[1].clone(),
+        fn_items[2].clone(),
+        fn_items[3].clone(),
+        body.clone(),
+    ];
+    let (params, param_types, ret_type) = parse_fn_signature(&sig_args).ok()?;
     Some((
         name.clone(),
         Arc::new(Function {
@@ -1987,7 +2002,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
             ret_type,
             rest_param: None,
             rest_param_type: None,
-            body: Arc::new(body.clone()),
+            body: Arc::new(body),
             closed_env: None,
         }),
     ))
@@ -3858,24 +3873,30 @@ fn eval_dispatch_call(
 /// both `:wat::core::fn` (canonical) and `:wat::core::lambda`
 /// (retired fall-through) route here.
 fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
-    // Arc 167 — flat-shape fn-form consumer.
-    // Canonical form: (:wat::core::fn ARGS-VECTOR -> :RET-TYPE BODY)
+    // Arc 167 — flat-shape fn-form consumer; arc 168 — implicit-do body.
+    // Canonical form: (:wat::core::fn ARGS-VECTOR -> :RET-TYPE body...)
     //   args[0] = ARGS-VECTOR (WatAST::Vector with name <- :T triples)
     //   args[1] = `->` (WatAST::Symbol)
     //   args[2] = :RET-TYPE (WatAST::Keyword)
-    //   args[3] = BODY (any AST)
-    if args.len() != 4 {
+    //   args[3..] = BODY forms (1+ implicit-do; empty body legal — value
+    //              is :wat::core::nil at call time)
+    if args.len() < 3 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::fn".into(),
             reason: format!(
-                "expected (:wat::core::fn [name <- :T ...] -> :Ret body); got {} args",
+                "expected (:wat::core::fn [name <- :T ...] -> :Ret body ...); got {} args",
                 args.len()
             ),
             span: Span::unknown(),
         });
     }
-    let body = &args[3];
-    let (params, param_types, ret_type) = parse_fn_signature(args)?;
+    let body = synthesize_fn_body(&args[3..]);
+    // parse_fn_signature consumes args[..3] (ARGS-VECTOR / `->` /
+    // :RET-TYPE). It accepts a 4-element prefix of args today; for
+    // arc 168 we pass a virtual 4-element slice carrying the
+    // synthesized body so signature-validation runs unchanged.
+    let sig_args = [args[0].clone(), args[1].clone(), args[2].clone(), body.clone()];
+    let (params, param_types, ret_type) = parse_fn_signature(&sig_args)?;
     Ok(Value::wat__core__fn(Arc::new(Function {
         name: None,
         params,
@@ -3884,9 +3905,34 @@ fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
         ret_type,
         rest_param: None,
         rest_param_type: None,
-        body: Arc::new(body.clone()),
+        body: Arc::new(body),
         closed_env: Some(env.clone()),
     })))
+}
+
+/// Arc 168 — collapse fn body forms (implicit-do) into a single
+/// `WatAST` for `Function::body`. Mirrors `synthesize_let_body` but
+/// reused at call sites that want the same rule (let, fn,
+/// `try_parse_fn_shape_def`).
+///
+/// - Empty body → `:wat::core::nil` keyword (singleton). The fn's
+///   declared `-> :T` constrains `:T` to be `:wat::core::nil` for
+///   this to type-check; substrate allows it, idiom doesn't
+///   encourage it.
+/// - Single form → the form itself (zero-overhead pass-through;
+///   pre-arc-168 code shape preserved exactly).
+/// - Multi-form → wrap in `(:wat::core::do f1 f2 ... fN)`.
+fn synthesize_fn_body(forms: &[WatAST]) -> WatAST {
+    if forms.is_empty() {
+        return WatAST::Keyword(":wat::core::nil".into(), Span::unknown());
+    }
+    if forms.len() == 1 {
+        return forms[0].clone();
+    }
+    let mut do_items: Vec<WatAST> = Vec::with_capacity(forms.len() + 1);
+    do_items.push(WatAST::Keyword(":wat::core::do".into(), Span::unknown()));
+    do_items.extend(forms.iter().cloned());
+    WatAST::List(do_items, Span::unknown())
 }
 
 /// Arc 167 — flat-shape fn signature parser.
@@ -17156,152 +17202,244 @@ fn step_if(
     }
 }
 
-/// `(:wat::core::let (((n :T) e) ((n2 :T2) e2) ...) body)` — peel
-/// one binding per step. If the head binding's RHS is non-canonical,
-/// descend it and rebuild. If canonical, substitute name → RHS into
-/// remaining bindings and body, drop the now-bound first pair, return
-/// Next of the smaller form. Empty bindings → Next(body). Arc 154
-/// renamed (was `step_let_star`) to canonical `step_let` after `let*`
-/// retired into `let` (single-letform vocabulary).
+/// `(:wat::core::let [n1 e1 n2 e2 ...] body1 body2 ... bodyN)` —
+/// peel one binding per step. If the head binding's RHS is
+/// non-canonical, descend it and rebuild. If canonical, substitute
+/// name → RHS into remaining bindings and body, drop the now-bound
+/// first pair, return Next of the smaller form. Arc 168 — flat-vector
+/// outer + implicit-do body. Both outer-Vector (canonical) and
+/// outer-List (legacy nested-pairs) shapes accepted during the
+/// transition window; slice 3 retires the List outer arm.
+///
+/// Empty bindings + body → see `synthesize_let_body` for the
+/// implicit-do collapse rule.
+///
+/// Pre-arc-168 step_let renamed (was `step_let_star`) to canonical
+/// `step_let` after `let*` retired into `let` (single-letform
+/// vocabulary; arc 154).
 fn step_let(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<StepValue, RuntimeError> {
-    if args.len() != 2 {
+    if args.is_empty() {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::let".into(),
             reason: format!(
-                "expected (:wat::core::let bindings body); got {} args",
+                "expected (:wat::core::let bindings body ...); got {} args",
                 args.len()
             ),
             span: list_span.clone(),
         });
     }
-    let bindings = match &args[0] {
-        WatAST::List(items, _) => items,
-        _ => {
+
+    // Two outer shapes — flat-Vector (canonical, arc 168) and
+    // nested-pair List (legacy, slice 3 retires). Both desugar into
+    // a uniform `Vec<(binder, rhs)>` pair-list for the stepper.
+    let bindings_form_span = args[0].span().clone();
+    let pairs: Vec<(WatAST, WatAST)> = match &args[0] {
+        WatAST::Vector(items, _) => {
+            if items.len() % 2 != 0 {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::let".into(),
+                    reason: format!(
+                        "let bindings vector must have an even number of elements; got {}",
+                        items.len()
+                    ),
+                    span: bindings_form_span.clone(),
+                });
+            }
+            items
+                .chunks_exact(2)
+                .map(|chunk| (chunk[0].clone(), chunk[1].clone()))
+                .collect()
+        }
+        WatAST::List(legacy_pairs, _) => {
+            // Legacy outer-List: each child is `(binder rhs)`.
+            let mut out = Vec::with_capacity(legacy_pairs.len());
+            for pair in legacy_pairs {
+                match pair {
+                    WatAST::List(p, _) if p.len() == 2 => {
+                        out.push((p[0].clone(), p[1].clone()));
+                    }
+                    _ => {
+                        return Err(RuntimeError::MalformedForm {
+                            head: ":wat::core::let".into(),
+                            reason: "legacy let binding must be a 2-list (binder rhs)".into(),
+                            span: pair.span().clone(),
+                        });
+                    }
+                }
+            }
+            out
+        }
+        other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
-                reason: "bindings must be a list".into(),
-                span: args[0].span().clone(),
+                reason: "let bindings must be a vector `[name expr ...]` or legacy list".into(),
+                span: other.span().clone(),
             });
         }
     };
-    let body = &args[1];
 
-    if bindings.is_empty() {
-        return Ok(StepValue::Next(body.clone()));
+    let body_forms = &args[1..];
+
+    if pairs.is_empty() {
+        // No more bindings — collapse the let into the body.
+        return Ok(StepValue::Next(synthesize_let_body(body_forms, list_span)));
     }
 
-    // Arc 159 — extract name + rhs from the first binding, handling
-    // both the new canonical shape `(name rhs)` (bare Symbol binder)
-    // and the legacy shape `((name :T) rhs)` (List binder).
-    // Destructure bindings `((a b ...) rhs)` are not handled here —
-    // `step_let` processes one binding at a time (single-step semantics);
-    // destructure evaluation goes through `eval_let` / `eval_let_tail`
-    // which call `parse_let_binding`. The stepper only peels typed-single
-    // bindings; destructure lets are not stepped through the same path.
-    let first_binding_span = bindings[0].span().clone();
-    let first = match &bindings[0] {
-        WatAST::List(p, _) if p.len() == 2 => p,
+    // Inspect first pair. The stepper handles single-Symbol-binder
+    // chunks (canonical post-arc-168 shape) and the legacy
+    // typed-single `(name :T)` binder shape. Vector destructure
+    // binders fall through to the eval path (single-step semantics
+    // matches one binding peel; destructure is multi-bind atomic).
+    let (binder, rhs) = (&pairs[0].0, &pairs[0].1);
+
+    let name_ident: crate::identifier::Identifier = match binder {
+        // New canonical binder: bare Symbol.
+        WatAST::Symbol(ident, _) => ident.clone(),
+        // Legacy typed-single binder: `(name :T)`.
+        WatAST::List(p, _) if p.len() == 2 => match (&p[0], &p[1]) {
+            (WatAST::Symbol(ident, _), WatAST::Keyword(_, _)) => ident.clone(),
+            _ => {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::let".into(),
+                    reason:
+                        "step_let only handles Symbol or `(name :T)` binders; destructure goes through eval_let"
+                            .into(),
+                    span: binder.span().clone(),
+                });
+            }
+        },
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
-                reason: "binding shape must be (name rhs) or ((name :T) rhs)".into(),
-                span: bindings[0].span().clone(),
+                reason:
+                    "step_let only handles Symbol or `(name :T)` binders; destructure goes through eval_let"
+                        .into(),
+                span: binder.span().clone(),
             });
         }
     };
 
-    // Discriminate new shape (Symbol binder) from legacy shape (List binder).
-    let (name_ident, rhs, rebuilt_first): (crate::identifier::Identifier, &WatAST, WatAST) =
-        if let WatAST::Symbol(ident, sym_span) = &first[0] {
-            // New canonical shape: `(name rhs)`.
-            let rebuilt = WatAST::List(
-                vec![
-                    WatAST::Symbol(ident.clone(), sym_span.clone()),
-                    first[1].clone(),
-                ],
-                first_binding_span.clone(),
-            );
-            (ident.clone(), &first[1], rebuilt)
-        } else {
-            // Legacy shape: `((name :T) rhs)`.
-            let name_type_span = first[0].span().clone();
-            let name_type = match &first[0] {
-                WatAST::List(p, _) if p.len() == 2 => p,
-                _ => {
-                    return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::let".into(),
-                        reason: "binding name must be (name :T) or a bare symbol".into(),
-                        span: first[0].span().clone(),
-                    });
-                }
-            };
-            let ident = match &name_type[0] {
-                WatAST::Symbol(ident, _) => ident.clone(),
-                _ => {
-                    return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::let".into(),
-                        reason: "binding name must be a symbol".into(),
-                        span: name_type[0].span().clone(),
-                    });
-                }
-            };
-            let rebuilt = WatAST::List(
-                vec![
-                    WatAST::List(name_type.clone(), name_type_span),
-                    first[1].clone(),
-                ],
-                first_binding_span.clone(),
-            );
-            (ident, &first[1], rebuilt)
-        };
-
     if !is_step_canonical(rhs) {
+        // Step the RHS one rewrite, rebuild the let with the stepped
+        // RHS in place, preserving outer-Vector / outer-List shape.
         let new_rhs = step_to_watast(rhs, env, sym)?;
-        // Rebuild the first binding with the stepped RHS, preserving
-        // the binder shape (new or legacy).
-        let new_first = match &bindings[0] {
-            WatAST::List(p, _) => {
-                WatAST::List(
-                    vec![p[0].clone(), new_rhs],
-                    first_binding_span,
-                )
-            }
-            _ => unreachable!("validated above"),
-        };
-        let _ = rebuilt_first; // not used in the step-rhs path
-        let mut new_bindings: Vec<WatAST> = bindings.clone();
-        new_bindings[0] = new_first;
-        let new_items = vec![
+        let new_args = rebuild_let_with_first_rhs(&args[0], &pairs, &new_rhs)?;
+        let mut new_items: Vec<WatAST> = vec![
             WatAST::Keyword(":wat::core::let".into(), Span::unknown()),
-            WatAST::List(new_bindings, args[0].span().clone()),
-            body.clone(),
+            new_args,
         ];
+        new_items.extend(body_forms.iter().cloned());
         return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
     }
 
-    // RHS canonical — peel: substitute name → rhs in remaining
-    // bindings + body, then drop the head pair.
-    let _ = rebuilt_first; // not needed after rhs is canonical
-    let rest_bindings = &bindings[1..];
-    let new_body = substitute(body, &name_ident, rhs);
-    if rest_bindings.is_empty() {
-        return Ok(StepValue::Next(new_body));
-    }
-    let substituted_rest: Vec<WatAST> = rest_bindings
+    // RHS canonical — peel: substitute name → rhs through the
+    // remaining bindings + body forms.
+    let rest_pairs: Vec<(WatAST, WatAST)> = pairs[1..]
         .iter()
-        .map(|b| substitute(b, &name_ident, rhs))
+        .map(|(b, r)| (b.clone(), substitute(r, &name_ident, rhs)))
         .collect();
-    let new_items = vec![
+    let new_body_forms: Vec<WatAST> = body_forms
+        .iter()
+        .map(|f| substitute(f, &name_ident, rhs))
+        .collect();
+
+    if rest_pairs.is_empty() {
+        return Ok(StepValue::Next(synthesize_let_body(
+            &new_body_forms,
+            list_span,
+        )));
+    }
+
+    // Rebuild the bindings carrier in the same outer shape we received.
+    let rebuilt_bindings = match &args[0] {
+        WatAST::Vector(_, _) => {
+            let mut flat: Vec<WatAST> = Vec::with_capacity(rest_pairs.len() * 2);
+            for (b, r) in &rest_pairs {
+                flat.push(b.clone());
+                flat.push(r.clone());
+            }
+            WatAST::Vector(flat, bindings_form_span.clone())
+        }
+        WatAST::List(_, _) => {
+            let nested: Vec<WatAST> = rest_pairs
+                .iter()
+                .map(|(b, r)| {
+                    WatAST::List(vec![b.clone(), r.clone()], Span::unknown())
+                })
+                .collect();
+            WatAST::List(nested, bindings_form_span.clone())
+        }
+        _ => unreachable!("outer shape was Vector or List by the match above"),
+    };
+    let mut new_items: Vec<WatAST> = vec![
         WatAST::Keyword(":wat::core::let".into(), Span::unknown()),
-        WatAST::List(substituted_rest, args[0].span().clone()),
-        new_body,
+        rebuilt_bindings,
     ];
+    new_items.extend(new_body_forms.into_iter());
     Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
+}
+
+/// Collapse an implicit-do body of N forms into a single AST. Arc 168
+/// — implicit-do is purely additive: no body forms means
+/// `:wat::core::nil`; one form means the form itself; many forms get
+/// wrapped in `(:wat::core::do f1 f2 ... fN)` for uniform downstream
+/// handling. Used by step_let and step_let_drop_canonical when they
+/// peel away all bindings.
+fn synthesize_let_body(forms: &[WatAST], outer_span: &Span) -> WatAST {
+    if forms.is_empty() {
+        return WatAST::Keyword(":wat::core::nil".into(), outer_span.clone());
+    }
+    if forms.len() == 1 {
+        return forms[0].clone();
+    }
+    let mut do_items: Vec<WatAST> = Vec::with_capacity(forms.len() + 1);
+    do_items.push(WatAST::Keyword(":wat::core::do".into(), Span::unknown()));
+    do_items.extend(forms.iter().cloned());
+    WatAST::List(do_items, outer_span.clone())
+}
+
+/// Rebuild a let bindings carrier with a new RHS in the first
+/// position. Preserves outer shape (Vector vs List).
+fn rebuild_let_with_first_rhs(
+    bindings_form: &WatAST,
+    pairs: &[(WatAST, WatAST)],
+    new_first_rhs: &WatAST,
+) -> Result<WatAST, RuntimeError> {
+    let outer_span = bindings_form.span().clone();
+    match bindings_form {
+        WatAST::Vector(_, _) => {
+            let mut flat: Vec<WatAST> = Vec::with_capacity(pairs.len() * 2);
+            // First pair gets the new RHS.
+            flat.push(pairs[0].0.clone());
+            flat.push(new_first_rhs.clone());
+            for (b, r) in &pairs[1..] {
+                flat.push(b.clone());
+                flat.push(r.clone());
+            }
+            Ok(WatAST::Vector(flat, outer_span))
+        }
+        WatAST::List(_, _) => {
+            let mut out: Vec<WatAST> = Vec::with_capacity(pairs.len());
+            out.push(WatAST::List(
+                vec![pairs[0].0.clone(), new_first_rhs.clone()],
+                Span::unknown(),
+            ));
+            for (b, r) in &pairs[1..] {
+                out.push(WatAST::List(vec![b.clone(), r.clone()], Span::unknown()));
+            }
+            Ok(WatAST::List(out, outer_span))
+        }
+        other => Err(RuntimeError::MalformedForm {
+            head: ":wat::core::let".into(),
+            reason: "let bindings carrier must be Vector or List".into(),
+            span: other.span().clone(),
+        }),
+    }
 }
 
 /// `(:wat::core::do f1 f2 ... fN)` — Clojure-faithful sequential

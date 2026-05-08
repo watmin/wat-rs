@@ -263,6 +263,22 @@ pub enum CheckError {
         /// `:wat::core::let*` token.
         span: Span,
     },
+    /// Arc 168 — outer-List bindings shape `((name expr) (name expr) ...)`
+    /// is the legacy form; canonical post-arc-168 shape is
+    /// outer-Vector `[name expr name expr ...]` (Clojure-faithful flat
+    /// alternation). Pattern 3 walker (`walk_for_legacy_let_bindings`)
+    /// fires one error per legacy `(:wat::core::let LIST ...)` site;
+    /// consumer sweep (slice 2) does the mechanical translation.
+    ///
+    /// **Slice 3 retirement.** Walker body + parser fall-through arms
+    /// retire after sweep clears all in-tree legacy outer-List sites.
+    /// Variant + Display stay as orphaned scaffolding per arc 113
+    /// precedent.
+    BareLegacyLetBindings {
+        /// Source location of the let form whose bindings carrier is
+        /// the legacy outer-List shape.
+        span: Span,
+    },
     /// Arc 159 — per-binding type annotation `((name :T) expr)` is the
     /// legacy form; canonical post-arc-159 shape is `(name expr)` where
     /// the binding type is inferred from the expression (arc 145 lesson
@@ -638,6 +654,11 @@ impl fmt::Display for CheckError {
                 "':wat::core::let*' at {} is retired (arc 154); canonical FQDN is ':wat::core::let'. Same sequential semantics, single name (Clojure-faithful: Clojure's user-facing `let` IS the sequential primitive; `let*` is a substrate-internal form not part of normal user code). Rename ':wat::core::let*' -> ':wat::core::let' at the offending site.",
                 span
             ),
+            CheckError::BareLegacyLetBindings { span } => write!(
+                f,
+                "let bindings at {} use the legacy outer-list shape; arc 168 — let bindings must be a vector `[name expr name expr ...]`.\nGot legacy nested-pair-list `((name expr) (name expr) ...)`.\n\nMigration:\n  - Outer brackets change from `(...)` to `[...]`.\n  - Inner pair-lists `(name expr)` flatten to alternating\n    `name expr` inside the outer vector.\n  - Destructure binders stay as a vector of symbols:\n    `((a b c) rhs)` becomes `[[a b c] rhs]`.\n\nExample:\n  Before:  (:wat::core::let ((x 1) (y 2)) (+ x y))\n  After:   (:wat::core::let [x 1 y 2] (+ x y))\n\n  Destructure:\n  Before:  (:wat::core::let (((a b c) tup)) ...)\n  After:   (:wat::core::let [[a b c] tup] ...)",
+                span
+            ),
             CheckError::LegacyTypedLetBinding { binding_name, span } => write!(
                 f,
                 "let binding '(({} :T) expr)' at {} is the legacy form post-arc-159; canonical shape is '({} expr)' — the type is inferred from the expression (arc 145 lesson applied to the inner-binding slot; same precedent as ':wat::core::def' in arc 157). Remove the type annotation wrapper: change '(({} :T) expr)' to '({} expr)' at the offending binding site.",
@@ -921,6 +942,12 @@ impl CheckError {
                 Diagnostic::new("BareLegacyLetStar")
                     .field("retired", ":wat::core::let*")
                     .field("fqdn", ":wat::core::let")
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyLetBindings { span } => {
+                Diagnostic::new("BareLegacyLetBindings")
+                    .field("retired", "outer-list bindings `((n e) ...)`")
+                    .field("canonical", "outer-vector bindings `[n e ...]`")
                     .field("location", format!("{}", span))
             }
             CheckError::LegacyTypedLetBinding { binding_name, span } => {
@@ -2609,6 +2636,66 @@ fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
         WatAST::List(items, _) => {
             for item in items {
                 walk_for_legacy_kernel_queue(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Arc 168 — entry-point for the bare-legacy-let-bindings walker.
+/// Wired into `freeze.rs:599-616` user-source pre-pass alongside
+/// `validate_bare_legacy_primitives` (mirrors arc 167 slice 2 delta
+/// A precedent — substrate-authored stdlib forms must silently
+/// migrate without walker firing). Slice 3 retires the firing body
+/// after sweep clears all in-tree legacy outer-List let sites.
+pub fn validate_legacy_let_bindings(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_legacy_let_bindings(node, errors);
+}
+
+/// Arc 168 — Pattern 3 walker. Detects `(:wat::core::let LIST ...)`
+/// shape: a let form whose first arg is a `WatAST::List` (the legacy
+/// outer-list bindings carrier). Fires `BareLegacyLetBindings` per
+/// site; the consumer sweep (slice 2) uses the diagnostic stream as
+/// the work list.
+///
+/// Recursion: descends through both `List` and `Vector` children
+/// (mirrors arc 167 slice 3's substrate-gap fix — without the Vector
+/// arm, legacy let sites buried inside fn arg-vector RHSs evade the
+/// walker). Skips the bindings position once it's confirmed legacy
+/// (no need to recurse INTO the legacy carrier; the offending span
+/// is the let form itself).
+fn walk_for_legacy_let_bindings(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::List(items, list_span) => {
+            // Detect the let-form shape.
+            if let Some(WatAST::Keyword(k, _)) = items.first() {
+                if k == ":wat::core::let" && items.len() >= 2 {
+                    if matches!(&items[1], WatAST::List(_, _)) {
+                        // Legacy outer-list bindings — fire walker.
+                        errors.push(CheckError::BareLegacyLetBindings {
+                            span: list_span.clone(),
+                        });
+                        // Continue recursing into trailing body forms
+                        // so nested legacy lets surface too. Skip the
+                        // bindings position itself (already flagged).
+                        for body_form in &items[2..] {
+                            walk_for_legacy_let_bindings(body_form, errors);
+                        }
+                        return;
+                    }
+                }
+            }
+            // Non-let list (or canonical-shape let) — recurse into all children.
+            for item in items {
+                walk_for_legacy_let_bindings(item, errors);
+            }
+        }
+        WatAST::Vector(items, _) => {
+            // Recurse into Vector children — fn arg-vectors and let
+            // canonical bindings carry sub-forms that may contain
+            // nested legacy let sites.
+            for item in items {
+                walk_for_legacy_let_bindings(item, errors);
             }
         }
         _ => {}
@@ -6247,9 +6334,15 @@ fn infer_cond(
 /// adopts sequential semantics under the canonical `:wat::core::let`
 /// keyword, retiring the parallel `let` (zero in-tree consumers per
 /// pre-arc grep) and the dual `let*` keyword (Clojure-faithful single-
-/// letform vocabulary). The migration walker
-/// `validate_legacy_let_star` emits `BareLegacyLetStar` per remaining
-/// `:wat::core::let*` source site for sweep 1b to consume.
+/// letform vocabulary).
+///
+/// Arc 168 — flat-vector outer bindings + implicit-do body. Outer
+/// shape is `WatAST::Vector` of alternating `binder expr binder expr
+/// ...`; body is `args[1..]` (1+ trailing forms; empty body legal,
+/// type is `:wat::core::nil`). Legacy outer-List shape walks through
+/// the same code path during the slice 1-2 sweep window;
+/// `validate_legacy_let_bindings` fires the migration walker on
+/// user-source legacy sites pre-check.
 fn infer_let(
     args: &[WatAST],
     _head_span: &Span,
@@ -6259,21 +6352,58 @@ fn infer_let(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    if args.len() != 2 {
+    if args.is_empty() {
         return None;
     }
-    let bindings = match &args[0] {
-        WatAST::List(items, _) => items,
+    // Two outer shapes: flat-Vector (arc 168 canonical) and legacy
+    // nested-pair List (slice 3 retires). Both desugar into a uniform
+    // `Vec<WatAST>` of synthesized `(binder rhs)` 2-lists for the
+    // `process_let_binding` consumer (which still expects 2-list inner
+    // shape — single-source binding logic kept under `process_let_binding`
+    // until its own arc 168 update).
+    let bindings_pairs: Vec<WatAST> = match &args[0] {
+        WatAST::Vector(items, _) => {
+            if items.len() % 2 != 0 {
+                return None; // shape error surfaced by runtime parser
+            }
+            items
+                .chunks_exact(2)
+                .map(|chunk| {
+                    WatAST::List(
+                        vec![chunk[0].clone(), chunk[1].clone()],
+                        Span::unknown(),
+                    )
+                })
+                .collect()
+        }
+        WatAST::List(items, _) => items.clone(),
         _ => return None,
     };
     let mut extended = locals.clone();
-    for pair in bindings {
+    for pair in &bindings_pairs {
         // Sequential let — thread the cumulative extended locals
         // through each RHS. Pre-arc-154 this lived under
         // `:wat::core::let*`; arc 154 collapses to one letform.
         let cumulative = extended.clone();
         process_let_binding(pair, env, &cumulative, &mut extended, fresh, subst, errors, ":wat::core::let");
     }
+
+    // Body is args[1..]. Arc 168 — implicit-do over trailing forms.
+    // The deadlock check needs a single body AST; for empty body we
+    // synthesize the nil keyword, for multi-body we synthesize a do
+    // form over the trailing forms (mirrors the runtime
+    // `synthesize_let_body` semantics).
+    let body_forms = &args[1..];
+    let body_ast: WatAST = if body_forms.is_empty() {
+        WatAST::Keyword(":wat::core::nil".into(), Span::unknown())
+    } else if body_forms.len() == 1 {
+        body_forms[0].clone()
+    } else {
+        let mut do_items: Vec<WatAST> = Vec::with_capacity(body_forms.len() + 1);
+        do_items.push(WatAST::Keyword(":wat::core::do".into(), Span::unknown()));
+        do_items.extend(body_forms.iter().cloned());
+        WatAST::List(do_items, Span::unknown())
+    };
 
     // Arc 133 — post-inference scope-deadlock check. Fires for BOTH
     // typed-name bindings (arc 117 shape) and tuple-destructure
@@ -6283,14 +6413,14 @@ fn infer_let(
     // was retired when this path was added — inference is now the
     // single enforcement path, eliminating duplicate-firing.
     check_let_for_scope_deadlock_inferred(
-        bindings,
-        &args[1],
+        &bindings_pairs,
+        &body_ast,
         &extended,
         env.types(),
         errors,
     );
 
-    infer(&args[1], env, &extended, fresh, subst, errors)
+    infer(&body_ast, env, &extended, fresh, subst, errors)
 }
 
 // ─── Arc 157 — :wat::core::def ──────────────────────────────────────────
@@ -7912,6 +8042,43 @@ fn process_let_binding(
         return;
     }
 
+    // Arc 168 — Vector binder (destructure post-flat-shape):
+    // `[a b c] rhs`. Each element must be a bare symbol; RHS must
+    // unify with a tuple of fresh vars matching the arity. Same
+    // semantics as legacy nested-list destructure, just a different
+    // outer shape for the binder.
+    if let WatAST::Vector(inner, _) = &kv[0] {
+        let mut names = Vec::with_capacity(inner.len());
+        for item in inner {
+            match item {
+                WatAST::Symbol(ident, _) => names.push(ident.name.clone()),
+                _ => return,
+            }
+        }
+        if names.is_empty() {
+            return;
+        }
+        let rhs = &kv[1];
+        let elem_vars: Vec<TypeExpr> = (0..names.len()).map(|_| fresh.fresh()).collect();
+        let tuple_ty = TypeExpr::Tuple(elem_vars.clone());
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors);
+        if let Some(rhs_ty) = rhs_ty {
+            if unify(&rhs_ty, &tuple_ty, subst, env.types()).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: form.into(),
+                    param: format!("destructure ({})", names.join(" ")),
+                    expected: format_type(&apply_subst(&tuple_ty, subst)),
+                    got: format_type(&apply_subst(&rhs_ty, subst)),
+                    span: rhs.span().clone(),
+                });
+            }
+        }
+        for (name, ev) in names.into_iter().zip(elem_vars.into_iter()) {
+            out_scope.insert(name, apply_subst(&ev, subst));
+        }
+        return;
+    }
+
     let binder = match &kv[0] {
         WatAST::List(inner, _) => inner,
         _ => return, // shape error surfaced elsewhere
@@ -9433,19 +9600,37 @@ fn infer_fn(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    // Arc 167 — flat-shape fn signature consumer.
-    // Canonical form (4 args): ARGS-VECTOR `->` :RET-TYPE BODY
-    if args.len() != 4 {
+    // Arc 167 — flat-shape fn signature consumer; arc 168 —
+    // implicit-do body. Canonical form (3+ args):
+    //   ARGS-VECTOR `->` :RET-TYPE  body1 body2 ... bodyN
+    // Empty body is legal — the form's type is `:wat::core::nil`
+    // (constrains the declared return type to `:wat::core::nil`).
+    if args.len() < 3 {
         return None;
     }
-    let body = &args[3];
-    // Surface clear errors on malformed flat-shape (Vector at
-    // args[0] but inner triples malformed). Falls through to
-    // None only when the shape doesn't match our recognizers
-    // at all — which for a 4-arg fn with a Vector args[0]
-    // means a clear user error worth surfacing.
+    // Synthesize a single body AST per the same implicit-do rule the
+    // runtime uses (see `synthesize_fn_body` in src/runtime.rs).
+    let body_forms = &args[3..];
+    let body_ast: WatAST = if body_forms.is_empty() {
+        WatAST::Keyword(":wat::core::nil".into(), Span::unknown())
+    } else if body_forms.len() == 1 {
+        body_forms[0].clone()
+    } else {
+        let mut do_items: Vec<WatAST> = Vec::with_capacity(body_forms.len() + 1);
+        do_items.push(WatAST::Keyword(":wat::core::do".into(), Span::unknown()));
+        do_items.extend(body_forms.iter().cloned());
+        WatAST::List(do_items, Span::unknown())
+    };
+    // The diag parser still wants a 4-element slice (sig trio + body).
+    // Build a synthetic 4-element slice with the synthesized body.
+    let sig_args = [
+        args[0].clone(),
+        args[1].clone(),
+        args[2].clone(),
+        body_ast.clone(),
+    ];
     let (param_names, param_types, ret_type) =
-        match parse_fn_signature_for_check_diag(args, errors) {
+        match parse_fn_signature_for_check_diag(&sig_args, errors) {
             Some(parsed) => parsed,
             None => return None,
         };
@@ -9460,15 +9645,15 @@ fn infer_fn(
     // boundary (matches Rust's `?`-operator scoping — short-circuits
     // the innermost fn or closure, not the outer function).
     fresh.push_enclosing_ret(ret_type.clone());
-    let body_ty = infer(body, env, &body_locals, fresh, subst, errors);
+    let body_ty = infer(&body_ast, env, &body_locals, fresh, subst, errors);
     fresh.pop_enclosing_ret();
     if let Some(body_ty) = body_ty {
         if unify(&body_ty, &ret_type, subst, env.types()).is_err() {
             errors.push(CheckError::ReturnTypeMismatch {
-                function: format!("<fn@{}>", body.span()),
+                function: format!("<fn@{}>", body_ast.span()),
                 expected: format_type(&apply_subst(&ret_type, subst)),
                 got: format_type(&apply_subst(&body_ty, subst)),
-                span: body.span().clone(),
+                span: body_ast.span().clone(),
             });
         }
     }
