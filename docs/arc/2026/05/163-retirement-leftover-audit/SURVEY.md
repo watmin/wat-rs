@@ -1,14 +1,19 @@
 # Arc 163 — Soft-retirement surface SURVEY
 
-**Drafted 2026-05-07 by orchestrator.** Comprehensive inventory of
-every retirement surface that still has SOFT scaffolding (typealias
-fall-through, runtime alias arm, transitional acceptance) when it
-should be HARD-retired per user direction *"this arc has as many
-sub pieces as necessary - do not close this current arc until all
-retired forms are actually retired."*
+**Drafted 2026-05-07. Closed 2026-05-08 with arc 163 INSCRIPTION at
+commit 6375380.** Comprehensive inventory of every retirement
+surface that still had SOFT scaffolding (typealias fall-through,
+runtime alias arm, transitional acceptance) when arc 163 opened.
+Per user direction *"this arc has as many sub pieces as necessary
+- do not close this current arc until all retired forms are
+actually retired."*
 
-Built by enumerating every `BareLegacy*` CheckError variant in
-`src/check.rs` + cross-checking for soft fall-throughs.
+**Final state: ALL 12 + 2 surfaces hard-retired.** All slices shipped
+green at 2041/0. See `INSCRIPTION.md` for the close-out story and
+`REALIZATIONS.md` for the substrate-as-teacher continuation lineage.
+
+Built originally by enumerating every `BareLegacy*` CheckError variant
+in `src/check.rs` + cross-checking for soft fall-throughs.
 
 ## The 12 surfaces
 
