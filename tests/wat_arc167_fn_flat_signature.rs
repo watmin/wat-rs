@@ -1,7 +1,6 @@
-//! Integration tests for arc 167 slice 2 — flat-shape fn signature.
+//! Integration tests for arc 167 — flat-shape fn signature.
 //!
-//! Slice 2 wires `:wat::core::fn` to consume the new 5-element flat
-//! shape:
+//! `:wat::core::fn` consumes the canonical 5-element flat shape:
 //!
 //!   (:wat::core::fn  ARGS-VECTOR  ->  :RET-TYPE  BODY)
 //!
@@ -10,9 +9,10 @@
 //! `<-` arrow reads "consumes" (input direction); the sibling `->`
 //! reads "produces" (output direction). Arrows-as-duals.
 //!
-//! The legacy nested-sig list `((p :T) (q :T) -> :R)` retires; the
-//! `BareLegacyFnSignature` walker (`src/check.rs`) catches it at
-//! the diagnostic layer with a verbose migration message.
+//! Slice 4 hard-retired the legacy nested-sig parser arm; legacy
+//! syntax `((p :T) ... -> :R)` post-retirement produces a generic
+//! `MalformedForm` parser error rather than a dedicated walker
+//! diagnostic.
 //!
 //! ## Test cases
 //!
@@ -20,8 +20,6 @@
 //!   2. `defn_with_flat_shape_compiles_and_runs` — defn macro forwards
 //!   3. `recursive_defn_with_flat_shape` — fact(5)=120 via flat-shape defn
 //!   4. `zero_arg_fn_with_empty_vector` — empty `[]` args
-//!   5. `legacy_nested_sig_fn_fires_walker` — walker firing on legacy fn
-//!   6. `legacy_nested_sig_defn_fires_walker_via_macro` — walker via defn
 //!   7. `fn_body_type_mismatch_surfaces` — declared-vs-actual ret mismatch
 //!   8. `malformed_args_vector_clear_error` — clear error on missing `<- :T`
 //!   9. `reflection_on_flat_defn_resolves` — `lookup-define` round-trip
@@ -41,9 +39,8 @@ fn startup_ok(src: &str) {
 
 /// Asserts startup fails and returns the Display-formatted error
 /// string PLUS the Debug repr (joined with `\n---\n`). Tests assert
-/// against either surface — Display carries the migration message
-/// text (BareLegacyFnSignature § Display impl); Debug carries the
-/// variant name for arc 154-style assertions.
+/// against either surface — Display carries the user-facing message
+/// text; Debug carries the variant name for arc 154-style assertions.
 fn startup_err(src: &str) -> String {
     match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Ok(_) => panic!("expected startup failure; got Ok"),
@@ -145,47 +142,6 @@ fn zero_arg_fn_with_empty_vector() {
         Value::i64(n) => assert_eq!(n, 42, "expected 42 from zero-arg fn; got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
-}
-
-// ─── Test 5 — legacy_nested_sig_fn_fires_walker ──────────────────────────────
-
-/// Legacy nested-sig fn `((x :T) -> :T)` triggers
-/// `BareLegacyFnSignature`. Verifies the walker fires fatal at check
-/// time with the verbose migration message.
-#[test]
-fn legacy_nested_sig_fn_fires_walker() {
-    let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x) 7))
-    "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("fn signature must be a vector binding form"),
-        "expected BareLegacyFnSignature migration message; got: {}",
-        err
-    );
-}
-
-// ─── Test 6 — legacy_nested_sig_defn_fires_walker_via_macro ──────────────────
-
-/// Legacy nested-sig `defn` — the legacy 3-arg shape `(defn :name
-/// (sig) body)` no longer matches the new variadic defn macro shape;
-/// the macro will fail to expand OR the expanded fn surfaces the
-/// walker. Either way, the user gets a fatal diagnostic. Assert the
-/// migration message surfaces in the error stream.
-#[test]
-fn legacy_nested_sig_defn_fires_walker_via_macro() {
-    let src = r#"
-        (:wat::core::defn :user::id
-          ((x :wat::core::i64) -> :wat::core::i64)
-          x)
-    "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("fn signature must be a vector binding form"),
-        "expected BareLegacyFnSignature migration message via defn macro; got: {}",
-        err
-    );
 }
 
 // ─── Test 7 — fn_body_type_mismatch_surfaces ─────────────────────────────────
