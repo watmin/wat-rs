@@ -34,6 +34,11 @@ pub enum ParseError {
     /// the location of the orphan `(` (not end-of-file) — points the
     /// user at the form they forgot to close.
     UnclosedParen(Span),
+    /// A `]` was found with no matching `[`. Arc 167 slice 1.
+    UnexpectedRBracket(Span),
+    /// An opening `[` was never closed before end of input. Arc 167
+    /// slice 1.
+    UnclosedBracket(Span),
     /// `parse_one` expected exactly one form; got trailing content after
     /// the first complete form. Span points at the first trailing token.
     TrailingContent(Span),
@@ -47,6 +52,8 @@ impl fmt::Display for ParseError {
             ParseError::Lex(e) => write!(f, "lex error: {}", e),
             ParseError::UnexpectedRParen(span) => write!(f, "unexpected ')' at {}", span),
             ParseError::UnclosedParen(span) => write!(f, "unclosed '(' at {}", span),
+            ParseError::UnexpectedRBracket(span) => write!(f, "unexpected ']' at {}", span),
+            ParseError::UnclosedBracket(span) => write!(f, "unclosed '[' at {}", span),
             ParseError::TrailingContent(span) => {
                 write!(f, "trailing content at {} (parse_one expected a single top-level form)", span)
             }
@@ -159,6 +166,14 @@ impl<'a> Cursor<'a> {
                 Ok(Some(WatAST::List(list, span)))
             }
             Token::RParen => Err(ParseError::UnexpectedRParen(span)),
+            Token::LBracket => {
+                // Arc 167 slice 1 — bracketed forms parse as
+                // `WatAST::Vector`. `[]` parses as an empty Vector
+                // (distinct from `()`, which is Unit / empty List).
+                let items = self.parse_vector_body(span.clone())?;
+                Ok(Some(WatAST::Vector(items, span)))
+            }
+            Token::RBracket => Err(ParseError::UnexpectedRBracket(span)),
             Token::Int(n) => Ok(Some(WatAST::IntLit(*n, span))),
             Token::Float(x) => Ok(Some(WatAST::FloatLit(*x, span))),
             Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b, span))),
@@ -200,6 +215,13 @@ impl<'a> Cursor<'a> {
                     self.advance();
                     return Ok(children);
                 }
+                Some(Token::RBracket) => {
+                    // Arc 167 slice 1 — a `]` inside a list body
+                    // is a delimiter mismatch. Surface as
+                    // `UnexpectedRBracket` pointing at the `]`.
+                    let span = self.peek().expect("guard").span.clone();
+                    return Err(ParseError::UnexpectedRBracket(span));
+                }
                 Some(_) => match self.parse_form()? {
                     Some(child) => children.push(child),
                     None => unreachable!(
@@ -207,6 +229,35 @@ impl<'a> Cursor<'a> {
                     ),
                 },
                 None => return Err(ParseError::UnclosedParen(open_span)),
+            }
+        }
+    }
+
+    /// Parse the body of a vector — `[` already consumed. Accumulates
+    /// child forms until the matching `]`. `open_span` is the location
+    /// of the `[`; surfaced in `UnclosedBracket` errors so the reader
+    /// can jump to the orphan opener. Arc 167 slice 1.
+    fn parse_vector_body(&mut self, open_span: Span) -> Result<Vec<WatAST>, ParseError> {
+        let mut children = Vec::new();
+        loop {
+            match self.peek().map(|st| &st.token) {
+                Some(Token::RBracket) => {
+                    self.advance();
+                    return Ok(children);
+                }
+                Some(Token::RParen) => {
+                    // A `)` inside a vector body is a delimiter
+                    // mismatch — surface as `UnexpectedRParen`.
+                    let span = self.peek().expect("guard").span.clone();
+                    return Err(ParseError::UnexpectedRParen(span));
+                }
+                Some(_) => match self.parse_form()? {
+                    Some(child) => children.push(child),
+                    None => unreachable!(
+                        "parse_form returned None but peek() had a token"
+                    ),
+                },
+                None => return Err(ParseError::UnclosedBracket(open_span)),
             }
         }
     }

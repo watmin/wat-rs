@@ -68,6 +68,14 @@ pub enum Token {
     LParen,
     /// `)`
     RParen,
+    /// `[` — opens a bracketed form. Arc 167 slice 1: produces
+    /// `WatAST::Vector` at the parser layer; vectors are admitted
+    /// only in binding-syntax positions (fn/defn sigs, future
+    /// let-bindings). At value position the parser still produces
+    /// the Vector node; eval/check error there.
+    LBracket,
+    /// `]`
+    RBracket,
     /// Integer literal.
     Int(i64),
     /// Floating-point literal.
@@ -182,6 +190,19 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             continue;
         }
 
+        // Brackets — arc 167 slice 1. Emit `LBracket` / `RBracket`
+        // tokens which the parser turns into `WatAST::Vector`.
+        if c == '[' {
+            tokens.push(SpannedToken { token: Token::LBracket, span: span_at(i) });
+            i += 1;
+            continue;
+        }
+        if c == ']' {
+            tokens.push(SpannedToken { token: Token::RBracket, span: span_at(i) });
+            i += 1;
+            continue;
+        }
+
         // Quasiquote reader macros — `, ,, ,@`.
         if c == '`' {
             tokens.push(SpannedToken { token: Token::Quasiquote, span: span_at(i) });
@@ -280,7 +301,13 @@ fn is_numeric_start_at(bytes: &[u8], i: usize) -> bool {
 
 /// Characters that end a bare symbol or unquoted numeric.
 fn is_symbol_break(c: char) -> bool {
-    c.is_whitespace() || c == '(' || c == ')' || c == '"' || c == ';'
+    c.is_whitespace()
+        || c == '('
+        || c == ')'
+        || c == '['
+        || c == ']'
+        || c == '"'
+        || c == ';'
 }
 
 /// Lex a string literal starting at `start` (pointing at the opening `"`).

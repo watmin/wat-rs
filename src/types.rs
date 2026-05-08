@@ -1860,6 +1860,7 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
         WatAST::Keyword(_, _) => "keyword",
         WatAST::Symbol(_, _) => "symbol",
         WatAST::List(_, _) => "list",
+        WatAST::Vector(_, _) => "vector",
     }
 }
 

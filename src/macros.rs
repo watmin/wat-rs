@@ -535,6 +535,18 @@ fn expand_form(
             // Not a macro call — preserve the outer list's span.
             Ok(WatAST::List(expanded_children, list_span))
         }
+        // Arc 167 slice 1 — recurse into vector children so a
+        // macro call buried inside a fn-sig vector (slice 2
+        // territory) still expands. Vectors carry no head-keyword
+        // dispatch, so the macro-call detection arm at the head
+        // doesn't apply.
+        WatAST::Vector(items, vec_span) => {
+            let expanded_children: Result<Vec<_>, _> = items
+                .into_iter()
+                .map(|c| expand_form(c, registry, depth + 1, env, sym))
+                .collect();
+            Ok(WatAST::Vector(expanded_children?, vec_span))
+        }
         other => Ok(other),
     }
 }
@@ -785,6 +797,28 @@ fn walk_template(
                 call_site_span.clone(),
             ))
         }
+        // Arc 167 slice 1 — recurse into vector children so a
+        // macro template that contains a fn-sig vector (slice 2
+        // territory) walks through its parameters with the same
+        // hygiene scoping as a list. Vectors do not participate
+        // in unquote / unquote-splicing dispatch (head-keyword
+        // forms only).
+        WatAST::Vector(items, _) => {
+            let mut out = Vec::with_capacity(items.len());
+            for child in items {
+                out.push(walk_template(
+                    child,
+                    bindings,
+                    macro_scope,
+                    macro_name,
+                    call_site_span,
+                    depth,
+                    env,
+                    sym,
+                )?);
+            }
+            Ok(WatAST::Vector(out, call_site_span.clone()))
+        }
         // Literals and keywords pass through unchanged; keywords carry
         // no scope tracking.
         other => Ok(other.clone()),
@@ -824,6 +858,17 @@ fn substitute_bindings(form: &WatAST, bindings: &HashMap<String, WatAST>) -> Wat
                 .map(|item| substitute_bindings(item, bindings))
                 .collect();
             WatAST::List(new_items, span.clone())
+        }
+        // Arc 167 slice 1 — recurse into vector children so a
+        // macro-parameter symbol buried inside a fn-sig vector
+        // (slice 2 territory) is substituted just like inside a
+        // list.
+        WatAST::Vector(items, span) => {
+            let new_items: Vec<WatAST> = items
+                .iter()
+                .map(|item| substitute_bindings(item, bindings))
+                .collect();
+            WatAST::Vector(new_items, span.clone())
         }
         other => other.clone(),
     }
@@ -994,6 +1039,7 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
         WatAST::Keyword(_, _) => "keyword",
         WatAST::Symbol(_, _) => "symbol",
         WatAST::List(_, _) => "list",
+        WatAST::Vector(_, _) => "vector",
     }
 }
 

@@ -3590,6 +3590,24 @@ fn infer(
         WatAST::Keyword(_, _) => Some(TypeExpr::Path(":wat::core::keyword".into())),
         WatAST::Symbol(ident, _) => locals.get(&ident.name).cloned(),
         WatAST::List(items, _) => infer_list(items, env, locals, fresh, subst, errors),
+        // Arc 167 slice 1 — vector literals at value position are
+        // not supported. Vectors are consumed only in
+        // `:wat::core::fn` / `:wat::core::defn` signature positions
+        // (slice 2 wires those consumers). A future arc enables
+        // vector literals as `Value::Vec` values.
+        WatAST::Vector(_, span) => {
+            errors.push(CheckError::MalformedForm {
+                head: "<vector literal>".into(),
+                reason: "vector literals at value position are not supported \
+                         in arc 167. Vectors are currently consumed only in \
+                         :wat::core::fn / :wat::core::defn signature positions \
+                         (slice 2 wires those consumers). A future arc enables \
+                         vector literals as `Value::Vec` values."
+                    .into(),
+                span: span.clone(),
+            });
+            None
+        }
     }
 }
 
@@ -5847,6 +5865,18 @@ fn check_subpattern(
                 }
             }
         }
+        // Arc 167 slice 1 — vectors aren't currently admitted as
+        // match sub-patterns. Slice 2 wires the legal consumer
+        // positions (fn / defn signatures); pattern position is
+        // not one of them. Surface as MalformedForm.
+        WatAST::Vector(_, _) => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: "vector sub-patterns are not supported in arc 167".into(),
+                span: pat.span().clone(),
+            });
+            None
+        }
     }
 }
 
@@ -5859,6 +5889,7 @@ fn ast_variant_name_check(ast: &WatAST) -> &'static str {
         WatAST::Keyword(_, _) => "keyword",
         WatAST::Symbol(_, _) => "symbol",
         WatAST::List(_, _) => "list",
+        WatAST::Vector(_, _) => "vector",
     }
 }
 
@@ -7798,6 +7829,7 @@ fn infer_make_queue(
                         WatAST::StringLit(_, _) => "string",
                         WatAST::Symbol(_, _) => "symbol",
                         WatAST::List(_, _) => "list",
+                        WatAST::Vector(_, _) => "vector",
                         WatAST::Keyword(_, _) => unreachable!(),
                     }
                 ),
