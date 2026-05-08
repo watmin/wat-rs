@@ -92,12 +92,13 @@ fn type_position_unit_post_retirement_is_unknown_fqdn() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           42)
     "#;
+    // Arc 163 follow-up — walker re-armed; bare :wat::core::unit
+    // now fires BareLegacyUnitName fatal at check time (replaces the
+    // post-arc-153 ReturnTypeMismatch fall-through path).
     let err = startup_err(src);
     assert!(
-        err.contains("ReturnTypeMismatch")
-            && err.contains(r#"expected: ":wat::core::unit""#)
-            && err.contains(r#"got: ":()""#),
-        "expected ReturnTypeMismatch surfacing :wat::core::unit as unknown FQDN; got: {}",
+        err.contains("BareLegacyUnitName"),
+        "expected BareLegacyUnitName walker to fire on retired :wat::core::unit; got: {}",
         err
     );
 }
@@ -214,12 +215,13 @@ fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           42)
     "#;
+    // Arc 163 follow-up — walker re-armed; the retired sig token
+    // fires BareLegacyUnitName fatal before unification reaches
+    // ReturnTypeMismatch.
     let err = startup_err(src);
     assert!(
-        err.contains("ReturnTypeMismatch")
-            && err.contains(r#"expected: ":wat::core::unit""#)
-            && err.contains(r#"got: ":()""#),
-        "expected ReturnTypeMismatch against retired sig; got: {}",
+        err.contains("BareLegacyUnitName"),
+        "expected BareLegacyUnitName walker to fire on retired :wat::core::unit sig; got: {}",
         err
     );
 }
@@ -313,10 +315,14 @@ fn bare_legacy_unit_name_walker_retired() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           42)
     "#;
+    // Arc 163 follow-up — walker RE-ARMED after arc 163 audit found
+    // the silent-acceptance gap inconsistent with the FQDN-everywhere
+    // discipline. The variant + Display preserved per arc 113
+    // precedent stand; the firing path is back online.
     let err = startup_err(src);
     assert!(
-        !err.contains("BareLegacyUnitName"),
-        "BareLegacyUnitName walker retired in arc 153 slice 2; should not fire; got: {}",
+        err.contains("BareLegacyUnitName"),
+        "expected BareLegacyUnitName walker to fire on bare :wat::core::unit; got: {}",
         err
     );
 }

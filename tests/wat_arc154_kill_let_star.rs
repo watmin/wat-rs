@@ -90,16 +90,22 @@ fn let_star_post_retirement_silently_aliases_to_let() {
     // discouraged. The walker no longer fires; sweep 1b cleared all
     // in-tree consumers; future writers learn the canonical form via
     // documentation, not via migration hints.
+    // Arc 163 follow-up — walker re-armed; runtime fall-through arms
+    // also retired. Bare `:wat::core::let*` now fires fatal
+    // BareLegacyLetStar at check time (consistent with the
+    // FQDN-everywhere discipline).
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((a :wat::core::i64) 5))
             a))
     "#;
-    // Source uses retired keyword; startup succeeds via dispatch
-    // fall-through to sequential `let`. The walker body retirement
-    // is the load-bearing change — no `BareLegacyLetStar` fires.
-    startup_ok(src);
+    let err = startup_err(src);
+    assert!(
+        err.contains("BareLegacyLetStar"),
+        "expected BareLegacyLetStar walker to fire on bare :wat::core::let*; got: {}",
+        err
+    );
 }
 
 // --- 3. Type-mismatch in let body still surfaces -----------------------
@@ -250,8 +256,14 @@ fn multiple_let_star_sites_post_retirement_silently_alias() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::i64::+,2 (:user::a) (:user::b)))
     "#;
-    // Both let* forms fall through to sequential `let` semantics.
-    startup_ok(src);
+    // Arc 163 follow-up — walker re-armed; both let* forms fire
+    // BareLegacyLetStar fatal (one error per site).
+    let err = startup_err(src);
+    assert!(
+        err.contains("BareLegacyLetStar"),
+        "expected BareLegacyLetStar walker to fire on bare :wat::core::let*; got: {}",
+        err
+    );
 }
 
 // --- 10. Reflection — :wat::core::let resolves with sequential semantics

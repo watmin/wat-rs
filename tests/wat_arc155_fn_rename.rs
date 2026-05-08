@@ -56,6 +56,16 @@ fn startup_ok(src: &str) {
     }
 }
 
+/// Arc 163 follow-up — walker re-arm tests need this. Asserts startup
+/// returns Err and returns the diagnostic string for substring checks.
+#[allow(dead_code)]
+fn startup_err(src: &str) -> String {
+    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+        Err(e) => format!("{:?}", e),
+        Ok(_) => panic!("expected startup error; got Ok"),
+    }
+}
+
 // ─── 1. Operator-position retired: :wat::core::lambda fires BareLegacyLambda
 
 #[test]
@@ -69,13 +79,20 @@ fn lambda_post_retirement_silently_aliases_to_fn() {
     // User-facing discipline: `:wat::core::fn` is the canonical
     // operator; `:wat::core::lambda` works but is undocumented and
     // discouraged.
+    // Arc 163 follow-up — walker re-armed; bare :wat::core::lambda
+    // fires BareLegacyLambda fatal (replaces the soft fall-through).
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64)
              x)
            5))
     "#;
-    startup_ok(src);
+    let err = startup_err(src);
+    assert!(
+        err.contains("BareLegacyLambda"),
+        "expected BareLegacyLambda walker to fire on bare :wat::core::lambda; got: {}",
+        err
+    );
 }
 
 // ─── 2. Operator-position canonical: :wat::core::fn works (positive case;
@@ -128,6 +145,8 @@ fn bare_fn_type_post_retirement_walker_silent() {
     // `TypeExpr::Fn` via the substrate's existing parser; no walker
     // fires. Documentation discourages bare form; substrate doesn't
     // enforce. Mirrors arc 113's orphaned-scaffolding pattern.
+    // Arc 163 follow-up — walker re-armed; bare `:fn(...)` fires
+    // BareLegacyLowercaseFn fatal.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::fn
@@ -137,7 +156,12 @@ fn bare_fn_type_post_retirement_walker_silent() {
              (g 5))
            (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x)))
     "#;
-    startup_ok(src);
+    let err = startup_err(src);
+    assert!(
+        err.contains("BareLegacyLowercaseFn"),
+        "expected BareLegacyLowercaseFn walker to fire on bare :fn(...); got: {}",
+        err
+    );
 }
 
 // ─── 4. Type-position canonical: :wat::core::Fn(...) works
@@ -241,13 +265,20 @@ fn multiple_lambda_sites_post_retirement_silently_alias() {
     // legacy-spelling forms in one program all silently work
     // (arc 113 scaffolding pattern; mirrors arc 154's let* sites
     // post-retirement test).
+    // Arc 163 follow-up — walker re-armed; bare :wat::core::lambda
+    // fires BareLegacyLambda fatal.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::lambda (() -> :wat::core::i64)
              (:wat::core::i64::+,2 1 2))
            ))
     "#;
-    startup_ok(src);
+    let err = startup_err(src);
+    assert!(
+        err.contains("BareLegacyLambda"),
+        "expected BareLegacyLambda walker to fire on bare :wat::core::lambda; got: {}",
+        err
+    );
 }
 
 // ─── 8. Tail-call sanity: :wat::core::fn in body position works
@@ -384,6 +415,8 @@ fn both_legacy_walkers_retired_silently_alias() {
     // pass through silently via dispatch fall-through (lambda) and
     // existing parser support (bare fn). Mixed-legacy programs
     // type-check cleanly. Per arc 113 scaffolding precedent.
+    // Arc 163 follow-up — walker re-armed for both surfaces; mixed
+    // legacy program now fires BOTH BareLegacyLambda + BareLegacyLowercaseFn.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::lambda
@@ -393,5 +426,10 @@ fn both_legacy_walkers_retired_silently_alias() {
              (g 5))
            (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x)))
     "#;
-    startup_ok(src);
+    let err = startup_err(src);
+    assert!(
+        err.contains("BareLegacyLambda") && err.contains("BareLegacyLowercaseFn"),
+        "expected BOTH BareLegacyLambda + BareLegacyLowercaseFn walkers to fire; got: {}",
+        err
+    );
 }

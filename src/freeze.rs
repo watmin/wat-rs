@@ -799,9 +799,15 @@ pub fn format_type_expr(t: &TypeExpr) -> String {
             format!(":{}<{}>", head, inner.join(","))
         }
         TypeExpr::Fn { args, ret } => {
+            // Arc 163 follow-up — emit canonical FQDN syntax. Pre-fix
+            // this rendered as `:fn(args)->ret` (legacy pre-arc-155).
+            // The walker `BareLegacyLowercaseFn` rejects bare `:fn(`
+            // input post-walker-rearm, so the renderer must emit the
+            // canonical `:wat::core::Fn(...)` to keep round-trip
+            // consistency between rendered diagnostics and parser.
             let in_parts: Vec<_> = args.iter().map(format_type_expr_inner).collect();
             format!(
-                ":fn({})->{}",
+                ":wat::core::Fn({})->{}",
                 in_parts.join(","),
                 format_type_expr_inner(ret)
             )

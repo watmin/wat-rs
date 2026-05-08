@@ -2114,6 +2114,35 @@ pub fn validate_bare_legacy_primitives(node: &WatAST, errors: &mut Vec<CheckErro
 fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
     match node {
         WatAST::Keyword(s, span) => {
+            // Arc 163 follow-up — re-arm four walkers whose firing
+            // bodies were retired post-sweep (arc 153 slice 2 retired
+            // BareLegacyUnitName; arc 154 slice 2 retired
+            // BareLegacyLetStar; arc 155 slice 2 retired
+            // BareLegacyLambda + BareLegacyLowercaseFn). The retirement
+            // assumed runtime fall-through arms would handle stray
+            // post-checker calls, but arc 163's audit found those
+            // fall-throughs silently accept legacy spellings under the
+            // new substrate. Re-arming here puts the walker back in
+            // the diagnostic stream so user-source bare-form fires
+            // fatal at check time. Variant + Display preserved per
+            // arc 113 precedent stand; this just brings the firing
+            // path back online.
+            if s == ":wat::core::let*" {
+                errors.push(CheckError::BareLegacyLetStar { span: span.clone() });
+                return;
+            }
+            if s == ":wat::core::lambda" {
+                errors.push(CheckError::BareLegacyLambda { span: span.clone() });
+                return;
+            }
+            if s == ":wat::core::unit" {
+                errors.push(CheckError::BareLegacyUnitName { span: span.clone() });
+                return;
+            }
+            if s.starts_with(":fn(") {
+                errors.push(CheckError::BareLegacyLowercaseFn { span: span.clone() });
+                return;
+            }
             // Try parsing as a type expression. Most keywords aren't
             // types (callee paths, value keywords like `:None`); they
             // parse to a plain Path that doesn't match any bare
@@ -9816,8 +9845,13 @@ pub fn format_type(t: &TypeExpr) -> String {
             format!(":{}<{}>", head, inner.join(","))
         }
         TypeExpr::Fn { args, ret } => {
+            // Arc 163 follow-up — emit canonical FQDN. Pre-fix
+            // rendered as `:fn(...)` (legacy pre-arc-155). The
+            // BareLegacyLowercaseFn walker rejects bare `:fn(`
+            // input, so the renderer must emit `:wat::core::Fn(...)`
+            // for round-trip consistency between diagnostics and parser.
             let in_parts: Vec<_> = args.iter().map(format_type_inner).collect();
-            format!(":fn({})->{}", in_parts.join(","), format_type_inner(ret))
+            format!(":wat::core::Fn({})->{}", in_parts.join(","), format_type_inner(ret))
         }
         TypeExpr::Tuple(elements) => {
             let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
@@ -9843,8 +9877,11 @@ pub fn format_type_inner(t: &TypeExpr) -> String {
             format!("{}<{}>", head, inner.join(","))
         }
         TypeExpr::Fn { args, ret } => {
+            // Arc 163 follow-up — inner-position emits `wat::core::Fn(...)`
+            // (no leading colon; inner is colon-stripped per the
+            // canonical-form invariant).
             let in_parts: Vec<_> = args.iter().map(format_type_inner).collect();
-            format!("fn({})->{}", in_parts.join(","), format_type_inner(ret))
+            format!("wat::core::Fn({})->{}", in_parts.join(","), format_type_inner(ret))
         }
         TypeExpr::Tuple(elements) => {
             let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
