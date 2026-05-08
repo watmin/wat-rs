@@ -912,7 +912,7 @@ pub fn eval_iowriter_open_file(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
-                expected: ":String",
+                expected: ":wat::core::String",
                 got: other.type_name(),
                 span: args[0].span().clone(),
             });

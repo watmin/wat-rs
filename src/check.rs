@@ -3483,10 +3483,10 @@ fn infer(
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
     match ast {
-        WatAST::IntLit(_, _) => Some(TypeExpr::Path(":i64".into())),
-        WatAST::FloatLit(_, _) => Some(TypeExpr::Path(":f64".into())),
-        WatAST::BoolLit(_, _) => Some(TypeExpr::Path(":bool".into())),
-        WatAST::StringLit(_, _) => Some(TypeExpr::Path(":String".into())),
+        WatAST::IntLit(_, _) => Some(TypeExpr::Path(":wat::core::i64".into())),
+        WatAST::FloatLit(_, _) => Some(TypeExpr::Path(":wat::core::f64".into())),
+        WatAST::BoolLit(_, _) => Some(TypeExpr::Path(":wat::core::bool".into())),
+        WatAST::StringLit(_, _) => Some(TypeExpr::Path(":wat::core::String".into())),
         // `:None` / `:wat::core::None` — nullary constructor of the
         // built-in :Option<T> enum. Infers as `:Option<T>` with a
         // fresh T; unification against the expected type sharpens T
@@ -5437,7 +5437,7 @@ fn check_subpattern(
         }
         // Literal sub-patterns — narrow the variant's space; partial.
         WatAST::IntLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":i64" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::core::i64" => Some(false),
             other => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -5451,7 +5451,7 @@ fn check_subpattern(
             }
         },
         WatAST::FloatLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":f64" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::core::f64" => Some(false),
             other => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -5465,7 +5465,7 @@ fn check_subpattern(
             }
         },
         WatAST::BoolLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":bool" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::core::bool" => Some(false),
             other => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -5479,7 +5479,7 @@ fn check_subpattern(
             }
         },
         WatAST::StringLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":String" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::core::String" => Some(false),
             other => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -5916,11 +5916,11 @@ fn infer_if(
     // Condition must be :bool.
     let cond_ty = infer(&args[0], env, locals, fresh, subst, errors);
     if let Some(c) = cond_ty {
-        if unify(&c, &TypeExpr::Path(":bool".into()), subst, env.types()).is_err() {
+        if unify(&c, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
                 callee: ":wat::core::if".into(),
                 param: "cond".into(),
-                expected: ":bool".into(),
+                expected: ":wat::core::bool".into(),
                 got: format_type(&apply_subst(&c, subst)),
                 span: args[0].span().clone(),
             });
@@ -6138,11 +6138,11 @@ fn infer_cond(
             // Test must unify with :bool.
             let test_ty = infer(&items[0], env, locals, fresh, subst, errors);
             if let Some(t) = test_ty {
-                if unify(&t, &TypeExpr::Path(":bool".into()), subst, env.types()).is_err() {
+                if unify(&t, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
                     errors.push(CheckError::TypeMismatch {
                         callee: ":wat::core::cond".into(),
                         param: format!("arm #{} test", i + 1),
-                        expected: ":bool".into(),
+                        expected: ":wat::core::bool".into(),
                         got: format_type(&apply_subst(&t, subst)),
                         span: items[0].span().clone(),
                     });
@@ -6310,7 +6310,7 @@ fn infer_def(
             match (prior_type, new_type) {
                 (Some(pt), Some(nt)) => {
                     // Compare structural representation via `format_type`.
-                    // TypeExpr::Path(":i64") == TypeExpr::Path(":i64") etc.
+                    // TypeExpr::Path(":wat::core::i64") == TypeExpr::Path(":wat::core::i64") etc.
                     let pt_str = format_type(&pt);
                     let nt_str = format_type(&nt);
                     if pt_str != nt_str {
@@ -6374,14 +6374,14 @@ fn infer_config_set_bool(
     // type errors, then verify it's a bool.
     let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
     match arg_ty {
-        Some(TypeExpr::Path(ref p)) if p == ":bool" => {
+        Some(TypeExpr::Path(ref p)) if p == ":wat::core::bool" => {
             // Well-typed bool arg — accepted.
         }
         Some(ref ty) => {
             errors.push(CheckError::TypeMismatch {
                 callee: head.into(),
                 param: "flag".into(),
-                expected: ":bool".into(),
+                expected: ":wat::core::bool".into(),
                 got: format_type(ty),
                 span: head_span.clone(),
             });
@@ -6996,11 +6996,11 @@ fn infer_option_expect(
     // Msg must be :String.
     let msg_ty = infer(&args[3], env, locals, fresh, subst, errors);
     if let Some(m) = msg_ty {
-        if unify(&m, &TypeExpr::Path(":String".into()), subst, env.types()).is_err() {
+        if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
                 callee: callee.into(),
                 param: "msg".into(),
-                expected: ":String".into(),
+                expected: ":wat::core::String".into(),
                 got: format_type(&apply_subst(&m, subst)),
                 span: args[3].span().clone(),
             });
@@ -7093,11 +7093,11 @@ fn infer_result_expect(
     }
     let msg_ty = infer(&args[3], env, locals, fresh, subst, errors);
     if let Some(m) = msg_ty {
-        if unify(&m, &TypeExpr::Path(":String".into()), subst, env.types()).is_err() {
+        if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
                 callee: callee.into(),
                 param: "msg".into(),
-                expected: ":String".into(),
+                expected: ":wat::core::String".into(),
                 got: format_type(&apply_subst(&m, subst)),
                 span: args[3].span().clone(),
             });
@@ -7781,7 +7781,7 @@ fn infer_make_queue(
     if with_capacity {
         let cap_ty = infer(&args[1], env, locals, fresh, subst, errors);
         if let Some(cap_ty) = cap_ty {
-            let i64_ty = TypeExpr::Path(":i64".into());
+            let i64_ty = TypeExpr::Path(":wat::core::i64".into());
             if unify(&cap_ty, &i64_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: form.into(),
@@ -8023,7 +8023,7 @@ fn infer_comparison(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    let bool_ty = TypeExpr::Path(":bool".into());
+    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
     if args.len() != 2 {
         errors.push(CheckError::ArityMismatch {
             callee: op.into(),
@@ -8092,8 +8092,8 @@ fn infer_arithmetic(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    let i64_ty = TypeExpr::Path(":i64".into());
-    let f64_ty = TypeExpr::Path(":f64".into());
+    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+    let f64_ty = TypeExpr::Path(":wat::core::f64".into());
 
     // 0-ary: `+`/`*` return identity `:i64`; `-`/`/` reject.
     if args.is_empty() {
@@ -8165,7 +8165,7 @@ fn infer_arithmetic(
 
 /// Arc 050 — predicate. Recognizes `:i64` and `:f64` paths.
 fn is_numeric(t: &TypeExpr) -> bool {
-    matches!(t, TypeExpr::Path(p) if p == ":i64" || p == ":f64")
+    matches!(t, TypeExpr::Path(p) if p == ":wat::core::i64" || p == ":wat::core::f64")
 }
 
 /// Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
@@ -8294,7 +8294,7 @@ fn infer_form_matches(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    let bool_ty = TypeExpr::Path(":bool".into());
+    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
 
     if args.len() != 2 {
         errors.push(CheckError::ArityMismatch {
@@ -8472,7 +8472,7 @@ fn check_clause(
             // it must type to `:bool`.
             let body_ty = infer(body, env, locals, fresh, subst, errors);
             if let Some(t) = body_ty {
-                let bool_ty = TypeExpr::Path(":bool".into());
+                let bool_ty = TypeExpr::Path(":wat::core::bool".into());
                 if unify(&t, &bool_ty, subst, env.types()).is_err() {
                     errors.push(CheckError::TypeMismatch {
                         callee: ":wat::form::matches?".into(),
@@ -8537,7 +8537,7 @@ fn grammar_error_to_check_error(e: crate::form_match::ClauseGrammarError, span: 
 
 /// Arc 050 — predicate. Recognizes `:i64` path specifically.
 fn is_i64(t: &TypeExpr) -> bool {
-    matches!(t, TypeExpr::Path(p) if p == ":i64")
+    matches!(t, TypeExpr::Path(p) if p == ":wat::core::i64")
 }
 
 /// Arc 052 — predicate. Recognizes `:wat::holon::HolonAST` and
@@ -8567,7 +8567,7 @@ fn infer_polymorphic_holon_pair_to_f64(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    let f64_ty = TypeExpr::Path(":f64".into());
+    let f64_ty = TypeExpr::Path(":wat::core::f64".into());
     if args.len() != 2 {
         errors.push(CheckError::ArityMismatch {
             callee: op.into(),
@@ -8624,7 +8624,7 @@ fn infer_polymorphic_holon_pair_to_bool(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    let bool_ty = TypeExpr::Path(":bool".into());
+    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
     if args.len() != 2 {
         errors.push(CheckError::ArityMismatch {
             callee: op.into(),
@@ -8737,7 +8737,7 @@ fn infer_polymorphic_holon_to_i64(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    let i64_ty = TypeExpr::Path(":i64".into());
+    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
     if args.len() != 1 {
         errors.push(CheckError::ArityMismatch {
             callee: op.into(),
@@ -8966,14 +8966,14 @@ fn infer_string_concat(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    let string_ty = TypeExpr::Path(":String".into());
+    let string_ty = TypeExpr::Path(":wat::core::String".into());
     for arg in args {
         if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
             if unify(&ty, &string_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::string::concat".into(),
                     param: "arg".into(),
-                    expected: ":String".into(),
+                    expected: ":wat::core::String".into(),
                     got: format_type(&apply_subst(&ty, subst)),
                     span: arg.span().clone(),
                 });
@@ -9461,18 +9461,18 @@ fn infer_boolean_shortcircuit(
     for (i, arg) in args.iter().enumerate() {
         let arg_ty = infer(arg, env, locals, fresh, subst, errors);
         if let Some(arg_ty) = arg_ty {
-            if unify(&arg_ty, &TypeExpr::Path(":bool".into()), subst, env.types()).is_err() {
+            if unify(&arg_ty, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::and/or".into(),
                     param: format!("#{}", i + 1),
-                    expected: ":bool".into(),
+                    expected: ":wat::core::bool".into(),
                     got: format_type(&apply_subst(&arg_ty, subst)),
                     span: arg.span().clone(),
                 });
             }
         }
     }
-    Some(TypeExpr::Path(":bool".into()))
+    Some(TypeExpr::Path(":wat::core::bool".into()))
 }
 
 // ─── Unification ────────────────────────────────────────────────────────
@@ -9894,10 +9894,10 @@ fn derive_scheme_from_function(func: &Function) -> Option<TypeScheme> {
 // ─── Built-in schemes ───────────────────────────────────────────────────
 
 fn register_builtins(env: &mut CheckEnv) {
-    let i64_ty = || TypeExpr::Path(":i64".into());
-    let u8_ty = || TypeExpr::Path(":u8".into());
-    let f64_ty = || TypeExpr::Path(":f64".into());
-    let bool_ty = || TypeExpr::Path(":bool".into());
+    let i64_ty = || TypeExpr::Path(":wat::core::i64".into());
+    let u8_ty = || TypeExpr::Path(":wat::core::u8".into());
+    let f64_ty = || TypeExpr::Path(":wat::core::f64".into());
+    let bool_ty = || TypeExpr::Path(":wat::core::bool".into());
     let holon_ty = || TypeExpr::Path(":wat::holon::HolonAST".into());
     let t_var = || TypeExpr::Path(":T".into());
 
@@ -9917,7 +9917,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 008 slice 2. Two opaque wat types; multiple concrete
     // backings (real stdio, StringIo). Byte-oriented primitives with
     // char-level conveniences.
-    let string_ty = || TypeExpr::Path(":String".into());
+    let string_ty = || TypeExpr::Path(":wat::core::String".into());
     let unit_ty = || TypeExpr::Tuple(vec![]);
     let vec_u8_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
@@ -10004,7 +10004,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/open-file".to_string(),
         TypeScheme {
             type_params: vec![],
-            params: vec![TypeExpr::Path(":String".into())],
+            params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: iowriter_ty(),
             rest_param_type: None,
         },
@@ -10697,7 +10697,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![holon_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":f64".into())],
+                args: vec![TypeExpr::Path(":wat::core::f64".into())],
             },
             rest_param_type: None,
         },
@@ -10710,8 +10710,8 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Tuple(vec![
-                    TypeExpr::Path(":f64".into()),
-                    TypeExpr::Path(":f64".into()),
+                    TypeExpr::Path(":wat::core::f64".into()),
+                    TypeExpr::Path(":wat::core::f64".into()),
                 ])],
             },
             rest_param_type: None,
@@ -10726,7 +10726,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
-            ret: TypeExpr::Path(":bool".into()),
+            ret: TypeExpr::Path(":wat::core::bool".into()),
             rest_param_type: None,
         },
     );
@@ -10738,8 +10738,8 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::presence-floor".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![TypeExpr::Path(":i64".into())],
-            ret: TypeExpr::Path(":f64".into()),
+            params: vec![TypeExpr::Path(":wat::core::i64".into())],
+            ret: TypeExpr::Path(":wat::core::f64".into()),
             rest_param_type: None,
         },
     );
@@ -10747,8 +10747,8 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::coincident-floor".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![TypeExpr::Path(":i64".into())],
-            ret: TypeExpr::Path(":f64".into()),
+            params: vec![TypeExpr::Path(":wat::core::i64".into())],
+            ret: TypeExpr::Path(":wat::core::f64".into()),
             rest_param_type: None,
         },
     );
@@ -10758,8 +10758,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // for non-therm). Filter is bound at construction; get is filtered-
     // argmax. HolonAST → HolonAST.
     let hologram_ty = || TypeExpr::Path(":wat::holon::Hologram".into());
-    let f64_ty = || TypeExpr::Path(":f64".into());
-    let bool_ty = || TypeExpr::Path(":bool".into());
+    let f64_ty = || TypeExpr::Path(":wat::core::f64".into());
+    let bool_ty = || TypeExpr::Path(":wat::core::bool".into());
     let filter_ty = || TypeExpr::Fn {
         args: vec![f64_ty()],
         ret: Box::new(bool_ty()),
@@ -10823,7 +10823,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![hologram_ty()],
-            ret: TypeExpr::Path(":i64".into()),
+            ret: TypeExpr::Path(":wat::core::i64".into()),
             rest_param_type: None,
         },
     );
@@ -10832,7 +10832,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![hologram_ty()],
-            ret: TypeExpr::Path(":i64".into()),
+            ret: TypeExpr::Path(":wat::core::i64".into()),
             rest_param_type: None,
         },
     );
@@ -10874,7 +10874,7 @@ fn register_builtins(env: &mut CheckEnv) {
     };
     let wat_ast_ty = || TypeExpr::Path(":wat::WatAST".into());
     let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
-    let string_ty = || TypeExpr::Path(":String".into());
+    let string_ty = || TypeExpr::Path(":wat::core::String".into());
 
     // Arc 028 slice 3 — eval family iface drop. Each form takes its
     // source/path directly as the first arg; no interface keyword.
@@ -11314,10 +11314,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["I".into(), "O".into()],
             params: vec![
-                TypeExpr::Path(":String".into()),
+                TypeExpr::Path(":wat::core::String".into()),
                 TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":String".into())],
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
                 },
             ],
             ret: process_ty(),
@@ -11358,10 +11358,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["I".into(), "O".into()],
             params: vec![
-                TypeExpr::Path(":String".into()),
+                TypeExpr::Path(":wat::core::String".into()),
                 TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":String".into())],
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
                 },
             ],
             ret: process_or_startup_error(),
@@ -11379,7 +11379,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
                 TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":String".into())],
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
                 },
             ],
             ret: process_or_startup_error(),
@@ -11742,7 +11742,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
-            ret: TypeExpr::Path(":String".into()),
+            ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
         },
     );
@@ -11768,7 +11768,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
-            ret: TypeExpr::Path(":String".into()),
+            ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
         },
     );
@@ -11808,7 +11808,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":String".into())],
+                args: vec![TypeExpr::Path(":wat::core::String".into())],
             }],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -11829,7 +11829,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![
-                TypeExpr::Path(":String".into()),
+                TypeExpr::Path(":wat::core::String".into()),
                 TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
                     args: vec![t_var()],
@@ -11882,7 +11882,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 }],
             }],
             ret: TypeExpr::Tuple(vec![
-                TypeExpr::Path(":i64".into()),
+                TypeExpr::Path(":wat::core::i64".into()),
                 comm_ok_option_t(),
             ]),
             rest_param_type: None,
@@ -11946,7 +11946,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
-            ret: TypeExpr::Path(":String".into()),
+            ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
         },
     );
@@ -11954,7 +11954,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::Bytes::from-hex".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![TypeExpr::Path(":String".into())],
+            params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Path(":wat::core::Bytes".into())],
@@ -11972,7 +11972,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![t_var()],
-            ret: TypeExpr::Path(":String".into()),
+            ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
         },
     );
@@ -11994,7 +11994,7 @@ fn register_builtins(env: &mut CheckEnv) {
             TypeScheme {
                 type_params: vec!["T".into()],
                 params: vec![t_var()],
-                ret: TypeExpr::Path(":String".into()),
+                ret: TypeExpr::Path(":wat::core::String".into()),
                 rest_param_type: None,
             },
         );
@@ -12008,7 +12008,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::read".into(),
         TypeScheme {
             type_params: vec!["T".into()],
-            params: vec![TypeExpr::Path(":String".into())],
+            params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: t_var(),
             rest_param_type: None,
         },
@@ -12497,7 +12497,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // duration measurement is two `now` calls + integer-accessor
     // subtract (no separate Duration type).
     let instant_ty = || TypeExpr::Path(":wat::time::Instant".into());
-    let string_ty = || TypeExpr::Path(":String".into());
+    let string_ty = || TypeExpr::Path(":wat::core::String".into());
     let opt_instant_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
         args: vec![instant_ty()],
@@ -12689,7 +12689,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 vec_of(t_var()),
                 TypeExpr::Fn {
                     args: vec![t_var(), t_var()],
-                    ret: Box::new(TypeExpr::Path(":bool".into())),
+                    ret: Box::new(TypeExpr::Path(":wat::core::bool".into())),
                 },
             ],
             ret: vec_of(t_var()),
@@ -13617,8 +13617,8 @@ mod tests {
     fn unify_identical_paths() {
         let mut s = Subst::new();
         assert!(unify(
-            &TypeExpr::Path(":i64".into()),
-            &TypeExpr::Path(":i64".into()),
+            &TypeExpr::Path(":wat::core::i64".into()),
+            &TypeExpr::Path(":wat::core::i64".into()),
             &mut s,
             &TypeEnv::with_builtins(),
         )
@@ -13629,8 +13629,8 @@ mod tests {
     fn unify_distinct_paths_fails() {
         let mut s = Subst::new();
         assert!(unify(
-            &TypeExpr::Path(":i64".into()),
-            &TypeExpr::Path(":f64".into()),
+            &TypeExpr::Path(":wat::core::i64".into()),
+            &TypeExpr::Path(":wat::core::f64".into()),
             &mut s,
             &TypeEnv::with_builtins(),
         )
@@ -13662,7 +13662,7 @@ mod tests {
     fn unify_fresh_var_binds_to_concrete() {
         let mut s = Subst::new();
         let var = TypeExpr::Var(0);
-        let concrete = TypeExpr::Path(":i64".into());
+        let concrete = TypeExpr::Path(":wat::core::i64".into());
         unify(&var, &concrete, &mut s, &TypeEnv::with_builtins()).expect("unify");
         assert_eq!(apply_subst(&var, &s), concrete);
     }
@@ -13673,11 +13673,11 @@ mod tests {
         let mut s = Subst::new();
         let vec_int = TypeExpr::Parametric {
             head: "wat::core::Vector".into(),
-            args: vec![TypeExpr::Path(":i64".into())],
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
         };
         let option_int = TypeExpr::Parametric {
             head: "wat::core::Option".into(),
-            args: vec![TypeExpr::Path(":i64".into())],
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
         };
         assert!(unify(&vec_int, &option_int, &mut s, &TypeEnv::with_builtins()).is_err());
     }
@@ -13686,12 +13686,12 @@ mod tests {
     fn unify_fn_types() {
         let mut s = Subst::new();
         let f1 = TypeExpr::Fn {
-            args: vec![TypeExpr::Path(":i64".into())],
-            ret: Box::new(TypeExpr::Path(":bool".into())),
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+            ret: Box::new(TypeExpr::Path(":wat::core::bool".into())),
         };
         let f2 = TypeExpr::Fn {
-            args: vec![TypeExpr::Path(":i64".into())],
-            ret: Box::new(TypeExpr::Path(":bool".into())),
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+            ret: Box::new(TypeExpr::Path(":wat::core::bool".into())),
         };
         assert!(unify(&f1, &f2, &mut s, &TypeEnv::with_builtins()).is_ok());
     }

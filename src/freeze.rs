@@ -306,14 +306,14 @@ fn check_sigma_fn_signature(
         )));
     }
     if !func.param_types.is_empty() {
-        let expected_param = crate::types::TypeExpr::Path(":i64".into());
+        let expected_param = crate::types::TypeExpr::Path(":wat::core::i64".into());
         if func.param_types[0] != expected_param {
             return Err(StartupError::SigmaFn(format!(
                 "{} function param must be :i64; got {:?}",
                 setter, func.param_types[0]
             )));
         }
-        let expected_ret = crate::types::TypeExpr::Path(":i64".into());
+        let expected_ret = crate::types::TypeExpr::Path(":wat::core::i64".into());
         if func.ret_type != expected_ret {
             return Err(StartupError::SigmaFn(format!(
                 "{} function return type must be :i64; got {:?}",

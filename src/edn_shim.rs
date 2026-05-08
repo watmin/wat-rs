@@ -196,7 +196,7 @@ pub fn eval_edn_read(
             // arc 138: no span — eval_edn_read receives evaluated Value via require_one_arg, no WatAST trace
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
-                expected: ":String",
+                expected: ":wat::core::String",
                 got: other.type_name(),
                 span: crate::span::Span::unknown(),
             });

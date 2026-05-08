@@ -525,16 +525,16 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
             // Primitives
             match name.as_str() {
                 "i64" => {
-                    return Ok(quote! { ::wat::types::TypeExpr::Path(":i64".into()) })
+                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::i64".into()) })
                 }
                 "f64" => {
-                    return Ok(quote! { ::wat::types::TypeExpr::Path(":f64".into()) })
+                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::f64".into()) })
                 }
                 "bool" => {
-                    return Ok(quote! { ::wat::types::TypeExpr::Path(":bool".into()) })
+                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::bool".into()) })
                 }
                 "String" => {
-                    return Ok(quote! { ::wat::types::TypeExpr::Path(":String".into()) })
+                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::String".into()) })
                 }
                 "Value" => {
                     // wat::runtime::Value — treat as a fresh var (the

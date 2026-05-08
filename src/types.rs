@@ -292,8 +292,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::holon::CapacityExceeded".into(),
         type_params: vec![],
         fields: vec![
-            ("cost".into(), TypeExpr::Path(":i64".into())),
-            ("budget".into(), TypeExpr::Path(":i64".into())),
+            ("cost".into(), TypeExpr::Path(":wat::core::i64".into())),
+            ("budget".into(), TypeExpr::Path(":wat::core::i64".into())),
         ],
     }));
 
@@ -376,8 +376,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::core::EvalError".into(),
         type_params: vec![],
         fields: vec![
-            ("kind".into(), TypeExpr::Path(":String".into())),
-            ("message".into(), TypeExpr::Path(":String".into())),
+            ("kind".into(), TypeExpr::Path(":wat::core::String".into())),
+            ("message".into(), TypeExpr::Path(":wat::core::String".into())),
         ],
     }));
 
@@ -396,7 +396,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         type_params: vec![],
         expr: TypeExpr::Parametric {
             head: "wat::core::Vector".into(),
-            args: vec![TypeExpr::Path(":u8".into())],
+            args: vec![TypeExpr::Path(":wat::core::u8".into())],
         },
     }));
 
@@ -568,7 +568,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             EnumVariant::Tagged {
                 name: "Panic".into(),
                 fields: vec![
-                    ("message".into(), TypeExpr::Path(":String".into())),
+                    ("message".into(), TypeExpr::Path(":wat::core::String".into())),
                     (
                         "failure".into(),
                         TypeExpr::Parametric {
@@ -580,7 +580,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             },
             EnumVariant::Tagged {
                 name: "RuntimeError".into(),
-                fields: vec![("message".into(), TypeExpr::Path(":String".into()))],
+                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
             },
             EnumVariant::Unit("ChannelDisconnected".into()),
         ],
@@ -606,7 +606,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             EnumVariant::Tagged {
                 name: "Panic".into(),
                 fields: vec![
-                    ("message".into(), TypeExpr::Path(":String".into())),
+                    ("message".into(), TypeExpr::Path(":wat::core::String".into())),
                     (
                         "failure".into(),
                         TypeExpr::Parametric {
@@ -618,7 +618,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             },
             EnumVariant::Tagged {
                 name: "RuntimeError".into(),
-                fields: vec![("message".into(), TypeExpr::Path(":String".into()))],
+                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
             },
             EnumVariant::Unit("ChannelDisconnected".into()),
         ],
@@ -632,9 +632,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::kernel::Location".into(),
         type_params: vec![],
         fields: vec![
-            ("file".into(), TypeExpr::Path(":String".into())),
-            ("line".into(), TypeExpr::Path(":i64".into())),
-            ("col".into(), TypeExpr::Path(":i64".into())),
+            ("file".into(), TypeExpr::Path(":wat::core::String".into())),
+            ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
+            ("col".into(), TypeExpr::Path(":wat::core::i64".into())),
         ],
     }));
 
@@ -652,21 +652,21 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 "file".into(),
                 TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":String".into())],
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
                 },
             ),
             (
                 "line".into(),
                 TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":i64".into())],
+                    args: vec![TypeExpr::Path(":wat::core::i64".into())],
                 },
             ),
             (
                 "symbol".into(),
                 TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":String".into())],
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
                 },
             ),
         ],
@@ -681,7 +681,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::kernel::Failure".into(),
         type_params: vec![],
         fields: vec![
-            ("message".into(), TypeExpr::Path(":String".into())),
+            ("message".into(), TypeExpr::Path(":wat::core::String".into())),
             (
                 "location".into(),
                 TypeExpr::Parametric {
@@ -700,14 +700,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 "actual".into(),
                 TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":String".into())],
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
                 },
             ),
             (
                 "expected".into(),
                 TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":String".into())],
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
                 },
             ),
         ],
@@ -726,14 +726,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 "stdout".into(),
                 TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":String".into())],
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
                 },
             ),
             (
                 "stderr".into(),
                 TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":String".into())],
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
                 },
             ),
             (
@@ -772,7 +772,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     env.register_builtin(TypeDef::Struct(StructDef {
         name: ":wat::kernel::StartupError".into(),
         type_params: vec![],
-        fields: vec![("message".into(), TypeExpr::Path(":String".into()))],
+        fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
     }));
 
     // :wat::kernel::Process — return type of
@@ -905,14 +905,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::holon::CoincidentExplanation".into(),
         type_params: vec![],
         fields: vec![
-            ("cosine".into(), TypeExpr::Path(":f64".into())),
-            ("floor".into(), TypeExpr::Path(":f64".into())),
-            ("dim".into(), TypeExpr::Path(":i64".into())),
-            ("sigma".into(), TypeExpr::Path(":i64".into())),
-            ("coincident".into(), TypeExpr::Path(":bool".into())),
+            ("cosine".into(), TypeExpr::Path(":wat::core::f64".into())),
+            ("floor".into(), TypeExpr::Path(":wat::core::f64".into())),
+            ("dim".into(), TypeExpr::Path(":wat::core::i64".into())),
+            ("sigma".into(), TypeExpr::Path(":wat::core::i64".into())),
+            ("coincident".into(), TypeExpr::Path(":wat::core::bool".into())),
             (
                 "min-sigma-to-pass".into(),
-                TypeExpr::Path(":i64".into()),
+                TypeExpr::Path(":wat::core::i64".into()),
             ),
         ],
     }));
@@ -1729,13 +1729,18 @@ fn parse_type_inner(
     if canonicalize && raw_path == ":wat::core::nil" {
         return Ok(TypeExpr::Tuple(vec![]));
     }
+    // RETIREMENT WINDOW (arc 163 slice 3h gates arc 163 closure):
+    // The UPGRADE arms below are temporary bridge scaffolding for fixtures
+    // using bare-form wat source (`:i64` etc. in .wat files). Slice 3g
+    // sweeps user-source fixtures; slice 3h retires these arms together
+    // with the container-head upgrade arm at line ~1683.
     let path = if canonicalize {
         match raw_path.as_str() {
-            ":wat::core::i64" => ":i64".to_string(),
-            ":wat::core::f64" => ":f64".to_string(),
-            ":wat::core::bool" => ":bool".to_string(),
-            ":wat::core::String" => ":String".to_string(),
-            ":wat::core::u8" => ":u8".to_string(),
+            ":i64" => ":wat::core::i64".to_string(),
+            ":f64" => ":wat::core::f64".to_string(),
+            ":bool" => ":wat::core::bool".to_string(),
+            ":String" => ":wat::core::String".to_string(),
+            ":u8" => ":wat::core::u8".to_string(),
             _ => raw_path,
         }
     } else {
@@ -2142,7 +2147,7 @@ mod tests {
                 assert!(s.type_params.is_empty());
                 assert_eq!(s.fields.len(), 4);
                 assert_eq!(s.fields[0].0, "open");
-                assert_eq!(s.fields[0].1, TypeExpr::Path(":f64".into()));
+                assert_eq!(s.fields[0].1, TypeExpr::Path(":wat::core::f64".into()));
             }
             _ => panic!("expected Struct"),
         }
@@ -2246,7 +2251,7 @@ mod tests {
     fn simple_newtype() {
         let (env, _) = collect(r#"(:wat::core::newtype :my::trading::Price :f64)"#).unwrap();
         if let TypeDef::Newtype(n) = env.get(":my::trading::Price").unwrap() {
-            assert_eq!(n.inner, TypeExpr::Path(":f64".into()));
+            assert_eq!(n.inner, TypeExpr::Path(":wat::core::f64".into()));
         } else {
             panic!();
         }
@@ -2269,7 +2274,7 @@ mod tests {
     fn simple_typealias() {
         let (env, _) = collect(r#"(:wat::core::typealias :my::Amount :f64)"#).unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Amount").unwrap() {
-            assert_eq!(a.expr, TypeExpr::Path(":f64".into()));
+            assert_eq!(a.expr, TypeExpr::Path(":wat::core::f64".into()));
         } else {
             panic!();
         }
@@ -2300,7 +2305,7 @@ mod tests {
                 TypeExpr::Fn { args, ret } => {
                     assert_eq!(args.len(), 1);
                     assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
-                    assert_eq!(**ret, TypeExpr::Path(":bool".into()));
+                    assert_eq!(**ret, TypeExpr::Path(":wat::core::bool".into()));
                 }
                 other => panic!("expected Fn, got {:?}", other),
             }
@@ -2321,7 +2326,7 @@ mod tests {
                     assert_eq!(head, "wat::core::HashMap");
                     assert_eq!(args.len(), 2);
                     assert_eq!(args[0], TypeExpr::Path(":Atom".into()));
-                    assert_eq!(args[1], TypeExpr::Path(":f64".into()));
+                    assert_eq!(args[1], TypeExpr::Path(":wat::core::f64".into()));
                 }
                 other => panic!("expected Parametric, got {:?}", other),
             }
@@ -2408,7 +2413,7 @@ mod tests {
     fn type_expr_path() {
         assert_eq!(
             parse_type_expr(":f64").unwrap(),
-            TypeExpr::Path(":f64".into())
+            TypeExpr::Path(":wat::core::f64".into())
         );
         assert_eq!(
             parse_type_expr(":my::ns::MyType").unwrap(),
@@ -2477,8 +2482,8 @@ mod tests {
         match t {
             TypeExpr::Tuple(elements) => {
                 assert_eq!(elements.len(), 2);
-                assert_eq!(elements[0], TypeExpr::Path(":i64".into()));
-                assert_eq!(elements[1], TypeExpr::Path(":String".into()));
+                assert_eq!(elements[0], TypeExpr::Path(":wat::core::i64".into()));
+                assert_eq!(elements[1], TypeExpr::Path(":wat::core::String".into()));
             }
             other => panic!("expected Tuple(i64,String), got {:?}", other),
         }
@@ -2497,7 +2502,7 @@ mod tests {
     fn type_expr_tuple_one_element_is_grouping() {
         // :(T) is Rust grouping — flattens to T (not a 1-tuple).
         let t = parse_type_expr(":(i64)").unwrap();
-        assert_eq!(t, TypeExpr::Path(":i64".into()));
+        assert_eq!(t, TypeExpr::Path(":wat::core::i64".into()));
     }
 
     #[test]
@@ -2507,7 +2512,7 @@ mod tests {
         match t {
             TypeExpr::Tuple(elements) => {
                 assert_eq!(elements.len(), 1);
-                assert_eq!(elements[0], TypeExpr::Path(":i64".into()));
+                assert_eq!(elements[0], TypeExpr::Path(":wat::core::i64".into()));
             }
             other => panic!("expected 1-tuple, got {:?}", other),
         }

@@ -41,7 +41,7 @@ fn scheme_uuid_v4(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeExpr> 
             args[0].span().clone(),
         );
     }
-    Some(TypeExpr::Path(":String".into()))
+    Some(TypeExpr::Path(":wat::core::String".into()))
 }
 
 /// Dispatch: mint via `wat_edn::new_uuid_v4()`, render to canonical

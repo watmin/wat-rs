@@ -496,10 +496,10 @@ fn derive_schema(def: &EnumDef, types: &TypeEnv) -> Result<AutoSchema, String> {
 fn type_to_affinity(t: &TypeExpr) -> Option<&'static str> {
     match t {
         TypeExpr::Path(p) => match p.as_str() {
-            ":String" => Some("TEXT NOT NULL"),
-            ":i64" => Some("INTEGER NOT NULL"),
-            ":f64" => Some("REAL NOT NULL"),
-            ":bool" => Some("INTEGER NOT NULL"),
+            ":wat::core::String" => Some("TEXT NOT NULL"),
+            ":wat::core::i64" => Some("INTEGER NOT NULL"),
+            ":wat::core::f64" => Some("REAL NOT NULL"),
+            ":wat::core::bool" => Some("INTEGER NOT NULL"),
             // Arc 091 slice 1 — HolonAST values land in TEXT via the EDN
             // write-strategy newtype the field is declared with.
             // Tagged → :wat::edn::write (round-trip-safe).
@@ -571,7 +571,7 @@ fn value_to_tosql(
                 head: op.into(),
                 reason: format!(
                     "{enum_name}::{variant_name}#{idx}: non-scalar field type — \
-                     auto-spawn supports :String/:i64/:f64/:bool plus the \
+                     auto-spawn supports :wat::core::String/:wat::core::i64/:wat::core::f64/:wat::core::bool plus the \
                      :wat::edn::Tagged / :wat::edn::NoTag newtypes around \
                      HolonAST and :HashMap<K,V>"
                 ),
@@ -581,10 +581,10 @@ fn value_to_tosql(
         }
     };
     match (path, v) {
-        (":String", Value::String(s)) => Ok(Box::new((**s).clone())),
-        (":i64", Value::i64(n)) => Ok(Box::new(*n)),
-        (":f64", Value::f64(x)) => Ok(Box::new(*x)),
-        (":bool", Value::bool(b)) => Ok(Box::new(*b)),
+        (":wat::core::String", Value::String(s)) => Ok(Box::new((**s).clone())),
+        (":wat::core::i64", Value::i64(n)) => Ok(Box::new(*n)),
+        (":wat::core::f64", Value::f64(x)) => Ok(Box::new(*x)),
+        (":wat::core::bool", Value::bool(b)) => Ok(Box::new(*b)),
 
         // Arc 091 slice 1 — Tagged/NoTag newtypes around HolonAST.
         // Runtime: Value::Struct{type_name: ":wat::edn::Tagged"|":wat::edn::NoTag",

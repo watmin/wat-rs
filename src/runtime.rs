@@ -454,15 +454,14 @@ pub enum ProgramHandleInner {
 impl Value {
     pub fn type_name(&self) -> &'static str {
         match self {
-            // Arc 163 slice 3e — primitive arms revert to bare; full
-            // primitive-path FQDN sweep is slice 3f scope (155 sites).
+            // Arc 163 slice 3f — flip primitive arms to FQDN.
             // Container arms (Vector/Option/Result/HashMap/HashSet/etc.)
-            // stay FQDN because slice 3e flipped Parametric.head storage.
-            Value::bool(_) => "bool",
-            Value::i64(_) => "i64",
-            Value::u8(_) => "u8",
-            Value::f64(_) => "f64",
-            Value::String(_) => "String",
+            // stay FQDN (slice 3e shipped them).
+            Value::bool(_) => "wat::core::bool",
+            Value::i64(_) => "wat::core::i64",
+            Value::u8(_) => "wat::core::u8",
+            Value::f64(_) => "wat::core::f64",
+            Value::String(_) => "wat::core::String",
             Value::Vec(_) => "wat::core::Vector",
             Value::Unit => "()",
             Value::wat__core__keyword(_) => "wat::core::keyword",

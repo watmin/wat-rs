@@ -265,8 +265,11 @@ fn signature_of_variadic_define_returns_rest_shape() {
     assert!(line.contains("sum-of"), "expected 'sum-of' in {}", line);
     assert!(line.contains("\"&\""), "expected '&' rest-marker symbol in {}", line);
     assert!(line.contains("\"xs\""), "expected 'xs' rest-binder name in {}", line);
-    assert!(line.contains("Vec<i64>") || line.contains("Vector<i64>"),
-        "expected Vec/Vector<i64> in rest-binder type in {}", line);
+    assert!(
+        line.contains("Vec<i64>") || line.contains("Vector<i64>")
+            || line.contains("Vector<wat::core::i64>"),
+        "expected Vec/Vector<i64> in rest-binder type in {}", line
+    );
     assert!(line.contains("init"), "expected 'init' fixed-param name in {}", line);
 }
 

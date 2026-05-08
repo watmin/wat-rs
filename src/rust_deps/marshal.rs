@@ -731,7 +731,7 @@ mod tests {
             RuntimeError::TypeMismatch { op, expected, got, .. } => {
                 assert_eq!(op, ":rust::test::method");
                 assert_eq!(expected, "i64");
-                assert_eq!(got, "String");
+                assert_eq!(got, "wat::core::String");
             }
             other => panic!("expected TypeMismatch, got {:?}", other),
         }
