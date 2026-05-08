@@ -695,6 +695,68 @@ even if every other field is right.
 **Cross-reference:** `feedback_agent_model_explicit.md` (memory
 saved 2026-05-06). Carries the discipline across compactions.
 
+### Failure mode 13 — Trusting a DESIGN section without cross-checking memory
+
+**Signature:** reading a slice description / scope statement /
+out-of-scope list inside an arc's `DESIGN.md` and treating it as
+ground truth for the current step. Then planning work (spawning
+agents, drafting BRIEFs, taking actions) based on that section —
+without cross-checking against newer memory state.
+
+**Reality check:** DESIGNs are SNAPSHOTS at the time of writing.
+Project state evolves. Memory entries (`project_*.md`,
+`feedback_*.md`) capture decisions that may post-date the DESIGN.
+**When memory contradicts a DESIGN section, memory wins.**
+
+The DESIGN.md says "do X." Before doing X, ask: *is X still in
+scope per current memory?* If memory says otherwise, the DESIGN
+is stale; update it (DESIGNs are living docs; INSCRIPTIONs are
+historical record — only INSCRIPTIONs are immutable per FM 11).
+
+**Real incident, 2026-05-07:** Mid arc 159 closure, the
+orchestrator started planning a sonnet spawn for slice 3 of arc
+159 — "holon-lab-trading consumer sweep ~965 sites" — based on
+the DESIGN.md text. User caught it: *"we are not working on
+the lab - it will be rebuilt once wat is stable - where did you
+find these instructions? we are a long way away from working on
+the lab again."* The load-bearing memory was
+`project_lab_reconstruction.md`: *"lab is being archived as
+reference; reconstruction tests fresh-user-follow-along; wat-rs
+is the durable substrate; substrate work doesn't wait for lab."*
+
+The DESIGN had been written WHEN the lab was still active. The
+project pivoted; the DESIGN didn't. The orchestrator should have
+cross-checked the slice 3 description against memory before
+acting. Cost: ~5 minutes of false-start planning + a user-side
+correction. The fix shipped immediately (DESIGN.md updated to
+remove slice 3; arc 159 closure proceeded on wat-rs scope alone).
+
+**The discipline:**
+
+1. Before acting on any DESIGN section's directive (especially
+   "slice N — do X" or "out of scope — Y"), grep memory for
+   relevant project state:
+   ```bash
+   ls ~/.claude/projects/-home-watmin-work-holon/memory/project_*.md
+   ```
+   Skim titles for relevance to the section's domain.
+2. If memory has a `project_*.md` that contradicts the DESIGN's
+   scope claim, MEMORY WINS. Update the DESIGN to reflect the
+   pivot (DESIGNs are living; this is not FM 6 preemptive update
+   — it's correction).
+3. INSCRIPTIONs are immutable per FM 11. DESIGNs are not. The
+   distinction matters.
+
+**The four questions on this discipline:**
+- Obvious? — DESIGN says X; memory says NOT X. Both can't be
+  current. Memory is newer (saved with timestamps); the gap is
+  resolvable.
+- Honest? — acting on stale DESIGN content while the project
+  pivoted is a lie about current scope. FAILS Honest.
+
+**Cross-reference:** `feedback_design_vs_memory.md` (memory
+saved 2026-05-07). Carries the discipline across compactions.
+
 ---
 
 ## Section 7 — Sonnet delegation protocol (substrate-informed briefs)
