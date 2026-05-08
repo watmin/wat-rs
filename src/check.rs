@@ -13779,7 +13779,7 @@ mod tests {
         assert!(check(
             r#"(:wat::core::let
                  ((doubler
-                   (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+                   (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
                      (:wat::core::i64::+,2 x x))))
                  true)"#
         )

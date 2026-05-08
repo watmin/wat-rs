@@ -18773,7 +18773,7 @@ mod tests {
     fn fn_as_value() {
         // The fn produces a callable; invoking it inline.
         let result = eval_expr(
-            r#"((:wat::core::fn ((x :i64) (y :i64) -> :i64)
+            r#"((:wat::core::fn [x <- :i64 y <- :i64] -> :i64
                   (:wat::core::i64::+,2 x y))
                 3 4)"#,
         )
@@ -18786,7 +18786,7 @@ mod tests {
         let result = eval_expr(
             r#"(:wat::core::let
                  ((adder
-                   (:wat::core::fn ((x :i64) -> :i64)
+                   (:wat::core::fn [x <- :i64] -> :i64
                      (:wat::core::i64::+,2 x 10))))
                  (adder 5))"#,
         )
@@ -18801,7 +18801,7 @@ mod tests {
         let result = eval_expr(
             r#"(:wat::core::let ((n 100))
                  (:wat::core::let ((f
-                                  (:wat::core::fn ((x :i64) -> :i64)
+                                  (:wat::core::fn [x <- :i64] -> :i64
                                     (:wat::core::i64::+,2 x n))))
                    (:wat::core::let ((n 999))
                      (f 1))))"#,
@@ -20757,7 +20757,7 @@ mod tests {
         let src = r#"
             (:wat::core::map
               (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn ((x :i64) -> :i64) (:wat::core::i64::*,2 x 2)))
+              (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::*,2 x 2)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -20780,7 +20780,7 @@ mod tests {
             (:wat::core::foldl
               (:wat::core::Vector :i64 1 2 3 4)
               10
-              (:wat::core::fn ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
                 (:wat::core::i64::+,2 acc x)))
         "#;
         match eval_expr(src).unwrap() {
@@ -20871,7 +20871,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::Vector :i64 5 12 3 18 7)
-              (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 10)))
+              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::> x 10)))
         "#;
         let v = expect_some(eval_expr(src).unwrap());
         assert_eq!(expect_i64(v), 3); // index of 18 (last x > 10)
@@ -20882,7 +20882,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 99)))
+              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::> x 99)))
         "#;
         expect_none(eval_expr(src).unwrap());
     }
@@ -20892,7 +20892,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::Vector :i64)
-              (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 0)))
+              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::> x 0)))
         "#;
         expect_none(eval_expr(src).unwrap());
     }
@@ -20956,7 +20956,7 @@ mod tests {
         let src = r#"
             (:wat::std::list::map-with-index
               (:wat::core::Vector :i64 10 20 30)
-              (:wat::core::fn ((x :i64) (i :i64) -> :i64)
+              (:wat::core::fn [x <- :i64 i <- :i64] -> :i64
                 (:wat::core::i64::+,2 x i)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21189,7 +21189,7 @@ mod tests {
                   (:wat::core::Vector :i64 3)
                   (:wat::core::Vector :i64 4)))
               0
-              (:wat::core::fn ((acc :i64) (n :i64) -> :i64)
+              (:wat::core::fn [acc <- :i64 n <- :i64] -> :i64
                 (:wat::core::i64::+,2 acc n)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21429,7 +21429,7 @@ mod tests {
               (:wat::core::values
                 (:wat::core::HashMap :(String,i64) "a" 10 "b" 20 "c" 30))
               0
-              (:wat::core::fn ((acc :i64) (v :i64) -> :i64)
+              (:wat::core::fn [acc <- :i64 v <- :i64] -> :i64
                 (:wat::core::i64::+,2 acc v)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21699,7 +21699,7 @@ mod tests {
             (:wat::core::foldr
               (:wat::core::Vector :i64 1 2 3)
               0
-              (:wat::core::fn ((x :i64) (acc :i64) -> :i64)
+              (:wat::core::fn [x <- :i64 acc <- :i64] -> :i64
                 (:wat::core::i64::-,2 x acc)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21715,7 +21715,7 @@ mod tests {
             (:wat::core::foldl
               (:wat::core::Vector :i64 1 2 3)
               0
-              (:wat::core::fn ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
                 (:wat::core::i64::-,2 acc x)))
         "#;
         match eval_expr(src_l).unwrap() {
@@ -21729,7 +21729,7 @@ mod tests {
         let src = r#"
             (:wat::core::filter
               (:wat::core::Vector :i64 1 2 3 4 5)
-              (:wat::core::fn ((x :i64) -> :bool)
+              (:wat::core::fn [x <- :i64] -> :bool
                 (:wat::core::> x 2)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21752,7 +21752,7 @@ mod tests {
         let src = r#"
             (:wat::core::filter
               (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn ((x :i64) -> :i64) x))
+              (:wat::core::fn [x <- :i64] -> :i64 x))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
@@ -23810,7 +23810,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               ((x 2))
-              ((:wat::core::fn (-> :wat::core::i64) x)))
+              ((:wat::core::fn [] -> :wat::core::i64 x)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(2) => {}
