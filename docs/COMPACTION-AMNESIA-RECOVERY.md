@@ -757,6 +757,84 @@ remove slice 3; arc 159 closure proceeded on wat-rs scope alone).
 **Cross-reference:** `feedback_design_vs_memory.md` (memory
 saved 2026-05-07). Carries the discipline across compactions.
 
+### Failure mode 14 — Surface retirement leaving internal identifiers as leftovers
+
+**Signature:** an arc retires a user-facing concept (e.g., a
+keyword like `:wat::core::lambda`, a verb spelling, a special form
+name). The arc deliberately scopes out the Rust-level internal
+identifier rename. The arc closes. Time passes. The user notices
+internal identifiers still using the legacy name and reads it as
+inconsistency / confusion / "you said you killed it but didn't."
+
+**Reality check:** when retiring a user-facing concept, the
+orchestrator MUST run an internal-identifier audit grep BEFORE
+closing the arc and decide explicitly:
+
+- **Option (a)**: sweep internals in the SAME arc (preferred when
+  surface is small — ~10-50 sites — and mechanical). Keeps the
+  surface and internals consistent at every commit.
+- **Option (b)**: queue the internal-rename arc IMMEDIATELY (same
+  session if possible; otherwise as the very next arc). The arc N+1
+  number is reserved at arc N's INSCRIPTION; the work ships within
+  days, not months.
+
+**The failure pattern:** scoping out without queuing. The "we'll do
+it later" mental note decays; the leftovers persist; user surfaces
+the inconsistency 6 months later as "what happened here?"
+
+**Real incident, 2026-05-07 (arc 162 origin):** Arc 155 retired the
+user-facing `:wat::core::lambda` keyword (Path B full retirement;
+walker fired, sweep cleared, walker body retired). The Rust-level
+identifiers — `Value::wat__core__lambda`, `parse_lambda_signature*`,
+`WatLambdaSigmaFn`, `<lambda@span>` debug strings, walker helper
+fns, test file naming — were deliberately scoped out. ~353 lambda
+references persisted. User audit 6 months later: *"i wasn't happy
+seeing left overs in the source... we need to make sure we don't
+leave confusion when we do these clean ups."* Arc 162 opened to
+close the gap; cost was ~60 min sweep work that should have shipped
+adjacent to arc 155.
+
+**The discipline:**
+
+1. Before closing any arc that retires a user-facing concept
+   (keyword, verb, special form, type-system feature), run the
+   internal-identifier audit grep:
+   ```bash
+   grep -rn "<retired_concept>" --include="*.rs" --include="*.wat" .
+   ```
+2. Classify each hit:
+   - Live identifier using legacy name as concept → option (a) sweep
+     in same arc, OR option (b) queue immediate follow-up
+   - Comment using legacy name as live concept → sweep
+   - Comment recording the retirement (historical context) → keep
+   - Variant + Display preserved as orphaned scaffolding (arc 113
+     precedent) → keep
+3. The classification framework (Bucket A/B/C/D) from arc 162's
+   BRIEF is the canonical orientation device:
+   - **A**: live identifiers — RENAME
+   - **B**: stale comment text — UPDATE
+   - **C**: historical retirement context — KEEP
+   - **D**: orphaned scaffolding (arc 113 precedent) — KEEP
+4. If choosing option (b), the next arc's number is RESERVED in
+   the closing INSCRIPTION (e.g., "arc N+1 closes the internal
+   identifier rename"); the next arc's DESIGN drafts BEFORE arc
+   N closes. No "future arc when X surfaces" deferral language.
+5. The discipline is universal across substrate retirements: any
+   surface concept removed should leave NO live internal identifier
+   carrying the retired name. Internals that mirror the surface
+   stay consistent; internals that record the retirement (variant
+   names, history comments) stay legacy by design.
+
+**The four questions on this discipline:**
+- Honest? — "we retired X" while leaving X-named identifiers in the
+  source is a partial truth. FAILS Honest.
+- Obvious? — fresh reader sees mixed naming (some `lambda`, some
+  `fn`) and reads inconsistency. FAILS Obvious.
+
+**Cross-reference:** `feedback_surface_retirement_internals.md`
+(memory saved 2026-05-07). Carries the discipline across
+compactions.
+
 ---
 
 ## Section 7 — Sonnet delegation protocol (substrate-informed briefs)

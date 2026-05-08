@@ -1,10 +1,10 @@
 //! Integration coverage for arc 009 — names are values.
 //!
 //! A registered user/stdlib define's keyword-path evaluates to a
-//! `Value::wat__core__lambda` in expression position; the type
+//! `Value::wat__core__fn` in expression position; the type
 //! checker infers a `:wat::core::Fn(params)->ret` scheme for the same position.
 //! Callers pass named defines to `:wat::core::Fn(...)`-typed parameters without
-//! a pass-through lambda wrapper — the asymmetry with
+//! a pass-through fn wrapper — the asymmetry with
 //! `:wat::kernel::spawn-thread`'s long-standing accept-by-name
 //! convention dissolves.
 

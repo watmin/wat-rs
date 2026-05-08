@@ -767,7 +767,7 @@ fn arc_114_migration_hint(callee: &str, expected: &str, got: &str) -> Option<Str
          :wat::kernel::join-result retire. Programs deliver values only \
          via their output channel; R-via-join is gone. \
          Migrate: (:wat::kernel::spawn :worker args...) → \
-         (:wat::kernel::spawn-thread (:wat::core::lambda \
+         (:wat::kernel::spawn-thread (:wat::core::fn \
          ((_in :rust::crossbeam_channel::Receiver<()>) \
          (_out :rust::crossbeam_channel::Sender<()>)) (:worker args...))) \
          returning :wat::kernel::Thread<(),()>. \
@@ -1265,7 +1265,7 @@ impl CheckErrors {
 ///    unique `TypeExpr::Var(n)` ids so distinct unification variables
 ///    never collide across call sites or function bodies.
 /// 2. **Enclosing return-type stack.** Pushed on entry to every
-///    function body and lambda body, popped on exit, consulted by
+///    function body, popped on exit, consulted by
 ///    `infer_try` to unify the propagated `E` with the enclosing
 ///    function/lambda's own `Err` variant. LIFO so the innermost
 ///    enclosing scope wins — matches Rust's `?`-operator scoping.
@@ -1301,7 +1301,7 @@ impl InferCtx {
     }
 
     /// Innermost enclosing return type, if any. `None` outside any
-    /// function/lambda body (top-level `check_form` invocations).
+    /// function body (top-level `check_form` invocations).
     fn enclosing_ret(&self) -> Option<&TypeExpr> {
         self.enclosing_rets.last()
     }
@@ -1759,7 +1759,7 @@ pub fn check_program(
 /// are legal only under the three non-Forbidden tags.
 #[derive(Clone, Copy)]
 enum CommCtx {
-    /// Top-level form, function/lambda body, struct field, call
+    /// Top-level form, function body, struct field, call
     /// argument, let RHS — anywhere a `:None` would silently slip
     /// past. The default for every recursive descent.
     Forbidden,
@@ -2062,7 +2062,7 @@ fn check_calls_for_sandbox_leak(
 //
 // Walk every let* in the program. Within each binding-block, track
 // sibling bindings (name → RHS-AST). When a binding's RHS is a
-// spawn-thread call with a lambda body, analyze the lambda for the
+// spawn-thread call with an inline fn body, analyze the fn for the
 // closure-capture-of-sibling-pair shape; if found, emit
 // `ScopeDeadlock`.
 //
@@ -6732,7 +6732,7 @@ fn infer_try(
             errors.push(CheckError::MalformedForm {
                 head: callee.into(),
                 reason: format!(
-                    "used outside any function or lambda body; `{}` requires an enclosing Result-returning scope to propagate into",
+                    "used outside any function body; `{}` requires an enclosing Result-returning scope to propagate into",
                     callee
                 ),
                 span: head_span.clone(),
@@ -6839,7 +6839,7 @@ fn infer_option_try(
             errors.push(CheckError::MalformedForm {
                 head: callee.into(),
                 reason: format!(
-                    "used outside any function or lambda body; `{}` requires an enclosing Option-returning scope to propagate into",
+                    "used outside any function body; `{}` requires an enclosing Option-returning scope to propagate into",
                     callee
                 ),
                 span: head_span.clone(),
@@ -7254,18 +7254,18 @@ fn check_let_star_for_scope_deadlock_inferred(
         //   2. parent-allocated channel + thread closure that doesn't
         //      recv (this body-form check)
         //
-        // Limitations: we only inspect inline `(:wat::core::lambda
+        // Limitations: we only inspect inline `(:wat::core::fn
         // ...)` bodies. A spawn-thread call whose first arg is a
         // keyword-path (named function) requires substrate function-
         // body lookup we don't have at this hook; the body-form check
         // skips those cases conservatively (the rule still fires; the
         // origin-trace exemption may still apply). Transitive recv
-        // through called functions inside the lambda body is also not
+        // through called functions inside the fn body is also not
         // analyzed — a body that calls `(my-helper rx)` where
         // my-helper recvs in a loop slips through this check (but is
         // legitimately deadlock-prone — a real false negative we
         // accept for simplicity).
-        if spawn_thread_lambda_body_has_no_recv(thr_name, bindings) {
+        if spawn_thread_fn_body_has_no_recv(thr_name, bindings) {
             continue;
         }
         for (sender_name, kind) in &sender_bearing_bindings {
@@ -7354,10 +7354,10 @@ fn rhs_is_thread_input_extractor(rhs: &WatAST) -> bool {
 /// Arc 134 — body-form narrowing. Find `thr_name`'s binding RHS; if
 /// it's a `(:wat::kernel::spawn-thread <fn> ...)` or
 /// `(:wat::kernel::spawn-program ...)` / `(:wat::kernel::fork-program ...)`
-/// call whose `<fn>` argument is an inline `(:wat::core::lambda ...)`,
-/// walk the lambda body looking for any `(:wat::kernel::recv ...)`
+/// call whose `<fn>` argument is an inline `(:wat::core::fn ...)`,
+/// walk the fn body looking for any `(:wat::kernel::recv ...)`
 /// (or `try-recv` / `select`) call. Returns true ONLY when we
-/// affirmatively walk a lambda body and find zero recv calls — the
+/// affirmatively walk a fn body and find zero recv calls — the
 /// thread cannot have a recv-loop, so no Sender lifetime can deadlock
 /// it.
 ///
@@ -7366,11 +7366,11 @@ fn rhs_is_thread_input_extractor(rhs: &WatAST) -> bool {
 ///   - the RHS isn't a recognised spawn primitive,
 ///   - the spawn argument is a keyword-path (named function — we don't
 ///     do substrate function-body lookup at this hook),
-///   - the lambda body contains at least one recv call.
+///   - the fn body contains at least one recv call.
 ///
 /// The conservative default (false → fire) ensures the rule still
 /// catches genuine deadlock-prone shapes when we lack body visibility.
-fn spawn_thread_lambda_body_has_no_recv(
+fn spawn_thread_fn_body_has_no_recv(
     thr_name: &str,
     bindings: &[WatAST],
 ) -> bool {
@@ -7389,7 +7389,7 @@ fn spawn_thread_lambda_body_has_no_recv(
             _ => continue,
         };
         if !matches_name { continue; }
-        return rhs_spawn_lambda_has_no_recv(&items[1]);
+        return rhs_spawn_fn_has_no_recv(&items[1]);
     }
     false
 }
@@ -7397,8 +7397,8 @@ fn spawn_thread_lambda_body_has_no_recv(
 /// True iff `rhs` is a spawn-thread / spawn-program / fork-program
 /// call whose function argument is an inline lambda whose body does
 /// not contain any kernel recv call. See
-/// `spawn_thread_lambda_body_has_no_recv` for the framing.
-fn rhs_spawn_lambda_has_no_recv(rhs: &WatAST) -> bool {
+/// `spawn_thread_fn_body_has_no_recv` for the framing.
+fn rhs_spawn_fn_has_no_recv(rhs: &WatAST) -> bool {
     let WatAST::List(call, _) = rhs else { return false; };
     if call.len() < 2 { return false; }
     let head_str = match &call[0] {
@@ -7531,7 +7531,7 @@ fn infer_spawn(
             };
             let fn_ty = reduce(&surface_ty, subst, env.types());
             match fn_ty {
-                TypeExpr::Fn { args: ps, ret } => (ps, *ret, ":wat::kernel::spawn <lambda>".to_string()),
+                TypeExpr::Fn { args: ps, ret } => (ps, *ret, ":wat::kernel::spawn <fn>".to_string()),
                 _ => {
                     errors.push(CheckError::TypeMismatch {
                         callee: ":wat::kernel::spawn".into(),
@@ -9366,7 +9366,7 @@ fn infer_fn(
     }
     let sig = &args[0];
     let body = &args[1];
-    let (param_names, param_types, ret_type) = parse_lambda_signature_for_check(sig).ok()?;
+    let (param_names, param_types, ret_type) = parse_fn_signature_for_check(sig).ok()?;
 
     // Check body against declared return type under extended locals.
     let mut body_locals = outer_locals.clone();
@@ -9397,11 +9397,11 @@ fn infer_fn(
     })
 }
 
-/// Mirror of [`crate::runtime::parse_lambda_signature`] shape for the
+/// Mirror of [`crate::runtime::parse_fn_signature`] shape for the
 /// check pass — returns (names, types, ret). Errors are silenced; if
-/// the lambda is malformed, runtime parsing catches it and the
+/// the fn is malformed, runtime parsing catches it and the
 /// checker simply returns None.
-fn parse_lambda_signature_for_check(
+fn parse_fn_signature_for_check(
     sig: &WatAST,
 ) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ()> {
     let items = match sig {
@@ -13561,7 +13561,7 @@ mod tests {
     }
 
     #[test]
-    fn typed_let_binding_with_lambda_value() {
+    fn typed_let_binding_with_fn_value() {
         // A lambda bound to a let with :fn(wat::core::i64)->wat::core::i64
         // declaration. Declared type matches lambda's own signature, so it
         // passes.
@@ -14618,7 +14618,7 @@ mod tests {
     ///
     /// Regression guard for the wat_typealias false positive.
     #[test]
-    fn arc_134_no_recv_in_lambda_body_does_not_fire() {
+    fn arc_134_no_recv_in_fn_body_does_not_fire() {
         let src = r#"
             (:wat::core::define
               (:my::sender-helper
@@ -15000,7 +15000,7 @@ mod tests {
     fn arc159_scope_deadlock_fires_on_new_shape_channel_binding() {
         // Worker with the spawn-thread-compatible signature:
         //   fn(Receiver<I>, Sender<O>) -> nil
-        // Named function so spawn_thread_lambda_body_has_no_recv cannot
+        // Named function so spawn_thread_fn_body_has_no_recv cannot
         // inspect the body and exempt — the rule fires unconditionally.
         let src = r#"
             (:wat::core::define

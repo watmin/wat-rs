@@ -1052,7 +1052,7 @@ pub fn value_to_edn_with(
 
         // ── Opaque substrate handles — type-tagged nil ───────────
         Value::wat__WatAST(_) => opaque_nil("wat-edn.opaque", "WatAST"),
-        Value::wat__core__lambda(_) => opaque_nil("wat-edn.opaque", "lambda"),
+        Value::wat__core__fn(_) => opaque_nil("wat-edn.opaque", "fn"),
         Value::crossbeam_channel__Sender(_) => opaque_nil("wat-edn.opaque", "Sender"),
         Value::crossbeam_channel__Receiver(_) => opaque_nil("wat-edn.opaque", "Receiver"),
         Value::wat__kernel__ProgramHandle(_) => opaque_nil("wat-edn.opaque", "ProgramHandle"),

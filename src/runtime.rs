@@ -1,4 +1,4 @@
-//! Runtime — AST walker for `define` / `lambda` / `let` / `if` +
+//! Runtime — AST walker for `define` / `fn` / `let` / `if` +
 //! a small set of `:wat::core::*` built-in primitives + algebra-core
 //! UpperCall construction.
 //!
@@ -26,7 +26,7 @@
 //! # Functions
 //!
 //! `define` registers at call to [`register_defines`]; the body is
-//! stored as an AST and evaluated on each invocation. `lambda` at
+//! stored as an AST and evaluated on each invocation. `fn` at
 //! evaluation time captures the enclosing [`Environment`] and produces
 //! a `Value::Function` that can be passed, stored, and invoked.
 //!
@@ -152,11 +152,11 @@ pub enum Value {
     /// Keyword literal — leading `:` included. Wat-source type
     /// `:wat::core::keyword`.
     wat__core__keyword(Arc<String>),
-    /// A callable — `define`-registered function or `lambda` closure.
-    /// Per 058-029: `define` = `lambda` + startup-time symbol-table
+    /// A callable — `define`-registered function or `fn` closure.
+    /// Per 058-029: `define` = `fn` + startup-time symbol-table
     /// registration. Static type is `:fn(A,B,...)->R`; the variant
     /// records HOW it was produced.
-    wat__core__lambda(Arc<Function>),
+    wat__core__fn(Arc<Function>),
     /// A composed `wat::holon::HolonAST` — the algebra AST tier carried
     /// at runtime.
     holon__HolonAST(Arc<HolonAST>),
@@ -462,7 +462,7 @@ impl Value {
             Value::Vec(_) => "Vec",
             Value::Unit => "()",
             Value::wat__core__keyword(_) => "wat::core::keyword",
-            Value::wat__core__lambda(_) => "wat::core::lambda",
+            Value::wat__core__fn(_) => "wat::core::fn",
             Value::holon__HolonAST(_) => "wat::holon::HolonAST",
             Value::wat__WatAST(_) => "wat::WatAST",
             Value::crossbeam_channel__Sender(_) => "rust::crossbeam_channel::Sender",
@@ -494,7 +494,7 @@ impl Value {
 
 /// A callable. `define`-registered functions have `name = Some(path)`
 /// and `closed_env = None` (they resolve symbols via the global
-/// [`SymbolTable`] at call time). `lambda` values have `name = None`
+/// [`SymbolTable`] at call time). `fn` values have `name = None`
 /// and carry their `closed_env` from the creation site.
 pub struct Function {
     pub name: Option<String>,
@@ -509,10 +509,10 @@ pub struct Function {
     /// the `(:wat::core::define (sig ...) body)` signature by
     /// `parse_define_form`. Used by the type checker for call-site
     /// unification and body-vs-signature checks. Empty only for
-    /// lambda values (type-untracked).
+    /// fn values (type-untracked).
     pub param_types: Vec<crate::types::TypeExpr>,
     /// Declared return type. `:()` (unit) if the signature omitted a
-    /// return type. For lambdas, `:()` — the checker treats lambda
+    /// return type. For fns, `:()` — the checker treats fn
     /// values as opaque function values in slice 7b.
     pub ret_type: crate::types::TypeExpr,
     /// Arc 150 — optional rest-parameter name. When present, the
@@ -522,7 +522,7 @@ pub struct Function {
     /// and bound to this name. Mirrors `MacroDef.rest_param`. Syntax
     /// at declaration:
     /// `(:wat::core::define (:name (p1 :T1) ... & (rest :Vector<R>) -> :Ret) body)`.
-    /// `None` for strict-arity defines and for all lambdas.
+    /// `None` for strict-arity defines and for all fns.
     pub rest_param: Option<String>,
     /// Arc 150 — declared type of the rest-parameter. Always
     /// `Some(TypeExpr::Parametric { head: "Vec", args: [T] })` when
@@ -1032,7 +1032,7 @@ pub enum RuntimeError {
     /// Internal control-flow signal raised by `:wat::core::Result/try`
     /// (post-slice-1j; pre-slice spelling `:wat::core::try`) on an
     /// `Err` value. Carries the `Err` payload up to the innermost
-    /// enclosing function/lambda boundary; [`apply_function`] catches
+    /// enclosing function boundary; [`apply_function`] catches
     /// it and converts it into the function's own `Err(e)` return.
     ///
     /// This variant should never escape to `:user::main` — the type
@@ -1050,7 +1050,7 @@ pub enum RuntimeError {
     /// enclosing function's return).
     ///
     /// [`apply_function`] catches the signal at the innermost
-    /// function/lambda boundary and converts it into the function's
+    /// function boundary and converts it into the function's
     /// own `Value::Option(Arc::new(None))` return value. Like
     /// [`TryPropagate`], the type checker guarantees the enclosing
     /// function returns `:Option<_>` whenever `Option/try` is used,
@@ -2304,12 +2304,12 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), Runtime
 ///
 /// 1. **Keyword head** resolving in `sym.functions` — a
 ///    `define`-registered named function (Stage 1's original scope).
-/// 2. **Bare-symbol head** resolving to a lambda value in `env` —
-///    lambda-valued params and let-bound lambdas. Enables
-///    Y-combinator-lite self-recursion (lambda passed as argument)
+/// 2. **Bare-symbol head** resolving to a fn value in `env` —
+///    fn-valued params and let-bound fns. Enables
+///    Y-combinator-lite self-recursion (fn passed as argument)
 ///    without a letrec mechanism.
 /// 3. **Inline-lambda-literal head** `((lambda ...) args)` — the
-///    head evaluates to a lambda value directly.
+///    head evaluates to a fn value directly.
 ///
 /// Non-lambda, non-registered, non-form heads delegate to [`eval`]
 /// so error handling (NotCallable, UnboundSymbol, primitive
@@ -2352,25 +2352,25 @@ fn eval_tail(
                 _ => eval(ast, env, sym),
             }
         }
-        // Bare-symbol head: a lambda-valued local binding. `Some`,
+        // Bare-symbol head: a fn-valued local binding. `Some`,
         // `Ok`, `Err` are constructor symbols that are NEVER bound in
         // env, so `env.lookup` returns None for them and we delegate
         // to eval (which special-cases the three constructors).
         WatAST::Symbol(ident, _) => {
-            if let Some(Value::wat__core__lambda(f)) = env.lookup(ident.as_str()) {
+            if let Some(Value::wat__core__fn(f)) = env.lookup(ident.as_str()) {
                 emit_tail_call(f, args, env, sym, list_span)
             } else {
                 eval(ast, env, sym)
             }
         }
-        // Inline lambda-literal head `((lambda ...) args)`. Evaluate
+        // Inline fn-literal head `((lambda ...) args)`. Evaluate
         // the head non-tail; if the value is a lambda, signal tail
         // call; otherwise delegate to `apply_value` with the
         // already-evaluated callee so we don't re-evaluate.
         WatAST::List(_, _) => {
             let callee = eval(&items[0], env, sym)?;
             match callee {
-                Value::wat__core__lambda(f) => emit_tail_call(f, args, env, sym, list_span),
+                Value::wat__core__fn(f) => emit_tail_call(f, args, env, sym, list_span),
                 other => apply_value(&other, args, env, sym),
             }
         }
@@ -2382,7 +2382,7 @@ fn eval_tail(
 
 /// Evaluate `raw_args` non-tail and emit a [`RuntimeError::TailCall`]
 /// carrying `func`. Shared helper for all three tail-call shapes
-/// (named define, bare-symbol lambda, inline-lambda literal). Arity
+/// (named define, bare-symbol fn, inline-lambda literal). Arity
 /// is enforced by [`apply_function`]'s trampoline loop on its next
 /// iteration. Arc 016 slice 2: carries `call_span` so the trampoline
 /// can refresh the call-stack frame with the new invocation's
@@ -2694,7 +2694,7 @@ pub fn eval(
             // runtime; they can pass the type check but won't evaluate
             // to a Function until a caller demands that extension.
             if let Some(func) = sym.get(k) {
-                return Ok(Value::wat__core__lambda(func.clone()));
+                return Ok(Value::wat__core__fn(func.clone()));
             }
             Ok(Value::wat__core__keyword(Arc::new(k.clone())))
         }
@@ -2745,7 +2745,7 @@ fn eval_list(
             apply_value(&callee, rest, env, sym)
         }
         WatAST::List(_, _) => {
-            // Inline lambda call: ((lambda ...) arg1 arg2)
+            // Inline fn call: ((lambda ...) arg1 arg2)
             let callee = eval(head, env, sym)?;
             apply_value(&callee, rest, env, sym)
         }
@@ -3564,7 +3564,7 @@ fn dispatch_keyword_head(
                     // `def` names are registered verbatim.
                     if let Some(v) = sym.runtime_def_values.get(other) {
                         let func = match v {
-                            Value::wat__core__lambda(f) => f.clone(),
+                            Value::wat__core__fn(f) => f.clone(),
                             other_val => {
                                 return Err(RuntimeError::NotCallable {
                                     got: other_val.type_name(),
@@ -3673,7 +3673,7 @@ fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bo
             }
         }
         TypeExpr::Tuple(_) => v.type_name() == "tuple",
-        TypeExpr::Fn { .. } => v.type_name() == "wat::core::lambda",
+        TypeExpr::Fn { .. } => v.type_name() == "wat::core::fn",
         TypeExpr::Var(_) => true,
     }
 }
@@ -3769,8 +3769,8 @@ fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
     }
     let sig = &args[0];
     let body = &args[1];
-    let (params, param_types, ret_type) = parse_lambda_signature(sig)?;
-    Ok(Value::wat__core__lambda(Arc::new(Function {
+    let (params, param_types, ret_type) = parse_fn_signature(sig)?;
+    Ok(Value::wat__core__fn(Arc::new(Function {
         name: None,
         params,
         type_params: Vec::new(),
@@ -3785,7 +3785,7 @@ fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
 
 /// Parse a fn signature list `((p1 :T1) (p2 :T2) ... -> :R)`.
 ///
-/// Arc 155 — formerly `parse_lambda_signature`; renamed to mirror
+/// Arc 155 — formerly `parse_fn_signature`; renamed to mirror
 /// `eval_fn` (formerly `eval_lambda`). Error messages updated to
 /// reference `:wat::core::fn` (canonical form). The arc 138 shape
 /// note and all-typed discipline per 058-029 are preserved.
@@ -3795,7 +3795,7 @@ fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
 /// is required. No "untyped fn" exists in wat — the language is
 /// strongly typed at every function boundary. This parser rejects a
 /// signature that omits a type annotation or the `-> :Return` tail.
-fn parse_lambda_signature(
+fn parse_fn_signature(
     sig: &WatAST,
 ) -> Result<(Vec<String>, Vec<crate::types::TypeExpr>, crate::types::TypeExpr), RuntimeError> {
     let sig_span = sig.span().clone();
@@ -6749,11 +6749,11 @@ fn eval_vec_sort_by(
     let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
     let f = eval(&args[1], env, sym)?;
     let func = match &f {
-        Value::wat__core__lambda(func) => func.clone(),
+        Value::wat__core__fn(func) => func.clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
-                expected: "wat::core::lambda",
+                expected: "wat::core::fn",
                 got: other.type_name(),
                 span: args[1].span().clone(),
             });
@@ -6832,12 +6832,12 @@ fn eval_vec_map(
     let xs = require_vec(":wat::core::map", eval(&args[0], env, sym)?)?;
     let f = eval(&args[1], env, sym)?;
     let func = match &f {
-        Value::wat__core__lambda(func) => func.clone(),
+        Value::wat__core__fn(func) => func.clone(),
         other => {
             // arc 138: no span — leaf helper.
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::map".into(),
-                expected: "wat::core::lambda",
+                expected: "wat::core::fn",
                 got: other.type_name(),
                 span: Span::unknown(),
             });
@@ -6871,12 +6871,12 @@ fn eval_vec_foldl(
     let mut acc = eval(&args[1], env, sym)?;
     let f = eval(&args[2], env, sym)?;
     let func = match &f {
-        Value::wat__core__lambda(func) => func.clone(),
+        Value::wat__core__fn(func) => func.clone(),
         other => {
             // arc 138: no span — leaf helper.
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::foldl".into(),
-                expected: "wat::core::lambda",
+                expected: "wat::core::fn",
                 got: other.type_name(),
                 span: Span::unknown(),
             });
@@ -6909,12 +6909,12 @@ fn eval_vec_foldr(
     let mut acc = eval(&args[1], env, sym)?;
     let f = eval(&args[2], env, sym)?;
     let func = match &f {
-        Value::wat__core__lambda(func) => func.clone(),
+        Value::wat__core__fn(func) => func.clone(),
         other => {
             // arc 138: no span — leaf helper.
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::foldr".into(),
-                expected: "wat::core::lambda",
+                expected: "wat::core::fn",
                 got: other.type_name(),
                 span: Span::unknown(),
             });
@@ -6945,12 +6945,12 @@ fn eval_vec_filter(
     let xs = require_vec(":wat::core::filter", eval(&args[0], env, sym)?)?;
     let f = eval(&args[1], env, sym)?;
     let func = match &f {
-        Value::wat__core__lambda(func) => func.clone(),
+        Value::wat__core__fn(func) => func.clone(),
         other => {
             // arc 138: no span — leaf helper.
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::filter".into(),
-                expected: "wat::core::lambda",
+                expected: "wat::core::fn",
                 got: other.type_name(),
                 span: Span::unknown(),
             });
@@ -7836,7 +7836,7 @@ fn dispatch_to_signature_ast(mm: &crate::dispatch::Dispatch, sym: &SymbolTable) 
 fn name_from_keyword_or_lambda(v: &Value) -> Option<String> {
     match v {
         Value::wat__core__keyword(k) => Some((**k).clone()),
-        Value::wat__core__lambda(f) => f.name.clone(),
+        Value::wat__core__fn(f) => f.name.clone(),
         _ => None,
     }
 }
@@ -8969,11 +8969,11 @@ fn eval_vec_find_last_index(
     let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
     let f = eval(&args[1], env, sym)?;
     let func = match &f {
-        Value::wat__core__lambda(func) => func.clone(),
+        Value::wat__core__fn(func) => func.clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
-                expected: "wat::core::lambda",
+                expected: "wat::core::fn",
                 got: other.type_name(),
                 span: args[1].span().clone(),
             });
@@ -9108,11 +9108,11 @@ fn eval_list_map_with_index(
     let xs = require_vec(":wat::std::list::map-with-index", eval(&args[0], env, sym)?)?;
     let f = eval(&args[1], env, sym)?;
     let func = match &f {
-        Value::wat__core__lambda(func) => func.clone(),
+        Value::wat__core__fn(func) => func.clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::std::list::map-with-index".into(),
-                expected: "wat::core::lambda",
+                expected: "wat::core::fn",
                 got: other.type_name(),
                 span: args[1].span().clone(),
             });
@@ -10607,7 +10607,7 @@ fn require_hologram(
 
 fn require_lambda(op: &str, v: Value) -> Result<Arc<Function>, RuntimeError> {
     match v {
-        Value::wat__core__lambda(f) => Ok(f),
+        Value::wat__core__fn(f) => Ok(f),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "fn(f64)->bool",
@@ -12513,7 +12513,7 @@ fn render_value(v: &Value, depth: usize) -> String {
         Value::holon__HolonAST(_) => "<HolonAST>".to_string(),
         Value::Vector(v) => format!("<Vector dim={}>", v.dimensions()),
         Value::wat__WatAST(_) => "<WatAST>".to_string(),
-        Value::wat__core__lambda(_) => "<lambda>".to_string(),
+        Value::wat__core__fn(_) => "<fn>".to_string(),
         Value::crossbeam_channel__Sender(_) => "<Sender>".to_string(),
         Value::crossbeam_channel__Receiver(_) => "<Receiver>".to_string(),
         Value::wat__kernel__ProgramHandle(_) => "<ProgramHandle>".to_string(),
@@ -13643,7 +13643,7 @@ fn apply_value(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let func = match callee {
-        Value::wat__core__lambda(f) => f.clone(),
+        Value::wat__core__fn(f) => f.clone(),
         other => {
             // arc 138: no span — apply_value receives a Value not a WatAST; callee span not in scope
             return Err(RuntimeError::NotCallable {
@@ -13682,11 +13682,11 @@ fn apply_value(
 ///
 /// Lambda self-tail-calls still consume stack in Stage 1 — the
 /// evaluator's user-function-call detection keys on
-/// `sym.functions`, which holds named defines only. A lambda body
+/// `sym.functions`, which holds named defines only. A fn body
 /// that tail-calls a *named* define IS covered: the signal fires
 /// at the named call, this loop catches it exactly as it does for
 /// a define calling itself. Stage 2 extends detection to
-/// lambda-valued calls.
+/// fn-valued calls.
 pub fn apply_function(
     func: Arc<Function>,
     args: Vec<Value>,
@@ -14940,7 +14940,7 @@ fn eval_kernel_process_join_result(
 /// SpawnOutcome receiver.
 ///
 /// The first argument may be a function-keyword path (looked up in
-/// `sym`) or any expression evaluating to a lambda value. Mirrors
+/// `sym`) or any expression evaluating to a fn value. Mirrors
 /// `eval_kernel_spawn`'s long-standing accept-by-keyword-or-value
 /// pattern — keeps both shapes available without forcing the user
 /// to wrap everything in a fn-ref.
@@ -14965,11 +14965,11 @@ fn eval_kernel_spawn_thread(
             None => return Err(RuntimeError::UnknownFunction(k.clone(), kspan.clone())),
         },
         _ => match eval(&args[0], env, sym)? {
-            Value::wat__core__lambda(f) => f,
+            Value::wat__core__fn(f) => f,
             other => {
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
-                    expected: "function keyword path or lambda value",
+                    expected: "function keyword path or fn value",
                     got: other.type_name(),
                     span: args[0].span().clone(),
                 });
@@ -16162,7 +16162,7 @@ fn eval_walk(
         let mut acc = eval(&args[1], env, sym)?;
         let visit_value = eval(&args[2], env, sym)?;
         let visit_func = match visit_value {
-            Value::wat__core__lambda(f) => f,
+            Value::wat__core__fn(f) => f,
             other => {
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
@@ -18572,7 +18572,7 @@ mod tests {
     // ─── Lambda + closures ──────────────────────────────────────────────
 
     #[test]
-    fn lambda_as_value() {
+    fn fn_as_value() {
         // The lambda produces a callable; invoking it inline.
         let result = eval_expr(
             r#"((:wat::core::fn ((x :i64) (y :i64) -> :i64)

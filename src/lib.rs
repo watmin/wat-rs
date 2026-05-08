@@ -113,7 +113,7 @@ pub use edn_shim::{
 pub use config::{
     collect_entry_file, collect_entry_file_with_inherit, CapacityMode, Config, ConfigError,
 };
-pub use sigma::{DefaultCoincidentSigma, DefaultPresenceSigma, SigmaFn, WatLambdaSigmaFn};
+pub use sigma::{DefaultCoincidentSigma, DefaultPresenceSigma, SigmaFn, WatFnSigmaFn};
 pub use vm_registry::{Encoders, EncoderRegistry};
 pub use freeze::{
     eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen, invoke_user_main,

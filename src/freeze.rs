@@ -148,7 +148,7 @@ impl FrozenWorld {
                 ))
             })?;
             let func = match v {
-                crate::runtime::Value::wat__core__lambda(f) => f,
+                crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
                     return Err(StartupError::SigmaFn(format!(
                         "set-presence-sigma! expected a function value; got {}",
@@ -159,9 +159,9 @@ impl FrozenWorld {
             check_sigma_fn_signature("set-presence-sigma!", &func)?;
             let path = match func.name.clone() {
                 Some(name) => name,
-                None => format!("<lambda@{}>", func.body.span()),
+                None => format!("<fn@{}>", func.body.span()),
             };
-            symbols.set_presence_sigma_fn(Arc::new(crate::sigma::WatLambdaSigmaFn {
+            symbols.set_presence_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn {
                 path,
                 func,
             }));
@@ -177,7 +177,7 @@ impl FrozenWorld {
                 ))
             })?;
             let func = match v {
-                crate::runtime::Value::wat__core__lambda(f) => f,
+                crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
                     return Err(StartupError::SigmaFn(format!(
                         "set-coincident-sigma! expected a function value; got {}",
@@ -188,9 +188,9 @@ impl FrozenWorld {
             check_sigma_fn_signature("set-coincident-sigma!", &func)?;
             let path = match func.name.clone() {
                 Some(name) => name,
-                None => format!("<lambda@{}>", func.body.span()),
+                None => format!("<fn@{}>", func.body.span()),
             };
-            symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::WatLambdaSigmaFn {
+            symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn {
                 path,
                 func,
             }));

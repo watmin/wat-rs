@@ -7,7 +7,7 @@
 //! ([`DefaultPresenceSigma`], [`DefaultCoincidentSigma`]); user
 //! overrides via `(:wat::config::set-presence-sigma!)` /
 //! `(:wat::config::set-coincident-sigma!)` wrap a wat function in
-//! [`WatLambdaSigmaFn`].
+//! [`WatFnSigmaFn`].
 //!
 //! Arc 077: this file used to be `dim_router.rs` and carried the
 //! per-form router infrastructure (`DimRouter`, `SizingRouter`,
@@ -61,21 +61,21 @@ impl SigmaFn for DefaultCoincidentSigma {
 /// invoked with `Value::i64(d)`; the returned `Value::i64` is
 /// returned as the sigma count. Any runtime error or shape mismatch
 /// folds to 1 — the minimum geometric σ — so presence? /
-/// coincident? remain meaningful even if the user's lambda misfires.
-pub struct WatLambdaSigmaFn {
+/// coincident? remain meaningful even if the user's fn misfires.
+pub struct WatFnSigmaFn {
     pub path: String,
     pub func: Arc<Function>,
 }
 
-impl fmt::Debug for WatLambdaSigmaFn {
+impl fmt::Debug for WatFnSigmaFn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("WatLambdaSigmaFn")
+        f.debug_struct("WatFnSigmaFn")
             .field("path", &self.path)
             .finish()
     }
 }
 
-impl SigmaFn for WatLambdaSigmaFn {
+impl SigmaFn for WatFnSigmaFn {
     fn sigma_at(&self, d: usize, sym: &SymbolTable) -> i64 {
         let arg = Value::i64(d as i64);
         let call_span = Span::unknown();

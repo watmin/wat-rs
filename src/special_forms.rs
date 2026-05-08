@@ -162,23 +162,15 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
         &["<scrutinee>", "->", "<T>", "<arm>+"],
     );
 
-    // ─── Lambdas / functions ────────────────────────────────────────────
+    // ─── Functions ────────────────────────────────────────────────────
     // Arc 155 — `:wat::core::fn` is the canonical operator for function
     // values (Clojure-faithful lowercase verb; mirrors arc 154's let* →
-    // let recipe). `:wat::core::lambda` is retained as orphaned
-    // scaffolding per spawn-family precedent (arc 114 Pattern 2 poison):
-    // the keyword silently aliases to `:wat::core::fn` at runtime;
-    // reflection sees both entries; user-facing discipline uses `fn`.
-    // Dispatch sites: `src/check.rs` (infer_fn from both :fn + :lambda
-    // arms) + `src/runtime.rs` (eval_fn from both :fn + :lambda arms).
-    // Top-level forms (`src/freeze.rs:831-832`) are unchanged.
+    // let recipe). The legacy `:wat::core::lambda` keyword retired in
+    // arc 155 slice 2 (Path B full retirement; registry entry +
+    // dispatch arms gone; source-level use surfaces standard "unknown
+    // form" error). BareLegacyLambda variant + Display retained as
+    // orphaned scaffolding (arc 113 precedent).
     insert(&mut m, ":wat::core::fn", &["<params>", "<body>+"]);
-    // Arc 155 slice 2 — `:wat::core::lambda` registry entry retired.
-    // Lambda is dead (Clojure-faithful; fn replaces lambda per user
-    // direction 2026-05-07). BareLegacyLambda variant + Display
-    // retained as orphaned scaffolding (arc 113 precedent); registry +
-    // dispatch arms retired so source-level lambda surfaces standard
-    // "unknown form" error.
     insert(&mut m, ":wat::core::define", &["<head>", "<body>"]);
     insert(&mut m, ":wat::core::defmacro", &["<head>", "<template>"]);
     // Arc 146 slice 1 — dispatch declaration form. Each <arm> is
