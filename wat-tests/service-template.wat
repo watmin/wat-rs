@@ -225,17 +225,17 @@
        ((pairs
          (:wat::core::map
            (:wat::core::range 0 count)
-           (:wat::core::fn ((_i :wat::core::i64) -> :wat::kernel::Channel<svc::Request>)
+           (:wat::core::fn [_i <- :wat::core::i64] -> :wat::kernel::Channel<svc::Request>
              (:wat::kernel::make-bounded-channel :svc::Request 1))))
 
         (req-txs
          (:wat::core::map pairs
-           (:wat::core::fn ((p :wat::kernel::Channel<svc::Request>) -> :svc::ReqTx)
+           (:wat::core::fn [p <- :wat::kernel::Channel<svc::Request>] -> :svc::ReqTx
              (:wat::core::first p))))
 
         (req-rxs
          (:wat::core::map pairs
-           (:wat::core::fn ((p :wat::kernel::Channel<svc::Request>) -> :svc::ReqRx)
+           (:wat::core::fn [p <- :wat::kernel::Channel<svc::Request>] -> :svc::ReqRx
              (:wat::core::second p))))
 
         (pool

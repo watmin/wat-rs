@@ -80,7 +80,7 @@
      (:wat::core::=
        (:wat::core::length
          (:wat::core::filter stdout
-           (:wat::core::fn ((s :wat::core::String) -> :wat::core::bool)
+           (:wat::core::fn [s <- :wat::core::String] -> :wat::core::bool
              (:wat::core::= s msg))))
        1))
 
@@ -268,9 +268,9 @@
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
                             (:wat::core::fn
-                              ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
-                               (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
-                               -> :wat::core::nil)
+                              [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
+                               _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+                               -> :wat::core::nil
                               (:my::worker h0 "alpha\n")))))
                        (w1
                         (:wat::core::let
@@ -278,9 +278,9 @@
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
                             (:wat::core::fn
-                              ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
-                               (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
-                               -> :wat::core::nil)
+                              [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
+                               _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+                               -> :wat::core::nil
                               (:my::worker h1 "bravo\n")))))
                        (w2
                         (:wat::core::let
@@ -288,9 +288,9 @@
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
                             (:wat::core::fn
-                              ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
-                               (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
-                               -> :wat::core::nil)
+                              [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
+                               _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+                               -> :wat::core::nil
                               (:my::worker h2 "charlie\n")))))
                        (_0 (:wat::kernel::HandlePool::finish pool))
                        (_1

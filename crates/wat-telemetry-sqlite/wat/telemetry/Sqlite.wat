@@ -84,7 +84,7 @@
      (_pre (pre-install db))
      (_install (schema-install db))
      (curried
-      (:wat::core::fn ((entries :wat::core::Vector<E>) -> :wat::core::nil)
+      (:wat::core::fn [entries <- :wat::core::Vector<E>] -> :wat::core::nil
         (dispatcher db entries))))
     (:wat::telemetry::run
       pairs cadence curried stats-translator)))
@@ -228,7 +228,7 @@
     ((_b (:wat::sqlite::begin db))
      (_d
       (:wat::core::foldl entries :wat::core::nil
-        (:wat::core::fn ((_acc :wat::core::nil) (e :E) -> :wat::core::nil)
+        (:wat::core::fn [_acc <- :wat::core::nil e <- :E] -> :wat::core::nil
           (:rust::sqlite::auto-dispatch db enum-name e)))))
     (:wat::sqlite::commit db)))
 
@@ -246,9 +246,9 @@
     (:wat::telemetry::Sqlite/spawn
       path count cadence
       pre-install
-      (:wat::core::fn ((db :wat::sqlite::Db) -> :wat::core::nil)
+      (:wat::core::fn [db <- :wat::sqlite::Db] -> :wat::core::nil
         (:rust::sqlite::auto-install-schemas db enum-name))
-      (:wat::core::fn ((db :wat::sqlite::Db) (entries :wat::core::Vector<E>) -> :wat::core::nil)
+      (:wat::core::fn [db <- :wat::sqlite::Db entries <- :wat::core::Vector<E>] -> :wat::core::nil
         (:wat::telemetry::Sqlite::auto-dispatch-batch
           enum-name db entries))
       :wat::telemetry::Sqlite::auto-empty-translator)))

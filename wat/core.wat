@@ -132,13 +132,13 @@
 (:wat::core::define
   (:wat::core::i64::+ & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
   (:wat::core::foldl xs 0
-    (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
       (:wat::core::i64::+,2 acc x))))
 
 (:wat::core::define
   (:wat::core::i64::* & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
   (:wat::core::foldl xs 1
-    (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
       (:wat::core::i64::*,2 acc x))))
 
 ;; `:-` and `:/` require >= 1 arg. Express via fixed first param +
@@ -150,7 +150,7 @@
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
     (:wat::core::i64::-,2 0 first)
     (:wat::core::foldl xs first
-      (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
         (:wat::core::i64::-,2 acc x)))))
 
 (:wat::core::define
@@ -158,7 +158,7 @@
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
     (:wat::core::i64::/,2 1 first)
     (:wat::core::foldl xs first
-      (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
         (:wat::core::i64::/,2 acc x)))))
 
 ;; ─── Named-function binding ───────────────────────────────────────
@@ -210,13 +210,13 @@
 (:wat::core::define
   (:wat::core::f64::+ & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
   (:wat::core::foldl xs 0.0
-    (:wat::core::fn ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+    (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
       (:wat::core::f64::+,2 acc x))))
 
 (:wat::core::define
   (:wat::core::f64::* & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
   (:wat::core::foldl xs 1.0
-    (:wat::core::fn ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+    (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
       (:wat::core::f64::*,2 acc x))))
 
 (:wat::core::define
@@ -224,7 +224,7 @@
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
     (:wat::core::f64::-,2 0.0 first)
     (:wat::core::foldl xs first
-      (:wat::core::fn ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+      (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
         (:wat::core::f64::-,2 acc x)))))
 
 (:wat::core::define
@@ -232,5 +232,5 @@
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
     (:wat::core::f64::/,2 1.0 first)
     (:wat::core::foldl xs first
-      (:wat::core::fn ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+      (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
         (:wat::core::f64::/,2 acc x)))))

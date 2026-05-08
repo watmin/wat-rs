@@ -503,7 +503,7 @@
   ;; it passes by name directly (arc 009 — names are values).
   (:wat::stream::with-state upstream
     (:wat::core::Vector :T)
-    (:wat::core::fn ((buf :wat::core::Vector<T>) (item :T) -> :wat::stream::ChunkStep<T>)
+    (:wat::core::fn [buf <- :wat::core::Vector<T> item <- :T] -> :wat::stream::ChunkStep<T>
       (:wat::stream::chunks-step buf item size))
     :wat::stream::chunks-flush))
 
@@ -564,8 +564,8 @@
   ;; step closes over key-fn; flush is size-agnostic so passes by name.
   (:wat::stream::with-state upstream
     (:wat::core::Tuple :wat::core::None (:wat::core::Vector :T))
-    (:wat::core::fn ((state :(wat::core::Option<K>,wat::core::Vector<T>)) (item :T)
-                         -> :wat::stream::KeyedChunkStep<K,T>)
+    (:wat::core::fn [state <- :(wat::core::Option<K>,wat::core::Vector<T>) item <- :T]
+                         -> :wat::stream::KeyedChunkStep<K,T>
       (:wat::stream::chunks-by-step state item key-fn))
     :wat::stream::chunks-by-flush))
 
@@ -629,9 +629,9 @@
   ;; Both step and flush close over size — two fn wrappers.
   (:wat::stream::with-state upstream
     (:wat::core::Vector :T)
-    (:wat::core::fn ((buf :wat::core::Vector<T>) (item :T) -> :wat::stream::ChunkStep<T>)
+    (:wat::core::fn [buf <- :wat::core::Vector<T> item <- :T] -> :wat::stream::ChunkStep<T>
       (:wat::stream::window-step buf item size))
-    (:wat::core::fn ((buf :wat::core::Vector<T>) -> :wat::core::Vector<wat::core::Vector<T>>)
+    (:wat::core::fn [buf <- :wat::core::Vector<T>] -> :wat::core::Vector<wat::core::Vector<T>>
       (:wat::stream::window-flush buf size))))
 
 ;; --- take ---

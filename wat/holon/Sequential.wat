@@ -23,7 +23,7 @@
   `(:wat::core::let
      ((positioned
        (:wat::std::list::map-with-index ,items
-         (:wat::core::fn ((item :wat::holon::HolonAST) (i :wat::core::i64) -> :wat::holon::HolonAST)
+         (:wat::core::fn [item <- :wat::holon::HolonAST i <- :wat::core::i64] -> :wat::holon::HolonAST
            (:wat::core::if (:wat::core::= i 0) -> :wat::holon::HolonAST
              item
              (:wat::holon::Permute item i))))))
@@ -35,6 +35,6 @@
          (:wat::core::foldl
            (:wat::core::rest positioned)
            head
-           (:wat::core::fn ((acc :wat::holon::HolonAST) (x :wat::holon::HolonAST) -> :wat::holon::HolonAST)
+           (:wat::core::fn [acc <- :wat::holon::HolonAST x <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
              (:wat::holon::Bind acc x))))
        (:wat::core::None (:wat::holon::Atom "Sequential-empty-input")))))

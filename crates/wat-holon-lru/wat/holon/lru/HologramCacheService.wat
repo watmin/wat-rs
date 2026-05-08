@@ -274,7 +274,7 @@
         (:wat::core::let
           ((results
             (:wat::core::map probes
-              (:wat::core::fn ((probe :wat::holon::HolonAST) -> :wat::core::Option<wat::holon::HolonAST>)
+              (:wat::core::fn [probe <- :wat::holon::HolonAST] -> :wat::core::Option<wat::holon::HolonAST>
                 (:wat::holon::lru::HologramCache/get cache probe))))
            (hit-count
             (:wat::list::reduce results 0

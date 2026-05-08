@@ -67,7 +67,7 @@
   (:wat::core::let
     ((floor
       (:wat::holon::coincident-floor (:wat::config::dim-count))))
-    (:wat::core::fn ((cos :wat::core::f64) -> :wat::core::bool)
+    (:wat::core::fn [cos <- :wat::core::f64] -> :wat::core::bool
       (:wat::core::< (:wat::core::- 1.0 cos) floor))))
 
 ;; ─── filter-present — looser, "signal detected above noise" ───────
@@ -84,7 +84,7 @@
   (:wat::core::let
     ((floor
       (:wat::holon::presence-floor (:wat::config::dim-count))))
-    (:wat::core::fn ((cos :wat::core::f64) -> :wat::core::bool)
+    (:wat::core::fn [cos <- :wat::core::f64] -> :wat::core::bool
       (:wat::core::> cos floor))))
 
 ;; ─── filter-accept-any — null gate, returns whatever scored best ──
@@ -96,4 +96,4 @@
 (:wat::core::define
   (:wat::holon::filter-accept-any
     -> :wat::core::Fn(wat::core::f64)->wat::core::bool)
-  (:wat::core::fn ((_ :wat::core::f64) -> :wat::core::bool) true))
+  (:wat::core::fn [_ <- :wat::core::f64] -> :wat::core::bool true))
