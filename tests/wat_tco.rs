@@ -248,7 +248,7 @@ fn fn_tail_call_via_let_bound_symbol() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             ((f
-              (:wat::core::fn ((n :wat::core::i64) -> :wat::core::i64)
+              (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64 0 n))))
             (f 42)))
     "#;
@@ -263,7 +263,7 @@ fn inline_fn_literal_tail_call() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::fn ((n :wat::core::i64) -> :wat::core::i64)
+          ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
              (:wat::core::i64::*,2 n 2))
            21))
     "#;
@@ -287,7 +287,7 @@ fn named_define_tail_calls_fn_param() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             ((double
-              (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
+              (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::*,2 x 2))))
             (:app::invoke double 21)))
     "#;
@@ -316,7 +316,7 @@ fn inline_fn_named_alternation_at_high_depth() {
         (:wat::core::define (:app::go (state :wat::core::i64) (n :wat::core::i64) -> :wat::core::i64)
           (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
             state
-            ((:wat::core::fn ((s :wat::core::i64) (k :wat::core::i64) -> :wat::core::i64)
+            ((:wat::core::fn [s <- :wat::core::i64 k <- :wat::core::i64] -> :wat::core::i64
                (:app::go (:wat::core::i64::+,2 s 1) (:wat::core::i64::-,2 k 1)))
              state n)))
 

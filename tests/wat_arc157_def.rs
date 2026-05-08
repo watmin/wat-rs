@@ -162,7 +162,7 @@ fn def_position_legal_let_splice_with_closure() {
         (:wat::core::let
           ((config 42))
           (:wat::core::def :get-config
-            (:wat::core::fn (-> :wat::core::i64)
+            (:wat::core::fn [] -> :wat::core::i64
               config)))
     "#;
     startup_ok(src);
@@ -324,7 +324,7 @@ fn def_runtime_let_splice_closure_capture() {
         (:wat::core::let
           ((config 42))
           (:wat::core::def :get-config
-            (:wat::core::fn (-> :wat::core::i64)
+            (:wat::core::fn [] -> :wat::core::i64
               config)))
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:get-config))

@@ -176,7 +176,7 @@ fn alias_over_fn_type_works_at_spawn() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             ((job
-              (:wat::core::fn ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
+              (:wat::core::fn [tx <- :rust::crossbeam_channel::Sender<wat::core::i64>] -> :wat::core::nil
                 (:wat::core::do
                   (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
                   ())))
@@ -187,9 +187,9 @@ fn alias_over_fn_type_works_at_spawn() {
              (h
               (:wat::kernel::spawn-thread
                 (:wat::core::fn
-                  ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
-                   (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
-                   -> :wat::core::nil)
+                  [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
+                   _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+                   -> :wat::core::nil
                   (job tx))))
              (_
               (:wat::kernel::Thread/join-result h)))
