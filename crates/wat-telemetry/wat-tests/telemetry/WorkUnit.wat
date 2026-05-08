@@ -43,7 +43,7 @@
    (:wat::core::define
      (:wat-telemetry::probe::make-adder
        (x :wat::core::i64) -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
-     (:wat::core::fn ((y :wat::core::i64) -> :wat::core::i64)
+     (:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64
        (:wat::core::+ x y)))
 
    ;; Rank-2 probe — generic factory returning generic-T closure.
@@ -51,7 +51,7 @@
    (:wat::core::define
      (:wat-telemetry::probe::make-runner<T>
        (_label :wat::core::String) -> :wat::core::Fn(wat::core::Fn()->T)->T)
-     (:wat::core::fn ((body :wat::core::Fn()->T) -> :T)
+     (:wat::core::fn [body <- :wat::core::Fn()->T] -> :T
        (body)))
 
    ;; Stub dispatcher for the make-scope ship test — closes over
@@ -62,9 +62,9 @@
      (:wat-telemetry::scope::make-stub-dispatcher
        (stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
        -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
-     (:wat::core::fn ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::nil)
+     (:wat::core::fn [entries <- :wat::core::Vector<wat::telemetry::Event>] -> :wat::core::nil
        (:wat::core::foldl entries :wat::core::nil
-         (:wat::core::fn ((_acc :wat::core::nil) (e :wat::telemetry::Event) -> :wat::core::nil)
+         (:wat::core::fn [_acc <- :wat::core::nil e <- :wat::telemetry::Event] -> :wat::core::nil
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::nil
              ((:wat::core::Ok _) :wat::core::nil)
              ((:wat::core::Err _) :wat::core::nil))))))
@@ -77,7 +77,7 @@
      (:wat-telemetry::scope::make-count-dispatcher
        (count-tx :wat::kernel::Sender<wat::core::i64>)
        -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
-     (:wat::core::fn ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::nil)
+     (:wat::core::fn [entries <- :wat::core::Vector<wat::telemetry::Event>] -> :wat::core::nil
        (:wat::core::match
          (:wat::kernel::send count-tx (:wat::core::length entries)) -> :wat::core::nil
          ((:wat::core::Ok _) :wat::core::nil)
@@ -303,7 +303,7 @@
   (:wat::core::let
     ((thr-rx
       (:test::wu-spawn-stub-scope-unit
-        (:wat::core::fn ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
+        (:wat::core::fn [_wu <- :wat::telemetry::WorkUnit] -> :wat::core::nil ())))
      (driver (:wat::core::first thr-rx))
      (_join
       (:wat::kernel::Thread/join-result driver)))
@@ -316,7 +316,7 @@
   (:wat::core::let
     ((thr-cnt
       (:test::wu-spawn-count-and-scope
-        (:wat::core::fn ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
+        (:wat::core::fn [_wu <- :wat::telemetry::WorkUnit] -> :wat::core::nil ())))
      (driver (:wat::core::first thr-cnt))
      (cnt (:wat::core::second thr-cnt))
      (_join
@@ -339,7 +339,7 @@
   (:wat::core::let
     ((thr-rx
       (:test::wu-spawn-stub-scope-unit
-        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::nil)
+        (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::nil
           (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits)))))
      (driver (:wat::core::first thr-rx))
      (stub-rx (:wat::core::second thr-rx))
@@ -441,7 +441,7 @@
      (name (:wat::holon::Atom :sql-fetch))
      (result
       (:wat::telemetry::WorkUnit/timed wu name
-        (:wat::core::fn (-> :wat::core::i64) 99)))
+        (:wat::core::fn [] -> :wat::core::i64 99)))
      (counter (:wat::telemetry::WorkUnit/counter wu name))
      (dts (:wat::telemetry::WorkUnit/durations wu name))
      (n-dts (:wat::core::length dts))
@@ -459,10 +459,10 @@
      (name (:wat::holon::Atom :work))
      (_r1
       (:wat::telemetry::WorkUnit/timed wu name
-        (:wat::core::fn (-> :wat::core::i64) 1)))
+        (:wat::core::fn [] -> :wat::core::i64 1)))
      (_r2
       (:wat::telemetry::WorkUnit/timed wu name
-        (:wat::core::fn (-> :wat::core::i64) 2)))
+        (:wat::core::fn [] -> :wat::core::i64 2)))
      (counter (:wat::telemetry::WorkUnit/counter wu name))
      (dts (:wat::telemetry::WorkUnit/durations wu name))
      (n-dts (:wat::core::length dts))
@@ -514,7 +514,7 @@
      (ns (:wat-telemetry::default-ns))
      (result
       (:wat::telemetry::WorkUnit/scope ns tags
-        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
+        (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::i64
           (:wat::core::do
             (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))
             42)))))
@@ -534,7 +534,7 @@
     ;; wu-spawn-stub-scope-str internalizes spawn + stub-channel + pop + scope.
     ((thr-and-pair
       (:test::wu-spawn-stub-scope-str
-        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
+        (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::String
           (:wat::core::do
             (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :requests))
             (:wat::telemetry::WorkUnit/uuid wu)))))
@@ -560,7 +560,7 @@
     ;; wu-spawn-stub-scope-str internalizes spawn + stub-channel + pop + scope.
     ((thr-and-pair
       (:test::wu-spawn-stub-scope-str
-        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
+        (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::String
           (:wat::core::do
             (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5)
             (:wat::telemetry::WorkUnit/uuid wu)))))
@@ -587,7 +587,7 @@
     ;; Body: no mutations. wu-spawn-count-and-scope drains the count internally.
     ((thr-cnt
       (:test::wu-spawn-count-and-scope
-        (:wat::core::fn ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
+        (:wat::core::fn [_wu <- :wat::telemetry::WorkUnit] -> :wat::core::nil ())))
      (driver (:wat::core::first thr-cnt))
      (cnt (:wat::core::second thr-cnt))
      (_join
@@ -620,7 +620,7 @@
     ;; Returns (Thread, stub-rx); we drain TWO events from stub-rx.
     ((thr-rx
       (:test::wu-spawn-stub-scope-unit
-        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::nil)
+        (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::nil
           (:wat::core::let
             ((_a (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5))
              (_b (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 1.5)))
@@ -676,7 +676,7 @@
   (:wat::core::let
     ((runner
       (:wat-telemetry::probe::make-runner "i64-runner"))
-     (result (runner (:wat::core::fn (-> :wat::core::i64) 42))))
+     (result (runner (:wat::core::fn [] -> :wat::core::i64 42))))
     (:wat::test::assert-eq result 42)))
 
 
@@ -709,7 +709,7 @@
     ;; Returns (Thread, (i64, stub-rx)); we drain ONE event from stub-rx.
     ((thr-and-pair
       (:test::wu-spawn-stub-scope-i64
-        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
+        (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::i64
           (:wat::core::do
             (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))
             42))))

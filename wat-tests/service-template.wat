@@ -244,9 +244,9 @@
         (thr
          (:wat::kernel::spawn-thread
            (:wat::core::fn
-             ((_in :svc::DriverIn)
-              (out :svc::DriverOut)
-              -> :wat::core::nil)
+             [_in <- :svc::DriverIn
+              out <- :svc::DriverOut]
+              -> :wat::core::nil
              (:svc::Service/loop req-rxs (:svc::State::fresh) out)))))
        (:wat::core::Tuple pool thr)))
 

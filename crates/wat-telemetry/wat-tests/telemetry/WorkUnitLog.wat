@@ -39,7 +39,7 @@
    (:wat::core::define
      (:wat-telemetry::log-test::fixed-now-fn
        -> :wat::core::Fn(wat::core::nil)->wat::time::Instant)
-     (:wat::core::fn ((_u :wat::core::nil) -> :wat::time::Instant)
+     (:wat::core::fn [_u <- :wat::core::nil] -> :wat::time::Instant
        (:wat::time::now)))
 
    ;; Stub dispatcher — same shape as the make-scope tests'.
@@ -47,9 +47,9 @@
      (:wat-telemetry::log-test::make-stub-dispatcher
        (stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
        -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
-     (:wat::core::fn ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::nil)
+     (:wat::core::fn [entries <- :wat::core::Vector<wat::telemetry::Event>] -> :wat::core::nil
        (:wat::core::foldl entries :wat::core::nil
-         (:wat::core::fn ((_acc :wat::core::nil) (e :wat::telemetry::Event) -> :wat::core::nil)
+         (:wat::core::fn [_acc <- :wat::core::nil e <- :wat::telemetry::Event] -> :wat::core::nil
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::nil
              ((:wat::core::Ok _) :wat::core::nil)
              ((:wat::core::Err _) :wat::core::nil))))))
@@ -162,10 +162,10 @@
     ((thr-kw
       (:test::wul-spawn-stub-and-emit-drain
         (:wat::core::fn
-          ((_logger :wat::telemetry::WorkUnitLog)
-           (_wu :wat::telemetry::WorkUnit)
-           (_stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-           -> :wat::core::keyword)
+          [_logger <- :wat::telemetry::WorkUnitLog
+           _wu <- :wat::telemetry::WorkUnit
+           _stub-rx <- :wat::kernel::Receiver<wat::telemetry::Event>]
+           -> :wat::core::keyword
           :ok)))
      (driver (:wat::core::first thr-kw))
      (kw (:wat::core::second thr-kw))
@@ -187,10 +187,10 @@
     ((thr-kw
       (:test::wul-spawn-stub-and-emit-drain
         (:wat::core::fn
-          ((logger :wat::telemetry::WorkUnitLog)
-           (wu :wat::telemetry::WorkUnit)
-           (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-           -> :wat::core::keyword)
+          [logger <- :wat::telemetry::WorkUnitLog
+           wu <- :wat::telemetry::WorkUnit
+           stub-rx <- :wat::kernel::Receiver<wat::telemetry::Event>]
+           -> :wat::core::keyword
           (:wat::core::let
             ((_log
               (:wat::telemetry::WorkUnitLog/info logger wu (:wat::core::quote :hello))))
@@ -218,10 +218,10 @@
     ((thr-kw
       (:test::wul-spawn-stub-and-emit-drain
         (:wat::core::fn
-          ((logger :wat::telemetry::WorkUnitLog)
-           (wu :wat::telemetry::WorkUnit)
-           (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-           -> :wat::core::keyword)
+          [logger <- :wat::telemetry::WorkUnitLog
+           wu <- :wat::telemetry::WorkUnit
+           stub-rx <- :wat::kernel::Receiver<wat::telemetry::Event>]
+           -> :wat::core::keyword
           (:wat::core::let
             ((data (:wat::core::quote :payload))
              (_d (:wat::telemetry::WorkUnitLog/debug logger wu data))

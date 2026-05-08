@@ -162,9 +162,9 @@
     (namespace :wat::holon::HolonAST)
     -> :wat::telemetry::WorkUnit::Scope<T>)
   (:wat::core::fn
-    ((tags :wat::telemetry::Tags)
-     (body :wat::telemetry::WorkUnit::Body<T>)
-     -> :T)
+    [tags <- :wat::telemetry::Tags
+     body <- :wat::telemetry::WorkUnit::Body<T>]
+     -> :T
     (:wat::core::let
       ((wu (:wat::telemetry::WorkUnit::new namespace tags))
        (result                        (body wu))
@@ -291,9 +291,9 @@
   (:wat::core::foldl samples
     (:wat::core::Vector :wat::telemetry::Event)
     (:wat::core::fn
-      ((acc    :wat::core::Vector<wat::telemetry::Event>)
-       (sample :wat::core::f64)
-       -> :wat::core::Vector<wat::telemetry::Event>)
+      [acc    <- :wat::core::Vector<wat::telemetry::Event>
+       sample <- :wat::core::f64]
+       -> :wat::core::Vector<wat::telemetry::Event>
       (:wat::core::concat acc
         (:wat::core::Vector :wat::telemetry::Event
           (:wat::telemetry::WorkUnit/scope::build-duration-metric
@@ -321,9 +321,9 @@
       (:wat::core::foldl counter-keys
         (:wat::core::Vector :wat::telemetry::Event)
         (:wat::core::fn
-          ((acc :wat::core::Vector<wat::telemetry::Event>)
-           (key :wat::holon::HolonAST)
-           -> :wat::core::Vector<wat::telemetry::Event>)
+          [acc <- :wat::core::Vector<wat::telemetry::Event>
+           key <- :wat::holon::HolonAST]
+           -> :wat::core::Vector<wat::telemetry::Event>
           (:wat::core::let
             ((count (:wat::telemetry::WorkUnit/counter wu key))
              (event
@@ -335,9 +335,9 @@
       (:wat::core::foldl duration-keys
         (:wat::core::Vector :wat::telemetry::Event)
         (:wat::core::fn
-          ((acc :wat::core::Vector<wat::telemetry::Event>)
-           (key :wat::holon::HolonAST)
-           -> :wat::core::Vector<wat::telemetry::Event>)
+          [acc <- :wat::core::Vector<wat::telemetry::Event>
+           key <- :wat::holon::HolonAST]
+           -> :wat::core::Vector<wat::telemetry::Event>
           (:wat::core::let
             ((samples
               (:wat::telemetry::WorkUnit/durations wu key))
