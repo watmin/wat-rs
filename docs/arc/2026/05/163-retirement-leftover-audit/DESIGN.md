@@ -67,17 +67,46 @@ For each `<retired_surface>`:
 
 ## Slice plan
 
-### Slice 1 — audit pass + targeted Bucket B sweep
+### Slice 1 — `let*` retirement sweep — SHIPPED at `a8cc381`
 
-Sonnet:
-1. For each retired surface in the table above (and any others
-   sonnet finds in arc INSCRIPTIONs), run the audit grep.
-2. Classify hits and apply Bucket B updates.
-3. Report per-surface counts pre/post.
+Bucket A/B/C/D framework applied to arc 154's `let*` retirement.
+132 sites cleared (243 → 111 residual; 111 are Bucket C/D).
 
-Estimated ~60-90 min sonnet wall-clock for the full sweep.
+### Slice 2 — Vec / list / Queue / stream consumer sweep — IN FLIGHT
 
-### Slice 2 — closure
+Four remaining surfaces (`:Vec<`, `:wat::core::list`, Queue family,
+`:wat::std::stream::*`). Bucket A consumer keyword sweeps — replace
+legacy spellings with canonical names. Total ~168 sites pre-flight.
+
+### Slice 3 — Substrate hard-retirement (NEW per user direction 2026-05-07)
+
+User direction: *"Hard retire — kill typealiases."* Pre-flight
+investigation confirmed the persisting `:Vec<T>` / `:wat::core::list`
+expressions exist because the substrate keeps transitional
+scaffolding:
+
+- `src/types.rs`: `typealias :wat::core::Vector<T> = :Vec<T>` —
+  legacy spelling parses cleanly (typealias)
+- `src/runtime.rs:3088`: `":wat::core::list" => eval_list_ctor(...)`
+  — runtime alias arm
+
+Slice 3 retires this scaffolding per arc 154/155 Path B full-
+retirement pattern:
+
+1. Delete the typealias entry in `types.rs` (`:Vec<T>` no longer
+   parses cleanly post-slice-3)
+2. Delete the runtime alias arm for `:wat::core::list`
+3. Add walker(s) — `BareLegacyVec` / `BareLegacyKernelList` — that
+   fire Pattern 2 poison on legacy keyword usage (mirror arc 154's
+   `BareLegacyLetStar` recipe)
+4. Variant + Display preserved as orphaned scaffolding (arc 113
+   precedent)
+
+Pre-condition: slice 2 consumer sweep complete (zero in-tree consumer
+keyword usage of legacy spellings; otherwise slice 3 substrate
+retirement breaks the workspace).
+
+### Slice 4 — closure
 
 INSCRIPTION + 058 changelog row. Sweep summary table:
 "retired surface | pre-fix sites | Bucket A renamed | Bucket B
