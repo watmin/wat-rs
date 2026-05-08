@@ -147,19 +147,14 @@ fn bare_fn_type_post_retirement_walker_silent() {
     // enforce. Mirrors arc 113's orphaned-scaffolding pattern.
     // Arc 163 follow-up — walker re-armed; bare `:fn(...)` fires
     // BareLegacyLowercaseFn fatal.
-    // Slice 3 update: bare `:fn(...)` keyword placed at the
-    // `:wat::core::typealias` body — a List-position keyword the
-    // walker walks through. The arc 167 fn-sig flat-shape moved
-    // type keywords inside the fn args into a `WatAST::Vector`,
-    // and `walk_for_bare_primitives` does not yet recurse into
-    // `WatAST::Vector` (slice 4 territory). Using typealias keeps
-    // the assertion meaningful: walker still fires fatal on bare
-    // `:fn(...)` keywords reachable through List children.
     let src = r#"
-        (:wat::core::typealias :user::Adder :fn(wat::core::i64)->wat::core::i64)
-
         (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) 5))
+          ((:wat::core::fn
+             [g <- :fn(wat::core::i64)->wat::core::i64]
+              ->
+              :wat::core::i64
+             (g 5))
+           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)))
     "#;
     let err = startup_err(src);
     assert!(
