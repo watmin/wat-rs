@@ -3643,6 +3643,157 @@ fn infer(
     }
 }
 
+// Arc 160 — hoisted constructor-inference helpers. These capture the
+// Region B logic for `:wat::core::Some`, `:wat::core::Ok`, and
+// `:wat::core::Err` so they can be called from BOTH Region A (FQDN
+// Keyword path, which previously fell through to `_ => {}` with no
+// match and returned None) and Region B (bare-Symbol path, left for
+// backward-compat / poison-error emission). `is_bare` controls whether
+// the TypeMismatch poison error is pushed.
+
+fn infer_some_constructor(
+    items: &[WatAST],
+    head_span: &Span,
+    is_bare: bool,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if is_bare {
+        errors.push(CheckError::TypeMismatch {
+            callee: "Some".into(),
+            param: "(retired bare-symbol exception)".into(),
+            expected: ":wat::core::Some".into(),
+            got: "Some".into(),
+            span: head_span.clone(),
+        });
+    }
+    let args = &items[1..];
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: if is_bare {
+                "Some".into()
+            } else {
+                ":wat::core::Some".into()
+            },
+            expected: 1,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(TypeExpr::Parametric {
+            head: "Option".into(),
+            args: vec![fresh.fresh()],
+        });
+    }
+    let inner_ty = infer(&args[0], env, locals, fresh, subst, errors)
+        .unwrap_or_else(|| fresh.fresh());
+    Some(TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![inner_ty],
+    })
+}
+
+fn infer_ok_constructor(
+    items: &[WatAST],
+    head_span: &Span,
+    is_bare: bool,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if is_bare {
+        errors.push(CheckError::TypeMismatch {
+            callee: "Ok".into(),
+            param: "(retired bare-symbol exception)".into(),
+            expected: ":wat::core::Ok".into(),
+            got: "Ok".into(),
+            span: head_span.clone(),
+        });
+    }
+    let args = &items[1..];
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: if is_bare {
+                "Ok".into()
+            } else {
+                ":wat::core::Ok".into()
+            },
+            expected: 1,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(TypeExpr::Parametric {
+            head: "Result".into(),
+            args: vec![fresh.fresh(), fresh.fresh()],
+        });
+    }
+    let t_ty = infer(&args[0], env, locals, fresh, subst, errors)
+        .unwrap_or_else(|| fresh.fresh());
+    let e_var = fresh.fresh();
+    Some(TypeExpr::Parametric {
+        head: "Result".into(),
+        args: vec![t_ty, e_var],
+    })
+}
+
+fn infer_err_constructor(
+    items: &[WatAST],
+    head_span: &Span,
+    is_bare: bool,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if is_bare {
+        errors.push(CheckError::TypeMismatch {
+            callee: "Err".into(),
+            param: "(retired bare-symbol exception)".into(),
+            expected: ":wat::core::Err".into(),
+            got: "Err".into(),
+            span: head_span.clone(),
+        });
+    }
+    let args = &items[1..];
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: if is_bare {
+                "Err".into()
+            } else {
+                ":wat::core::Err".into()
+            },
+            expected: 1,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(TypeExpr::Parametric {
+            head: "Result".into(),
+            args: vec![fresh.fresh(), fresh.fresh()],
+        });
+    }
+    let e_ty = infer(&args[0], env, locals, fresh, subst, errors)
+        .unwrap_or_else(|| fresh.fresh());
+    let t_var = fresh.fresh();
+    Some(TypeExpr::Parametric {
+        head: "Result".into(),
+        args: vec![t_var, e_ty],
+    })
+}
+
 fn infer_list(
     items: &[WatAST],
     env: &CheckEnv,
@@ -4240,6 +4391,26 @@ fn infer_list(
                 }
                 return None;
             }
+            // Arc 160 — FQDN constructor arms hoisted into Region A so
+            // that keyword-headed constructor calls (`(:wat::core::Ok 418)`)
+            // are intercepted HERE instead of falling to `_ => {}` and
+            // returning None. Region B's bare-Symbol path still handles
+            // `(Ok 418)` (with poison error) via the same helpers.
+            ":wat::core::Ok" => {
+                return infer_ok_constructor(
+                    items, head_span, /*is_bare=*/ false, env, locals, fresh, subst, errors,
+                )
+            }
+            ":wat::core::Err" => {
+                return infer_err_constructor(
+                    items, head_span, /*is_bare=*/ false, env, locals, fresh, subst, errors,
+                )
+            }
+            ":wat::core::Some" => {
+                return infer_some_constructor(
+                    items, head_span, /*is_bare=*/ false, env, locals, fresh, subst, errors,
+                )
+            }
             _ => {}
         }
 
@@ -4374,141 +4545,62 @@ fn infer_list(
     }
 
     // Arc 109 slice 1h — Option `Some` constructor recognized at
-    // both bare-Symbol (legacy grammar exception, poisoned) and
-    // FQDN-Keyword (canonical) heads. `(Some expr)` and
-    // `(:wat::core::Some expr)` both infer as `:Option<T>` where T
-    // is the argument's type.
+    // bare-Symbol (legacy grammar exception, poisoned) head.
+    // FQDN-Keyword path (`(:wat::core::Some expr)`) is now handled in
+    // Region A above (arc 160 fix); `head_is_some_fqdn` is retired
+    // as dead code.
     let head_is_some_bare = matches!(
         head,
         WatAST::Symbol(ident, _) if ident.as_str() == "Some"
     );
-    let head_is_some_fqdn = matches!(
-        head,
-        WatAST::Keyword(k, _) if k == ":wat::core::Some"
-    );
-    if head_is_some_bare || head_is_some_fqdn {
-        if head_is_some_bare {
-            // Pattern 2 poison — bare `Some` is a retiring grammar
-            // exception. Push synthetic TypeMismatch with redirect
-            // to the FQDN form; continue dispatching so the program
-            // type-checks the rest of the way.
-            errors.push(CheckError::TypeMismatch {
-                callee: "Some".into(),
-                param: "(retired bare-symbol exception)".into(),
-                expected: ":wat::core::Some".into(),
-                got: "Some".into(),
-                span: head.span().clone(),
-            });
-        }
-        let args = &items[1..];
-        if args.len() != 1 {
-            errors.push(CheckError::ArityMismatch {
-                callee: if head_is_some_bare { "Some".into() } else { ":wat::core::Some".into() },
-                expected: 1,
-                got: args.len(),
-                span: head.span().clone(),
-            });
-            for arg in args {
-                let _ = infer(arg, env, locals, fresh, subst, errors);
-            }
-            return Some(TypeExpr::Parametric {
-                head: "Option".into(),
-                args: vec![fresh.fresh()],
-            });
-        }
-        let inner_ty = infer(&args[0], env, locals, fresh, subst, errors)
-            .unwrap_or_else(|| fresh.fresh());
-        return Some(TypeExpr::Parametric {
-            head: "Option".into(),
-            args: vec![inner_ty],
-        });
+    if head_is_some_bare {
+        return infer_some_constructor(
+            items,
+            &head.span().clone(),
+            /*is_bare=*/ true,
+            env,
+            locals,
+            fresh,
+            subst,
+            errors,
+        );
     }
-    // Arc 109 slice 1i — Result `Ok` / `Err` constructors recognized
-    // at both bare-Symbol (legacy grammar exception, poisoned) and
-    // FQDN-Keyword (canonical) heads. Mirrors slice 1h's Some shape.
+    // Arc 109 slice 1i — Result `Ok` / `Err` constructors recognized at
+    // bare-Symbol (legacy grammar exception, poisoned) head.
+    // FQDN-Keyword paths (`(:wat::core::Ok expr)`, `(:wat::core::Err expr)`)
+    // are now handled in Region A above (arc 160 fix); `head_is_ok_fqdn`
+    // and `head_is_err_fqdn` are retired as dead code.
     let head_is_ok_bare = matches!(
         head,
         WatAST::Symbol(ident, _) if ident.as_str() == "Ok"
     );
-    let head_is_ok_fqdn = matches!(
-        head,
-        WatAST::Keyword(k, _) if k == ":wat::core::Ok"
-    );
-    if head_is_ok_bare || head_is_ok_fqdn {
-        if head_is_ok_bare {
-            errors.push(CheckError::TypeMismatch {
-                callee: "Ok".into(),
-                param: "(retired bare-symbol exception)".into(),
-                expected: ":wat::core::Ok".into(),
-                got: "Ok".into(),
-                span: head.span().clone(),
-            });
-        }
-        let args = &items[1..];
-        if args.len() != 1 {
-            errors.push(CheckError::ArityMismatch {
-                callee: if head_is_ok_bare { "Ok".into() } else { ":wat::core::Ok".into() },
-                expected: 1,
-                got: args.len(),
-                span: head.span().clone(),
-            });
-            for arg in args {
-                let _ = infer(arg, env, locals, fresh, subst, errors);
-            }
-            return Some(TypeExpr::Parametric {
-                head: "Result".into(),
-                args: vec![fresh.fresh(), fresh.fresh()],
-            });
-        }
-        let t_ty = infer(&args[0], env, locals, fresh, subst, errors)
-            .unwrap_or_else(|| fresh.fresh());
-        let e_var = fresh.fresh();
-        return Some(TypeExpr::Parametric {
-            head: "Result".into(),
-            args: vec![t_ty, e_var],
-        });
+    if head_is_ok_bare {
+        return infer_ok_constructor(
+            items,
+            &head.span().clone(),
+            /*is_bare=*/ true,
+            env,
+            locals,
+            fresh,
+            subst,
+            errors,
+        );
     }
     let head_is_err_bare = matches!(
         head,
         WatAST::Symbol(ident, _) if ident.as_str() == "Err"
     );
-    let head_is_err_fqdn = matches!(
-        head,
-        WatAST::Keyword(k, _) if k == ":wat::core::Err"
-    );
-    if head_is_err_bare || head_is_err_fqdn {
-        if head_is_err_bare {
-            errors.push(CheckError::TypeMismatch {
-                callee: "Err".into(),
-                param: "(retired bare-symbol exception)".into(),
-                expected: ":wat::core::Err".into(),
-                got: "Err".into(),
-                span: head.span().clone(),
-            });
-        }
-        let args = &items[1..];
-        if args.len() != 1 {
-            errors.push(CheckError::ArityMismatch {
-                callee: if head_is_err_bare { "Err".into() } else { ":wat::core::Err".into() },
-                expected: 1,
-                got: args.len(),
-                span: head.span().clone(),
-            });
-            for arg in args {
-                let _ = infer(arg, env, locals, fresh, subst, errors);
-            }
-            return Some(TypeExpr::Parametric {
-                head: "Result".into(),
-                args: vec![fresh.fresh(), fresh.fresh()],
-            });
-        }
-        let e_ty = infer(&args[0], env, locals, fresh, subst, errors)
-            .unwrap_or_else(|| fresh.fresh());
-        let t_var = fresh.fresh();
-        return Some(TypeExpr::Parametric {
-            head: "Result".into(),
-            args: vec![t_var, e_ty],
-        });
+    if head_is_err_bare {
+        return infer_err_constructor(
+            items,
+            &head.span().clone(),
+            /*is_bare=*/ true,
+            env,
+            locals,
+            fresh,
+            subst,
+            errors,
+        );
     }
 
     // Non-keyword head (bare symbol or inline expression). Not typed
