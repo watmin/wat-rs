@@ -1,13 +1,120 @@
 # Arc 164 — Mint `:wat::core::List<T>` as a proper LinkedList
 
-**Status:** queued 2026-05-07. Not yet started.
+**Status:** **SKIPPED 2026-05-08** after due-diligence investigation.
+The arc is preserved as a record-of-decision: we looked, we chose not
+to mint List<T> right now. Revisit later when (a) the language has
+stabilized + the ergonomic surface is settled, AND (b) the performance
+angle named below has surfaced as a real bottleneck in real workloads.
 
-**Gates:** none structurally; arc 163 should close first since it's
-retiring the OLD `:wat::core::list` (alias for vec). Arc 164 mints
-NEW `:wat::core::List` (capital — proper LinkedList type) on the
-cleared vocabulary.
+## Decision record (2026-05-08)
 
-## Background
+User direction 2026-05-08:
+> *"let's skip on list support for now... i don't know if we actually
+> want it... just because the heritage has it... doesn't mean we need
+> it?... let's do our due diligence to know better."*
+>
+> *"leave a hint in there that the perf angle is real - we'll move to
+> work on the perf once we think the lang is stable and ergonomic."*
+
+### What the investigation found
+
+**At the AST/substrate layer — Vec is workload-correct. No
+awkwardness exists.**
+
+| Pattern checked | Hits |
+|---|---|
+| `Vec::insert(0, ...)` / `Vec::splice(0..0, ...)` (cons-on-Vec) | 0 |
+| `vec![head]` then `extend(tail)` (head/tail synthesis on Vec) | 0 meaningful |
+| `split_first()` chains (head/tail decomp) | 1 |
+| `WatAST::List(...)` destructures | 258 |
+| `WatAST::List(...)` constructions | ~5 |
+| Mentions of "linked list" / "cons cell" / "persistent list" in `src/` | 0 |
+
+50:1 destructure-to-construct ratio. The lone meaningful
+construction site (`runtime.rs:7700`) uses `Vec::push` (right-append
+— Vec's natural workload). Quasiquote / macro-expansion walks
+templates by index/match, not head/tail recursion. Heritage
+("Lisp uses cons cells") doesn't carry past the substrate's actual
+access pattern.
+
+**At the wat user-data layer — there IS one workload signal worth
+naming.** `:wat::core::first` / `:second` / `:rest` see 82 usages.
+The interesting one is `:wat::core::rest`, currently implemented as
+`xs[1..].to_vec()` — an O(N) Vec clone every call. When wat code
+does head/tail recursion (e.g. `wat/stream.wat:385-398`'s
+`drain-items`, `wat/holon/Sequential.wat:36`), each step clones the
+tail; total cost over an N-item batch is **O(N²)**. Cons-cell List
+would make it O(N).
+
+**The awkwardness is PERFORMANCE, not ERGONOMICS.** wat-level code
+reads naturally; the cost is hidden in `:rest`'s implementation.
+And mitigations exist that don't require minting a new type:
+1. **Refactor head/tail loops as `foldl` / `foldr`** — wat already
+   has fold idiom (40+ usages in `wat/core.wat`); the five
+   `:rest`-recursion sites could refactor to fold and avoid the
+   O(N²) entirely.
+2. **Make `:wat::core::rest` return a Vec view** (Vec + offset/range)
+   — O(1) rest, no new type.
+3. **Persistent vector** (Clojure PersistentVector / `rpds` /
+   `im::Vector`) — structural sharing, O(log N) rest. Reuses the
+   Vector vocabulary surface.
+
+### Why we're skipping
+
+- AST: zero signal. Minting List for the AST would be heritage cargo.
+- User-data: signal exists but is narrow (5 sites in the entire wat
+  source tree) and addressable WITHOUT a new collection type. fold
+  refactor is small and uses idioms already established.
+- Cost of minting now: a whole new `Value::wat__core__List` variant,
+  new constructor, head/tail/cons ops, dispatch arm extensions
+  (length / empty? / conj / contains?), USER-GUIDE story, EDN render
+  rules. Adds surface area for a problem the existing fold idiom
+  already solves.
+- Heritage argument alone doesn't earn a new type. *"just because
+  the heritage has it doesn't mean we need it."*
+
+### When to revisit (the hint)
+
+The performance angle is real and would re-open this arc. The
+trigger conditions:
+
+1. The language and ergonomic surface have settled (we're not
+   actively reshaping core forms; foundation discipline holds);
+   AND
+2. A real workload surfaces where head/tail-recursion `:rest`
+   patterns are quadratic in a hot path AND the fold-refactor
+   mitigation either doesn't apply or has unacceptable cost; OR
+3. wat-level code starts naturally building sequences front-first
+   (cons-style construction), which would be a positive signal
+   for List<T> as a USER-DATA type, not just a perf workaround.
+
+If/when those land, this arc opens with a concrete workload as
+its scope statement. Until then: skipped.
+
+## Cross-references
+
+- This INVESTIGATION lives in this DESIGN; no separate research
+  doc shipped (kept lightweight per the user's "record that we
+  looked and chose this outcome" direction).
+- Arc 163 closure on 2026-05-08 retired the OLD `:wat::core::list`
+  (lowercase alias for vec). The vocabulary is clear if/when arc 164
+  re-opens.
+- Arc 165 closure on 2026-05-08 (`tuple` → `Tuple`) brought container
+  heads into uniform PascalCase canonical form; the substrate is now
+  ready to receive a new container type cleanly without colliding
+  with transitional scaffolding.
+
+---
+
+## Original scope (preserved as historical context)
+
+The sections below were written 2026-05-07 when arc 164 was queued.
+Preserved as the original scope statement — they describe the work
+that WOULD have shipped if arc 164 had proceeded. No edits beyond
+this header; the original framing stands as a snapshot of intent
+at write time.
+
+### Background (original)
 
 User direction 2026-05-07: *"we need to introduce rust's
 std::collections::LinkedList<T> as a proper :wat::core::List type...
