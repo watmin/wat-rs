@@ -66,6 +66,19 @@ pub enum WatAST {
     /// a `Keyword` for language or algebra calls, a `Symbol` for
     /// bare-scoped fn/let invocation.
     List(Vec<WatAST>, Span),
+
+    /// Bracketed form `[a b c ...]`. Also covers empty vector
+    /// `[]`. Distinct from `List` at the AST level so consumers
+    /// (slice 2's fn / defn signature parser; slice ≥3's let
+    /// binding-block parser) can syntactically distinguish a
+    /// vector from a list.
+    ///
+    /// Arc 167 slice 1 (additive substrate). Vectors are admitted
+    /// only in **binding-syntax positions**; appearing at value
+    /// position errors at eval/check time. The legal-position
+    /// consumers are wired in slice 2 (`fn` / `defn` signatures)
+    /// and arc 168 (`let`).
+    Vector(Vec<WatAST>, Span),
 }
 
 impl WatAST {
@@ -78,7 +91,8 @@ impl WatAST {
             | WatAST::StringLit(_, s)
             | WatAST::Keyword(_, s)
             | WatAST::Symbol(_, s)
-            | WatAST::List(_, s) => s,
+            | WatAST::List(_, s)
+            | WatAST::Vector(_, s) => s,
         }
     }
 
@@ -104,6 +118,11 @@ impl WatAST {
     }
     pub fn list(items: Vec<WatAST>) -> Self {
         WatAST::List(items, Span::unknown())
+    }
+    /// Synthetic Vector with [`Span::unknown`] — for tests and
+    /// runtime-constructed bracketed forms.
+    pub fn vector(items: Vec<WatAST>) -> Self {
+        WatAST::Vector(items, Span::unknown())
     }
 }
 

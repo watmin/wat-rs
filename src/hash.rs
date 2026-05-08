@@ -75,6 +75,10 @@ const TAG_KEYWORD: u8 = 0x14;
 const TAG_SYMBOL: u8 = 0x15;
 const TAG_LIST: u8 = 0x16;
 const TAG_PROGRAM: u8 = 0x17;
+/// Arc 167 slice 1 — vector AST node tag, distinct from `TAG_LIST`
+/// so a `[a b]` and `(a b)` hash to different bytes (preserves the
+/// structural distinction the surface syntax expresses).
+const TAG_VECTOR: u8 = 0x18;
 
 /// Ed25519 signature length in bytes.
 const ED25519_SIG_LEN: usize = 64;
@@ -150,6 +154,15 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
         }
         WatAST::List(items, _) => {
             out.push(TAG_LIST);
+            out.extend_from_slice(&(items.len() as u32).to_le_bytes());
+            for child in items {
+                write_canonical_wat(child, out);
+            }
+        }
+        // Arc 167 slice 1 — distinct tag preserves the
+        // list-vs-vector structural distinction in canonical bytes.
+        WatAST::Vector(items, _) => {
+            out.push(TAG_VECTOR);
             out.extend_from_slice(&(items.len() as u32).to_le_bytes());
             for child in items {
                 write_canonical_wat(child, out);

@@ -753,18 +753,31 @@ fn reject_setters_in_loaded(forms: &[WatAST], path: &str) -> Result<(), LoadErro
 }
 
 fn scan_for_setter(form: &WatAST, path: &str) -> Result<(), LoadError> {
-    if let WatAST::List(items, _) = form {
-        if let Some(WatAST::Keyword(k, _)) = items.first() {
-            if k.starts_with(":wat::config::set-") && k.ends_with('!') {
-                return Err(LoadError::SetterInLoadedFile {
-                    loaded_path: path.to_string(),
-                    setter_head: k.clone(),
-                });
+    match form {
+        WatAST::List(items, _) => {
+            if let Some(WatAST::Keyword(k, _)) = items.first() {
+                if k.starts_with(":wat::config::set-") && k.ends_with('!') {
+                    return Err(LoadError::SetterInLoadedFile {
+                        loaded_path: path.to_string(),
+                        setter_head: k.clone(),
+                    });
+                }
+            }
+            for child in items {
+                scan_for_setter(child, path)?;
             }
         }
-        for child in items {
-            scan_for_setter(child, path)?;
+        // Arc 167 slice 1 — also recurse into vector children so a
+        // setter buried in a (future) bracketed binding-position
+        // form would still be flagged. Vectors carry no head
+        // dispatch, so the keyword-prefix check applies to lists
+        // only.
+        WatAST::Vector(items, _) => {
+            for child in items {
+                scan_for_setter(child, path)?;
+            }
         }
+        _ => {}
     }
     Ok(())
 }
@@ -778,6 +791,7 @@ fn variant_name(ast: &WatAST) -> &'static str {
         WatAST::Keyword(_, _) => "keyword",
         WatAST::Symbol(_, _) => "symbol",
         WatAST::List(_, _) => "list",
+        WatAST::Vector(_, _) => "vector",
     }
 }
 

@@ -2730,6 +2730,21 @@ pub fn eval(
         WatAST::FloatLit(x, _) => Ok(Value::f64(*x)),
         WatAST::BoolLit(b, _) => Ok(Value::bool(*b)),
         WatAST::StringLit(s, _) => Ok(Value::String(Arc::new(s.clone()))),
+        // Arc 167 slice 1 — vector literals at value position are
+        // not supported. Vectors are consumed only in
+        // `:wat::core::fn` / `:wat::core::defn` signature positions
+        // (slice 2 wires those consumers). A future arc enables
+        // vector literals as `Value::Vec` values.
+        WatAST::Vector(_, span) => Err(RuntimeError::MalformedForm {
+            head: "<vector literal>".into(),
+            reason: "vector literals at value position are not supported \
+                     in arc 167. Vectors are currently consumed only in \
+                     :wat::core::fn / :wat::core::defn signature positions \
+                     (slice 2 wires those consumers). A future arc enables \
+                     vector literals as `Value::Vec` values."
+                .into(),
+            span: span.clone(),
+        }),
         WatAST::Keyword(k, _) => {
             // Arc 153 slice 1a — `:wat::core::nil` at value
             // position evaluates to `Value::Unit` (the nil
@@ -10133,6 +10148,14 @@ fn try_match_pattern(
                 },
             }
         }
+        // Arc 167 slice 1 — vector sub-patterns are not admitted
+        // in arc 167. Slice 2 wires fn / defn signature consumers;
+        // pattern-match positions are not legal Vector consumers.
+        WatAST::Vector(_, _) => Err(RuntimeError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: "vector sub-patterns are not supported in arc 167".into(),
+            span: pattern.span().clone(),
+        }),
     }
 }
 
@@ -10268,6 +10291,17 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
         WatAST::Keyword(k, _) => HolonAST::symbol(k.as_str()),
         WatAST::Symbol(ident, _) => HolonAST::symbol(ident.name.as_str()),
         WatAST::List(items, _) => {
+            HolonAST::bundle(items.iter().map(watast_to_holon).collect())
+        }
+        // Arc 167 slice 1 — collapses to the same Bundle shape
+        // as List for the algebra-level lowering. The list /
+        // vector distinction is a surface-syntax concern that
+        // matters for parsing and binding-position dispatch; once
+        // we cross the algebra boundary, the children form an
+        // ordered structural composition either way. Honest delta:
+        // a future arc that exposes vector-as-value at the
+        // algebra level may re-tag these distinctly.
+        WatAST::Vector(items, _) => {
             HolonAST::bundle(items.iter().map(watast_to_holon).collect())
         }
     }
@@ -13964,6 +13998,7 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
         WatAST::Keyword(_, _) => "keyword",
         WatAST::Symbol(_, _) => "symbol",
         WatAST::List(_, _) => "list",
+        WatAST::Vector(_, _) => "vector",
     }
 }
 
@@ -16431,6 +16466,15 @@ fn step_form(
             span: sym_span.clone(),
         }),
         WatAST::List(items, span) => step_list(items, span, env, sym),
+        // Arc 167 slice 1 — vector literals reaching the stepper
+        // means a binding-position consumer hasn't intercepted
+        // them. Surface as NoStepRule so the consumer falls back
+        // to eval, which raises the canonical "vector literals at
+        // value position" error.
+        WatAST::Vector(_, vec_span) => Err(RuntimeError::NoStepRule {
+            op: "<vector literal>".into(),
+            span: vec_span.clone(),
+        }),
     }
 }
 
@@ -16576,6 +16620,12 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                 }
             }
         }
+        // Arc 167 slice 1 — vectors are not value-shape forms
+        // for the stepper. They live in binding-position grammar
+        // (slice 2's fn / defn signatures); the stepper sees an
+        // expression tree. Refuse recognition so the caller falls
+        // through to step_form, which surfaces NoStepRule.
+        WatAST::Vector(_, _) => None,
     }
 }
 
@@ -17284,6 +17334,14 @@ fn try_match_pattern_ast(
             }
             Ok(Some(binds))
         }
+        // Arc 167 slice 1 — vector sub-patterns are not admitted
+        // in arc 167. Slice 2 wires fn / defn signature consumers;
+        // pattern positions remain illegal.
+        WatAST::Vector(_, _) => Err(RuntimeError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: "vector sub-patterns are not supported in arc 167".into(),
+            span: pattern.span().clone(),
+        }),
     }
 }
 
@@ -17300,6 +17358,16 @@ fn substitute(
     match form {
         WatAST::Symbol(ident, _) if ident == target => replacement.clone(),
         WatAST::List(items, span) => WatAST::List(
+            items
+                .iter()
+                .map(|i| substitute(i, target, replacement))
+                .collect(),
+            span.clone(),
+        ),
+        // Arc 167 slice 1 — recurse into vector children so
+        // textual substitution reaches binder targets buried in
+        // a fn-sig vector (slice 2 territory).
+        WatAST::Vector(items, span) => WatAST::Vector(
             items
                 .iter()
                 .map(|i| substitute(i, target, replacement))

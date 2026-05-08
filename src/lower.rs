@@ -172,6 +172,13 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
             "bare symbol '{}' (requires name resolution)",
             ident.as_str()
         ), span.clone())),
+        // Arc 167 slice 1 — vectors aren't lowered to HolonAST.
+        // The lower path only admits algebra-core UpperCalls; a
+        // bracketed form has no algebra-core meaning here.
+        WatAST::Vector(_, span) => Err(LowerError::UnsupportedForm(
+            "vector literal in lower() (algebra-core does not admit vector literals)".into(),
+            span.clone(),
+        )),
     }
 }
 
