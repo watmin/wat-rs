@@ -3,7 +3,7 @@
 //! `wat/std/hermetic.wat`'s exit-code-prefix.
 //!
 //! Shape: `(:wat::core::cond -> :T ((test) body) ... (:else body))`.
-//! Typed once at the head; each test unifies with :bool; each body
+//! Typed once at the head; each test unifies with :wat::core::bool; each body
 //! unifies with :T; last arm must be (:else body).
 
 use std::sync::Arc;
@@ -94,7 +94,7 @@ fn cond_with_single_else_only() {
 
 #[test]
 fn cond_dispatches_on_bound_value() {
-    // The exit-code-prefix shape — cond on an :i64 binding.
+    // The exit-code-prefix shape — cond on an :wat::core::i64 binding.
     let src = r#"
 
         (:wat::core::define (:my::label (code :wat::core::i64) -> :wat::core::String)
@@ -104,7 +104,7 @@ fn cond_dispatches_on_bound_value() {
             ((:wat::core::= code 3) "[startup error]")
             (:else "[nonzero exit]")))
 
-        (:wat::core::define (:user::main -> :String)
+        (:wat::core::define (:user::main -> :wat::core::String)
           (:my::label 3))
     "#;
     assert_eq!(unwrap_string(run(src)), "[startup error]");
@@ -140,7 +140,7 @@ fn cond_refuses_non_bool_test() {
     "#;
     let err = run_err(src);
     assert!(
-        err.contains(":bool"),
+        err.contains(":wat::core::bool"),
         "expected bool-type diagnostic; got: {}",
         err
     );

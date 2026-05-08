@@ -106,7 +106,7 @@ fn fork_program_clean_exit_code_via_wait_child() {
     // then Process/join-result reaps the exit. Should be Ok(()) (clean exit).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,Vec<wat::kernel::ProcessDiedError>>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
             ((inner-src
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil (:None ()) ((Some _) ())))")
@@ -128,10 +128,10 @@ fn fork_program_parse_error_surfaces_as_exit_3() {
     // child dies → parent's Process/join-result returns Err.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,Vec<wat::kernel::ProcessDiedError>>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
             ((bad-src
-              "(:wat::core::define (:demo::not-main (x :i64) -> :i64) x)")
+              "(:wat::core::define (:demo::not-main (x :wat::core::i64) -> :wat::core::i64) x)")
              (child
               (:wat::kernel::fork-program bad-src :wat::core::None)))
             (:wat::kernel::Process/join-result child)))

@@ -352,7 +352,7 @@ fn parse_error_fixed_param_after_rest_binder() {
 #[test]
 fn parse_error_rest_binder_with_non_vector_type() {
     // The rest-binder type MUST be `Vector<T>` (or `Vec<T>`). A bare
-    // type like `:i64` should be rejected at parse time.
+    // type like `:wat::core::i64` should be rejected at parse time.
     let src = r#"
 
         (:wat::core::define

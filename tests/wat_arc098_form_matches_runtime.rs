@@ -33,13 +33,13 @@ fn assert_bool(v: Value, expected: bool, ctx: &str) {
 
 const PROLOGUE: &str = r#"
 (:wat::core::struct :test::PaperResolved
-  (outcome       :String)
-  (grace-residue :f64))
+  (outcome       :wat::core::String)
+  (grace-residue :wat::core::f64))
 "#;
 
 fn program(body: &str) -> String {
     format!(
-        "{prologue}\n(:wat::core::define (:user::main -> :bool) {body})",
+        "{prologue}\n(:wat::core::define (:user::main -> :wat::core::bool) {body})",
         prologue = PROLOGUE,
         body = body
     )
@@ -263,8 +263,8 @@ fn struct_type_mismatch_returns_false() {
     // false without surfacing an error (Clara semantics).
     let src = format!(
         "{prologue}\n
-        (:wat::core::struct :test::Other (x :i64))
-        (:wat::core::define (:user::main -> :bool)
+        (:wat::core::struct :test::Other (x :wat::core::i64))
+        (:wat::core::define (:user::main -> :wat::core::bool)
           (:wat::core::let
             ((o (:test::Other/new 42)))
             (:wat::form::matches? o

@@ -44,7 +44,7 @@ fn sort_by_ascending_i64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs (:wat::core::Vector :wat::core::i64 3 1 4 1 5 9 2 6))
              (sorted
@@ -68,7 +68,7 @@ fn sort_by_descending_f64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs (:wat::core::Vector :wat::core::f64 1.5 0.5 2.5 1.0))
              (sorted
@@ -92,7 +92,7 @@ fn sort_by_string() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs (:wat::core::Vector :wat::core::String "banana" "apple" "cherry"))
              (sorted
@@ -112,7 +112,7 @@ fn sort_by_empty_vec() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs (:wat::core::Vector :wat::core::i64))
              (sorted
@@ -133,7 +133,7 @@ fn sort_by_tuple_first_field_key() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs
               (:wat::core::Vector :(wat::core::i64,wat::core::String)

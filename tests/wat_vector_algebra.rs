@@ -44,7 +44,7 @@ fn vector_bind_roundtrip() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((va (:wat::holon::encode (:wat::holon::Atom "a")))
              (vb (:wat::holon::encode (:wat::holon::Atom "b")))
@@ -65,7 +65,7 @@ fn vector_bundle_singleton_returns_input() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((va (:wat::holon::encode (:wat::holon::Atom "x")))
              (bundled
@@ -87,7 +87,7 @@ fn vector_blend_weighted() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((va (:wat::holon::encode (:wat::holon::Atom "x")))
              (vb (:wat::holon::encode (:wat::holon::Atom "y")))
@@ -109,7 +109,7 @@ fn vector_permute_changes_vector() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((va (:wat::holon::encode (:wat::holon::Atom "x")))
              (shifted (:wat::holon::vector-permute va 5)))

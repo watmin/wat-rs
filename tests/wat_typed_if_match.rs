@@ -245,8 +245,8 @@ fn if_non_bool_cond_rejected_at_check() {
 
 #[test]
 fn typed_if_result_flows_into_enclosing_let_bind() {
-    // The `let` binding `x :i64` only unifies if infer_if reports
-    // `:i64` as the if-form's result type — proving the declared `:T`
+    // The `let` binding `x :wat::core::i64` only unifies if infer_if reports
+    // `:wat::core::i64` as the if-form's result type — proving the declared `:T`
     // flows out.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -312,9 +312,9 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
             ((handle
               (:wat::kernel::spawn-thread
                 (:wat::core::fn
-                  ((_in :rust::crossbeam_channel::Receiver<()>)
-                   (_out :rust::crossbeam_channel::Sender<()>)
-                   -> :())
+                  ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+                   (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+                   -> :wat::core::nil)
                   ())))
              (result
               (:wat::kernel::Thread/join-result handle))

@@ -55,7 +55,7 @@ fn pipe_returns_writer_reader_tuple() {
     // just proves the type shape lands through the checker + runtime.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             ((pair
               (:wat::kernel::pipe))

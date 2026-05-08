@@ -68,7 +68,7 @@ fn letstar_result_no_whitespace_simple_payload() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((wrapped
               (:wat::core::Ok 42))
@@ -101,7 +101,7 @@ fn letstar_result_no_whitespace_tuple_payload() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((wrapped (:user::wrap-it))
              (extracted
@@ -129,10 +129,10 @@ fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             (((m :HashMap<String, i64>)
-              (:wat::core::HashMap :String :i64)))
+              (:wat::core::HashMap :wat::core::String :wat::core::i64)))
             (:wat::io::IOWriter/println stdout "ok")))
     "#;
     let err = run(src).expect_err("expected lex error on `:HashMap<String, i64>`");

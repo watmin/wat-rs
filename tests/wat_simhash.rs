@@ -6,7 +6,7 @@
 //! - Cosine-near-1 → small hamming distance (same/perturbed AST)
 //! - Cosine-near-0 → hamming distance ≈ 32 (orthogonal-by-construction
 //!   AST pair)
-//! - Type system: returns `:i64`; arithmetic + cache integration work
+//! - Type system: returns `:wat::core::i64`; arithmetic + cache integration work
 
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
@@ -50,7 +50,7 @@ fn simhash_deterministic_same_ast() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((a
               (:wat::holon::Bind
@@ -74,7 +74,7 @@ fn simhash_atom_zero_stable() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((k1 (:wat::holon::simhash (:wat::holon::Atom 0)))
              (k2 (:wat::holon::simhash (:wat::holon::Atom 0))))
@@ -97,7 +97,7 @@ fn simhash_same_shape_zero_hamming() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((a
               (:wat::holon::Bind
@@ -130,7 +130,7 @@ fn simhash_distinct_atoms_distinct_keys() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((alpha (:wat::holon::Atom "alpha"))
              (beta (:wat::holon::Atom "beta"))
@@ -142,7 +142,7 @@ fn simhash_distinct_atoms_distinct_keys() {
     assert_eq!(run(src), vec!["diff".to_string()]);
 }
 
-// ─── Type system: simhash returns :i64; works with arithmetic ───────
+// ─── Type system: simhash returns :wat::core::i64; works with arithmetic ───────
 
 #[test]
 fn simhash_result_works_in_arithmetic() {
@@ -152,7 +152,7 @@ fn simhash_result_works_in_arithmetic() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((k (:wat::holon::simhash (:wat::holon::Atom "x")))
              (doubled (:wat::core::+ k k)))

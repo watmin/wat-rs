@@ -43,7 +43,7 @@ fn ticket_redeems_once_successfully() {
     let src = r#"
         (:wat::core::use! :rust::test::Ticket)
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             ((t (:rust::test::Ticket::new 777)))
             (:rust::test::Ticket::redeem t)))

@@ -50,7 +50,7 @@ fn counter_increments_and_reads_via_macro_generated_shim() {
     let src = r#"
         (:wat::core::use! :rust::test::Counter)
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             ((c (:rust::test::Counter::new 10))
              (_ (:rust::test::Counter::increment c))
@@ -71,7 +71,7 @@ fn counter_ref_read_preserves_state() {
     let src = r#"
         (:wat::core::use! :rust::test::Counter)
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             ((c (:rust::test::Counter::new 42)))
             (:rust::test::Counter::read c)))

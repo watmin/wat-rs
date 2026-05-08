@@ -45,7 +45,7 @@ fn not_eq_i64_true_when_different() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout
             (:wat::core::if (:wat::core::not= 3 5) -> :wat::core::String
               "yes" "no")))
@@ -61,7 +61,7 @@ fn not_eq_i64_false_when_same() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout
             (:wat::core::if (:wat::core::not= 7 7) -> :wat::core::String
               "yes" "no")))
@@ -77,7 +77,7 @@ fn not_eq_f64_cross_numeric_coerce() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout
             (:wat::core::if (:wat::core::not= 3 3.0) -> :wat::core::String
               "yes" "no")))
@@ -94,7 +94,7 @@ fn eq_on_enum_unit_variants() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((a :my::Color::Red)
              (b :my::Color::Red)

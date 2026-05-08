@@ -50,7 +50,7 @@ fn shared_handle_reads_message() {
     let src = r#"
         (:wat::core::use! :rust::test::Greeting)
 
-        (:wat::core::define (:user::main -> :String)
+        (:wat::core::define (:user::main -> :wat::core::String)
           (:wat::core::let
             ((g
               (:rust::test::Greeting::new "hello" 2026)))
@@ -71,7 +71,7 @@ fn shared_handle_reads_year() {
     let src = r#"
         (:wat::core::use! :rust::test::Greeting)
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             ((g
               (:rust::test::Greeting::new "any" 2026)))

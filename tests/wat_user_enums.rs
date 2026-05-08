@@ -157,8 +157,8 @@ fn missing_variant_arm_reports_non_exhaustive() {
     let src = r##"
         (:wat::core::enum :my::Color :Red :Green :Blue)
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match :my::Color::Red -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match :my::Color::Red -> :wat::core::i64
             (:my::Color::Red   1)
             (:my::Color::Green 2)))
     "##;
@@ -176,8 +176,8 @@ fn cross_enum_variant_pattern_rejected() {
         (:wat::core::enum :my::Color :Red :Green)
         (:wat::core::enum :my::Side  :Buy :Sell)
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match :my::Color::Red -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match :my::Color::Red -> :wat::core::i64
             (:my::Side::Buy  1)
             (:my::Color::Red 2)
             (:my::Color::Green 3)))
@@ -194,10 +194,10 @@ fn cross_enum_variant_pattern_rejected() {
 fn tagged_variant_arity_mismatch_reported() {
     let src = r##"
         (:wat::core::enum :my::Event
-          (Pair (a :i64) (b :i64)))
+          (Pair (a :wat::core::i64) (b :wat::core::i64)))
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:my::Event::Pair 1 2) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
             ((:my::Event::Pair just-one) just-one)))
     "##;
     let err = run_expecting_check_error(src);
@@ -212,10 +212,10 @@ fn tagged_variant_arity_mismatch_reported() {
 fn unit_variant_pattern_on_tagged_variant_rejected() {
     let src = r##"
         (:wat::core::enum :my::Event
-          (Pair (a :i64) (b :i64)))
+          (Pair (a :wat::core::i64) (b :wat::core::i64)))
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:my::Event::Pair 1 2) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
             (:my::Event::Pair 0)))
     "##;
     let err = run_expecting_check_error(src);

@@ -98,7 +98,7 @@ fn harness_main_signature_mismatch() {
     // :user::main returns i64 instead of :(); signature validator refuses.
     let src = format!(
         r##"{}
-        (:wat::core::define (:user::main -> :i64) 42)
+        (:wat::core::define (:user::main -> :wat::core::i64) 42)
         "##,
         DIMS_AND_MODE
     );

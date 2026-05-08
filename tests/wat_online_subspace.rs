@@ -40,7 +40,7 @@ fn subspace_construct_dim_k_n_zero() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((s (:wat::holon::OnlineSubspace/new 10000 16))
              (d (:wat::holon::OnlineSubspace/dim s))
@@ -63,7 +63,7 @@ fn subspace_update_increments_n_and_returns_residual() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((s (:wat::holon::OnlineSubspace/new 10000 4))
              (v (:wat::holon::encode (:wat::holon::Atom "x")))
@@ -83,7 +83,7 @@ fn subspace_eigenvalues_returns_k_floats() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((s (:wat::holon::OnlineSubspace/new 10000 8))
              (eigs (:wat::holon::OnlineSubspace/eigenvalues s))

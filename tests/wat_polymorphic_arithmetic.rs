@@ -4,7 +4,7 @@
 //! - Polymorphic arithmetic `+ - * /`: i64×i64, f64×f64, i64×f64, f64×i64
 //! - Polymorphic comparison `= < > <= >=`: cross-numeric pairs typecheck
 //!   and execute correctly
-//! - Typed strict `:i64::*` and `:f64::*` variants reject cross-type
+//! - Typed strict `:wat::core::i64::*` and `:wat::core::f64::*` variants reject cross-type
 //! - Division-by-zero error preserved across all forms
 //! - Non-numeric arithmetic args rejected at check-time
 
@@ -296,7 +296,7 @@ fn poly_eq_strings_still_works() {
 // Arc 148 slice 5 — per-Type comparison leaves
 // (`:wat::core::{i64,f64}::{=,<,>,<=,>=}`) retired. Strict
 // type-locking is now expressed via param types at the call
-// site's enclosing function: a helper with `(a :i64) (b :i64)`
+// site's enclosing function: a helper with `(a :wat::core::i64) (b :wat::core::i64)`
 // params calling the polymorphic `:wat::core::=` enforces the
 // same constraint at the binding site that the per-Type leaf
 // used to enforce in-line.
@@ -447,7 +447,7 @@ fn slice4_variadic_add_three_i64_args_folds() {
 
 #[test]
 fn slice4_variadic_add_mixed_numerics_design_worked_example() {
-    // The DESIGN's worked example: (:wat::core::+ 0 40.0 2) => :f64 42.0
+    // The DESIGN's worked example: (:wat::core::+ 0 40.0 2) => :wat::core::f64 42.0
     // Mixed-numeric variadic via dispatch + per-pair routing.
     let src = r##"
         (:wat::core::define
@@ -464,7 +464,7 @@ fn slice4_variadic_add_mixed_numerics_design_worked_example() {
 
 #[test]
 fn slice4_variadic_add_zero_ary_returns_i64_zero() {
-    // `+` 0-ary returns identity 0:i64 per Lisp/Clojure tradition.
+    // `+` 0-ary returns identity 0:wat::core::i64 per Lisp/Clojure tradition.
     let src = r##"
         (:wat::core::define
           (:user::main
@@ -480,7 +480,7 @@ fn slice4_variadic_add_zero_ary_returns_i64_zero() {
 
 #[test]
 fn slice4_variadic_mul_zero_ary_returns_i64_one() {
-    // `*` 0-ary returns identity 1:i64.
+    // `*` 0-ary returns identity 1:wat::core::i64.
     let src = r##"
         (:wat::core::define
           (:user::main

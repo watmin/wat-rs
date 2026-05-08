@@ -58,7 +58,7 @@ fn vector_construct_via_encode() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((v1 (:wat::holon::encode (:wat::holon::Atom "x")))
              (v2 (:wat::holon::encode (:wat::holon::Atom "x"))))
@@ -76,7 +76,7 @@ fn vector_distinct_atoms_distinct_vectors() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((va (:wat::holon::encode (:wat::holon::Atom "alpha")))
              (vb (:wat::holon::encode (:wat::holon::Atom "beta"))))
@@ -100,7 +100,7 @@ fn vector_as_struct_field_roundtrip() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((v (:wat::holon::encode (:wat::holon::Atom "x")))
              (e (:my::Engram/new "alpha" v))
@@ -122,7 +122,7 @@ fn polymorphic_cosine_ast_ast() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((a (:wat::holon::Atom "x"))
              (b (:wat::holon::Atom "x"))
@@ -141,7 +141,7 @@ fn polymorphic_cosine_vector_vector() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((va (:wat::holon::encode (:wat::holon::Atom "x")))
              (vb (:wat::holon::encode (:wat::holon::Atom "x")))
@@ -160,7 +160,7 @@ fn polymorphic_cosine_ast_vector_mixed() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((a (:wat::holon::Atom "x"))
              (vb (:wat::holon::encode (:wat::holon::Atom "x")))
@@ -179,7 +179,7 @@ fn polymorphic_cosine_vector_ast_mixed() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((va (:wat::holon::encode (:wat::holon::Atom "x")))
              (b (:wat::holon::Atom "x"))
@@ -200,7 +200,7 @@ fn polymorphic_dot_vector_vector() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((va (:wat::holon::encode (:wat::holon::Atom "x")))
              (vb (:wat::holon::encode (:wat::holon::Atom "x")))
@@ -222,7 +222,7 @@ fn polymorphic_simhash_ast_and_vector_agree() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((ast (:wat::holon::Atom "alpha"))
              (vec (:wat::holon::encode ast))
@@ -244,7 +244,7 @@ fn polymorphic_cosine_rejects_string() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let ((bad (:wat::holon::cosine "hello" "world")))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string bad))))
     "##;
@@ -269,7 +269,7 @@ fn vector_encode_deterministic_across_calls() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((a
               (:wat::holon::Bind

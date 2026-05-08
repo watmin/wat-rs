@@ -55,7 +55,7 @@ fn run(src: &str) -> Value {
 // ─── Basic binding — 4 tests ──────────────────────────────────────────────
 
 /// Test 1 — simplest `def`: `:pi` bound to `3.14159`.
-/// The binding succeeds; subsequent reference sees type `:f64`
+/// The binding succeeds; subsequent reference sees type `:wat::core::f64`
 /// (inferred from the float literal).
 #[test]
 fn def_basic_float_literal() {
@@ -70,7 +70,7 @@ fn def_basic_float_literal() {
 
 /// Test 2 — computed `def`: `:b` references `:a` which was bound first.
 /// Sequential processing means `:a` is in `env.defined_values` when
-/// `:b`'s expr is type-checked; `:b`'s inferred type is `:i64`
+/// `:b`'s expr is type-checked; `:b`'s inferred type is `:wat::core::i64`
 /// (result of `(:wat::core::i64::+,2 :a 1)`).
 #[test]
 fn def_computed_value_references_prior_def() {
@@ -82,13 +82,13 @@ fn def_computed_value_references_prior_def() {
 }
 
 /// Test 3 — type-mismatch via `def`-registered type.
-/// `:pi` is bound to `3.14159` (type `:f64`). Using `:pi` where an
-/// `:i64` is expected must surface a `TypeMismatch` error.
+/// `:pi` is bound to `3.14159` (type `:wat::core::f64`). Using `:pi` where an
+/// `:wat::core::i64` is expected must surface a `TypeMismatch` error.
 #[test]
 fn def_type_mismatch_via_registered_type() {
-    // `:pi` is registered as `:f64`. Passing it to an `:i64`-only
+    // `:pi` is registered as `:wat::core::f64`. Passing it to an `:wat::core::i64`-only
     // add form forces a TypeMismatch — the type-check sees `:pi`'s
-    // type from `defined_values` and unifies it against the `:i64`
+    // type from `defined_values` and unifies it against the `:wat::core::i64`
     // parameter. Expects startup to fail.
     let src = r#"
         (:wat::core::def :pi 3.14159)
@@ -151,7 +151,7 @@ fn def_position_legal_do_splice() {
 /// splice legal; the `let` local `config` is in scope for the `def`'s
 /// expression.
 ///
-/// `:get-config` is registered as a closure (`:wat::core::Fn()->:i64`)
+/// `:get-config` is registered as a closure (`:wat::core::Fn()->:wat::core::i64`)
 /// that captures `config = 42` at load time.
 #[test]
 fn def_position_legal_let_splice_with_closure() {
@@ -259,7 +259,7 @@ fn def_redef_forbidden_strict_default() {
 #[test]
 fn def_runtime_pi_resolves_to_value() {
     // `(:wat::core::def :pi 3.14159)` at top-level; `:user::main` returns
-    // `:pi` directly. The return type is `:f64` — matches `:pi`'s inferred
+    // `:pi` directly. The return type is `:wat::core::f64` — matches `:pi`'s inferred
     // type. This exercises the runtime keyword-arm lookup path that
     // checks `sym.runtime_def_values` after `unit_variants`.
     let src = r#"
@@ -283,8 +283,8 @@ fn def_runtime_pi_resolves_to_value() {
 
 /// T-runtime-2 — Mirror the user's example exactly:
 /// `(:wat::core::def :pi 3.14159)` then
-/// `(define (:user::main -> :f64) (let [x 2.0] (f64::+,2 x :pi)))`.
-/// Asserts the result is 5.14159:f64.
+/// `(define (:user::main -> :wat::core::f64) (let [x 2.0] (f64::+,2 x :pi)))`.
+/// Asserts the result is 5.14159:wat::core::f64.
 #[test]
 fn def_runtime_pi_in_let_addition() {
     let src = r#"
@@ -311,7 +311,7 @@ fn def_runtime_pi_in_let_addition() {
 /// T-runtime-3 — closure capture through `let`-splice `def`.
 /// ```
 /// (let [config 42]
-///   (def :get-config (fn (-> :i64) config)))
+///   (def :get-config (fn (-> :wat::core::i64) config)))
 /// ```
 /// Then call `:get-config` via `user::main` and assert it returns 42.
 /// This exercises the let-env path in `register_runtime_defs_form`:
@@ -360,7 +360,7 @@ fn def_redef_default_flag_off_strict_default() {
 /// Test 16 — `set-redef! true` + same type → succeeds; runtime resolves
 /// to the new value.
 /// `(:wat::config::set-redef! true)` enables opt-in redef; redefining
-/// `:a` from `1` to `2` (both `:i64`) must succeed, and at runtime `:a`
+/// `:a` from `1` to `2` (both `:wat::core::i64`) must succeed, and at runtime `:a`
 /// must resolve to `2`.
 #[test]
 fn def_redef_set_redef_true_same_type_succeeds() {
@@ -381,7 +381,7 @@ fn def_redef_set_redef_true_same_type_succeeds() {
 }
 
 /// Test 17 — `set-redef! true` + different type → fires `DefRedefTypeChange`.
-/// Redefining `:a` from `1` (`:i64`) to `"hello"` (`:String`) with
+/// Redefining `:a` from `1` (`:wat::core::i64`) to `"hello"` (`:wat::core::String`) with
 /// `set-redef! true` must fire `DefRedefTypeChange` naming both types.
 /// Type-stability is mandatory regardless of the redef flag.
 #[test]
@@ -399,13 +399,13 @@ fn def_redef_set_redef_true_type_change_fires() {
     );
     // The diagnostic must name both the prior type and the new type.
     assert!(
-        err.contains(":i64") || err.contains("i64"),
-        "DefRedefTypeChange should name prior type :i64; got: {}",
+        err.contains(":wat::core::i64") || err.contains("i64"),
+        "DefRedefTypeChange should name prior type :wat::core::i64; got: {}",
         err
     );
     assert!(
-        err.contains(":String") || err.contains("String"),
-        "DefRedefTypeChange should name new type :String; got: {}",
+        err.contains(":wat::core::String") || err.contains("String"),
+        "DefRedefTypeChange should name new type :wat::core::String; got: {}",
         err
     );
 }

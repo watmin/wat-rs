@@ -55,7 +55,7 @@ fn option_tuple_single_level_works() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((row
               (:wat::core::Some (:wat::core::Tuple 1 2 3)))
@@ -76,7 +76,7 @@ fn result_tuple_destructure() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((resp
               (:wat::core::Ok (:wat::core::Tuple "ok" 7)))
@@ -97,7 +97,7 @@ fn nested_options_three_levels() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((mm
               (:wat::core::Some (:wat::core::Some 42)))
@@ -120,7 +120,7 @@ fn wildcard_at_depth() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((row
               (:wat::core::Some (:wat::core::Tuple 100 99 98)))
@@ -141,7 +141,7 @@ fn literal_at_depth_picks_arm() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((resp (:wat::core::Ok 200))
              (label
@@ -163,7 +163,7 @@ fn literal_fallback_to_general_arm() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((resp (:wat::core::Ok 418))
              (label
@@ -186,7 +186,7 @@ fn linear_shadowing() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((row
               (:wat::core::Some (:wat::core::Tuple 5 7)))
@@ -209,7 +209,7 @@ fn nonexhaustive_partial_pattern_rejected() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((row
               (:wat::core::Some (:wat::core::Tuple 1 2)))
@@ -235,7 +235,7 @@ fn wildcard_fallback_compiles_and_runs() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((row
               (:wat::core::Some (:wat::core::Tuple 1 99)))
@@ -258,7 +258,7 @@ fn candlestream_next_shape_destructures_in_one_step() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((row
               (:wat::core::Some (:wat::core::Tuple 1700000000 100.0 110.0 95.0 105.0 1234.5)))

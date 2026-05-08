@@ -36,7 +36,7 @@ fn run(src: &str) -> Value {
 
 #[test]
 fn variadic_macro_splices_rest_into_vec_ctor() {
-    // `(my::vec-of :i64 1 2 3)` expands to
+    // `(my::vec-of :wat::core::i64 1 2 3)` expands to
     // `(:wat::core::Vector :wat::core::i64 1 2 3)`. The `& (items ...)` rest-binder
     // collects the trailing 1 2 3 into a list; `,@items` splices them.
     let src = r#"
@@ -84,7 +84,7 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
     // `(+ 100 (+ 1 (+ 2 3)))` via a sum helper. Tests that fixed
     // params bind first and rest picks up only the trailing args.
     //
-    // Simpler shape: macro expands to `(vec :i64 init ,@items)` and
+    // Simpler shape: macro expands to `(vec :wat::core::i64 init ,@items)` and
     // we sum-fold the result. Keeps the splice the point of the test.
     let src = r#"
 

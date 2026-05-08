@@ -44,7 +44,7 @@ fn sqrt_perfect_square() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout
             (:wat::core::f64::to-string (:wat::std::math::sqrt 16.0))))
     "##;
@@ -59,7 +59,7 @@ fn sqrt_of_zero() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout
             (:wat::core::f64::to-string (:wat::std::math::sqrt 0.0))))
     "##;
@@ -74,7 +74,7 @@ fn sqrt_round_trip_with_square() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((x 7.5)
              (rt (:wat::std::math::sqrt (:wat::core::* x x))))

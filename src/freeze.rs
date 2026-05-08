@@ -584,6 +584,28 @@ fn startup_from_forms_post_config(
         &macro_sym,
     )?;
 
+    // 4b. Arc 163 slice 3g phase A — bare-legacy walker on raw
+    //     post-expansion forms BEFORE register_types/register_defines
+    //     consume the structural data (which would hide sig-position
+    //     type-keywords like `:i64` in `(define (a :i64) -> :i64)`
+    //     from check_program's walker). Walks user forms only;
+    //     stdlib forms are substrate-authored and audited via
+    //     in-repo discipline. The bare-legacy walker (arc 109 slice
+    //     1c) is wired here so the diagnostic stream covers ALL
+    //     user-written type-position keywords, not just expression-
+    //     position ones. Slice 3g sweeps remaining bare-form sites
+    //     based on these diagnostics; slice 3h retires the
+    //     canonicalize=true upgrade arms once the sweep is complete.
+    {
+        let mut bare_errors: Vec<crate::check::CheckError> = Vec::new();
+        for form in &expanded_user {
+            crate::check::validate_bare_legacy_primitives(form, &mut bare_errors);
+        }
+        if !bare_errors.is_empty() {
+            return Err(StartupError::Check(crate::check::CheckErrors(bare_errors)));
+        }
+    }
+
     // 5. Type declarations. Seeded with wat-rs's own :wat::*
     //    built-in types (e.g., :wat::holon::CapacityExceeded)
     //    before stdlib and user source land; those declarations
@@ -976,7 +998,7 @@ mod tests {
     fn user_define_registers() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::app::add (x :i64) (y :i64) -> :i64)
+            (:wat::core::define (:my::app::add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 x y))
         "#;
         let world = startup(src).expect("startup");
@@ -987,7 +1009,7 @@ mod tests {
     fn user_type_registers() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::struct :my::Candle (open :f64) (close :f64))
+            (:wat::core::struct :my::Candle (open :wat::core::f64) (close :wat::core::f64))
         "#;
         let world = startup(src).expect("startup");
         assert!(world.types().contains(":my::Candle"));
@@ -1026,8 +1048,8 @@ mod tests {
         // Duplicate struct declaration.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::struct :my::Candle (x :f64))
-            (:wat::core::struct :my::Candle (y :i64))
+            (:wat::core::struct :my::Candle (x :wat::core::f64))
+            (:wat::core::struct :my::Candle (y :wat::core::i64))
         "#;
         let err = startup(src).unwrap_err();
         assert!(matches!(err, StartupError::Type(_)));
@@ -1061,7 +1083,7 @@ mod tests {
         // inside parse_define_signature).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::bad (x :Any) -> :i64) 42)
+            (:wat::core::define (:my::bad (x :Any) -> :wat::core::i64) 42)
         "#;
         let err = startup(src).unwrap_err();
         // register_defines calls parse_type_expr which raises AnyBanned;
@@ -1094,7 +1116,7 @@ mod tests {
         let mut loader = InMemoryLoader::new();
         loader.add_source(
             "lib.wat",
-            r#"(:wat::core::define (:lib::square (x :i64) -> :i64)
+            r#"(:wat::core::define (:lib::square (x :wat::core::i64) -> :wat::core::i64)
                  (:wat::core::i64::*,2 x x))"#,
         );
         let entry = r#"
@@ -1112,7 +1134,7 @@ mod tests {
         // :user::main takes no arguments and returns an Int.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:user::main -> :i64)
+            (:wat::core::define (:user::main -> :wat::core::i64)
               (:wat::core::i64::+,2 21 21))
         "#;
         let world = startup(src).expect("startup");
@@ -1125,9 +1147,9 @@ mod tests {
         // :user::main delegates to a user-defined helper.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::app::double (x :i64) -> :i64)
+            (:wat::core::define (:my::app::double (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::*,2 x 2))
-            (:wat::core::define (:user::main -> :i64)
+            (:wat::core::define (:user::main -> :wat::core::i64)
               (:my::app::double 21))
         "#;
         let world = startup(src).expect("startup");
@@ -1150,7 +1172,7 @@ mod tests {
         // :user::main declared with one parameter; invoke with zero.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:user::main (x :i64) -> :i64) x)
+            (:wat::core::define (:user::main (x :wat::core::i64) -> :wat::core::i64) x)
         "#;
         let world = startup(src).expect("startup");
         let err = invoke_user_main(&world, Vec::new()).unwrap_err();
@@ -1168,7 +1190,7 @@ mod tests {
         // the arg type — it passes through to the body.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:user::main (x :i64) -> :i64)
+            (:wat::core::define (:user::main (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 x 1))
         "#;
         let world = startup(src).expect("startup");
@@ -1187,7 +1209,7 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::app::triple (x :i64) -> :i64)
+            (:wat::core::define (:my::app::triple (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::*,2 x 3))
         "#,
         );

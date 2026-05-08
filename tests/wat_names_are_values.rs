@@ -94,7 +94,7 @@ fn named_define_is_a_function_value() {
 #[test]
 fn named_define_passes_to_higher_order_fn() {
     // A user-defined higher-order function `:my::apply-twice` takes
-    // `:wat::core::Fn(wat::core::i64)->wat::core::i64` and an `:i64`; calling it with `:my::inc` and
+    // `:wat::core::Fn(wat::core::i64)->wat::core::i64` and an `:wat::core::i64`; calling it with `:my::inc` and
     // `5` via the bare keyword path — no fn wrapper — yields 7.
     let src = r##"
 
@@ -180,7 +180,7 @@ fn named_define_as_stream_map_fn() {
     // without wrapping in a pass-through fn.
     let src = r##"
 
-        (:wat::core::define (:my::double (n :i64) -> :i64)
+        (:wat::core::define (:my::double (n :wat::core::i64) -> :wat::core::i64)
           (:wat::core::i64::*,2 n 2))
 
         (:wat::core::define

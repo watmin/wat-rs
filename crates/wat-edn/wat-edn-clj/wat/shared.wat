@@ -11,26 +11,26 @@
 
 (:wat::core::struct :enterprise::config::SizeAdjust
   (asset    :Keyword)
-  (factor   :f64)
-  (reason   :String))
+  (factor   :wat::core::f64)
+  (reason   :wat::core::String))
 
 (:wat::core::struct :enterprise::observer::market::TradeSignal
   (asset       :Keyword)
   (side        :Keyword)
-  (size        :f64)
-  (confidence  :f64)
+  (size        :wat::core::f64)
+  (confidence  :wat::core::f64)
   (proposed-at :wat::time::Instant))
 
 (:wat::core::struct :enterprise::treasury::events::Fill
-  (order-id     :i64)
+  (order-id     :wat::core::i64)
   (asset        :Keyword)
-  (filled-size  :f64)
-  (filled-price :f64))
+  (filled-size  :wat::core::f64)
+  (filled-price :wat::core::f64))
 
 ;; A function definition — should be ignored by the scanner.
 (:wat::core::define (:enterprise::observer::market::TradeSignal/show
                      (sig :enterprise::observer::market::TradeSignal)
-                     -> :String)
+                     -> :wat::core::String)
   (:wat::core::format "[%s] %s @ %f"
     (:enterprise::observer::market::TradeSignal/asset sig)
     (:enterprise::observer::market::TradeSignal/side sig)

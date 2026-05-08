@@ -39,7 +39,7 @@ fn diag_make_deftest_with_prelude_expansion() {
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
-                     -> :())
+                     -> :wat::core::nil)
   ())
 "##;
 

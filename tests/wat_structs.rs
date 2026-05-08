@@ -160,7 +160,7 @@ fn constructor_arity_mismatch_rejected_at_check() {
 
 #[test]
 fn constructor_field_type_mismatch_rejected_at_check() {
-    // Bar/new expects f64 for `open`; we pass a :String.
+    // Bar/new expects f64 for `open`; we pass a :wat::core::String.
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
@@ -181,14 +181,14 @@ fn constructor_field_type_mismatch_rejected_at_check() {
 
 #[test]
 fn accessor_returns_correct_field_type() {
-    // :Bar/volume is declared :i64 in the struct; using it where
-    // :f64 is expected is a type error. Proves the accessor's
+    // :Bar/volume is declared :wat::core::i64 in the struct; using it where
+    // :wat::core::f64 is expected is a type error. Proves the accessor's
     // return type flows from the field declaration.
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
           (open  :wat::core::f64)
-          (volume :i64))
+          (volume :wat::core::i64))
 
         (:wat::core::define (:user::main -> :wat::core::f64)
           (:wat::core::let
@@ -200,7 +200,7 @@ fn accessor_returns_correct_field_type() {
         e,
         CheckError::ReturnTypeMismatch { .. }
     ));
-    assert!(saw_ret, "expected ReturnTypeMismatch (body :i64 vs declared :f64); got {:?}", errs);
+    assert!(saw_ret, "expected ReturnTypeMismatch (body :wat::core::i64 vs declared :wat::core::f64); got {:?}", errs);
 }
 
 // ─── Built-in struct: :wat::holon::CapacityExceeded ────────────────
@@ -235,7 +235,7 @@ fn builtin_capacity_exceeded_cannot_be_redeclared() {
     let src = r#"
 
         (:wat::core::struct :wat::holon::CapacityExceeded
-          (boom :bool))
+          (boom :wat::core::bool))
 
         (:wat::core::define (:user::main -> :()) ())
     "#;

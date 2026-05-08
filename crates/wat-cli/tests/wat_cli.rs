@@ -327,7 +327,7 @@ fn wrong_arity_user_main_rejected() {
     // :user::main declared with zero args — signature check rejects
     // (wat requires 3 args). EXIT_MAIN_SIGNATURE=4 from the child.
     let program = r#"
-        (:wat::core::define (:user::main -> :()) ())
+        (:wat::core::define (:user::main -> :wat::core::nil) ())
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");
@@ -353,7 +353,7 @@ fn wrong_arg_type_user_main_rejected() {
     // EXIT_MAIN_SIGNATURE=4 from the child.
     let program = r#"
         (:wat::core::define (:user::main
-                             (stdin  :i64)
+                             (stdin  :wat::core::i64)
                              (stdout :wat::io::IOWriter)
                              (stderr :wat::io::IOWriter)
                              -> :wat::core::nil)
@@ -709,7 +709,7 @@ const ARC115_GOOD_PROGRAM: &str = r#"
     (stdin :wat::io::IOReader)
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
-    -> :())
+    -> :wat::core::nil)
   ())
 "#;
 
@@ -719,7 +719,7 @@ const ARC115_BAD_PROGRAM: &str = r#"
     (stdin :wat::io::IOReader)
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
-    -> :())
+    -> :wat::core::nil)
   (:wat::kernel::send no-such-thing 42))
 "#;
 

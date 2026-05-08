@@ -33,7 +33,7 @@ fn check_errors(src: &str) -> Vec<CheckError> {
 fn simple_alias_unifies_with_its_expansion() {
     let src = r#"
 
-        (:wat::core::typealias :my::Amount :f64)
+        (:wat::core::typealias :my::Amount :wat::core::f64)
 
         (:wat::core::define (:app::double (x :my::Amount) -> :my::Amount)
           (:wat::core::f64::*,2 x 2.0))
@@ -53,7 +53,7 @@ fn simple_alias_unifies_with_its_expansion() {
 fn alias_of_alias_chain_expands_to_root() {
     let src = r#"
 
-        (:wat::core::typealias :my::B :f64)
+        (:wat::core::typealias :my::B :wat::core::f64)
         (:wat::core::typealias :my::A :my::B)
 
         (:wat::core::define (:app::inc (x :my::A) -> :my::A)
@@ -103,7 +103,7 @@ fn self_referential_alias_halts_at_startup() {
 fn alias_preserves_type_mismatches() {
     let src = r#"
 
-        (:wat::core::typealias :my::Amount :f64)
+        (:wat::core::typealias :my::Amount :wat::core::f64)
 
         (:wat::core::define (:app::double (x :my::Amount) -> :my::Amount)
           (:wat::core::f64::*,2 x 2.0))
@@ -207,7 +207,7 @@ fn alias_over_fn_type_works_at_spawn() {
 fn alias_return_type_accepts_expanded_literal() {
     let src = r#"
 
-        (:wat::core::typealias :my::Amount :f64)
+        (:wat::core::typealias :my::Amount :wat::core::f64)
 
         (:wat::core::define (:app::zero -> :my::Amount)
           0.0)

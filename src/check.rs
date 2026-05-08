@@ -2101,7 +2101,13 @@ fn validate_scope_deadlock(node: &WatAST, types: &TypeEnv, errors: &mut Vec<Chec
 /// CheckError variant + walker, no `collect_hints` involvement.
 /// Mirrors arc 110 (`CommCallOutOfPosition`), arc 115
 /// (`InnerColonInCompoundArg`), arc 117 (`ScopeDeadlock`).
-fn validate_bare_legacy_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
+///
+/// Public so freeze.rs can run the walker on raw forms BEFORE
+/// `register_defines` consumes the define forms (which would otherwise
+/// hide define-sig type-position keywords from the walker — those
+/// keywords live inside the consumed sig sub-AST and never reach
+/// check_program). Arc 163 slice 3g phase A.
+pub fn validate_bare_legacy_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
     walk_for_bare_primitives(node, errors);
 }
 

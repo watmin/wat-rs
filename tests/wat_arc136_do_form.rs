@@ -126,9 +126,9 @@ fn do_multi_form_evaluates_left_to_right_returns_final() {
 
 #[test]
 fn do_recipient_unifies_with_final_form_type() {
-    // The probe declares -> :i64; its body is a do form whose final
-    // form is 42 (i64). Substrate infers do's type from final = :i64;
-    // recipient unification (probe's body slot expects :i64) succeeds.
+    // The probe declares -> :wat::core::i64; its body is a do form whose final
+    // form is 42 (i64). Substrate infers do's type from final = :wat::core::i64;
+    // recipient unification (probe's body slot expects :wat::core::i64) succeeds.
     let src = r#"
         (:wat::core::define (:my::probe -> :wat::core::i64)
           (:wat::core::do
@@ -147,7 +147,7 @@ fn do_recipient_unifies_with_final_form_type() {
 fn do_recipient_mismatch_fires_type_mismatch() {
     // The probe declares -> :wat::core::String; its body is a do form
     // whose final form is 42 (i64). Substrate infers do's type from
-    // final = :i64; recipient unification (probe's declared :String)
+    // final = :wat::core::i64; recipient unification (probe's declared :wat::core::String)
     // fails → TypeMismatch fires at the recipient.
     let src = r#"
         (:wat::core::define (:my::probe -> :wat::core::String)
@@ -273,7 +273,7 @@ fn do_nested_compose_cleanly() {
 #[test]
 fn do_inside_let_body_composes_types_cleanly() {
     // A let whose body is a do form — types compose: let's body slot
-    // expects whatever the recipient (here :user::main's -> :i64) wants;
+    // expects whatever the recipient (here :user::main's -> :wat::core::i64) wants;
     // body is a do form whose final form returns the bound x = 7. The
     // first non-final of the do uses the binding too (proves do sees the
     // surrounding let's scope).

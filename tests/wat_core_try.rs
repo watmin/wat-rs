@@ -212,11 +212,11 @@ fn try_on_non_result_arg_rejected_at_check() {
 
 #[test]
 fn try_inside_non_result_function_rejected_at_check() {
-    // Enclosing fn returns :i64, not :Result. `try` has no place to
+    // Enclosing fn returns :wat::core::i64, not :Result. `try` has no place to
     // propagate to; MalformedForm fires.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::Result/try (:wat::core::Ok 42)))
     "#;
     let errs = check_errors(src);
@@ -229,7 +229,7 @@ fn try_inside_non_result_function_rejected_at_check() {
 
 #[test]
 fn try_mismatched_err_types_rejected_at_check() {
-    // Enclosing fn's Err is :String; try's arg has Err :i64 — strict
+    // Enclosing fn's Err is :wat::core::String; try's arg has Err :wat::core::i64 — strict
     // equality refuses (no auto-conversion, per 2026-04-19 stance).
     let src = r#"
 
@@ -275,7 +275,7 @@ fn try_inside_result_returning_fn_propagates_to_fn() {
 
 #[test]
 fn try_inside_non_result_fn_rejected_at_check() {
-    // Fn's return type is :i64, not Result — the innermost
+    // Fn's return type is :wat::core::i64, not Result — the innermost
     // enclosing scope for `try` is the fn, not the outer fn.
     // MalformedForm fires.
     let src = r#"
@@ -284,7 +284,7 @@ fn try_inside_non_result_fn_rejected_at_check() {
           (:wat::core::let
             ((f
               (:wat::core::fn
-                ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :i64)
+                ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :wat::core::i64)
                 (:wat::core::Result/try r))))
             (:wat::core::Ok (f (:wat::core::Ok 1)))))
     "#;

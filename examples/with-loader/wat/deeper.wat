@@ -3,5 +3,5 @@
 ;; Proves `(load!)`s nest recursively — every loaded-file's defines
 ;; become part of the entry's frozen world, at any depth.
 
-(:wat::core::define (:user::with_loader::deeper::compute -> :String)
+(:wat::core::define (:user::with_loader::deeper::compute -> :wat::core::String)
   "hello, wat-loaded")

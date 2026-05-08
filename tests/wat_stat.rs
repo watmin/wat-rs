@@ -46,7 +46,7 @@ fn mean_known_input() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
              (m (:wat::std::stat::mean xs))
@@ -66,7 +66,7 @@ fn mean_empty_is_none() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs (:wat::core::Vector :wat::core::f64))
              (m (:wat::std::stat::mean xs))
@@ -88,7 +88,7 @@ fn variance_population_known_input() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
              (v
@@ -107,7 +107,7 @@ fn variance_single_point_zero() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs (:wat::core::Vector :wat::core::f64 7.0))
              (v
@@ -127,7 +127,7 @@ fn stddev_known_input() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
              (sd

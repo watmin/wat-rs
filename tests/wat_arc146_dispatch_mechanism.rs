@@ -9,8 +9,8 @@
 //! so the test surface depends on nothing that's about to change.
 //!
 //! Coverage:
-//!   1. Dispatch hits the `:i64` arm for an i64 call site.
-//!   2. Dispatch hits the `:f64` arm for an f64 call site.
+//!   1. Dispatch hits the `:wat::core::i64` arm for an i64 call site.
+//!   2. Dispatch hits the `:wat::core::f64` arm for an f64 call site.
 //!   3. Check-time TypeMismatch when no arm matches the input type.
 //!   4. `lookup-define` returns Some + emission carries
 //!      `:wat::core::define-dispatch` head.
@@ -127,7 +127,7 @@ fn dispatch_dispatches_to_f64_arm() {
 
 #[test]
 fn dispatch_no_arm_match_check_time() {
-    // Calling with a String when only :i64 + :f64 arms exist should
+    // Calling with a String when only :wat::core::i64 + :wat::core::f64 arms exist should
     // surface as a check-time TypeMismatch (dispatch dispatch
     // diagnostic; the call-site type tag does not unify with any arm
     // pattern).

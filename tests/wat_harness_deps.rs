@@ -57,7 +57,7 @@ fn harness_composes_multiple_deps_into_user_source() {
                                  (stdin  :wat::io::IOReader)
                                  (stdout :wat::io::IOWriter)
                                  (stderr :wat::io::IOWriter)
-                                 -> :())
+                                 -> :wat::core::nil)
               (:wat::core::let
                 ((_ (:wat::io::IOWriter/writeln stdout (:user::test::dep-a::label)))
                  (_ (:wat::io::IOWriter/writeln stdout (:user::test::dep-b::label))))
@@ -80,7 +80,7 @@ fn harness_same_deps_usable_from_different_entry_source() {
                                  (stdin  :wat::io::IOReader)
                                  (stdout :wat::io::IOWriter)
                                  (stderr :wat::io::IOWriter)
-                                 -> :())
+                                 -> :wat::core::nil)
               (:wat::io::IOWriter/println stdout (:user::test::dep-a::label)))
         "#;
         let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
@@ -101,7 +101,7 @@ fn harness_with_zero_deps_matches_from_source() {
                                  (stdin  :wat::io::IOReader)
                                  (stdout :wat::io::IOWriter)
                                  (stderr :wat::io::IOWriter)
-                                 -> :())
+                                 -> :wat::core::nil)
               (:wat::io::IOWriter/println stdout "no deps"))
         "#;
         let h_no_deps = Harness::from_source_with_deps(src, &[], &[]).expect("freeze-empty-deps");

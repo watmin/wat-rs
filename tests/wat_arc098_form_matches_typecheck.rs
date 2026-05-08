@@ -67,7 +67,7 @@ const PROLOGUE_VALID: &str = r#"
     (stdin  :wat::io::IOReader)
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
-    -> :())
+    -> :wat::core::nil)
   (:wat::core::let
     ((p
       (:test::PaperResolved/new "Grace" 7.5))
@@ -89,7 +89,7 @@ const PROLOGUE_INVALID: &str = r#"
     (stdin  :wat::io::IOReader)
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
-    -> :())
+    -> :wat::core::nil)
   (:wat::core::let
     ((p
       (:test::PaperResolved/new "Grace" 7.5))
@@ -142,7 +142,7 @@ fn valid_where_escape_returns_bool() {
             (= ?outcome :outcome)
             (:where (:wat::core::string::contains? ?outcome "Grace"))))
     "#;
-    check_only(&valid_src(call)).expect("where-body returning :bool should type-check");
+    check_only(&valid_src(call)).expect("where-body returning :wat::core::bool should type-check");
 }
 
 // ─── Invalid patterns: each error class ─────────────────────────────
@@ -189,7 +189,7 @@ fn rejects_where_body_non_bool() {
             (= ?o :outcome)
             (:where ?o)))
     "#;
-    // `?o` is `:String`, not `:bool` — should reject.
+    // `?o` is `:wat::core::String`, not `:wat::core::bool` — should reject.
     expect_check_error(&invalid_src(call), "where-body");
 }
 
@@ -201,9 +201,9 @@ fn rejects_arity_zero() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
-            ((b (:wat::core::if true -> :bool true (:wat::form::matches?))))
+            ((b (:wat::core::if true -> :wat::core::bool true (:wat::form::matches?))))
             (:wat::io::IOWriter/println stdout "ok")))
     "#;
     expect_check_error(src, ":wat::form::matches?");

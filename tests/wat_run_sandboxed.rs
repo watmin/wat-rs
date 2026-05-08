@@ -137,7 +137,7 @@ fn main_writes_to_both_stdout_and_stderr() {
 
 #[test]
 fn main_echoes_stdin_to_stdout() {
-    // r##"..."## delimiter so the outer vec :String "watmin" doesn't
+    // r##"..."## delimiter so the outer vec :wat::core::String "watmin" doesn't
     // need backslash-escaped quotes at the wat surface.
     let src = r##"
 
@@ -202,7 +202,7 @@ fn unwrap_run_result_with_failure(v: Value) -> (Vec<String>, Vec<String>, Option
                 Value::Option(opt) => match &**opt {
                     Some(Value::Struct(fs)) => {
                         assert_eq!(fs.type_name, ":wat::kernel::Failure");
-                        // fields[0] is message :String
+                        // fields[0] is message :wat::core::String
                         match &fs.fields[0] {
                             Value::String(s) => Some((**s).clone()),
                             _ => panic!("Failure.message not a String"),

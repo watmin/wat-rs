@@ -69,7 +69,7 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
     // Alias :wat::core::foldl as :user::my-fold.
     // At expand-time, signature-of :wat::core::foldl resolves via
     // CheckEnv::with_builtins() — the substrate primitive IS visible.
-    // Call (:user::my-fold (Vector :i64 1 2 3 4) 0 +fn) → 10.
+    // Call (:user::my-fold (Vector :wat::core::i64 1 2 3 4) 0 +fn) → 10.
     let src = r##"
 
         (:wat::runtime::define-alias :user::my-fold :wat::core::foldl)
@@ -104,7 +104,7 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
 fn define_alias_length_to_user_size_delegates_correctly() {
     // Alias :wat::core::length as :user::my-size.
     // At expand-time, signature-of :wat::core::length resolves via substrate.
-    // Call (:user::my-size (Vector :i64 10 20 30)) → 3.
+    // Call (:user::my-size (Vector :wat::core::i64 10 20 30)) → 3.
     let src = r##"
 
         (:wat::runtime::define-alias :user::my-size :wat::core::length)

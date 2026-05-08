@@ -200,7 +200,7 @@ fn signature_of_concat_returns_some() {
 
 #[test]
 fn signature_of_string_concat_returns_some() {
-    // 2-arg fingerprint; runtime accepts 0+ :String.
+    // 2-arg fingerprint; runtime accepts 0+ :wat::core::String.
     assert_eq!(
         assert_signature_of_some(":wat::core::string::concat"),
         vec!["pass".to_string()]

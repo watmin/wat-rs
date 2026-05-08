@@ -48,14 +48,14 @@ fn run_expecting_check_error(src: &str) -> String {
 #[test]
 fn newtype_construct_and_accessor_roundtrip() {
     let src = r##"
-        (:wat::core::newtype :my::trading::Price :f64)
+        (:wat::core::newtype :my::trading::Price :wat::core::f64)
 
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((p (:my::trading::Price/new 100.0))
              (inner (:my::trading::Price/0 p)))
@@ -69,9 +69,9 @@ fn newtype_construct_and_accessor_roundtrip() {
 #[test]
 fn newtype_rejects_inner_type_at_arg_position() {
     let src = r##"
-        (:wat::core::newtype :my::trading::Price :f64)
+        (:wat::core::newtype :my::trading::Price :wat::core::f64)
 
-        (:wat::core::define (:my::trading::pretty (p :my::trading::Price) -> :String)
+        (:wat::core::define (:my::trading::pretty (p :my::trading::Price) -> :wat::core::String)
           (:wat::core::f64::to-string (:my::trading::Price/0 p)))
 
         (:wat::core::define
@@ -79,7 +79,7 @@ fn newtype_rejects_inner_type_at_arg_position() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout (:my::trading::pretty 100.0)))
     "##;
     let err = run_expecting_check_error(src);
@@ -95,14 +95,14 @@ fn newtype_rejects_inner_type_at_arg_position() {
 #[test]
 fn newtype_rejected_where_inner_expected() {
     let src = r##"
-        (:wat::core::newtype :my::trading::Price :f64)
+        (:wat::core::newtype :my::trading::Price :wat::core::f64)
 
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           ;; Pass a Price where an f64 is expected — type-checker should refuse.
           (:wat::core::let
             ((p (:my::trading::Price/new 100.0))
@@ -124,7 +124,7 @@ fn newtype_rejected_where_inner_expected() {
 #[test]
 fn newtype_as_struct_field_roundtrip() {
     let src = r##"
-        (:wat::core::newtype :my::trading::Price :f64)
+        (:wat::core::newtype :my::trading::Price :wat::core::f64)
 
         (:wat::core::struct :my::Order
           (label :wat::core::String)
@@ -136,7 +136,7 @@ fn newtype_as_struct_field_roundtrip() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           (:wat::core::let
             ((p (:my::trading::Price/new 99.5))
              (o          (:my::Order/new "BTC" p 7))
@@ -152,10 +152,10 @@ fn newtype_as_struct_field_roundtrip() {
 #[test]
 fn distinct_newtypes_over_same_inner_are_distinct_types() {
     let src = r##"
-        (:wat::core::newtype :my::trading::Price :f64)
-        (:wat::core::newtype :my::trading::Amount :f64)
+        (:wat::core::newtype :my::trading::Price :wat::core::f64)
+        (:wat::core::newtype :my::trading::Amount :wat::core::f64)
 
-        (:wat::core::define (:my::trading::price-pretty (p :my::trading::Price) -> :String)
+        (:wat::core::define (:my::trading::price-pretty (p :my::trading::Price) -> :wat::core::String)
           (:wat::core::f64::to-string (:my::trading::Price/0 p)))
 
         (:wat::core::define
@@ -163,7 +163,7 @@ fn distinct_newtypes_over_same_inner_are_distinct_types() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::nil)
           ;; Pass an Amount where Price is expected — must fail.
           (:wat::core::let
             ((a (:my::trading::Amount/new 50.0)))
