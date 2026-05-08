@@ -2202,6 +2202,17 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
                 walk_for_bare_primitives(item, errors);
             }
         }
+        WatAST::Vector(items, _) => {
+            // Arc 167 slice 3 — recurse into Vector children. Arc 167
+            // slice 1 minted `WatAST::Vector` for `[...]` syntax; slice
+            // 2's flat-shape fn-sig moved type keywords inside fn args
+            // into Vector position. Without this arm, bare primitives
+            // and bare retired keywords inside fn-arg-vectors evade the
+            // walker. Mirrors the List arm structurally.
+            for item in items {
+                walk_for_bare_primitives(item, errors);
+            }
+        }
         _ => {}
     }
 }
