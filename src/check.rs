@@ -4603,14 +4603,63 @@ fn infer_list(
         );
     }
 
-    // Non-keyword head (bare symbol or inline expression). Not typed
-    // at this layer pending your call on explicit let-binding type
-    // annotations. Recurse into args so nested keyword-headed calls
-    // still get checked.
-    for item in items {
-        let _ = infer(item, env, locals, fresh, subst, errors);
+    // Non-keyword head: Symbol bound to a Fn value, or inline
+    // expression whose value type is a Fn. Mirror `infer_spawn`'s
+    // value-head branch: infer the head, reduce, match Fn, apply.
+    let head_ty_opt = infer(head, env, locals, fresh, subst, errors);
+    let surface_ty = match head_ty_opt {
+        Some(t) => t,
+        None => {
+            // Head couldn't be inferred (already reported elsewhere).
+            // Recurse into args so nested errors still surface.
+            for arg in &items[1..] {
+                let _ = infer(arg, env, locals, fresh, subst, errors);
+            }
+            return None;
+        }
+    };
+    let fn_ty = reduce(&surface_ty, subst, env.types());
+    let (param_types, ret_type) = match fn_ty {
+        TypeExpr::Fn { args: ps, ret } => (ps, *ret),
+        _ => {
+            // Head inferred to a non-Fn type — not a function-value
+            // application site (e.g., a type-annotation list or any
+            // other non-callable form recursed into by the schema lookup
+            // fall-through). Return None silently and recurse into args
+            // so nested errors still surface.
+            for arg in &items[1..] {
+                let _ = infer(arg, env, locals, fresh, subst, errors);
+            }
+            return None;
+        }
+    };
+    let call_args = &items[1..];
+    if call_args.len() != param_types.len() {
+        errors.push(CheckError::ArityMismatch {
+            callee: "(value head)".into(),
+            expected: param_types.len(),
+            got: call_args.len(),
+            span: head.span().clone(),
+        });
+        for arg in call_args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(apply_subst(&ret_type, subst));
     }
-    None
+    for (i, (arg, expected)) in call_args.iter().zip(&param_types).enumerate() {
+        if let Some(arg_ty) = infer(arg, env, locals, fresh, subst, errors) {
+            if unify(&arg_ty, expected, subst, env.types()).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: "(value head)".into(),
+                    param: format!("#{}", i + 1),
+                    expected: format_type(&apply_subst(expected, subst)),
+                    got: format_type(&apply_subst(&arg_ty, subst)),
+                    span: arg.span().clone(),
+                });
+            }
+        }
+    }
+    Some(apply_subst(&ret_type, subst))
 }
 
 /// Type-check `(:wat::core::match scrutinee arm...)`. Scrutinee must
