@@ -835,6 +835,142 @@ adjacent to arc 155.
 (memory saved 2026-05-07). Carries the discipline across
 compactions.
 
+### Failure mode 15 — Treating substrate-as-teacher diagnostics as a crisis
+
+**Signature:** a substrate-wide structural change lands. `cargo test`
+shows N failures (N can be hundreds). The orchestrator reads the count,
+panics, proposes "stash + revert + step back to plan a proper multi-day
+arc." Or wants to enumerate every category upfront before any sweep.
+Or asks the user "should I revert?" instead of executing.
+
+**Reality check:** **The failures are the substrate teaching you what
+to fix.** Each error message names a site that needs the new shape.
+This is the pattern documented in `docs/SUBSTRATE-AS-TEACHER.md` and
+worked through across arcs 111 / 112 / 113 / 114 / 115 / 117.
+
+The pattern: cargo test fail-count IS the progress meter. Watch it
+drop as you sweep categories. Each round of `cargo test → read →
+fix → re-run` knocks a category down. The user has called this
+"the brief is the substrate's compiler output."
+
+**Real incident, 2026-05-07 (arc 163 slice 3e):** Sonnet shipped the
+substrate head-string FQDN sweep. Test count went 2041/0 → 1193/848.
+Orchestrator's first reactions:
+
+- "Stash + revert to clean main" (proposed twice)
+- "Step back, write a proper multi-slice arc plan first"
+- "This is a 1-day arc, not a 60-min slice"
+- "Want me to step back and re-plan?"
+
+User broke through:
+> *"i expected a fuck ton of errors - we need to do the hard work
+> to clean it up... go study the arcs after 109...
+> docs/SUBSTRATE-AS-TEACHER.md"*
+
+After consulting the doctrine doc + arc 111 REALIZATIONS, the
+discipline clicked. Waterfall: 848 → 129 → 127 → 121 → 28 → 7 → 0.
+Each round was one category. The substrate emitted errors naming
+the next site. ~60 minutes of iteration; ~1.5 hours wasted before
+the user pointed at the doc.
+
+**The discipline:**
+
+1. **When a substrate-wide change is queued** (≥ ~10 site sweep,
+   structural, mass-mismatch shape), the FIRST step is consulting
+   `docs/SUBSTRATE-AS-TEACHER.md` + recent REALIZATIONS for similar
+   arcs. Read these BEFORE writing the BRIEF.
+
+2. **The BRIEF for substrate-wide work is short:** *"run cargo test
+   --release --workspace --no-fail-fast; read the errors; apply the
+   FQDN/canonical-form rule; iterate until green."* That's the
+   delegation contract. Sonnet (or human) iterates from the
+   diagnostic stream.
+
+3. **The fail-count is the progress meter.** Don't enumerate
+   categories upfront expecting completeness. The first cargo test
+   reveals one category; the sweep drops the count by ~80-90%; the
+   next test reveals the next category. Trust the loop.
+
+4. **STOP signal — phrases that mean you're about to fail this mode:**
+   - "Let me stash + revert to clean main"
+   - "This is a multi-day arc, not a slice"
+   - "Should we step back and write a proper plan?"
+   - "Want me to enumerate all categories first?"
+   - Treating N failures as a CRISIS instead of as N items of work
+
+   When these surface: STOP. Read SUBSTRATE-AS-TEACHER.md. The
+   failures are the work, not a disaster.
+
+5. **The user pre-expects "a fuck ton of errors"** when substrate
+   ripples wide. They don't need protection from the count; they
+   need execution against it. The cost of dodging is hours of
+   their bandwidth probing past your reflexive bridges.
+
+**The four questions on this discipline:**
+- Obvious? — "the substrate's diagnostics are the migration brief"
+  is the most-documented pattern in the recovery doc + arcs 111-117.
+- Honest? — proposing "stash + revert" when work is hard is
+  comfort-seeking dressed as caution. FAILS Honest.
+
+**Cross-references:**
+- `docs/SUBSTRATE-AS-TEACHER.md` — the canonical pattern doc
+- `docs/arc/2026/04/111-result-option-recv/REALIZATIONS.md` —
+  pattern's first naming, with worked example
+- `docs/arc/2026/04/113-cascading-runtime-errors/INSCRIPTION.md` —
+  third application, verified the integ-test
+- `docs/arc/2026/05/163-retirement-leftover-audit/` — the FM-15
+  worked example with full waterfall
+
+### Failure mode 16 — Briefing sonnet with tool-availability preamble
+
+**Signature:** the BRIEF mentions Bash availability ("Bash works",
+"Cargo is at /home/watmin/...", "If you hesitate, run `which cargo`")
+to preempt FM 7. Sonnet reads the meta-skepticism and hallucinates
+the denial anyway.
+
+**Reality check:** memory `feedback_verify_sonnet_tool_claims.md`
+warns NOT to take false claims; the recovery doc § 7 codifies the
+30-sec verification probe. But the FAILURE MODE that triggers the
+hallucination is the BRIEF mentioning tools at all.
+
+**Real incident, 2026-05-07 (arc 163 slice 3e, two re-spawns):**
+- Spawn 1 BRIEF: *"Verify Bash availability FIRST... do NOT claim
+  Bash denied"* → sonnet hallucinated denial
+- Probe verified Bash works for sonnet
+- Spawn 2 BRIEF amended: *"Bash + cargo work. Cargo at <path>"* →
+  sonnet hallucinated denial AGAIN
+- Spawn prompt also said *"Bash works"* → still hallucinated
+
+The pattern: ANY mention of tool-availability in a sonnet brief
+triggers the meta-skepticism. Sonnet sees "the orchestrator is
+worried about Bash" and concludes "I should also be worried."
+Even when the worry is preempted with "it works."
+
+**The discipline:**
+
+1. **DON'T mention Bash, cargo, or tool availability in BRIEFs.**
+   Just give the work. Sonnet uses tools naturally when not
+   primed to question them.
+
+2. **When sonnet DOES claim a tool denied:** apply the existing
+   FM 7 verification probe (30-sec spawn with `which cargo`). Don't
+   re-edit the BRIEF to add MORE "tool works" assurances — that
+   makes it worse.
+
+3. **The right BRIEF preamble:** state the work (categories, sites,
+   rules), the constraint (don't commit, don't revert), the goal
+   (cargo test = clean baseline). Trust sonnet to use Bash + Edit.
+
+**The four questions on this discipline:**
+- Simple? — "give sonnet the work" is simpler than "give sonnet
+  the work + an essay on why Bash will work for them." The
+  shorter brief is less likely to trigger.
+
+**Cross-reference:** `feedback_verify_sonnet_tool_claims.md`,
+`docs/COMPACTION-AMNESIA-RECOVERY.md` § FM 7 (the verification
+discipline). FM 16 is the prevention discipline (don't trigger
+the false claim in the first place).
+
 ---
 
 ## Section 7 — Sonnet delegation protocol (substrate-informed briefs)

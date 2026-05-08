@@ -1680,6 +1680,15 @@ fn parse_type_inner(
         // flows through unchanged. canonicalize=false (audit-walker
         // path): preserve source spelling so BareLegacyContainerHead
         // walker can fire on bare user-source.
+        //
+        // RETIREMENT WINDOW: this upgrade arm is TEMPORARY bridge
+        // scaffolding (same retirement shape as arc 111's
+        // `arc_111_migration_hint`, per substrate-as-teacher
+        // § "Retire the hint when its window closes"). Once arc 163
+        // slice 3g sweeps test-fixture wat sources to FQDN, no bare
+        // raw_head reaches this site (walker rejects user-source
+        // bare; substrate Rust constructs FQDN directly). At that
+        // point: delete the match arms; raw_head passes through.
         let head = if canonicalize {
             match raw_head.as_str() {
                 "Vec" => "wat::core::Vector".to_string(),
