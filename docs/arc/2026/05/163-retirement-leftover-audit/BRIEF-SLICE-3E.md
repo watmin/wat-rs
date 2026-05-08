@@ -40,11 +40,11 @@ the discipline gap to close.
 - Match arms `"Vec" =>|"Option" =>|...` returns 7 in src/runtime.rs + src/check.rs
 - Canonicalize arm at `src/types.rs:60-72` actively DOWNGRADES FQDN → short form
 
-## Verify Bash availability FIRST
+## Bash + cargo are available
 
-Per memory `feedback_verify_sonnet_tool_claims.md`: if you hesitate
-about Bash availability, run `which cargo` once. Expect `cargo 1.93.0`
-(or similar). Do NOT claim Bash denied.
+Bash works in this environment. Cargo is at `/home/watmin/.cargo/bin/cargo`
+(version 1.93.0). Use Bash freely for build/test verification per the
+phase-verify steps below.
 
 ## The rule
 
