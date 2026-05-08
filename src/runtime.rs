@@ -477,7 +477,7 @@ impl Value {
             Value::io__IOWriter(_) => "wat::io::IOWriter",
             Value::Option(_) => "wat::core::Option",
             Value::Result(_) => "wat::core::Result",
-            Value::Tuple(_) => "tuple",
+            Value::Tuple(_) => "wat::core::Tuple",
             Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
             Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
             Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
@@ -3074,11 +3074,10 @@ fn dispatch_keyword_head(
         // guard above intercepts before reaching this arm; the
         // per-Type impls (`:wat::core::Vector/conj` / `HashSet/conj`)
         // sit further down in this match.
-        // Arc 109 slice 1g — :wat::core::Tuple is the canonical
-        // tuple constructor (verb-equals-type per slice 1f's
-        // vec→Vector playbook); :wat::core::tuple stays during
-        // migration window.
-        ":wat::core::tuple" => eval_tuple_ctor(args, env, sym),
+        // Post-arc-165: `:wat::core::Tuple` is canonical PascalCase
+        // per slice 1f's vec→Vector playbook completed. Legacy
+        // `:wat::core::tuple` arm retired; Pattern 2 poison in
+        // check.rs handles any remaining consumer sites at type-check.
         ":wat::core::Tuple" => eval_tuple_ctor(args, env, sym),
         // Arc 146 slice 2 — `:wat::core::length` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch routes to one of
@@ -3638,7 +3637,7 @@ fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bo
                 _ => false,
             }
         }
-        TypeExpr::Tuple(_) => v.type_name() == "wat::core::tuple",
+        TypeExpr::Tuple(_) => v.type_name() == "wat::core::Tuple",
         TypeExpr::Fn { .. } => v.type_name() == "wat::core::fn",
         TypeExpr::Var(_) => true,
     }
@@ -3962,7 +3961,7 @@ fn destructure_tuple(
         // arc 138: no span — same rationale as above.
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: "tuple",
+            expected: "wat::core::Tuple",
             got: other.type_name(),
             span: Span::unknown(),
         }),
@@ -5590,12 +5589,14 @@ fn eval_list_ctor(
 // impls (above). HashMap doesn't conj — it requires key+value
 // pairing, so `:wat::core::assoc` is the right verb there.
 
-/// `(:wat::core::tuple a b c ...)` — build a heterogeneous tuple
+/// `(:wat::core::Tuple a b c ...)` — build a heterogeneous tuple
 /// `Value::Tuple`. Arity 1+; the 0-tuple is the unit `:()` handled
 /// elsewhere. Ships 2026-04-19 to support wat-source programs that
 /// need to RETURN tuples (earlier slices saw tuples only as
 /// primitive return values; Path-B Console needs to construct
 /// `(pool, driver-handle)` in wat source).
+/// Post-arc-165: `:wat::core::Tuple` is the canonical PascalCase
+/// spelling per slice 1f's vec→Vector playbook completed.
 fn eval_tuple_ctor(
     args: &[WatAST],
     env: &Environment,
@@ -5604,7 +5605,7 @@ fn eval_tuple_ctor(
     if args.is_empty() {
         // arc 138: no span — leaf helper.
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::tuple".into(),
+            head: ":wat::core::Tuple".into(),
             reason: "tuple must have at least one element; the 0-tuple is :() (Unit)".into(),
             span: Span::unknown(),
         });

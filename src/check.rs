@@ -1067,7 +1067,8 @@ fn arc_109_list_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -
 /// Arc 109 slice 1g — fires when the dispatcher has poisoned the
 /// retired `:wat::core::tuple` head. The canonical constructor is
 /// `:wat::core::Tuple` (verb-equals-type per slice 1f's
-/// vec→Vector playbook).
+/// vec→Vector playbook). Post-arc-165: storage now also PascalCase;
+/// the hint shape is unchanged (callee match key remains lowercase).
 fn arc_109_tuple_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
     if callee != ":wat::core::tuple" {
         return None;
@@ -3903,6 +3904,7 @@ fn infer_list(
                 // canonical constructor is :wat::core::Tuple
                 // (verb-equals-type per slice 1f's vec→Vector
                 // playbook). Pattern 2 poison.
+                // Arc 165 — redirect target now matches storage.
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::tuple".into(),
                     param: "(retired verb)".into(),
@@ -8941,7 +8943,7 @@ fn infer_hashmap_constructor(
     })
 }
 
-/// Type-check `(:wat::core::tuple a b c ...)`. Heterogeneous — each
+/// Type-check `(:wat::core::Tuple a b c ...)`. Heterogeneous — each
 /// arg contributes its own inferred type, and the return type is the
 /// concrete tuple shape. Variadic; rank-1 HM can't express a
 /// per-position scheme, so special-cased.
@@ -8956,7 +8958,7 @@ fn infer_tuple_constructor(
 ) -> Option<TypeExpr> {
     if args.is_empty() {
         errors.push(CheckError::MalformedForm {
-            head: ":wat::core::tuple".into(),
+            head: ":wat::core::Tuple".into(),
             reason: "tuple must have at least one element".into(),
             span: head_span.clone(),
         });
@@ -14460,7 +14462,7 @@ mod tests {
                        (_out :wat::kernel::Sender<wat::core::nil>)
                        -> :wat::core::nil)
                       ()))))
-                (:wat::core::tuple counter driver)))
+                (:wat::core::Tuple counter driver)))
 
             (:wat::core::define
               (:my::clean-caller -> :wat::core::nil)
