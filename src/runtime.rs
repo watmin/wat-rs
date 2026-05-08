@@ -18500,7 +18500,7 @@ mod tests {
     fn define_and_call() {
         let result = run(
             r#"
-            (:wat::core::define (:my::app::inc (x :i64) -> :i64)
+            (:wat::core::define (:my::app::inc (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 x 1))
             (:my::app::inc 41)
             "#,
@@ -18686,7 +18686,7 @@ mod tests {
         // A small program that defines a helper and uses it to build a Holon.
         let result = run(
             r#"
-            (:wat::core::define (:my::app::encode-pair (a :String) (b :String) -> :wat::holon::HolonAST)
+            (:wat::core::define (:my::app::encode-pair (a :wat::core::String) (b :wat::core::String) -> :wat::holon::HolonAST)
               (:wat::holon::Bind
                 (:wat::holon::Atom a)
                 (:wat::holon::Atom b)))
@@ -22892,7 +22892,7 @@ mod tests {
         let src = format!(
             r#"
             {}
-            (:wat::core::define (:my::test::square (n :i64) -> :i64)
+            (:wat::core::define (:my::test::square (n :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::*,2 n n))
             (:my::test::step-to-terminal
               (:wat::core::quote (:my::test::square 3)))

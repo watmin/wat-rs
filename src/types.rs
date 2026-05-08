@@ -1673,35 +1673,14 @@ fn parse_type_inner(
         }
         let inside = &rest[1..rest.len() - 1];
         let args = parse_type_list(inside, original, canonicalize, span)?;
-        // Arc 163 slice 3e — FQDN IS the canonical storage form.
-        // canonicalize=true: bare legacy heads UPGRADE to FQDN so
-        // substrate-internal storage is uniform (e.g. typealias body
-        // `:Vec<T>` stores `head: "wat::core::Vector"`). Source FQDN
-        // flows through unchanged. canonicalize=false (audit-walker
-        // path): preserve source spelling so BareLegacyContainerHead
-        // walker can fire on bare user-source.
-        //
-        // RETIREMENT WINDOW: this upgrade arm is TEMPORARY bridge
-        // scaffolding (same retirement shape as arc 111's
-        // `arc_111_migration_hint`, per substrate-as-teacher
-        // § "Retire the hint when its window closes"). Once arc 163
-        // slice 3g sweeps test-fixture wat sources to FQDN, no bare
-        // raw_head reaches this site (walker rejects user-source
-        // bare; substrate Rust constructs FQDN directly). At that
-        // point: delete the match arms; raw_head passes through.
-        let head = if canonicalize {
-            match raw_head.as_str() {
-                "Vec" => "wat::core::Vector".to_string(),
-                "Option" => "wat::core::Option".to_string(),
-                "Result" => "wat::core::Result".to_string(),
-                "HashMap" => "wat::core::HashMap".to_string(),
-                "HashSet" => "wat::core::HashSet".to_string(),
-                _ => raw_head,
-            }
-        } else {
-            raw_head
-        };
-        return Ok(TypeExpr::Parametric { head, args });
+        // Arc 163 slice 3e + 3h — FQDN IS the canonical storage form.
+        // Source FQDN flows through unchanged. Source bare-form is
+        // rejected by `BareLegacyContainerHead` walker at check time
+        // (slice 3g phase A wired the walker on raw post-expansion
+        // forms so define-sig type positions are covered). The
+        // canonicalize=true UPGRADE arm (Vec → wat::core::Vector
+        // etc.) retired in slice 3h — raw_head passes through identity.
+        return Ok(TypeExpr::Parametric { head: raw_head, args });
     }
     // Plain path. Arc 109 slice 1a: accept FQDN forms for the
     // built-in primitive types (`:wat::core::i64`, `:wat::core::f64`,
@@ -1729,24 +1708,14 @@ fn parse_type_inner(
     if canonicalize && raw_path == ":wat::core::nil" {
         return Ok(TypeExpr::Tuple(vec![]));
     }
-    // RETIREMENT WINDOW (arc 163 slice 3h gates arc 163 closure):
-    // The UPGRADE arms below are temporary bridge scaffolding for fixtures
-    // using bare-form wat source (`:i64` etc. in .wat files). Slice 3g
-    // sweeps user-source fixtures; slice 3h retires these arms together
-    // with the container-head upgrade arm at line ~1683.
-    let path = if canonicalize {
-        match raw_path.as_str() {
-            ":i64" => ":wat::core::i64".to_string(),
-            ":f64" => ":wat::core::f64".to_string(),
-            ":bool" => ":wat::core::bool".to_string(),
-            ":String" => ":wat::core::String".to_string(),
-            ":u8" => ":wat::core::u8".to_string(),
-            _ => raw_path,
-        }
-    } else {
-        raw_path
-    };
-    Ok(TypeExpr::Path(path))
+    // Arc 163 slice 3f + 3h — FQDN IS the canonical storage form.
+    // Source FQDN flows through unchanged. Source bare-form is
+    // rejected by the `BareLegacyPrimitive` walker at check time
+    // (slice 3g phase A wired the walker on raw post-expansion
+    // forms so define-sig type positions are covered). The
+    // canonicalize=true UPGRADE arm (`:i64` → `:wat::core::i64`
+    // etc.) retired in slice 3h — raw_path passes through identity.
+    Ok(TypeExpr::Path(raw_path))
 }
 
 /// Parse the body of a tuple-literal type.
@@ -2133,10 +2102,10 @@ mod tests {
     fn simple_struct() {
         let (env, rest) = collect(
             r#"(:wat::core::struct :project::market::Candle
-                  (open :f64)
-                  (high :f64)
-                  (low :f64)
-                  (close :f64))"#,
+                  (open :wat::core::f64)
+                  (high :wat::core::f64)
+                  (low :wat::core::f64)
+                  (close :wat::core::f64))"#,
         )
         .unwrap();
         assert!(rest.is_empty());
@@ -2249,7 +2218,7 @@ mod tests {
 
     #[test]
     fn simple_newtype() {
-        let (env, _) = collect(r#"(:wat::core::newtype :my::trading::Price :f64)"#).unwrap();
+        let (env, _) = collect(r#"(:wat::core::newtype :my::trading::Price :wat::core::f64)"#).unwrap();
         if let TypeDef::Newtype(n) = env.get(":my::trading::Price").unwrap() {
             assert_eq!(n.inner, TypeExpr::Path(":wat::core::f64".into()));
         } else {
@@ -2272,7 +2241,7 @@ mod tests {
 
     #[test]
     fn simple_typealias() {
-        let (env, _) = collect(r#"(:wat::core::typealias :my::Amount :f64)"#).unwrap();
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Amount :wat::core::f64)"#).unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Amount").unwrap() {
             assert_eq!(a.expr, TypeExpr::Path(":wat::core::f64".into()));
         } else {
@@ -2282,7 +2251,7 @@ mod tests {
 
     #[test]
     fn parametric_typealias() {
-        let (env, _) = collect(r#"(:wat::core::typealias :my::Series<T> :Vec<T>)"#).unwrap();
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Series<T> :wat::core::Vector<T>)"#).unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Series").unwrap() {
             assert_eq!(a.type_params, vec!["T".to_string()]);
             assert_eq!(
@@ -2299,7 +2268,7 @@ mod tests {
 
     #[test]
     fn typealias_function_type() {
-        let (env, _) = collect(r#"(:wat::core::typealias :my::Predicate :fn(wat::holon::HolonAST)->bool)"#).unwrap();
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Predicate :fn(wat::holon::HolonAST)->wat::core::bool)"#).unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Predicate").unwrap() {
             match &a.expr {
                 TypeExpr::Fn { args, ret } => {
@@ -2317,7 +2286,7 @@ mod tests {
     #[test]
     fn typealias_nested_parametric() {
         let (env, _) = collect(
-            r#"(:wat::core::typealias :my::Scores :HashMap<Atom,f64>)"#,
+            r#"(:wat::core::typealias :my::Scores :wat::core::HashMap<Atom,wat::core::f64>)"#,
         )
         .unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Scores").unwrap() {
@@ -2412,7 +2381,7 @@ mod tests {
     #[test]
     fn type_expr_path() {
         assert_eq!(
-            parse_type_expr(":f64").unwrap(),
+            parse_type_expr(":wat::core::f64").unwrap(),
             TypeExpr::Path(":wat::core::f64".into())
         );
         assert_eq!(
@@ -2424,7 +2393,7 @@ mod tests {
     #[test]
     fn type_expr_parametric() {
         assert_eq!(
-            parse_type_expr(":Vec<T>").unwrap(),
+            parse_type_expr(":wat::core::Vector<T>").unwrap(),
             TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Path(":T".into())]
@@ -2434,7 +2403,7 @@ mod tests {
 
     #[test]
     fn type_expr_parametric_nested() {
-        let t = parse_type_expr(":HashMap<String,fn(i32)->i32>").unwrap();
+        let t = parse_type_expr(":wat::core::HashMap<wat::core::String,fn(i32)->i32>").unwrap();
         match t {
             TypeExpr::Parametric { head, args } => {
                 assert_eq!(head, "wat::core::HashMap");
@@ -2478,7 +2447,7 @@ mod tests {
 
     #[test]
     fn type_expr_tuple_pair() {
-        let t = parse_type_expr(":(i64,String)").unwrap();
+        let t = parse_type_expr(":(wat::core::i64,wat::core::String)").unwrap();
         match t {
             TypeExpr::Tuple(elements) => {
                 assert_eq!(elements.len(), 2);
@@ -2501,14 +2470,14 @@ mod tests {
     #[test]
     fn type_expr_tuple_one_element_is_grouping() {
         // :(T) is Rust grouping — flattens to T (not a 1-tuple).
-        let t = parse_type_expr(":(i64)").unwrap();
+        let t = parse_type_expr(":(wat::core::i64)").unwrap();
         assert_eq!(t, TypeExpr::Path(":wat::core::i64".into()));
     }
 
     #[test]
     fn type_expr_tuple_one_element_trailing_comma_is_tuple() {
         // :(T,) is the explicit 1-tuple.
-        let t = parse_type_expr(":(i64,)").unwrap();
+        let t = parse_type_expr(":(wat::core::i64,)").unwrap();
         match t {
             TypeExpr::Tuple(elements) => {
                 assert_eq!(elements.len(), 1);
