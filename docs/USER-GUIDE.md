@@ -681,6 +681,46 @@ depend on.
 eval-time redef flow (carrier present; gate inert because eval-time
 def-binding is not wired in arc 157).
 
+### `:wat::core::defn` — named-function binding (arc 166)
+
+The user-facing form for naming a function. Composes
+`:wat::core::def` + `:wat::core::fn`:
+
+```scheme
+(:wat::core::defn :user::add
+  ((x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
+  (:wat::core::i64::+,2 x y))
+
+;; expands at parse time to:
+(:wat::core::def :user::add
+  (:wat::core::fn ((x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
+    (:wat::core::i64::+,2 x y)))
+```
+
+The form is implemented as a defmacro in `wat/core.wat` —
+`:wat::core::fn` is the ONE AND ONLY function constructor; `defn`
+just binds the function value to a name. Read the macro body to
+see the desugaring.
+
+**Inherited from `:wat::core::def`:**
+- Position rule: top-level / top-level `do` / top-level `let` body
+- Strict-default redef-error
+- Recursive name binding (the fn body sees the def name as bound)
+
+```scheme
+;; recursive defn — body sees :user::fact
+(:wat::core::defn :user::fact
+  ((n :wat::core::i64) -> :wat::core::i64)
+  (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
+    1
+    (:wat::core::i64::*,2 n
+      (:user::fact (:wat::core::i64::-,2 n 1)))))
+```
+
+**Out of scope today (arc 166):** multi-arity overloads (slated for
+a separate `defn-clause` form, Erlang-style); docstrings (slated for
+arc 141 to wire across substrate forms).
+
 ### `:wat::core::nil` — the singleton type and value (arc 153)
 
 `:wat::core::nil` is wat's name for the unit type — the type
