@@ -161,6 +161,40 @@
       (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
         (:wat::core::i64::/,2 acc x)))))
 
+;; ─── Named-function binding ───────────────────────────────────────
+;;
+;; `:wat::core::defn` is the user-facing named-function form. It
+;; composes the two foundational primitives:
+;;
+;;   (:wat::core::defn :name :sig :body)
+;;     ↓ macro-expansion
+;;   (:wat::core::def :name (:wat::core::fn :sig :body))
+;;
+;; Per user direction 2026-05-08: `:wat::core::fn` is the ONE AND
+;; ONLY function constructor. defn just binds the function value to
+;; a name; def just binds any value to a name. Composition over
+;; multiplication of primitives.
+;;
+;; Inherits from `:wat::core::def`:
+;; - position rule (top-level OR direct child of top-level do/let body)
+;; - strict-default redef-error
+;; - recursive name binding (the fn body sees `:name` as bound)
+;;
+;; Multi-arity overloads are NOT in this form's scope; a separate
+;; `defn-clause` form (Erlang-style) ships later.
+;;
+;; Docstrings are NOT in this form's scope; arc 141 wires docstring
+;; extraction broadly across substrate forms; defn extends to take a
+;; docstring at that time.
+
+(:wat::core::defmacro
+  (:wat::core::defn
+    (name :AST<wat::core::nil>)
+    (sig  :AST<wat::core::nil>)
+    (body :AST<wat::core::nil>)
+    -> :AST<wat::core::nil>)
+  `(:wat::core::def ,name (:wat::core::fn ,sig ,body)))
+
 ;; f64 same-type variadic — :+/:*/:- / :/
 
 (:wat::core::define

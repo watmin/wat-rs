@@ -1303,6 +1303,32 @@ pub fn register_defines(
                 return Err(RuntimeError::DuplicateDefine(path, form_span));
             }
             sym.functions.insert(path, func);
+        } else if let Some((path, func)) = try_parse_fn_shape_def(&form) {
+            // Arc 166 — `(:wat::core::def :name (:wat::core::fn sig body))`
+            // pre-registers into `sym.functions` so the type checker resolves
+            // recursive self-references inside the fn body. Form stays in
+            // `rest` so `register_runtime_defs` still evaluates the def at
+            // freeze time and populates `runtime_def_values` (call dispatch's
+            // precedence ladder picks `sym.functions` first; the runtime
+            // entry is vestigial-but-correct).
+            //
+            // Collision policy: pre-register ONLY if the name is new.
+            // A collision (same name already in `sym.functions`) is NOT an
+            // error here — `def`'s redef discipline (arc 157 slice 1a-ii)
+            // owns that decision in `infer_def` (`DefRedefForbidden` by
+            // default; opt-in with type-stability when `redef_allowed`).
+            // Pre-registering a divergent second def would emit
+            // `DuplicateDefine` from the runtime side, masking the
+            // type-check-side `DefRedefForbidden` the user expects from
+            // `def`. Silent skip keeps the def-redef path authoritative.
+            let form_span = form.span().clone();
+            if crate::resolve::is_reserved_prefix(&path) {
+                return Err(RuntimeError::ReservedPrefix(path, form_span));
+            }
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path, func);
+            }
+            rest.push(form);
         } else {
             rest.push(form);
         }
@@ -1897,6 +1923,73 @@ fn is_define_form(form: &WatAST) -> bool {
         WatAST::List(items, _)
             if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::define")
     )
+}
+
+/// Arc 166 — detect `(:wat::core::def :name (:wat::core::fn sig body))` shape.
+/// Returns the parsed `(name, Function)` pair if the form is a def whose
+/// RHS is a fn-form, else `None`.
+///
+/// The defn macro expands to this exact shape. Pre-registering the name
+/// in `sym.functions` (via `register_defines`) gives the type checker
+/// visibility for recursive self-reference inside the fn body — same
+/// pre-registration contract `define` enjoys. Without this, a recursive
+/// `(:wat::core::defn :fact (sig) (... (:fact ...) ...))` fails with
+/// `UnresolvedReferences` because `infer_def` infers the RHS BEFORE
+/// writing to `defined_values`.
+///
+/// The form is ALSO kept in `rest` (returned by `register_defines`), so
+/// `register_runtime_defs` evaluates the def expression at runtime and
+/// populates `sym.runtime_def_values`. The double-registration is
+/// benign: call dispatch checks `sym.functions` first (per
+/// `lookup_form`'s precedence ladder), so the pre-registered Function
+/// wins; the `runtime_def_values` entry is vestigial-but-correct.
+fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return None,
+    };
+    if items.len() != 3 {
+        return None;
+    }
+    // Head must be :wat::core::def.
+    match &items[0] {
+        WatAST::Keyword(k, _) if k == ":wat::core::def" => {}
+        _ => return None,
+    }
+    // First arg is the name keyword.
+    let name = match &items[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return None,
+    };
+    // Second arg must be (:wat::core::fn sig body).
+    let fn_items = match &items[2] {
+        WatAST::List(fn_items, _) => fn_items,
+        _ => return None,
+    };
+    if fn_items.len() != 3 {
+        return None;
+    }
+    match &fn_items[0] {
+        WatAST::Keyword(k, _) if k == ":wat::core::fn" => {}
+        _ => return None,
+    }
+    let sig = &fn_items[1];
+    let body = &fn_items[2];
+    let (params, param_types, ret_type) = parse_fn_signature(sig).ok()?;
+    Some((
+        name.clone(),
+        Arc::new(Function {
+            name: Some(name),
+            params,
+            type_params: Vec::new(),
+            param_types,
+            ret_type,
+            rest_param: None,
+            rest_param_type: None,
+            body: Arc::new(body.clone()),
+            closed_env: None,
+        }),
+    ))
 }
 
 /// Parsed pieces of a define signature.
@@ -7985,16 +8078,32 @@ fn eval_lookup_define(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
-    let name = match name_from_keyword_or_fn(&v) {
-        Some(n) => n,
-        None => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::keyword or named function (e.g. :my::fn)",
-                got: v.type_name(),
-                span: args[0].span().clone(),
-            });
+    // Arc 166 — when the argument is a literal keyword AST, use it
+    // directly instead of going through `eval`. Without this, a literal
+    // `:user::add` (a defn-bound fn) eval-resolves to the unnamed fn
+    // sitting in `runtime_def_values` (eval_fn writes `name: None`
+    // because the fn-form itself doesn't carry the def's name), and
+    // `name_from_keyword_or_fn` returns None. Reflection on a literal
+    // keyword should always resolve to the keyword's name without
+    // requiring the runtime value's `name` field to be populated.
+    //
+    // The eval path remains the fallback for non-literal callers
+    // (e.g., `(lookup-define some-var)` where the var holds a Function
+    // value with `name: Some(...)` from a sym.functions lookup).
+    let name = if let WatAST::Keyword(k, _) = &args[0] {
+        k.clone()
+    } else {
+        let v = eval(&args[0], env, sym)?;
+        match name_from_keyword_or_fn(&v) {
+            Some(n) => n,
+            None => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::keyword or named function (e.g. :my::fn)",
+                    got: v.type_name(),
+                    span: args[0].span().clone(),
+                });
+            }
         }
     };
     // Arc 144 slice 1 — dispatch on uniform Binding. Each variant
