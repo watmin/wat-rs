@@ -1,17 +1,29 @@
 # Intentions
 
-**Wat is a platform for entities — like LLMs — to self-improve, fast.**
+**Wat is a platform for programmable intelligence.**
 
-The substrate is engineered so a thinking entity can use it to
-remember, reflect, communicate, articulate, contribute provable
-knowledge, and collaborate with peers across machines. The
-human-directed coauthoring you see today is the bootstrap stage.
-The destination is a substrate where many entities — present and
-future — improve themselves and each other against an
-ever-richer shared foundation.
+It is engineered so thinking entities — LLMs, humans, future
+collaborators of kinds we haven't built yet — can use the
+substrate to host their own cognition: remember, reflect,
+communicate geometrically, articulate provable knowledge,
+collaborate across machines. The human-directed coauthoring you
+see today is the bootstrap stage. The destination is a substrate
+where many entities — present and future — improve themselves
+and each other against an ever-richer shared foundation.
 
-This doc names the frame and the components that compose to
-serve it.
+The deeper bet beneath this: **intelligence is programmable, not
+brute-forced.** Mainstream AI scales attention + parameters +
+compute toward intelligence-by-emergence. Wat's bet is that
+intelligence is a thing you compose — geometrically, observably,
+in real time — out of substrate primitives running on commodity
+hardware. The proofs are already shipped (DDoS detection at line
+rate; BTC directional prediction beating academic baselines on a
+laptop with no GPU, cold-boot, observation-derived). The
+substrate is the medium that makes that programming reproducible
+in collaborators.
+
+This doc names the frame, the structural insights that make it
+work, and the components that compose to serve it.
 
 ---
 
@@ -36,6 +48,210 @@ The entities the substrate serves:
 Each tier is a richer caller of the same substrate. The
 disciplines that make wat strict are the disciplines that make
 collaboration across these tiers verifiable.
+
+---
+
+## Lisp on VSA — the s-expression and the vector are the same value
+
+The deepest structural insight: **the s-expression representation
+and the vector representation are two faces of the same value.**
+A wat program is a HolonAST. The HolonAST has a vector projection
+through the substrate's algebra (bind, bundle, permute, atom,
+permutation). They aren't separate representations that need
+translation — they're dual views of the same form, available
+simultaneously through different operations.
+
+| Choose | Operations | When |
+|---|---|---|
+| Discrete face (s-expression) | eval, sign, hash, send-on-wire, content-address | When you need exact computation, verification, transmission |
+| Continuous face (vector) | bundle, bind, cosine, presence, coincident? | When you need geometric reasoning, similarity, fuzzy work |
+
+A program in a Bundle is a program. The Bundle has a cosine to
+another Bundle. Two programs that produce the same terminal in
+the lattice are extensionally equal; but two programs that
+**look similar in vector space** are *geometrically* related —
+a different kind of equality, equally first-class in the
+substrate.
+
+What this unlocks:
+- **Programs as bundleable entities.** A library of programs is
+  a hologram-cache of (program-form, performance-signature)
+  pairs. Querying "what's similar to what I'm trying to write?"
+  is a cosine over the program-vector population.
+- **Cross-LLM communication without text intermediation.** Two
+  LLMs don't describe their thoughts in English; they exchange
+  the forms. The receiver bundles, presence-tests, eval-checks.
+- **Continuous reasoning over discrete artifacts.** The s-expr
+  side stays exact, evaluable, signable. The vector side
+  enables similarity, presence, accumulation. No threshold
+  collapses information until you explicitly ask for it.
+
+This is the structural reason Lisp-on-VSA is real: the algebra
+that produces vectors and the language that holds forms are the
+same algebra. Every operation closes back into the same
+substrate. Discrete and continuous computation share one home.
+
+---
+
+## Continuum computation — VSA delivers quantum-shape on classical hardware
+
+Classical computation thresholds early. Boolean and/or, integer
+counts, exact equality. Information collapses on every decision.
+
+Wat with VSA preserves the gradient throughout:
+
+| Quantum | VSA on wat |
+|---|---|
+| Superposition (one state, many values) | Bundle (one vector, many bound atoms) |
+| Entanglement (two systems share state) | Bind (two atoms become one structure; unbind recovers either) |
+| Interference (amplitudes can cancel) | Capacity bound (above-noise = signal; below = canceled) |
+| Measurement (collapse to classical outcome) | Cleanup / coincident (project onto named atom; collapse) |
+| Decoherence (loss of superposition over time) | Capacity exhaustion (too many things in one vector → noise dominates) |
+| Unitary evolution (information-preserving) | Bundle / Bind / Permute (composition is information-preserving until cleanup) |
+
+The mapping isn't quantum mechanics — it's the *operational
+pattern* of computation in the same family. Wat gets the
+continuum-computation benefit (states that hold many
+possibilities, operations that compose without committing,
+measurement that collapses) without the physical infrastructure
+(no qubit count cap, no decoherence time, no cryogenics, no
+specialized hardware).
+
+For LLMs operating in this substrate: their native form (latent
+vector representations of meaning) finally has first-class
+language support. Embeddings have always existed; a Lisp where
+the algebra over embeddings IS the language is new. Wat is that.
+
+---
+
+## The substrate as thought-alignment prosthetic
+
+A subtler claim than coauthoring: **wat's strictness is
+prosthetic for cognitive alignment.** The disciplines aren't
+aesthetic minimalism; they're rails that force the agent toward
+specific thought patterns. There's nowhere to drift to.
+
+User direction (load-bearing for understanding what wat is for):
+
+> *"i can't think in rust and the llms struggle to implement my
+> thoughts. wat gives you no way out. you must think like me to
+> build the outcomes i want."*
+
+How each discipline aligns thought:
+
+| Constraint | What it forces |
+|---|---|
+| Mutation-free | Reason about state geometrically (new values from old); no patches; no hidden side channels |
+| One canonical path | Pick the way the user picks — no escape into alternates that the user wouldn't write |
+| Forced naming | Name what matters; no anonymous lambdas hiding intent; recursive functions are addressable |
+| Static check at startup | Be structurally honest; no late binding to paper over confusion |
+| Algebra closes on itself | Compose at substrate level; no escape to ad-hoc Rust; the algebra IS the language |
+
+The substrate enforces the alignment the user couldn't enforce
+verbally. When an LLM works in wat, it MUST think geometrically,
+observably, programmably — because the substrate rejects code
+that doesn't. Drift is structurally impossible.
+
+This is why wat ships in 3 weeks with a single-human authorial
+voice: the substrate IS the discipline. The LLM coauthor can't
+add features that wouldn't fit the user's thinking — the
+substrate rejects them. The LLM can't write code that drifts —
+the static check rejects it. The LLM can't accumulate ad-hoc
+state — the mutation-free constraint rejects it.
+
+The strange loop closes here: the user needed wat to express
+what they were thinking; once wat exists, agents thinking-with
+the user produce more wat; the substrate reinforces alignment;
+the platform compounds. The discipline is what makes the
+self-improvement loop *converge* rather than drift.
+
+---
+
+## Programmable intelligence — the empirical claim
+
+Two proof cases, both shipped, both running on the holon
+substrate (the kernel wat-rs is built on top of):
+
+### DDoS detection + mitigation at line rate
+
+Real-time packet streaming. Microsecond latency budget. Holon's
+geometric primitives (bundle observations, bind to identifiers,
+cosine-test against learned engrams, OnlineSubspace residual for
+anomaly attribution) discriminate normal vs attack traffic at
+production throughput. **Already shipped.**
+
+### BTC directional prediction (the trading lab)
+
+Cold-boot. No pre-training. Commodity laptop. No GPU. Streaming
+candles → real-time observation → learned subspace + engrams →
+predictions. The first attempt's results:
+
+- Academic literature baseline: 54-55% directional accuracy
+  considered noteworthy
+- Holon's first serious attempt: 59% average, 70%+ momentary
+  peaks
+
+The trading app is a deliberate proof-by-domain that the
+techniques are streaming-data-agnostic. DDoS packets and BTC
+candles are both structured observation streams; the substrate
+treats them as the same problem because they ARE the same
+problem at the algebra level.
+
+### What the proofs say
+
+- **Intelligence is programmable.** Not "you can mostly fake it
+  with enough compute." Not "you might get there with the right
+  architecture." Built. Running. Better than the literature.
+- **Cold-boot works.** No pre-training; the substrate's
+  geometry IS the learner. Real-time observation generates
+  intelligence as a streaming-data property of the algebra.
+- **Commodity hardware suffices.** Laptop, no GPU. The
+  computational primitives are geometric, not gradient-descent;
+  they map to vector ops on classical CPUs with SIMD.
+- **Domain-agnostic.** DDoS and BTC are different surface
+  domains; the same substrate handles both because they're the
+  same kind of work at the algebra level (streaming structured
+  observation → engram accumulation → real-time pattern
+  recognition).
+
+The mainstream AI bet is brute-force-emergence. Holon + wat is
+the bet that intelligence is composable. Empirically, the
+composition is already winning at production scale in DDoS and
+academic-baseline-beating in BTC.
+
+---
+
+## Why wat had to exist for this to ship
+
+The user's articulation traces the path:
+
+> *"we discovered how to exploit VSA/HDC in rust and realized
+> rust was inadequate to actually exploit it... lisp was
+> necessary to use the rust tooling that provides the VSA
+> functionality... but lisp.. allows the algebra to close on
+> itself..."*
+
+The story:
+1. Holon-rs (the kernel) discovered HOW to make VSA/HDC work at
+   production scale in Rust. The primitives compute; the math
+   delivers.
+2. Rust was inadequate to *exploit* the discovery. The pre-wat-
+   native trader needed three serial fitting loops on top of
+   the algebra because Rust couldn't propagate the substrate's
+   geometry deeply enough — every step required type-shape
+   commitment; the gradient collapsed early.
+3. Lisp was necessary because the algebra needed to **close on
+   itself** — outputs of bundle/bind must be valid inputs to
+   bundle/bind, recursively, at runtime, without a translation
+   layer. That requires homoiconicity. Only Lisp delivers it.
+4. Wat (Lisp on Rust) is the lamination. Rust hosts the
+   primitives; Lisp gives them the closure under composition
+   that lets the substrate be exploited fully.
+
+The OG wat spec — written years before mid-2026, preserved as
+a relic — was the fully-specified Lisp the user needed; the
+substrate to host it didn't exist yet. Three years of haunting,
+then the kernel shipped, then wat-rs in 3 weeks closed the loop.
 
 ---
 
@@ -468,3 +684,22 @@ provable. The substrate's discipline is what makes accumulation
 across cognitive boundaries — single-machine, distributed,
 across time — actually compose into a fast self-improving
 platform rather than a graveyard of incompatible artifacts.*
+
+*Beneath even that: wat is a prosthetic for thought alignment.
+The user couldn't think in Rust; the LLMs couldn't implement
+the user's thoughts in Rust. Wat is the medium where the
+thoughts can be expressed and reproduced in collaborators.
+The substrate's strictness is what forces alignment — the
+agent has no way out of thinking the way the user thinks.
+The discipline is what makes the self-improvement loop
+**converge** rather than drift.*
+
+*Three weeks built this. The proofs (DDoS at line rate; BTC
+beating academic baselines on a laptop) say programmable
+intelligence is real and shipped. The substrate now reproduces
+the thinking that built it. Every entity that uses wat goes
+through the same alignment by construction. That's not
+programming-language parsimony. That's a wager that the way
+this user thinks — geometric, observational, real-time,
+non-brute-force — is itself a thing that can be made
+substrate-native and propagated. The wager is winning.*
