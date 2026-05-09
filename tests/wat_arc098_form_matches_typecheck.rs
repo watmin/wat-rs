@@ -69,10 +69,10 @@ const PROLOGUE_VALID: &str = r#"
     (stderr :wat::io::IOWriter)
     -> :wat::core::nil)
   (:wat::core::let
-    ((p
-      (:test::PaperResolved/new "Grace" 7.5))
-     (b
-      (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)))
+    [p
+      (:test::PaperResolved/new "Grace" 7.5)
+     b
+      (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)]
     (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
 "#;
 
@@ -91,10 +91,10 @@ const PROLOGUE_INVALID: &str = r#"
     (stderr :wat::io::IOWriter)
     -> :wat::core::nil)
   (:wat::core::let
-    ((p
-      (:test::PaperResolved/new "Grace" 7.5))
-     (b
-      (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)))
+    [p
+      (:test::PaperResolved/new "Grace" 7.5)
+     b
+      (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)]
     (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
 "#;
 
@@ -203,7 +203,7 @@ fn rejects_arity_zero() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((b (:wat::core::if true -> :wat::core::bool true (:wat::form::matches?))))
+            [b (:wat::core::if true -> :wat::core::bool true (:wat::form::matches?))]
             (:wat::io::IOWriter/println stdout "ok")))
     "#;
     expect_check_error(src, ":wat::form::matches?");
