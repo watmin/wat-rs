@@ -77,16 +77,16 @@ fn three_probes(name_keyword: &str) -> Vec<String> {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define {name}))
-             (def-rendered
-              (:wat::edn::write def-opt))
-             (sig-opt
-              (:wat::runtime::signature-of {name}))
-             (sig-rendered
-              (:wat::edn::write sig-opt))
-             (body-opt
-              (:wat::runtime::body-of {name})))
+            [def-opt
+              (:wat::runtime::lookup-define {name})
+             def-rendered
+              (:wat::edn::write def-opt)
+             sig-opt
+              (:wat::runtime::signature-of {name})
+             sig-rendered
+              (:wat::edn::write sig-opt)
+             body-opt
+              (:wat::runtime::body-of {name})]
             (:wat::core::do
               (:wat::io::IOWriter/println stdout def-rendered)
               (:wat::io::IOWriter/println stdout sig-rendered)
@@ -306,12 +306,12 @@ fn lookup_form_unknown_special_form_name_returns_none() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((d-opt
-              (:wat::runtime::lookup-define :wat::core::not-a-special-form))
-             (s-opt
-              (:wat::runtime::signature-of :wat::core::not-a-special-form))
-             (b-opt
-              (:wat::runtime::body-of    :wat::core::not-a-special-form)))
+            [d-opt
+              (:wat::runtime::lookup-define :wat::core::not-a-special-form)
+             s-opt
+              (:wat::runtime::signature-of :wat::core::not-a-special-form)
+             b-opt
+              (:wat::runtime::body-of    :wat::core::not-a-special-form)]
             (:wat::core::match d-opt
               -> :wat::core::nil
               ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-d"))

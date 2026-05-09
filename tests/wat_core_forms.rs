@@ -52,9 +52,9 @@ fn forms_captures_each_arg_as_wat_ast() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((captured
-              (:wat::core::forms (foo 1) (bar 2) (baz 3)))
-             (n (:wat::core::length captured)))
+            [captured
+              (:wat::core::forms (foo 1) (bar 2) (baz 3))
+             n (:wat::core::length captured)]
             (:wat::core::if (:wat::core::= n 3) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -74,8 +74,8 @@ fn forms_empty_produces_empty_vec() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((captured (:wat::core::forms))
-             (n (:wat::core::length captured)))
+            [captured (:wat::core::forms)
+             n (:wat::core::length captured)]
             (:wat::core::if (:wat::core::= n 0) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -96,9 +96,9 @@ fn forms_args_are_not_evaluated() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((captured
-              (:wat::core::forms (:this::is::not::a::real::function 1 2 3)))
-             (n (:wat::core::length captured)))
+            [captured
+              (:wat::core::forms (:this::is::not::a::real::function 1 2 3))
+             n (:wat::core::length captured)]
             (:wat::core::if (:wat::core::= n 1) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -121,7 +121,7 @@ fn forms_composes_with_run_sandboxed_ast() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((program
+            [program
               (:wat::core::forms
                 (:wat::core::define
                   (:user::main
@@ -129,15 +129,15 @@ fn forms_composes_with_run_sandboxed_ast() {
                     (stdout :wat::io::IOWriter)
                     (stderr :wat::io::IOWriter)
                     -> :wat::core::nil)
-                  (:wat::io::IOWriter/println stdout "hello-from-inside"))))
-             (r
+                  (:wat::io::IOWriter/println stdout "hello-from-inside")))
+             r
               (:wat::kernel::run-sandboxed-ast program
-                (:wat::core::Vector :wat::core::String) :wat::core::None))
-             (captured (:wat::kernel::RunResult/stdout r))
-             (line
+                (:wat::core::Vector :wat::core::String) :wat::core::None)
+             captured (:wat::kernel::RunResult/stdout r)
+             line
               (:wat::core::match (:wat::core::first captured) -> :wat::core::String
                 ((:wat::core::Some s) s)
-                (:wat::core::None ""))))
+                (:wat::core::None ""))]
             (:wat::io::IOWriter/println stdout line)))
     "##;
     assert_eq!(run(src), vec!["hello-from-inside".to_string()]);
@@ -158,9 +158,9 @@ fn test_program_macro_expands_correctly() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((captured
-              (:wat::test::program (a 1) (b 2) (c 3)))
-             (n (:wat::core::length captured)))
+            [captured
+              (:wat::test::program (a 1) (b 2) (c 3))
+             n (:wat::core::length captured)]
             (:wat::core::if (:wat::core::= n 3) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -184,7 +184,7 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((r
+            [r
               (:wat::test::run-ast
                 (:wat::test::program
                   (:wat::core::define
@@ -194,12 +194,12 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
                       (stderr :wat::io::IOWriter)
                       -> :wat::core::nil)
                     (:wat::io::IOWriter/println stdout "hi")))
-                (:wat::core::Vector :wat::core::String)))
-             (captured (:wat::kernel::RunResult/stdout r))
-             (line
+                (:wat::core::Vector :wat::core::String))
+             captured (:wat::kernel::RunResult/stdout r)
+             line
               (:wat::core::match (:wat::core::first captured) -> :wat::core::String
                 ((:wat::core::Some s) s)
-                (:wat::core::None ""))))
+                (:wat::core::None ""))]
             (:wat::io::IOWriter/println stdout line)))
     "##;
     assert_eq!(run(src), vec!["hi".to_string()]);

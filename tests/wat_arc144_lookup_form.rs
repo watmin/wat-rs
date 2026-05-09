@@ -77,10 +77,10 @@ fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define :my::ident))
-             (rendered
-              (:wat::edn::write def-opt)))
+            [def-opt
+              (:wat::runtime::lookup-define :my::ident)
+             rendered
+              (:wat::edn::write def-opt)]
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
     let out = run(src);
@@ -161,10 +161,10 @@ fn lookup_define_struct_returns_some_and_emits_struct_head() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define :my::Bar))
-             (rendered
-              (:wat::edn::write def-opt)))
+            [def-opt
+              (:wat::runtime::lookup-define :my::Bar)
+             rendered
+              (:wat::edn::write def-opt)]
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
     let out = run(src);
@@ -291,12 +291,12 @@ fn all_three_primitives_return_none_on_unknown_name() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((d-opt
-              (:wat::runtime::lookup-define :no::such::thing))
-             (s-opt
-              (:wat::runtime::signature-of :no::such::thing))
-             (b-opt
-              (:wat::runtime::body-of    :no::such::thing)))
+            [d-opt
+              (:wat::runtime::lookup-define :no::such::thing)
+             s-opt
+              (:wat::runtime::signature-of :no::such::thing)
+             b-opt
+              (:wat::runtime::body-of    :no::such::thing)]
             (:wat::core::match d-opt
               -> :wat::core::nil
               ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-d"))
