@@ -6362,9 +6362,17 @@ fn infer_let(
     // shape — single-source binding logic kept under `process_let_binding`
     // until its own arc 168 update).
     let bindings_pairs: Vec<WatAST> = match &args[0] {
-        WatAST::Vector(items, _) => {
+        WatAST::Vector(items, span) => {
             if items.len() % 2 != 0 {
-                return None; // shape error surfaced by runtime parser
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::let".into(),
+                    reason: format!(
+                        "let bindings vector must have an even number of elements (alternating name expr name expr ...); got {}",
+                        items.len()
+                    ),
+                    span: span.clone(),
+                });
+                return None;
             }
             items
                 .chunks_exact(2)
