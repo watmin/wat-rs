@@ -52,9 +52,9 @@ fn user_struct_constructor_and_accessor_round_trip() {
 
         (:wat::core::define (:user::main -> :wat::core::f64)
           (:wat::core::let
-            ((b (:my::market::Bar/new 1.0 2.0))
-             (o             (:my::market::Bar/open b))
-             (c             (:my::market::Bar/close b)))
+            [b (:my::market::Bar/new 1.0 2.0)
+             o             (:my::market::Bar/open b)
+             c             (:my::market::Bar/close b)]
             (:wat::core::f64::-,2 c o)))
     "#;
     match run(src) {
@@ -79,7 +79,7 @@ fn user_method_can_use_auto_accessors_in_body() {
 
         (:wat::core::define (:user::main -> :wat::core::f64)
           (:wat::core::let
-            ((b (:my::market::Bar/new 10.0 3.0)))
+            [b (:my::market::Bar/new 10.0 3.0)]
             (:my::market::spread-of b)))
     "#;
     match run(src) {
@@ -99,9 +99,9 @@ fn struct_can_hold_heterogeneous_fields() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((t
-              (:my::market::Tick/new "BTC" 50000.0 1000))
-             (v (:my::market::Tick/volume t)))
+            [t
+              (:my::market::Tick/new "BTC" 50000.0 1000)
+             v (:my::market::Tick/volume t)]
             v))
     "#;
     match run(src) {
@@ -125,8 +125,8 @@ fn structs_are_values_that_survive_rebinding() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((p (:my::Point/new 3 7))
-             (q p))
+            [p (:my::Point/new 3 7)
+             q p]
             (:my::y-of q)))
     "#;
     match run(src) {
@@ -192,7 +192,7 @@ fn accessor_returns_correct_field_type() {
 
         (:wat::core::define (:user::main -> :wat::core::f64)
           (:wat::core::let
-            ((b (:my::market::Bar/new 1.0 100)))
+            [b (:my::market::Bar/new 1.0 100)]
             (:my::market::Bar/volume b)))
     "#;
     let errs = check_errors(src);
@@ -214,10 +214,10 @@ fn builtin_capacity_exceeded_struct_is_usable() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((e
-              (:wat::holon::CapacityExceeded/new 200 100))
-             (cost (:wat::holon::CapacityExceeded/cost   e))
-             (budget (:wat::holon::CapacityExceeded/budget e)))
+            [e
+              (:wat::holon::CapacityExceeded/new 200 100)
+             cost (:wat::holon::CapacityExceeded/cost   e)
+             budget (:wat::holon::CapacityExceeded/budget e)]
             (:wat::core::i64::-,2 cost budget)))
     "#;
     match run(src) {

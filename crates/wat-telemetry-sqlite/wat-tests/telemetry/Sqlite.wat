@@ -68,12 +68,12 @@
        (entry :wat::core::i64)
        -> :wat::core::nil)
      (:wat::core::let
-       ((sql
+       [sql
          (:wat::core::string::concat
            "INSERT INTO events (n) VALUES ("
            (:wat::core::string::concat
              (:wat::core::i64::to-string entry)
-             ")"))))
+             ")"))]
        (:wat::sqlite::execute-ddl db sql)))
 
    ;; Per-batch dispatcher (arc 089 slice 3). Foldls each entry
@@ -101,20 +101,20 @@
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
      (:wat::core::let
-       ((spawn
+       [spawn
          (:wat::telemetry::Sqlite/spawn
            path 1
            (:wat::telemetry::null-metrics-cadence)
            :wat::telemetry::Sqlite/null-pre-install
            :wat-telemetry-sqlite::Sqlite::install-noop
            :wat-telemetry-sqlite::Sqlite::dispatch-noop
-           :wat-telemetry-sqlite::Sqlite::translate-empty))
-        (pool
-         (:wat::core::first spawn))
-        (driver
-         (:wat::core::second spawn))
-        (_inner
-         (:wat-telemetry-sqlite::Sqlite::drop-one-handle pool)))
+           :wat-telemetry-sqlite::Sqlite::translate-empty)
+        pool
+         (:wat::core::first spawn)
+        driver
+         (:wat::core::second spawn)
+        _inner
+         (:wat-telemetry-sqlite::Sqlite::drop-one-handle pool)]
        driver))
 
    ;; The inner-scope body — pop one handle + finish + drop. Lives
@@ -124,9 +124,9 @@
        (pool :wat::telemetry::HandlePool<wat::core::i64>)
        -> :wat::core::nil)
      (:wat::core::let
-       ((_handle
-         (:wat::kernel::HandlePool::pop pool))
-        (_finish (:wat::kernel::HandlePool::finish pool)))
+       [_handle
+         (:wat::kernel::HandlePool::pop pool)
+        _finish (:wat::kernel::HandlePool::finish pool)]
        ()))
 
    ;; Spawn + batch-log three entries + drop. Same lockstep shape as
@@ -136,20 +136,20 @@
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
      (:wat::core::let
-       ((spawn
+       [spawn
          (:wat::telemetry::Sqlite/spawn
            path 1
            (:wat::telemetry::null-metrics-cadence)
            :wat-telemetry-sqlite::Sqlite::pragma-wal
            :wat-telemetry-sqlite::Sqlite::install-events
            :wat-telemetry-sqlite::Sqlite::dispatch-events
-           :wat-telemetry-sqlite::Sqlite::translate-empty))
-        (pool
-         (:wat::core::first spawn))
-        (driver
-         (:wat::core::second spawn))
-        (_inner
-         (:wat-telemetry-sqlite::Sqlite::send-three pool)))
+           :wat-telemetry-sqlite::Sqlite::translate-empty)
+        pool
+         (:wat::core::first spawn)
+        driver
+         (:wat::core::second spawn)
+        _inner
+         (:wat-telemetry-sqlite::Sqlite::send-three pool)]
        driver))
 
    ;; Pop one Handle (req-tx, ack-rx — paired by the spawn step;
@@ -160,18 +160,18 @@
        (pool :wat::telemetry::HandlePool<wat::core::i64>)
        -> :wat::core::nil)
      (:wat::core::let
-       ((handle
-         (:wat::kernel::HandlePool::pop pool))
-        (_finish (:wat::kernel::HandlePool::finish pool))
-        (req-tx
-         (:wat::core::first handle))
-        (ack-rx
-         (:wat::core::second handle))
-        (entries
-         (:wat::core::Vector :wat::core::i64 7 11 13))
-        (_log
+       [handle
+         (:wat::kernel::HandlePool::pop pool)
+        _finish (:wat::kernel::HandlePool::finish pool)
+        req-tx
+         (:wat::core::first handle)
+        ack-rx
+         (:wat::core::second handle)
+        entries
+         (:wat::core::Vector :wat::core::i64 7 11 13)
+        _log
          (:wat::telemetry::batch-log
-           req-tx ack-rx entries)))
+           req-tx ack-rx entries)]
        ()))))
 
 
@@ -179,11 +179,11 @@
 
 (:deftest :wat-telemetry-sqlite::Sqlite::test-spawn-drop
   (:wat::core::let
-    ((driver
+    [driver
       (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
-        "/tmp/wat-sqlite-test-spawn-001.db"))
-     (_join
-      (:wat::kernel::Thread/join-result driver)))
+        "/tmp/wat-sqlite-test-spawn-001.db")
+     _join
+      (:wat::kernel::Thread/join-result driver)]
     (:wat::test::assert-eq true true)))
 
 
@@ -191,9 +191,9 @@
 
 (:deftest :wat-telemetry-sqlite::Sqlite::test-batch-log
   (:wat::core::let
-    ((driver
+    [driver
       (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
-        "/tmp/wat-sqlite-test-batch-001.db"))
-     (_join
-      (:wat::kernel::Thread/join-result driver)))
+        "/tmp/wat-sqlite-test-batch-001.db")
+     _join
+      (:wat::kernel::Thread/join-result driver)]
     (:wat::test::assert-eq true true)))

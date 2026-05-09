@@ -28,12 +28,12 @@
                      (stderr :wat::io::IOWriter)
                      -> :wat::core::nil)
   (:wat::core::let
-    ((cache
-      (:wat::lru::LocalCache::new 16))
-     (_
-      (:wat::lru::LocalCache::put cache "answer" 42))
-     (got
-      (:wat::lru::LocalCache::get cache "answer")))
+    [cache
+      (:wat::lru::LocalCache::new 16)
+     _
+      (:wat::lru::LocalCache::put cache "answer" 42)
+     got
+      (:wat::lru::LocalCache::get cache "answer")]
     (:wat::core::match got -> :wat::core::nil
       ((:wat::core::Some v) (:wat::io::IOWriter/println stdout "hit"))
       (:wat::core::None    (:wat::io::IOWriter/println stdout "miss")))))

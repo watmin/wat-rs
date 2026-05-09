@@ -111,7 +111,7 @@ fn typed_match_on_none_returns_none_arm() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((o :wat::core::None))
+            [o :wat::core::None]
             (:wat::core::match o -> :wat::core::i64
               ((:wat::core::Some v) v)
               (:wat::core::None -1))))
@@ -251,7 +251,7 @@ fn typed_if_result_flows_into_enclosing_let_bind() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((x (:wat::core::if true -> :wat::core::i64 10 20)))
+            [x (:wat::core::if true -> :wat::core::i64 10 20)]
             x))
     "#;
     assert!(matches!(run(src), Value::i64(10)));
@@ -262,10 +262,10 @@ fn typed_match_result_flows_into_enclosing_let_bind() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::String)
           (:wat::core::let
-            ((s
+            [s
               (:wat::core::match (:wat::core::Some 1) -> :wat::core::String
                 ((:wat::core::Some _) "yes")
-                (:wat::core::None "no"))))
+                (:wat::core::None "no"))]
             s))
     "#;
     match run(src) {
@@ -309,23 +309,23 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
         (:wat::core::define
           (:user::main -> :wat::core::String)
           (:wat::core::let
-            ((handle
+            [handle
               (:wat::kernel::spawn-thread
                 (:wat::core::fn
                   [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
                    _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
                    -> :wat::core::nil
-                  ())))
-             (result
-              (:wat::kernel::Thread/join-result handle))
-             (chain
+                  ()))
+             result
+              (:wat::kernel::Thread/join-result handle)
+             chain
               (:wat::core::match result -> :wat::core::Vector<wat::kernel::ThreadDiedError>
                 ((:wat::core::Ok _)   (:wat::core::panic! "test wants Err"))
-                ((:wat::core::Err e)  e)))
-             (err
+                ((:wat::core::Err e)  e))
+             err
               (:wat::core::match (:wat::core::first chain) -> :wat::kernel::ThreadDiedError
                 ((:wat::core::Some e) e)
-                (:wat::core::None    (:wat::core::panic! "expected non-empty chain")))))
+                (:wat::core::None    (:wat::core::panic! "expected non-empty chain")))]
             ;; The bug-trigger pattern: bare-symbol `Panic` head
             ;; against ThreadDiedError. Pre-fix produced
             ;; "expected Option<?>"; post-fix produces a hint

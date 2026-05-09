@@ -48,11 +48,11 @@ fn mean_known_input() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
-             (m (:wat::std::stat::mean xs))
-             (v
+            [xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0)
+             m (:wat::std::stat::mean xs)
+             v
               (:wat::core::match m -> :wat::core::f64
-                ((:wat::core::Some x) x) (:wat::core::None -1.0))))
+                ((:wat::core::Some x) x) (:wat::core::None -1.0))]
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string v))))
     "##;
     assert_eq!(run(src), vec!["3".to_string()]);
@@ -68,11 +68,11 @@ fn mean_empty_is_none() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((xs (:wat::core::Vector :wat::core::f64))
-             (m (:wat::std::stat::mean xs))
-             (label
+            [xs (:wat::core::Vector :wat::core::f64)
+             m (:wat::std::stat::mean xs)
+             label
               (:wat::core::match m -> :wat::core::String
-                ((:wat::core::Some _) "some") (:wat::core::None "none"))))
+                ((:wat::core::Some _) "some") (:wat::core::None "none"))]
             (:wat::io::IOWriter/println stdout label)))
     "##;
     assert_eq!(run(src), vec!["none".to_string()]);
@@ -90,10 +90,10 @@ fn variance_population_known_input() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
-             (v
+            [xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0)
+             v
               (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
-                ((:wat::core::Some x) x) (:wat::core::None -1.0))))
+                ((:wat::core::Some x) x) (:wat::core::None -1.0))]
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string v))))
     "##;
     assert_eq!(run(src), vec!["2".to_string()]);
@@ -109,10 +109,10 @@ fn variance_single_point_zero() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((xs (:wat::core::Vector :wat::core::f64 7.0))
-             (v
+            [xs (:wat::core::Vector :wat::core::f64 7.0)
+             v
               (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
-                ((:wat::core::Some x) x) (:wat::core::None -1.0))))
+                ((:wat::core::Some x) x) (:wat::core::None -1.0))]
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string v))))
     "##;
     assert_eq!(run(src), vec!["0".to_string()]);
@@ -129,10 +129,10 @@ fn stddev_known_input() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
-             (sd
+            [xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0)
+             sd
               (:wat::core::match (:wat::std::stat::stddev xs) -> :wat::core::f64
-                ((:wat::core::Some x) x) (:wat::core::None -1.0))))
+                ((:wat::core::Some x) x) (:wat::core::None -1.0))]
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::> sd 1.41) -> :wat::core::String
                 "ok" "bad"))))

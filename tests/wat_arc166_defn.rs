@@ -159,7 +159,7 @@ fn defn_inside_top_level_do_works() {
 fn defn_inside_top_level_let_body_works() {
     let src = r#"
         (:wat::core::let
-          ((offset 10))
+          [offset 10]
           (:wat::core::defn :user::add-offset
             [x <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::i64::+,2 x offset)))

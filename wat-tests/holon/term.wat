@@ -24,16 +24,16 @@
 (:wat::test::deftest :wat-tests::holon::term::test-template-collapses-tuning
   ()
   (:wat::core::let
-    ((rsi-70
+    [rsi-70
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     (rsi-30
+        (:wat::holon::Thermometer 70.0 0.0 100.0))
+     rsi-30
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 30.0 0.0 100.0)))
-     (tpl-70 (:wat::holon::term::template rsi-70))
-     (tpl-30 (:wat::holon::term::template rsi-30)))
+        (:wat::holon::Thermometer 30.0 0.0 100.0))
+     tpl-70 (:wat::holon::term::template rsi-70)
+     tpl-30 (:wat::holon::term::template rsi-30)]
     ;; Templates are structural; templates can't go through `encode`
     ;; (SlotMarker is unencodable), so we compare via :wat::core::=
     ;; which uses HolonAST's PartialEq impl directly.
@@ -47,16 +47,16 @@
 (:wat::test::deftest :wat-tests::holon::term::test-template-distinguishes-ranges
   ()
   (:wat::core::let
-    ((a
+    [a
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
-        (:wat::holon::Thermometer 0.5 0.0 1.0)))
-     (b
+        (:wat::holon::Thermometer 0.5 0.0 1.0))
+     b
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
-        (:wat::holon::Thermometer 0.5 -1.0 1.0)))
-     (tpl-a (:wat::holon::term::template a))
-     (tpl-b (:wat::holon::term::template b)))
+        (:wat::holon::Thermometer 0.5 -1.0 1.0))
+     tpl-a (:wat::holon::term::template a)
+     tpl-b (:wat::holon::term::template b)]
     (:wat::test::assert-eq
       (:wat::core::= tpl-a tpl-b)
       false)))
@@ -69,16 +69,16 @@
 (:wat::test::deftest :wat-tests::holon::term::test-template-distinguishes-atoms
   ()
   (:wat::core::let
-    ((rsi
+    [rsi
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     (macd
+        (:wat::holon::Thermometer 70.0 0.0 100.0))
+     macd
       (:wat::holon::Bind
         (:wat::holon::leaf :macd-thought)
-        (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     (tpl-rsi (:wat::holon::term::template rsi))
-     (tpl-macd (:wat::holon::term::template macd)))
+        (:wat::holon::Thermometer 70.0 0.0 100.0))
+     tpl-rsi (:wat::holon::term::template rsi)
+     tpl-macd (:wat::holon::term::template macd)]
     (:wat::test::assert-eq
       (:wat::core::= tpl-rsi tpl-macd)
       false)))
@@ -88,17 +88,17 @@
 (:wat::test::deftest :wat-tests::holon::term::test-slots-pre-order
   ()
   (:wat::core::let
-    ((bundled
+    [bundled
       (:wat::holon::Bundle
         (:wat::core::Vector :wat::holon::HolonAST
           (:wat::holon::Thermometer 70.0 0.0 100.0)
-          (:wat::holon::Thermometer 0.25 -1.0 1.0))))
-     (form
+          (:wat::holon::Thermometer 0.25 -1.0 1.0)))
+     form
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((:wat::core::Ok h)  h)
-        ((:wat::core::Err _) (:wat::holon::Atom "unreachable"))))
-     (slots (:wat::holon::term::slots form))
-     (n (:wat::core::length slots)))
+        ((:wat::core::Err _) (:wat::holon::Atom "unreachable")))
+     slots (:wat::holon::term::slots form)
+     n (:wat::core::length slots)]
     (:wat::test::assert-eq n 2)))
 
 ;; ─── Slots and ranges parallel in length ──────────────────────────
@@ -106,19 +106,19 @@
 (:wat::test::deftest :wat-tests::holon::term::test-slots-ranges-parallel
   ()
   (:wat::core::let
-    ((bundled
+    [bundled
       (:wat::holon::Bundle
         (:wat::core::Vector :wat::holon::HolonAST
           (:wat::holon::Thermometer 70.0 0.0 100.0)
-          (:wat::holon::Thermometer 0.25 -1.0 1.0))))
-     (form
+          (:wat::holon::Thermometer 0.25 -1.0 1.0)))
+     form
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((:wat::core::Ok h)  h)
-        ((:wat::core::Err _) (:wat::holon::Atom "unreachable"))))
-     (slot-count
-      (:wat::core::length (:wat::holon::term::slots form)))
-     (range-count
-      (:wat::core::length (:wat::holon::term::ranges form))))
+        ((:wat::core::Err _) (:wat::holon::Atom "unreachable")))
+     slot-count
+      (:wat::core::length (:wat::holon::term::slots form))
+     range-count
+      (:wat::core::length (:wat::holon::term::ranges form))]
     (:wat::test::assert-eq slot-count range-count)))
 
 ;; ─── Empty slots for forms with no Thermometer leaves ─────────────
@@ -126,12 +126,12 @@
 (:wat::test::deftest :wat-tests::holon::term::test-slots-empty-for-thermometer-free
   ()
   (:wat::core::let
-    ((form
+    [form
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
-        (:wat::holon::leaf 42)))
-     (slots (:wat::holon::term::slots form))
-     (n (:wat::core::length slots)))
+        (:wat::holon::leaf 42))
+     slots (:wat::holon::term::slots form)
+     n (:wat::core::length slots)]
     (:wat::test::assert-eq n 0)))
 
 ;; ─── Decomposing a template yields no slots ───────────────────────
@@ -143,13 +143,13 @@
 (:wat::test::deftest :wat-tests::holon::term::test-template-has-no-slots
   ()
   (:wat::core::let
-    ((form
+    [form
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     (tpl (:wat::holon::term::template form))
-     (slots (:wat::holon::term::slots tpl))
-     (n (:wat::core::length slots)))
+        (:wat::holon::Thermometer 70.0 0.0 100.0))
+     tpl (:wat::holon::term::template form)
+     slots (:wat::holon::term::slots tpl)
+     n (:wat::core::length slots)]
     (:wat::test::assert-eq n 0)))
 
 ;; ─── matches? — same form against itself ─────────────────────────
@@ -157,10 +157,10 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-self
   ()
   (:wat::core::let
-    ((form
+    [form
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 70.0 0.0 100.0))))
+        (:wat::holon::Thermometer 70.0 0.0 100.0))]
     (:wat::test::assert-eq
       (:wat::holon::term::matches? form form)
       true)))
@@ -175,14 +175,14 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-close-slot
   ()
   (:wat::core::let
-    ((q
+    [q
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     (s
+        (:wat::holon::Thermometer 70.0 0.0 100.0))
+     s
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 70.5 0.0 100.0))))
+        (:wat::holon::Thermometer 70.5 0.0 100.0))]
     (:wat::test::assert-eq
       (:wat::holon::term::matches? q s)
       true)))
@@ -192,14 +192,14 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-distant-slot
   ()
   (:wat::core::let
-    ((q
+    [q
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     (s
+        (:wat::holon::Thermometer 70.0 0.0 100.0))
+     s
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 30.0 0.0 100.0))))
+        (:wat::holon::Thermometer 30.0 0.0 100.0))]
     (:wat::test::assert-eq
       (:wat::holon::term::matches? q s)
       false)))
@@ -212,14 +212,14 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-different-template
   ()
   (:wat::core::let
-    ((q
+    [q
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
-        (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     (s
+        (:wat::holon::Thermometer 70.0 0.0 100.0))
+     s
       (:wat::holon::Bind
         (:wat::holon::leaf :macd-thought)
-        (:wat::holon::Thermometer 70.0 0.0 100.0))))
+        (:wat::holon::Thermometer 70.0 0.0 100.0))]
     (:wat::test::assert-eq
       (:wat::holon::term::matches? q s)
       false)))
@@ -234,14 +234,14 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-thermometer-free
   ()
   (:wat::core::let
-    ((q
+    [q
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
-        (:wat::holon::leaf 42)))
-     (s
+        (:wat::holon::leaf 42))
+     s
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
-        (:wat::holon::leaf 42))))
+        (:wat::holon::leaf 42))]
     (:wat::test::assert-eq
       (:wat::holon::term::matches? q s)
       true)))

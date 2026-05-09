@@ -21,12 +21,12 @@
     (items :AST<List<wat::holon::HolonAST>>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::core::let
-     ((positioned
+     [positioned
        (:wat::std::list::map-with-index ,items
          (:wat::core::fn [item <- :wat::holon::HolonAST i <- :wat::core::i64] -> :wat::holon::HolonAST
            (:wat::core::if (:wat::core::= i 0) -> :wat::holon::HolonAST
              item
-             (:wat::holon::Permute item i))))))
+             (:wat::holon::Permute item i))))]
      ;; first returns wat::core::Option<HolonAST> via arc 047. Sequential
      ;; expects non-empty input by contract; the :None arm is
      ;; unreachable but the type checker demands totality.

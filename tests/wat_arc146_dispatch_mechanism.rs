@@ -177,10 +177,10 @@ fn lookup_form_returns_dispatch_binding() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define :test::describe))
-             (rendered
-              (:wat::edn::write def-opt)))
+            [def-opt
+              (:wat::runtime::lookup-define :test::describe)
+             rendered
+              (:wat::edn::write def-opt)]
             (:wat::io::IOWriter/println stdout rendered)))
         "##,
         preamble = PREAMBLE,

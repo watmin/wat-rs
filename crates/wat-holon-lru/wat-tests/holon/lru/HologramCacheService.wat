@@ -46,21 +46,21 @@
    (:wat::core::define
      (:test::hcs-spawn-and-drop -> :wat::core::nil)
      (:wat::core::let
-       ((driver
+       [driver
          (:wat::core::let
-           ((spawn
+           [spawn
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
-               (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-            (pool
-             (:wat::core::first spawn))
-            (d
-             (:wat::core::second spawn))
-            (_handle
-             (:wat::kernel::HandlePool::pop pool))
-            (_finish
-             (:wat::kernel::HandlePool::finish pool)))
-           d)))
+               (:wat::holon::lru::HologramCacheService/null-metrics-cadence))
+            pool
+             (:wat::core::first spawn)
+            d
+             (:wat::core::second spawn)
+            _handle
+             (:wat::kernel::HandlePool::pop pool)
+            _finish
+             (:wat::kernel::HandlePool::finish pool)]
+           d)]
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::nil
          ((:wat::core::Ok _) :wat::core::nil)
          ((:wat::core::Err _) (:wat::test::assert-eq "hcs-spawn-and-drop-died" "")))))
@@ -76,27 +76,27 @@
    (:wat::core::define
      (:test::hcs-helper-get-empty -> :wat::core::i64)
      (:wat::core::let
-       ((driver-and-n
+       [driver-and-n
          (:wat::core::let
-           ((spawn
+           [spawn
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
-               (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-            (pool
-             (:wat::core::first spawn))
-            (d
-             (:wat::core::second spawn))
-            (handle
-             (:wat::kernel::HandlePool::pop pool))
-            (results
+               (:wat::holon::lru::HologramCacheService/null-metrics-cadence))
+            pool
+             (:wat::core::first spawn)
+            d
+             (:wat::core::second spawn)
+            handle
+             (:wat::kernel::HandlePool::pop pool)
+            results
              (:wat::holon::lru::HologramCacheService/get handle
-               (:wat::core::Vector :wat::holon::HolonAST)))
-            (_finish
-             (:wat::kernel::HandlePool::finish pool)))
-           (:wat::core::Tuple d (:wat::core::Vector/length results))))
-        (driver
-         (:wat::core::first driver-and-n))
-        (n (:wat::core::second driver-and-n)))
+               (:wat::core::Vector :wat::holon::HolonAST))
+            _finish
+             (:wat::kernel::HandlePool::finish pool)]
+           (:wat::core::Tuple d (:wat::core::Vector/length results)))
+        driver
+         (:wat::core::first driver-and-n)
+        n (:wat::core::second driver-and-n)]
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) n)
          ((:wat::core::Err _)
@@ -114,27 +114,27 @@
    (:wat::core::define
      (:test::hcs-helper-put-one -> :wat::core::i64)
      (:wat::core::let
-       ((driver
+       [driver
          (:wat::core::let
-           ((spawn
+           [spawn
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
-               (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-            (pool
-             (:wat::core::first spawn))
-            (d
-             (:wat::core::second spawn))
-            (handle
-             (:wat::kernel::HandlePool::pop pool))
-            (_put
+               (:wat::holon::lru::HologramCacheService/null-metrics-cadence))
+            pool
+             (:wat::core::first spawn)
+            d
+             (:wat::core::second spawn)
+            handle
+             (:wat::kernel::HandlePool::pop pool)
+            _put
              (:wat::holon::lru::HologramCacheService/put handle
                (:wat::core::Vector :wat::holon::lru::HologramCacheService::Entry
                  (:wat::core::Tuple
                    (:wat::holon::leaf :alpha)
-                   (:wat::holon::leaf :av)))))
-            (_finish
-             (:wat::kernel::HandlePool::finish pool)))
-           d)))
+                   (:wat::holon::leaf :av))))
+            _finish
+             (:wat::kernel::HandlePool::finish pool)]
+           d)]
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) 1)
          ((:wat::core::Err _)
@@ -168,17 +168,17 @@
        (v :wat::holon::HolonAST)
        -> :wat::core::i64)
      (:wat::core::let
-       ((_put
+       [_put
          (:wat::holon::lru::HologramCacheService/put handle
            (:wat::core::Vector :wat::holon::lru::HologramCacheService::Entry
-             (:wat::core::Tuple k v))))
-        (results
+             (:wat::core::Tuple k v)))
+        results
          (:wat::holon::lru::HologramCacheService/get handle
-           (:wat::core::Vector :wat::holon::HolonAST k)))
-        (slot
+           (:wat::core::Vector :wat::holon::HolonAST k))
+        slot
          (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
            (:wat::core::get results 0)
-           "hcs-put-then-get-on-handle: results vec is empty")))
+           "hcs-put-then-get-on-handle: results vec is empty")]
        (:test::hcs-slot-presence slot)))
 
    ;; ─── Layer 3 helper — put-then-get round trip with full lifecycle ──
@@ -189,28 +189,28 @@
    (:wat::core::define
      (:test::hcs-helper-put-then-get -> :wat::core::i64)
      (:wat::core::let
-       ((driver-and-p
+       [driver-and-p
          (:wat::core::let
-           ((spawn
+           [spawn
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
-               (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-            (pool
-             (:wat::core::first spawn))
-            (d
-             (:wat::core::second spawn))
-            (handle
-             (:wat::kernel::HandlePool::pop pool))
-            (p
+               (:wat::holon::lru::HologramCacheService/null-metrics-cadence))
+            pool
+             (:wat::core::first spawn)
+            d
+             (:wat::core::second spawn)
+            handle
+             (:wat::kernel::HandlePool::pop pool)
+            p
              (:test::hcs-put-then-get-on-handle handle
                (:wat::holon::leaf :alpha)
-               (:wat::holon::leaf :av)))
-            (_finish
-             (:wat::kernel::HandlePool::finish pool)))
-           (:wat::core::Tuple d p)))
-        (driver
-         (:wat::core::first driver-and-p))
-        (p (:wat::core::second driver-and-p)))
+               (:wat::holon::leaf :av))
+            _finish
+             (:wat::kernel::HandlePool::finish pool)]
+           (:wat::core::Tuple d p))
+        driver
+         (:wat::core::first driver-and-p)
+        p (:wat::core::second driver-and-p)]
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) p)
          ((:wat::core::Err _)
@@ -228,29 +228,29 @@
        (handle :wat::holon::lru::HologramCacheService::Handle)
        -> :wat::core::i64)
      (:wat::core::let
-       ((_put
+       [_put
          (:wat::holon::lru::HologramCacheService/put handle
            (:wat::core::Vector :wat::holon::lru::HologramCacheService::Entry
              (:wat::core::Tuple (:wat::holon::leaf :alpha) (:wat::holon::leaf :av))
-             (:wat::core::Tuple (:wat::holon::leaf :beta)  (:wat::holon::leaf :bv)))))
-        (results
+             (:wat::core::Tuple (:wat::holon::leaf :beta)  (:wat::holon::leaf :bv))))
+        results
          (:wat::holon::lru::HologramCacheService/get handle
            (:wat::core::Vector :wat::holon::HolonAST
              (:wat::holon::leaf :alpha)
              (:wat::holon::leaf :beta)
-             (:wat::holon::leaf :gamma))))
-        (p0 (:test::hcs-slot-presence
+             (:wat::holon::leaf :gamma)))
+        p0 (:test::hcs-slot-presence
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 0)
-             "hcs-probe-three-on-handle: results[0] missing")))
-        (p1 (:test::hcs-slot-presence
+             "hcs-probe-three-on-handle: results[0] missing"))
+        p1 (:test::hcs-slot-presence
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 1)
-             "hcs-probe-three-on-handle: results[1] missing")))
-        (p2 (:test::hcs-slot-presence
+             "hcs-probe-three-on-handle: results[1] missing"))
+        p2 (:test::hcs-slot-presence
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 2)
-             "hcs-probe-three-on-handle: results[2] missing"))))
+             "hcs-probe-three-on-handle: results[2] missing"))]
        (:wat::core::i64::+,2
          (:wat::core::i64::+,2 (:wat::core::i64::*,2 p0 100) (:wat::core::i64::*,2 p1 10))
          p2)))
@@ -263,26 +263,26 @@
    (:wat::core::define
      (:test::hcs-helper-get-many-keys -> :wat::core::i64)
      (:wat::core::let
-       ((driver-and-pat
+       [driver-and-pat
          (:wat::core::let
-           ((spawn
+           [spawn
              (:wat::holon::lru::HologramCacheService/spawn 1 16
                :wat::holon::lru::HologramCacheService/null-reporter
-               (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-            (pool
-             (:wat::core::first spawn))
-            (d
-             (:wat::core::second spawn))
-            (handle
-             (:wat::kernel::HandlePool::pop pool))
-            (pat
-             (:test::hcs-probe-three-on-handle handle))
-            (_finish
-             (:wat::kernel::HandlePool::finish pool)))
-           (:wat::core::Tuple d pat)))
-        (driver
-         (:wat::core::first driver-and-pat))
-        (pat (:wat::core::second driver-and-pat)))
+               (:wat::holon::lru::HologramCacheService/null-metrics-cadence))
+            pool
+             (:wat::core::first spawn)
+            d
+             (:wat::core::second spawn)
+            handle
+             (:wat::kernel::HandlePool::pop pool)
+            pat
+             (:test::hcs-probe-three-on-handle handle)
+            _finish
+             (:wat::kernel::HandlePool::finish pool)]
+           (:wat::core::Tuple d pat))
+        driver
+         (:wat::core::first driver-and-pat)
+        pat (:wat::core::second driver-and-pat)]
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
@@ -300,30 +300,30 @@
        (handle :wat::holon::lru::HologramCacheService::Handle)
        -> :wat::core::i64)
      (:wat::core::let
-       ((_put
+       [_put
          (:wat::holon::lru::HologramCacheService/put handle
            (:wat::core::Vector :wat::holon::lru::HologramCacheService::Entry
              (:wat::core::Tuple (:wat::holon::leaf :alpha) (:wat::holon::leaf :av))
              (:wat::core::Tuple (:wat::holon::leaf :beta)  (:wat::holon::leaf :bv))
-             (:wat::core::Tuple (:wat::holon::leaf :gamma) (:wat::holon::leaf :gv)))))
-        (results
+             (:wat::core::Tuple (:wat::holon::leaf :gamma) (:wat::holon::leaf :gv))))
+        results
          (:wat::holon::lru::HologramCacheService/get handle
            (:wat::core::Vector :wat::holon::HolonAST
              (:wat::holon::leaf :alpha)
              (:wat::holon::leaf :beta)
-             (:wat::holon::leaf :gamma))))
-        (p0 (:test::hcs-slot-presence
+             (:wat::holon::leaf :gamma)))
+        p0 (:test::hcs-slot-presence
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 0)
-             "hcs-eviction-on-handle: results[0] missing")))
-        (p1 (:test::hcs-slot-presence
+             "hcs-eviction-on-handle: results[0] missing"))
+        p1 (:test::hcs-slot-presence
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 1)
-             "hcs-eviction-on-handle: results[1] missing")))
-        (p2 (:test::hcs-slot-presence
+             "hcs-eviction-on-handle: results[1] missing"))
+        p2 (:test::hcs-slot-presence
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 2)
-             "hcs-eviction-on-handle: results[2] missing"))))
+             "hcs-eviction-on-handle: results[2] missing"))]
        (:wat::core::i64::+,2
          (:wat::core::i64::+,2 (:wat::core::i64::*,2 p0 100) (:wat::core::i64::*,2 p1 10))
          p2)))
@@ -336,25 +336,25 @@
    (:wat::core::define
      (:test::hcs-eviction -> :wat::core::i64)
      (:wat::core::let
-       ((driver-and-pat
+       [driver-and-pat
          (:wat::core::let
-           ((spawn
+           [spawn
              (:wat::holon::lru::HologramCacheService/spawn 1 2
                :wat::holon::lru::HologramCacheService/null-reporter
-               (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-            (pool
-             (:wat::core::first spawn))
-            (d
-             (:wat::core::second spawn))
-            (handle
-             (:wat::kernel::HandlePool::pop pool))
-            (pat (:test::hcs-eviction-on-handle handle))
-            (_finish
-             (:wat::kernel::HandlePool::finish pool)))
-           (:wat::core::Tuple d pat)))
-        (driver
-         (:wat::core::first driver-and-pat))
-        (pat (:wat::core::second driver-and-pat)))
+               (:wat::holon::lru::HologramCacheService/null-metrics-cadence))
+            pool
+             (:wat::core::first spawn)
+            d
+             (:wat::core::second spawn)
+            handle
+             (:wat::kernel::HandlePool::pop pool)
+            pat (:test::hcs-eviction-on-handle handle)
+            _finish
+             (:wat::kernel::HandlePool::finish pool)]
+           (:wat::core::Tuple d pat))
+        driver
+         (:wat::core::first driver-and-pat)
+        pat (:wat::core::second driver-and-pat)]
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
@@ -383,32 +383,32 @@
    (:wat::core::define
      (:test::hcs-multi-client -> :wat::core::i64)
      (:wat::core::let
-       ((driver-and-pat
+       [driver-and-pat
          (:wat::core::let
-           ((spawn
+           [spawn
              (:wat::holon::lru::HologramCacheService/spawn 2 16
                :wat::holon::lru::HologramCacheService/null-reporter
-               (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-            (pool
-             (:wat::core::first spawn))
-            (d
-             (:wat::core::second spawn))
-            (handle-a
-             (:wat::kernel::HandlePool::pop pool))
-            (handle-b
-             (:wat::kernel::HandlePool::pop pool))
-            (pa
+               (:wat::holon::lru::HologramCacheService/null-metrics-cadence))
+            pool
+             (:wat::core::first spawn)
+            d
+             (:wat::core::second spawn)
+            handle-a
+             (:wat::kernel::HandlePool::pop pool)
+            handle-b
+             (:wat::kernel::HandlePool::pop pool)
+            pa
              (:test::hcs-client-put-get handle-a
-               (:wat::holon::leaf :alpha) (:wat::holon::leaf :av)))
-            (pb
+               (:wat::holon::leaf :alpha) (:wat::holon::leaf :av))
+            pb
              (:test::hcs-client-put-get handle-b
-               (:wat::holon::leaf :beta)  (:wat::holon::leaf :bv)))
-            (_finish
-             (:wat::kernel::HandlePool::finish pool)))
-           (:wat::core::Tuple d (:wat::core::i64::+,2 (:wat::core::i64::*,2 pa 10) pb))))
-        (driver
-         (:wat::core::first driver-and-pat))
-        (pat (:wat::core::second driver-and-pat)))
+               (:wat::holon::leaf :beta)  (:wat::holon::leaf :bv))
+            _finish
+             (:wat::kernel::HandlePool::finish pool)]
+           (:wat::core::Tuple d (:wat::core::i64::+,2 (:wat::core::i64::*,2 pa 10) pb)))
+        driver
+         (:wat::core::first driver-and-pat)
+        pat (:wat::core::second driver-and-pat)]
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)

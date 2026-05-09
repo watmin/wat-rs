@@ -21,19 +21,19 @@
   ()
   ;; Send 6 items with chunk size 3 → expect two wat::core::Vector<wat::core::i64> chunks of 3.
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6))
-     (stream
+    [source (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6)
+     stream
       (:wat::stream::spawn-producer
         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::foldl source :wat::core::nil
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))))))
-     (chunked
-      (:wat::stream::chunks stream 3))
-     (collected (:wat::stream::collect chunked))
-     (num-chunks (:wat::core::length collected)))
+                ((:wat::core::Err _) :wat::core::nil))))))
+     chunked
+      (:wat::stream::chunks stream 3)
+     collected (:wat::stream::collect chunked)
+     num-chunks (:wat::core::length collected)]
     (:wat::test::assert-eq num-chunks 2)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-partial-flush
@@ -41,35 +41,35 @@
   ;; Send 5 items with chunk size 3 → expect one full [1 2 3] then a
   ;; flushed partial [4 5] at EOS.
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 1 2 3 4 5))
-     (stream
+    [source (:wat::core::Vector :wat::core::i64 1 2 3 4 5)
+     stream
       (:wat::stream::spawn-producer
         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::foldl source :wat::core::nil
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))))))
-     (chunked
-      (:wat::stream::chunks stream 3))
-     (collected (:wat::stream::collect chunked))
-     (expected
+                ((:wat::core::Err _) :wat::core::nil))))))
+     chunked
+      (:wat::stream::chunks stream 3)
+     collected (:wat::stream::collect chunked)
+     expected
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1 2 3)
-        (:wat::core::Vector :wat::core::i64 4 5))))
+        (:wat::core::Vector :wat::core::i64 4 5))]
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-empty-upstream
   ()
   ;; No items sent → flush sees empty buffer → no chunks emitted.
   (:wat::core::let
-    ((stream
+    [stream
       (:wat::stream::spawn-producer
-        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil :wat::core::nil)))
-     (chunked
-      (:wat::stream::chunks stream 3))
-     (collected (:wat::stream::collect chunked))
-     (num-chunks (:wat::core::length collected)))
+        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil :wat::core::nil))
+     chunked
+      (:wat::stream::chunks stream 3)
+     collected (:wat::stream::collect chunked)
+     num-chunks (:wat::core::length collected)]
     (:wat::test::assert-eq num-chunks 0)))
 
 ;; ─── with-state — dedupe-adjacent (classic Mealy) ────────────────────
@@ -83,17 +83,17 @@
   ;; rune:complectens(inline-fixtures) — 8 outer bindings, but `step` and `flush` are inline fn fixtures defining the Mealy stage — irreducible data; cannot be extracted without losing the test's self-contained definition of "dedupe" behavior
   ;; Input: 1 1 2 2 2 3 1 1 → expect 1 2 3 1.
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 1 1 2 2 2 3 1 1))
-     (stream
+    [source (:wat::core::Vector :wat::core::i64 1 1 2 2 2 3 1 1)
+     stream
       (:wat::stream::spawn-producer
         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::foldl source :wat::core::nil
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))))))
-     (initial :wat::core::None)
-     (step
+                ((:wat::core::Err _) :wat::core::nil))))))
+     initial :wat::core::None
+     step
       (:wat::core::fn [last <- :wat::core::Option<wat::core::i64> item <- :wat::core::i64] -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>)
         (:wat::core::match last -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>)
           (:wat::core::None
@@ -101,14 +101,14 @@
           ((:wat::core::Some prev)
             (:wat::core::if (:wat::core::= prev item) -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>)
               (:wat::core::Tuple last (:wat::core::Vector :wat::core::i64))
-              (:wat::core::Tuple (:wat::core::Some item) (:wat::core::Vector :wat::core::i64 item)))))))
-     (flush
+              (:wat::core::Tuple (:wat::core::Some item) (:wat::core::Vector :wat::core::i64 item))))))
+     flush
       (:wat::core::fn [_last <- :wat::core::Option<wat::core::i64>] -> :wat::core::Vector<wat::core::i64>
-        (:wat::core::Vector :wat::core::i64)))
-     (deduped
-      (:wat::stream::with-state stream initial step flush))
-     (collected (:wat::stream::collect deduped))
-     (expected (:wat::core::Vector :wat::core::i64 1 2 3 1)))
+        (:wat::core::Vector :wat::core::i64))
+     deduped
+      (:wat::stream::with-state stream initial step flush)
+     collected (:wat::stream::collect deduped)
+     expected (:wat::core::Vector :wat::core::i64 1 2 3 1)]
     (:wat::test::assert-eq collected expected)))
 
 ;; ─── with-state — flush path exercised ───────────────────────────────
@@ -119,25 +119,25 @@
 (:wat::test::deftest :wat-tests::std::stream::test-with-state-buffer-all-at-eos
   ()
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 10 20 30))
-     (stream
+    [source (:wat::core::Vector :wat::core::i64 10 20 30)
+     stream
       (:wat::stream::spawn-producer
         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::foldl source :wat::core::nil
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))))))
-     (step
+                ((:wat::core::Err _) :wat::core::nil))))))
+     step
       (:wat::core::fn [buf <- :wat::core::Vector<wat::core::i64> item <- :wat::core::i64] -> :(wat::core::Vector<wat::core::i64>,wat::core::Vector<wat::core::i64>)
-        (:wat::core::Tuple (:wat::core::conj buf item) (:wat::core::Vector :wat::core::i64))))
-     (flush
-      (:wat::core::fn [buf <- :wat::core::Vector<wat::core::i64>] -> :wat::core::Vector<wat::core::i64> buf))
-     (buffered
+        (:wat::core::Tuple (:wat::core::conj buf item) (:wat::core::Vector :wat::core::i64)))
+     flush
+      (:wat::core::fn [buf <- :wat::core::Vector<wat::core::i64>] -> :wat::core::Vector<wat::core::i64> buf)
+     buffered
       (:wat::stream::with-state stream
         (:wat::core::Vector :wat::core::i64)
-        step flush))
-     (collected (:wat::stream::collect buffered)))
+        step flush)
+     collected (:wat::stream::collect buffered)]
     (:wat::test::assert-eq collected source)))
 
 ;; ─── arc 009 sanity — map over a vec via a named define ──────────────
@@ -149,12 +149,12 @@
 (:wat::test::deftest :wat-tests::std::stream::test-names-are-values-via-let-binding
   ()
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 1 2 3))
-     (double
+    [source (:wat::core::Vector :wat::core::i64 1 2 3)
+     double
       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::* n 2)))
-     (doubled (:wat::core::map source double))
-     (expected (:wat::core::Vector :wat::core::i64 2 4 6)))
+        (:wat::core::* n 2))
+     doubled (:wat::core::map source double)
+     expected (:wat::core::Vector :wat::core::i64 2 4 6)]
     (:wat::test::assert-eq doubled expected)))
 
 ;; ─── chunks-by — key-boundary N:1 partitioning ────────────────────────
@@ -163,66 +163,66 @@
   ()
   ;; Stream [1 1 2 3 3 3 1] grouped by identity → [[1 1] [2] [3 3 3] [1]].
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 1 1 2 3 3 3 1))
-     (stream
+    [source (:wat::core::Vector :wat::core::i64 1 1 2 3 3 3 1)
+     stream
       (:wat::stream::spawn-producer
         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::foldl source :wat::core::nil
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))))))
-     (id
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x))
-     (grouped
-      (:wat::stream::chunks-by stream id))
-     (collected (:wat::stream::collect grouped))
-     (expected
+                ((:wat::core::Err _) :wat::core::nil))))))
+     id
+      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
+     grouped
+      (:wat::stream::chunks-by stream id)
+     collected (:wat::stream::collect grouped)
+     expected
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1 1)
         (:wat::core::Vector :wat::core::i64 2)
         (:wat::core::Vector :wat::core::i64 3 3 3)
-        (:wat::core::Vector :wat::core::i64 1))))
+        (:wat::core::Vector :wat::core::i64 1))]
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-by-all-distinct
   ()
   ;; Stream [1 2 3] grouped by identity → [[1] [2] [3]] (each its own run).
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 1 2 3))
-     (stream
+    [source (:wat::core::Vector :wat::core::i64 1 2 3)
+     stream
       (:wat::stream::spawn-producer
         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::foldl source :wat::core::nil
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))))))
-     (id
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x))
-     (grouped
-      (:wat::stream::chunks-by stream id))
-     (collected (:wat::stream::collect grouped))
-     (expected
+                ((:wat::core::Err _) :wat::core::nil))))))
+     id
+      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
+     grouped
+      (:wat::stream::chunks-by stream id)
+     collected (:wat::stream::collect grouped)
+     expected
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1)
         (:wat::core::Vector :wat::core::i64 2)
-        (:wat::core::Vector :wat::core::i64 3))))
+        (:wat::core::Vector :wat::core::i64 3))]
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-by-empty-stream
   ()
   ;; Empty stream → no groups emitted.
   (:wat::core::let
-    ((stream
+    [stream
       (:wat::stream::spawn-producer
-        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil :wat::core::nil)))
-     (id
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x))
-     (grouped
-      (:wat::stream::chunks-by stream id))
-     (collected (:wat::stream::collect grouped))
-     (num (:wat::core::length collected)))
+        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil :wat::core::nil))
+     id
+      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
+     grouped
+      (:wat::stream::chunks-by stream id)
+     collected (:wat::stream::collect grouped)
+     num (:wat::core::length collected)]
     (:wat::test::assert-eq num 0)))
 
 ;; ─── window — sliding N-length windows, flush-partial-when-short ──────
@@ -231,76 +231,76 @@
   ()
   ;; Stream [1 2 3 4 5], size 3 → [[1 2 3] [2 3 4] [3 4 5]].
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 1 2 3 4 5))
-     (stream
+    [source (:wat::core::Vector :wat::core::i64 1 2 3 4 5)
+     stream
       (:wat::stream::spawn-producer
         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::foldl source :wat::core::nil
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))))))
-     (windowed
-      (:wat::stream::window stream 3))
-     (collected (:wat::stream::collect windowed))
-     (expected
+                ((:wat::core::Err _) :wat::core::nil))))))
+     windowed
+      (:wat::stream::window stream 3)
+     collected (:wat::stream::collect windowed)
+     expected
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1 2 3)
         (:wat::core::Vector :wat::core::i64 2 3 4)
-        (:wat::core::Vector :wat::core::i64 3 4 5))))
+        (:wat::core::Vector :wat::core::i64 3 4 5))]
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-window-short-stream-flushes-partial
   ()
   ;; Stream [1 2], size 3 — never reached size, flush emits [[1 2]].
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 1 2))
-     (stream
+    [source (:wat::core::Vector :wat::core::i64 1 2)
+     stream
       (:wat::stream::spawn-producer
         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::foldl source :wat::core::nil
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))))))
-     (windowed
-      (:wat::stream::window stream 3))
-     (collected (:wat::stream::collect windowed))
-     (expected
+                ((:wat::core::Err _) :wat::core::nil))))))
+     windowed
+      (:wat::stream::window stream 3)
+     collected (:wat::stream::collect windowed)
+     expected
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
-        (:wat::core::Vector :wat::core::i64 1 2))))
+        (:wat::core::Vector :wat::core::i64 1 2))]
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-window-exactly-size-no-flush
   ()
   ;; Stream [1 2 3], size 3 — one full window emitted, flush empty.
   (:wat::core::let
-    ((source (:wat::core::Vector :wat::core::i64 1 2 3))
-     (stream
+    [source (:wat::core::Vector :wat::core::i64 1 2 3)
+     stream
       (:wat::stream::spawn-producer
         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::foldl source :wat::core::nil
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))))))
-     (windowed
-      (:wat::stream::window stream 3))
-     (collected (:wat::stream::collect windowed))
-     (expected
+                ((:wat::core::Err _) :wat::core::nil))))))
+     windowed
+      (:wat::stream::window stream 3)
+     collected (:wat::stream::collect windowed)
+     expected
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
-        (:wat::core::Vector :wat::core::i64 1 2 3))))
+        (:wat::core::Vector :wat::core::i64 1 2 3))]
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-window-empty-stream
   ()
   ;; Empty stream → no windows emitted at all.
   (:wat::core::let
-    ((stream
+    [stream
       (:wat::stream::spawn-producer
-        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil :wat::core::nil)))
-     (windowed
-      (:wat::stream::window stream 3))
-     (collected (:wat::stream::collect windowed))
-     (num (:wat::core::length collected)))
+        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil :wat::core::nil))
+     windowed
+      (:wat::stream::window stream 3)
+     collected (:wat::stream::collect windowed)
+     num (:wat::core::length collected)]
     (:wat::test::assert-eq num 0)))

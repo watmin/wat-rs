@@ -28,20 +28,20 @@
 
 (:deftest :wat-tests::edn::roundtrip-i64
   (:wat::core::let
-    ((s (:wat::edn::write 42))
-     (back (:wat::edn::read s)))
+    [s (:wat::edn::write 42)
+     back (:wat::edn::read s)]
     (:wat::test::assert-eq back 42)))
 
 (:deftest :wat-tests::edn::roundtrip-string
   (:wat::core::let
-    ((s (:wat::edn::write "hello"))
-     (back (:wat::edn::read s)))
+    [s (:wat::edn::write "hello")
+     back (:wat::edn::read s)]
     (:wat::test::assert-eq back "hello")))
 
 (:deftest :wat-tests::edn::roundtrip-bool
   (:wat::core::let
-    ((s (:wat::edn::write true))
-     (back (:wat::edn::read s)))
+    [s (:wat::edn::write true)
+     back (:wat::edn::read s)]
     (:wat::test::assert-eq back true)))
 
 
@@ -49,9 +49,9 @@
 
 (:deftest :wat-tests::edn::roundtrip-vec
   (:wat::core::let
-    ((v (:wat::core::Vector :wat::core::i64 1 2 3))
-     (s (:wat::edn::write v))
-     (back (:wat::edn::read s)))
+    [v (:wat::core::Vector :wat::core::i64 1 2 3)
+     s (:wat::edn::write v)
+     back (:wat::edn::read s)]
     (:wat::test::assert-eq back v)))
 
 
@@ -59,9 +59,9 @@
 
 (:deftest :wat-tests::edn::roundtrip-enum-variant
   (:wat::core::let
-    ((e (:test::Event::Buy 100.5 7))
-     (s (:wat::edn::write e))
-     (back (:wat::edn::read s)))
+    [e (:test::Event::Buy 100.5 7)
+     s (:wat::edn::write e)
+     back (:wat::edn::read s)]
     (:wat::test::assert-eq back e)))
 
 
@@ -69,9 +69,9 @@
 
 (:deftest :wat-tests::edn::roundtrip-struct
   (:wat::core::let
-    ((w (:test::Wrapper/new "score" 42))
-     (s (:wat::edn::write w))
-     (back (:wat::edn::read s)))
+    [w (:test::Wrapper/new "score" 42)
+     s (:wat::edn::write w)
+     back (:wat::edn::read s)]
     (:wat::test::assert-eq back w)))
 
 
@@ -79,8 +79,8 @@
 
 (:deftest :wat-tests::edn::roundtrip-nested
   (:wat::core::let
-    ((w
-      (:test::Wrapper/new "trade" (:test::Event::Sell 102.25 3 "stop")))
-     (s (:wat::edn::write w))
-     (back (:wat::edn::read s)))
+    [w
+      (:test::Wrapper/new "trade" (:test::Event::Sell 102.25 3 "stop"))
+     s (:wat::edn::write w)
+     back (:wat::edn::read s)]
     (:wat::test::assert-eq back w)))

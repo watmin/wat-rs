@@ -24,12 +24,12 @@
     (period :AST<wat::core::f64>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::core::let
-     ((frac
-       (:wat::core::/ ,value ,period))
-      (two-pi
-       (:wat::core::* 2.0 (:wat::std::math::pi)))
-      (theta
-       (:wat::core::* two-pi frac)))
+     [frac
+       (:wat::core::/ ,value ,period)
+      two-pi
+       (:wat::core::* 2.0 (:wat::std::math::pi))
+      theta
+       (:wat::core::* two-pi frac)]
      (:wat::holon::Blend
        (:wat::holon::Atom :wat::std::circular-cos-basis)
        (:wat::holon::Atom :wat::std::circular-sin-basis)

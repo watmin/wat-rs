@@ -57,8 +57,8 @@ fn newtype_construct_and_accessor_roundtrip() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((p (:my::trading::Price/new 100.0))
-             (inner (:my::trading::Price/0 p)))
+            [p (:my::trading::Price/new 100.0)
+             inner (:my::trading::Price/0 p)]
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string inner))))
     "##;
     assert_eq!(run(src), vec!["100".to_string()]);
@@ -105,8 +105,8 @@ fn newtype_rejected_where_inner_expected() {
             -> :wat::core::nil)
           ;; Pass a Price where an f64 is expected — type-checker should refuse.
           (:wat::core::let
-            ((p (:my::trading::Price/new 100.0))
-             (bogus (:wat::core::f64::+,2 p 1.0)))
+            [p (:my::trading::Price/new 100.0)
+             bogus (:wat::core::f64::+,2 p 1.0)]
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string bogus))))
     "##;
     let err = run_expecting_check_error(src);
@@ -138,10 +138,10 @@ fn newtype_as_struct_field_roundtrip() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((p (:my::trading::Price/new 99.5))
-             (o          (:my::Order/new "BTC" p 7))
-             (retrieved (:my::Order/price o))
-             (inner (:my::trading::Price/0 retrieved)))
+            [p (:my::trading::Price/new 99.5)
+             o          (:my::Order/new "BTC" p 7)
+             retrieved (:my::Order/price o)
+             inner (:my::trading::Price/0 retrieved)]
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string inner))))
     "##;
     assert_eq!(run(src), vec!["99.5".to_string()]);
@@ -166,7 +166,7 @@ fn distinct_newtypes_over_same_inner_are_distinct_types() {
             -> :wat::core::nil)
           ;; Pass an Amount where Price is expected — must fail.
           (:wat::core::let
-            ((a (:my::trading::Amount/new 50.0)))
+            [a (:my::trading::Amount/new 50.0)]
             (:wat::io::IOWriter/println stdout (:my::trading::price-pretty a))))
     "##;
     let err = run_expecting_check_error(src);

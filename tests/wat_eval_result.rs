@@ -55,7 +55,7 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let
-            ((program (:wat::core::quote (:wat::holon::Atom "hello"))))
+            [program (:wat::core::quote (:wat::holon::Atom "hello"))]
             (:wat::eval-ast! program)))
     "#;
     match run(src) {
@@ -78,9 +78,9 @@ fn eval_ast_bang_mutation_form_surfaces_as_err() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let
-            ((program
+            [program
               (:wat::core::quote
-                (:wat::core::define (:evil (x :wat::core::i64) -> :wat::core::i64) x))))
+                (:wat::core::define (:evil (x :wat::core::i64) -> :wat::core::i64) x))]
             (:wat::eval-ast! program)))
     "#;
     let result = run(src);
@@ -153,9 +153,9 @@ fn try_propagates_eval_err_through_helper() {
 
         (:wat::core::define (:user::main -> :wat::core::String)
           (:wat::core::let
-            ((bad
+            [bad
               (:wat::core::quote
-                (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))))
+                (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))]
             (:wat::core::match (:app::run-dynamic bad) -> :wat::core::String
               ((:wat::core::Ok _) "should-not-reach")
               ((:wat::core::Err e) (:wat::core::EvalError/kind e)))))
@@ -176,11 +176,11 @@ fn eval_err_exposes_both_kind_and_message() {
 
         (:wat::core::define (:user::main -> :(wat::core::String,wat::core::String))
           (:wat::core::let
-            ((bad
+            [bad
               (:wat::core::quote
-                (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x)))
-             (r
-              (:wat::eval-ast! bad)))
+                (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))
+             r
+              (:wat::eval-ast! bad)]
             (:wat::core::match r -> :(wat::core::String,wat::core::String)
               ((:wat::core::Ok _)
                 (:wat::core::Tuple "unreachable" "unreachable"))

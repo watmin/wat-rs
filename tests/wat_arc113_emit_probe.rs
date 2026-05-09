@@ -19,7 +19,7 @@ fn child_assertion_writes_died_chain_to_stderr() {
         (:wat::core::define
           (:user::main -> :wat::core::Vector<wat::core::String>)
           (:wat::core::let
-            ((proc
+            [proc
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -27,11 +27,11 @@ fn child_assertion_writes_died_chain_to_stderr() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
-                    (:wat::test::assert-eq 1 2)))))
-             (joined
-              (:wat::kernel::Process/join-result proc))
-             (stderr-r (:wat::kernel::Process/stderr proc))
-             (lines (:wat::kernel::drain-lines stderr-r)))
+                    (:wat::test::assert-eq 1 2))))
+             joined
+              (:wat::kernel::Process/join-result proc)
+             stderr-r (:wat::kernel::Process/stderr proc)
+             lines (:wat::kernel::drain-lines stderr-r)]
             lines))
     "##;
     let v = run(src);
@@ -61,7 +61,7 @@ fn child_plain_exit_writes_panic_marker_to_stderr() {
         (:wat::core::define
           (:user::main -> :wat::core::Vector<wat::core::String>)
           (:wat::core::let
-            ((proc
+            [proc
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -69,11 +69,11 @@ fn child_plain_exit_writes_panic_marker_to_stderr() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
-                    (:wat::io::IOWriter/println stderr "from-child-stderr")))))
-             (joined
-              (:wat::kernel::Process/join-result proc))
-             (stderr-r (:wat::kernel::Process/stderr proc))
-             (lines (:wat::kernel::drain-lines stderr-r)))
+                    (:wat::io::IOWriter/println stderr "from-child-stderr"))))
+             joined
+              (:wat::kernel::Process/join-result proc)
+             stderr-r (:wat::kernel::Process/stderr proc)
+             lines (:wat::kernel::drain-lines stderr-r)]
             lines))
     "##;
     let v = run(src);

@@ -59,8 +59,8 @@ fn named_define_is_a_function_value() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((f :my::double)
-             (result (f 21)))
+            [f :my::double
+             result (f 21)]
             (:wat::io::IOWriter/println stdout
               (:wat::core::string::join ""
                 (:wat::core::conj (:wat::core::Vector :wat::core::String) "result-is-")))))
@@ -79,8 +79,8 @@ fn named_define_is_a_function_value() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((f :my::double)
-             (result (f 21)))
+            [f :my::double
+             result (f 21)]
             (:wat::core::if (:wat::core::= result 42) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -111,7 +111,7 @@ fn named_define_passes_to_higher_order_fn() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((result (:my::apply-twice :my::inc 5)))
+            [result (:my::apply-twice :my::inc 5)]
             (:wat::core::if (:wat::core::= result 7) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -139,7 +139,7 @@ fn polymorphic_named_define_instantiates_at_use_site() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((result (:my::apply :my::identity 99)))
+            [result (:my::apply :my::identity 99)]
             (:wat::core::if (:wat::core::= result 99) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -163,8 +163,8 @@ fn unregistered_keyword_still_a_literal() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((tag :my-app::tag::user-event)
-             (same? (:wat::core::= tag :my-app::tag::user-event)))
+            [tag :my-app::tag::user-event
+             same? (:wat::core::= tag :my-app::tag::user-event)]
             (:wat::core::if same? -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -190,7 +190,7 @@ fn named_define_as_stream_map_fn() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((source
+            [source
               (:wat::stream::spawn-producer
                 (:wat::core::fn [tx <- :rust::crossbeam_channel::Sender<wat::core::i64>] -> :wat::core::nil
                   (:wat::core::do
@@ -203,15 +203,15 @@ fn named_define_as_stream_map_fn() {
                     (:wat::core::Result/expect -> :wat::core::nil
                       (:wat::kernel::send tx 3)
                       "producer: tx disconnected on send 3")
-                    ()))))
-             (doubled
-              (:wat::stream::map source :my::double))
-             (collected (:wat::stream::collect doubled))
-             (first
+                    ())))
+             doubled
+              (:wat::stream::map source :my::double)
+             collected (:wat::stream::collect doubled)
+             first
               (:wat::core::match (:wat::core::first collected) -> :wat::core::i64
                 ((:wat::core::Some n) n)
-                (:wat::core::None -1)))
-             (len (:wat::core::length collected)))
+                (:wat::core::None -1))
+             len (:wat::core::length collected)]
             (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
               -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")

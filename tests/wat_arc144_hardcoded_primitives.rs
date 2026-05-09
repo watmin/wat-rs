@@ -252,10 +252,10 @@ fn lookup_define_length_renders_primitive_sentinel() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define :wat::core::Vector/length))
-             (rendered
-              (:wat::edn::write def-opt)))
+            [def-opt
+              (:wat::runtime::lookup-define :wat::core::Vector/length)
+             rendered
+              (:wat::edn::write def-opt)]
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
     let out = run(src);

@@ -71,46 +71,46 @@
     (data   :wat::WatAST)
     -> :wat::core::nil)
   (:wat::core::let
-    ((handle
-      (:wat::telemetry::WorkUnitLog/handle logger))
-     (caller
-      (:wat::telemetry::WorkUnitLog/caller logger))
-     (now-fn
-      (:wat::telemetry::WorkUnitLog/now-fn logger))
-     (now (now-fn :wat::core::nil))
-     (time-ns (:wat::time::epoch-nanos now))
+    [handle
+      (:wat::telemetry::WorkUnitLog/handle logger)
+     caller
+      (:wat::telemetry::WorkUnitLog/caller logger)
+     now-fn
+      (:wat::telemetry::WorkUnitLog/now-fn logger)
+     now (now-fn :wat::core::nil)
+     time-ns (:wat::time::epoch-nanos now)
      ;; Per-scope identity — pulled from the wu at every emit so
      ;; each row carries the scope's uuid for cross-table joins
      ;; (Event::Log.uuid == Event::Metric.uuid for rows from the
      ;; same scope).
-     (ns (:wat::telemetry::WorkUnit/namespace wu))
-     (uuid               (:wat::telemetry::WorkUnit/uuid wu))
-     (tags (:wat::telemetry::WorkUnit/tags wu))
+     ns (:wat::telemetry::WorkUnit/namespace wu)
+     uuid               (:wat::telemetry::WorkUnit/uuid wu)
+     tags (:wat::telemetry::WorkUnit/tags wu)
      ;; Lift keyword → HolonAST → NoTag. Atom is polymorphic per
      ;; arc 057 (∀T. T → HolonAST); a runtime keyword Value lifts
      ;; to a holon-ast leaf.
-     (caller-ast (:wat::holon::Atom caller))
-     (level-ast (:wat::holon::Atom level))
-     (ns-notag  (:wat::edn::NoTag/new ns))
-     (caller-notag  (:wat::edn::NoTag/new caller-ast))
-     (level-notag  (:wat::edn::NoTag/new level-ast))
+     caller-ast (:wat::holon::Atom caller)
+     level-ast (:wat::holon::Atom level)
+     ns-notag  (:wat::edn::NoTag/new ns)
+     caller-notag  (:wat::edn::NoTag/new caller-ast)
+     level-notag  (:wat::edn::NoTag/new level-ast)
      ;; Lower the captured form to a HolonAST (Atom's WatAST arm —
      ;; runtime.rs:6129's `watast_to_holon` — handles the structural
      ;; lowering: primitives → leaves, list-forms → Bundles).
-     (data-holon (:wat::holon::Atom data))
+     data-holon (:wat::holon::Atom data)
      ;; Tagged-wrap so the sqlite shim writes via :wat::edn::write
      ;; (round-trip-safe; logs read back as HolonAST and pattern-
      ;; match per arc 091's design).
-     (data-tagged (:wat::edn::Tagged/new data-holon))
-     (event
+     data-tagged (:wat::edn::Tagged/new data-holon)
+     event
       (:wat::telemetry::Event::Log
-        time-ns ns-notag caller-notag level-notag uuid tags data-tagged))
-     (entries
-      (:wat::core::Vector :wat::telemetry::Event event))
-     (req-tx
-      (:wat::core::first handle))
-     (ack-rx
-      (:wat::core::second handle)))
+        time-ns ns-notag caller-notag level-notag uuid tags data-tagged)
+     entries
+      (:wat::core::Vector :wat::telemetry::Event event)
+     req-tx
+      (:wat::core::first handle)
+     ack-rx
+      (:wat::core::second handle)]
     (:wat::telemetry::batch-log req-tx ack-rx entries)))
 
 

@@ -128,7 +128,7 @@ fn tail_call_inside_let_body_propagates() {
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::i64)
           (:wat::core::let
-            ((next (:wat::core::i64::-,2 n 1)))
+            [next (:wat::core::i64::-,2 n 1)]
             (:wat::core::if (:wat::core::<= n 0) -> :wat::core::i64
               0
               (:app::loop next))))
@@ -185,7 +185,7 @@ fn try_inside_tail_recursive_function_short_circuits() {
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            ((valid (:wat::core::Result/try (:app::check n))))
+            [valid (:wat::core::Result/try (:app::check n))]
             (:wat::core::if (:wat::core::= valid 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
               (:wat::core::Ok 0)
               (:app::loop (:wat::core::i64::-,2 valid 1)))))
@@ -213,7 +213,7 @@ fn try_inside_tail_recursive_function_propagates_err() {
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            ((valid (:wat::core::Result/try (:app::check n))))
+            [valid (:wat::core::Result/try (:app::check n))]
             (:wat::core::if (:wat::core::<= valid (:wat::core::i64::-,2 0 1)) -> :wat::core::Result<wat::core::i64,wat::core::String>
               (:wat::core::Ok 0)
               (:app::loop (:wat::core::i64::-,2 valid 1)))))
@@ -247,9 +247,9 @@ fn fn_tail_call_via_let_bound_symbol() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((f
+            [f
               (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64 0 n))))
+                (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64 0 n))]
             (f 42)))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
@@ -286,9 +286,9 @@ fn named_define_tail_calls_fn_param() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((double
+            [double
               (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::*,2 x 2))))
+                (:wat::core::i64::*,2 x 2))]
             (:app::invoke double 21)))
     "#;
     assert!(matches!(run(src), Value::i64(42)));

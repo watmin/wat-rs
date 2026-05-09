@@ -81,31 +81,31 @@
                :wat::core::None))))
     (:wat::core::None
      (:wat::core::let
-       ((proc
-         (:wat::kernel::fork-program-ast forms))
+       [proc
+         (:wat::kernel::fork-program-ast forms)
         ;; Write stdin (if any). An empty vec joins to "", which
         ;; write-all handles as a zero-byte write.
-        (_
+        _
          (:wat::core::let
-           ((stdin-wr
-             (:wat::kernel::Process/stdin proc))
-            (joined
-             (:wat::core::string::join "\n" stdin)))
-           (:wat::io::IOWriter/write-string stdin-wr joined)))
+           [stdin-wr
+             (:wat::kernel::Process/stdin proc)
+            joined
+             (:wat::core::string::join "\n" stdin)]
+           (:wat::io::IOWriter/write-string stdin-wr joined))
         ;; Wait for the program to exit first. With small outputs
         ;; (< pipe buffer), the child's writes complete without
         ;; the parent needing to drain. This keeps the drain
         ;; code single-threaded — no spawn + join ceremony.
-        (joined-result
-         (:wat::kernel::Process/join-result proc))
-        (stdout-r
-         (:wat::kernel::Process/stdout proc))
-        (stderr-r
-         (:wat::kernel::Process/stderr proc))
-        (stdout-lines
-         (:wat::kernel::drain-lines stdout-r))
-        (stderr-lines
-         (:wat::kernel::drain-lines stderr-r))
+        joined-result
+         (:wat::kernel::Process/join-result proc)
+        stdout-r
+         (:wat::kernel::Process/stdout proc)
+        stderr-r
+         (:wat::kernel::Process/stderr proc)
+        stdout-lines
+         (:wat::kernel::drain-lines stdout-r)
+        stderr-lines
+         (:wat::kernel::drain-lines stderr-r)
         ;; Arc 113 slice 3 — same stderr-EDN preference as
          ;; drive-sandbox. The forked child renders the cascade
          ;; chain to stderr on AssertionPayload panic; we recover
@@ -114,9 +114,9 @@
          ;; absent (clean exit, plain panic, runtime error). The
          ;; chain shape at the caller is identical regardless of
          ;; which transport delivered it.
-         (stderr-chain
-          (:wat::kernel::extract-panics stderr-lines))
-         (failure
+         stderr-chain
+          (:wat::kernel::extract-panics stderr-lines)
+         failure
          (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
            ((:wat::core::Ok _)       :wat::core::None)
            ((:wat::core::Err chain)
@@ -124,7 +124,7 @@
                     (:wat::core::match stderr-chain
                       -> :wat::core::Vector<wat::kernel::ProcessDiedError>
                       ((:wat::core::Some sc) sc)
-                      (:wat::core::None     chain))))))))
+                      (:wat::core::None     chain))))))]
        (:wat::core::struct-new :wat::kernel::RunResult
          stdout-lines
          stderr-lines

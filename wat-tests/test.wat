@@ -31,8 +31,8 @@
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-vec
   ()
   (:wat::core::let
-    ((a (:wat::core::Vector :wat::core::String "x" "y"))
-     (b (:wat::core::Vector :wat::core::String "x" "y")))
+    [a (:wat::core::Vector :wat::core::String "x" "y")
+     b (:wat::core::Vector :wat::core::String "x" "y")]
     (:wat::test::assert-eq a b)))
 
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────
@@ -41,7 +41,7 @@
   ()
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
-    ((r
+    [r
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
@@ -51,8 +51,8 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
             (:wat::test::assert-eq 42 43)))
-        (:wat::core::Vector :wat::core::String)))
-     (fail (:wat::kernel::RunResult/failure r)))
+        (:wat::core::Vector :wat::core::String))
+     fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f) (:wat::test::assert-eq
                   (:wat::kernel::Failure/message f)
@@ -71,7 +71,7 @@
   ()
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
-    ((r
+    [r
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
@@ -81,18 +81,18 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
             (:wat::test::assert-contains "hello" "xyz")))
-        (:wat::core::Vector :wat::core::String)))
-     (fail (:wat::kernel::RunResult/failure r)))
+        (:wat::core::Vector :wat::core::String))
+     fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
         (:wat::core::let
-          ((actual (:wat::kernel::Failure/actual f))
-           (expected (:wat::kernel::Failure/expected f))
-           (_
+          [actual (:wat::kernel::Failure/actual f)
+           expected (:wat::kernel::Failure/expected f)
+           _
             (:wat::core::match actual -> :wat::core::nil
               ((:wat::core::Some a) (:wat::test::assert-eq a "hello"))
               (:wat::core::None (:wat::kernel::assertion-failed!
-                       "actual slot empty" :wat::core::None :wat::core::None)))))
+                       "actual slot empty" :wat::core::None :wat::core::None)))]
           (:wat::core::match expected -> :wat::core::nil
             ((:wat::core::Some e) (:wat::test::assert-eq e "xyz"))
             (:wat::core::None (:wat::kernel::assertion-failed!
@@ -117,7 +117,7 @@
   ()
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
-    ((r
+    [r
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
@@ -129,12 +129,12 @@
             (:wat::test::assert-coincident
               (:wat::holon::Atom "alice")
               (:wat::holon::Atom "charlie"))))
-        (:wat::core::Vector :wat::core::String)))
-     (fail (:wat::kernel::RunResult/failure r)))
+        (:wat::core::Vector :wat::core::String))
+     fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
         (:wat::core::let
-          ((actual (:wat::kernel::Failure/actual f)))
+          [actual (:wat::kernel::Failure/actual f)]
           (:wat::core::match actual -> :wat::core::nil
             ((:wat::core::Some a)
               (:wat::core::do
@@ -156,7 +156,7 @@
 (:wat::test::deftest :wat-tests::std::test::test-assert-stdout-is-matches
   ()
   (:wat::core::let
-    ((inner
+    [inner
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
@@ -169,8 +169,8 @@
               (:wat::io::IOWriter/println stdout "alpha")
               (:wat::io::IOWriter/println stdout "beta")
               ())))
-        (:wat::core::Vector :wat::core::String)))
-     (expected (:wat::core::Vector :wat::core::String "alpha" "beta")))
+        (:wat::core::Vector :wat::core::String))
+     expected (:wat::core::Vector :wat::core::String "alpha" "beta")]
     (:wat::test::assert-stdout-is inner expected)))
 
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
@@ -178,7 +178,7 @@
 (:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-pass
   ()
   (:wat::core::let
-    ((inner
+    [inner
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
@@ -188,7 +188,7 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
             (:wat::io::IOWriter/println stderr "error: code 42")))
-        (:wat::core::Vector :wat::core::String))))
+        (:wat::core::Vector :wat::core::String))]
     (:wat::test::assert-stderr-matches inner "code [0-9]+")))
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
@@ -198,7 +198,7 @@
   ;; against the silent program's empty stderr; that assertion fires; the middle program's RunResult.failure is populated with
   ;; expected = "my-pattern". The outer inspects the middle's failure.
   (:wat::core::let
-    ((r
+    [r
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
@@ -208,7 +208,7 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
             (:wat::core::let
-              ((silent
+              [silent
                 (:wat::test::run-ast
                   (:wat::test::program
                     (:wat::core::define
@@ -218,14 +218,14 @@
                         (stderr :wat::io::IOWriter)
                         -> :wat::core::nil)
                       ()))
-                  (:wat::core::Vector :wat::core::String))))
+                  (:wat::core::Vector :wat::core::String))]
               (:wat::test::assert-stderr-matches silent "my-pattern"))))
-        (:wat::core::Vector :wat::core::String)))
-     (fail (:wat::kernel::RunResult/failure r)))
+        (:wat::core::Vector :wat::core::String))
+     fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
         (:wat::core::let
-          ((expected (:wat::kernel::Failure/expected f)))
+          [expected (:wat::kernel::Failure/expected f)]
           (:wat::core::match expected -> :wat::core::nil
             ((:wat::core::Some e) (:wat::test::assert-eq e "my-pattern"))
             (:wat::core::None (:wat::kernel::assertion-failed!
@@ -242,7 +242,7 @@
 (:wat::test::deftest :wat-tests::std::test::test-run-string-entry-path
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::test::run
         "(:wat::config::set-capacity-mode! :error)
          (:wat::core::define (:user::main
@@ -251,8 +251,8 @@
                               (stderr :wat::io::IOWriter)
                               -> :wat::core::nil)
            (:wat::io::IOWriter/println stdout \"from-string\"))"
-        (:wat::core::Vector :wat::core::String)))
-     (expected (:wat::core::Vector :wat::core::String "from-string")))
+        (:wat::core::Vector :wat::core::String))
+     expected (:wat::core::Vector :wat::core::String "from-string")]
     (:wat::test::assert-stdout-is r expected)))
 
 ;; ─── :wat::test::run-ast — AST-entry path via :wat::test::program ────
@@ -260,7 +260,7 @@
 (:wat::test::deftest :wat-tests::std::test::test-run-ast-via-program
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
@@ -270,8 +270,8 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
             (:wat::io::IOWriter/println stdout "from-ast")))
-        (:wat::core::Vector :wat::core::String)))
-     (expected (:wat::core::Vector :wat::core::String "from-ast")))
+        (:wat::core::Vector :wat::core::String))
+     expected (:wat::core::Vector :wat::core::String "from-ast")]
     (:wat::test::assert-stdout-is r expected)))
 
 ;; deftest's self-test is redundant here — every other passing deftest

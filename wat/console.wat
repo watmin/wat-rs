@@ -112,27 +112,27 @@
   (:wat::core::if (:wat::core::empty? pairs) -> :wat::core::nil
     :wat::core::nil
     (:wat::core::let
-      ((rxs
+      [rxs
         (:wat::core::map pairs
           (:wat::core::fn
             [p <- :wat::console::DriverPair]
              -> :wat::console::ReqRx
-            (:wat::core::first p))))
-       (chosen
-        (:wat::kernel::select rxs))
-       (idx (:wat::core::first chosen))
-       (maybe
-        (:wat::core::second chosen)))
+            (:wat::core::first p)))
+       chosen
+        (:wat::kernel::select rxs)
+       idx (:wat::core::first chosen)
+       maybe
+        (:wat::core::second chosen)]
       (:wat::core::match maybe -> :wat::core::nil
         ((:wat::core::Ok (:wat::core::Some tagged))
           (:wat::core::let
-            ((tag (:wat::core::first tagged))
-             (msg (:wat::core::second tagged))
-             (_ (:wat::core::if (:wat::core::= tag 0) -> :wat::core::i64
+            [tag (:wat::core::first tagged)
+             msg (:wat::core::second tagged)
+             _ (:wat::core::if (:wat::core::= tag 0) -> :wat::core::i64
                         (:wat::io::IOWriter/write-string stdout msg)
-                        (:wat::io::IOWriter/write-string stderr msg)))
-             (_ack
-              (:wat::console::ack-at pairs idx)))
+                        (:wat::io::IOWriter/write-string stderr msg))
+             _ack
+              (:wat::console::ack-at pairs idx)]
             (:wat::console::loop pairs stdout stderr)))
         ((:wat::core::Ok :wat::core::None)
           (:wat::console::loop
@@ -161,8 +161,8 @@
   (:wat::core::match (:wat::core::get pairs idx) -> :wat::core::nil
     ((:wat::core::Some pair)
       (:wat::core::let
-        ((ack-tx
-          (:wat::core::second pair)))
+        [ack-tx
+          (:wat::core::second pair)]
         (:wat::core::Result/expect -> :wat::core::nil
           (:wat::kernel::send ack-tx :wat::core::nil)
           "Console/ack-at: ack-tx disconnected — producer scope died mid-write?")))
@@ -191,16 +191,16 @@
     (msg :wat::core::String)
     -> :wat::core::nil)
   (:wat::core::let
-    ((tx (:wat::core::first handle))
-     (ack-rx (:wat::core::second handle))
-     (_send
+    [tx (:wat::core::first handle)
+     ack-rx (:wat::core::second handle)
+     _send
       (:wat::core::Result/expect -> :wat::core::nil
         (:wat::kernel::send tx (:wat::core::Tuple 0 msg))
-        "Console/out: tx disconnected — Console driver died?"))
-     (_ack
+        "Console/out: tx disconnected — Console driver died?")
+     _ack
       (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
         (:wat::kernel::recv ack-rx)
-        "Console/out: ack-rx disconnected — Console driver died mid-write?")))
+        "Console/out: ack-rx disconnected — Console driver died mid-write?")]
     :wat::core::nil))
 
 (:wat::core::define
@@ -209,16 +209,16 @@
     (msg :wat::core::String)
     -> :wat::core::nil)
   (:wat::core::let
-    ((tx (:wat::core::first handle))
-     (ack-rx (:wat::core::second handle))
-     (_send
+    [tx (:wat::core::first handle)
+     ack-rx (:wat::core::second handle)
+     _send
       (:wat::core::Result/expect -> :wat::core::nil
         (:wat::kernel::send tx (:wat::core::Tuple 1 msg))
-        "Console/err: tx disconnected — Console driver died?"))
-     (_ack
+        "Console/err: tx disconnected — Console driver died?")
+     _ack
       (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
         (:wat::kernel::recv ack-rx)
-        "Console/err: ack-rx disconnected — Console driver died mid-write?")))
+        "Console/err: ack-rx disconnected — Console driver died mid-write?")]
     :wat::core::nil))
 
 ;; --- Console setup ---
@@ -243,23 +243,23 @@
     ;; index of the request pair matches the index of the ack
     ;; pair — this is what makes pair-by-index ack routing
     ;; possible inside Console/loop.
-    ((req-pairs
+    [req-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
           [_i <- :wat::core::i64]
            -> :(wat::console::ReqTx,wat::console::ReqRx)
           (:wat::kernel::make-bounded-channel
-            :wat::console::Message 1))))
-     (ack-pairs
+            :wat::console::Message 1)))
+     ack-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
           [_i <- :wat::core::i64]
            -> :(wat::console::AckTx,wat::console::AckRx)
-          (:wat::kernel::make-bounded-channel :wat::core::nil 1))))
+          (:wat::kernel::make-bounded-channel :wat::core::nil 1)))
      ;; Producer-side: pop a Handle = (req-Tx, ack-Rx).
-     (handles
+     handles
       (:wat::std::list::zip
         (:wat::core::map req-pairs
           (:wat::core::fn
@@ -270,11 +270,11 @@
           (:wat::core::fn
             [p <- :(wat::console::AckTx,wat::console::AckRx)]
              -> :wat::console::AckRx
-            (:wat::core::second p)))))
+            (:wat::core::second p))))
      ;; Driver-side: Vec<DriverPair> = (req-Rx, ack-Tx) at the
      ;; matching index. select fires for idx i; pairs[i].second
      ;; is the ack-Tx the driver writes back on.
-     (driver-pairs
+     driver-pairs
       (:wat::std::list::zip
         (:wat::core::map req-pairs
           (:wat::core::fn
@@ -285,14 +285,14 @@
           (:wat::core::fn
             [p <- :(wat::console::AckTx,wat::console::AckRx)]
              -> :wat::console::AckTx
-            (:wat::core::first p)))))
-     (pool
-      (:wat::kernel::HandlePool::new "Console" handles))
-     (driver
+            (:wat::core::first p))))
+     pool
+      (:wat::kernel::HandlePool::new "Console" handles)
+     driver
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
            _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
            -> :wat::core::nil
-          (:wat::console::loop driver-pairs stdout stderr)))))
+          (:wat::console::loop driver-pairs stdout stderr)))]
     (:wat::core::Tuple pool driver)))

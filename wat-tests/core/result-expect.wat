@@ -12,11 +12,11 @@
 (:wat::test::deftest :wat-tests::core::result-expect::ok-i64
   ()
   (:wat::core::let
-    ((res (:wat::core::Ok 99))
-     (v
+    [res (:wat::core::Ok 99)
+     v
       (:wat::core::Result/expect -> :wat::core::i64
         res
-        "should be Ok")))
+        "should be Ok")]
     (:wat::test::assert-eq v 99)))
 
 
@@ -25,11 +25,11 @@
 (:wat::test::deftest :wat-tests::core::result-expect::ok-string
   ()
   (:wat::core::let
-    ((res (:wat::core::Ok "yes"))
-     (v
+    [res (:wat::core::Ok "yes")
+     v
       (:wat::core::Result/expect -> :wat::core::String
         res
-        "should be Ok")))
+        "should be Ok")]
     (:wat::test::assert-eq v "yes")))
 
 
@@ -38,7 +38,7 @@
 (:wat::test::deftest :wat-tests::core::result-expect::err-panics-with-message
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
@@ -48,14 +48,14 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
             (:wat::core::let
-              ((res (:wat::core::Err "rundb crashed"))
-               (_v
+              [res (:wat::core::Err "rundb crashed")
+               _v
                 (:wat::core::Result/expect -> :wat::core::i64
                   res
-                  "expected Ok value")))
+                  "expected Ok value")]
               ())))
-        (:wat::core::Vector :wat::core::String)))
-     (fail (:wat::kernel::RunResult/failure r)))
+        (:wat::core::Vector :wat::core::String))
+     fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
         (:wat::test::assert-eq

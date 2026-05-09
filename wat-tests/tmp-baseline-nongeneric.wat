@@ -5,9 +5,9 @@
      (:test::make-pair (a :wat::core::i64) (b :wat::core::bool) -> :(wat::core::i64,wat::core::bool))
      (:wat::core::Tuple a b)))
   (:wat::core::let
-    ((pair
-      (:test::make-pair 42 true))
-     (a (:wat::core::first pair))
-     (b (:wat::core::second pair))
-     (_ (:wat::test::assert-eq a 42)))
+    [pair
+      (:test::make-pair 42 true)
+     a (:wat::core::first pair)
+     b (:wat::core::second pair)
+     _ (:wat::test::assert-eq a 42)]
     (:wat::test::assert-eq b true)))

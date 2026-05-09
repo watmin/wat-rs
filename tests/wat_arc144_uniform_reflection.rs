@@ -93,10 +93,10 @@ fn user_function_lookup_define_emits_define_head() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define :user::greet))
-             (rendered
-              (:wat::edn::write def-opt)))
+            [def-opt
+              (:wat::runtime::lookup-define :user::greet)
+             rendered
+              (:wat::edn::write def-opt)]
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
     let out = run(src);
@@ -131,10 +131,10 @@ fn user_function_signature_and_body_return_some() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((sig-opt
-              (:wat::runtime::signature-of :user::add))
-             (body-opt
-              (:wat::runtime::body-of :user::add)))
+            [sig-opt
+              (:wat::runtime::signature-of :user::add)
+             body-opt
+              (:wat::runtime::body-of :user::add)]
             (:wat::core::match sig-opt
               -> :wat::core::nil
               ((:wat::core::Some _)
@@ -192,10 +192,10 @@ fn primitive_lookup_define_and_signature_smoke() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define :wat::core::foldl))
-             (sig-opt
-              (:wat::runtime::signature-of :wat::core::foldl)))
+            [def-opt
+              (:wat::runtime::lookup-define :wat::core::foldl)
+             sig-opt
+              (:wat::runtime::signature-of :wat::core::foldl)]
             (:wat::core::match def-opt
               -> :wat::core::nil
               ((:wat::core::Some _)
@@ -225,10 +225,10 @@ fn special_form_lookup_define_smoke() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define :wat::core::if))
-             (rendered
-              (:wat::edn::write def-opt)))
+            [def-opt
+              (:wat::runtime::lookup-define :wat::core::if)
+             rendered
+              (:wat::edn::write def-opt)]
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
     let out = run(src);
@@ -266,10 +266,10 @@ fn type_lookup_define_smoke() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define :my::Pair))
-             (rendered
-              (:wat::edn::write def-opt)))
+            [def-opt
+              (:wat::runtime::lookup-define :my::Pair)
+             rendered
+              (:wat::edn::write def-opt)]
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
     let out = run(src);
@@ -305,10 +305,10 @@ fn dispatch_length_lookup_define_emits_define_dispatch_head() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((def-opt
-              (:wat::runtime::lookup-define :wat::core::length))
-             (rendered
-              (:wat::edn::write def-opt)))
+            [def-opt
+              (:wat::runtime::lookup-define :wat::core::length)
+             rendered
+              (:wat::edn::write def-opt)]
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
     let out = run(src);
@@ -352,10 +352,10 @@ fn dispatch_length_signature_and_body_shape() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((sig-opt
-              (:wat::runtime::signature-of :wat::core::length))
-             (body-opt
-              (:wat::runtime::body-of :wat::core::length)))
+            [sig-opt
+              (:wat::runtime::signature-of :wat::core::length)
+             body-opt
+              (:wat::runtime::body-of :wat::core::length)]
             (:wat::core::match sig-opt
               -> :wat::core::nil
               ((:wat::core::Some _)

@@ -18,15 +18,15 @@
 (:wat::test::deftest :wat-lru::test-local-cache-put-then-get
   ()
   (:wat::core::let
-    ((cache
-      (:wat::lru::LocalCache::new 16))
-     (_ (:wat::lru::LocalCache::put cache "answer" 42))
-     (got
-      (:wat::lru::LocalCache::get cache "answer"))
-     (result
+    [cache
+      (:wat::lru::LocalCache::new 16)
+     _ (:wat::lru::LocalCache::put cache "answer" 42)
+     got
+      (:wat::lru::LocalCache::get cache "answer")
+     result
       (:wat::core::match got -> :wat::core::i64
         ((:wat::core::Some v) v)
-        (:wat::core::None -1))))
+        (:wat::core::None -1))]
     (:wat::test::assert-eq result 42)))
 
 ;; ─── miss returns :None ─────────────────────────────────────────────
@@ -34,14 +34,14 @@
 (:wat::test::deftest :wat-lru::test-local-cache-miss-returns-none
   ()
   (:wat::core::let
-    ((cache
-      (:wat::lru::LocalCache::new 16))
-     (got
-      (:wat::lru::LocalCache::get cache "missing"))
-     (is-none
+    [cache
+      (:wat::lru::LocalCache::new 16)
+     got
+      (:wat::lru::LocalCache::get cache "missing")
+     is-none
       (:wat::core::match got -> :wat::core::bool
         ((:wat::core::Some _v) false)
-        (:wat::core::None true))))
+        (:wat::core::None true))]
     (:wat::test::assert-eq is-none true)))
 
 ;; ─── put overwrites existing key ────────────────────────────────────
@@ -49,16 +49,16 @@
 (:wat::test::deftest :wat-lru::test-local-cache-put-overwrites
   ()
   (:wat::core::let
-    ((cache
-      (:wat::lru::LocalCache::new 16))
-     (_ (:wat::lru::LocalCache::put cache "k" 1))
-     (_ (:wat::lru::LocalCache::put cache "k" 99))
-     (got
-      (:wat::lru::LocalCache::get cache "k"))
-     (result
+    [cache
+      (:wat::lru::LocalCache::new 16)
+     _ (:wat::lru::LocalCache::put cache "k" 1)
+     _ (:wat::lru::LocalCache::put cache "k" 99)
+     got
+      (:wat::lru::LocalCache::get cache "k")
+     result
       (:wat::core::match got -> :wat::core::i64
         ((:wat::core::Some v) v)
-        (:wat::core::None -1))))
+        (:wat::core::None -1))]
     (:wat::test::assert-eq result 99)))
 
 ;; ─── evict at capacity ──────────────────────────────────────────────
@@ -67,15 +67,15 @@
 (:wat::test::deftest :wat-lru::test-local-cache-evict-at-capacity
   ()
   (:wat::core::let
-    ((cache
-      (:wat::lru::LocalCache::new 2))
-     (_ (:wat::lru::LocalCache::put cache 1 10))
-     (_ (:wat::lru::LocalCache::put cache 2 20))
-     (_ (:wat::lru::LocalCache::put cache 3 30))
-     (got
-      (:wat::lru::LocalCache::get cache 1))
-     (is-none
+    [cache
+      (:wat::lru::LocalCache::new 2)
+     _ (:wat::lru::LocalCache::put cache 1 10)
+     _ (:wat::lru::LocalCache::put cache 2 20)
+     _ (:wat::lru::LocalCache::put cache 3 30)
+     got
+      (:wat::lru::LocalCache::get cache 1)
+     is-none
       (:wat::core::match got -> :wat::core::bool
         ((:wat::core::Some _v) false)
-        (:wat::core::None true))))
+        (:wat::core::None true))]
     (:wat::test::assert-eq is-none true)))

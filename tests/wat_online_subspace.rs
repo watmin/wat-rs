@@ -42,10 +42,10 @@ fn subspace_construct_dim_k_n_zero() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((s (:wat::holon::OnlineSubspace/new 10000 16))
-             (d (:wat::holon::OnlineSubspace/dim s))
-             (k (:wat::holon::OnlineSubspace/k s))
-             (n (:wat::holon::OnlineSubspace/n s)))
+            [s (:wat::holon::OnlineSubspace/new 10000 16)
+             d (:wat::holon::OnlineSubspace/dim s)
+             k (:wat::holon::OnlineSubspace/k s)
+             n (:wat::holon::OnlineSubspace/n s)]
             (:wat::io::IOWriter/println stdout
               (:wat::core::if
                 (:wat::core::and (:wat::core::= d 10000)
@@ -65,10 +65,10 @@ fn subspace_update_increments_n_and_returns_residual() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((s (:wat::holon::OnlineSubspace/new 10000 4))
-             (v (:wat::holon::encode (:wat::holon::Atom "x")))
-             (residual (:wat::holon::OnlineSubspace/update s v))
-             (n (:wat::holon::OnlineSubspace/n s)))
+            [s (:wat::holon::OnlineSubspace/new 10000 4)
+             v (:wat::holon::encode (:wat::holon::Atom "x"))
+             residual (:wat::holon::OnlineSubspace/update s v)
+             n (:wat::holon::OnlineSubspace/n s)]
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::= n 1) -> :wat::core::String "incremented" "stuck"))))
     "##;
@@ -85,9 +85,9 @@ fn subspace_eigenvalues_returns_k_floats() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((s (:wat::holon::OnlineSubspace/new 10000 8))
-             (eigs (:wat::holon::OnlineSubspace/eigenvalues s))
-             (len (:wat::core::length eigs)))
+            [s (:wat::holon::OnlineSubspace/new 10000 8)
+             eigs (:wat::holon::OnlineSubspace/eigenvalues s)
+             len (:wat::core::length eigs)]
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::= len 8) -> :wat::core::String "k-eigs" "wrong-len"))))
     "##;

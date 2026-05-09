@@ -68,7 +68,7 @@ fn walkstep_continue_parametric_inference_at_use_site() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((wrapped (:my::test::wrap 7)))
+            [wrapped (:my::test::wrap 7)]
             (:wat::io::IOWriter/println stdout "ok")))
     "#;
     assert_eq!(run(src), vec!["ok".to_string()]);
@@ -93,7 +93,7 @@ fn walkstep_skip_parametric_inference_at_use_site() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((halted (:my::test::halt 3)))
+            [halted (:my::test::halt 3)]
             (:wat::io::IOWriter/println stdout "ok")))
     "#;
     assert_eq!(run(src), vec!["ok".to_string()]);
@@ -130,7 +130,7 @@ fn walk_visitor_signature_matches_at_use_site() {
               :my::test::count-visit) -> :wat::core::nil
             ((:wat::core::Ok pair)
               (:wat::core::let
-                ((count (:wat::core::second pair)))
+                [count (:wat::core::second pair)]
                 (:wat::core::if (:wat::core::= count 1) -> :wat::core::nil
                   (:wat::io::IOWriter/println stdout "ok")
                   (:wat::io::IOWriter/println stdout "wrong-count"))))

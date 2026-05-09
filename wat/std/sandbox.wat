@@ -99,16 +99,16 @@
     (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::let
-    ((stdin-w   (:wat::kernel::Process/stdin proc))
-     (joined              (:wat::core::string::join "\n" stdin))
-     (_n                 (:wat::io::IOWriter/write-string stdin-w joined))
-     (_close                  (:wat::io::IOWriter/close stdin-w))
-     (stdout-r  (:wat::kernel::Process/stdout proc))
-     (stderr-r  (:wat::kernel::Process/stderr proc))
-     (stdout-lines    (:wat::kernel::drain-lines stdout-r))
-     (stderr-lines    (:wat::kernel::drain-lines stderr-r))
-     (joined-result
-      (:wat::kernel::Process/join-result proc))
+    [stdin-w   (:wat::kernel::Process/stdin proc)
+     joined              (:wat::core::string::join "\n" stdin)
+     _n                 (:wat::io::IOWriter/write-string stdin-w joined)
+     _close                  (:wat::io::IOWriter/close stdin-w)
+     stdout-r  (:wat::kernel::Process/stdout proc)
+     stderr-r  (:wat::kernel::Process/stderr proc)
+     stdout-lines    (:wat::kernel::drain-lines stdout-r)
+     stderr-lines    (:wat::kernel::drain-lines stderr-r)
+     joined-result
+      (:wat::kernel::Process/join-result proc)
      ;; Arc 113 slice 3 — symmetry with the thread cascade. When
      ;; the forked child panicked with an upstream-chain-bearing
      ;; AssertionPayload, fork.rs's emit_panics_to_stderr
@@ -119,9 +119,9 @@
      ;; Threads pass DiedError values directly through crossbeam;
      ;; processes pass them as EDN over kernel pipes; the chain at
      ;; the caller is identical regardless. Only the wire differs.
-     (stderr-chain
-      (:wat::kernel::extract-panics stderr-lines))
-     (failure
+     stderr-chain
+      (:wat::kernel::extract-panics stderr-lines)
+     failure
       (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
         ((:wat::core::Ok _)    :wat::core::None)
         ((:wat::core::Err err)
@@ -129,7 +129,7 @@
                  (:wat::core::match stderr-chain
                    -> :wat::core::Vector<wat::kernel::ProcessDiedError>
                    ((:wat::core::Some chain) chain)
-                   (:wat::core::None         err))))))))
+                   (:wat::core::None         err))))))]
     (:wat::core::struct-new :wat::kernel::RunResult
       stdout-lines stderr-lines failure)))
 

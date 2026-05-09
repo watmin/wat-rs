@@ -1253,6 +1253,30 @@ NOT a blocker for arc 109 v1 closure. When we DO debate:
   hyphenated `<verb>-<noun>` form that the alignment compares
   against)
 
+## M. Arc 169 — struct-destructure form A — V1 BLOCKER
+
+**Surfaced 2026-05-08 mid-arc-168 slice 4 (sonnet sweep
+in-flight).** User direction: *"we'll block 109's closure on
+it."* Recorded as a v1-closure blocker.
+
+The struct-destructure form `[{field1 field2 ...} struct-value]`
+in let bindings — bare symbols inside `{}` where each symbol IS
+both the field-name (looked up against the prior binding's
+struct type) AND the binding-name in the let scope. Settled via
+four-questions discipline; DESIGN at
+`docs/arc/2026/05/169-struct-destructure-form-a/DESIGN.md`.
+
+**Status: BLOCKER for arc 109 v1 milestone closure.** Arc 109
+v1 cannot close until arc 169 ships (substrate work + tests +
+closure paperwork).
+
+Cross-references:
+- Arc 098 (matches?) — the field-name contextual reading precedent
+- Arc 168 (let-flat-shape) — added tuple destructure via Vector
+  binder; arc 169 adds parallel struct destructure via Map binder
+- Arc 169 DESIGN.md — settled four-questions evaluation,
+  out-of-scope items, slice plan stub
+
 ## Cross-references
 
 - Arc 005 — stdlib naming audit (the inventory this arc updates).

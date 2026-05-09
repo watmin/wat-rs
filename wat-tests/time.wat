@@ -19,8 +19,8 @@
 (:wat::test::deftest :wat-tests::time::test-now-returns-instant
   ()
   (:wat::core::let
-    ((i (:wat::time::now))
-     (s (:wat::time::epoch-seconds i)))
+    [i (:wat::time::now)
+     s (:wat::time::epoch-seconds i)]
     ;; Sanity: now is post-2020 (> 1577836800 = 2020-01-01T00:00:00Z).
     ;; This file's author won't see year-2200 problems.
     (:wat::test::assert-eq (:wat::core::> s 1577836800) true)))
@@ -31,8 +31,8 @@
 (:wat::test::deftest :wat-tests::time::test-at-zero-is-epoch
   ()
   (:wat::core::let
-    ((i (:wat::time::at 0))
-     (s (:wat::time::to-iso8601 i 0)))
+    [i (:wat::time::at 0)
+     s (:wat::time::to-iso8601 i 0)]
     (:wat::test::assert-eq s "1970-01-01T00:00:00Z")))
 
 
@@ -41,10 +41,10 @@
 (:wat::test::deftest :wat-tests::time::test-at-millis-matches-at
   ()
   (:wat::core::let
-    ((a (:wat::time::at 1))
-     (b (:wat::time::at-millis 1000))
-     (sa (:wat::time::epoch-seconds a))
-     (sb (:wat::time::epoch-seconds b)))
+    [a (:wat::time::at 1)
+     b (:wat::time::at-millis 1000)
+     sa (:wat::time::epoch-seconds a)
+     sb (:wat::time::epoch-seconds b)]
     (:wat::test::assert-eq sa sb)))
 
 
@@ -53,10 +53,10 @@
 (:wat::test::deftest :wat-tests::time::test-at-nanos-matches-at-millis
   ()
   (:wat::core::let
-    ((a (:wat::time::at-millis 1000))
-     (b (:wat::time::at-nanos 1000000000))
-     (ma (:wat::time::epoch-millis a))
-     (mb (:wat::time::epoch-millis b)))
+    [a (:wat::time::at-millis 1000)
+     b (:wat::time::at-nanos 1000000000)
+     ma (:wat::time::epoch-millis a)
+     mb (:wat::time::epoch-millis b)]
     (:wat::test::assert-eq ma mb)))
 
 
@@ -65,12 +65,12 @@
 (:wat::test::deftest :wat-tests::time::test-iso8601-roundtrip-3-digits
   ()
   (:wat::core::let
-    ((parsed
-      (:wat::time::from-iso8601 "2026-04-25T14:30:42.123Z")))
+    [parsed
+      (:wat::time::from-iso8601 "2026-04-25T14:30:42.123Z")]
     (:wat::core::match parsed -> :wat::core::nil
       ((:wat::core::Some i)
         (:wat::core::let
-          ((s (:wat::time::to-iso8601 i 3)))
+          [s (:wat::time::to-iso8601 i 3)]
           (:wat::test::assert-eq s "2026-04-25T14:30:42.123Z")))
       (:wat::core::None
         (:wat::kernel::assertion-failed!
@@ -82,12 +82,12 @@
 (:wat::test::deftest :wat-tests::time::test-iso8601-roundtrip-9-digits
   ()
   (:wat::core::let
-    ((parsed
-      (:wat::time::from-iso8601 "2026-04-25T14:30:42.123456789Z")))
+    [parsed
+      (:wat::time::from-iso8601 "2026-04-25T14:30:42.123456789Z")]
     (:wat::core::match parsed -> :wat::core::nil
       ((:wat::core::Some i)
         (:wat::core::let
-          ((s (:wat::time::to-iso8601 i 9)))
+          [s (:wat::time::to-iso8601 i 9)]
           (:wat::test::assert-eq s "2026-04-25T14:30:42.123456789Z")))
       (:wat::core::None
         (:wat::kernel::assertion-failed!
@@ -100,12 +100,12 @@
 (:wat::test::deftest :wat-tests::time::test-iso8601-parse-failure-is-none
   ()
   (:wat::core::let
-    ((parsed
-      (:wat::time::from-iso8601 "not-a-real-iso-string"))
-     (is-none?
+    [parsed
+      (:wat::time::from-iso8601 "not-a-real-iso-string")
+     is-none?
       (:wat::core::match parsed -> :wat::core::bool
         ((:wat::core::Some _) false)
-        (:wat::core::None true))))
+        (:wat::core::None true))]
     (:wat::test::assert-eq is-none? true)))
 
 
@@ -114,8 +114,8 @@
 (:wat::test::deftest :wat-tests::time::test-to-iso8601-digits-zero
   ()
   (:wat::core::let
-    ((i (:wat::time::at-millis 1234567890123))
-     (s (:wat::time::to-iso8601 i 0)))
+    [i (:wat::time::at-millis 1234567890123)
+     s (:wat::time::to-iso8601 i 0)]
     (:wat::test::assert-eq s "2009-02-13T23:31:30Z")))
 
 
@@ -124,9 +124,9 @@
 (:wat::test::deftest :wat-tests::time::test-to-iso8601-clamps-digits-high
   ()
   (:wat::core::let
-    ((i (:wat::time::at 0))
+    [i (:wat::time::at 0)
      ;; digits = 42 should clamp to 9 — 9 zeroes for the epoch.
-     (s (:wat::time::to-iso8601 i 42)))
+     s (:wat::time::to-iso8601 i 42)]
     (:wat::test::assert-eq s "1970-01-01T00:00:00.000000000Z")))
 
 
@@ -135,9 +135,9 @@
 (:wat::test::deftest :wat-tests::time::test-to-iso8601-clamps-digits-low
   ()
   (:wat::core::let
-    ((i (:wat::time::at 0))
+    [i (:wat::time::at 0)
      ;; digits = -5 should clamp to 0 — no fractional portion.
-     (s (:wat::time::to-iso8601 i -5)))
+     s (:wat::time::to-iso8601 i -5)]
     (:wat::test::assert-eq s "1970-01-01T00:00:00Z")))
 
 
@@ -146,11 +146,11 @@
 (:wat::test::deftest :wat-tests::time::test-elapsed-via-subtract
   ()
   (:wat::core::let
-    ((start (:wat::time::now))
-     (end (:wat::time::now))
-     (s-start (:wat::time::epoch-millis start))
-     (s-end (:wat::time::epoch-millis end))
-     (delta (:wat::core::- s-end s-start)))
+    [start (:wat::time::now)
+     end (:wat::time::now)
+     s-start (:wat::time::epoch-millis start)
+     s-end (:wat::time::epoch-millis end)
+     delta (:wat::core::- s-end s-start)]
     ;; Two `now` calls in immediate succession produce delta >= 0.
     ;; (NTP could move clock backwards; for the test environment,
     ;; same-process same-second calls reliably observe non-negative
@@ -163,10 +163,10 @@
 (:wat::test::deftest :wat-tests::time::test-epoch-accessors-consistent
   ()
   (:wat::core::let
-    ((i (:wat::time::at-millis 1234567890123))
-     (sec (:wat::time::epoch-seconds i))
-     (ms (:wat::time::epoch-millis i))
-     (derived (:wat::core::* sec 1000)))
+    [i (:wat::time::at-millis 1234567890123)
+     sec (:wat::time::epoch-seconds i)
+     ms (:wat::time::epoch-millis i)
+     derived (:wat::core::* sec 1000)]
     ;; ms truncates to int, sec*1000 = 1234567890000, ms = 1234567890123.
     ;; Difference is the sub-second portion (123 ms).
     (:wat::test::assert-eq (:wat::core::- ms derived) 123)))
@@ -181,67 +181,67 @@
 (:wat::test::deftest :wat-tests::time::test-duration-nanosecond
   ()
   (:wat::core::let
-    ((d (:wat::time::Nanosecond 42)))
+    [d (:wat::time::Nanosecond 42)]
     ;; Sanity: round-trip via render. 42 ns is the input.
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 42ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-microsecond
   ()
   (:wat::core::let
-    ((d (:wat::time::Microsecond 1)))
+    [d (:wat::time::Microsecond 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-millisecond
   ()
   (:wat::core::let
-    ((d (:wat::time::Millisecond 1)))
+    [d (:wat::time::Millisecond 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-second
   ()
   (:wat::core::let
-    ((d (:wat::time::Second 1)))
+    [d (:wat::time::Second 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-minute
   ()
   (:wat::core::let
-    ((d (:wat::time::Minute 1)))
+    [d (:wat::time::Minute 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 60000000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-hour
   ()
   (:wat::core::let
-    ((d (:wat::time::Hour 1)))
+    [d (:wat::time::Hour 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 3600000000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-day
   ()
   (:wat::core::let
-    ((d (:wat::time::Day 1)))
+    [d (:wat::time::Day 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 86400000000000ns>")))
 
 ;; Compositional sanity — arithmetic relationships.
 (:wat::test::deftest :wat-tests::time::test-duration-hour-equals-60-minutes
   ()
   (:wat::core::let
-    ((h (:wat::time::Hour 1))
-     (m60 (:wat::time::Minute 60)))
+    [h (:wat::time::Hour 1)
+     m60 (:wat::time::Minute 60)]
     ;; Same nanos count → same Duration → same render.
     (:wat::test::assert-eq (:wat::core::show h) (:wat::core::show m60))))
 
 (:wat::test::deftest :wat-tests::time::test-duration-day-equals-24-hours
   ()
   (:wat::core::let
-    ((d (:wat::time::Day 1))
-     (h24 (:wat::time::Hour 24)))
+    [d (:wat::time::Day 1)
+     h24 (:wat::time::Hour 24)]
     (:wat::test::assert-eq (:wat::core::show d) (:wat::core::show h24))))
 
 ;; Zero is a valid non-negative Duration.
 (:wat::test::deftest :wat-tests::time::test-duration-zero-is-valid
   ()
   (:wat::core::let
-    ((d (:wat::time::Hour 0)))
+    [d (:wat::time::Hour 0)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 0ns>")))
 
 
@@ -259,36 +259,36 @@
 (:wat::test::deftest :wat-tests::time::test-instant-sub-duration-yields-instant
   ()
   (:wat::core::let
-    ((origin (:wat::time::at 1000000))
-     (one-min (:wat::time::Minute 1))
-     (earlier (:wat::time::- origin one-min))
-     (delta
+    [origin (:wat::time::at 1000000)
+     one-min (:wat::time::Minute 1)
+     earlier (:wat::time::- origin one-min)
+     delta
       (:wat::core::-
         (:wat::time::epoch-seconds origin)
-        (:wat::time::epoch-seconds earlier))))
+        (:wat::time::epoch-seconds earlier))]
     ;; 1 minute earlier = 60 seconds back.
     (:wat::test::assert-eq delta 60)))
 
 (:wat::test::deftest :wat-tests::time::test-instant-add-duration-yields-instant
   ()
   (:wat::core::let
-    ((origin (:wat::time::at 1000000))
-     (one-hour (:wat::time::Hour 1))
-     (later (:wat::time::+ origin one-hour))
-     (delta
+    [origin (:wat::time::at 1000000)
+     one-hour (:wat::time::Hour 1)
+     later (:wat::time::+ origin one-hour)
+     delta
       (:wat::core::-
         (:wat::time::epoch-seconds later)
-        (:wat::time::epoch-seconds origin))))
+        (:wat::time::epoch-seconds origin))]
     ;; 1 hour later = 3600 seconds forward.
     (:wat::test::assert-eq delta 3600)))
 
 (:wat::test::deftest :wat-tests::time::test-instant-sub-instant-yields-duration
   ()
   (:wat::core::let
-    ((later (:wat::time::at 1000060))
-     (earlier (:wat::time::at 1000000))
+    [later (:wat::time::at 1000060)
+     earlier (:wat::time::at 1000000)
      ;; Instant - Instant -> Duration. RHS dispatch picks the right arm.
-     (elapsed (:wat::time::- later earlier)))
+     elapsed (:wat::time::- later earlier)]
     ;; 60 seconds = 60_000_000_000 nanos.
     (:wat::test::assert-eq (:wat::core::show elapsed)
                            "<Duration 60000000000ns>")))
@@ -296,34 +296,34 @@
 (:wat::test::deftest :wat-tests::time::test-add-then-sub-roundtrips
   ()
   (:wat::core::let
-    ((origin (:wat::time::at 1000000))
-     (d (:wat::time::Day 1))
-     (later (:wat::time::+ origin d))
-     (back (:wat::time::- later d))
-     (delta
+    [origin (:wat::time::at 1000000)
+     d (:wat::time::Day 1)
+     later (:wat::time::+ origin d)
+     back (:wat::time::- later d)
+     delta
       (:wat::core::-
         (:wat::time::epoch-seconds back)
-        (:wat::time::epoch-seconds origin))))
+        (:wat::time::epoch-seconds origin))]
     ;; +1 day then -1 day returns to origin.
     (:wat::test::assert-eq delta 0)))
 
 (:wat::test::deftest :wat-tests::time::test-zero-duration-is-identity-for-add
   ()
   (:wat::core::let
-    ((origin (:wat::time::at 1000000))
-     (zero (:wat::time::Hour 0))
-     (same (:wat::time::+ origin zero))
-     (delta
+    [origin (:wat::time::at 1000000)
+     zero (:wat::time::Hour 0)
+     same (:wat::time::+ origin zero)
+     delta
       (:wat::core::-
         (:wat::time::epoch-seconds same)
-        (:wat::time::epoch-seconds origin))))
+        (:wat::time::epoch-seconds origin))]
     (:wat::test::assert-eq delta 0)))
 
 (:wat::test::deftest :wat-tests::time::test-instant-sub-self-is-zero-duration
   ()
   (:wat::core::let
-    ((t (:wat::time::at 1000000))
-     (d (:wat::time::- t t)))
+    [t (:wat::time::at 1000000)
+     d (:wat::time::- t t)]
     ;; Same instant - itself = 0 ns Duration.
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 0ns>")))
 
@@ -336,13 +336,13 @@
 (:wat::test::deftest :wat-tests::time::test-ago-is-before-now
   ()
   (:wat::core::let
-    ((past
-      (:wat::time::ago (:wat::time::Hour 1)))
-     (now-i (:wat::time::now))
+    [past
+      (:wat::time::ago (:wat::time::Hour 1))
+     now-i (:wat::time::now)
      ;; Past minus now should be a NEGATIVE duration normally, but
      ;; per §2 Durations are non-negative. So we reverse: now - past
      ;; should produce a positive Duration.
-     (elapsed (:wat::time::- now-i past)))
+     elapsed (:wat::time::- now-i past)]
     ;; Elapsed should be at least 3,599,000,000,000 ns (just under
     ;; 1 hour, allowing for the few microseconds between the two
     ;; `now` calls). Asserting >= 3_599_000_000_000.
@@ -357,14 +357,14 @@
 (:wat::test::deftest :wat-tests::time::test-from-now-is-after-now
   ()
   (:wat::core::let
-    ((future
-      (:wat::time::from-now (:wat::time::Hour 1)))
-     (now-i (:wat::time::now))
+    [future
+      (:wat::time::from-now (:wat::time::Hour 1))
+     now-i (:wat::time::now)
      ;; Future - now should yield positive Duration ~ 1 hour.
-     (elapsed-ns
+     elapsed-ns
       (:wat::core::-
         (:wat::time::epoch-nanos future)
-        (:wat::time::epoch-nanos now-i))))
+        (:wat::time::epoch-nanos now-i))]
     ;; At least 3_599_000_000_000 ns (just under 1 hour, allowing
     ;; few microseconds for two `now` calls separating).
     (:wat::test::assert-eq (:wat::core::>= elapsed-ns 3599000000000) true)))
@@ -373,11 +373,11 @@
   ()
   ;; (ago (Hour 0)) = (now). Tolerance: same-second.
   (:wat::core::let
-    ((past
-      (:wat::time::ago (:wat::time::Hour 0)))
-     (now-i (:wat::time::now))
-     (past-s (:wat::time::epoch-seconds past))
-     (now-s (:wat::time::epoch-seconds now-i)))
+    [past
+      (:wat::time::ago (:wat::time::Hour 0))
+     now-i (:wat::time::now)
+     past-s (:wat::time::epoch-seconds past)
+     now-s (:wat::time::epoch-seconds now-i)]
     ;; Same second (or off-by-one if the test crosses a second
     ;; boundary). Asserting absolute delta <= 1.
     (:wat::test::assert-eq
@@ -387,13 +387,13 @@
 (:wat::test::deftest :wat-tests::time::test-from-now-zero-equals-now
   ()
   (:wat::core::let
-    ((future
-      (:wat::time::from-now (:wat::time::Day 0)))
-     (now-i (:wat::time::now))
-     (delta-s
+    [future
+      (:wat::time::from-now (:wat::time::Day 0))
+     now-i (:wat::time::now)
+     delta-s
       (:wat::core::-
         (:wat::time::epoch-seconds future)
-        (:wat::time::epoch-seconds now-i))))
+        (:wat::time::epoch-seconds now-i))]
     (:wat::test::assert-eq (:wat::core::<= delta-s 1) true)))
 
 
@@ -406,12 +406,12 @@
 (:wat::test::deftest :wat-tests::time::test-hours-ago-equivalent-to-ago-hour
   ()
   (:wat::core::let
-    ((via-sugar (:wat::time::hours-ago 1))
-     (now-i (:wat::time::now))
-     (delta-via-sugar
+    [via-sugar (:wat::time::hours-ago 1)
+     now-i (:wat::time::now)
+     delta-via-sugar
       (:wat::core::-
         (:wat::time::epoch-nanos now-i)
-        (:wat::time::epoch-nanos via-sugar))))
+        (:wat::time::epoch-nanos via-sugar))]
     ;; (hours-ago 1) is now - 1h. Delta should be ~3.6e12 ns.
     (:wat::test::assert-eq
       (:wat::core::and
@@ -422,12 +422,12 @@
 (:wat::test::deftest :wat-tests::time::test-days-from-now-is-future
   ()
   (:wat::core::let
-    ((future (:wat::time::days-from-now 1))
-     (now-i (:wat::time::now))
-     (delta-s
+    [future (:wat::time::days-from-now 1)
+     now-i (:wat::time::now)
+     delta-s
       (:wat::core::-
         (:wat::time::epoch-seconds future)
-        (:wat::time::epoch-seconds now-i))))
+        (:wat::time::epoch-seconds now-i))]
     ;; ~86,400 seconds in a day, give or take a tick.
     (:wat::test::assert-eq
       (:wat::core::and
@@ -438,12 +438,12 @@
 (:wat::test::deftest :wat-tests::time::test-minutes-ago
   ()
   (:wat::core::let
-    ((past (:wat::time::minutes-ago 5))
-     (now-i (:wat::time::now))
-     (delta-s
+    [past (:wat::time::minutes-ago 5)
+     now-i (:wat::time::now)
+     delta-s
       (:wat::core::-
         (:wat::time::epoch-seconds now-i)
-        (:wat::time::epoch-seconds past))))
+        (:wat::time::epoch-seconds past))]
     ;; 5 minutes = 300 seconds.
     (:wat::test::assert-eq
       (:wat::core::and
@@ -454,12 +454,12 @@
 (:wat::test::deftest :wat-tests::time::test-seconds-from-now
   ()
   (:wat::core::let
-    ((future (:wat::time::seconds-from-now 60))
-     (now-i (:wat::time::now))
-     (delta-s
+    [future (:wat::time::seconds-from-now 60)
+     now-i (:wat::time::now)
+     delta-s
       (:wat::core::-
         (:wat::time::epoch-seconds future)
-        (:wat::time::epoch-seconds now-i))))
+        (:wat::time::epoch-seconds now-i))]
     (:wat::test::assert-eq
       (:wat::core::and
         (:wat::core::>= delta-s 59)
@@ -469,11 +469,11 @@
 (:wat::test::deftest :wat-tests::time::test-zero-hours-ago-is-roughly-now
   ()
   (:wat::core::let
-    ((past (:wat::time::hours-ago 0))
-     (now-i (:wat::time::now))
-     (delta-s
+    [past (:wat::time::hours-ago 0)
+     now-i (:wat::time::now)
+     delta-s
       (:wat::core::-
         (:wat::time::epoch-seconds now-i)
-        (:wat::time::epoch-seconds past))))
+        (:wat::time::epoch-seconds past))]
     ;; Same second (or off-by-one if crossing a boundary).
     (:wat::test::assert-eq (:wat::core::<= delta-s 1) true)))

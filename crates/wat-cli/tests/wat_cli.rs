@@ -109,18 +109,18 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
                      (stderr :wat::io::IOWriter)
                      -> :wat::core::nil)
   (:wat::core::let
-    ((program
+    [program
        (:wat::core::quote
          (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
            ((Some line) (:wat::io::IOWriter/print stdout line))
-           (:None ()))))
-     (program-atom
-       (:wat::holon::Atom program))
+           (:None ())))
+     program-atom
+       (:wat::holon::Atom program)
      ;; arc 057 Story-2 recovery: program-atom is now a structural
      ;; HolonAST (the form lowered onto the algebra grid). to-watast
      ;; lifts it back to a runnable WatAST; eval-ast! fires it.
-     (reveal
-       (:wat::holon::to-watast program-atom)))
+     reveal
+       (:wat::holon::to-watast program-atom)]
     ;; eval-ast! returns :Result<wat::holon::HolonAST, EvalError> per
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
@@ -202,52 +202,52 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
                      (stderr :wat::io::IOWriter)
                      -> :wat::core::nil)
   (:wat::core::let
-    ((program
+    [program
        (:wat::core::quote
          (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
            ((Some line) (:wat::io::IOWriter/print stdout line))
-           (:None ()))))
-     (program-atom
-       (:wat::holon::Atom program))
-     (key-atom
-       (:wat::holon::Atom "hello-world"))
+           (:None ())))
+     program-atom
+       (:wat::holon::Atom program)
+     key-atom
+       (:wat::holon::Atom "hello-world")
 
      ;; Compose: program-atom bound under key-atom.
-     (bound
-       (:wat::holon::Bind key-atom program-atom))
+     bound
+       (:wat::holon::Bind key-atom program-atom)
 
      ;; Substrate proof #1: program-atom's signal is GONE from bound.
      ;; Arc 037 slice 3: presence? does the honest per-d threshold
      ;; comparison internally — the router picks d per operand,
      ;; presence-floor is computed as presence-sigma / sqrt(d) at the
      ;; picked d. Users no longer hand-roll `cosine vs noise-floor`.
-     (_
+     _
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
            (:wat::holon::presence? program-atom bound)
            -> :wat::core::String
            "Some\n"
-           "None\n")))
+           "None\n"))
 
      ;; Self-inverse: bind(bind(k, p), k) recovers p at the vector level.
-     (recovered
-       (:wat::holon::Bind bound key-atom))
+     recovered
+       (:wat::holon::Bind bound key-atom)
 
      ;; Substrate proof #2: program-atom's signal is BACK in recovered.
-     (_
+     _
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
            (:wat::holon::presence? program-atom recovered)
            -> :wat::core::String
            "Some\n"
-           "None\n")))
+           "None\n"))
 
      ;; arc 057 Story-2 recovery: program-atom is the structurally
      ;; lowered HolonAST (Bundle of Symbol/lit leaves). to-watast lifts
      ;; it back to a runnable WatAST. The presence measurements above
      ;; proved the vector dynamics; this line runs the actual program.
-     (reveal
-       (:wat::holon::to-watast program-atom)))
+     reveal
+       (:wat::holon::to-watast program-atom)]
     ;; eval-ast! now returns :Result<wat::holon::HolonAST, EvalError> per
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here —
@@ -439,7 +439,7 @@ fn program_writes_multiple_times_to_stdout() {
                              (stdout :wat::io::IOWriter)
                              (stderr :wat::io::IOWriter)
                              -> :wat::core::nil)
-          (:wat::core::let ((first (:wat::io::IOWriter/print stdout "hello ")))
+          (:wat::core::let [first (:wat::io::IOWriter/print stdout "hello ")]
             (:wat::io::IOWriter/print stdout "world")))
     "#;
     let path = write_temp(program);
@@ -505,7 +505,7 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
                                  (stderr :wat::io::IOWriter)
                                  -> :wat::core::nil)
               (:wat::core::let
-                ((_ (:wat::io::IOWriter/println stdout "READY")))
+                [_ (:wat::io::IOWriter/println stdout "READY")]
                 (:demo::loop stdout)))
         "#;
         let path = write_temp(program);
@@ -612,7 +612,7 @@ fn sigterm_cascades_two_levels_via_process_group() {
                 (:None ())
                 ((Some line)
                   (:wat::core::let
-                    ((_ (:wat::io::IOWriter/println out line)))
+                    [_ (:wat::io::IOWriter/println out line)]
                     (:demo::forward-loop rx out)))))
 
             (:wat::core::define (:user::main
@@ -621,12 +621,12 @@ fn sigterm_cascades_two_levels_via_process_group() {
                                  (stderr :wat::io::IOWriter)
                                  -> :wat::core::nil)
               (:wat::core::let
-                ((_ (:wat::io::IOWriter/println stdout "PARENT READY"))
+                [_ (:wat::io::IOWriter/println stdout "PARENT READY")
                  ;; Grandchild source: prints GRANDCHILD READY then
                  ;; polls stopped?. Pgid inherited from parent (no
                  ;; setpgid in child_branch); cascade reaches it via
                  ;; the cli's killpg.
-                 (child
+                 child
                   (:wat::kernel::fork-program-ast
                     (:wat::test::program
                       (:wat::core::define (:demo::poll-loop -> :wat::core::nil)
@@ -639,14 +639,14 @@ fn sigterm_cascades_two_levels_via_process_group() {
                                            (gstderr :wat::io::IOWriter)
                                            -> :wat::core::nil)
                         (:wat::core::let
-                          ((_ (:wat::io::IOWriter/println gstdout "GRANDCHILD READY")))
-                          (:demo::poll-loop))))))
-                 (rx
-                  (:wat::kernel::Process/stdout child))
-                 (_
+                          [_ (:wat::io::IOWriter/println gstdout "GRANDCHILD READY")]
+                          (:demo::poll-loop)))))
+                 rx
+                  (:wat::kernel::Process/stdout child)
+                 _
                   (:wat::core::let
-                    ((_ (:demo::forward-loop rx stdout)))
-                    (:wat::kernel::Process/join-result child))))
+                    [_ (:demo::forward-loop rx stdout)]
+                    (:wat::kernel::Process/join-result child))]
                 ()))
         "#;
         let path = write_temp(program);

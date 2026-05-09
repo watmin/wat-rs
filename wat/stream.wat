@@ -86,17 +86,17 @@
     (producer :wat::stream::Producer<T>)
     -> :wat::stream::Stream<T>)
   (:wat::core::let
-    ((pair
-      (:wat::kernel::make-bounded-channel :T 1))
-     (tx (:wat::core::first pair))
-     (rx (:wat::core::second pair))
-     (handle
+    [pair
+      (:wat::kernel::make-bounded-channel :T 1)
+     tx (:wat::core::first pair)
+     rx (:wat::core::second pair)
+     handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
            _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
            -> :wat::core::nil
-          (producer tx)))))
+          (producer tx)))]
     (:wat::core::Tuple rx handle)))
 
 ;; --- from-receiver ---
@@ -136,7 +136,7 @@
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
     ((:wat::core::Ok (:wat::core::Some v))
       (:wat::core::let
-        ((u (f v)))
+        [u (f v)]
         (:wat::core::match (:wat::kernel::send out u) -> :wat::core::nil
           ((:wat::core::Ok _) (:wat::stream::map-worker in out f))
           ((:wat::core::Err _) :wat::core::nil))))
@@ -149,18 +149,18 @@
     (f :wat::core::Fn(T)->U)
     -> :wat::stream::Stream<U>)
   (:wat::core::let
-    ((up-rx (:wat::core::first upstream))
-     (pair
-      (:wat::kernel::make-bounded-channel :U 1))
-     (tx (:wat::core::first pair))
-     (rx (:wat::core::second pair))
-     (handle
+    [up-rx (:wat::core::first upstream)
+     pair
+      (:wat::kernel::make-bounded-channel :U 1)
+     tx (:wat::core::first pair)
+     rx (:wat::core::second pair)
+     handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
            _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
            -> :wat::core::nil
-          (:wat::stream::map-worker up-rx tx f)))))
+          (:wat::stream::map-worker up-rx tx f)))]
     (:wat::core::Tuple rx handle)))
 
 ;; --- for-each ---
@@ -189,11 +189,11 @@
     (handler :wat::core::Fn(T)->wat::core::nil)
     -> :wat::core::nil)
   (:wat::core::let
-    ((rx (:wat::core::first stream))
-     (handle (:wat::core::second stream))
-     (_ (:wat::stream::for-each-drain rx handler))
-     (_
-      (:wat::kernel::Thread/join-result handle)))
+    [rx (:wat::core::first stream)
+     handle (:wat::core::second stream)
+     _ (:wat::stream::for-each-drain rx handler)
+     _
+      (:wat::kernel::Thread/join-result handle)]
     :wat::core::nil))
 
 ;; --- collect ---
@@ -219,12 +219,12 @@
     (stream :wat::stream::Stream<T>)
     -> :wat::core::Vector<T>)
   (:wat::core::let
-    ((rx (:wat::core::first stream))
-     (handle (:wat::core::second stream))
-     (items
-      (:wat::stream::collect-drain rx (:wat::core::Vector :T)))
-     (_
-      (:wat::kernel::Thread/join-result handle)))
+    [rx (:wat::core::first stream)
+     handle (:wat::core::second stream)
+     items
+      (:wat::stream::collect-drain rx (:wat::core::Vector :T))
+     _
+      (:wat::kernel::Thread/join-result handle)]
     items))
 
 ;; --- filter ---
@@ -254,18 +254,18 @@
     (pred :wat::core::Fn(T)->wat::core::bool)
     -> :wat::stream::Stream<T>)
   (:wat::core::let
-    ((up-rx (:wat::core::first upstream))
-     (pair
-      (:wat::kernel::make-bounded-channel :T 1))
-     (tx (:wat::core::first pair))
-     (rx (:wat::core::second pair))
-     (handle
+    [up-rx (:wat::core::first upstream)
+     pair
+      (:wat::kernel::make-bounded-channel :T 1)
+     tx (:wat::core::first pair)
+     rx (:wat::core::second pair)
+     handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
            _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
            -> :wat::core::nil
-          (:wat::stream::filter-worker up-rx tx pred)))))
+          (:wat::stream::filter-worker up-rx tx pred)))]
     (:wat::core::Tuple rx handle)))
 
 ;; --- inspect ---
@@ -298,18 +298,18 @@
     (f :wat::core::Fn(T)->wat::core::nil)
     -> :wat::stream::Stream<T>)
   (:wat::core::let
-    ((up-rx (:wat::core::first upstream))
-     (pair
-      (:wat::kernel::make-bounded-channel :T 1))
-     (tx (:wat::core::first pair))
-     (rx (:wat::core::second pair))
-     (handle
+    [up-rx (:wat::core::first upstream)
+     pair
+      (:wat::kernel::make-bounded-channel :T 1)
+     tx (:wat::core::first pair)
+     rx (:wat::core::second pair)
+     handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
            _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
            -> :wat::core::nil
-          (:wat::stream::inspect-worker up-rx tx f)))))
+          (:wat::stream::inspect-worker up-rx tx f)))]
     (:wat::core::Tuple rx handle)))
 
 ;; --- fold ---
@@ -337,11 +337,11 @@
     (f :wat::core::Fn(Acc,T)->Acc)
     -> :Acc)
   (:wat::core::let
-    ((rx (:wat::core::first stream))
-     (handle (:wat::core::second stream))
-     (result (:wat::stream::fold-drain rx init f))
-     (_
-      (:wat::kernel::Thread/join-result handle)))
+    [rx (:wat::core::first stream)
+     handle (:wat::core::second stream)
+     result (:wat::stream::fold-drain rx init f)
+     _
+      (:wat::kernel::Thread/join-result handle)]
     result))
 
 ;; --- chunks ---
@@ -390,7 +390,7 @@
     (:wat::core::match (:wat::core::first items) -> :wat::core::Option<wat::core::nil>
       ((:wat::core::Some item)
         (:wat::core::let
-          ((rest-items (:wat::core::rest items)))
+          [rest-items (:wat::core::rest items)]
           (:wat::core::match (:wat::kernel::send out item) -> :wat::core::Option<wat::core::nil>
             ((:wat::core::Ok _)
               (:wat::stream::drain-items out rest-items))
@@ -408,11 +408,11 @@
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
     ((:wat::core::Ok (:wat::core::Some item))
       (:wat::core::let
-        ((stepped (step acc item))
-         (new-acc (:wat::core::first stepped))
-         (to-emit (:wat::core::second stepped))
-         (drain-result
-          (:wat::stream::drain-items out to-emit)))
+        [stepped (step acc item)
+         new-acc (:wat::core::first stepped)
+         to-emit (:wat::core::second stepped)
+         drain-result
+          (:wat::stream::drain-items out to-emit)]
         (:wat::core::match drain-result -> :wat::core::nil
           ((:wat::core::Some _)
             (:wat::stream::with-state-worker in out step flush new-acc))
@@ -422,9 +422,9 @@
       ;; produced. Consumer-dropped during flush is swallowed silently
       ;; — same behavior chunks had for its final partial buffer.
       (:wat::core::let
-        ((final-emits (flush acc))
-         (_
-          (:wat::stream::drain-items out final-emits)))
+        [final-emits (flush acc)
+         _
+          (:wat::stream::drain-items out final-emits)]
         :wat::core::nil))
     ((:wat::core::Err _died) :wat::core::nil)))
 
@@ -436,18 +436,18 @@
     (flush :wat::core::Fn(Acc)->wat::core::Vector<U>)
     -> :wat::stream::Stream<U>)
   (:wat::core::let
-    ((up-rx (:wat::core::first upstream))
-     (pair
-      (:wat::kernel::make-bounded-channel :U 1))
-     (tx (:wat::core::first pair))
-     (rx (:wat::core::second pair))
-     (handle
+    [up-rx (:wat::core::first upstream)
+     pair
+      (:wat::kernel::make-bounded-channel :U 1)
+     tx (:wat::core::first pair)
+     rx (:wat::core::second pair)
+     handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
            _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
            -> :wat::core::nil
-          (:wat::stream::with-state-worker up-rx tx step flush init)))))
+          (:wat::stream::with-state-worker up-rx tx step flush init)))]
     (:wat::core::Tuple rx handle)))
 
 ;; --- chunks (rewritten on top of with-state) ---
@@ -473,7 +473,7 @@
     (size :wat::core::i64)
     -> :wat::stream::ChunkStep<T>)
   (:wat::core::let
-    ((new-buffer (:wat::core::conj buffer item)))
+    [new-buffer (:wat::core::conj buffer item)]
     (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size)
       -> :wat::stream::ChunkStep<T>
       (:wat::core::Tuple
@@ -524,9 +524,9 @@
     (key-fn :wat::core::Fn(T)->K)
     -> :wat::stream::KeyedChunkStep<K,T>)
   (:wat::core::let
-    ((last-key (:wat::core::first state))
-     (buffer (:wat::core::second state))
-     (k (key-fn item)))
+    [last-key (:wat::core::first state)
+     buffer (:wat::core::second state)
+     k (key-fn item)]
     (:wat::core::match last-key -> :wat::stream::KeyedChunkStep<K,T>
       (:wat::core::None
         ;; First item — start the run, emit nothing yet.
@@ -550,7 +550,7 @@
     (state :(wat::core::Option<K>,wat::core::Vector<T>))
     -> :wat::core::Vector<wat::core::Vector<T>>)
   (:wat::core::let
-    ((buffer (:wat::core::second state)))
+    [buffer (:wat::core::second state)]
     (:wat::core::if (:wat::core::empty? buffer) -> :wat::core::Vector<wat::core::Vector<T>>
       (:wat::core::Vector :wat::core::Vector<T>)
       (:wat::core::Vector :wat::core::Vector<T> buffer))))
@@ -591,13 +591,13 @@
     (size :wat::core::i64)
     -> :wat::stream::ChunkStep<T>)
   (:wat::core::let
-    ((new-buf (:wat::core::conj buffer item))
-     (new-len (:wat::core::length new-buf)))
+    [new-buf (:wat::core::conj buffer item)
+     new-len (:wat::core::length new-buf)]
     (:wat::core::cond -> :wat::stream::ChunkStep<T>
       ;; Over-size — slide: drop first, emit trimmed window, keep trimmed.
       ((:wat::core::> new-len size)
         (:wat::core::let
-          ((trimmed (:wat::core::rest new-buf)))
+          [trimmed (:wat::core::rest new-buf)]
           (:wat::core::Tuple trimmed (:wat::core::Vector :wat::core::Vector<T> trimmed))))
       ;; Exactly size — first full window. Emit and keep.
       ((:wat::core::= new-len size)
@@ -670,18 +670,18 @@
     (n :wat::core::i64)
     -> :wat::stream::Stream<T>)
   (:wat::core::let
-    ((up-rx (:wat::core::first upstream))
-     (pair
-      (:wat::kernel::make-bounded-channel :T 1))
-     (tx (:wat::core::first pair))
-     (rx (:wat::core::second pair))
-     (handle
+    [up-rx (:wat::core::first upstream)
+     pair
+      (:wat::kernel::make-bounded-channel :T 1)
+     tx (:wat::core::first pair)
+     rx (:wat::core::second pair)
+     handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
            _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
            -> :wat::core::nil
-          (:wat::stream::take-worker up-rx tx n)))))
+          (:wat::stream::take-worker up-rx tx n)))]
     (:wat::core::Tuple rx handle)))
 
 ;; --- flat-map ---
@@ -714,7 +714,7 @@
     (:wat::core::match (:wat::core::first pending) -> :wat::core::nil
       ((:wat::core::Some item)
         (:wat::core::let
-          ((rest-items (:wat::core::rest pending)))
+          [rest-items (:wat::core::rest pending)]
           (:wat::core::match (:wat::kernel::send out item) -> :wat::core::nil
             ((:wat::core::Ok _)
               (:wat::stream::flat-map-worker in out f rest-items))
@@ -727,16 +727,16 @@
     (f :wat::core::Fn(T)->wat::core::Vector<U>)
     -> :wat::stream::Stream<U>)
   (:wat::core::let
-    ((up-rx (:wat::core::first upstream))
-     (pair
-      (:wat::kernel::make-bounded-channel :U 1))
-     (tx (:wat::core::first pair))
-     (rx (:wat::core::second pair))
-     (handle
+    [up-rx (:wat::core::first upstream)
+     pair
+      (:wat::kernel::make-bounded-channel :U 1)
+     tx (:wat::core::first pair)
+     rx (:wat::core::second pair)
+     handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
            _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
            -> :wat::core::nil
-          (:wat::stream::flat-map-worker up-rx tx f (:wat::core::Vector :U))))))
+          (:wat::stream::flat-map-worker up-rx tx f (:wat::core::Vector :U))))]
     (:wat::core::Tuple rx handle)))

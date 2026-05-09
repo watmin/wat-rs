@@ -67,8 +67,8 @@ fn let_accepts_sequential_bindings() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((a 5)
-             (b (:wat::core::i64::+,2 a 1)))
+            [a 5
+             b (:wat::core::i64::+,2 a 1)]
             b))
     "#;
     startup_ok(src);
@@ -120,7 +120,7 @@ fn let_body_type_mismatch_surfaces() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::let
-            ((a 5))
+            [a 5]
             a))
     "#;
     let err = startup_err(src);
@@ -150,7 +150,7 @@ fn let_in_tail_position_threads_through_eval_let_tail() {
             :wat::core::i64
             n
             (:wat::core::let
-              ((m (:wat::core::i64::-,2 n 1)))
+              [m (:wat::core::i64::-,2 n 1)]
               (:user::countdown m))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -170,9 +170,9 @@ fn nested_lets_compose_with_outer_visible_to_inner() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((a 10))
+            [a 10]
             (:wat::core::let
-              ((b (:wat::core::i64::+,2 a 5)))
+              [b (:wat::core::i64::+,2 a 5)]
               b)))
     "#;
     startup_ok(src);
@@ -188,8 +188,8 @@ fn fn_body_with_let_preserves_sequential() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
              (:wat::core::let
-               ((a x)
-                (b (:wat::core::i64::+,2 a 5)))
+               [a x
+                b (:wat::core::i64::+,2 a 5)]
                b))
            2))
     "#;
@@ -200,13 +200,14 @@ fn fn_body_with_let_preserves_sequential() {
 
 #[test]
 fn empty_bindings_evaluates_body_directly() {
-    // Degenerate but accepted: `(let () body)` evaluates `body`
+    // Degenerate but accepted: `(let [] body)` evaluates `body`
     // directly. Mirrors pre-arc-154 `let*` behavior; the new
-    // sequential-under-let path preserves this corner.
+    // sequential-under-let path preserves this corner. Updated
+    // to flat-shape vector bindings per arc 168 slice 2 sweep.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ()
+            []
             42))
     "#;
     startup_ok(src);
@@ -225,10 +226,10 @@ fn walker_narrowness_other_keywords_unaffected() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::do
             (:wat::core::let
-              ((x 1))
+              [x 1]
               x)
             (:wat::core::let
-              ((y 2))
+              [y 2]
               y)))
     "#;
     startup_ok(src);
@@ -287,8 +288,8 @@ fn reflection_lookup_form_finds_canonical_let() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((a 1)
-             (b (:wat::core::i64::+,2 a 2)))
+            [a 1
+             b (:wat::core::i64::+,2 a 2)]
             b))
     "#;
     startup_ok(src);
