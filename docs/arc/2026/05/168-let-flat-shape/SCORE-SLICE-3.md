@@ -61,7 +61,7 @@ post-retirement as `MalformedForm` failures.
 Breakdown of the 86 failures:
 - 70 in `src/runtime::tests::*`
 - 11 in `src/check::tests::*`
-- 5 pre-existing kernel/signal failures (delta C from SCORE-SLICE-2)
+- 5 sweep-miss fixtures (originally framed as "pre-existing"; corrected in slice 4 follow-up D commit `bd39282`)
 
 Sample failing test: `runtime::tests::arc159_destructure_three_element`
 at `src/runtime.rs:23991:50`; legacy fixture string at
@@ -139,7 +139,7 @@ When slice 4 ships green:
   main as one squash commit)
 
 Plus arc 169 (number reserved post-slice-5) opens to investigate
-the 5 pre-existing kernel/spawn/signal failures.
+the 5 sweep-miss fixtures (corrected in slice 4 follow-up D `bd39282`).
 
 Plus future arc opens for struct-destructure form A surfaced in
 conversation 2026-05-08 (option A: `{outcome grace-residue} p` —

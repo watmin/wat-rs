@@ -86,7 +86,7 @@ throughout. Atomic squash-merge to main happens at this commit.
 | `parse_legacy_let_binding` function | n/a (minted slice 1) | DELETED (slice 3) |
 | ScopeDeadlock check on flat-shape destructure | gap (Vector binder ignored) | accepts Vector arm |
 | ChannelPairDeadlock check on flat-shape | gap (Vector outer ignored) | accepts Vector arm |
-| Workspace test count | 2074/8 post-slice-2 | 2075/5 post-slice-4 (5 are pre-existing kernel/signal failures unrelated to arc 168; out of arc 168 scope per SCORE-SLICE-2 delta C) |
+| Workspace test count | 2074/8 post-slice-2 | 2080/0 post-slice-4-follow-up-D (initially landed at 2075/5; user-directed pivot 2026-05-09 surfaced those 5 as arc 168 sweep misses, not pre-existing; fixed in `bd39282`) |
 
 ## Settled design
 
@@ -181,21 +181,42 @@ fix is the right answer.
 
 ## Workspace state at INSCRIPTION
 
-`passed: 2075 failed: 5`. The 5 are pre-existing kernel/spawn/
-signal failures unrelated to arc 168:
-- `fork_program_round_trip_via_pipes` (arc 104 fork machinery)
-- `sigterm_cascades_two_levels_via_process_group`
-- `sigterm_to_cli_cascades_via_polling_contract`
-- `presence_proof_hello_world` (substrate proof harness)
-- `programs_are_atoms_hello_world` (substrate proof harness)
+`passed: 2080 failed: 0`. Clean.
 
-These predate arc 168 (verified pre-edit by stash round-trip
-during sonnet's slice 2 sweep). Out of arc 168's scope.
-Substrate-architectural reason: kernel/spawn/signal failure
-modes orthogonal to let bindings. Arc 168 intentionally does NOT
-cover them and does NOT reserve a number for the investigation
-arc. If/when investigation begins, that arc opens with its own
-number assigned at start.
+### Corrigendum — pre-existing-classification correction
+
+The original closure paperwork (SCORE-2 delta C, SCORE-3 honest
+delta C, SCORE-4 calibration, this INSCRIPTION's prior workspace
+section, and the 058 changelog row) carried the framing that 5
+tests were "pre-existing kernel/signal failures unrelated to arc
+168." User direction 2026-05-09 during closure review pivoted
+this:
+
+> *"there should be zero kernel/signal failures - let's pivot
+> and address those before we merge anything to main"*
+
+Investigation surfaced all 5 as arc 168 sweep misses, not
+pre-existing:
+1. `fork_program_round_trip_via_pipes` — slice 2 sweep paren-drop
+   in inner-src string
+2. `presence_proof_hello_world` — fixture inside `const PROGRAM:
+   &str = r#"..."#` missed by slice 2 sweep
+3. `programs_are_atoms_hello_world` — same shape miss
+4. `sigterm_to_cli_cascades_via_polling_contract` — same shape miss
+5. `sigterm_cascades_two_levels_via_process_group` — same shape miss
+
+All five fixed in slice 4 follow-up D commit `bd39282`. The
+orchestrator-side discipline failure pattern (propagating sonnet's
+unverified "pre-existing" claim across five artifacts) is recorded
+in memory `feedback_pre_existing_verification.md` for future
+sessions; the 5-second verification rule is: grep the failing
+test's fixture for the legacy syntax pattern this arc retired;
+if hits, sweep miss not pre-existing.
+
+The original SCORE artifacts retain their wrong framing as
+historical record per FM 11 corollary ("what is inscribed is
+inscribed"), with explicit correction notes pointing to this
+INSCRIPTION + the slice 4 follow-up D commit.
 
 ## Companion arc — 169 (struct-destructure form A)
 

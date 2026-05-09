@@ -5,7 +5,7 @@ Sonnet swept 81 legacy let-binding fixtures in `src/runtime.rs` (70)
 runtime, single mechanical commit. Workspace landed at 2074/6
 post-sweep; closure investigation surfaced two parallel substrate
 gaps slice 1 left in the deadlock walkers, both fixed in
-follow-up commits. Final state: 2075/5 (the 5 are pre-existing
+follow-up commits. Final state: 2075/5 → 2080/0 after slice 4 follow-up D (the 5 were sweep misses, not pre-existing
 kernel/spawn/signal failures unrelated to arc 168).
 
 ## Scope as shipped
@@ -31,6 +31,47 @@ arm gap. Symbol + List(parts) were matched; Vector(symbols) — the
 arc 168 flat-shape destructure binder — fell through to vec![],
 so destructure-introduced names never reached the ScopeDeadlock
 collector. Fix: 5-line addition of the Vector arm.
+
+### Slice 4 follow-up D (`bd39282`) — pre-existing-classification correction
+
+User direction 2026-05-09 during closure review: *"there should be
+zero kernel/signal failures - let's pivot and address those before
+we merge anything to main."*
+
+Investigation showed all 5 "pre-existing" failures originally
+classified by sonnet's slice 4 report were actually arc 168 sweep
+misses. The orchestrator propagated the wrong framing across SCORE-2
+delta C, SCORE-3 honest delta C, SCORE-4 calibration, INSCRIPTION
+"Workspace state" section, AND the 058 changelog row — five
+artifacts carrying the same unverified claim.
+
+**Root cause per failure:**
+1. `fork_program_round_trip_via_pipes` — slice 2 sweep dropped one
+   closing `)` from inner-src string while migrating outer
+   `((... ))` → `[...]`. Inner wat program unbalanced; child
+   parse-failed; parent read None.
+2-5. `presence_proof_hello_world`, `programs_are_atoms_hello_world`,
+   `sigterm_to_cli_cascades_via_polling_contract`, `sigterm_cascades_two_levels_via_process_group`
+   — wat fixtures inside `const FOO: &str = r#"..."#` raw-string
+   declarations entirely missed by slice 2 sweep (sweep targeted
+   test bodies, not const declarations). All used legacy
+   `((name expr) ...)` outer-list shape.
+
+**Discipline failure pattern recorded in memory
+`feedback_pre_existing_verification.md`:** sonnet's "stash
+round-trip showed pre-existing" is a tautology when the current
+branch retired the syntactic path the test depended on. The 5-second
+verification: grep the failing test's fixture for the legacy syntax
+pattern; if hits, sweep miss not pre-existing.
+
+**Fixes shipped in `bd39282`:**
+- 1 paren restoration in `tests/wat_arc104_fork_program.rs`
+- 4 fixture migrations in `crates/wat-cli/tests/wat_cli.rs`
+- 2 of the 4 const program migrations needed an extra trailing `)` after
+  migration (the legacy structure had an inner pair close paren the
+  migration dropped on top of the outer bindings list close)
+
+**Final state:** `passed: 2080 failed: 0`. Workspace clean.
 
 ### Slice 4 follow-up B+C (`751addb`) — substrate Δ-B + lib fixture sweep
 
@@ -64,7 +105,7 @@ binders migrated to vector-destructure.
 
 | Row | Verified by | Pass |
 |-----|-------------|------|
-| A — `cargo test` count drops to 5 failed | post-follow-up: `passed: 2075 failed: 5` | ✓ |
+| A — `cargo test` count drops to 0 failed | post-follow-up-D: `passed: 2080 failed: 0` (initially landed at 2075/5; user-directed pivot revealed those 5 were arc 168 sweep misses, fixed in follow-up D) | ✓ |
 | B — `src/runtime.rs` swept | 70 + 1 fixtures migrated; remaining greps clean | ✓ |
 | C — `src/check.rs` swept | 11 (slice 4) + 6 (Δ-C follow-up) = 17 fixtures migrated | ✓ |
 | D — Substrate untouched (slice-4 sonnet commit) | sonnet's `3b34d62` touches only `#[test]` raw-string fixtures; substrate diff = 0 | ✓ |
@@ -143,7 +184,7 @@ SCORE-SLICE-2 delta D remains the cost-aware path.
 
 | Predicted | Actual | Mode |
 |-----------|--------|------|
-| Slice 4 sweep ~81 sites, 60-120 min sonnet | ~35 min, 158 tool uses, 2074/6 (post-sweep) → 2075/5 (post-follow-ups) | A clean |
+| Slice 4 sweep ~81 sites, 60-120 min sonnet | ~35 min, 158 tool uses, 2074/6 (post-sweep) → 2075/5 (post-follow-ups A+B+C) → 2080/0 (post-follow-up D after user-directed pre-existing-classification correction) | A clean per slice; orchestrator-side discipline correction caught at closure review |
 
 ## Discipline check
 
@@ -172,5 +213,5 @@ Slice 5 — closure paperwork. Includes:
 Plus arc 169 (struct-destructure form A) — DESIGN.md drafted
 2026-05-08 in this slice's branch; v1-closure blocker for arc 109.
 
-Plus future arc opens for the 5 pre-existing kernel/spawn/signal
+~~Plus future arc opens for the 5 pre-existing kernel/spawn/signal~~ [STRUCK — those 5 were arc 168 sweep misses, fixed in follow-up D `bd39282`. The "pre-existing" framing was wrong. No follow-up arc needed for kernel/signal
 failures (number reserved post-arc-168 closure).

@@ -111,7 +111,18 @@ This is exactly the kind of substrate-as-teacher discovery the
 sweep was supposed to surface. Sonnet caught + fixed without
 intervention. Honest delta in the right direction.
 
-### Delta C — Five pre-existing failures unrelated to arc 168
+### Delta C — Five pre-existing failures unrelated to arc 168 [CORRECTED 2026-05-09]
+
+**Correction note (2026-05-09 by orchestrator):** the framing in
+this delta was WRONG. The five failures were arc 168 sweep misses,
+not pre-existing. User caught the misclassification during closure
+review: *"there should be zero kernel/signal failures."* All five
+were fixed in slice 4 follow-up D (commit `bd39282`). See SCORE-
+SLICE-4 § "Slice 4 follow-up D" + memory `feedback_pre_existing_verification.md`
+for the discipline failure pattern this delta propagated. Original
+text preserved below as historical record per FM 11 corollary.
+
+
 
 Post-follow-up the workspace shows 5 remaining failures:
 - `fork_program_round_trip_via_pipes` (arc 104 fork machinery)
