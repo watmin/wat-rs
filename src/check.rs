@@ -6675,8 +6675,11 @@ fn collect_splice_defs_ctx(
             }
         }
         ":wat::core::let" if is_top => {
-            if items.len() >= 3 {
-                collect_splice_defs_ctx(&items[2], true, env, fresh, errors);
+            // Arc 168 multi-form body: any body form may be a def position;
+            // iterate all of them. Pre-arc-168 had a single body at items[2];
+            // post-arc-168 body is items[2..].
+            for body_form in &items[2..] {
+                collect_splice_defs_ctx(body_form, true, env, fresh, errors);
             }
         }
         _ => {}

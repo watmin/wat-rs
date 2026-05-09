@@ -200,13 +200,14 @@ fn fn_body_with_let_preserves_sequential() {
 
 #[test]
 fn empty_bindings_evaluates_body_directly() {
-    // Degenerate but accepted: `(let () body)` evaluates `body`
+    // Degenerate but accepted: `(let [] body)` evaluates `body`
     // directly. Mirrors pre-arc-154 `let*` behavior; the new
-    // sequential-under-let path preserves this corner.
+    // sequential-under-let path preserves this corner. Updated
+    // to flat-shape vector bindings per arc 168 slice 2 sweep.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ()
+            []
             42))
     "#;
     startup_ok(src);

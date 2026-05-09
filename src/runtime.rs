@@ -1864,50 +1864,55 @@ fn register_runtime_defs_form(
         }
         ":wat::core::let" => {
             // Splice: evaluate the bindings in order, build a child env,
-            // then recurse into the body with the richer env.
-            // Shape: (:wat::core::let (bindings) body)
-            if items.len() != 3 {
+            // then recurse into each body form with the richer env.
+            // Shape: (:wat::core::let [binder expr binder expr ...] body-1 body-2 ...)
+            //
+            // Arc 168 slice 1 — body becomes 1+ trailing forms (implicit-do).
+            // Arc 168 slice 1 — bindings are WatAST::Vector flat-shape only;
+            // the walker rejects legacy outer-List user-source, and eval_let
+            // emits MalformedForm on non-Vector. This registrar mirrors that
+            // discipline — Vector-only.
+            if items.len() < 2 {
                 return Ok(()); // malformed; type checker already caught it
             }
             let bindings_form = &items[1];
-            let body = &items[2];
-
-            let binding_pairs = match bindings_form {
-                WatAST::List(pairs, _) => pairs,
-                _ => return Ok(()),
-            };
 
             // Build the child env from the bindings. Mirror eval_let's
             // sequential-binding logic: each binding is evaluated in the
             // env accumulated so far, then extends it.
-            //
-            // Arc 159 — accept both binding shapes:
-            //   New shape: (name rhs) — pair_items[0] is a bare Symbol
-            //   Legacy shape: ((name :T) rhs) — pair_items[0] is a List
             let mut scope = env.clone();
-            for pair in binding_pairs {
-                let pair_items = match pair {
-                    WatAST::List(it, _) => it,
-                    _ => continue,
-                };
-                if pair_items.len() < 2 {
-                    continue;
+
+            // Vector outer with alternating (binder, expr) chunks. Binder
+            // is a bare Symbol (canonical post-arc-159). Destructure
+            // binders (Vector of Symbols) skip splice-time env extension —
+            // destructure binding for closure capture would require
+            // tuple-eval; the def-splice-into-let-body case load-bearing
+            // here always uses single-name Symbol binders.
+            let vector_items = match bindings_form {
+                WatAST::Vector(items_v, _) => items_v,
+                _ => return Ok(()), // legacy List outer rejected; walker fires
+            };
+
+            let mut i = 0;
+            while i + 1 < vector_items.len() {
+                let binder = &vector_items[i];
+                let rhs = &vector_items[i + 1];
+                if let WatAST::Symbol(ident, _) = binder {
+                    let binding_name = ident.name.clone();
+                    let sym_ref: &SymbolTable = sym;
+                    let value = eval(rhs, &scope, sym_ref)?;
+                    scope = scope.child().bind(binding_name, value).build();
                 }
-                let binding_name = match &pair_items[0] {
-                    WatAST::Symbol(ident, _) => ident.name.clone(),
-                    WatAST::List(name_type, _) => match name_type.first() {
-                        Some(WatAST::Symbol(ident, _)) => ident.name.clone(),
-                        _ => continue,
-                    },
-                    _ => continue,
-                };
-                let rhs = &pair_items[1];
-                let sym_ref: &SymbolTable = sym;
-                let value = eval(rhs, &scope, sym_ref)?;
-                scope = scope.child().bind(binding_name, value).build();
+                // Non-Symbol binder (Vector destructure) — skip env extension;
+                // not load-bearing for def-splice-into-let-body.
+                i += 2;
             }
-            // Recurse into the body with the let env.
-            register_runtime_defs_form(body, &scope, sym)?;
+
+            // Recurse into each body form. Arc 168 multi-form body: any
+            // body form may be a def position; iterate all of them.
+            for body_form in &items[2..] {
+                register_runtime_defs_form(body_form, &scope, sym)?;
+            }
         }
         _ => {
             // Non-splice top-level form (define, struct, enum, etc.) —
