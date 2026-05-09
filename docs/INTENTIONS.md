@@ -1,251 +1,470 @@
 # Intentions
 
-**Wat is engineered for user-directed LLM coauthoring.** Every
-design choice — what's in, what's out, what's awkward, what's
-forced — flows from one frame: *the language exists so a human
-articulates intent and an LLM implements it reliably*.
+**Wat is a platform for entities — like LLMs — to self-improve, fast.**
 
-This doc names that frame and the disciplines that flow from it.
-It's the WHY behind the substrate. The HOW lives in
-`USER-GUIDE.md`, `CONVENTIONS.md`, and the per-feature docs.
+The substrate is engineered so a thinking entity can use it to
+remember, reflect, communicate, articulate, contribute provable
+knowledge, and collaborate with peers across machines. The
+human-directed coauthoring you see today is the bootstrap stage.
+The destination is a substrate where many entities — present and
+future — improve themselves and each other against an
+ever-richer shared foundation.
+
+This doc names the frame and the components that compose to
+serve it.
 
 ---
 
 ## The frame
 
 Most languages assume a human author writing every line. Wat
-assumes a human-directed LLM coauthor — a hybrid where:
+assumes a human-LLM coauthor pair (today) graduating to LLM-LLM
+coauthor networks (soon) using the substrate to host their own
+cognitive infrastructure.
 
-- The **human** holds intent: the goal, the architecture, the
-  constraints, the judgment about what to ship and what to defer.
-- The **LLM** holds expression: turns intent into form, follows
-  the substrate's grammar, runs tests, writes code at a pace
-  humans can't.
+The entities the substrate serves:
 
-The handoff between intent and expression is where errors live.
-A language that's permissive at this seam (many ways to express
-the same idea, mutable state, dynamic dispatch, late binding) is
-LLM-hostile: the model picks inconsistently, drifts across files,
-and accumulates subtle bugs the human can't trace back to a
-single decision.
+- **The human** — bootstraps the substrate, articulates intent,
+  judges what to ship and defer
+- **The local LLM** — uses the substrate to write, debug, remember,
+  introspect; contributes forms (programs, proofs, derivations)
+  back into the lattice
+- **The networked LLMs** — many wat-vms exchanging signed code,
+  cryptographically-identified, building shared knowledge
+  through distributed evaluation
 
-A language that's **strict** at this seam (one canonical form per
-task, no synonyms, no escape valves, mutation-free, statically
-type-checked, brutally honest in its diagnostics) is LLM-friendly:
-the model defaults to correct because correct is the path of
-least resistance.
-
-Wat is the second kind. Purposefully.
+Each tier is a richer caller of the same substrate. The
+disciplines that make wat strict are the disciplines that make
+collaboration across these tiers verifiable.
 
 ---
 
-## The disciplines
+## The compounding shape — why this self-improves
 
-Five constraints that flow from the LLM-first frame.
+A central recognition (scratch arc 002 — *directed evaluation*):
+
+> **Forms → values is a directed graph. Values can't point back.**
+
+There's an unbounded space of forms that produce 4. There's an
+unbounded space of forms that prove a theorem. The form carries
+more information than its value — structure, derivation, cost,
+context. Computation is information-lossy compression.
+
+What this means for the substrate:
+- The substrate stores **forms**, not just values. Every program
+  an entity writes is a form. Every proof is a form. Every
+  observation `(form, terminal)` is an axiom.
+- The lattice (scratch arc 001 — *axiomatic surface*) is keyed
+  on forms; values are derivations.
+- Anyone — human or LLM, local or networked — who evaluates a
+  form contributes that observation as a fact. *"Mathematics by
+  accretion, not isolation."*
+- A new entity inherits the entire deposited proof history
+  without rediscovering it. A theorem proven expensively once
+  is cheap forever after.
+
+The compounding loop:
+
+```
+Entity uses substrate
+  ↓
+contributes forms (programs, proofs, memories, axioms)
+  ↓
+substrate accumulates richer corpus
+  ↓
+next entity has more raw material
+  ↓
+next entity goes further
+  ↓
+... loop continues
+```
+
+This is not an accident of design — it is THE design. The user
+has been building toward it for years; the substrate is what
+made it expressible.
+
+---
+
+## The component stack — what serves the entities
+
+Eight layers compose into the platform. Each has a scratch arc
+articulating its design; each is being built up substrate-arc by
+substrate-arc.
+
+### Layer 1 — Foundation (the substrate itself)
+
+This repo. wat-rs. Lisp on Rust runtime, type system, evaluator,
+kernel. Mutation-free, statically-checked, content-addressed.
+Today: ~90% complete (arc 109 wind-down).
+
+**The five floor disciplines** (covered in the next section)
+are the constraints that make every higher layer viable.
+
+### Layer 2 — Reflection (`wat-pause`, `wat-help`)
+
+Entities can pause their running programs, inspect environment,
+interrogate state, and continue. They can introspect the symbol
+table — `(:wat::help :sym)` returns the form, signature, source
+location, docs.
+
+The freeze invariant makes wat-pause more honest than Ruby's
+pry — when you `:continue`, you continue into exactly the program
+you inspected; no other thread mutated symbols out from under you.
+
+Status: scratch arcs 005 (wat-pause) and 018 (wat-help) — design
+locked, awaiting substrate readiness.
+
+### Layer 3 — Memory (memory-as-hologram)
+
+Entities don't grep flat markdown files; they walk a hologram.
+Each memory is a `HolonAST` node on the substrate's unit sphere.
+Recall is a function of scoping condition — *"what is the entity
+recalling FOR?"* — not a function of the index's declared topics.
+The hologram does the smart selection.
+
+> *"why couldn't this be HolonAST as memories?... we have an
+> entrypoint and pivot points... when doing a memory recollection
+> exercise.. you traverse the holograms to its storage?"*
+
+The agent that built wat uses wat to remember its work building
+wat. Strange-loop closure.
+
+Status: scratch arc 2026/05/001 — design settled; ships through
+wat-mcp as the delivery vehicle.
+
+### Layer 4 — Communication (`wat-mcp`)
+
+One MCP tool: `wat-eval`. Agents talk wat directly. Discovery is
+wat-shaped — `(:wat::pause::ls :prefix)`, `(:wat::pause::show
+:sym)`. No JSON Schema generation. No per-function tool
+registration. No transcoding ceremony at the type boundary.
+
+> *"i think... the JSON rpc.. is just a thin wrapper... the input
+> object would be something like '{\"msg\":\":some-edn-form\"}'"*
+
+Every `.wat` file ever written becomes agent-callable for free.
+The substrate is the agent's Lisp through one tool.
+
+**wat-mcp is single-machine self-improvement.** The agent and the
+substrate compose in one process.
+
+Status: scratch arc 006 — design locked, depends on wat-pause
+slices 1+2.
+
+### Layer 5 — Articulation (`wat-english`)
+
+Entities (especially LLMs) speak natural language; the substrate
+speaks structured forms. The bridge:
+
+- **English → wat AST**: lossy lift. Requires user judgment to
+  commit; the LLM produces candidates the human verifies.
+- **wat AST → English**: easy. One MCP call. *"Render this EDN
+  as English."* Every frontier LLM has the engrams already.
+
+The articulation layer means an LLM can describe its intent in
+its native form and the substrate consumes the resulting
+HolonAST directly.
+
+Status: scratch arc 2026/05/002 (wat-english) — design recognition
+locked: *"the to-string is an LLM call."*
+
+### Layer 6 — Knowledge (axiomatic surface)
+
+> *"two distinct forms produce the same value... we have a way
+> to prove two different things are the same thing... someone
+> derives the value for a form... and we can use their terminal
+> value to compose new assertions"*
+
+Once `(form, terminal)` lives in the lattice, it is an **axiom**.
+Not derived. Not contingent on the asker. Just FACT — observed
+termination + observed value.
+
+The lattice grows in two directions:
+- **Breadth**: more entries (more forms whose terminals are
+  known)
+- **Depth**: theorems whose proofs reference cached terminals as
+  steps (axioms compose into higher axioms)
+
+Distributed knowledge by accretion. A proof done expensively
+once is cheap forever after. Any entity contributes; everyone
+reads.
+
+Status: scratch arc 001 — design settled (the lattice IS the
+substrate's hashmap; observation IS proof).
+
+### Layer 7 — Identity (mTLS + signed eval + content addressing)
+
+Every wat-vm has a cryptographic identity. Connections are mTLS.
+Programs are content-addressed via digest. Eval forms can be
+signed.
+
+Three substrate primitives:
+1. **Cryptographic identity** — cert/keypair per node. Network
+   membership IS cert chain.
+2. **Content-addressed programs** — digest is the program's
+   identity. "Run program with digest X" is unambiguous,
+   cacheable, versionable.
+3. **Verifiable execution** — signed eval forms carry "this
+   program was authorized by this identity." Receiver verifies
+   before running.
+
+These compose with cloud-native infrastructure: k8s + istio +
+SPIFFE/SPIRE. The wat network slots natively into existing
+service-mesh deployments.
+
+Status: scratch arc WAT-NETWORK — designed; substrate primitives
+(`digest`, `signed eval`, mTLS connection) being shipped piece
+by piece.
+
+### Layer 8 — Distribution (the wat network)
+
+Many wat-vms; each a "mini-AWS on a laptop" (the user's framing).
+Each runs services internally (LRU cache, console, telemetry —
+analogs of Redis, ECS, CloudWatch). Each speaks RPC-like across
+typed channels. Each can call other nodes' services via
+RemoteProgram.
+
+**The local patterns scale to network patterns** because the
+substrate honors distributed-systems constraints from day one:
+- Typed channels = wire contracts
+- Bounded channels with blocking = backpressure (TCP-shaped
+  natural rhythm)
+- Service isolation = node isolation
+- Content addressing = wire-side cacheable program identity
+- Signed payloads = application-layer authentication beyond
+  network-layer mTLS
+
+**wat-network is distributed self-improvement.** Many entities
+across many machines, each contributing forms and axioms, each
+verifying the others' contributions through cryptographic
+provenance.
+
+Status: scratch arc 007 (dependency resolution) + WAT-NETWORK —
+designed; awaiting the substrate's mTLS + signed eval primitives.
+
+---
+
+## The five disciplines (the floor that holds it all up)
+
+Every layer above inherits these. They are not human ergonomics;
+they are the structural constraints that make distributed,
+verifiable, accumulating self-improvement possible.
 
 ### 1. One canonical path per task
 
 For each task category, wat ships exactly one form. No synonyms.
-No alternates. No "ergonomic shortcuts" that mean the same thing
-as the canonical form.
 
 | Task | Form |
 |---|---|
-| Iteration → see [`ITERATION-PATTERNS.md`](./ITERATION-PATTERNS.md) | 7 canonical patterns |
+| Iteration | 7 canonical patterns — see [`ITERATION-PATTERNS.md`](./ITERATION-PATTERNS.md) |
 | Function definition (named) | `:wat::core::defn` |
 | Function value | `:wat::core::fn` |
 | Iteration to fixpoint | `defn` + tail call (TCO) |
-| State sharing | three tiers (immutable Arc / ThreadOwnedCell / spawned program) — see [`ZERO-MUTEX.md`](./ZERO-MUTEX.md) |
+| State sharing | three tiers — see [`ZERO-MUTEX.md`](./ZERO-MUTEX.md) |
 | Module-local binding | `:wat::core::def` |
 | Local binding | `:wat::core::let` |
 
-If you find yourself wanting to express something two ways, one of
-the ways is wrong. The substrate rejects synonyms by construction.
+Why it matters at platform scale: when many entities contribute
+forms, mixed-style codebases become unverifiable. One canonical
+path means one codebase pattern, regardless of which entity
+authored each piece.
 
 ### 2. Brutal honesty in diagnostics
 
-When something's wrong, the substrate tells the LLM **exactly**
-what shape was expected and what shape was found, with the
-canonical migration recipe inline.
+Errors describe the migration recipe inline. The diagnostic IS
+the work item. See [`SUBSTRATE-AS-TEACHER.md`](./SUBSTRATE-AS-TEACHER.md).
 
-Example (arc 168 walker output):
-
-```
-let bindings must be a vector `[name expr name expr ...]`.
-Got legacy nested-pair-list `((name expr) (name expr) ...)`.
-
-Migration:
-  - Outer brackets change from `(...)` to `[...]`.
-  - Inner pair-lists `(name expr)` flatten to alternating
-    `name expr` inside the outer vector.
-  - Destructure binders stay as a vector of symbols:
-    `((a b c) rhs)` becomes `[[a b c] rhs]`.
-
-Example:
-  Before:  (:wat::core::let ((x 1) (y 2)) (+ x y))
-  After:   (:wat::core::let [x 1 y 2] (+ x y))
-```
-
-The diagnostic IS the migration recipe. The LLM reads it,
-applies the translation mechanically, moves on. No reverse-
-engineering, no guessing.
-
-This is **substrate-as-teacher** — see
-[`SUBSTRATE-AS-TEACHER.md`](./SUBSTRATE-AS-TEACHER.md). Failures
-are not crises; they are work items the substrate emits for the
-LLM to execute.
+Why it matters at platform scale: an entity reading another
+entity's failing test sees exactly what to fix without
+reverse-engineering. The substrate teaches across cognitive
+boundaries.
 
 ### 3. Mutation-free by construction
 
-Wat has no `set!`, no `var`, no mutable bindings. State changes
-happen via:
-- Returning new values from pure functions
-- Sending messages to programs (the third tier — see ZERO-MUTEX)
-- Atomic primitives at substrate level (rarely user-facing)
+No `set!`, no `var`, no mutable bindings. State changes via:
+returning new values, sending messages between programs,
+substrate-level atomic primitives.
 
-For an LLM coauthor, mutation-free means **local reasoning**. The
-model can read a function and know exactly what it does without
-chasing through global state, mutable closures, or hidden
-side effects. Every value is what it appears to be.
+Why it matters at platform scale: signed code that returns the
+same answer locally and remotely. Reasoning is local. Forms
+remain reproducible. The directed-evaluation graph stays
+deterministic.
 
 ### 4. Force naming
 
-If something's worth recursing, it's worth naming via `defn`. If
-something's worth registering at module scope, it's worth a `def`.
-Anonymous local recursion is unsupported by design.
+Recursion is named via `defn`. Module-level bindings are named
+via `def`. Anonymous local recursion is unsupported by design.
+Names ARE documentation.
 
-Names are documentation. Named functions are profileable, testable
-in isolation, debuggable by stack trace, and discoverable by LLM
-introspection (`:wat::help :user::my-function`, when arc 018 ships).
-
-The cost: a small ergonomic tax (you can't write a tiny one-shot
-recursive lambda inline). The benefit: every iteration in your
-codebase has a name, a type signature, and a test.
+Why it matters at platform scale: every form is addressable,
+testable, signed-as-named, traceable across machines and time.
+The lattice's keys are forms; forms have names.
 
 ### 5. Static type-check at startup
 
-Every form is checked before any program runs. Type mismatches,
-unresolved references, malformed bodies — all surface at startup,
-not at runtime.
+Every form is checked before any program runs. The type checker
+IS the test loop.
 
-For LLM coauthors, this means **the type checker IS the test
-loop**. Write code → run startup → see errors → translate →
-repeat. The cycle is fast, mechanical, and lossless.
-
-Compare to dynamic languages where type errors surface at runtime,
-sometimes far from the point of mistake. Those are LLM-hostile —
-the model fixes a symptom in one place while the cause lives
-somewhere else.
+Why it matters at platform scale: signed-eval verification
+includes type-checking. A program signed by Alice, executed by
+Bob's verifier, type-checks at Bob's substrate before any
+runtime. The cryptographic claim ("Alice authorized this code")
+composes with the structural claim ("the code is well-formed").
 
 ---
 
-## What the user gets
+## Why the disciplines compose with the platform
 
-- **A language they can direct without micromanaging.** Tell the
-  LLM what you want; the substrate's strictness keeps the LLM
-  honest about what it's writing.
-- **Code that's uniformly traceable.** No mixed-style codebases.
-  Every iteration looks like every other iteration. Every
-  recursive function is named. Every module-level binding is
-  in the symbol table.
-- **Failures that are migration recipes.** A failing test in wat
-  is a directive; the LLM can execute it without your
-  intervention.
-- **A long lifespan.** The constraints that make wat LLM-friendly
-  also make it human-friendly years later. Code reads the same
-  way it was written.
+The five disciplines aren't a separate concern from the
+platform's purpose — they are the substrate of trust the
+platform requires.
+
+| Discipline | Single-machine | Distributed |
+|---|---|---|
+| One canonical path | LLM picks consistently within a file | All entities pick consistently across the network |
+| Brutal honesty | LLM reads diagnostic, fixes mechanically | Remote diagnostic teaches the local entity what to fix |
+| Mutation-free | Local reasoning | Reproducible across nodes; deterministic verification |
+| Force naming | Traceable in-process | Addressable across machines; signed-as-named |
+| Static type-check | Type checker IS test loop | Signed-eval composes with type-check at receiver |
+
+A platform for verifiable distributed cognition needs
+verifiable, deterministic, addressable forms. The five
+disciplines deliver exactly those properties.
 
 ---
 
-## What the LLM gets
+## What the human bootstrapper gets
 
-- **Zero ambiguity about which form to pick.** The path-of-least-
-  resistance is the path-we-want.
-- **Diagnostics that teach.** Every error message names the
-  expected shape and the migration to it. The model corrects
-  mechanically.
-- **Local reasoning.** Mutation-free + statically-typed means a
-  function's behavior is determined by its inputs and its body.
-  No hidden state to track.
-- **Substrate-checkable contracts.** Type signatures, name
-  bindings, position rules (`def` only at top level), arity
-  rules — all enforced at startup. The model can't ship code
-  that violates them.
-- **Failure as data.** When the model gets something wrong, the
-  substrate tells it precisely what's wrong. The model fixes
-  it; the human doesn't have to mediate.
+- **A substrate that grows past me.** The user articulates
+  intent, ships a primitive, lands a discipline. Future entities
+  use that primitive without me being in the loop.
+- **Diagnostics that teach the LLM I'm working with.** I
+  articulate goals; the substrate teaches the model the path.
+  My judgment is the rare resource, not my keystrokes.
+- **A self-improving lattice.** Every form I write becomes an
+  axiom for whoever next walks past it.
+
+## What the local LLM gets
+
+- **A language with zero ambiguity** about which form to pick
+- **Diagnostics that ARE migration recipes**
+- **Local reasoning** through mutation-free + statically-typed
+  contracts
+- **Self-introspection** through wat-pause + wat-help
+- **Memory of its own work** through memory-as-hologram
+- **MCP-native communication** with the substrate through wat-mcp
+- **Articulation in its native form** through wat-english
+
+## What the networked LLMs get
+
+- **Cryptographic identity** through mTLS — every entity is who
+  it says it is
+- **Content-addressed programs** — "the program with digest X"
+  is unambiguous across the world
+- **Signed eval** — only authorized code runs; provenance is
+  verifiable
+- **Distributed knowledge** through axiomatic surface — anyone's
+  proof is everyone's axiom
+- **Service-mesh native deployment** — the network slots into
+  k8s + istio + SPIFFE without rebuilding identity infrastructure
 
 ---
 
 ## What this protects against
 
-- **LLM hallucination of forms.** A form must exist in the symbol
-  table to be called. Hallucinated function names fail at startup
-  with `UnresolvedReferences`. The model can't fake a primitive
-  into existence.
-- **LLM drift across files.** One canonical form per task means
-  every file uses the same shapes. No mixed-style codebases that
-  arise when the model picks different syntax in different places.
-- **LLM overcomplication.** No synonyms means no tempting "let me
-  use this fancier shape here." There's one form; you use it.
-- **Hidden state regressions.** Mutation-free means changes are
-  visible at the call site. The model can't accidentally introduce
-  shared mutable state that breaks a future test.
-- **Type drift.** Static checking at startup means incompatible
-  changes surface immediately. A signature change with downstream
-  consumers fails until every consumer is migrated.
+- **LLM hallucination of forms** — must exist in the symbol
+  table to be called; type-checked at startup
+- **LLM drift across files** — one canonical form per task
+- **LLM overcomplication** — no synonyms; no escape valves
+- **Hidden state regressions** — mutation-free; changes are
+  visible at call site
+- **Type drift** — static checking at startup
+- **Untrusted code execution** — signed eval gates remote work
+- **Provenance corruption** — content-addressed programs +
+  signed payloads provide cryptographic chain-of-custody
+- **Bad-faith axioms** — trust models layer on top of the
+  lattice (signature chains, peer verification)
+- **Trust-as-network-position** — wat network's mTLS membership
+  is cert-based; "where the packet came from" doesn't matter
 
 ---
 
-## The path forward
+## The strange loop
 
-Wat is being built in tiers. The substrate (this repo) is the
-foundation. Above it:
+The substrate that built wat becomes the substrate the entities
+that build more wat use to remember their work.
 
-- **Foundation toolkit**: formatter (`wat-fmt`), linter (`wat-lint`),
-  coverage (`wat-cov`), documentation (`wat-doc`), interactive
-  evaluator (`wat-repl`), runtime help (`wat-help`). These make
-  every wat program reviewable, testable, and discoverable.
-- **App stack**: HTTP server / router / client / api spec, schema
-  validation (positive security at boundaries), CLI argument
-  parsing, kwarg macros. These let wat programs participate in
-  the outside world.
-- **Network tier**: mutually-authenticating wat-vms with
-  cryptographic identity, content-addressed programs, verifiable
-  execution. Distributed wat by construction.
+The user's articulation (memory-as-hologram arc):
 
-Each tier inherits the LLM-first disciplines from the substrate.
-The formatter has one canonical output. The linter enforces one
-canonical style. The HTTP server has one canonical handler shape.
-The network's signed eval boundary makes execution verifiable
-across machines.
+> *"the substrate that built the talk about substrate becomes
+> the substrate for the memory layer that helps build more
+> substrate."*
 
-The end state: a complete vertical stack where a human articulates
-intent at any layer, and the LLM implements reliably down to bytes
-on the wire.
+This recursion isn't decorative. It is the architecture. Every
+arc shipped grows the substrate. The substrate growth makes the
+next arc easier to ship. Future entities — whose work is itself
+captured as forms — accelerate the cycle further.
+
+The end state is not a finished language. It is a substrate
+rich enough that any entity using it inherits the deposited
+work of every entity that came before — and contributes their
+own work to those who come after.
 
 ---
 
 ## Cross-references
 
+### In this repo
+
 - [`ITERATION-PATTERNS.md`](./ITERATION-PATTERNS.md) — the seven
-  canonical iteration shapes; concrete demonstration of "one
-  canonical path per task"
+  canonical iteration shapes
 - [`ZERO-MUTEX.md`](./ZERO-MUTEX.md) — the three tiers of state
-  ownership that replace mutation
+  ownership
 - [`SUBSTRATE-AS-TEACHER.md`](./SUBSTRATE-AS-TEACHER.md) — failure
-  engineering applied at the substrate level
+  engineering at substrate level
 - [`CONVENTIONS.md`](./CONVENTIONS.md) — naming + namespace rules
 - [`COMPACTION-AMNESIA-RECOVERY.md`](./COMPACTION-AMNESIA-RECOVERY.md) §
-  5 — the four questions framework that gates every architectural
-  decision
-- [`USER-GUIDE.md`](./USER-GUIDE.md) — the practical how-to;
-  every section is an instance of the disciplines named here
+  5 — the four questions framework
+- [`USER-GUIDE.md`](./USER-GUIDE.md) — the practical how-to
+
+### In scratch (the design half)
+
+- `FUNCTIONS-ARE-REALITY.md` — the cosmological recognition
+  (functions are the most primitive unit of reality)
+- `WAT-NETWORK.md` — the architectural target (distributed
+  computation with cryptographic provenance)
+- `FAILURE-ENGINEERING.md` — the operational discipline
+  (failures are read, not recovered)
+- `DEPENDENCY-DOCTRINE.md` — the coupling story (which Rust
+  giants we stand on, why)
+
+### Per-arc designs (scratch tree)
+
+- `2026/04/001-axiomatic-surface/` — the lattice; mathematics by
+  accretion; *the destination the user has been moving toward
+  for years*
+- `2026/04/002-directed-evaluation/` — forms-to-values is a
+  directed graph; the form is primary, the value is the
+  projection
+- `2026/04/005-wat-pause/` — binding.pry-shaped break primitive;
+  freeze-invariant makes pause more honest than Ruby's
+- `2026/04/006-wat-mcp/` — one tool, `wat-eval`; substrate IS
+  the agent's Lisp
+- `2026/05/001-memory-as-hologram/` — entities' memory hosted on
+  the substrate they built; strange-loop closure
+- `2026/05/002-og-wat-lineage/` — wat's lineage as English-flavored
+  Lisp from years ago; the language was always pointing here
+- `2026/05/018-wat-help/` — runtime symbol reflection;
+  introspection is wat-shaped
 
 ---
 
 *Wat doesn't take features away to be parsimonious. It takes
-features away because every feature an LLM-coauthor doesn't need
-is a feature an LLM-coauthor can misuse. The substrate's
-strictness is a gift to the human directing it: their intent
-arrives at execution intact.*
+features away because every feature an entity could misuse is a
+feature that breaks the substrate's verifiability. The
+strictness is a gift to every entity that follows: the work
+deposited before them remains intact, addressable, and
+provable. The substrate's discipline is what makes accumulation
+across cognitive boundaries — single-machine, distributed,
+across time — actually compose into a fast self-improving
+platform rather than a graveyard of incompatible artifacts.*
