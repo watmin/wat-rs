@@ -810,48 +810,63 @@ arms — Path B retirement; not aliased). Bare `:fn(...)` retired in
 favor of `:wat::core::Fn(...)` per arc 109's FQDN doctrine (closes
 the fifth parametric type head — the four others FQDN'd in slice 1e).
 
-### `let` — sequential binding (arc 154 + arc 159)
+### `let` — sequential binding (arc 154 + arc 159 + arc 168)
 
 ```scheme
 (:wat::core::let
-  ((a 10)
-   (b 20)
-   (sum (:wat::core::i64::+ a b)))
+  [a 10
+   b 20
+   sum (:wat::core::i64::+ a b)]
   sum)
 ```
 
-Each binding's type is inferred from its expression — no per-binding
-`:T` annotation needed (arc 159 dropped the wrapper). Sequential —
-later bindings can reference earlier ones. Body after the bindings is
-the result.
-
-Single-letform vocabulary (Clojure-faithful). Pre-arc-154 wat had
-both `:wat::core::let` (parallel) and `:wat::core::let*` (sequential);
-arc 154 collapsed them: `:wat::core::let` is sequential; the `let*`
-spelling retired (silently aliases to `let` via runtime scaffolding;
-documentation discouraged; the walker that flagged `let*` shipped in
-slice 1a then retired in slice 2 per substrate-as-teacher § "Retire
-the hint when its window closes").
-
-The legacy typed shape `((name :T) expr)` retired in arc 159 the
-same way: walker fired `LegacyTypedLetBinding` during the migration
-window; consumer sweep cleared all in-tree sites; walker body
-retired (variant + Display preserved as orphaned scaffolding per
-arc 113 precedent). Same lesson as arc 145 / arc 157 (`def`):
-declared type is redundant when inference suffices.
-
-Destructure binding stays unchanged:
+Bindings are a flat `[name expr name expr ...]` Vector — the
+arc 168 shape (Clojure-faithful). Each binding's type is inferred
+from its expression; sequential — later bindings can reference
+earlier ones. Body is 1+ trailing forms (implicit-do); the LAST
+form's value IS the let's value:
 
 ```scheme
 (:wat::core::let
-  (((a b) pair)
-   ((x y z) triple))
+  [x 1
+   y (:wat::core::i64::+ x 1)]    ;; y sees x — sequential
+  (:my::log "computing")            ;; non-final: side effect
+  (:wat::core::i64::+ x y))        ;; final: this is the let's value
+```
+
+Empty bindings + empty body both work, both Clojure-faithful:
+
+```scheme
+(:wat::core::let [] (:wat::core::i64::+ 1 1))   ;; empty bindings, body returns
+(:wat::core::let [x 1])                          ;; empty body, returns :wat::core::nil
+```
+
+Tuple destructure: a Vector of symbols inside the binding Vector:
+
+```scheme
+(:wat::core::let
+  [[a b] pair                              ;; binds a, b from pair
+   [x y z] triple]                          ;; binds x, y, z from triple
   (:wat::core::i64::+ a (:wat::core::i64::+ x y)))
 ```
 
-The substrate distinguishes destructure (binder children all
-Symbols) from the retired legacy typed binding (binder[1] is a
-Keyword) at parse time.
+The substrate distinguishes the canonical shapes via the AST node
+type at parse time:
+- `Symbol` binder → single bare-name binding
+- `Vector` of Symbols binder → tuple destructure
+
+Single-letform vocabulary. Pre-arc-154 wat had both
+`:wat::core::let` (parallel) and `:wat::core::let*` (sequential);
+arc 154 collapsed them: `:wat::core::let` is sequential; the
+`let*` spelling retired.
+
+The legacy typed shape `((name :T) expr)` retired in arc 159; the
+legacy nested-pair-list outer shape `((name expr) (name expr) ...)`
+retired in arc 168 slice 3. Both shapes now produce a clean
+`MalformedForm` from the canonical Vector-only parser. Same
+lesson as arc 145 / arc 157 (`def`) and arc 167 (`fn`): the
+flat shape is shorter to type, faster to read, and the canonical
+substrate path stays simple.
 
 ### `do` — sequential evaluation (arc 136)
 
