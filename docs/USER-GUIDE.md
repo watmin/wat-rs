@@ -810,7 +810,7 @@ arms — Path B retirement; not aliased). Bare `:fn(...)` retired in
 favor of `:wat::core::Fn(...)` per arc 109's FQDN doctrine (closes
 the fifth parametric type head — the four others FQDN'd in slice 1e).
 
-### `let` — sequential binding (arc 154 + arc 159 + arc 168)
+### `let` — sequential binding (arc 154 + arc 159 + arc 168 + arc 169)
 
 ```scheme
 (:wat::core::let
@@ -850,10 +850,32 @@ Tuple destructure: a Vector of symbols inside the binding Vector:
   (:wat::core::i64::+ a (:wat::core::i64::+ x y)))
 ```
 
+Struct destructure (arc 169): bare symbols inside `{}` next to a
+struct value pull fields by name. Each symbol is BOTH the field
+name on the struct AND the binding name in the let scope:
+
+```scheme
+(:wat::core::struct :test::PaperResolved
+  (outcome       :wat::core::String)
+  (grace-residue :wat::core::f64))
+
+(:wat::core::let
+  [{outcome grace-residue} p]               ;; binds outcome + grace-residue from p
+  (:io::print outcome)
+  (:io::print-f64 grace-residue))
+```
+
+The 12-word rule: *bind the field's value to the field's name in
+this scope.* Unknown field name → check-time MalformedForm naming
+the struct's actual fields. Non-struct subject → TypeMismatch.
+Renames remain available via the auto-derived accessor verb in a
+regular let binding: `[renamed (:Type/field p)]`.
+
 The substrate distinguishes the canonical shapes via the AST node
 type at parse time:
 - `Symbol` binder → single bare-name binding
 - `Vector` of Symbols binder → tuple destructure
+- `StructPattern` of Symbols binder → struct destructure (arc 169)
 
 Single-letform vocabulary. Pre-arc-154 wat had both
 `:wat::core::let` (parallel) and `:wat::core::let*` (sequential);

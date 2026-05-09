@@ -1861,6 +1861,7 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
         WatAST::Symbol(_, _) => "symbol",
         WatAST::List(_, _) => "list",
         WatAST::Vector(_, _) => "vector",
+        WatAST::StructPattern(_, _) => "struct-pattern",
     }
 }
 

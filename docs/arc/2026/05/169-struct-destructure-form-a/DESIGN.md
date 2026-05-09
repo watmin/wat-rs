@@ -118,13 +118,23 @@ evaluation, emits a field-read, binds the local.
 
 ### `src/lexer.rs` + `src/parser.rs`
 
-Currently `{` and `}` have no token meaning (verified
-2026-05-08). Need to mint `LBrace`/`RBrace` tokens + a Map-or-
-similar AST variant for `{symbols}`.
+Currently `{` and `}` have no token meaning (verified 2026-05-08).
+Mint `LBrace`/`RBrace` tokens + `WatAST::StructPattern(Vec<WatAST>, Span)`
+AST variant for `{symbols}`.
 
-The AST shape choice (Map vs StructPattern) wants design-time
-attention at slice spawn — the struct-pattern variant might
-deserve a dedicated AST node since it's not a generic map.
+**Settled 2026-05-09 via four-questions:** StructPattern over
+generic Map. Each AST node kind carries one meaning; substrate
+dispatches on node kind, not on shape inspection. Map's
+flexibility for future hash-map literals is YAGNI optimism — when
+that arc opens it mints its own `HashMapLiteral` node. Long-term
+strategy: every node = one purpose. See conversation thread
+2026-05-09.
+
+The Vec inside StructPattern carries the bare-symbol field names
+in declaration order. Validation that all inner items are bare
+Symbols happens at parse time; non-Symbol contents produce a
+clean MalformedForm. Empty `{}` produces a clean MalformedForm
+(degenerate; no use case).
 
 ### `src/check.rs::infer_let` / `process_let_binding`
 
