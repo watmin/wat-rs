@@ -7308,22 +7308,35 @@ fn check_let_for_scope_deadlock_inferred(
     // Sender-bearing — they're already in `extended` but are sibling
     // only in their OWN let, which will be checked when that let
     // is processed by `infer_let`).
-    // Arc 158a — binding_names extraction accepts both shapes:
-    //   Legacy `((name :T) rhs)` → parts is a List; collect all Symbol names.
-    //   New `(name rhs)` → items[0] is a bare Symbol; use that name directly.
-    // Both shapes register names in `extended` during inference; we need
-    // both to appear in `binding_names` for the Sender-bearing / Thread
-    // classification to find them.
+    // Arc 168 slice 4 follow-up — binding_names extraction accepts the
+    // shapes that survive into `bindings_pairs` post-arc-168:
+    //   Bare-symbol: `(name rhs)` synthesized list — items[0] is a Symbol
+    //   Tuple-destructure: `([n1 n2 ...] rhs)` synthesized list — items[0]
+    //     is a Vector of Symbols (arc 168 flat-shape)
+    //   Legacy List binder kept as a safety net for any pre-arc-168
+    //     bindings_pairs path (no current callers; defensive).
+    // All shapes register names in `extended` during inference; we need
+    // every shape's names in `binding_names` for the Sender-bearing /
+    // Thread classification to find them.
     let binding_names: Vec<String> = bindings
         .iter()
         .flat_map(|b| {
             let WatAST::List(items, _) = b else { return vec![]; };
             if items.len() != 2 { return vec![]; }
             match &items[0] {
-                // New shape: (name rhs) — bare Symbol at position 0.
+                // Single binding: items[0] is a bare Symbol.
                 WatAST::Symbol(id, _) => vec![id.name.clone()],
-                // Legacy shape: ((name :T) rhs) or tuple-destructure
-                // ((name1 name2 ...) rhs) — List at position 0.
+                // Tuple-destructure (arc 168 flat-shape): items[0] is a
+                // Vector of Symbols.
+                WatAST::Vector(parts, _) => parts
+                    .iter()
+                    .filter_map(|p| match p {
+                        WatAST::Symbol(id, _) => Some(id.name.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                // Defensive: any pre-arc-168 List binder shape that
+                // reaches here. No current callers post-slice-3.
                 WatAST::List(parts, _) => parts
                     .iter()
                     .filter_map(|p| match p {
