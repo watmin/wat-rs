@@ -101,8 +101,8 @@ fn try_chains_two_bindings_in_let() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            ((a (:wat::core::Result/try (:wat::core::Ok 10)))
-             (b (:wat::core::Result/try (:wat::core::Ok 32))))
+            [a (:wat::core::Result/try (:wat::core::Ok 10))
+             b (:wat::core::Result/try (:wat::core::Ok 32))]
             (:wat::core::Ok (:wat::core::i64::+,2 a b))))
     "#;
     match run(src) {
@@ -122,8 +122,8 @@ fn try_short_circuits_let_on_first_err() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            ((a (:wat::core::Result/try (:wat::core::Err "early")))
-             (b (:wat::core::Result/try (:wat::core::Ok 99))))
+            [a (:wat::core::Result/try (:wat::core::Err "early"))
+             b (:wat::core::Result/try (:wat::core::Ok 99))]
             (:wat::core::Ok (:wat::core::i64::+,2 a b))))
     "#;
     match run(src) {
@@ -258,10 +258,10 @@ fn try_inside_result_returning_fn_propagates_to_fn() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            ((f
+            [f
               (:wat::core::fn
                 [r <- :wat::core::Result<wat::core::i64,wat::core::String>] -> :wat::core::Result<wat::core::i64,wat::core::String>
-                (:wat::core::Ok (:wat::core::Result/try r)))))
+                (:wat::core::Ok (:wat::core::Result/try r)))]
             (f (:wat::core::Err "fn-err"))))
     "#;
     match run(src) {
@@ -282,10 +282,10 @@ fn try_inside_non_result_fn_rejected_at_check() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            ((f
+            [f
               (:wat::core::fn
                 [r <- :wat::core::Result<wat::core::i64,wat::core::String>] -> :wat::core::i64
-                (:wat::core::Result/try r))))
+                (:wat::core::Result/try r))]
             (:wat::core::Ok (f (:wat::core::Ok 1)))))
     "#;
     let errs = check_errors(src);

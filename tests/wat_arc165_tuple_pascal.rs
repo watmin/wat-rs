@@ -138,7 +138,7 @@ fn type_name_returns_fqdn_pascal() {
     let src = r#"
         (:wat::core::define (:user::main -> :(wat::core::i64,wat::core::i64))
           (:wat::core::let
-            ((t (:wat::core::Tuple 10 20)))
+            [t (:wat::core::Tuple 10 20)]
             t))
     "#;
     startup_ok(src);

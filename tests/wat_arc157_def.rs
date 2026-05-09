@@ -160,7 +160,7 @@ fn def_position_legal_let_splice_with_closure() {
     // splice-eligible. The type checker must accept this.
     let src = r#"
         (:wat::core::let
-          ((config 42))
+          [config 42]
           (:wat::core::def :get-config
             (:wat::core::fn [] -> :wat::core::i64
               config)))
@@ -175,7 +175,7 @@ fn def_position_legal_let_splice_with_closure() {
 fn def_position_legal_recursive_let_do_nesting() {
     let src = r#"
         (:wat::core::let
-          ((x 1))
+          [x 1]
           (:wat::core::do
             (:wat::core::def :a x)
             (:wat::core::def :b (:wat::core::i64::*,2 x 2))))
@@ -291,7 +291,7 @@ fn def_runtime_pi_in_let_addition() {
         (:wat::core::def :pi 3.14159)
         (:wat::core::define (:user::main -> :wat::core::f64)
           (:wat::core::let
-            ((x 2.0))
+            [x 2.0]
             (:wat::core::f64::+,2 x :pi)))
     "#;
     let v = run(src);
@@ -322,7 +322,7 @@ fn def_runtime_let_splice_closure_capture() {
     // fn that captures `config`. Calling `:get-config` must return 42.
     let src = r#"
         (:wat::core::let
-          ((config 42))
+          [config 42]
           (:wat::core::def :get-config
             (:wat::core::fn [] -> :wat::core::i64
               config)))

@@ -250,10 +250,10 @@ fn signature_of_variadic_define_returns_rest_shape() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((sig-opt
-              (:wat::runtime::signature-of :my::sum-of))
-             (rendered
-              (:wat::edn::write sig-opt)))
+            [sig-opt
+              (:wat::runtime::signature-of :my::sum-of)
+             rendered
+              (:wat::edn::write sig-opt)]
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
     let out = run_with_stdout(src);

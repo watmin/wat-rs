@@ -52,8 +52,8 @@ fn shared_handle_reads_message() {
 
         (:wat::core::define (:user::main -> :wat::core::String)
           (:wat::core::let
-            ((g
-              (:rust::test::Greeting::new "hello" 2026)))
+            [g
+              (:rust::test::Greeting::new "hello" 2026)]
             (:rust::test::Greeting::message g)))
     "#;
     let loader = InMemoryLoader::new();
@@ -73,8 +73,8 @@ fn shared_handle_reads_year() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((g
-              (:rust::test::Greeting::new "any" 2026)))
+            [g
+              (:rust::test::Greeting::new "any" 2026)]
             (:rust::test::Greeting::year g)))
     "#;
     let loader = InMemoryLoader::new();
