@@ -32,20 +32,20 @@
        (pool :wat::telemetry::HandlePool<test::Event>)
        -> :wat::core::nil)
      (:wat::core::let
-       ((handle
-         (:wat::kernel::HandlePool::pop pool))
-        (_finish (:wat::kernel::HandlePool::finish pool))
-        (req-tx
-         (:wat::core::first handle))
-        (ack-rx
-         (:wat::core::second handle))
-        (entries
+       [handle
+         (:wat::kernel::HandlePool::pop pool)
+        _finish (:wat::kernel::HandlePool::finish pool)
+        req-tx
+         (:wat::core::first handle)
+        ack-rx
+         (:wat::core::second handle)
+        entries
          (:wat::core::Vector :test::Event
            (:test::Event::Buy 100.5 7)
-           (:test::Event::Sell 102.25 3 "stop-loss" true)))
-        (_log
+           (:test::Event::Sell 102.25 3 "stop-loss" true))
+        _log
          (:wat::telemetry::batch-log
-           req-tx ack-rx entries)))
+           req-tx ack-rx entries)]
        ()))
 
 
@@ -54,26 +54,26 @@
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
      (:wat::core::let
-       ((spawn
+       [spawn
          (:wat::telemetry::Sqlite/auto-spawn
            :test::Event
            path 1
            (:wat::telemetry::null-metrics-cadence)
-           :wat::telemetry::Sqlite/null-pre-install))
-        (pool
-         (:wat::core::first spawn))
-        (driver
-         (:wat::core::second spawn))
-        (_inner
-         (:test::send-events pool)))
+           :wat::telemetry::Sqlite/null-pre-install)
+        pool
+         (:wat::core::first spawn)
+        driver
+         (:wat::core::second spawn)
+        _inner
+         (:test::send-events pool)]
        driver))))
 
 
 (:deftest :wat-telemetry-sqlite::auto-spawn::test-event-roundtrip
   (:wat::core::let
-    ((driver
+    [driver
       (:test::auto-spawn-events
-        "/tmp/wat-sqlite-test-auto-001.db"))
-     (_join
-      (:wat::kernel::Thread/join-result driver)))
+        "/tmp/wat-sqlite-test-auto-001.db")
+     _join
+      (:wat::kernel::Thread/join-result driver)]
     (:wat::test::assert-eq true true)))

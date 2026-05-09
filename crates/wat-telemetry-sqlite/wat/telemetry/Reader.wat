@@ -215,15 +215,15 @@
     (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
     -> :wat::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let
-    ((path (:wat::sqlite::ReadHandle/path handle)))
+    [path (:wat::sqlite::ReadHandle/path handle)]
     (:wat::stream::spawn-producer
       (:wat::core::fn
         [tx <- :wat::kernel::Sender<wat::telemetry::Event>] -> :wat::core::nil
         (:wat::core::let
-          ((local-handle
-            (:wat::sqlite::open-readonly path))
-           (cursor
-            (:wat::telemetry::sqlite/log-cursor local-handle constraints)))
+          [local-handle
+            (:wat::sqlite::open-readonly path)
+           cursor
+            (:wat::telemetry::sqlite/log-cursor local-handle constraints)]
           (:wat::telemetry::sqlite/log-loop cursor tx))))))
 
 (:wat::core::define
@@ -232,13 +232,13 @@
     (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
     -> :wat::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let
-    ((path (:wat::sqlite::ReadHandle/path handle)))
+    [path (:wat::sqlite::ReadHandle/path handle)]
     (:wat::stream::spawn-producer
       (:wat::core::fn
         [tx <- :wat::kernel::Sender<wat::telemetry::Event>] -> :wat::core::nil
         (:wat::core::let
-          ((local-handle
-            (:wat::sqlite::open-readonly path))
-           (cursor
-            (:wat::telemetry::sqlite/metric-cursor local-handle constraints)))
+          [local-handle
+            (:wat::sqlite::open-readonly path)
+           cursor
+            (:wat::telemetry::sqlite/metric-cursor local-handle constraints)]
           (:wat::telemetry::sqlite/metric-loop cursor tx))))))
