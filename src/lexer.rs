@@ -76,6 +76,15 @@ pub enum Token {
     LBracket,
     /// `]`
     RBracket,
+    /// `{` — opens a brace-form. Arc 169 slice 1: produces
+    /// `WatAST::StructPattern` at the parser layer; admitted only
+    /// in `:wat::core::let` binding-position alongside a struct-
+    /// typed expression. The parser produces the node uniformly;
+    /// the consumer rejects out-of-position uses with a clean
+    /// MalformedForm.
+    LBrace,
+    /// `}`
+    RBrace,
     /// Integer literal.
     Int(i64),
     /// Floating-point literal.
@@ -203,6 +212,19 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             continue;
         }
 
+        // Braces — arc 169 slice 1. Emit `LBrace` / `RBrace` tokens
+        // which the parser turns into `WatAST::StructPattern`.
+        if c == '{' {
+            tokens.push(SpannedToken { token: Token::LBrace, span: span_at(i) });
+            i += 1;
+            continue;
+        }
+        if c == '}' {
+            tokens.push(SpannedToken { token: Token::RBrace, span: span_at(i) });
+            i += 1;
+            continue;
+        }
+
         // Quasiquote reader macros — `, ,, ,@`.
         if c == '`' {
             tokens.push(SpannedToken { token: Token::Quasiquote, span: span_at(i) });
@@ -306,6 +328,8 @@ fn is_symbol_break(c: char) -> bool {
         || c == ')'
         || c == '['
         || c == ']'
+        || c == '{'
+        || c == '}'
         || c == '"'
         || c == ';'
 }
@@ -434,6 +458,17 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
                 // bracket grouping is open, the `[` belongs to the
                 // enclosing form (a vector opener following an
                 // unspaced keyword).
+                if angle_depth > 0 || paren_depth > 0 {
+                    out.push(c);
+                } else {
+                    break;
+                }
+            }
+            // Arc 169 slice 1 — same treatment as `[` / `]`. `{`
+            // and `}` are not legal inside a keyword (no parametric
+            // type uses braces); when no `(...)` / `<...>` grouping
+            // is open, a brace belongs to the enclosing form.
+            '{' | '}' => {
                 if angle_depth > 0 || paren_depth > 0 {
                     out.push(c);
                 } else {

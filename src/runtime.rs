@@ -2778,6 +2778,20 @@ pub fn eval(
                 .into(),
             span: span.clone(),
         }),
+        // Arc 169 slice 1 — struct-pattern brace-forms are
+        // consumed only in `:wat::core::let` binding-position
+        // alongside a struct-typed expression. Reaching `eval` is a
+        // value-position use; surface as MalformedForm.
+        WatAST::StructPattern(_, span) => Err(RuntimeError::MalformedForm {
+            head: "<struct-pattern>".into(),
+            reason: "struct-destructure brace-form `{...}` is only legal \
+                     at let binding-position alongside a struct-typed \
+                     expression (e.g. `(:wat::core::let [{outcome residue} \
+                     p] body...)`); appearing at value position is not \
+                     supported"
+                .into(),
+            span: span.clone(),
+        }),
         WatAST::Keyword(k, _) => {
             // Arc 153 slice 1a — `:wat::core::nil` at value
             // position evaluates to `Value::Unit` (the nil
@@ -4168,6 +4182,92 @@ fn bind_let_binding(
             }
             Ok(builder.build())
         }
+        // Arc 169 slice 1 — struct destructure. The 12-word rule:
+        // *bind the field's value to the field's name in this
+        // scope*. RHS must evaluate to a `Value::Struct`; each
+        // requested field-name resolves against the struct type's
+        // declared fields (looked up via the SymbolTable's TypeEnv);
+        // the field's value is bound to the local of the same name.
+        //
+        // The type-checker (arc 169 check arm) catches struct-type
+        // mismatches and unknown field names ahead of time; runtime
+        // posture is defense-in-depth — clear diagnostics for
+        // programs that reach here without having been checked.
+        LetBinding::StructDestructure { field_names, rhs } => {
+            let value = eval(rhs, scope, sym)?;
+            let sv = match &value {
+                Value::Struct(sv) => sv.clone(),
+                other => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: ":wat::core::let".into(),
+                        expected: "wat::core::Struct",
+                        got: other.type_name(),
+                        span: rhs.span().clone(),
+                    });
+                }
+            };
+            // Resolve field-name → field-index via the struct's
+            // declared field list. SymbolTable carries the TypeEnv
+            // post-freeze; runtime callers always have it attached.
+            let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+                head: ":wat::core::let".into(),
+                reason: "struct destructure requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into(),
+                span: rhs.span().clone(),
+            })?;
+            let struct_def = match types.get(&sv.type_name) {
+                Some(crate::types::TypeDef::Struct(sd)) => sd,
+                _ => {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::let".into(),
+                        reason: format!(
+                            "struct destructure: rhs type {} is not registered as a struct in the TypeEnv (programmer error: a Value::Struct exists at runtime without a corresponding StructDef)",
+                            sv.type_name
+                        ),
+                        span: rhs.span().clone(),
+                    });
+                }
+            };
+            let mut builder = scope.child();
+            for fname in &field_names {
+                let idx = struct_def
+                    .fields
+                    .iter()
+                    .position(|(n, _)| n == fname)
+                    .ok_or_else(|| RuntimeError::MalformedForm {
+                        head: ":wat::core::let".into(),
+                        reason: format!(
+                            "struct destructure: field {:?} is not declared on struct {} (declared fields: {})",
+                            fname,
+                            sv.type_name,
+                            struct_def
+                                .fields
+                                .iter()
+                                .map(|(n, _)| n.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                        span: rhs.span().clone(),
+                    })?;
+                let elem = sv
+                    .fields
+                    .get(idx)
+                    .cloned()
+                    .ok_or_else(|| RuntimeError::MalformedForm {
+                        head: ":wat::core::let".into(),
+                        reason: format!(
+                            "struct destructure: field {:?} index {} is out of range on struct {} (value has {} fields, declaration has {})",
+                            fname,
+                            idx,
+                            sv.type_name,
+                            sv.fields.len(),
+                            struct_def.fields.len()
+                        ),
+                        span: rhs.span().clone(),
+                    })?;
+                builder = builder.bind(fname.clone(), elem);
+            }
+            Ok(builder.build())
+        }
     }
 }
 
@@ -4235,9 +4335,9 @@ fn destructure_tuple(
     }
 }
 
-/// One let binding form (arc 168).
+/// One let binding form (arc 168 + arc 169).
 ///
-/// Two canonical shapes — both honest about types. Bare-single
+/// Three canonical shapes — all honest about types. Bare-single
 /// `(name rhs)` is NOT accepted at the bare layer: every bound name's
 /// type must be derivable from a declaration somewhere in the program,
 /// not from the checker guessing at a literal.
@@ -4250,6 +4350,11 @@ fn destructure_tuple(
 ///   tuple-element type from that declaration. Structural destructure
 ///   — types flow from the RHS's declared shape through the pattern;
 ///   no inference from literals.
+/// - **StructDestructure** (arc 169) — binder is a
+///   `WatAST::StructPattern` of bare symbols (each is BOTH a
+///   field-name AND the local binding-name). RHS must be a struct-
+///   typed expression; each field name resolves against the struct
+///   type's registered fields.
 enum LetBinding<'a> {
     Single {
         name: String,
@@ -4259,15 +4364,23 @@ enum LetBinding<'a> {
         names: Vec<String>,
         rhs: &'a WatAST,
     },
+    StructDestructure {
+        field_names: Vec<String>,
+        rhs: &'a WatAST,
+    },
 }
 
 /// Parse a single (binder, rhs) chunk from a flat-vector let
-/// bindings form (arc 168). The caller (`eval_let`) walks the outer
-/// `WatAST::Vector` 2-at-a-time and calls this for each pair.
+/// bindings form (arc 168 + arc 169). The caller (`eval_let`) walks
+/// the outer `WatAST::Vector` 2-at-a-time and calls this for each
+/// pair.
 ///
 /// Binder is one of:
 /// - `WatAST::Symbol` → `LetBinding::Single { name, rhs }` (canonical)
 /// - `WatAST::Vector` of bare symbols → `LetBinding::Destructure`
+///   (tuple destructure; arc 168)
+/// - `WatAST::StructPattern` of bare symbols →
+///   `LetBinding::StructDestructure` (struct destructure; arc 169)
 fn parse_let_binding<'a>(
     binder: &'a WatAST,
     rhs: &'a WatAST,
@@ -4304,10 +4417,44 @@ fn parse_let_binding<'a>(
             }
             Ok(LetBinding::Destructure { names, rhs })
         }
+        WatAST::StructPattern(inner, _) => {
+            // Struct destructure binder: parser guarantees every
+            // element is a bare Symbol and the form is non-empty.
+            // Defense-in-depth: re-verify the shape so a future
+            // caller that synthesizes a StructPattern with wrong
+            // contents surfaces a clear diagnostic instead of
+            // panicking deep in the runtime.
+            let mut field_names = Vec::with_capacity(inner.len());
+            for item in inner {
+                match item {
+                    WatAST::Symbol(ident, _) => {
+                        field_names.push(ident.name.clone())
+                    }
+                    other => {
+                        return Err(RuntimeError::MalformedForm {
+                            head: ":wat::core::let".into(),
+                            reason: format!(
+                                "struct-destructure brace-form must contain only bare symbols; got {}",
+                                ast_variant_name(other)
+                            ),
+                            span: other.span().clone(),
+                        });
+                    }
+                }
+            }
+            if field_names.is_empty() {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::let".into(),
+                    reason: "struct-destructure brace-form cannot be empty — at least one field name is required".into(),
+                    span: binder.span().clone(),
+                });
+            }
+            Ok(LetBinding::StructDestructure { field_names, rhs })
+        }
         other => Err(RuntimeError::MalformedForm {
             head: ":wat::core::let".into(),
             reason: format!(
-                "let binder must be a Symbol (single) or a Vector of symbols (destructure); got {}",
+                "let binder must be a Symbol (single), a Vector of symbols (tuple destructure), or a StructPattern of symbols (struct destructure); got {}",
                 ast_variant_name(other)
             ),
             span: other.span().clone(),
@@ -10269,6 +10416,13 @@ fn try_match_pattern(
             reason: "vector sub-patterns are not supported in arc 167".into(),
             span: pattern.span().clone(),
         }),
+        // Arc 169 slice 1 — struct-pattern brace-forms belong to
+        // let binding-position only; not a match sub-pattern.
+        WatAST::StructPattern(_, _) => Err(RuntimeError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
+            span: pattern.span().clone(),
+        }),
     }
 }
 
@@ -10415,6 +10569,15 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
         // a future arc that exposes vector-as-value at the
         // algebra level may re-tag these distinctly.
         WatAST::Vector(items, _) => {
+            HolonAST::bundle(items.iter().map(watast_to_holon).collect())
+        }
+        // Arc 169 slice 1 — same algebra-level lowering as Vector
+        // / List. The brace-form's surface-syntax role (struct-
+        // destructure binder) doesn't translate to algebra; if a
+        // captured wat form happens to carry a `{...}` it surfaces
+        // as a Bundle of its symbol children. Future arcs may
+        // re-tag distinctly.
+        WatAST::StructPattern(items, _) => {
             HolonAST::bundle(items.iter().map(watast_to_holon).collect())
         }
     }
@@ -14112,6 +14275,7 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
         WatAST::Symbol(_, _) => "symbol",
         WatAST::List(_, _) => "list",
         WatAST::Vector(_, _) => "vector",
+        WatAST::StructPattern(_, _) => "struct-pattern",
     }
 }
 
@@ -16588,6 +16752,14 @@ fn step_form(
             op: "<vector literal>".into(),
             span: vec_span.clone(),
         }),
+        // Arc 169 slice 1 — same shape: brace-forms reaching the
+        // stepper escaped the let consumer. Surface as NoStepRule;
+        // eval will raise the canonical "struct-pattern at value
+        // position" error.
+        WatAST::StructPattern(_, sp_span) => Err(RuntimeError::NoStepRule {
+            op: "<struct-pattern>".into(),
+            span: sp_span.clone(),
+        }),
     }
 }
 
@@ -16739,6 +16911,10 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
         // expression tree. Refuse recognition so the caller falls
         // through to step_form, which surfaces NoStepRule.
         WatAST::Vector(_, _) => None,
+        // Arc 169 slice 1 — same reasoning as Vector. Brace-forms
+        // are binding-position grammar (let struct-destructure);
+        // not a value shape.
+        WatAST::StructPattern(_, _) => None,
     }
 }
 
@@ -17487,6 +17663,12 @@ fn try_match_pattern_ast(
         WatAST::Vector(_, _) => Err(RuntimeError::MalformedForm {
             head: ":wat::core::match".into(),
             reason: "vector sub-patterns are not supported in arc 167".into(),
+            span: pattern.span().clone(),
+        }),
+        // Arc 169 slice 1 — same reasoning as Vector.
+        WatAST::StructPattern(_, _) => Err(RuntimeError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
             span: pattern.span().clone(),
         }),
     }

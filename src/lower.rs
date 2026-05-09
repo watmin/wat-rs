@@ -179,6 +179,14 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
             "vector literal in lower() (algebra-core does not admit vector literals)".into(),
             span.clone(),
         )),
+        // Arc 169 slice 1 — same reasoning as Vector. A struct-
+        // pattern brace-form has no algebra-core meaning; surfaces
+        // here only if a `{...}` reaches lower() through an
+        // unexpected path.
+        WatAST::StructPattern(_, span) => Err(LowerError::UnsupportedForm(
+            "struct-pattern `{...}` in lower() (algebra-core does not admit brace-forms)".into(),
+            span.clone(),
+        )),
     }
 }
 

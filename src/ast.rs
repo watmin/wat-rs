@@ -79,6 +79,24 @@ pub enum WatAST {
     /// consumers are wired in slice 2 (`fn` / `defn` signatures)
     /// and arc 168 (`let`).
     Vector(Vec<WatAST>, Span),
+
+    /// Braced form `{a b c ...}` — the struct-destructure binder
+    /// shape. Each child is a bare `Symbol` that is BOTH the
+    /// field-name (looked up against the struct type of the
+    /// adjacent expression) AND the local binding-name in the
+    /// enclosing let scope.
+    ///
+    /// Arc 169 slice 1 (additive substrate). Admitted only in
+    /// `:wat::core::let` binding-position alongside a struct-typed
+    /// expression; appearing anywhere else errors at parse / check
+    /// time. The 12-word semantic rule: *bind the field's value to
+    /// the field's name in this scope*.
+    ///
+    /// Empty `{}` and non-Symbol contents are rejected at PARSE
+    /// time. Field-name validation against a registered struct's
+    /// fields is the consumer's job at check / runtime — the
+    /// parser does not consult any type registry.
+    StructPattern(Vec<WatAST>, Span),
 }
 
 impl WatAST {
@@ -92,7 +110,8 @@ impl WatAST {
             | WatAST::Keyword(_, s)
             | WatAST::Symbol(_, s)
             | WatAST::List(_, s)
-            | WatAST::Vector(_, s) => s,
+            | WatAST::Vector(_, s)
+            | WatAST::StructPattern(_, s) => s,
         }
     }
 
@@ -123,6 +142,11 @@ impl WatAST {
     /// runtime-constructed bracketed forms.
     pub fn vector(items: Vec<WatAST>) -> Self {
         WatAST::Vector(items, Span::unknown())
+    }
+    /// Synthetic StructPattern with [`Span::unknown`] — for tests
+    /// and runtime-constructed brace forms. Arc 169 slice 1.
+    pub fn struct_pattern(items: Vec<WatAST>) -> Self {
+        WatAST::StructPattern(items, Span::unknown())
     }
 }
 

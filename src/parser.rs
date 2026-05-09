@@ -39,6 +39,22 @@ pub enum ParseError {
     /// An opening `[` was never closed before end of input. Arc 167
     /// slice 1.
     UnclosedBracket(Span),
+    /// A `}` was found with no matching `{`. Arc 169 slice 1.
+    UnexpectedRBrace(Span),
+    /// An opening `{` was never closed before end of input. Arc 169
+    /// slice 1.
+    UnclosedBrace(Span),
+    /// A struct-destructure brace-form was empty (`{}`) or carried a
+    /// non-Symbol child. Arc 169 slice 1 — parse-time shape rule:
+    /// every child of `{}` must be a bare Symbol, and at least one
+    /// child is required. Field-name semantics are validated later
+    /// (check time / runtime); the parser only enforces shape.
+    MalformedStructPattern {
+        /// The `{` opening span.
+        span: Span,
+        /// Diagnostic naming the offending shape.
+        reason: String,
+    },
     /// `parse_one` expected exactly one form; got trailing content after
     /// the first complete form. Span points at the first trailing token.
     TrailingContent(Span),
@@ -54,6 +70,13 @@ impl fmt::Display for ParseError {
             ParseError::UnclosedParen(span) => write!(f, "unclosed '(' at {}", span),
             ParseError::UnexpectedRBracket(span) => write!(f, "unexpected ']' at {}", span),
             ParseError::UnclosedBracket(span) => write!(f, "unclosed '[' at {}", span),
+            ParseError::UnexpectedRBrace(span) => write!(f, "unexpected '}}' at {}", span),
+            ParseError::UnclosedBrace(span) => write!(f, "unclosed '{{' at {}", span),
+            ParseError::MalformedStructPattern { span, reason } => write!(
+                f,
+                "malformed struct-destructure brace-form at {}: {}",
+                span, reason
+            ),
             ParseError::TrailingContent(span) => {
                 write!(f, "trailing content at {} (parse_one expected a single top-level form)", span)
             }
@@ -174,6 +197,39 @@ impl<'a> Cursor<'a> {
                 Ok(Some(WatAST::Vector(items, span)))
             }
             Token::RBracket => Err(ParseError::UnexpectedRBracket(span)),
+            Token::LBrace => {
+                // Arc 169 slice 1 — brace-forms parse as
+                // `WatAST::StructPattern`. Parse-time shape rules:
+                //   * every child must be a bare Symbol
+                //   * at least one child required (empty `{}` is
+                //     degenerate; no use case)
+                // Both rules surface as `MalformedStructPattern`
+                // naming the offending position; field-name
+                // semantics are validated later by the let
+                // consumer at check / runtime.
+                let items = self.parse_brace_body(span.clone())?;
+                if items.is_empty() {
+                    return Err(ParseError::MalformedStructPattern {
+                        span,
+                        reason:
+                            "struct-destructure brace-form `{}` is empty; at least one bare-symbol field name is required (e.g. `{outcome residue}`)"
+                                .into(),
+                    });
+                }
+                for item in &items {
+                    if !matches!(item, WatAST::Symbol(_, _)) {
+                        return Err(ParseError::MalformedStructPattern {
+                            span: item.span().clone(),
+                            reason: format!(
+                                "struct-destructure brace-form must contain only bare symbols (field names); got a {} — write `{{field1 field2 ...}}` with bare names only",
+                                ast_variant_label(item)
+                            ),
+                        });
+                    }
+                }
+                Ok(Some(WatAST::StructPattern(items, span)))
+            }
+            Token::RBrace => Err(ParseError::UnexpectedRBrace(span)),
             Token::Int(n) => Ok(Some(WatAST::IntLit(*n, span))),
             Token::Float(x) => Ok(Some(WatAST::FloatLit(*x, span))),
             Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b, span))),
@@ -222,6 +278,13 @@ impl<'a> Cursor<'a> {
                     let span = self.peek().expect("guard").span.clone();
                     return Err(ParseError::UnexpectedRBracket(span));
                 }
+                Some(Token::RBrace) => {
+                    // Arc 169 slice 1 — a `}` inside a list body
+                    // is a delimiter mismatch. Surface as
+                    // `UnexpectedRBrace` pointing at the `}`.
+                    let span = self.peek().expect("guard").span.clone();
+                    return Err(ParseError::UnexpectedRBrace(span));
+                }
                 Some(_) => match self.parse_form()? {
                     Some(child) => children.push(child),
                     None => unreachable!(
@@ -251,6 +314,12 @@ impl<'a> Cursor<'a> {
                     let span = self.peek().expect("guard").span.clone();
                     return Err(ParseError::UnexpectedRParen(span));
                 }
+                Some(Token::RBrace) => {
+                    // Arc 169 slice 1 — a `}` inside a vector body
+                    // is a delimiter mismatch.
+                    let span = self.peek().expect("guard").span.clone();
+                    return Err(ParseError::UnexpectedRBrace(span));
+                }
                 Some(_) => match self.parse_form()? {
                     Some(child) => children.push(child),
                     None => unreachable!(
@@ -260,6 +329,56 @@ impl<'a> Cursor<'a> {
                 None => return Err(ParseError::UnclosedBracket(open_span)),
             }
         }
+    }
+
+    /// Parse the body of a brace-form — `{` already consumed. Mirrors
+    /// `parse_vector_body`'s shape; emits an `UnclosedBrace` error if
+    /// EOF arrives before a matching `}`. Cross-delimiter mismatches
+    /// (`)` or `]` inside a `{...}` body) surface as the corresponding
+    /// `Unexpected*` errors. Arc 169 slice 1.
+    fn parse_brace_body(&mut self, open_span: Span) -> Result<Vec<WatAST>, ParseError> {
+        let mut children = Vec::new();
+        loop {
+            match self.peek().map(|st| &st.token) {
+                Some(Token::RBrace) => {
+                    self.advance();
+                    return Ok(children);
+                }
+                Some(Token::RParen) => {
+                    let span = self.peek().expect("guard").span.clone();
+                    return Err(ParseError::UnexpectedRParen(span));
+                }
+                Some(Token::RBracket) => {
+                    let span = self.peek().expect("guard").span.clone();
+                    return Err(ParseError::UnexpectedRBracket(span));
+                }
+                Some(_) => match self.parse_form()? {
+                    Some(child) => children.push(child),
+                    None => unreachable!(
+                        "parse_form returned None but peek() had a token"
+                    ),
+                },
+                None => return Err(ParseError::UnclosedBrace(open_span)),
+            }
+        }
+    }
+}
+
+/// Human-readable AST variant name — for parser-side diagnostics
+/// pointing at out-of-shape children (e.g. inside `{...}`). Matches
+/// the language-surface vocabulary the user authored, not the Rust
+/// variant identifier. Arc 169 slice 1.
+fn ast_variant_label(ast: &WatAST) -> &'static str {
+    match ast {
+        WatAST::IntLit(_, _) => "integer literal",
+        WatAST::FloatLit(_, _) => "float literal",
+        WatAST::BoolLit(_, _) => "boolean literal",
+        WatAST::StringLit(_, _) => "string literal",
+        WatAST::Keyword(_, _) => "keyword",
+        WatAST::Symbol(_, _) => "symbol",
+        WatAST::List(_, _) => "list",
+        WatAST::Vector(_, _) => "vector",
+        WatAST::StructPattern(_, _) => "nested struct-pattern",
     }
 }
 
