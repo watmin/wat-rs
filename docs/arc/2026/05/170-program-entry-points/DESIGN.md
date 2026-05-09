@@ -1,7 +1,7 @@
 # Arc 170 — Program entry-point contracts + `:user::main` argv
 
-**Status:** DESIGN drafted 2026-05-09 from full conversation thread.
-Pending user review before implementation slices spawn.
+**Status:** DESIGN settled 2026-05-09. All open questions resolved.
+Ready for slice 1 BRIEF authorship + opus spawn.
 
 **Blocker for:** arc 109 v1 milestone closure (per arc 109
 INVENTORY § M-equivalent — argv on `:user::main` is the missing
@@ -197,8 +197,8 @@ child's world to invoke):
 |---|---|---|
 | `(:fork-program src scope)` invokes `:user::main` | `(:spawn-process src scope entry-kw)` invokes `entry-kw` of child's world | OS fork(2). entry-kw must resolve in child's world to a fn matching the `:user::process` contract signature. |
 | `(:fork-program-ast forms scope)` invokes `:user::main` | `(:spawn-process-ast forms scope entry-kw)` invokes `entry-kw` of child's world | Same shape; takes pre-parsed forms instead of source string. |
-| `(:spawn-program src scope)` invokes `:user::main` (in-thread) | RETIRED *(per Q1 lean — see open questions)* | The in-thread fresh-world variant. Tests using it migrate to spawn-process or spawn-thread. |
-| `(:spawn-program-ast forms scope)` invokes `:user::main` (in-thread) | RETIRED *(per Q1 lean)* | Same. |
+| `(:spawn-program src scope)` invokes `:user::main` (in-thread) | DELETED (per Q1 settled) | The in-thread fresh-world variant. Tests using it migrate to spawn-process or spawn-thread during slice 2 sweep. |
+| `(:spawn-program-ast forms scope)` invokes `:user::main` (in-thread) | DELETED | Same. |
 
 The entry-keyword parameter is **always required** — no
 implicit-default lookup. Caller always specifies which symbol to
@@ -286,8 +286,8 @@ in practice user's main never sees them. But there's no filtering
 | `:wat::kernel::ExitCode` | n/a | typealias for `:wat::core::u8` |
 | `:wat::kernel::fork-program` | live; calls `:user::main` | DELETED (rename to spawn-process) |
 | `:wat::kernel::fork-program-ast` | live | DELETED (rename to spawn-process-ast) |
-| `:wat::kernel::spawn-program` | live (in-thread); calls `:user::main` | RETIRED *(pending user confirmation per § 5)* |
-| `:wat::kernel::spawn-program-ast` | live | RETIRED *(pending user confirmation)* |
+| `:wat::kernel::spawn-program` | live (in-thread); calls `:user::main` | DELETED (per Q1 settled — option A; two-mode taxonomy) |
+| `:wat::kernel::spawn-program-ast` | live | DELETED |
 | `:wat::kernel::spawn-process` | n/a | minted; takes (src scope); invokes `:user::process` |
 | `:wat::kernel::spawn-process-ast` | n/a | minted; takes (forms scope); invokes `:user::process` |
 | `:wat::kernel::spawn-thread` shape | `(fn-or-ref) → Thread<I,O>`; signature `(:Receiver<I>, :Sender<O>) -> :nil` enforced structurally | UNCHANGED — services pattern preserved; signature contract gets the conceptual name `:user::thread` (substrate still enforces structurally, not by canonical name) |
@@ -526,36 +526,37 @@ arc 109 INVENTORY § M-equivalent.
 
 ---
 
-## Open questions surfaced during DESIGN
+## Settled questions during DESIGN
 
-These need user direction before slice 1 spawns.
+All four open questions resolved 2026-05-09. Recorded for the
+historical thread.
 
-### Q1. Does `:wat::kernel::spawn-program` retire entirely, or get an in-thread variant?
+### Q1. spawn-program retires entirely. *(settled — option A)*
 
-Today `spawn-program` runs a fresh-world program in an in-thread
-context (no OS fork; same process; full vm-level isolation). It's
-used in ~50+ test fixtures for hermetic-but-fast testing.
+User direction 2026-05-09: *"A - retire."*
 
-**Options:**
+`:wat::kernel::spawn-program` and `:wat::kernel::spawn-program-ast`
+are deleted in arc 170. The substrate's program-spawn taxonomy
+collapses to a clean two-mode model:
 
-- **A. Retire entirely.** Only `spawn-process` (forks OS process) +
-  `spawn-thread` (in-thread, fresh world) survive. Tests using
-  `spawn-program` migrate to `spawn-process` (slower; real OS
-  fork) OR `spawn-thread` (faster; but Thread\<I,O\> shape differs
-  from Process\<I,O\> shape — consumers reshape).
-- **B. Keep as in-thread variant of spawn-process.** Sub-namespace
-  it: `spawn-process-in-thread` or similar. Users explicitly opt
-  into in-thread fakery for testing.
-- **C. Keep with current name; just retarget to `:user::process`.**
-  Spawn-program continues as the in-thread Process\<I,O\> spawner;
-  spawn-process is the OS-fork variant. Two names for "spawn a
-  Process\<I,O\> server"; differ only in IPC realism.
+- **spawn-thread** (parent's world; services pattern; channels)
+- **spawn-process** (OS-forked; fresh child world; pipes)
 
-My lean: **A** is most consistent with the rigidity stance. The
-in-thread Process IPC fakery existed to make tests fast; arc 170
-makes us choose: are spawn-process tests OS-forking? If yes,
-retire spawn-program. If the speed cost is real, **B** keeps the
-escape hatch named honestly.
+Tests today using spawn-program (in-thread fresh-world fakery
+for fast tests) migrate during slice 2:
+
+- Tests verifying full process isolation → migrate to
+  spawn-process (real OS fork; slower but real)
+- Tests verifying intra-process channel patterns → migrate to
+  spawn-thread (parent world; services pattern)
+- Tests where speed-without-fork-cost mattered → accept the
+  fork cost as the price of the cleaner taxonomy, OR move the
+  test to a Rust-side harness call (which can drive frozen
+  worlds without spawn-program)
+
+The "test-only fakery" middle option is dishonest: the wat code
+under test ran in-thread but is documented to "spawn a process."
+Killing the fakery aligns docs with reality.
 
 ### Q2. *(retired — was based on wrong assumption)*
 
@@ -584,33 +585,32 @@ already accepts inline-or-ref structurally. spawn-process gains
 an explicit entry-keyword parameter so the caller specifies
 which symbol in child's world to invoke.
 
-### Q3. argv passthrough vs filter wat-cli's own flags
+### Q3. argv pure passthrough. *(settled — pure passthrough)*
 
-User direction settled this 2026-05-08 in scratch/2026/05/019-wat-cli-options:
+User direction 2026-05-08 (scratch/2026/05/019-wat-cli-options):
 > *"no silent argv reshaping; what the binary received is what
 > the program sees"*
 
-So pure passthrough. But — wat-cli's `--check` flag short-circuits
-before `:user::main` runs, so user never sees `--check` in argv
-when their main runs (because if `--check` is present, main
-doesn't run). What about future wat-cli flags that DON'T short-
-circuit?
+Pure passthrough. wat-cli's flags (e.g., `--check`) appear in
+argv if passed on the command line. wat-cli's recognized flags
+short-circuit before `:user::main` runs (so in practice the
+user's main never sees them when they're set), but the substrate
+makes no claims about filtering — argv is exactly what the OS
+delivered.
 
-**Lean:** keep pure passthrough. wat-cli's flag set is small and
-deliberately so; users learn to recognize them. Filtering creates
-a moving target as wat-cli grows.
+### Q4. Substrate-then-sweep parallel pattern. *(settled — arc 167/168/169 precedent)*
 
-### Q4. Migration order — start with substrate or with consumers?
+Slice plan follows the substrate-as-teacher pattern:
+- Slice 1 ships substrate + walkers; old shapes still compile
+  during the transitional sweep window.
+- Slice 2 sonnet sweep; substrate-as-teacher walkers fire on
+  every legacy shape; sweep clears the diagnostic stream.
+- Slice 3 retires walker bodies + legacy substrate arms.
+- Slice 4 closure paperwork.
 
-Slice plan above does substrate (slice 1) then sweep (slice 2).
-Alternative: parallel — substrate ships with old shape STILL
-ACCEPTED via walker-driven shim; sweep happens; substrate retires
-shim in slice 3.
-
-Slice 1 as drafted ALREADY follows the parallel pattern (walker
-fires diagnostic but old shape compiles for one slice window).
-This is the substrate-as-teacher precedent from arc 167 / 168 /
-169. Recommended; just confirming the pattern.
+Same pattern as arc 167 (fn-flat-signature), arc 168
+(let-flat-shape), and arc 169 (struct-destructure). Recommended;
+confirmed.
 
 ---
 
@@ -656,6 +656,7 @@ The architecture settled across roughly a dozen exchanges:
 11. User confirmed "single very large arc with a bunch of slices" — arc 170 takes the whole coherent unit
 12. User caught Q2 framing error: spawn-thread shouldn't reshape; threads share parent's memory (zero-mutex doctrine; services pattern). DESIGN section 6 corrected; Q2 retired; Q2-replacement opens on signature-vs-canonical-name enforcement question (lean: stay structural)
 13. User clarified the contract-vs-name distinction: only `:user::main` is a strict name; `:user::thread` and `:user::process` are documentation labels for signature contracts. Multi-service programs declare bespoke entry paths satisfying the contracts structurally. spawn-process takes an explicit entry-keyword parameter (no magic defaults). Sections 3, 4, 5 corrected; Q2-replacement settled.
+14. User settled Q1 with "A - retire": spawn-program / spawn-program-ast delete entirely; substrate's program-spawn taxonomy collapses to two-mode (spawn-thread parent-world + spawn-process forked-fresh-world). Test-only in-thread fakery dies as a discipline cost.
 
 The settled design IS the conversation. This log preserves it as
 historical record per FM 11 inscribe-don't-amend doctrine.
