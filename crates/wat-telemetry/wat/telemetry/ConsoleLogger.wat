@@ -59,13 +59,13 @@
     (entry :E)
     -> :wat::core::String)
   (:wat::core::let
-    ((caller
-      (:wat::telemetry::ConsoleLogger/caller logger))
-     (format
-      (:wat::telemetry::ConsoleLogger/format logger))
-     (line-struct
-      (:wat::telemetry::LogLine/new now level caller entry))
-     (line
+    [caller
+      (:wat::telemetry::ConsoleLogger/caller logger)
+     format
+      (:wat::telemetry::ConsoleLogger/format logger)
+     line-struct
+      (:wat::telemetry::LogLine/new now level caller entry)
+     line
       (:wat::core::match format -> :wat::core::String
         (:wat::telemetry::Console::Format::Edn
           (:wat::edn::write line-struct))
@@ -76,7 +76,7 @@
         (:wat::telemetry::Console::Format::NoTagEdn
           (:wat::edn::write-notag line-struct))
         (:wat::telemetry::Console::Format::NoTagJson
-          (:wat::edn::write-json-natural line-struct)))))
+          (:wat::edn::write-json-natural line-struct)))]
     (:wat::core::string::concat line "\n")))
 
 
@@ -91,12 +91,12 @@
     (line :wat::core::String)
     -> :wat::core::nil)
   (:wat::core::let
-    ((handle
-      (:wat::telemetry::ConsoleLogger/con-handle logger))
-     (to-stderr
+    [handle
+      (:wat::telemetry::ConsoleLogger/con-handle logger)
+     to-stderr
       (:wat::core::or
         (:wat::core::= level :warn)
-        (:wat::core::= level :error))))
+        (:wat::core::= level :error))]
     (:wat::core::if to-stderr -> :wat::core::nil
       (:wat::console::err handle line)
       (:wat::console::out handle line))))
@@ -112,12 +112,12 @@
     (entry :E)
     -> :wat::core::nil)
   (:wat::core::let
-    ((now-fn
-      (:wat::telemetry::ConsoleLogger/now-fn logger))
-     (now (now-fn :wat::core::nil))
-     (line
+    [now-fn
+      (:wat::telemetry::ConsoleLogger/now-fn logger)
+     now (now-fn :wat::core::nil)
+     line
       (:wat::telemetry::ConsoleLogger::render-line
-        logger now level entry)))
+        logger now level entry)]
     (:wat::telemetry::ConsoleLogger::route-by-level
       logger level line)))
 

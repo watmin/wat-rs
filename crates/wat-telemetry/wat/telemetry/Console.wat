@@ -71,7 +71,7 @@
     (format :wat::telemetry::Console::Format)
     -> :wat::core::String)
   (:wat::core::let
-    ((line
+    [line
       (:wat::core::match format -> :wat::core::String
         (:wat::telemetry::Console::Format::Edn
           (:wat::edn::write entry))
@@ -82,7 +82,7 @@
         (:wat::telemetry::Console::Format::NoTagEdn
           (:wat::edn::write-notag entry))
         (:wat::telemetry::Console::Format::NoTagJson
-          (:wat::edn::write-json-natural entry)))))
+          (:wat::edn::write-json-natural entry)))]
     (:wat::core::string::concat line "\n")))
 
 
