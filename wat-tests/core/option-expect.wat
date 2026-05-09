@@ -18,11 +18,11 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-i64
   ()
   (:wat::core::let
-    ((opt (:wat::core::Some 42))
-     (v
+    [opt (:wat::core::Some 42)
+     v
       (:wat::core::Option/expect -> :wat::core::i64
         opt
-        "should be Some")))
+        "should be Some")]
     (:wat::test::assert-eq v 42)))
 
 
@@ -31,11 +31,11 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-string
   ()
   (:wat::core::let
-    ((opt (:wat::core::Some "hello"))
-     (v
+    [opt (:wat::core::Some "hello")
+     v
       (:wat::core::Option/expect -> :wat::core::String
         opt
-        "should be Some")))
+        "should be Some")]
     (:wat::test::assert-eq v "hello")))
 
 
@@ -44,15 +44,15 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-nested-option
   ()
   (:wat::core::let
-    ((opt (:wat::core::Some (:wat::core::Some 7)))
-     (inner
+    [opt (:wat::core::Some (:wat::core::Some 7))
+     inner
       (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
         opt
-        "outer should be Some"))
-     (v
+        "outer should be Some")
+     v
       (:wat::core::Option/expect -> :wat::core::i64
         inner
-        "inner should be Some")))
+        "inner should be Some")]
     (:wat::test::assert-eq v 7)))
 
 
@@ -61,7 +61,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::none-panics-with-message
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
@@ -71,14 +71,14 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
             (:wat::core::let
-              ((opt :wat::core::None)
-               (_v
+              [opt :wat::core::None
+               _v
                 (:wat::core::Option/expect -> :wat::core::i64
                   opt
-                  "broker disconnected")))
+                  "broker disconnected")]
               ())))
-        (:wat::core::Vector :wat::core::String)))
-     (fail (:wat::kernel::RunResult/failure r)))
+        (:wat::core::Vector :wat::core::String))
+     fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
         (:wat::test::assert-eq

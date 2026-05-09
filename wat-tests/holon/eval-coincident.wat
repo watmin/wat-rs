@@ -23,10 +23,10 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-arithmetic-equivalence
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-coincident?
         (:wat::core::quote (:wat::core::i64::+,2 2 2))
-        (:wat::core::quote (:wat::core::i64::*,2 1 4)))))
+        (:wat::core::quote (:wat::core::i64::*,2 1 4)))]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -38,10 +38,10 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-different-scalars
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-coincident?
         (:wat::core::quote 4)
-        (:wat::core::quote 5))))
+        (:wat::core::quote 5))]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -53,10 +53,10 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-same-strings
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-coincident?
         (:wat::core::quote "rsi")
-        (:wat::core::quote "rsi"))))
+        (:wat::core::quote "rsi"))]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -68,12 +68,12 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-structurally-same-holons
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-coincident?
         (:wat::core::quote
           (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v")))
         (:wat::core::quote
-          (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))))))
+          (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))))]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -85,10 +85,10 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-edn-arithmetic-equivalence
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-edn-coincident?
  "(:wat::core::i64::+,2 2 2)"
- "(:wat::core::i64::*,2 1 4)")))
+ "(:wat::core::i64::*,2 1 4)")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -98,10 +98,10 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-edn-different-sources
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-edn-coincident?
  "(:wat::core::i64::+,2 2 2)"
- "(:wat::core::i64::+,2 2 3)")))
+ "(:wat::core::i64::+,2 2 3)")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -122,14 +122,14 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-digest-arithmetic-equivalence
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-digest-string-coincident?
  "(:wat::core::i64::+,2 2 2)"
         :wat::verify::digest-sha256
         :wat::verify::string "d4e368d75d1972482ae02398a37cef9fed68d2cb572f2354e31930b07ebb37cc"
  "(:wat::core::i64::*,2 1 4)"
         :wat::verify::digest-sha256
-        :wat::verify::string "03e5d2e5386ae6a04a279ad2c3bef2d2c6b6bca0bac25e3f902b68764a5a0484")))
+        :wat::verify::string "03e5d2e5386ae6a04a279ad2c3bef2d2c6b6bca0bac25e3f902b68764a5a0484")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -141,14 +141,14 @@
   ;; Side A carries a zero-hex digest that doesn't match the source;
   ;; verify fires before parse → Err(EvalError{kind=verification-failed}).
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-digest-string-coincident?
  "(:wat::core::i64::+,2 2 2)"
         :wat::verify::digest-sha256
         :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"
  "(:wat::core::i64::*,2 1 4)"
         :wat::verify::digest-sha256
-        :wat::verify::string "03e5d2e5386ae6a04a279ad2c3bef2d2c6b6bca0bac25e3f902b68764a5a0484")))
+        :wat::verify::string "03e5d2e5386ae6a04a279ad2c3bef2d2c6b6bca0bac25e3f902b68764a5a0484"]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok _)  true)     ;; unexpected — verify should have failed
@@ -171,7 +171,7 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-signed-arithmetic-equivalence
   ()
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-signed-string-coincident?
  "(:wat::core::i64::+,2 2 2)"
         :wat::verify::signed-ed25519
@@ -180,7 +180,7 @@
  "(:wat::core::i64::*,2 1 4)"
         :wat::verify::signed-ed25519
         :wat::verify::string "OrYNwvRnWgytoHL77zLAB8EQItkav/KnUTpmacu9AuxS8LKu4Fjda9dvgc5ruNq5Fc8GB52v+/BGew7rxxiXCw=="
-        :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")))
+        :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -192,7 +192,7 @@
   ;; Side A carries src-B's sig against src-A; verify fails →
   ;; Err(EvalError{kind=verification-failed}).
   (:wat::core::let
-    ((r
+    [r
       (:wat::holon::eval-signed-string-coincident?
  "(:wat::core::i64::+,2 2 2)"
         :wat::verify::signed-ed25519
@@ -201,7 +201,7 @@
  "(:wat::core::i64::*,2 1 4)"
         :wat::verify::signed-ed25519
         :wat::verify::string "OrYNwvRnWgytoHL77zLAB8EQItkav/KnUTpmacu9AuxS8LKu4Fjda9dvgc5ruNq5Fc8GB52v+/BGew7rxxiXCw=="
-        :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")))
+        :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw="]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok _)  true)     ;; unexpected — verify should have failed

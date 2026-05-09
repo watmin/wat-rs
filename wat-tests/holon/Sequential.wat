@@ -11,21 +11,21 @@
 (:wat::test::deftest :wat-tests::holon::Sequential::test-self-identity
   ()
   (:wat::core::let
-    ((a (:wat::holon::Atom "a"))
-     (b (:wat::holon::Atom "b"))
-     (c (:wat::holon::Atom "c"))
-     (abc
-      (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a b c))))
+    [a (:wat::holon::Atom "a")
+     b (:wat::holon::Atom "b")
+     c (:wat::holon::Atom "c")
+     abc
+      (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a b c))]
     (:wat::test::assert-eq (:wat::holon::presence? abc abc) true)))
 
 (:wat::test::deftest :wat-tests::holon::Sequential::test-order-sensitivity
   ()
   (:wat::core::let
-    ((a (:wat::holon::Atom "a"))
-     (b (:wat::holon::Atom "b"))
-     (c (:wat::holon::Atom "c"))
-     (abc
-      (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a b c)))
-     (acb
-      (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a c b))))
+    [a (:wat::holon::Atom "a")
+     b (:wat::holon::Atom "b")
+     c (:wat::holon::Atom "c")
+     abc
+      (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a b c))
+     acb
+      (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a c b))]
     (:wat::test::assert-eq (:wat::holon::presence? abc acb) false)))
