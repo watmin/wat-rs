@@ -13784,7 +13784,7 @@ mod tests {
     #[test]
     fn typed_let_binding_matches_rhs() {
         assert!(check(
-            r#"(:wat::core::let ((x 42)) (:wat::core::i64::+,2 x 1))"#
+            r#"(:wat::core::let [x 42] (:wat::core::i64::+,2 x 1))"#
         )
         .is_ok());
     }
@@ -13793,9 +13793,9 @@ mod tests {
     fn typed_let_binding_multiple() {
         assert!(check(
             r#"(:wat::core::let
-                 ((x 1)
-                  (y 2)
-                  (z 3))
+                 [x 1
+                  y 2
+                  z 3]
                  (:wat::core::i64::+,2 (:wat::core::i64::+,2 x y) z))"#
         )
         .is_ok());
@@ -13808,9 +13808,9 @@ mod tests {
         // passes.
         assert!(check(
             r#"(:wat::core::let
-                 ((doubler
+                 [doubler
                    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                     (:wat::core::i64::+,2 x x))))
+                     (:wat::core::i64::+,2 x x))]
                  true)"#
         )
         .is_ok());
@@ -14056,19 +14056,19 @@ mod tests {
             (:wat::core::define
               (:my::deadlock-at-outer -> :wat::core::nil)
               (:wat::core::let
-                ((pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 (rx
-                  (:wat::core::second pair))
-                 (thr
+                [pair
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                 rx
+                  (:wat::core::second pair)
+                 thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
-                      ((_in :wat::kernel::Receiver<wat::core::nil>)
-                       (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::nil)
+                      [_in <- :wat::kernel::Receiver<wat::core::nil>
+                       _out <- :wat::kernel::Sender<wat::core::i64>]
+                      -> :wat::core::nil
                       (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
                         ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))))
+                        ((:wat::core::Err _) ()))))]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil
@@ -14420,20 +14420,20 @@ mod tests {
             (:wat::core::define
               (:my::deadlock-via-handlepool -> :wat::core::nil)
               (:wat::core::let
-                ((pool
+                [pool
                   (:wat::kernel::HandlePool::new
                     "pool"
-                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
-                 (thr
+                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>))
+                 thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
-                      ((_in :wat::kernel::Receiver<wat::core::nil>)
-                       (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::nil)
+                      [_in <- :wat::kernel::Receiver<wat::core::nil>
+                       _out <- :wat::kernel::Sender<wat::core::i64>]
+                      -> :wat::core::nil
                       (:wat::core::match (:wat::kernel::recv _in)
                         -> :wat::core::nil
                         ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))))
+                        ((:wat::core::Err _) ()))))]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil
@@ -14530,20 +14530,20 @@ mod tests {
             (:wat::core::define
               (:my::typed-name-still-fires -> :wat::core::nil)
               (:wat::core::let
-                ((pool
+                [pool
                   (:wat::kernel::HandlePool::new
                     "pool"
-                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
-                 (thr
+                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>))
+                 thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
-                      ((_in :wat::kernel::Receiver<wat::core::nil>)
-                       (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::nil)
+                      [_in <- :wat::kernel::Receiver<wat::core::nil>
+                       _out <- :wat::kernel::Sender<wat::core::i64>]
+                      -> :wat::core::nil
                       (:wat::core::match (:wat::kernel::recv _in)
                         -> :wat::core::nil
                         ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))))
+                        ((:wat::core::Err _) ()))))]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil
@@ -14597,24 +14597,24 @@ mod tests {
             (:wat::core::define
               (:my::spawn-svc -> :(wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>,wat::kernel::Thread<wat::core::nil,wat::core::i64>))
               (:wat::core::let
-                ((pool
+                [pool
                   (:wat::kernel::HandlePool::new
                     "pool"
-                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
-                 (driver
+                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>))
+                 driver
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
-                      ((_in :wat::kernel::Receiver<wat::core::nil>)
-                       (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::nil)
-                      ()))))
+                      [_in <- :wat::kernel::Receiver<wat::core::nil>
+                       _out <- :wat::kernel::Sender<wat::core::i64>]
+                      -> :wat::core::nil
+                      ()))]
                 (:wat::core::Tuple pool driver)))
 
             (:wat::core::define
               (:my::caller-via-destructure -> :wat::core::nil)
               (:wat::core::let
-                (((pool driver)
-                  (:my::spawn-svc)))
+                [[pool driver]
+                  (:my::spawn-svc)]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result driver)
                   -> :wat::core::nil
@@ -14814,14 +14814,14 @@ mod tests {
 
             (:wat::core::define (:my::caller -> :wat::core::nil)
               (:wat::core::let
-                ((pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 (tx
-                  (:wat::core::first pair))
-                 (rx
-                  (:wat::core::second pair))
-                 (thr
-                  (:wat::kernel::spawn-thread :my::worker)))
+                [pair
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                 tx
+                  (:wat::core::first pair)
+                 rx
+                  (:wat::core::second pair)
+                 thr
+                  (:wat::kernel::spawn-thread :my::worker)]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil
@@ -15021,19 +15021,19 @@ mod tests {
             (:wat::core::define
               (:my::legacy-shape-still-fires -> :wat::core::nil)
               (:wat::core::let
-                ((pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 (rx
-                  (:wat::core::second pair))
-                 (thr
+                [pair
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                 rx
+                  (:wat::core::second pair)
+                 thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
-                      ((_in :wat::kernel::Receiver<wat::core::nil>)
-                       (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::nil)
+                      [_in <- :wat::kernel::Receiver<wat::core::nil>
+                       _out <- :wat::kernel::Sender<wat::core::i64>]
+                      -> :wat::core::nil
                       (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
                         ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))))
+                        ((:wat::core::Err _) ()))))]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil
@@ -15065,18 +15065,18 @@ mod tests {
             (:wat::core::define
               (:my::mixed-shape-let -> :wat::core::nil)
               (:wat::core::let
-                ((pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 (rx (:wat::core::second pair))
-                 (thr
+                [pair
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                 rx (:wat::core::second pair)
+                 thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
-                      ((_in :wat::kernel::Receiver<wat::core::nil>)
-                       (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::nil)
+                      [_in <- :wat::kernel::Receiver<wat::core::nil>
+                       _out <- :wat::kernel::Sender<wat::core::i64>]
+                      -> :wat::core::nil
                       (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
                         ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))))
+                        ((:wat::core::Err _) ()))))]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil
@@ -15253,10 +15253,10 @@ mod tests {
 
             (:wat::core::define (:my::caller-arc159 -> :wat::core::nil)
               (:wat::core::let
-                ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 (tx (:wat::core::first pair))
-                 (rx (:wat::core::second pair))
-                 (thr (:wat::kernel::spawn-thread :my::worker-arc159)))
+                [pair (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                 tx (:wat::core::first pair)
+                 rx (:wat::core::second pair)
+                 thr (:wat::kernel::spawn-thread :my::worker-arc159)]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil

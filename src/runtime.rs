@@ -18781,7 +18781,7 @@ mod tests {
     fn let_binds_parallel() {
         assert!(matches!(
             eval_expr(
-                r#"(:wat::core::let ((x 2) (y 3)) (:wat::core::i64::+,2 x y))"#
+                r#"(:wat::core::let [x 2 y 3] (:wat::core::i64::+,2 x y))"#
             )
             .unwrap(),
             Value::i64(5)
@@ -18793,7 +18793,7 @@ mod tests {
         // Inner let shadows the outer x.
         assert!(matches!(
             eval_expr(
-                r#"(:wat::core::let ((x 1)) (:wat::core::let ((x 100)) x))"#
+                r#"(:wat::core::let [x 1] (:wat::core::let [x 100] x))"#
             )
             .unwrap(),
             Value::i64(100)
@@ -18877,9 +18877,9 @@ mod tests {
     fn closure_captures_let_binding() {
         let result = eval_expr(
             r#"(:wat::core::let
-                 ((adder
+                 [adder
                    (:wat::core::fn [x <- :i64] -> :i64
-                     (:wat::core::i64::+,2 x 10))))
+                     (:wat::core::i64::+,2 x 10))]
                  (adder 5))"#,
         )
         .unwrap();
@@ -18891,11 +18891,11 @@ mod tests {
         // The fn captures `n` from the outer let; even when invoked
         // from a deeper scope, it sees the captured value.
         let result = eval_expr(
-            r#"(:wat::core::let ((n 100))
-                 (:wat::core::let ((f
+            r#"(:wat::core::let [n 100]
+                 (:wat::core::let [f
                                   (:wat::core::fn [x <- :i64] -> :i64
-                                    (:wat::core::i64::+,2 x n))))
-                   (:wat::core::let ((n 999))
+                                    (:wat::core::i64::+,2 x n))]
+                   (:wat::core::let [n 999]
                      (f 1))))"#,
         )
         .unwrap();
@@ -18915,7 +18915,7 @@ mod tests {
     fn algebra_atom_from_bound_variable() {
         // (Atom x) where x is a let-bound integer — runtime construction.
         let v = eval_expr(
-            r#"(:wat::core::let ((x 42)) (:wat::holon::Atom x))"#,
+            r#"(:wat::core::let [x 42] (:wat::holon::Atom x))"#,
         )
         .unwrap();
         match v {
@@ -19743,8 +19743,8 @@ mod tests {
         // input shape `coincident?` accepts post arc 061.
         let result = eval_with_ctx(
             r#"(:wat::core::let
-                 ((a (:wat::holon::Atom "x"))
-                  (va (:wat::holon::encode a)))
+                 [a (:wat::holon::Atom "x")
+                  va (:wat::holon::encode a)]
                  (:wat::holon::coincident-explain a va))"#,
             1024,
         )
@@ -19808,11 +19808,11 @@ mod tests {
             // helper.
             let probe = format!(
                 r#"(:wat::core::let
-                     ((aa {a})
-                      (bb {b})
-                      (p (:wat::holon::coincident? aa bb))
-                      (expl
-                        (:wat::holon::coincident-explain aa bb)))
+                     [aa {a}
+                      bb {b}
+                      p (:wat::holon::coincident? aa bb)
+                      expl
+                        (:wat::holon::coincident-explain aa bb)]
                      (:wat::core::Tuple p
                        (:wat::core::struct-field expl 4)))"#
             );
@@ -20220,9 +20220,9 @@ mod tests {
         // below the substrate's presence floor (15σ at d=1024).
         let result = eval_with_ctx(
             r#"(:wat::core::let
-                 ((program (:wat::holon::Atom "the-program"))
-                  (key (:wat::holon::Atom "the-key"))
-                  (bound (:wat::holon::Bind key program)))
+                 [program (:wat::holon::Atom "the-program")
+                  key (:wat::holon::Atom "the-key")
+                  bound (:wat::holon::Bind key program)]
                  (:wat::holon::cosine program bound))"#,
             1024,
         )
@@ -20250,10 +20250,10 @@ mod tests {
         // non-zero positions of k.
         let result = eval_with_ctx(
             r#"(:wat::core::let
-                 ((program (:wat::holon::Atom "the-program"))
-                  (key (:wat::holon::Atom "the-key"))
-                  (bound (:wat::holon::Bind key program))
-                  (recovered (:wat::holon::Bind bound key)))
+                 [program (:wat::holon::Atom "the-program")
+                  key (:wat::holon::Atom "the-key")
+                  bound (:wat::holon::Bind key program)
+                  recovered (:wat::holon::Bind bound key)]
                  (:wat::holon::cosine program recovered))"#,
             1024,
         )
@@ -20633,7 +20633,7 @@ mod tests {
     #[test]
     fn let_destructures_a_pair() {
         let src = r#"
-            (:wat::core::let (((a b) p)) (:wat::core::i64::+,2 a b))
+            (:wat::core::let [[a b] p] (:wat::core::i64::+,2 a b))
         "#;
         let p = pair(Value::i64(3), Value::i64(4));
         match eval_with_binding(src, "p", p).unwrap() {
@@ -20645,7 +20645,7 @@ mod tests {
     #[test]
     fn let_destructure_arity_mismatch_errors() {
         let src = r#"
-            (:wat::core::let (((a b c) p)) a)
+            (:wat::core::let [[a b c] p] a)
         "#;
         let p = pair(Value::i64(1), Value::i64(2));
         let err = eval_with_binding(src, "p", p).unwrap_err();
@@ -20655,7 +20655,7 @@ mod tests {
     #[test]
     fn let_destructure_requires_tuple() {
         let src = r#"
-            (:wat::core::let (((a b) v)) a)
+            (:wat::core::let [[a b] v] a)
         "#;
         let err = eval_with_binding(src, "v", Value::i64(42)).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
@@ -20696,10 +20696,10 @@ mod tests {
         // expose.
         let src = r#"
             (:wat::core::let
-              (((tx rx) (:wat::kernel::make-bounded-channel :i64 1))
-               (_sent (:wat::core::Result/expect -> :()
+              [[tx rx] (:wat::kernel::make-bounded-channel :i64 1)
+               _sent (:wat::core::Result/expect -> :()
                               (:wat::kernel::send tx 42)
-                              "roundtrip: send failed")))
+                              "roundtrip: send failed")]
               (:wat::core::match (:wat::kernel::recv rx) -> :i64
                 ((:wat::core::Ok (:wat::core::Some v)) v)
                 ((:wat::core::Ok :wat::core::None) 0)
@@ -21090,7 +21090,7 @@ mod tests {
     fn hashmap_get_hit_returns_some() {
         let src = r#"
             (:wat::core::let
-              ((m (:wat::core::HashMap :(String,i64) "a" 10 "b" 20)))
+              [m (:wat::core::HashMap :(String,i64) "a" 10 "b" 20)]
               (:wat::core::match (:wat::core::get m "a") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None 0)))
@@ -21105,7 +21105,7 @@ mod tests {
     fn hashmap_get_miss_returns_none() {
         let src = r#"
             (:wat::core::let
-              ((m (:wat::core::HashMap :(String,i64) "a" 10)))
+              [m (:wat::core::HashMap :(String,i64) "a" 10)]
               (:wat::core::match (:wat::core::get m "missing") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
@@ -21120,13 +21120,13 @@ mod tests {
     fn hashmap_contains_tracks_membership() {
         let src = r#"
             (:wat::core::let
-              ((m (:wat::core::HashMap :(String,i64) "a" 10)))
+              [m (:wat::core::HashMap :(String,i64) "a" 10)]
               (:wat::core::contains? m "a"))
         "#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
         let src_missing = r#"
             (:wat::core::let
-              ((m (:wat::core::HashMap :(String,i64) "a" 10)))
+              [m (:wat::core::HashMap :(String,i64) "a" 10)]
               (:wat::core::contains? m "b"))
         "#;
         assert!(matches!(eval_expr(src_missing).unwrap(), Value::bool(false)));
@@ -21138,8 +21138,8 @@ mod tests {
         // prefix in the canonical key string prevents collision.
         let src = r#"
             (:wat::core::let
-              ((m
-                (:wat::core::HashMap :(String,i64) "42" 100)))
+              [m
+                (:wat::core::HashMap :(String,i64) "42" 100)]
               (:wat::core::contains? m 42))
         "#;
         // Map has one entry under String "42". Contains? with i64 key 42
@@ -21177,10 +21177,10 @@ mod tests {
     fn assoc_adds_entry_returning_new_map() {
         let src = r#"
             (:wat::core::let
-              ((m0
-                (:wat::core::HashMap :(String,i64)))
-               (m1
-                (:wat::core::assoc m0 "count" 1)))
+              [m0
+                (:wat::core::HashMap :(String,i64))
+               m1
+                (:wat::core::assoc m0 "count" 1)]
               (:wat::core::match (:wat::core::get m1 "count") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None 0)))
@@ -21195,10 +21195,10 @@ mod tests {
     fn assoc_overwrites_existing_key() {
         let src = r#"
             (:wat::core::let
-              ((m0
-                (:wat::core::HashMap :(String,i64) "count" 1))
-               (m1
-                (:wat::core::assoc m0 "count" 2)))
+              [m0
+                (:wat::core::HashMap :(String,i64) "count" 1)
+               m1
+                (:wat::core::assoc m0 "count" 2)]
               (:wat::core::match (:wat::core::get m1 "count") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None 0)))
@@ -21214,10 +21214,10 @@ mod tests {
         // Values-up: the input map is unchanged after assoc returns.
         let src = r#"
             (:wat::core::let
-              ((m0
-                (:wat::core::HashMap :(String,i64) "a" 10))
-               (m1
-                (:wat::core::assoc m0 "b" 20)))
+              [m0
+                (:wat::core::HashMap :(String,i64) "a" 10)
+               m1
+                (:wat::core::assoc m0 "b" 20)]
               (:wat::core::match (:wat::core::get m0 "b") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
@@ -21359,10 +21359,10 @@ mod tests {
     fn dissoc_removes_existing_key() {
         let src = r#"
             (:wat::core::let
-              ((m0
-                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2))
-               (m1
-                (:wat::core::dissoc m0 "a")))
+              [m0
+                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2)
+               m1
+                (:wat::core::dissoc m0 "a")]
               (:wat::core::match (:wat::core::get m1 "a") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
@@ -21377,10 +21377,10 @@ mod tests {
     fn dissoc_missing_key_is_no_op() {
         let src = r#"
             (:wat::core::let
-              ((m0
-                (:wat::core::HashMap :(String,i64) "a" 1))
-               (m1
-                (:wat::core::dissoc m0 "missing")))
+              [m0
+                (:wat::core::HashMap :(String,i64) "a" 1)
+               m1
+                (:wat::core::dissoc m0 "missing")]
               (:wat::core::match (:wat::core::get m1 "a") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
@@ -21396,10 +21396,10 @@ mod tests {
         // Values-up: input map still has the key after dissoc returns.
         let src = r#"
             (:wat::core::let
-              ((m0
-                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2))
-               (_m1
-                (:wat::core::dissoc m0 "a")))
+              [m0
+                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2)
+               _m1
+                (:wat::core::dissoc m0 "a")]
               (:wat::core::match (:wat::core::get m0 "a") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
@@ -21459,9 +21459,9 @@ mod tests {
         // returned keys Vec contain each known key string?"
         let src = r#"
             (:wat::core::let
-              ((ks
+              [ks
                 (:wat::core::keys
-                  (:wat::core::HashMap :(String,i64) "alpha" 1 "beta" 2))))
+                  (:wat::core::HashMap :(String,i64) "alpha" 1 "beta" 2))]
               (:wat::core::and
                 (:wat::core::contains? ks "alpha")
                 (:wat::core::contains? ks "beta")))
@@ -21606,11 +21606,11 @@ mod tests {
     #[test]
     fn hashset_member_present_and_absent() {
         let present = r#"(:wat::core::let
-            ((s (:wat::core::HashSet :String "a" "b")))
+            [s (:wat::core::HashSet :String "a" "b")]
             (:wat::core::contains? s "a"))"#;
         assert!(matches!(eval_expr(present).unwrap(), Value::bool(true)));
         let absent = r#"(:wat::core::let
-            ((s (:wat::core::HashSet :String "a" "b")))
+            [s (:wat::core::HashSet :String "a" "b")]
             (:wat::core::contains? s "z"))"#;
         assert!(matches!(eval_expr(absent).unwrap(), Value::bool(false)));
     }
@@ -21620,7 +21620,7 @@ mod tests {
     #[test]
     fn vec_get_hit_returns_some_at_valid_index() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::Vector :i64 10 20 30)))
+            [xs (:wat::core::Vector :i64 10 20 30)]
             (:wat::core::match (:wat::core::get xs 1) -> :i64
               ((:wat::core::Some v) v)
               (:wat::core::None    -1)))"#;
@@ -21630,7 +21630,7 @@ mod tests {
     #[test]
     fn vec_get_out_of_range_returns_none() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::Vector :i64 10 20 30)))
+            [xs (:wat::core::Vector :i64 10 20 30)]
             (:wat::core::match (:wat::core::get xs 5) -> :bool
               ((:wat::core::Some _) false)
               (:wat::core::None    true)))"#;
@@ -21640,7 +21640,7 @@ mod tests {
     #[test]
     fn vec_get_negative_index_returns_none() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::Vector :i64 10 20 30)))
+            [xs (:wat::core::Vector :i64 10 20 30)]
             (:wat::core::match (:wat::core::get xs -1) -> :bool
               ((:wat::core::Some _) false)
               (:wat::core::None    true)))"#;
@@ -21658,7 +21658,7 @@ mod tests {
     #[test]
     fn assoc_on_vec_rejects_post_slice4() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::Vector :i64 10 20 30)))
+            [xs (:wat::core::Vector :i64 10 20 30)]
             (:wat::core::assoc xs 1 99))"#;
         let err = eval_expr(src).unwrap_err();
         assert!(
@@ -21672,8 +21672,8 @@ mod tests {
     #[test]
     fn hashset_conj_adds_element() {
         let src = r#"(:wat::core::let
-            ((s0 (:wat::core::HashSet :String "a" "b"))
-             (s1 (:wat::core::conj s0 "c")))
+            [s0 (:wat::core::HashSet :String "a" "b")
+             s1 (:wat::core::conj s0 "c")]
             (:wat::core::contains? s1 "c"))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
@@ -21681,8 +21681,8 @@ mod tests {
     #[test]
     fn hashset_conj_values_up_preserves_input() {
         let src = r#"(:wat::core::let
-            ((s0 (:wat::core::HashSet :String "a" "b"))
-             (_ (:wat::core::conj s0 "c")))
+            [s0 (:wat::core::HashSet :String "a" "b")
+             _ (:wat::core::conj s0 "c")]
             (:wat::core::contains? s0 "c"))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
@@ -21696,7 +21696,7 @@ mod tests {
     #[test]
     fn vec_contains_existing_element_returns_true() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::Vector :i64 10 20 30)))
+            [xs (:wat::core::Vector :i64 10 20 30)]
             (:wat::core::contains? xs 20))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
@@ -21704,7 +21704,7 @@ mod tests {
     #[test]
     fn vec_contains_missing_element_returns_false() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::Vector :i64 10 20 30)))
+            [xs (:wat::core::Vector :i64 10 20 30)]
             (:wat::core::contains? xs 99))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
@@ -21712,7 +21712,7 @@ mod tests {
     #[test]
     fn vec_contains_negative_missing_element_returns_false() {
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::Vector :i64 10 20 30)))
+            [xs (:wat::core::Vector :i64 10 20 30)]
             (:wat::core::contains? xs -1))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
@@ -21726,7 +21726,7 @@ mod tests {
     fn hashset_contains_existing_element_returns_true() {
         let src = r#"
             (:wat::core::let
-              ((s (:wat::core::HashSet :String "apple" "banana")))
+              [s (:wat::core::HashSet :String "apple" "banana")]
               (:wat::core::contains? s "apple"))
         "#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
@@ -21736,7 +21736,7 @@ mod tests {
     fn hashset_contains_missing_element_returns_false() {
         let src = r#"
             (:wat::core::let
-              ((s (:wat::core::HashSet :String "apple")))
+              [s (:wat::core::HashSet :String "apple")]
               (:wat::core::contains? s "banana"))
         "#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
@@ -21894,7 +21894,7 @@ mod tests {
         // membership for the i64 42 (type-tagged canonical key).
         let src = r#"
             (:wat::core::let
-              ((s (:wat::core::HashSet :String "42")))
+              [s (:wat::core::HashSet :String "42")]
               (:wat::core::contains? s 42))
         "#;
         match eval_expr(src).unwrap() {
@@ -21916,8 +21916,8 @@ mod tests {
     #[test]
     fn hashmap_length_returns_entry_count() {
         let src = r#"(:wat::core::let
-            ((m
-              (:wat::core::HashMap :(String,i64) "a" 1 "b" 2 "c" 3)))
+            [m
+              (:wat::core::HashMap :(String,i64) "a" 1 "b" 2 "c" 3)]
             (:wat::core::length m))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
     }
@@ -21925,8 +21925,8 @@ mod tests {
     #[test]
     fn hashmap_length_empty_returns_zero() {
         let src = r#"(:wat::core::let
-            ((m
-              (:wat::core::HashMap :(String,i64))))
+            [m
+              (:wat::core::HashMap :(String,i64))]
             (:wat::core::length m))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(0)));
     }
@@ -21934,8 +21934,8 @@ mod tests {
     #[test]
     fn hashset_length_returns_element_count() {
         let src = r#"(:wat::core::let
-            ((s
-              (:wat::core::HashSet :String "a" "b" "c")))
+            [s
+              (:wat::core::HashSet :String "a" "b" "c")]
             (:wat::core::length s))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
     }
@@ -21943,8 +21943,8 @@ mod tests {
     #[test]
     fn hashset_length_empty_returns_zero() {
         let src = r#"(:wat::core::let
-            ((s
-              (:wat::core::HashSet :String)))
+            [s
+              (:wat::core::HashSet :String)]
             (:wat::core::length s))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(0)));
     }
@@ -21953,7 +21953,7 @@ mod tests {
     fn vec_length_still_works_after_polymorphism() {
         // Sanity — the existing Vec arm is preserved.
         let src = r#"(:wat::core::let
-            ((xs (:wat::core::Vector :i64 10 20 30)))
+            [xs (:wat::core::Vector :i64 10 20 30)]
             (:wat::core::length xs))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
     }
@@ -21964,7 +21964,7 @@ mod tests {
     fn try_recv_on_empty_queue_returns_none() {
         let src = r#"
             (:wat::core::let
-              (((tx rx) (:wat::kernel::make-bounded-channel :i64 1)))
+              [[tx rx] (:wat::kernel::make-bounded-channel :i64 1)]
               (:wat::core::match (:wat::kernel::try-recv rx) -> :bool
                 ((:wat::core::Ok (:wat::core::Some _)) false)
                 ((:wat::core::Ok :wat::core::None) true)
@@ -21980,10 +21980,10 @@ mod tests {
     fn try_recv_on_ready_queue_returns_some() {
         let src = r#"
             (:wat::core::let
-              (((tx rx) (:wat::kernel::make-bounded-channel :i64 1))
-               (_ (:wat::core::Result/expect -> :()
+              [[tx rx] (:wat::kernel::make-bounded-channel :i64 1)
+               _ (:wat::core::Result/expect -> :()
                           (:wat::kernel::send tx 7)
-                          "try_recv_on_ready: send failed")))
+                          "try_recv_on_ready: send failed")]
               (:wat::core::match (:wat::kernel::try-recv rx) -> :i64
                 ((:wat::core::Ok (:wat::core::Some v)) v)
                 ((:wat::core::Ok :wat::core::None) 0)
@@ -21999,7 +21999,7 @@ mod tests {
     fn drop_accepts_sender_returns_unit() {
         let src = r#"
             (:wat::core::let
-              (((tx rx) (:wat::kernel::make-bounded-channel :i64 1)))
+              [[tx rx] (:wat::kernel::make-bounded-channel :i64 1)]
               (:wat::kernel::drop tx))
         "#;
         match eval_expr(src).unwrap() {
@@ -22012,7 +22012,7 @@ mod tests {
     fn drop_accepts_receiver_returns_unit() {
         let src = r#"
             (:wat::core::let
-              (((tx rx) (:wat::kernel::make-bounded-channel :i64 1)))
+              [[tx rx] (:wat::kernel::make-bounded-channel :i64 1)]
               (:wat::kernel::drop rx))
         "#;
         match eval_expr(src).unwrap() {
@@ -22051,16 +22051,16 @@ mod tests {
         // (byte-perfect round-trip).
         let src = r#"
             (:wat::core::let
-              ((v
-                (:wat::holon::encode (:wat::holon::Atom "round-trip-test")))
-               (bs (:wat::holon::vector-bytes v))
-               (maybe-v
-                (:wat::holon::bytes-vector bs))
-               (v2
+              [v
+                (:wat::holon::encode (:wat::holon::Atom "round-trip-test"))
+               bs (:wat::holon::vector-bytes v)
+               maybe-v
+                (:wat::holon::bytes-vector bs)
+               v2
                 (:wat::core::match maybe-v -> :wat::holon::Vector
                   ((:wat::core::Some v2) v2)
                   (:wat::core::None
-                    (:wat::holon::encode (:wat::holon::Atom "decode-failed-sentinel"))))))
+                    (:wat::holon::encode (:wat::holon::Atom "decode-failed-sentinel"))))]
               (:wat::holon::cosine v v2))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
@@ -22079,12 +22079,12 @@ mod tests {
         // arc 061 Q7).
         let src = r#"
             (:wat::core::let
-              ((v1
-                (:wat::holon::encode (:wat::holon::Atom "deterministic")))
-               (v2
-                (:wat::holon::encode (:wat::holon::Atom "deterministic")))
-               (b1 (:wat::holon::vector-bytes v1))
-               (b2 (:wat::holon::vector-bytes v2)))
+              [v1
+                (:wat::holon::encode (:wat::holon::Atom "deterministic"))
+               v2
+                (:wat::holon::encode (:wat::holon::Atom "deterministic"))
+               b1 (:wat::holon::vector-bytes v1)
+               b2 (:wat::holon::vector-bytes v2)]
               (:wat::core::= b1 b2))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
@@ -22145,10 +22145,10 @@ mod tests {
         // to HolonAST | Vector).
         let src = r#"
             (:wat::core::let
-              ((v1
-                (:wat::holon::encode (:wat::holon::Atom "coincide-me")))
-               (v2
-                (:wat::holon::encode (:wat::holon::Atom "coincide-me"))))
+              [v1
+                (:wat::holon::encode (:wat::holon::Atom "coincide-me"))
+               v2
+                (:wat::holon::encode (:wat::holon::Atom "coincide-me"))]
               (:wat::holon::coincident? v1 v2))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
@@ -22164,8 +22164,8 @@ mod tests {
         // mixed-input pair_values_to_vectors).
         let src = r#"
             (:wat::core::let
-              ((v
-                (:wat::holon::encode (:wat::holon::Atom "mixed-input"))))
+              [v
+                (:wat::holon::encode (:wat::holon::Atom "mixed-input"))]
               (:wat::holon::coincident? v (:wat::holon::Atom "mixed-input")))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
@@ -22210,20 +22210,20 @@ mod tests {
         // hex → bytes → hex must reproduce the original.
         let src = r#"
             (:wat::core::let
-              ((bs1
+              [bs1
                 (:wat::core::Vector :u8
                   (:wat::core::u8 1)
                   (:wat::core::u8 2)
                   (:wat::core::u8 254)
-                  (:wat::core::u8 255)))
-               (hex (:wat::core::Bytes::to-hex bs1))
-               (maybe-bs2
-                (:wat::core::Bytes::from-hex hex))
-               (bs2
+                  (:wat::core::u8 255))
+               hex (:wat::core::Bytes::to-hex bs1)
+               maybe-bs2
+                (:wat::core::Bytes::from-hex hex)
+               bs2
                 (:wat::core::match maybe-bs2 -> :wat::core::Bytes
                   ((:wat::core::Some b) b)
                   (:wat::core::None
-                    (:wat::core::Vector :u8 (:wat::core::u8 0))))))
+                    (:wat::core::Vector :u8 (:wat::core::u8 0))))]
               (:wat::core::= bs1 bs2))
         "#;
         match eval_expr(src).unwrap() {
@@ -22237,10 +22237,10 @@ mod tests {
         // Mixed case "AbCd" → 0xab 0xcd; same as lowercase "abcd".
         let src = r#"
             (:wat::core::let
-              ((mixed
-                (:wat::core::Bytes::from-hex "AbCd"))
-               (lower
-                (:wat::core::Bytes::from-hex "abcd")))
+              [mixed
+                (:wat::core::Bytes::from-hex "AbCd")
+               lower
+                (:wat::core::Bytes::from-hex "abcd")]
               (:wat::core::= mixed lower))
         "#;
         match eval_expr(src).unwrap() {
@@ -22566,7 +22566,7 @@ mod tests {
         // started on.
         let src = r#"
             (:wat::core::let
-              ((h1
+              [h1
                 (:wat::core::match
                   (:wat::holon::Bundle
                     (:wat::core::Vector :wat::holon::HolonAST
@@ -22574,9 +22574,9 @@ mod tests {
                       (:wat::holon::leaf "filler")))
                   -> :wat::holon::HolonAST
                   ((:wat::core::Ok h) h)
-                  ((:wat::core::Err _) (:wat::holon::leaf "unreachable"))))
-               (ast (:wat::holon::to-watast h1))
-               (h2 (:wat::holon::from-watast ast)))
+                  ((:wat::core::Err _) (:wat::holon::leaf "unreachable")))
+               ast (:wat::holon::to-watast h1)
+               h2 (:wat::holon::from-watast ast)]
               (:wat::holon::cosine h1 h2))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
@@ -22794,15 +22794,15 @@ mod tests {
               -> :wat::core::i64
               ((:wat::core::Ok pair)
                 (:wat::core::let
-                  ((terminal (:wat::core::first pair))
-                   (count (:wat::core::second pair))
-                   (value (:wat::core::atom-value terminal))
+                  [terminal (:wat::core::first pair)
+                   count (:wat::core::second pair)
+                   value (:wat::core::atom-value terminal)
                    ;; encode (value, count) as one i64: value * 1000 + count.
                    ;; sufficient for a chain of length < 1000.
-                   (packed
+                   packed
                     (:wat::core::i64::+,2
                       (:wat::core::i64::*,2 value 1000)
-                      count)))
+                      count)]
                   packed))
               ((:wat::core::Err _) -1))
             "#,
@@ -22876,8 +22876,8 @@ mod tests {
           -> :wat::core::i64
           ((:wat::core::Ok pair)
             (:wat::core::let
-              ((terminal (:wat::core::first pair))
-               (value (:wat::core::atom-value terminal)))
+              [terminal (:wat::core::first pair)
+               value (:wat::core::atom-value terminal)]
               value))
           ((:wat::core::Err _) -1))
         "#;
@@ -23132,7 +23132,7 @@ mod tests {
         // `(let ((x 5)) (* x x))` — RHS canonical, peel,
         // substitute, then arithmetic fire.
         let h = step_drive_to_terminal(
-            "(:wat::core::let ((x 5)) (:wat::core::i64::*,2 x x))",
+            "(:wat::core::let [x 5] (:wat::core::i64::*,2 x x))",
         );
         assert_eq!(h.as_i64(), Some(25));
     }
@@ -23143,7 +23143,7 @@ mod tests {
         // a's RHS is non-canonical → descend; then peel a; then peel
         // b; body alone reduces to terminal.
         let h = step_drive_to_terminal(
-            "(:wat::core::let ((a (:wat::core::i64::+,2 1 1)) (b a)) b)",
+            "(:wat::core::let [a (:wat::core::i64::+,2 1 1) b a] b)",
         );
         assert_eq!(h.as_i64(), Some(2));
     }
@@ -23237,7 +23237,7 @@ mod tests {
             ("(:wat::core::i64::+,2 2 2)", 4),
             ("(:wat::core::i64::*,2 3 7)", 21),
             ("(:wat::core::if true -> :wat::core::i64 10 20)", 10),
-            ("(:wat::core::let ((x 5)) (:wat::core::i64::+,2 x 1))", 6),
+            ("(:wat::core::let [x 5] (:wat::core::i64::+,2 x 1))", 6),
             ("(:wat::core::match (:wat::core::Some 7) -> :wat::core::i64 ((:wat::core::Some n) n) (:wat::core::None 0))", 7),
         ];
         for (form, expected) in forms {
@@ -23297,12 +23297,12 @@ mod tests {
                 ((:wat::core::Err e) -1)))
             {}
             (:wat::core::let
-              ((sum
+              [sum
                 (:my::test::step-to-terminal
-                  (:wat::core::quote (:my::test::sum-to 3 0))))
-               (steps
+                  (:wat::core::quote (:my::test::sum-to 3 0)))
+               steps
                 (:my::test::step-count
-                  (:wat::core::quote (:my::test::sum-to 3 0)) 0)))
+                  (:wat::core::quote (:my::test::sum-to 3 0)) 0)]
               (:wat::core::Tuple sum steps))
             "#,
             step_to_terminal_prelude()
@@ -23448,10 +23448,10 @@ mod tests {
         // T = :i64 since arc 102 makes eval-ast! polymorphic.
         let src = r#"
             (:wat::core::let
-              ((form
+              [form
                 (:wat::holon::from-watast
-                  (:wat::core::quote (:wat::core::i64::+,2 40 2))))
-               (ast (:wat::holon::to-watast form)))
+                  (:wat::core::quote (:wat::core::i64::+,2 40 2)))
+               ast (:wat::holon::to-watast form)]
               (:wat::core::match (:wat::eval-ast! ast) -> :i64
                 ((:wat::core::Ok n) n)
                 ((:wat::core::Err _) -1)))
@@ -23470,19 +23470,19 @@ mod tests {
         // type-checks identically whichever annotation is used.
         let src = r#"
             (:wat::core::let
-              ((v
-                (:wat::holon::encode (:wat::holon::Atom "alias-test")))
+              [v
+                (:wat::holon::encode (:wat::holon::Atom "alias-test"))
                ;; Annotate with the alias on one binding...
-               (bs1
-                (:wat::holon::vector-bytes v))
+               bs1
+                (:wat::holon::vector-bytes v)
                ;; ...and the verbose form on the other.
-               (bs2
-                (:wat::holon::vector-bytes v))
+               bs2
+                (:wat::holon::vector-bytes v)
                ;; Both must round-trip cleanly through bytes-vector.
-               (maybe-v1
-                (:wat::holon::bytes-vector bs1))
-               (maybe-v2
-                (:wat::holon::bytes-vector bs2)))
+               maybe-v1
+                (:wat::holon::bytes-vector bs1)
+               maybe-v2
+                (:wat::holon::bytes-vector bs2)]
               ;; Bytes are deterministic; so the two byte-buffers
               ;; produced from the same vector must be equal at the
               ;; structural level.
@@ -23576,12 +23576,12 @@ mod tests {
     fn handle_pool_pop_all_then_finish() {
         let src = r#"
             (:wat::core::let
-              ((pool
-                (:wat::kernel::HandlePool::new "test" (:wat::core::Vector :i64 1 2 3)))
-               (a (:wat::kernel::HandlePool::pop pool))
-               (b (:wat::kernel::HandlePool::pop pool))
-               (c (:wat::kernel::HandlePool::pop pool))
-               (_ (:wat::kernel::HandlePool::finish pool)))
+              [pool
+                (:wat::kernel::HandlePool::new "test" (:wat::core::Vector :i64 1 2 3))
+               a (:wat::kernel::HandlePool::pop pool)
+               b (:wat::kernel::HandlePool::pop pool)
+               c (:wat::kernel::HandlePool::pop pool)
+               _ (:wat::kernel::HandlePool::finish pool)]
               (:wat::core::i64::+,2 (:wat::core::i64::+,2 a b) c))
         "#;
         match eval_expr(src).unwrap() {
@@ -23620,9 +23620,9 @@ mod tests {
     fn handle_pool_name_surfaces_in_error() {
         let src = r#"
             (:wat::core::let
-              ((pool
-                (:wat::kernel::HandlePool::new "named-pool" (:wat::core::Vector :i64)))
-               (_ (:wat::kernel::HandlePool::pop pool)))
+              [pool
+                (:wat::kernel::HandlePool::new "named-pool" (:wat::core::Vector :i64))
+               _ (:wat::kernel::HandlePool::pop pool)]
               0)
         "#;
         let err = eval_expr(src).unwrap_err();
@@ -23865,7 +23865,7 @@ mod tests {
     #[test]
     fn arc159_new_shape_basic_addition() {
         let src = r#"
-            (:wat::core::let ((x 2)) (:wat::core::i64::+,2 x 1))
+            (:wat::core::let [x 2] (:wat::core::i64::+,2 x 1))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(3) => {}
@@ -23882,8 +23882,8 @@ mod tests {
     fn arc159_new_shape_multi_binding_sequential() {
         let src = r#"
             (:wat::core::let
-              ((a 1)
-               (b (:wat::core::i64::+,2 a 1)))
+              [a 1
+               b (:wat::core::i64::+,2 a 1)]
               b)
         "#;
         match eval_expr(src).unwrap() {
@@ -23901,7 +23901,7 @@ mod tests {
     fn arc159_new_shape_closure_capture() {
         let src = r#"
             (:wat::core::let
-              ((x 2))
+              [x 2]
               ((:wat::core::fn [] -> :wat::core::i64 x)))
         "#;
         match eval_expr(src).unwrap() {
@@ -23915,8 +23915,8 @@ mod tests {
     fn arc159_new_shape_sequential_cross_reference() {
         let src = r#"
             (:wat::core::let
-              ((a 1)
-               (b (:wat::core::i64::+,2 a 1)))
+              [a 1
+               b (:wat::core::i64::+,2 a 1)]
               (:wat::core::i64::+,2 a b))
         "#;
         // a=1, b=2, a+b=3
@@ -23933,9 +23933,9 @@ mod tests {
     fn arc159_new_shape_nested_let() {
         let src = r#"
             (:wat::core::let
-              ((x 10))
+              [x 10]
               (:wat::core::let
-                ((y (:wat::core::i64::+,2 x 5)))
+                [y (:wat::core::i64::+,2 x 5)]
                 y))
         "#;
         match eval_expr(src).unwrap() {
@@ -23958,7 +23958,7 @@ mod tests {
         // then destructure `q` into `(a b)`. Exercises both paths.
         let src = r#"
             (:wat::core::let
-              (((a b) p))
+              [[a b] p]
               (:wat::core::i64::+,2 a b))
         "#;
         let p = pair(Value::i64(3), Value::i64(4));
@@ -23980,7 +23980,7 @@ mod tests {
     fn arc159_destructure_three_element() {
         let src = r#"
             (:wat::core::let
-              (((a b c) tup))
+              [[a b c] tup]
               (:wat::core::i64::+,2 a (:wat::core::i64::+,2 b c)))
         "#;
         let tup = Value::Tuple(std::sync::Arc::new(vec![
@@ -24003,8 +24003,8 @@ mod tests {
     fn arc159_mixed_new_shape_and_destructure() {
         let src = r#"
             (:wat::core::let
-              ((q p)
-               ((a b) q))
+              [q p
+               [a b] q]
               (:wat::core::i64::+,2 a b))
         "#;
         let p = pair(Value::i64(5), Value::i64(6));
