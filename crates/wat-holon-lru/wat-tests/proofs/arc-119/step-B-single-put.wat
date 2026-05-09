@@ -25,34 +25,34 @@
   ()
   (:wat::core::let
     ;; Outer holds the driver Thread; inner owns everything else.
-    ((driver
+    [driver
       (:wat::core::let
-        ((spawn
+        [spawn
           (:wat::holon::lru::HologramCacheService/spawn 1 4
             :wat::holon::lru::HologramCacheService/null-reporter
-            (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-         (pool
-          (:wat::core::first spawn))
-         (d
-          (:wat::core::second spawn))
-         (handle
-          (:wat::kernel::HandlePool::pop pool))
-         (_finish
-          (:wat::kernel::HandlePool::finish pool))
+            (:wat::holon::lru::HologramCacheService/null-metrics-cadence))
+         pool
+          (:wat::core::first spawn)
+         d
+          (:wat::core::second spawn)
+         handle
+          (:wat::kernel::HandlePool::pop pool)
+         _finish
+          (:wat::kernel::HandlePool::finish pool)
 
-         (k (:wat::holon::leaf :alpha))
-         (v (:wat::holon::leaf :av))
+         k (:wat::holon::leaf :alpha)
+         v (:wat::holon::leaf :av)
 
          ;; ONE put — batch-of-one. HologramCacheService/put sends
          ;; Request::Put on the slot's req-tx and blocks on reply-rx
          ;; until the driver replies Reply::PutAck.
-         (_
+         _
           (:wat::holon::lru::HologramCacheService/put handle
             (:wat::core::Vector :wat::holon::lru::HologramCacheService::Entry
-              (:wat::core::Tuple k v)))))
+              (:wat::core::Tuple k v)))]
         ;; Inner exits — handle drops. Driver sees disconnect on its
         ;; req-rx, exits cleanly.
-        d)))
+        d)]
     (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::nil
       ((:wat::core::Ok _) :wat::core::nil)
       ((:wat::core::Err _) (:wat::test::assert-eq "service-died" "")))))
