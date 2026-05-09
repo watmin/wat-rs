@@ -18,8 +18,8 @@
 //!   4. empty_bindings — `[]` legal
 //!   5. empty_body — `(let [x 1])` returns nil
 //!   6. destructure_binding — `[[a b] (Tuple ...)]`
-//!   7. legacy_outer_list_fires_walker — `(:wat::core::let ((x 1)) ...)`
-//!   8. migration_message_text — verbatim assertion
+//!   7. (retired slice 3) — was legacy_outer_list_fires_walker
+//!   8. (retired slice 3) — was migration_message_text
 //!   9. odd_count_vector_errors — `[x]` and `[x 1 y]`
 //!  10. multi_form_let_body — non-final forms eval'd for side effect
 //!  11. multi_form_let_body_typecheck — non-final form type errors surface
@@ -149,74 +149,12 @@ fn destructure_binding() {
     }
 }
 
-// ─── Test 7 — legacy_outer_list_fires_walker ─────────────────────────────────
-
-/// `(:wat::core::let ((x 1)) body)` — legacy outer-list bindings
-/// shape fires `BareLegacyLetBindings` walker.
-#[test]
-fn legacy_outer_list_fires_walker() {
-    let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let ((x 1))
-            (:wat::core::i64::+,2 x 1)))
-    "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("BareLegacyLetBindings"),
-        "expected BareLegacyLetBindings walker to fire; got: {}",
-        err
-    );
-}
-
-// ─── Test 8 — migration_message_text ─────────────────────────────────────────
-
-/// The migration text from BRIEF must appear verbatim in the walker
-/// diagnostic — slice 2's mechanical sweep depends on it.
-#[test]
-fn migration_message_text() {
-    let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::let ((x 1) (y 2))
-            (:wat::core::i64::+,2 x y)))
-    "#;
-    let err = startup_err(src);
-    // Spot-check key lines from the migration message.
-    assert!(
-        err.contains("let bindings must be a vector `[name expr name expr ...]`"),
-        "expected canonical-shape line in migration text; got: {}",
-        err
-    );
-    assert!(
-        err.contains("Got legacy nested-pair-list `((name expr) (name expr) ...)`"),
-        "expected legacy-shape line in migration text; got: {}",
-        err
-    );
-    assert!(
-        err.contains("Migration:"),
-        "expected Migration: header; got: {}",
-        err
-    );
-    assert!(
-        err.contains("Outer brackets change from `(...)` to `[...]`"),
-        "expected outer-brackets line; got: {}",
-        err
-    );
-    assert!(
-        err.contains("Before:  (:wat::core::let ((x 1) (y 2)) (+ x y))"),
-        "expected canonical 'Before:' example; got: {}",
-        err
-    );
-    assert!(
-        err.contains("After:   (:wat::core::let [x 1 y 2] (+ x y))"),
-        "expected canonical 'After:' example; got: {}",
-        err
-    );
-    assert!(
-        err.contains("`((a b c) rhs)` becomes `[[a b c] rhs]`"),
-        "expected destructure migration line; got: {}",
-        err
-    );
-}
+// Tests 7 + 8 (legacy_outer_list_fires_walker + migration_message_text)
+// retired per arc 168 slice 3 — the `BareLegacyLetBindings` walker is
+// gone; legacy outer-list shape now produces the standard
+// `MalformedForm` parser error covered by `infer_let`'s non-Vector
+// arm. No dedicated regression needed — the error shape is defined
+// by the canonical Vector-only parser path.
 
 // ─── Test 9 — odd_count_vector_errors ────────────────────────────────────────
 

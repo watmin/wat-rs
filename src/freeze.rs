@@ -600,13 +600,6 @@ fn startup_from_forms_post_config(
         let mut bare_errors: Vec<crate::check::CheckError> = Vec::new();
         for form in &expanded_user {
             crate::check::validate_bare_legacy_primitives(form, &mut bare_errors);
-            // Arc 168 — fires `BareLegacyLetBindings` on every
-            // user-source `(:wat::core::let LIST ...)` site. Walker
-            // is scoped to user forms (not stdlib) per arc 167 slice
-            // 2 delta A precedent; substrate-authored stdlib forms
-            // silently migrate via the legacy parser fall-through
-            // during the slice 1-2 sweep window.
-            crate::check::validate_legacy_let_bindings(form, &mut bare_errors);
         }
         if !bare_errors.is_empty() {
             return Err(StartupError::Check(crate::check::CheckErrors(bare_errors)));

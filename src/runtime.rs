@@ -1869,9 +1869,9 @@ fn register_runtime_defs_form(
             //
             // Arc 168 slice 1 — body becomes 1+ trailing forms (implicit-do).
             // Arc 168 slice 1 — bindings are WatAST::Vector flat-shape only;
-            // the walker rejects legacy outer-List user-source, and eval_let
-            // emits MalformedForm on non-Vector. This registrar mirrors that
-            // discipline — Vector-only.
+            // eval_let emits MalformedForm on non-Vector. This registrar
+            // mirrors that discipline — Vector-only. (Slice 3 retired the
+            // walker + legacy outer-List parser arms.)
             if items.len() < 2 {
                 return Ok(()); // malformed; type checker already caught it
             }
@@ -2618,23 +2618,6 @@ fn eval_let_tail(
                 let binding = parse_let_binding(binder, rhs)?;
                 scope = bind_let_binding(binding, &scope, sym)?;
                 i += 2;
-            }
-        }
-        WatAST::List(pairs, _) => {
-            // Legacy fall-through (slice 3 retires this arm).
-            for pair in pairs {
-                let kv = match pair {
-                    WatAST::List(items, _) if items.len() == 2 => items,
-                    _ => {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat::core::let".into(),
-                            reason: "legacy let binding must be ((name :Type) rhs) or ((a b ...) rhs)".into(),
-                            span: pair.span().clone(),
-                        });
-                    }
-                };
-                let binding = parse_legacy_let_binding(&kv[0], &kv[1])?;
-                scope = bind_let_binding(binding, &scope, sym)?;
             }
         }
         _ => {
@@ -4097,10 +4080,9 @@ fn parse_fn_signature(
 /// commits to the env chain before the next RHS evaluates, so subsequent
 /// bindings can reference earlier ones.
 ///
-/// Legacy outer-List shape `((n e) ...)` fires the
-/// `BareLegacyLetBindings` walker pre-check. Slice 1 keeps a
-/// transitional fall-through for stdlib-authored callers (mirroring
-/// arc 167 slice 2 delta B); slice 3 retires the legacy arm.
+/// Non-Vector outer shape (e.g. legacy `((n e) ...)` nested-pair list)
+/// produces a clean `MalformedForm` naming the canonical shape.
+/// Arc 168 slice 3 retired the legacy outer-List fall-through arm.
 fn eval_let(
     args: &[WatAST],
     list_span: &Span,
@@ -4141,26 +4123,6 @@ fn eval_let(
                 let binding = parse_let_binding(binder, rhs)?;
                 scope = bind_let_binding(binding, &scope, sym)?;
                 i += 2;
-            }
-        }
-        // Legacy outer-List shape — transitional fall-through during
-        // arc 168 slice 1-2 window. Walker fires `BareLegacyLetBindings`
-        // pre-check on user forms; stdlib code keeps running. Slice 3
-        // retires this arm.
-        WatAST::List(pairs, _) => {
-            for pair in pairs {
-                let kv = match pair {
-                    WatAST::List(items, _) if items.len() == 2 => items,
-                    _ => {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat::core::let".into(),
-                            reason: "legacy let binding must be ((name :Type) rhs) or ((a b ...) rhs)".into(),
-                            span: pair.span().clone(),
-                        });
-                    }
-                };
-                let binding = parse_legacy_let_binding(&kv[0], &kv[1])?;
-                scope = bind_let_binding(binding, &scope, sym)?;
             }
         }
         _ => {
@@ -4351,77 +4313,6 @@ fn parse_let_binding<'a>(
             span: other.span().clone(),
         }),
     }
-}
-
-/// Arc 168 transitional — parse a legacy outer-List let binding shape
-/// `((name :T) rhs)` / `((a b ...) rhs)` / `(name rhs)` (arc 159 inner-
-/// pair shape) into the unified [`LetBinding`] enum. Used only by the
-/// legacy fall-through arm in [`eval_let`] during the slice 1-2 sweep
-/// window; slice 3 retires this arm. Mirrors arc 167 slice 2 delta B.
-fn parse_legacy_let_binding<'a>(
-    binder: &'a WatAST,
-    rhs: &'a WatAST,
-) -> Result<LetBinding<'a>, RuntimeError> {
-    // Arc 159 inner-pair shape: bare Symbol binder.
-    if let WatAST::Symbol(ident, _) = binder {
-        return Ok(LetBinding::Single {
-            name: ident.name.clone(),
-            rhs,
-        });
-    }
-    let inner = match binder {
-        WatAST::List(inner, _) => inner,
-        other => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::let".into(),
-                reason: format!(
-                    "legacy let binder must be a Symbol or List; got {}",
-                    ast_variant_name(other)
-                ),
-                span: other.span().clone(),
-            });
-        }
-    };
-    // Typed-single: `(symbol keyword)`.
-    let is_typed_single = inner.len() == 2
-        && matches!(&inner[0], WatAST::Symbol(_, _))
-        && matches!(&inner[1], WatAST::Keyword(_, _));
-    if is_typed_single {
-        let name = match &inner[0] {
-            WatAST::Symbol(ident, _) => ident.name.clone(),
-            _ => unreachable!(),
-        };
-        // Validate the type keyword for parse-side-effect errors.
-        if let WatAST::Keyword(k, _) = &inner[1] {
-            parse_type_keyword(k)?;
-        }
-        return Ok(LetBinding::Single { name, rhs });
-    }
-    // Destructure (legacy List form): every binder element bare symbol.
-    let mut names = Vec::with_capacity(inner.len());
-    for item in inner {
-        match item {
-            WatAST::Symbol(ident, _) => names.push(ident.name.clone()),
-            other => {
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::let".into(),
-                    reason: format!(
-                        "legacy destructure binder must be a list of bare symbols; got {}",
-                        ast_variant_name(other)
-                    ),
-                    span: other.span().clone(),
-                });
-            }
-        }
-    }
-    if names.is_empty() {
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::let".into(),
-            reason: "destructure binder cannot be empty — at least one name is required".into(),
-            span: binder.span().clone(),
-        });
-    }
-    Ok(LetBinding::Destructure { names, rhs })
 }
 
 /// `(:wat::core::if cond -> :T then else)` — typed conditional per
@@ -17212,9 +17103,11 @@ fn step_if(
 /// non-canonical, descend it and rebuild. If canonical, substitute
 /// name → RHS into remaining bindings and body, drop the now-bound
 /// first pair, return Next of the smaller form. Arc 168 — flat-vector
-/// outer + implicit-do body. Both outer-Vector (canonical) and
-/// outer-List (legacy nested-pairs) shapes accepted during the
-/// transition window; slice 3 retires the List outer arm.
+/// outer + implicit-do body.
+///
+/// Non-Vector outer (e.g. legacy `((n e) ...)` nested-pair list)
+/// produces a clean `MalformedForm`. Arc 168 slice 3 retired the
+/// outer-List arm.
 ///
 /// Empty bindings + body → see `synthesize_let_body` for the
 /// implicit-do collapse rule.
@@ -17239,8 +17132,7 @@ fn step_let(
         });
     }
 
-    // Two outer shapes — flat-Vector (canonical, arc 168) and
-    // nested-pair List (legacy, slice 3 retires). Both desugar into
+    // Outer shape is the canonical flat-Vector (arc 168). Desugar into
     // a uniform `Vec<(binder, rhs)>` pair-list for the stepper.
     let bindings_form_span = args[0].span().clone();
     let pairs: Vec<(WatAST, WatAST)> = match &args[0] {
@@ -17260,29 +17152,10 @@ fn step_let(
                 .map(|chunk| (chunk[0].clone(), chunk[1].clone()))
                 .collect()
         }
-        WatAST::List(legacy_pairs, _) => {
-            // Legacy outer-List: each child is `(binder rhs)`.
-            let mut out = Vec::with_capacity(legacy_pairs.len());
-            for pair in legacy_pairs {
-                match pair {
-                    WatAST::List(p, _) if p.len() == 2 => {
-                        out.push((p[0].clone(), p[1].clone()));
-                    }
-                    _ => {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat::core::let".into(),
-                            reason: "legacy let binding must be a 2-list (binder rhs)".into(),
-                            span: pair.span().clone(),
-                        });
-                    }
-                }
-            }
-            out
-        }
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
-                reason: "let bindings must be a vector `[name expr ...]` or legacy list".into(),
+                reason: "let bindings must be a flat vector `[name expr ...]`".into(),
                 span: other.span().clone(),
             });
         }
@@ -17296,33 +17169,18 @@ fn step_let(
     }
 
     // Inspect first pair. The stepper handles single-Symbol-binder
-    // chunks (canonical post-arc-168 shape) and the legacy
-    // typed-single `(name :T)` binder shape. Vector destructure
+    // chunks (canonical post-arc-168 shape). Vector destructure
     // binders fall through to the eval path (single-step semantics
     // matches one binding peel; destructure is multi-bind atomic).
     let (binder, rhs) = (&pairs[0].0, &pairs[0].1);
 
     let name_ident: crate::identifier::Identifier = match binder {
-        // New canonical binder: bare Symbol.
         WatAST::Symbol(ident, _) => ident.clone(),
-        // Legacy typed-single binder: `(name :T)`.
-        WatAST::List(p, _) if p.len() == 2 => match (&p[0], &p[1]) {
-            (WatAST::Symbol(ident, _), WatAST::Keyword(_, _)) => ident.clone(),
-            _ => {
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::let".into(),
-                    reason:
-                        "step_let only handles Symbol or `(name :T)` binders; destructure goes through eval_let"
-                            .into(),
-                    span: binder.span().clone(),
-                });
-            }
-        },
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
                 reason:
-                    "step_let only handles Symbol or `(name :T)` binders; destructure goes through eval_let"
+                    "step_let only handles Symbol binders; destructure goes through eval_let"
                         .into(),
                 span: binder.span().clone(),
             });
@@ -17331,7 +17189,7 @@ fn step_let(
 
     if !is_step_canonical(rhs) {
         // Step the RHS one rewrite, rebuild the let with the stepped
-        // RHS in place, preserving outer-Vector / outer-List shape.
+        // RHS in place. Outer is always Vector post-arc-168.
         let new_rhs = step_to_watast(rhs, env, sym)?;
         let new_args = rebuild_let_with_first_rhs(&args[0], &pairs, &new_rhs)?;
         let mut new_items: Vec<WatAST> = vec![
@@ -17360,27 +17218,13 @@ fn step_let(
         )));
     }
 
-    // Rebuild the bindings carrier in the same outer shape we received.
-    let rebuilt_bindings = match &args[0] {
-        WatAST::Vector(_, _) => {
-            let mut flat: Vec<WatAST> = Vec::with_capacity(rest_pairs.len() * 2);
-            for (b, r) in &rest_pairs {
-                flat.push(b.clone());
-                flat.push(r.clone());
-            }
-            WatAST::Vector(flat, bindings_form_span.clone())
-        }
-        WatAST::List(_, _) => {
-            let nested: Vec<WatAST> = rest_pairs
-                .iter()
-                .map(|(b, r)| {
-                    WatAST::List(vec![b.clone(), r.clone()], Span::unknown())
-                })
-                .collect();
-            WatAST::List(nested, bindings_form_span.clone())
-        }
-        _ => unreachable!("outer shape was Vector or List by the match above"),
-    };
+    // Rebuild the bindings carrier as canonical flat-Vector.
+    let mut flat: Vec<WatAST> = Vec::with_capacity(rest_pairs.len() * 2);
+    for (b, r) in &rest_pairs {
+        flat.push(b.clone());
+        flat.push(r.clone());
+    }
+    let rebuilt_bindings = WatAST::Vector(flat, bindings_form_span.clone());
     let mut new_items: Vec<WatAST> = vec![
         WatAST::Keyword(":wat::core::let".into(), Span::unknown()),
         rebuilt_bindings,
@@ -17409,7 +17253,7 @@ fn synthesize_let_body(forms: &[WatAST], outer_span: &Span) -> WatAST {
 }
 
 /// Rebuild a let bindings carrier with a new RHS in the first
-/// position. Preserves outer shape (Vector vs List).
+/// position. Outer is always canonical flat-Vector post-arc-168.
 fn rebuild_let_with_first_rhs(
     bindings_form: &WatAST,
     pairs: &[(WatAST, WatAST)],
@@ -17428,20 +17272,9 @@ fn rebuild_let_with_first_rhs(
             }
             Ok(WatAST::Vector(flat, outer_span))
         }
-        WatAST::List(_, _) => {
-            let mut out: Vec<WatAST> = Vec::with_capacity(pairs.len());
-            out.push(WatAST::List(
-                vec![pairs[0].0.clone(), new_first_rhs.clone()],
-                Span::unknown(),
-            ));
-            for (b, r) in &pairs[1..] {
-                out.push(WatAST::List(vec![b.clone(), r.clone()], Span::unknown()));
-            }
-            Ok(WatAST::List(out, outer_span))
-        }
         other => Err(RuntimeError::MalformedForm {
             head: ":wat::core::let".into(),
-            reason: "let bindings carrier must be Vector or List".into(),
+            reason: "let bindings carrier must be a vector `[name expr ...]`".into(),
             span: other.span().clone(),
         }),
     }
