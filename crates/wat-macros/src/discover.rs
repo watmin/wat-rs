@@ -940,7 +940,7 @@ mod tests {
     fn scan_finds_deftest_hermetic() {
         let src = r#"
             (:wat::test::deftest-hermetic :my::forked
-              ((:wat::core::let () ())))
+              ((:wat::core::let [] ())))
         "#;
         assert_eq!(names_only(src), vec![":my::forked".to_string()]);
     }

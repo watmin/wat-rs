@@ -439,7 +439,7 @@ fn program_writes_multiple_times_to_stdout() {
                              (stdout :wat::io::IOWriter)
                              (stderr :wat::io::IOWriter)
                              -> :wat::core::nil)
-          (:wat::core::let ((first (:wat::io::IOWriter/print stdout "hello ")))
+          (:wat::core::let [first (:wat::io::IOWriter/print stdout "hello ")]
             (:wat::io::IOWriter/print stdout "world")))
     "#;
     let path = write_temp(program);
