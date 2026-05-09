@@ -184,32 +184,51 @@ test-only use? Today's spawn-program (in-thread) is used in
 forces those tests to switch to spawn-process (real OS fork —
 slower) or spawn-thread (no isolation — different semantics).
 
-### 6. `spawn-thread` reshape
+### 6. `spawn-thread` — contract naming, not reshape
 
-**Before:**
+**Correction 2026-05-09 (post-DESIGN-v1):** The earlier draft of
+this section proposed reshaping spawn-thread to take (src scope)
+and freeze a fresh world per call. That was WRONG.
+
+User direction 2026-05-09: *"it should be typical thread
+behavior... they share the process' memory.. i don't get the
+question. look at how we do services... services should basically
+implement this pattern.. they are request/reply servers already -
+just not in a separate process -- this is the zero mutex
+doctrine."*
+
+Threads share parent's process memory (typical thread behavior).
+Services (telemetry/Service.wat, wat-lru/CacheService.wat,
+wat-tests/service-template.wat) already implement the
+client/server request/reply pattern using spawn-thread + inline
+lambda + closure over let-scope values + channel-based I/O. This
+is THE pattern; arc 170 doesn't reshape it.
+
+**The actual change to spawn-thread in arc 170 is naming the
+contract.** Today the substrate enforces a structural signature
+on spawn-thread's body fn: `(:Receiver<I>, :Sender<O>) -> :nil`
+(per arc 114 — "values flow only through channels; return is a
+panic-free marker"). Arc 170 names this contract `:user::thread`
+in the documentation. Substrate continues to enforce the
+signature structurally; the name is conceptual/specification —
+NOT a substrate-enforced canonical entry point.
 
 ```scheme
-(:wat::kernel::spawn-thread :my::worker-fn-ref)  ;; runs fn in parent's world
+;; UNCHANGED behavior: takes inline lambda or fn-ref keyword
+(:wat::kernel::spawn-thread
+  (:wat::core::fn [rx <- :Receiver<I> tx <- :Sender<O>] -> :nil
+    body))                          ;; closes over parent's world
 ;; -> :wat::kernel::Thread<I,O>
+
+;; Or by keyword path:
+(:wat::kernel::spawn-thread :my::worker-fn)
+;; where :my::worker-fn satisfies the :user::thread signature contract
 ```
 
-**After:**
-
-```scheme
-(:wat::kernel::spawn-thread src scope)  ;; freezes fresh world; invokes :user::thread
-;; -> :wat::kernel::Thread<I,O>
-```
-
-The arbitrary-fn-ref pattern dies. Programs that want
-thread-spawnable bodies write a separate wat program source with
-`:user::thread` defined; `spawn-thread` loads + invokes it.
-
-**Cost implication:** every `spawn-thread` call now triggers a
-fresh-world freeze (parser + type-check + freeze pass). Today's
-spawn-thread shared the parent's world (no freeze cost). This is
-the rigidity tradeoff. Users who want frequent thread spawns may
-want to factor frequently-spawned bodies into long-lived programs
-that loop on their channels.
+**No fresh-world freeze. No closure restriction. The services
+pattern is preserved.** The "rigidity" is the signature contract;
+the "flexibility" is being able to spawn any fn matching it
+(inline or named, at any keyword path).
 
 ### 7. wat-cli passes `std::env::args()` to `:user::main`
 
@@ -248,7 +267,7 @@ in practice user's main never sees them. But there's no filtering
 | `:wat::kernel::spawn-program-ast` | live | RETIRED *(pending user confirmation)* |
 | `:wat::kernel::spawn-process` | n/a | minted; takes (src scope); invokes `:user::process` |
 | `:wat::kernel::spawn-process-ast` | n/a | minted; takes (forms scope); invokes `:user::process` |
-| `:wat::kernel::spawn-thread` shape | `(fn-ref) → Thread<I,O>` | `(src scope) → Thread<I,O>`; invokes `:user::thread` |
+| `:wat::kernel::spawn-thread` shape | `(fn-or-ref) → Thread<I,O>`; signature `(:Receiver<I>, :Sender<O>) -> :nil` enforced structurally | UNCHANGED — services pattern preserved; signature contract gets the conceptual name `:user::thread` (substrate still enforces structurally, not by canonical name) |
 | `validate_user_main_signature` | enforces 3-arg + nil | enforces 4-arg (3-IO + argv) + ExitCode |
 | `validate_user_process_signature` | n/a | minted |
 | `validate_user_thread_signature` | n/a | minted |
@@ -377,11 +396,11 @@ the sweep window.
 - `src/spawn.rs::eval_kernel_spawn_program` — verify retire/merge per § 5 open question
 - `src/fork.rs::eval_kernel_fork_program` — rename to `eval_kernel_spawn_process`
 - `src/fork.rs::eval_kernel_fork_program_ast` — rename to `eval_kernel_spawn_process_ast`
-- `src/spawn.rs::eval_kernel_spawn_thread` — reshape to (src, scope); freeze fresh world; invoke `:user::thread`
+- `src/spawn.rs::eval_kernel_spawn_thread` — UNCHANGED for body invocation (parent world; structural signature enforcement); add doc comment naming the contract `:user::thread`
 - `src/check.rs` — walker variants:
   - `BareLegacyMainSignature` — fires on 3-arg `:user::main`
   - `BareLegacyForkProgram` — fires on `fork-program` / `fork-program-ast` verbs
-  - `BareLegacySpawnThreadFnRef` — fires on `spawn-thread` fn-ref shape
+  - *(no `BareLegacySpawnThreadFnRef` walker — spawn-thread shape unchanged per Q2-replacement structural-enforcement lean)*
 - `crates/wat-cli/src/lib.rs::run` — pass `std::env::args()` + interpret ExitCode return
 - `src/harness.rs` — `invoke_user_main` arity check + argv pass-through
 - `src/spawn.rs` (eval_kernel_spawn_program path) — invokes `:user::process` instead of `:user::main`
@@ -438,22 +457,18 @@ Walker diagnostics from slice 1 drive the migration.
 - **`fork-program*` verb sites**: rename verb to `spawn-process*`.
   Mechanical.
 
-- **`spawn-thread` fn-ref callsites** (the substantial piece):
-  Each becomes a separate wat program (or separately-loaded source
-  string) with `:user::thread` defined. The spawn-thread call site
-  changes from `(spawn-thread :my::worker)` to
-  `(spawn-thread worker-src scope)`.
+- **`spawn-thread` callsites** — UNCHANGED. Services pattern
+  preserved per Q2-replacement structural-enforcement lean. No
+  sweep needed for spawn-thread.
 
 **Predicted size:** 80-150 sites total across:
 - All `:user::main` definitions (~100+ across tests, lab, crates,
   examples, wat-tests)
 - All `fork-program` / `fork-program-ast` verb sites (~30-50 per
   earlier arc 104 sweep counts)
-- All `spawn-thread` fn-ref sites (TBD — needs grep)
 
-Predicted runtime: 90-180 min sonnet. Larger than arc 168 slice 2
-because `spawn-thread` fn-ref refactor is substantial per-site work
-(extracting bodies into separate programs).
+Predicted runtime: 60-120 min sonnet. Smaller than initial
+estimate now that spawn-thread sites stay unchanged.
 
 ### Slice 3 — substrate retirement (opus)
 
@@ -519,24 +534,42 @@ makes us choose: are spawn-process tests OS-forking? If yes,
 retire spawn-program. If the speed cost is real, **B** keeps the
 escape hatch named honestly.
 
-### Q2. Does spawn-thread's "fresh-world freeze per spawn" cost gate adoption?
+### Q2. *(retired — was based on wrong assumption)*
 
-Today spawn-thread shares parent's world; cost = thread spawn
-only. Tomorrow spawn-thread freezes a fresh world per spawn; cost
-= thread spawn + parser + type-check + freeze pass.
+Original Q2 asked about spawn-thread fresh-world freeze cost.
+User correction 2026-05-09: spawn-thread does NOT freeze a fresh
+world. Threads share parent's process memory (zero-mutex
+doctrine; services pattern). The question was meaningless under
+the correct framing. Section 6 revised; this Q retired.
 
-For test fixtures spawning 10-100 threads, this adds up. For
-production-style "long-lived worker that loops on its channels,"
-the freeze cost is amortized. The user's stance ("rigidity brings
-flexibility") accepts the cost as the price of the contract.
+### Q2-replacement. spawn-thread signature enforcement: structural or by canonical name?
 
-**Should the DESIGN call this out as a known performance
-characteristic** (so future-arc consumers know to factor
-spawn-thread bodies into long-lived programs)? Or is "play by the
-rules" sufficient framing?
+Today the substrate enforces spawn-thread's body signature
+structurally: any fn matching `(:Receiver<I>, :Sender<O>) -> :nil`
+is accepted (inline lambda OR keyword-path-resolved fn).
 
-My lean: explicit performance note in the USER-GUIDE update
-during slice 4. Honest about the trade.
+**Should arc 170 tighten this to require the body fn be RESOLVED
+THROUGH a canonical entry-point name (`:user::thread`)?**
+
+- **A. Structural (status quo):** any fn matching the signature
+  works. Inline lambdas keep working. Service-template's closure-
+  over-`req-rxs` pattern preserved unchanged. Multiple service
+  bodies in one program named at user-chosen keyword paths.
+- **B. Canonical name:** spawn-thread takes a keyword path
+  argument that must resolve to `:user::thread` (or some
+  namespace-prefix pattern under it). Inline lambdas die;
+  closures must be lifted to top-level fn definitions.
+  Multiple service bodies require namespace-prefix conventions
+  (`:user::thread::worker-a` etc.).
+
+My lean: **A** (structural). Service-template's inline-closure
+pattern is widespread, expressive, and the natural shape under
+zero-mutex doctrine. Forcing extraction to top-level breaks the
+closure-over-let-scope idiom that services rely on. The
+"rigidity" the user wanted is the signature contract; that's
+already structural today. Arc 170's contribution is naming
+(`:user::thread`) for documentation/conceptual clarity, not
+substrate-level lookup.
 
 ### Q3. argv passthrough vs filter wat-cli's own flags
 
@@ -608,6 +641,7 @@ The architecture settled across roughly a dozen exchanges:
 9. Orchestrator surfaced verb consolidation: `fork-program*` → `spawn-process*` for naming family alignment
 10. User locked client/server framing as the unifying mental model
 11. User confirmed "single very large arc with a bunch of slices" — arc 170 takes the whole coherent unit
+12. User caught Q2 framing error: spawn-thread shouldn't reshape; threads share parent's memory (zero-mutex doctrine; services pattern). DESIGN section 6 corrected; Q2 retired; Q2-replacement opens on signature-vs-canonical-name enforcement question (lean: stay structural)
 
 The settled design IS the conversation. This log preserves it as
 historical record per FM 11 inscribe-don't-amend doctrine.
