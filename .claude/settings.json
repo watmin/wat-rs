@@ -24,7 +24,7 @@
       "Bash(false)",
       "Bash(mktemp *)",
       "Bash(bash -n *)",
-      "Bash(./scripts/**)",
+      "Bash(scripts/**)",
       "Bash(sed *)",
       "Bash(sort *)",
       "Bash(uniq *)",
