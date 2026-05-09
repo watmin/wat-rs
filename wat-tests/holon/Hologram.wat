@@ -21,10 +21,10 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-make-empty
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-accept-any)))
-     (n (:wat::holon::Hologram/len store)))
+        (:wat::holon::filter-accept-any))
+     n (:wat::holon::Hologram/len store)]
     (:wat::test::assert-eq n 0)))
 
 ;; ─── capacity returns floor(sqrt(d)) ────────────────────────────
@@ -32,10 +32,10 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-capacity-at-d-10000
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-accept-any)))
-     (cap (:wat::holon::Hologram/capacity store)))
+        (:wat::holon::filter-accept-any))
+     cap (:wat::holon::Hologram/capacity store)]
     (:wat::test::assert-eq cap 100)))
 
 ;; Note: alternate d (e.g. 4096 → cap 64) is exercised by the Rust
@@ -51,13 +51,13 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-put-increments-len
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-accept-any)))
-     (k (:wat::holon::leaf :alpha))
-     (v (:wat::holon::leaf :beta))
-     (_ (:wat::holon::Hologram/put store k v))
-     (n (:wat::holon::Hologram/len store)))
+        (:wat::holon::filter-accept-any))
+     k (:wat::holon::leaf :alpha)
+     v (:wat::holon::leaf :beta)
+     _ (:wat::holon::Hologram/put store k v)
+     n (:wat::holon::Hologram/len store)]
     (:wat::test::assert-eq n 1)))
 
 ;; ─── put idempotent on same key ─────────────────────────────────
@@ -65,15 +65,15 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-put-idempotent
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-accept-any)))
-     (k (:wat::holon::leaf :alpha))
-     (v1 (:wat::holon::leaf :first))
-     (v2 (:wat::holon::leaf :second))
-     (_ (:wat::holon::Hologram/put store k v1))
-     (_ (:wat::holon::Hologram/put store k v2))
-     (n (:wat::holon::Hologram/len store)))
+        (:wat::holon::filter-accept-any))
+     k (:wat::holon::leaf :alpha)
+     v1 (:wat::holon::leaf :first)
+     v2 (:wat::holon::leaf :second)
+     _ (:wat::holon::Hologram/put store k v1)
+     _ (:wat::holon::Hologram/put store k v2)
+     n (:wat::holon::Hologram/len store)]
     (:wat::test::assert-eq n 1)))
 
 ;; ─── non-therm round-trip via slot 0 ────────────────────────────
@@ -84,18 +84,18 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-non-therm-roundtrip
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-coincident)))
-     (k (:wat::holon::leaf :alpha))
-     (v (:wat::holon::leaf :alpha-result))
-     (_ (:wat::holon::Hologram/put store k v))
-     (got
-      (:wat::holon::Hologram/get store k))
-     (found
+        (:wat::holon::filter-coincident))
+     k (:wat::holon::leaf :alpha)
+     v (:wat::holon::leaf :alpha-result)
+     _ (:wat::holon::Hologram/put store k v)
+     got
+      (:wat::holon::Hologram/get store k)
+     found
       (:wat::core::match got -> :wat::holon::HolonAST
         ((:wat::core::Some h) h)
-        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v)))
 
 ;; ─── therm round-trip via slot floor(value) ─────────────────────
@@ -106,18 +106,18 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-roundtrip
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-coincident)))
-     (k (:wat::holon::Thermometer 70.0 0.0 100.0))
-     (v (:wat::holon::leaf :rsi-70-answer))
-     (_ (:wat::holon::Hologram/put store k v))
-     (got
-      (:wat::holon::Hologram/get store k))
-     (found
+        (:wat::holon::filter-coincident))
+     k (:wat::holon::Thermometer 70.0 0.0 100.0)
+     v (:wat::holon::leaf :rsi-70-answer)
+     _ (:wat::holon::Hologram/put store k v)
+     got
+      (:wat::holon::Hologram/get store k)
+     found
       (:wat::core::match got -> :wat::holon::HolonAST
         ((:wat::core::Some h) h)
-        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v)))
 
 ;; ─── empty store returns None ───────────────────────────────────
@@ -125,16 +125,16 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-empty-store-returns-none
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-accept-any)))
-     (probe (:wat::holon::leaf :alpha))
-     (got
-      (:wat::holon::Hologram/get store probe))
-     (is-none
+        (:wat::holon::filter-accept-any))
+     probe (:wat::holon::leaf :alpha)
+     got
+      (:wat::holon::Hologram/get store probe)
+     is-none
       (:wat::core::match got -> :wat::core::bool
         ((:wat::core::Some _) false)
-        (:wat::core::None    true))))
+        (:wat::core::None    true))]
     (:wat::test::assert-eq is-none true)))
 
 ;; ─── filter rejection: filter says no, even single candidate ────
@@ -146,19 +146,19 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-filter-always-rejects
   ()
   (:wat::core::let
-    ((reject-all
-      (:wat::core::fn [_ <- :wat::core::f64] -> :wat::core::bool false))
-     (store
-      (:wat::holon::Hologram/make reject-all))
-     (k (:wat::holon::leaf :alpha))
-     (v (:wat::holon::leaf :stored-val))
-     (_ (:wat::holon::Hologram/put store k v))
-     (got
-      (:wat::holon::Hologram/get store k))
-     (is-none
+    [reject-all
+      (:wat::core::fn [_ <- :wat::core::f64] -> :wat::core::bool false)
+     store
+      (:wat::holon::Hologram/make reject-all)
+     k (:wat::holon::leaf :alpha)
+     v (:wat::holon::leaf :stored-val)
+     _ (:wat::holon::Hologram/put store k v)
+     got
+      (:wat::holon::Hologram/get store k)
+     is-none
       (:wat::core::match got -> :wat::core::bool
         ((:wat::core::Some _) false)
-        (:wat::core::None    true))))
+        (:wat::core::None    true))]
     (:wat::test::assert-eq is-none true)))
 
 ;; ─── slot isolation: distant therm slots don't see each other ───
@@ -170,28 +170,28 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-slot-isolation
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-coincident)))
-     (k1 (:wat::holon::Thermometer 5.0 0.0 100.0))
-     (v1 (:wat::holon::leaf :slot-5-val))
-     (k2 (:wat::holon::Thermometer 80.0 0.0 100.0))
-     (v2 (:wat::holon::leaf :slot-80-val))
-     (_ (:wat::holon::Hologram/put store k1 v1))
-     (_ (:wat::holon::Hologram/put store k2 v2))
+        (:wat::holon::filter-coincident))
+     k1 (:wat::holon::Thermometer 5.0 0.0 100.0)
+     v1 (:wat::holon::leaf :slot-5-val)
+     k2 (:wat::holon::Thermometer 80.0 0.0 100.0)
+     v2 (:wat::holon::leaf :slot-80-val)
+     _ (:wat::holon::Hologram/put store k1 v1)
+     _ (:wat::holon::Hologram/put store k2 v2)
      ;; Probe at slot 80 with the slot-5 form's value — coincidence
      ;; filter rejects (cosine far below floor); get returns None.
      ;; The local slot has v2 but its key is structurally different,
      ;; so cosine fails the coincident threshold.
-     (probe (:wat::holon::Thermometer 5.0 0.0 100.0))
-     (got
-      (:wat::holon::Hologram/get store probe))
+     probe (:wat::holon::Thermometer 5.0 0.0 100.0)
+     got
+      (:wat::holon::Hologram/get store probe)
      ;; Probe k1 (slot 5); store has the matching key at slot 5;
      ;; cosine 1.0; passes coincidence. Returns v1.
-     (found
+     found
       (:wat::core::match got -> :wat::holon::HolonAST
         ((:wat::core::Some h) h)
-        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v1)))
 
 ;; ─── cosine discrimination within slot 0 (non-therm pile-up) ────
@@ -203,21 +203,21 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-slot-0-discriminates
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-coincident)))
-     (k1 (:wat::holon::leaf :alpha))
-     (v1 (:wat::holon::leaf :alpha-val))
-     (k2 (:wat::holon::leaf :beta))
-     (v2 (:wat::holon::leaf :beta-val))
-     (_ (:wat::holon::Hologram/put store k1 v1))
-     (_ (:wat::holon::Hologram/put store k2 v2))
-     (got
-      (:wat::holon::Hologram/get store k1))
-     (found
+        (:wat::holon::filter-coincident))
+     k1 (:wat::holon::leaf :alpha)
+     v1 (:wat::holon::leaf :alpha-val)
+     k2 (:wat::holon::leaf :beta)
+     v2 (:wat::holon::leaf :beta-val)
+     _ (:wat::holon::Hologram/put store k1 v1)
+     _ (:wat::holon::Hologram/put store k2 v2)
+     got
+      (:wat::holon::Hologram/get store k1)
+     found
       (:wat::core::match got -> :wat::holon::HolonAST
         ((:wat::core::Some h) h)
-        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v1)))
 
 ;; ─── bracket-pair lookup spans floor + ceil slots ───────────────
@@ -230,20 +230,20 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-bracket-pair-finds-floor-slot
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-accept-any)))
-     (k (:wat::holon::Thermometer 42.0 0.0 100.0))
-     (v (:wat::holon::leaf :slot-42-val))
-     (_ (:wat::holon::Hologram/put store k v))
+        (:wat::holon::filter-accept-any))
+     k (:wat::holon::Thermometer 42.0 0.0 100.0)
+     v (:wat::holon::leaf :slot-42-val)
+     _ (:wat::holon::Hologram/put store k v)
      ;; Probe value 42.5 — floor=42, ceil=43; slot 42 contains v.
-     (probe (:wat::holon::Thermometer 42.5 0.0 100.0))
-     (got
-      (:wat::holon::Hologram/get store probe))
-     (is-some
+     probe (:wat::holon::Thermometer 42.5 0.0 100.0)
+     got
+      (:wat::holon::Hologram/get store probe)
+     is-some
       (:wat::core::match got -> :wat::core::bool
         ((:wat::core::Some _) true)
-        (:wat::core::None    false))))
+        (:wat::core::None    false))]
     (:wat::test::assert-eq is-some true)))
 
 ;; ─── therm-form constructor: builds canonical Thermometer ───────
@@ -251,10 +251,10 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-builds-canonical
   ()
   (:wat::core::let
-    ((built
-      (:wat::holon::therm-form 0.0 100.0 70.0))
-     (expected
-      (:wat::holon::Thermometer 70.0 0.0 100.0)))
+    [built
+      (:wat::holon::therm-form 0.0 100.0 70.0)
+     expected
+      (:wat::holon::Thermometer 70.0 0.0 100.0)]
     (:wat::test::assert-eq built expected)))
 
 ;; ─── therm-form clamps OOB low ──────────────────────────────────
@@ -262,10 +262,10 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-clamps-oob-low
   ()
   (:wat::core::let
-    ((built
-      (:wat::holon::therm-form 0.0 100.0 -10.0))
-     (expected
-      (:wat::holon::Thermometer 0.0 0.0 100.0)))
+    [built
+      (:wat::holon::therm-form 0.0 100.0 -10.0)
+     expected
+      (:wat::holon::Thermometer 0.0 0.0 100.0)]
     (:wat::test::assert-eq built expected)))
 
 ;; ─── therm-form clamps OOB high ─────────────────────────────────
@@ -273,10 +273,10 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-clamps-oob-high
   ()
   (:wat::core::let
-    ((built
-      (:wat::holon::therm-form 0.0 100.0 110.0))
-     (expected
-      (:wat::holon::Thermometer 100.0 0.0 100.0)))
+    [built
+      (:wat::holon::therm-form 0.0 100.0 110.0)
+     expected
+      (:wat::holon::Thermometer 100.0 0.0 100.0)]
     (:wat::test::assert-eq built expected)))
 
 ;; ─── therm-form preserves natural domain (asymmetric) ───────────
@@ -288,10 +288,10 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-preserves-domain
   ()
   (:wat::core::let
-    ((built
-      (:wat::holon::therm-form 200.0 600.0 400.0))
-     (expected
-      (:wat::holon::Thermometer 400.0 200.0 600.0)))
+    [built
+      (:wat::holon::therm-form 200.0 600.0 400.0)
+     expected
+      (:wat::holon::Thermometer 400.0 200.0 600.0)]
     (:wat::test::assert-eq built expected)))
 
 ;; ─── therm-form into Hologram round-trip ────────────────────────
@@ -303,18 +303,18 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-therm-form-roundtrips-via-hologram
   ()
   (:wat::core::let
-    ((store
+    [store
       (:wat::holon::Hologram/make
-        (:wat::holon::filter-coincident)))
-     (k (:wat::holon::therm-form 0.0 100.0 42.42))
-     (v (:wat::holon::leaf :rsi-42-answer))
-     (_ (:wat::holon::Hologram/put store k v))
-     (got
-      (:wat::holon::Hologram/get store k))
-     (found
+        (:wat::holon::filter-coincident))
+     k (:wat::holon::therm-form 0.0 100.0 42.42)
+     v (:wat::holon::leaf :rsi-42-answer)
+     _ (:wat::holon::Hologram/put store k v)
+     got
+      (:wat::holon::Hologram/get store k)
+     found
       (:wat::core::match got -> :wat::holon::HolonAST
         ((:wat::core::Some h) h)
-        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v)))
 
 ;; ─── presence-floor / coincident-floor accessors stay green ────
@@ -322,11 +322,11 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-presence-floor-positive
   ()
   (:wat::core::let
-    ((floor (:wat::holon::presence-floor 10000)))
+    [floor (:wat::holon::presence-floor 10000)]
     (:wat::test::assert-eq (:wat::core::> floor 0.0) true)))
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-coincident-floor-positive
   ()
   (:wat::core::let
-    ((floor (:wat::holon::coincident-floor 10000)))
+    [floor (:wat::holon::coincident-floor 10000)]
     (:wat::test::assert-eq (:wat::core::> floor 0.0) true)))
