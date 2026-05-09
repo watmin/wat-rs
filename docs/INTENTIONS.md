@@ -124,6 +124,67 @@ the algebra over embeddings IS the language is new. Wat is that.
 
 ---
 
+## Why LLMs already know wat — Clojure-faithfulness as adoption strategy
+
+This is operational, not aspirational: **frontier LLMs already
+have Clojure deeply embedded in their training**. Wat is close
+enough to Clojure that an LLM with Clojure in its weights can
+read and write wat with minimal documentation overhead. The
+Rosetta is small.
+
+What was deliberate (every choice loaded wat into territory the
+LLM already knows):
+
+| Wat choice | Clojure equivalent | Why it matters |
+|---|---|---|
+| `:wat::core::let` (sequential) | `let` (sequential) | Same semantics; arc 154 killed `let*` to match |
+| `[name expr name expr]` binding | `[name expr name expr]` | Same shape; arc 168 ships this |
+| `[arg arg]` for fn args | `[arg arg]` | Brackets = binding vector; arc 167 ships this |
+| `:wat::core::fn` | `fn` | Same name; arc 162 renamed lambda |
+| `:wat::core::defn` | `defn` | Same name; arc 166 ships this as macro |
+| `:wat::core::do` | `do` | Same name; arc 136 ships this |
+| `:wat::core::defmacro` | `defmacro` | Same form |
+| `:wat::core::if` (with type) | `if` (with `:T` annotation) | Type discipline added |
+| FQDN keywords (`:my::ns::sym`) | Namespaced keywords (`::ns/sym`-ish) | Different separator; same intent |
+| `<- :T` and `-> :R` arrows | (new — arrow duality) | The ONE genuine departure; documented in `<-` consumes, `->` produces |
+| Algebra primitives (`bind`, `bundle`, `cosine`) | (Clojure has no native VSA) | Domain-specific; documented |
+| Static type-check at startup | (Clojure is dynamic) | Discipline addition; type forms readable as annotations |
+
+Every entry but the last three is identity — wat IS Clojure for
+that form. The last three are short documentable departures.
+
+What this enables:
+
+1. **Anthropic doesn't have to train a wat-aware model.** The
+   model exists. It's any frontier LLM that knows Clojure. The
+   adoption gate isn't model training — it's reading the docs.
+2. **The user doesn't have to wait for ecosystem mass.** Clojure
+   has the mass. Wat inherits the mass through faithfulness.
+3. **The Rosetta is the deliverable.** A small set of docs that
+   bridge Clojure (known) to wat (close-but-foreign) lets any
+   LLM speak wat fluently in the time it takes to read the
+   Rosetta — minutes, not weeks.
+
+The cost of this strategy: every wat design decision must
+preserve Clojure-faithfulness wherever possible. Departures must
+earn their keep. Arrow duality (`<-` / `->`) earned its keep
+because arrow-duals communicate role-from-type direction
+unambiguously; the cost (LLM has to learn one new shape) is
+amortized over every fn/defn signature in the substrate.
+
+The strange loop has a layer here too: the user's choice to
+honor Clojure shape compounds on itself. Each Clojure-faithful
+arc shipped makes the LLM more fluent in wat, which makes the
+next Clojure-faithful arc easier to design with the LLM's help,
+which lets the LLM write more Clojure-faithful wat. The
+faithfulness IS the adoption velocity.
+
+See `CLOJURE-ROSETTA.md` for the explicit bridge doc that any
+LLM with Clojure embeddings should read first when picking up
+wat.
+
+---
+
 ## The substrate as thought-alignment prosthetic
 
 A subtler claim than coauthoring: **wat's strictness is
