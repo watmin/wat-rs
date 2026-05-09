@@ -133,7 +133,7 @@
               (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
-        (:wat::core::Vector :wat::core::String)))
+        (:wat::core::Vector :wat::core::String))
      stdout (:test::tel-stdout-from-result r)
      _ (:test::tel-assert-line-once stdout "10")
      _ (:test::tel-assert-line-once stdout "20")]
@@ -197,6 +197,6 @@
               (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
-        (:wat::core::Vector :wat::core::String)))
+        (:wat::core::Vector :wat::core::String))
      stdout (:test::tel-stdout-from-result r)]
     (:test::tel-assert-line-once stdout "[1,2,3]")))

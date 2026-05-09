@@ -48,19 +48,19 @@
     (price   :f64)
     -> :wat::telemetry::Event)
   (:wat::core::let
-    ((trade (:demo::Trade/new side qty price))
-     (form (:wat::core::struct->form trade))
-     (data (:wat::holon::from-watast form))
-     (tagged (:wat::edn::Tagged/new data))
-     (notag-ns
-      (:wat::edn::NoTag/new (:wat::holon::leaf :demo::trades)))
-     (notag-cal
-      (:wat::edn::NoTag/new (:wat::holon::leaf :demo::interrogate)))
-     (notag-lvl
-      (:wat::edn::NoTag/new (:wat::holon::leaf :info)))
-     (tags
+    [trade (:demo::Trade/new side qty price)
+     form (:wat::core::struct->form trade)
+     data (:wat::holon::from-watast form)
+     tagged (:wat::edn::Tagged/new data)
+     notag-ns
+      (:wat::edn::NoTag/new (:wat::holon::leaf :demo::trades))
+     notag-cal
+      (:wat::edn::NoTag/new (:wat::holon::leaf :demo::interrogate))
+     notag-lvl
+      (:wat::edn::NoTag/new (:wat::holon::leaf :info))
+     tags
       (:wat::core::HashMap
-        :(wat::holon::HolonAST,wat::holon::HolonAST))))
+        :(wat::holon::HolonAST,wat::holon::HolonAST))]
     (:wat::telemetry::Event::Log
       time-ns notag-ns notag-cal notag-lvl
       "interrogate-demo" tags tagged)))
@@ -71,34 +71,34 @@
     (path :String)
     -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
   (:wat::core::let
-    ((spawn
+    [spawn
       (:wat::telemetry::Sqlite/auto-spawn
         :wat::telemetry::Event
         path 1
         (:wat::telemetry::null-metrics-cadence)
-        :wat::telemetry::Sqlite/null-pre-install))
-     (pool
-      (:wat::core::first spawn))
-     (driver
-      (:wat::core::second spawn))
+        :wat::telemetry::Sqlite/null-pre-install)
+     pool
+      (:wat::core::first spawn)
+     driver
+      (:wat::core::second spawn)
      ;; Six sample trades — 4 buys + 2 sells, varied qtys.
-     (handle
-      (:wat::kernel::HandlePool::pop pool))
-     (_finish (:wat::kernel::HandlePool::finish pool))
-     (req-tx
-      (:wat::core::first handle))
-     (ack-rx
-      (:wat::core::second handle))
-     (entries
+     handle
+      (:wat::kernel::HandlePool::pop pool)
+     _finish (:wat::kernel::HandlePool::finish pool)
+     req-tx
+      (:wat::core::first handle)
+     ack-rx
+      (:wat::core::second handle)
+     entries
       (:wat::core::Vector :wat::telemetry::Event
         (:demo::trade-event 1000 "buy"  5  100.0)
         (:demo::trade-event 2000 "sell" 12 102.5)
         (:demo::trade-event 3000 "buy"  15 99.0)   ; ← Q2 hit
         (:demo::trade-event 4000 "buy"  3  101.0)
         (:demo::trade-event 5000 "buy"  20 98.5)   ; ← Q2 hit
-        (:demo::trade-event 6000 "sell" 8  103.0)))
-     (_log
-      (:wat::telemetry::batch-log req-tx ack-rx entries)))
+        (:demo::trade-event 6000 "sell" 8  103.0))
+     _log
+      (:wat::telemetry::batch-log req-tx ack-rx entries)]
     driver))
 
 
@@ -133,51 +133,51 @@
     (_stderr :wat::io::IOWriter)
     -> :wat::core::nil)
   (:wat::core::let
-    (;; Auto-deleting fixture path.
-     (tf (:wat::io::TempFile/new))
-     (path (:wat::io::TempFile/path tf))
+    [;; Auto-deleting fixture path.
+     tf (:wat::io::TempFile/new)
+     path (:wat::io::TempFile/path tf)
 
      ;; Phase 1.
-     (driver
-      (:demo::write-fixture path))
-     (_join
-      (:wat::kernel::Thread/join-result driver))
-     (_p1
+     driver
+      (:demo::write-fixture path)
+     _join
+      (:wat::kernel::Thread/join-result driver)
+     _p1
       (:wat::io::IOWriter/println stdout
-        "── Q1: warmup — count all logged trades ──"))
+        "── Q1: warmup — count all logged trades ──")
 
      ;; Q1 — count every Event::Log row, no narrowing.
-     (handle
-      (:wat::sqlite::open-readonly path))
-     (no-constraints
-      (:wat::core::Vector :wat::telemetry::TimeConstraint))
-     (all-events
+     handle
+      (:wat::sqlite::open-readonly path)
+     no-constraints
+      (:wat::core::Vector :wat::telemetry::TimeConstraint)
+     all-events
       (:wat::stream::collect
-        (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
-     (q1-count (:wat::core::length all-events))
-     (_p2
+        (:wat::telemetry::sqlite/stream-logs handle no-constraints))
+     q1-count (:wat::core::length all-events)
+     _p2
       (:wat::io::IOWriter/println stdout
         (:wat::core::string::concat
-          "  total logs: " (:wat::core::i64::to-string q1-count))))
+          "  total logs: " (:wat::core::i64::to-string q1-count)))
 
      ;; Q2 — Clara filter for buys with qty > 10.
-     (_p3
-      (:wat::io::IOWriter/println stdout ""))
-     (_p4
+     _p3
+      (:wat::io::IOWriter/println stdout "")
+     _p4
       (:wat::io::IOWriter/println stdout
-        "── Q2: matches? — buy AND qty > 10 ──"))
-     (handle2
-      (:wat::sqlite::open-readonly path))
-     (no-constraints2
-      (:wat::core::Vector :wat::telemetry::TimeConstraint))
-     (big-buys
+        "── Q2: matches? — buy AND qty > 10 ──")
+     handle2
+      (:wat::sqlite::open-readonly path)
+     no-constraints2
+      (:wat::core::Vector :wat::telemetry::TimeConstraint)
+     big-buys
       (:wat::stream::collect
         (:wat::stream::filter
           (:wat::telemetry::sqlite/stream-logs handle2 no-constraints2)
-          :demo::big-buy?)))
-     (q2-count (:wat::core::length big-buys))
-     (_p5
+          :demo::big-buy?))
+     q2-count (:wat::core::length big-buys)
+     _p5
       (:wat::io::IOWriter/println stdout
         (:wat::core::string::concat
-          "  hits: " (:wat::core::i64::to-string q2-count)))))
+          "  hits: " (:wat::core::i64::to-string q2-count)))]
     (:wat::io::IOWriter/println stdout "── done ──")))
