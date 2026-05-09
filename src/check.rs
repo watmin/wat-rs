@@ -3029,7 +3029,30 @@ fn walk_for_pair_deadlock(
     // `:wat::core::let*`. Active code: pair-deadlock walker; per-let
     // scope construction unchanged (let is now sequential).
     if head == ":wat::core::let" && items.len() >= 3 {
-        let bindings = match &items[1] {
+        // Arc 168 slice 4 follow-up — outer is now flat-Vector
+        // `[name1 expr1 name2 expr2 ...]`. Desugar into `Vec<WatAST::List([binder, rhs])>`
+        // matching the legacy List-of-Lists shape this walker already
+        // consumes. Mirrors the `bindings_pairs` desugar in `infer_let`
+        // (src/check.rs:6275). The legacy List arm is preserved as a
+        // defensive safety net for any pre-arc-168 caller; arc 168 slice
+        // 3's substrate retirement made the canonical path Vector-only,
+        // but historical paths that still synthesize List bindings
+        // continue to flow cleanly.
+        let bindings: Vec<WatAST> = match &items[1] {
+            WatAST::Vector(items_v, _) => {
+                if items_v.len() % 2 != 0 {
+                    return;
+                }
+                items_v
+                    .chunks_exact(2)
+                    .map(|chunk| {
+                        WatAST::List(
+                            vec![chunk[0].clone(), chunk[1].clone()],
+                            Span::unknown(),
+                        )
+                    })
+                    .collect()
+            }
             WatAST::List(xs, _) => xs.clone(),
             _ => return,
         };
@@ -3252,7 +3275,13 @@ fn extend_pair_scope_with_tuple_destructure(
     if items.len() != 2 {
         return;
     }
-    let WatAST::List(parts, _) = &items[0] else { return; };
+    // Arc 168 slice 4 follow-up — destructure binder is `WatAST::Vector`
+    // post-arc-168; legacy List shape kept as defensive safety net.
+    let parts: &Vec<WatAST> = match &items[0] {
+        WatAST::Vector(parts, _) => parts,
+        WatAST::List(parts, _) => parts,
+        _ => return,
+    };
     // All parts must be bare symbols (tuple-destructure shape).
     let names: Vec<String> = parts
         .iter()
@@ -14119,19 +14148,19 @@ mod tests {
                       (_stderr :wat::io::IOWriter)
                       -> :wat::core::nil)
                     (:wat::core::let
-                      ((pair
-                        (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                       (rx
-                        (:wat::core::second pair))
-                       (thr
+                      [pair
+                        (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                       rx
+                        (:wat::core::second pair)
+                       thr
                         (:wat::kernel::spawn-thread
                           (:wat::core::fn
-                            ((_in :wat::kernel::Receiver<wat::core::nil>)
-                             (_out :wat::kernel::Sender<wat::core::i64>)
-                             -> :wat::core::nil)
+                            [_in <- :wat::kernel::Receiver<wat::core::nil>
+                             _out <- :wat::kernel::Sender<wat::core::i64>]
+                            -> :wat::core::nil
                             (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
                               ((:wat::core::Ok _) ())
-                              ((:wat::core::Err _) ()))))))
+                              ((:wat::core::Err _) ()))))]
                       (:wat::core::match
                         (:wat::kernel::Thread/join-result thr)
                         -> :wat::core::nil
@@ -14483,17 +14512,17 @@ mod tests {
             (:wat::core::define
               (:my::no-deadlock-on-bare-handlepool -> :wat::core::nil)
               (:wat::core::let
-                ((pool
+                [pool
                   (:wat::kernel::HandlePool::new
                     "pool"
-                    (:wat::core::Vector :wat::core::i64)))
-                 (thr
+                    (:wat::core::Vector :wat::core::i64))
+                 thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
-                      ((_in :wat::kernel::Receiver<wat::core::nil>)
-                       (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::nil)
-                      ()))))
+                      [_in <- :wat::kernel::Receiver<wat::core::nil>
+                       _out <- :wat::kernel::Sender<wat::core::i64>]
+                      -> :wat::core::nil
+                      ()))]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil
@@ -14671,21 +14700,21 @@ mod tests {
             (:wat::core::define
               (:my::spawn-clean -> :(wat::core::i64,wat::kernel::Thread<wat::core::nil,wat::core::nil>))
               (:wat::core::let
-                ((counter 42)
-                 (driver
+                [counter 42
+                 driver
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
-                      ((_in :wat::kernel::Receiver<wat::core::nil>)
-                       (_out :wat::kernel::Sender<wat::core::nil>)
-                       -> :wat::core::nil)
-                      ()))))
+                      [_in <- :wat::kernel::Receiver<wat::core::nil>
+                       _out <- :wat::kernel::Sender<wat::core::nil>]
+                      -> :wat::core::nil
+                      ()))]
                 (:wat::core::Tuple counter driver)))
 
             (:wat::core::define
               (:my::clean-caller -> :wat::core::nil)
               (:wat::core::let
-                (((counter driver)
-                  (:my::spawn-clean)))
+                [[counter driver]
+                  (:my::spawn-clean)]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result driver)
                   -> :wat::core::nil
@@ -14733,8 +14762,8 @@ mod tests {
             (:wat::core::define
               (:my::caller-destructure (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let
-                (((tx rx)
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)))
+                [[tx rx]
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)]
                 (:my::helper-pair tx rx)))
         "#;
         let err = check(src).expect_err(
@@ -14777,12 +14806,12 @@ mod tests {
 
             (:wat::core::define (:my::caller -> :wat::core::nil)
               (:wat::core::let
-                ((thr
-                  (:wat::kernel::spawn-thread :my::worker))
-                 (tx
-                  (:wat::kernel::Thread/input thr))
-                 (rx
-                  (:wat::kernel::Thread/output thr)))
+                [thr
+                  (:wat::kernel::spawn-thread :my::worker)
+                 tx
+                  (:wat::kernel::Thread/input thr)
+                 rx
+                  (:wat::kernel::Thread/output thr)]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil
@@ -14885,19 +14914,19 @@ mod tests {
 
             (:wat::core::define (:my::caller -> :wat::core::nil)
               (:wat::core::let
-                ((pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 (tx
-                  (:wat::core::first pair))
-                 (rx
-                  (:wat::core::second pair))
-                 (thr
+                [pair
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                 tx
+                  (:wat::core::first pair)
+                 rx
+                  (:wat::core::second pair)
+                 thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
-                      ((_in :wat::kernel::Receiver<wat::core::nil>)
-                       (_out :wat::kernel::Sender<wat::core::nil>)
-                       -> :wat::core::nil)
-                      (:my::sender-helper tx)))))
+                      [_in <- :wat::kernel::Receiver<wat::core::nil>
+                       _out <- :wat::kernel::Sender<wat::core::nil>]
+                      -> :wat::core::nil
+                      (:my::sender-helper tx)))]
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::nil
