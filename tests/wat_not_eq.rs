@@ -96,9 +96,9 @@ fn eq_on_enum_unit_variants() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((a :my::Color::Red)
-             (b :my::Color::Red)
-             (c :my::Color::Blue))
+            [a :my::Color::Red
+             b :my::Color::Red
+             c :my::Color::Blue]
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::and
                                 (:wat::core::= a b)

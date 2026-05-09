@@ -51,7 +51,7 @@ fn ast_entry_prints_hello() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((forms
+            [forms
               (:wat::core::Vector :wat::WatAST
                 (:wat::core::quote (:wat::config::set-capacity-mode! :error))
                 (:wat::core::quote
@@ -60,14 +60,14 @@ fn ast_entry_prints_hello() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
-                    (:wat::io::IOWriter/println stdout "hello")))))
-             (r
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None))
-             (lines (:wat::kernel::RunResult/stdout r))
-             (line
+                    (:wat::io::IOWriter/println stdout "hello"))))
+             r
+              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None)
+             lines (:wat::kernel::RunResult/stdout r)
+             line
               (:wat::core::match (:wat::core::first lines) -> :wat::core::String
                 ((:wat::core::Some s) s)
-                (:wat::core::None ""))))
+                (:wat::core::None ""))]
             (:wat::io::IOWriter/println stdout line)))
     "##;
     assert_eq!(run(src), vec!["hello"]);
@@ -90,7 +90,7 @@ fn ast_entry_captures_assertion_failure() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((forms
+            [forms
               (:wat::core::Vector :wat::WatAST
                 (:wat::core::quote (:wat::config::set-capacity-mode! :error))
                 (:wat::core::quote
@@ -99,11 +99,11 @@ fn ast_entry_captures_assertion_failure() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
-                    (:wat::test::assert-eq 1 2)))))
-             (r
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None))
-             (fail
-              (:wat::kernel::RunResult/failure r)))
+                    (:wat::test::assert-eq 1 2))))
+             r
+              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None)
+             fail
+              (:wat::kernel::RunResult/failure r)]
             (:wat::core::match fail -> :wat::core::nil
               ((:wat::core::Some f) (:wat::io::IOWriter/println stdout
                           (:wat::kernel::Failure/message f)))
