@@ -87,7 +87,7 @@ fn fork_program_round_trip_via_pipes() {
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let
             [inner-src
-              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line))))"
+              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line)))))"
              child
               (:wat::kernel::fork-program inner-src :wat::core::None)
              in-w (:wat::kernel::Process/stdin child)
