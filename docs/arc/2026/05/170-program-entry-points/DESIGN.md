@@ -132,57 +132,80 @@ Settled via four-questions 2026-05-09. i64 rejected for dishonesty
 (loses range info). Enum (`Success | Failure(u8)`) rejected for
 ceremony cost without proportional gain.
 
-### 3. `:user::process` minted
+### 3. `:user::process` — contract name (documentation only)
+
+The Program\<I, O\> contract for the **process** IPC variant has
+this signature:
 
 ```scheme
-(:user::process
+;; Any function matching this shape satisfies the :user::process
+;; contract. The substrate enforces the SHAPE structurally; it
+;; does NOT look up a literal `:user::process` symbol.
+(my::process-program
   (stdin  :wat::io::IOReader)
   (stdout :wat::io::IOWriter)
   (stderr :wat::io::IOWriter)
   -> :wat::core::nil)
 ```
 
-This is the Program\<I, O\> contract for the **process** IPC
-variant. Signature is identical to today's `:user::main` but
-WITHOUT argv (substrate-spawned processes don't have an OS-level
-argv; client passes data via stdin) and WITH `:nil` return (per
-arc 114 — values flow via stderr `Result<T, E>` framing or stdout).
+`:user::process` is a CONTRACT NAME used in documentation and
+specifications — not a substrate-enforced canonical entry symbol.
+Programs name their actual entries whatever they want:
+`:my::accountant::loop`, `:my::ddb::worker-process`,
+`:my::etl::main`, etc. The signature shape IS the contract.
 
-Programs that want to be runnable as a `spawn-process` target
-declare `:user::process`.
+User direction 2026-05-09: *"the shape of those functions /is/
+the contract.. i think the only strict one is :user::main?.."*
+— **YES, only `:user::main` is a strict name.** `:user::thread`
+and `:user::process` are signature contracts, not name slots.
 
-### 4. `:user::thread` minted
+Caller of `spawn-process` specifies which symbol in the child's
+world to invoke; substrate validates the resolved symbol matches
+the process contract signature.
+
+### 4. `:user::thread` — contract name (documentation only)
+
+Program\<I, O\> contract for the **thread** IPC variant:
 
 ```scheme
-(:user::thread
+;; Any function matching this shape satisfies the :user::thread
+;; contract. Substrate enforces shape structurally; no literal
+;; `:user::thread` symbol is looked up.
+(my::thread-program
   (rx :wat::kernel::Receiver<I>)
   (tx :wat::kernel::Sender<O>)
   -> :wat::core::nil)
 ```
 
-Program\<I, O\> contract for the **thread** IPC variant. Receives
-typed Values via `rx`, sends typed Values via `tx`. Per arc 114 —
-return is the panic-free marker.
+Same as `:user::process`: `:user::thread` is a CONTRACT NAME for
+documentation. Programs spawn arbitrary fns satisfying the shape
+— inline lambdas, top-level fns at user-chosen keyword paths,
+service-loop bodies. The current spawn-thread behavior is
+preserved.
 
-Programs that want to be runnable as a `spawn-thread` target
-declare `:user::thread`.
+Multi-service programs declare 20 separate fns at unique
+keyword paths (`:my::svc::accountant::loop`, `:my::svc::registry::loop`,
+etc.); each satisfies the contract structurally.
 
-### 5. Verb consolidation: `fork-program*` → `spawn-process*`
+### 5. Verb consolidation + entry-keyword parameter
+
+`fork-program*` rename to `spawn-process*` AND gain an
+entry-keyword parameter (caller specifies which symbol in
+child's world to invoke):
 
 | Pre-arc-170 | Post-arc-170 | Notes |
 |---|---|---|
-| `:wat::kernel::fork-program` | `:wat::kernel::spawn-process` | OS fork(2); takes (src, scope); invokes child's `:user::process` |
-| `:wat::kernel::fork-program-ast` | `:wat::kernel::spawn-process-ast` | OS fork(2); takes (forms, scope); invokes child's `:user::process` |
-| `:wat::kernel::spawn-program` | `:wat::kernel::spawn-process` *(merged)* | In-thread; was a separate verb. After consolidation: spawn-process takes (src, scope) and runs in a forked process. The in-thread variant retires; users wanting in-thread spawn use spawn-thread (which now also runs a fresh-world program, not an arbitrary fn). |
-| `:wat::kernel::spawn-program-ast` | `:wat::kernel::spawn-process-ast` *(merged)* | Same as above. |
+| `(:fork-program src scope)` invokes `:user::main` | `(:spawn-process src scope entry-kw)` invokes `entry-kw` of child's world | OS fork(2). entry-kw must resolve in child's world to a fn matching the `:user::process` contract signature. |
+| `(:fork-program-ast forms scope)` invokes `:user::main` | `(:spawn-process-ast forms scope entry-kw)` invokes `entry-kw` of child's world | Same shape; takes pre-parsed forms instead of source string. |
+| `(:spawn-program src scope)` invokes `:user::main` (in-thread) | RETIRED *(per Q1 lean — see open questions)* | The in-thread fresh-world variant. Tests using it migrate to spawn-process or spawn-thread. |
+| `(:spawn-program-ast forms scope)` invokes `:user::main` (in-thread) | RETIRED *(per Q1 lean)* | Same. |
 
-**Open question — confirm with user:** does the in-thread
-spawn-program path retire entirely (only spawn-thread + spawn-process
-survive), or does spawn-process get an in-thread variant for
-test-only use? Today's spawn-program (in-thread) is used in
-~50+ test fixtures for hermetic-but-fast testing. Killing it
-forces those tests to switch to spawn-process (real OS fork —
-slower) or spawn-thread (no isolation — different semantics).
+The entry-keyword parameter is **always required** — no
+implicit-default lookup. Caller always specifies which symbol to
+invoke. Honest about which fn runs.
+
+User direction 2026-05-09: rigidity = explicit; no
+magic-default name lookup at the substrate level.
 
 ### 6. `spawn-thread` — contract naming, not reshape
 
@@ -542,34 +565,24 @@ world. Threads share parent's process memory (zero-mutex
 doctrine; services pattern). The question was meaningless under
 the correct framing. Section 6 revised; this Q retired.
 
-### Q2-replacement. spawn-thread signature enforcement: structural or by canonical name?
+### Q2-replacement. *(settled — structural only; documentation contract)*
 
-Today the substrate enforces spawn-thread's body signature
-structurally: any fn matching `(:Receiver<I>, :Sender<O>) -> :nil`
-is accepted (inline lambda OR keyword-path-resolved fn).
+User direction 2026-05-09: *"the shape of those functions /is/
+the contract.. i think the only strict one is :user::main?.."*
 
-**Should arc 170 tighten this to require the body fn be RESOLVED
-THROUGH a canonical entry-point name (`:user::thread`)?**
+Settled: **only `:user::main` is a strict name.** `:user::thread`
+and `:user::process` are documentation-level contract names
+naming the signature shapes. Substrate enforces structurally —
+any fn matching the signature works, named at any keyword path
+(or inline). Service-template's inline-lambda + closure-over-
+`req-rxs` pattern preserved.
 
-- **A. Structural (status quo):** any fn matching the signature
-  works. Inline lambdas keep working. Service-template's closure-
-  over-`req-rxs` pattern preserved unchanged. Multiple service
-  bodies in one program named at user-chosen keyword paths.
-- **B. Canonical name:** spawn-thread takes a keyword path
-  argument that must resolve to `:user::thread` (or some
-  namespace-prefix pattern under it). Inline lambdas die;
-  closures must be lifted to top-level fn definitions.
-  Multiple service bodies require namespace-prefix conventions
-  (`:user::thread::worker-a` etc.).
-
-My lean: **A** (structural). Service-template's inline-closure
-pattern is widespread, expressive, and the natural shape under
-zero-mutex doctrine. Forcing extraction to top-level breaks the
-closure-over-let-scope idiom that services rely on. The
-"rigidity" the user wanted is the signature contract; that's
-already structural today. Arc 170's contribution is naming
-(`:user::thread`) for documentation/conceptual clarity, not
-substrate-level lookup.
+Multi-service programs name their entries at unique paths
+(`:my::svc::accountant::loop`, `:my::svc::registry::loop`,
+etc.); the contract is the signature, not the name. spawn-thread
+already accepts inline-or-ref structurally. spawn-process gains
+an explicit entry-keyword parameter so the caller specifies
+which symbol in child's world to invoke.
 
 ### Q3. argv passthrough vs filter wat-cli's own flags
 
@@ -642,6 +655,7 @@ The architecture settled across roughly a dozen exchanges:
 10. User locked client/server framing as the unifying mental model
 11. User confirmed "single very large arc with a bunch of slices" — arc 170 takes the whole coherent unit
 12. User caught Q2 framing error: spawn-thread shouldn't reshape; threads share parent's memory (zero-mutex doctrine; services pattern). DESIGN section 6 corrected; Q2 retired; Q2-replacement opens on signature-vs-canonical-name enforcement question (lean: stay structural)
+13. User clarified the contract-vs-name distinction: only `:user::main` is a strict name; `:user::thread` and `:user::process` are documentation labels for signature contracts. Multi-service programs declare bespoke entry paths satisfying the contracts structurally. spawn-process takes an explicit entry-keyword parameter (no magic defaults). Sections 3, 4, 5 corrected; Q2-replacement settled.
 
 The settled design IS the conversation. This log preserves it as
 historical record per FM 11 inscribe-don't-amend doctrine.
