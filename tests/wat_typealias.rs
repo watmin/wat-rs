@@ -131,9 +131,9 @@ fn tuple_alias_works_at_hashmap_constructor_arg() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((row
-              (:wat::core::HashMap :my::KV "a" 1 "b" 2))
-             (got (:wat::core::get row "b")))
+            [row
+              (:wat::core::HashMap :my::KV "a" 1 "b" 2)
+             got (:wat::core::get row "b")]
             (:wat::core::match got -> :wat::core::i64
               ((:wat::core::Some v) v)
               (:wat::core::None -1))))
@@ -153,8 +153,8 @@ fn alias_over_hashmap_passes_through_std_get() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((row (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 10 "b" 20))
-             (got (:wat::core::get row "a")))
+            [row (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 10 "b" 20)
+             got (:wat::core::get row "a")]
             (:wat::core::match got -> :wat::core::i64
               ((:wat::core::Some v) v)
               (:wat::core::None -1))))
@@ -175,24 +175,24 @@ fn alias_over_fn_type_works_at_spawn() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            ((job
+            [job
               (:wat::core::fn [tx <- :rust::crossbeam_channel::Sender<wat::core::i64>] -> :wat::core::nil
                 (:wat::core::do
                   (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
-                  ())))
-             (pair
-              (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-             (tx (:wat::core::first pair))
-             (rx (:wat::core::second pair))
-             (h
+                  ()))
+             pair
+              (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+             tx (:wat::core::first pair)
+             rx (:wat::core::second pair)
+             h
               (:wat::kernel::spawn-thread
                 (:wat::core::fn
                   [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
                    _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
                    -> :wat::core::nil
-                  (job tx))))
-             (_
-              (:wat::kernel::Thread/join-result h)))
+                  (job tx)))
+             _
+              (:wat::kernel::Thread/join-result h)]
             (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
               ((:wat::core::Ok (:wat::core::Some v)) v)
               ((:wat::core::Ok :wat::core::None) 0)

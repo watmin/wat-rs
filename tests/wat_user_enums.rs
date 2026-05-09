@@ -141,8 +141,8 @@ fn match_mixes_unit_and_tagged_arms() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            ((line1 (:my::act (:my::Event::Open 7.5)))
-             (line2 (:my::act :my::Event::Hold)))
+            [line1 (:my::act (:my::Event::Open 7.5))
+             line2 (:my::act :my::Event::Hold)]
             (:wat::core::do
               (:wat::io::IOWriter/println stdout line1)
               (:wat::io::IOWriter/println stdout line2))))
