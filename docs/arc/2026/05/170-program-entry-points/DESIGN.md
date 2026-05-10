@@ -445,22 +445,50 @@ functionally work, but **as good as the new substrate allows**.
 - `spawn-program*` callsites → migrate to `spawn-process(fn)` (real
   fork) OR `spawn-thread(fn)` (parent world; services pattern)
 
-**Tooling rebuild (orchestrator + sonnet pair, more than mechanical):**
+**Tooling rebuild — testing-lib three-layer API (orchestrator + sonnet pair, more than mechanical):**
 
-- **`wat/std/hermetic.wat`** — currently takes
-  `(forms :Vector<WatAST>) (stdin) (scope)` and calls
-  `fork-program-ast` with embedded `:user::main`. Rebuilds to take
-  `(test-fn) (stdin) (scope)` and use spawn-process(fn) under the
-  hood. Polished call site: `(run-sandboxed-hermetic
-  (fn [stdin stdout stderr] :nil ...) "" :None)`. See
-  [`TIERS.md`](./TIERS.md) for the polished shape.
+The substrate (`spawn-process fn`) is the full-power form. The
+testing lib's job is to hide constant ceremony for typical test
+usage. Three layers per [`TIERS.md`](./TIERS.md):
+
+- **Layer 1 — `(:wat::test::run-hermetic (fn [] :nil ...))`** —
+  the 90% case. fn takes no params; harness wires stdio behind
+  the scenes; returns `RunResult`. No stdio-signature ceremony,
+  no stdin-data, no scope.
+- **Layer 2 — `(:wat::test::run-hermetic-with-io fn input)`** —
+  the 9% case. fn takes `(stdin stdout stderr)`; harness feeds
+  input to stdin, drains stdout/stderr, returns `RunResult`. For
+  tests that actually interact with stdio.
+- **Layer 3 — `(:wat::kernel::spawn-process fn)`** — the
+  substrate; full surface for production code. Tests don't reach
+  here unless they really need it.
+
+What disappears from EVERY testing layer:
+
+- `scope :Option<String>` — leaked substrate plumbing; today's
+  hermetic.wat errors on `:Some`; not functional anyway. Drops.
+- `forms :Vector<WatAST>` — caller writes a fn directly; no AST
+  construction.
+
+What disappears from Layer 1:
+
+- The fn's stdio parameters (Layer 2 has them when needed)
+- `stdin` input bytes (Layer 2 has them when needed)
+
+**Migration scope:**
+
+- **`wat/std/hermetic.wat` retires.** Replaced by
+  `:wat::test::run-hermetic` (Layer 1) + `:wat::test::run-hermetic-with-io`
+  (Layer 2) under the testing namespace. Path may move to
+  `wat/test/` or similar; slice 3's BRIEF settles it.
 - **`wat/test.wat`** — references fork-program-ast; same
-  treatment per its own surface.
-- **All callers of the legacy hermetic API** — migrate to the new
-  call shape. This is wider than the verb-level mechanical sweep
-  because the hermetic function's own input shape changed.
-- **Any other stdlib that wraps the spawn family** — same scope:
-  reach the polished form on the new substrate.
+  three-layer treatment per its own surface.
+- **All callers of `run-sandboxed-hermetic-ast`** — classify by
+  which layer they need; migrate to the appropriate layer.
+  Expected distribution: most → Layer 1 (massive UX collapse);
+  some → Layer 2; rare/none → Layer 3.
+- **Any other stdlib that wraps the spawn family** — same
+  three-layer treatment; reach the polished form.
 
 The slice is sonnet-mechanical for the verb renames + signature
 updates, but the hermetic tooling rebuild + caller migration is

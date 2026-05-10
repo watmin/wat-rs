@@ -106,36 +106,81 @@ tiers — different transports, same package.
 `wat/std/hermetic.wat` ships in the substrate today as a
 wat-level convenience over `fork-program-ast` (forms → forked
 process). It's a tier-2 spawn with the legacy input shape
-(`Vec<WatAST>` with an embedded `:user::main` define).
+(`Vec<WatAST>` with an embedded `:user::main` define) AND it
+exposes substrate-level ceremony (`scope :Option<String>` —
+filesystem-rooting for the child's loader; today's hermetic.wat
+errors on `:Some scope`, so the parameter is leaked plumbing that
+isn't even functional).
 
-Arc 170 changes the tier-2 surface to take a fn directly. The
-existing hermetic tooling MUST reach its polished form on the new
-substrate — not just functionally work, but be **as good as the
-new substrate allows**. That rebuild is slice 3's scope.
+Arc 170 changes the tier-2 substrate surface to take a fn
+directly. The testing tooling MUST reach its polished form on
+the new substrate — not just functionally work, but **hide every
+piece of ceremony that's constant for typical test usage.**
 
-Polished shape (slice 3 target):
+### Three-layer testing API (slice 3 target)
+
+The substrate is honest about what it offers (full fn-with-pipes
+signature; loader config; etc.). The testing lib's job is to
+hide all of that for the cases tests actually use. 90%+ of tests
+want one thing: "run this code; tell me if it broke."
 
 ```scheme
-;; before arc 170 — caller constructs Vec<WatAST> with embedded :user::main
-(:wat::kernel::run-sandboxed-hermetic-ast forms stdin-data scope)
+;; LAYER 1 — the 90% case: "run this code hermetically"
+(:wat::test::run-hermetic
+  (fn [] :nil
+    (:wat::core::assert-eq 42 (my-test-helper))))
+;; → returns :wat::kernel::RunResult { stdout, stderr, failure }
+;; user wrote: their test body. Nothing else. No stdio in the
+;; signature; no scope; no stdin-data.
 
-;; after arc 170 — caller passes a fn; tooling handles the ceremony
-(:wat::kernel::run-sandboxed-hermetic
+;; LAYER 2 — the 9% case: tests that interact with stdio
+(:wat::test::run-hermetic-with-io
   (fn [stdin :wat::io::IOReader stdout :wat::io::IOWriter stderr :wat::io::IOWriter] :nil
-    (... test body ...))
-  stdin-data
-  scope)
+    (... test reads/writes pipes ...))
+  "input bytes if any")
+
+;; LAYER 3 — the 1% case: full substrate power, full surface
+(:wat::kernel::spawn-process
+  (fn [stdin :wat::io::IOReader stdout :wat::io::IOWriter stderr :wat::io::IOWriter] :nil
+    ...))
+;; this is the production form; not for tests
 ```
 
-The call site collapses to "write your test as a fn; we
-hermetically run it." Same hermetic property (tier 2; ambient);
-same tier-bridging primitive (closure-extraction package); but
-the call surface aligns with the rest of arc 170's spawn family
-(fn in, Process out).
+### What disappears from the testing surface
 
-Slice 3 also migrates all callers of the legacy hermetic API to
-the new shape. `wat/test.wat` and any other tooling that wraps
-the spawn family get the same polish.
+Compared to today's `run-sandboxed-hermetic-ast (forms stdin scope)`:
+
+- **`forms` → fn** — caller writes a fn directly; no
+  `Vec<WatAST>` construction, no embedded `:user::main` define
+- **`stdin` (Vec\<String\>)** — drops from Layer 1 entirely.
+  Most tests don't read stdin. Layer 2 retains it for the
+  unusual cases. Layer 3 has full pipe access via the substrate
+- **`scope` (:Option\<String\>)** — drops from EVERY testing
+  layer. It's leaked substrate plumbing that's not even
+  functional in today's hermetic.wat (errors on `:Some`). If
+  anyone genuinely needs file-system-rooted hermetic testing,
+  Layer 3 (substrate directly) plus the appropriate loader-config
+  primitive is the path. Don't drag the constant ceremony through
+  every test
+- **the fn parameter ceremony** — Layer 1's fn takes `[]`. No
+  `stdin :IOReader stdout :IOWriter stderr :IOWriter` to type
+  every time. Layer 2 has the parameters when tests actually need
+  them
+
+### Slice 3 migration
+
+- Audit existing callers of today's `run-sandboxed-hermetic-ast`;
+  classify each by which layer it needs
+- Expected distribution: most → Layer 1 (massive UX collapse);
+  some → Layer 2; rare/none → Layer 3 (substrate directly)
+- `wat/test.wat` and any other stdlib wrapping the spawn family
+  get the same three-layer treatment — the testing layer hides
+  ceremony; the substrate stays honest
+
+The same hermetic property holds across all three layers (tier 2;
+ambient seal). The difference is only how much ceremony the user
+sees. Substrate is full surface; tests get the convenience layer
+that's right for them.
 
 ## Future tiers
 
