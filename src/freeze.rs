@@ -67,6 +67,7 @@ use crate::runtime::{
     apply_function, register_defines, register_stdlib_defines, EncodingCtx, Environment,
     RuntimeError, SymbolTable, Value,
 };
+use crate::span::Span;
 use crate::types::{register_stdlib_types, register_types, TypeEnv, TypeError, TypeExpr};
 use std::fmt;
 use std::sync::Arc;
@@ -714,16 +715,291 @@ pub const USER_MAIN_PATH: &str = ":user::main";
 /// to keep call-site changes minimal during the transition; callers
 /// pass `Vec::new()`. Non-empty `args` triggers `ArityMismatch` via
 /// [`apply_function`] — the substrate honors the new contract.
+///
+/// **Arc 170 slice 1f-γ — runtime orchestrator.** Before running
+/// `:user::main`, the orchestrator spawns the three stdio services
+/// (StdInService / StdOutService / StdErrService), populates the
+/// SymbolTable's runtime-services carrier, and registers thread-0
+/// with the services so the body's `(:wat::kernel::println ...)` /
+/// `(eprintln ...)` / `(readln)` calls land on the per-thread
+/// ThreadIO. On return (Ok or Err), the orchestrator deregisters
+/// thread-0, uninstalls the ThreadIO, drops the carrier (cascading
+/// shutdown to the services via scope-drop), and joins each service
+/// thread.
+///
+/// IO handles for the three services come from the per-thread
+/// ambient stdio cell ([`crate::thread_io::AmbientStdio`]); tests
+/// install pipe-backed handles via
+/// [`crate::thread_io::install_ambient_stdio`] before invoking.
+/// Production paths (wat-cli, fork.rs:659/1044) leave the ambient
+/// unset and fall through to real fd 0/1/2 via PipeReader /
+/// PipeWriter.
 pub fn invoke_user_main(
     frozen: &FrozenWorld,
     args: Vec<Value>,
 ) -> Result<Value, RuntimeError> {
-    let main_func = frozen
-        .symbols()
-        .get(USER_MAIN_PATH)
-        .ok_or(RuntimeError::UserMainMissing)?
+    invoke_user_main_orchestrated(frozen, args)
+}
+
+/// The orchestrator body. Held as a sibling fn so the standard
+/// `invoke_user_main` signature is preserved (per BRIEF — no caller-
+/// signature changes); inner work is the slice 1f-γ additions.
+fn invoke_user_main_orchestrated(
+    frozen: &FrozenWorld,
+    args: Vec<Value>,
+) -> Result<Value, RuntimeError> {
+    // 1. Source the IOReader / IOWriter handles for the three services.
+    //
+    // Tests can install a per-thread ambient stdio (in-memory or
+    // pipe-backed) before invoking. Production paths leave the
+    // ambient unset; we synthesize PipeReader / PipeWriter wrappers
+    // around real fd 0 / 1 / 2.
+    let stdio = match crate::thread_io::take_ambient_stdio() {
+        Some(s) => s,
+        None => synthesize_real_fd_stdio(),
+    };
+
+    // 2. Spawn the three services. Each `*Service/spawn` runs
+    //    `:wat::kernel::spawn-thread` internally; the spawn-thread
+    //    arm checks `sym.runtime_services()` and sees `None` at this
+    //    point (we set the carrier AFTER all three services boot —
+    //    the lazy-registration pattern from BRIEF § honest-delta), so
+    //    the service threads themselves don't register with services.
+    //    Service threads never call the three substrate primitives;
+    //    their ThreadIO stays None.
+    let pre_orchestrator_sym = frozen.symbols(); // borrow — carrier still None
+    let (stdin_thread_value, stdin_ctrl) = spawn_service(
+        ":wat::kernel::services::StdInService/spawn",
+        Value::io__IOReader(stdio.stdin.clone()),
+        pre_orchestrator_sym,
+        "stdin service spawn",
+    )?;
+    let (stdout_thread_value, stdout_ctrl) = spawn_service(
+        ":wat::kernel::services::StdOutService/spawn",
+        Value::io__IOWriter(stdio.stdout.clone()),
+        pre_orchestrator_sym,
+        "stdout service spawn",
+    )?;
+    let (stderr_thread_value, stderr_ctrl) = spawn_service(
+        ":wat::kernel::services::StdErrService/spawn",
+        Value::io__IOWriter(stdio.stderr.clone()),
+        pre_orchestrator_sym,
+        "stderr service spawn",
+    )?;
+
+    // 3. Build the RuntimeServices carrier + augmented SymbolTable.
+    //    Per BRIEF § honest-delta carrier choice **B** — capability-
+    //    carrier pattern in SymbolTable (sibling of encoding_ctx,
+    //    source_loader, macro_registry). SymbolTable's `Clone`
+    //    propagates the carrier to spawned threads naturally.
+    let services = Arc::new(crate::thread_io::RuntimeServices {
+        stdin_ctrl,
+        stdout_ctrl,
+        stderr_ctrl,
+    });
+    let mut sym_with_services = frozen.symbols().clone();
+    sym_with_services.set_runtime_services(Arc::clone(&services));
+
+    // 4. Register thread-0 with the three services; install the
+    //    ThreadIO into this thread's cell so `:user::main`'s body
+    //    (running on this thread) sees a populated cell on its
+    //    println/eprintln/readln calls.
+    let main_thread_id = crate::thread_io::next_thread_id();
+    let main_io =
+        crate::thread_io::register_thread_with_services(main_thread_id, &services)?;
+    crate::thread_io::install_thread_io(main_io);
+
+    // 5. Run `:user::main`. Any error (or the Ok(value)) is captured
+    //    in `result`; we still run cleanup before returning either
+    //    way. UserMainMissing is checked AFTER cleanup so the test-
+    //    that-omits-:user::main row still surfaces cleanly.
+    let main_lookup = sym_with_services.get(USER_MAIN_PATH).cloned();
+    let result = match main_lookup {
+        Some(main_func) => apply_function(
+            main_func,
+            args,
+            &sym_with_services,
+            crate::rust_caller_span!(),
+        ),
+        None => Err(RuntimeError::UserMainMissing),
+    };
+
+    // 6. Deregister thread-0; uninstall this thread's ThreadIO.
+    crate::thread_io::deregister_thread_from_services(main_thread_id, &services);
+    let _ = crate::thread_io::uninstall_thread_io();
+
+    // 7. Drop the orchestrator's references to the services so the
+    //    Arc count falls. Drop order: augmented SymbolTable first
+    //    (releases the Arc<RuntimeServices> clone the carrier held),
+    //    then the local Arc. If any user-spawned thread is still
+    //    holding a thread_sym clone, the carrier survives and the
+    //    services won't shut down until those threads exit and drop
+    //    their thread_syms.
+    drop(sym_with_services);
+    drop(services);
+
+    // 8. Wait for each service thread to exit. The order matches
+    //    the spawn order (stdin, stdout, stderr); each blocks on
+    //    Thread/output's Receiver — the service sends `Value::Unit`
+    //    on its output channel when its driver loop exits cleanly
+    //    (control-rx disconnected), then the SpawnOutcome lands on
+    //    the ProgramHandle channel.
+    join_service(stdin_thread_value, "stdin service join")?;
+    join_service(stdout_thread_value, "stdout service join")?;
+    join_service(stderr_thread_value, "stderr service join")?;
+
+    result
+}
+
+/// Synthesize default IOReader / IOWriter handles for real fd 0/1/2.
+/// Production wat-cli + fork.rs callers reach this path; they hand
+/// the orchestrator pipe-backed wrappers that delegate to the
+/// process's true stdio fds.
+fn synthesize_real_fd_stdio() -> crate::thread_io::AmbientStdio {
+    use std::os::fd::FromRawFd;
+    // Dup the raw fds so the orchestrator owns its own copies; Drop
+    // closes them when the AmbientStdio (and its inner PipeReader /
+    // PipeWriter) drops. Without dup, an orchestrator drop after
+    // user::main returns would close real fd 0/1/2 in the process,
+    // breaking subsequent invoke_user_main calls (or harness code
+    // that still wants real stdio).
+    //
+    // SAFETY: libc::dup returns a freshly-opened fd on success or -1
+    // on error. We assert >= 0 immediately. On failure we fall back
+    // to whatever raw fd dup returned; the PipeReader/Writer
+    // constructors then own that fd (legitimate behavior for the
+    // closed-fd case — write/read will surface clean errors).
+    fn dup_fd(fd: i32) -> i32 {
+        let r = unsafe { libc::dup(fd) };
+        if r < 0 {
+            // libc::dup failed (out of fds, EINTR-on-restart, etc.);
+            // hand back -1 so the PipeReader/Writer carries an
+            // unusable fd. Subsequent reads/writes surface clean
+            // diagnostics; orchestrator-level work still proceeds
+            // (services run, just nothing flows through this fd).
+            -1
+        } else {
+            r
+        }
+    }
+    let stdin_fd = dup_fd(0);
+    let stdout_fd = dup_fd(1);
+    let stderr_fd = dup_fd(2);
+    let stdin: Arc<dyn crate::io::WatReader> = Arc::new(
+        crate::io::PipeReader::from_owned_fd(unsafe {
+            std::os::fd::OwnedFd::from_raw_fd(stdin_fd)
+        }),
+    );
+    let stdout: Arc<dyn crate::io::WatWriter> = Arc::new(
+        crate::io::PipeWriter::from_owned_fd(unsafe {
+            std::os::fd::OwnedFd::from_raw_fd(stdout_fd)
+        }),
+    );
+    let stderr: Arc<dyn crate::io::WatWriter> = Arc::new(
+        crate::io::PipeWriter::from_owned_fd(unsafe {
+            std::os::fd::OwnedFd::from_raw_fd(stderr_fd)
+        }),
+    );
+    crate::thread_io::AmbientStdio {
+        stdin,
+        stdout,
+        stderr,
+    }
+}
+
+/// Look up a service spawn fn by keyword path; apply it with the
+/// supplied IO handle; destructure the returned `(Thread, ControlTx)`
+/// tuple. Returns the Thread value (for join later) and the
+/// `crossbeam::Sender<Value>` ControlTx (for Add/Remove dispatches).
+fn spawn_service(
+    spawn_fn_path: &str,
+    io_value: Value,
+    sym: &SymbolTable,
+    label: &'static str,
+) -> Result<(Value, crossbeam_channel::Sender<Value>), RuntimeError> {
+    let spawn_fn = sym
+        .get(spawn_fn_path)
+        .ok_or_else(|| RuntimeError::UnknownFunction(spawn_fn_path.into(), Span::unknown()))?
         .clone();
-    apply_function(main_func, args, frozen.symbols(), crate::rust_caller_span!())
+    let spawn_result = apply_function(
+        spawn_fn,
+        vec![io_value],
+        sym,
+        crate::rust_caller_span!(),
+    )?;
+    crate::thread_io::extract_control_tx(spawn_result, label)
+}
+
+/// Block on the service Thread's `Thread/output` channel for the
+/// driver's final `Value::Unit` emission, then on the ProgramHandle
+/// for the SpawnOutcome. If the driver panicked, surface the panic
+/// as a RuntimeError so the orchestrator's caller sees the
+/// substrate-side failure.
+fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeError> {
+    let thread_struct = match thread_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: label.to_string(),
+                expected: "wat::kernel::Thread",
+                got: other.type_name(),
+                span: Span::unknown(),
+            });
+        }
+    };
+    if thread_struct.fields.len() != 3 {
+        return Err(RuntimeError::MalformedForm {
+            head: label.to_string(),
+            reason: format!(
+                "service Thread carries {} fields; expected 3",
+                thread_struct.fields.len()
+            ),
+            span: Span::unknown(),
+        });
+    }
+    // Field 2 is the ProgramHandle; we recv the SpawnOutcome
+    // directly. Field 1 (the Receiver<O>) is unused by the
+    // orchestrator (the service's only output Value is the final
+    // `:wat::core::nil`, redundant with the ProgramHandle outcome).
+    let handle_value = thread_struct.fields[2].clone();
+    let handle_inner = match handle_value {
+        Value::wat__kernel__ProgramHandle(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: label.to_string(),
+                expected: "wat::kernel::ProgramHandle (service Thread.join slot)",
+                got: other.type_name(),
+                span: Span::unknown(),
+            });
+        }
+    };
+    match handle_inner.as_ref() {
+        crate::runtime::ProgramHandleInner::InThread(rx) => match rx.recv() {
+            Ok(crate::runtime::SpawnOutcome::Ok(_)) => Ok(()),
+            Ok(crate::runtime::SpawnOutcome::RuntimeErr(e)) => Err(e),
+            Ok(crate::runtime::SpawnOutcome::Panic { message, .. }) => {
+                Err(RuntimeError::MalformedForm {
+                    head: label.to_string(),
+                    reason: format!("service thread panicked: {}", message),
+                    span: Span::unknown(),
+                })
+            }
+            Err(_) => {
+                // Channel disconnected without a SpawnOutcome —
+                // substrate-level corruption; surface honestly.
+                Err(RuntimeError::ChannelDisconnected {
+                    op: label.to_string(),
+                    span: Span::unknown(),
+                })
+            }
+        },
+        crate::runtime::ProgramHandleInner::Forked(_) => Err(RuntimeError::TypeMismatch {
+            op: label.to_string(),
+            expected: "InThread variant for service Thread",
+            got: "Forked variant — substrate bug",
+            span: Span::unknown(),
+        }),
+    }
 }
 
 // ─── :user::main signature enforcement ──────────────────────────────────

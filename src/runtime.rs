@@ -852,6 +852,19 @@ pub struct SymbolTable {
     /// `Value::Unit`); this flag is scaffolding. A future arc opens IFF a
     /// caller surfaces wanting eval-time def redef.
     pub eval_redef_allowed: bool,
+    /// Arc 170 slice 1f-γ — runtime services carrier. When set, the
+    /// `:wat::kernel::spawn-thread` arm registers each spawned thread
+    /// with the three stdio services (StdIn / StdOut / StdErr) so the
+    /// thread's `(:wat::kernel::println ...)` / `(eprintln ...)` /
+    /// `(readln)` calls have a populated [`crate::thread_io::ThreadIO`].
+    /// `None` when no orchestrator is active (test harnesses + the
+    /// service threads themselves bootstrap before the carrier is set,
+    /// so their internal spawn-thread calls see `None` and skip
+    /// registration — the lazy-registration pattern). Carrier choice B
+    /// per BRIEF § honest-delta — capability-carrier pattern next to
+    /// `encoding_ctx`, `source_loader`, `macro_registry`. Memory
+    /// `feedback_capability_carrier.md`.
+    pub runtime_services: Option<Arc<crate::thread_io::RuntimeServices>>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -910,6 +923,30 @@ impl SymbolTable {
     /// attach a loader doesn't have the capability.
     pub fn source_loader(&self) -> Option<&Arc<dyn crate::load::SourceLoader>> {
         self.source_loader.as_ref()
+    }
+
+    /// Attach the runtime-services carrier. Called once per
+    /// `invoke_user_main` invocation by the orchestrator (after
+    /// spawning the three stdio services). The carrier propagates to
+    /// spawned threads through SymbolTable's `Clone`; child threads'
+    /// `eval_kernel_spawn_thread` sites read it to decide whether to
+    /// register the new thread with the services. Arc 170 slice 1f-γ.
+    pub fn set_runtime_services(
+        &mut self,
+        services: Arc<crate::thread_io::RuntimeServices>,
+    ) {
+        self.runtime_services = Some(services);
+    }
+
+    /// Borrow the runtime-services carrier, if one is attached. The
+    /// spawn-thread arm calls this to decide whether to allocate a
+    /// new ThreadId + register with the services or skip (service-
+    /// thread bootstrap path, pre-orchestrator init, etc.). Arc 170
+    /// slice 1f-γ.
+    pub fn runtime_services(
+        &self,
+    ) -> Option<&Arc<crate::thread_io::RuntimeServices>> {
+        self.runtime_services.as_ref()
     }
 
     /// Attach the macro registry. Called once at freeze time by
@@ -15629,9 +15666,49 @@ fn eval_kernel_spawn_thread(
         crate::typed_channel::receiver_from_crossbeam(in_rx),
         crate::typed_channel::sender_from_crossbeam(out_tx),
     ];
+    // Arc 170 slice 1f-γ — register the new thread with the three
+    // stdio services so the body's `(:wat::kernel::println ...)` /
+    // `(eprintln ...)` / `(readln)` calls have a populated ThreadIO.
+    //
+    // Lazy-registration pattern: when the carrier is None (service-
+    // template's own internal spawn-thread call during service
+    // bootstrap, OR a pre-orchestrator init path) the registration
+    // step is skipped. Service threads never call the three substrate
+    // primitives — their ThreadIO stays None and the
+    // `ServiceNotRunning` error path is unreachable in practice.
+    //
+    // Registration is performed in the PARENT thread so any Add-send
+    // failure (service shut down between carrier-set and spawn-thread)
+    // surfaces synchronously to the parent rather than being lost
+    // inside the spawned thread's closure. The resulting ThreadIO is
+    // moved into the closure for installation in the new thread's
+    // thread-local cell on entry.
+    let registration: Option<(crate::thread_io::ThreadId, crate::thread_io::ThreadIO)> =
+        match sym.runtime_services() {
+            Some(services) => {
+                let tid = crate::thread_io::next_thread_id();
+                let io = crate::thread_io::register_thread_with_services(tid, services)?;
+                Some((tid, io))
+            }
+            None => None,
+        };
+    // The carrier needed for the epilogue's deregister step is the
+    // SAME Arc the parent reads — captured by value here so the
+    // closure owns its own ref. Cheap (Arc clone).
+    let registration_services: Option<Arc<crate::thread_io::RuntimeServices>> =
+        sym.runtime_services().cloned();
     std::thread::Builder::new()
         .name(format!("wat-thread::{}", thread_fn_name))
         .spawn(move || {
+            // BRIEF Q3 — install ThreadIO + register epilogue BEFORE
+            // running the body. The epilogue runs after the body
+            // returns or panics (inside the catch_unwind boundary the
+            // body uses).
+            let registration_thread_id =
+                registration.as_ref().map(|(tid, _)| *tid);
+            if let Some((_, io)) = registration {
+                crate::thread_io::install_thread_io(io);
+            }
             // Mirror eval_kernel_spawn's catch_unwind: panics in the
             // body surface as data on the outcome channel rather than
             // unwinding the thread silently. AssertUnwindSafe is honest;
@@ -15647,6 +15724,19 @@ fn eval_kernel_spawn_thread(
                     SpawnOutcome::Panic { message, assertion }
                 }
             };
+            // Epilogue: send Remove on the three ControlTxs (silent-
+            // fail if services already down), uninstall this thread's
+            // ThreadIO. ThreadIO drop closes its Rust-side Senders,
+            // collapsing each bridge thread's `rust_rx`; bridge exits
+            // → wat-side data_tx drops → service routing-table entry
+            // becomes invalid and the service prunes on its next
+            // select wake-up.
+            if let (Some(tid), Some(services)) =
+                (registration_thread_id, registration_services.as_ref())
+            {
+                crate::thread_io::deregister_thread_from_services(tid, services);
+            }
+            let _ = crate::thread_io::uninstall_thread_io();
             let _ = outcome_tx.send(outcome);
         })
         .expect("Thread::Builder::spawn failed");
