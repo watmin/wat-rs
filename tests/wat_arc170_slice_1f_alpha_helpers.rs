@@ -33,7 +33,10 @@ use holon::HolonAST;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, RuntimeError, Value};
-use wat::thread_io::{install_thread_io, uninstall_thread_io, ThreadIO};
+use wat::thread_io::{
+    install_thread_io, uninstall_thread_io, ThreadIO,
+    StdInServiceEvent, StdOutServiceEvent, StdErrServiceEvent,
+};
 
 // ─── helpers ───────────────────────────────────────────────────────
 
@@ -50,44 +53,47 @@ fn freeze_skeleton() -> wat::freeze::FrozenWorld {
         .expect("skeleton freeze succeeds")
 }
 
-/// Build a [`ThreadIO`] for tests. Returns the IO + the four
-/// "service-side" channel ends so the test can drive the
-/// service-side conversation from a tester thread.
+/// Build a [`ThreadIO`] for tests. Returns the IO + the service-side
+/// channel ends so the test can drive the service-side conversation
+/// from a tester thread. Channel ends carry Event variants per
+/// pass 18 — service-side receives an Event and matches the variant.
 struct TestRig {
     io: Option<ThreadIO>,
-    /// service-side: receive what println / eprintln / readln send.
-    out_req_rx: crossbeam_channel::Receiver<String>,
+    /// service-side: receive StdOutServiceEvent from println.
+    out_rx: crossbeam_channel::Receiver<StdOutServiceEvent>,
     out_ack_tx: crossbeam_channel::Sender<()>,
-    err_req_rx: crossbeam_channel::Receiver<String>,
+    /// service-side: receive StdErrServiceEvent from eprintln.
+    err_rx: crossbeam_channel::Receiver<StdErrServiceEvent>,
     err_ack_tx: crossbeam_channel::Sender<()>,
-    stdin_req_rx: crossbeam_channel::Receiver<()>,
+    /// service-side: receive StdInServiceEvent from readln.
+    stdin_rx: crossbeam_channel::Receiver<StdInServiceEvent>,
     stdin_reply_tx: crossbeam_channel::Sender<Arc<HolonAST>>,
 }
 
 fn build_rig() -> TestRig {
-    let (out_req_tx, out_req_rx) = bounded::<String>(1);
+    let (out_tx, out_rx) = bounded::<StdOutServiceEvent>(1);
     let (out_ack_tx, out_ack_rx) = bounded::<()>(1);
-    let (err_req_tx, err_req_rx) = bounded::<String>(1);
+    let (err_tx, err_rx) = bounded::<StdErrServiceEvent>(1);
     let (err_ack_tx, err_ack_rx) = bounded::<()>(1);
-    let (stdin_req_tx, stdin_req_rx) = bounded::<()>(1);
+    let (stdin_tx, stdin_rx) = bounded::<StdInServiceEvent>(1);
     let (stdin_reply_tx, stdin_reply_rx) = bounded::<Arc<HolonAST>>(1);
 
     let io = ThreadIO {
-        stdout_req_tx: out_req_tx,
+        stdout_tx: out_tx,
         stdout_ack_rx: out_ack_rx,
-        stderr_req_tx: err_req_tx,
+        stderr_tx: err_tx,
         stderr_ack_rx: err_ack_rx,
-        stdin_req_tx,
+        stdin_tx,
         stdin_reply_rx,
     };
 
     TestRig {
         io: Some(io),
-        out_req_rx,
+        out_rx,
         out_ack_tx,
-        err_req_rx,
+        err_rx,
         err_ack_tx,
-        stdin_req_rx,
+        stdin_rx,
         stdin_reply_tx,
     }
 }
@@ -174,11 +180,16 @@ fn row_c_readln_unpopulated_returns_service_not_running() {
 fn row_d_println_populated_sends_serialized_string() {
     fresh_thread();
     let mut rig = build_rig();
-    // Tester thread plays "service" — receives the line, immediately acks.
-    let out_req_rx = rig.out_req_rx.clone();
+    // Tester thread plays "service" — receives the Write event, extracts
+    // the line, immediately acks.
+    let out_rx = rig.out_rx.clone();
     let out_ack_tx = rig.out_ack_tx.clone();
     let tester = std::thread::spawn(move || {
-        let line = out_req_rx.recv().expect("service receives line");
+        let event = out_rx.recv().expect("service receives event");
+        let line = match event {
+            StdOutServiceEvent::Write { line } => line,
+            _ => panic!("expected Write variant"),
+        };
         out_ack_tx.send(()).expect("service acks");
         line
     });
@@ -199,10 +210,14 @@ fn row_d_println_populated_sends_serialized_string() {
 fn row_e_eprintln_populated_sends_serialized_string() {
     fresh_thread();
     let mut rig = build_rig();
-    let err_req_rx = rig.err_req_rx.clone();
+    let err_rx = rig.err_rx.clone();
     let err_ack_tx = rig.err_ack_tx.clone();
     let tester = std::thread::spawn(move || {
-        let line = err_req_rx.recv().expect("service receives line");
+        let event = err_rx.recv().expect("service receives event");
+        let line = match event {
+            StdErrServiceEvent::Write { line } => line,
+            _ => panic!("expected Write variant"),
+        };
         err_ack_tx.send(()).expect("service acks");
         line
     });
@@ -228,11 +243,15 @@ fn row_f_readln_populated_returns_received_form() {
     // String leaf is the simplest cell.
     let expected_ast = Arc::new(HolonAST::String(Arc::from("ok")));
 
-    let stdin_req_rx = rig.stdin_req_rx.clone();
+    let stdin_rx = rig.stdin_rx.clone();
     let stdin_reply_tx = rig.stdin_reply_tx.clone();
     let payload = Arc::clone(&expected_ast);
     let tester = std::thread::spawn(move || {
-        stdin_req_rx.recv().expect("service receives request");
+        let event = stdin_rx.recv().expect("service receives event");
+        match event {
+            StdInServiceEvent::Read => {}
+            _ => panic!("expected Read variant"),
+        }
         stdin_reply_tx.send(payload).expect("service sends reply");
     });
 
@@ -277,10 +296,14 @@ fn row_g_println_polymorphic_value_types() {
     for (src, expected) in cases {
         fresh_thread();
         let mut rig = build_rig();
-        let out_req_rx = rig.out_req_rx.clone();
+        let out_rx = rig.out_rx.clone();
         let out_ack_tx = rig.out_ack_tx.clone();
         let tester = std::thread::spawn(move || {
-            let line = out_req_rx.recv().expect("service receives line");
+            let event = out_rx.recv().expect("service receives event");
+            let line = match event {
+                StdOutServiceEvent::Write { line } => line,
+                _ => panic!("expected Write variant"),
+            };
             out_ack_tx.send(()).expect("service acks");
             line
         });

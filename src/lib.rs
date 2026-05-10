@@ -92,6 +92,11 @@ pub(crate) mod stdlib;
 pub mod string_ops;
 pub mod test_runner;
 pub mod thread_io;
+pub use thread_io::{
+    install_thread_io, uninstall_thread_io,
+    StdInServiceEvent, StdOutServiceEvent, StdErrServiceEvent,
+    ThreadId, ThreadIO,
+};
 pub mod time;
 pub mod typed_channel;
 pub mod types;

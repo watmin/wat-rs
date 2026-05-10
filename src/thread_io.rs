@@ -31,6 +31,58 @@ use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
 use crate::span::Span;
 
+/// Monotonic thread identifier. Mirrors the wat-side
+/// `:wat::kernel::ThreadId` typealias-to-i64 settled in pass 18.
+/// Slice 1f-γ will populate these from a monotonic counter in the
+/// runtime orchestrator.
+pub type ThreadId = i64;
+
+/// Per-pass-18 control-plane + data-plane union. Sent on the
+/// stdout tx; consumed by the wat-side StdOutService.
+#[derive(Debug, Clone)]
+pub enum StdOutServiceEvent {
+    /// Caller's println rendered an EDN line; service writes
+    /// it to fd 1 and acks.
+    Write { line: String },
+    /// Runtime registers a thread; service stores
+    /// `(thread_id → (data_rx, ack_tx))` in its routing table.
+    Add {
+        thread_id: ThreadId,
+        data_rx: Receiver<StdOutServiceEvent>,
+        ack_tx: Sender<()>,
+    },
+    /// Runtime reaps a thread; service drops the routing entry.
+    Remove { thread_id: ThreadId },
+}
+
+/// Mirror of [`StdOutServiceEvent`] for fd 2.
+#[derive(Debug, Clone)]
+pub enum StdErrServiceEvent {
+    Write { line: String },
+    Add {
+        thread_id: ThreadId,
+        data_rx: Receiver<StdErrServiceEvent>,
+        ack_tx: Sender<()>,
+    },
+    Remove { thread_id: ThreadId },
+}
+
+/// Stdin's data variant is unit (the "give me next form"
+/// request); the parsed HolonAST comes back via the reply-tx.
+#[derive(Debug, Clone)]
+pub enum StdInServiceEvent {
+    /// Caller's readln signals "next form please."
+    Read,
+    /// Runtime registers a thread; service stores
+    /// `(thread_id → (data_rx, reply_tx))` in its routing table.
+    Add {
+        thread_id: ThreadId,
+        data_rx: Receiver<StdInServiceEvent>,
+        reply_tx: Sender<Arc<HolonAST>>,
+    },
+    Remove { thread_id: ThreadId },
+}
+
 /// Per-thread channel handles used by `:wat::kernel::println` /
 /// `eprintln` / `readln`. Populated by `:wat::kernel::spawn-thread`
 /// (slice 1f-γ); for slice 1f-α, populated by tests via
@@ -42,16 +94,16 @@ use crate::span::Span;
 /// thread-local cell ensures only one thread accesses any given
 /// ThreadIO instance.
 pub struct ThreadIO {
-    /// Send the line (already-rendered EDN String) to the StdOutService.
-    pub stdout_req_tx: Sender<String>,
+    /// Send an Event (Write / Add / Remove) to the StdOutService.
+    pub stdout_tx: Sender<StdOutServiceEvent>,
     /// Block here for the StdOutService's ack of "line emitted."
     pub stdout_ack_rx: Receiver<()>,
-    /// Send the line (already-rendered EDN String) to the StdErrService.
-    pub stderr_req_tx: Sender<String>,
+    /// Send an Event (Write / Add / Remove) to the StdErrService.
+    pub stderr_tx: Sender<StdErrServiceEvent>,
     /// Block here for the StdErrService's ack of "line emitted."
     pub stderr_ack_rx: Receiver<()>,
-    /// Signal the StdInService that this thread wants the next line.
-    pub stdin_req_tx: Sender<()>,
+    /// Send an Event (Read / Add / Remove) to the StdInService.
+    pub stdin_tx: Sender<StdInServiceEvent>,
     /// Receive the parsed HolonAST representing the next stdin form.
     pub stdin_reply_rx: Receiver<Arc<HolonAST>>,
 }
@@ -137,8 +189,8 @@ pub fn eval_kernel_println(
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     let line = wat_edn::write(&edn);
     with_thread_io(OP, |io| {
-        io.stdout_req_tx
-            .send(line)
+        io.stdout_tx
+            .send(StdOutServiceEvent::Write { line })
             .map_err(|_| RuntimeError::ChannelDisconnected {
                 op: OP.into(),
                 span: Span::unknown(),
@@ -166,8 +218,8 @@ pub fn eval_kernel_eprintln(
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     let line = wat_edn::write(&edn);
     with_thread_io(OP, |io| {
-        io.stderr_req_tx
-            .send(line)
+        io.stderr_tx
+            .send(StdErrServiceEvent::Write { line })
             .map_err(|_| RuntimeError::ChannelDisconnected {
                 op: OP.into(),
                 span: Span::unknown(),
@@ -200,8 +252,8 @@ pub fn eval_kernel_readln(
         });
     }
     with_thread_io(OP, |io| {
-        io.stdin_req_tx
-            .send(())
+        io.stdin_tx
+            .send(StdInServiceEvent::Read)
             .map_err(|_| RuntimeError::ChannelDisconnected {
                 op: OP.into(),
                 span: Span::unknown(),
