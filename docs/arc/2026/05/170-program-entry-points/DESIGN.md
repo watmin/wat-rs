@@ -9,6 +9,14 @@ Ready for slice 1 authorship.
 
 ## The mental model — client / server
 
+> **Companion concept doc:** [`HERMETIC.md`](./HERMETIC.md) —
+> the same-interface / different-runtime-env framing that makes
+> Thread / Process / Remote a single pattern. Threads share
+> memory; processes share host; remote programs share network.
+> The hermetic package (substrate-level closure extraction) is
+> the seal that bridges memory boundaries when the runtime envs
+> diverge.
+
 Every "spawn a wat program in some context" primitive is, at its
 heart, a **client / server** relationship:
 
