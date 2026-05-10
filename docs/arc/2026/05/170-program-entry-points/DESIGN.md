@@ -1165,3 +1165,10 @@ tail position rides arc 003's trampoline.
 - [`CLOSURE-EXTRACTION.md`](./CLOSURE-EXTRACTION.md) — substrate
   primitive deep-dive: algorithm, invariants, portability check,
   test strategy. The load-bearing substrate work for arc 170.
+- [`EXAMPLES.md`](./EXAMPLES.md) — concrete user-facing
+  client/server pair demos (square server, greeter server) with
+  wire traces in pure wat. Slice 5 closure paperwork inherits.
+- [`TIERS.md`](./TIERS.md) — runtime tier framework (0/1/2/3) +
+  hermetic-as-ambient property + canonical form summary.
+- [`REALIZATIONS-SLICE-1.md`](./REALIZATIONS-SLICE-1.md) — the
+  conversation-thread record across passes 1-13.
