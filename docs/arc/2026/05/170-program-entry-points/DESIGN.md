@@ -9,13 +9,13 @@ Ready for slice 1 authorship.
 
 ## The mental model — client / server
 
-> **Companion concept doc:** [`HERMETIC.md`](./HERMETIC.md) —
-> the same-interface / different-runtime-env framing that makes
-> Thread / Process / Remote a single pattern. Threads share
-> memory; processes share host; remote programs share network.
-> The hermetic package (substrate-level closure extraction) is
-> the seal that bridges memory boundaries when the runtime envs
-> diverge.
+> **Companion concept doc:** [`TIERS.md`](./TIERS.md) — runtime
+> tiers 0 (eval env) → 1 (threads) → 2 (processes) → 3 (remote
+> programs). Each tier shares less than the previous. Hermeticness
+> is the ambient property of tier ≥ 2 — not a label or flag, but
+> what the OS-process boundary inherently provides (memory + signal
+> + global-state + runtime-sealing isolation, all at once because
+> they're all manifestations of the same boundary).
 
 Every "spawn a wat program in some context" primitive is, at its
 heart, a **client / server** relationship:
@@ -29,11 +29,13 @@ heart, a **client / server** relationship:
 Each spawn variant differs ONLY in the IPC mechanism connecting
 client to server:
 
-| Variant | IPC mechanism | Sharing | Substrate primitive | Server contract |
-|---|---|---|---|---|
-| Thread | Crossbeam channels (in-memory typed Values) | Same vm; same OS process; no isolation | `(:wat::kernel::spawn-thread fn)` | `:user::thread` — `(rx tx) -> :nil` |
-| Process | Pipes (stdin, stdout, stderr — byte streams; stderr carries `Result.Err`) | Forked OS process; full isolation | `(:wat::kernel::spawn-process fn)` | `:user::process` — `(stdin stdout stderr) -> :nil` |
-| Remote *(future)* | Sockets (UDS / localhost HTTP / TLS / mTLS); Q-channel multiplexed `Result<T, E>` | Network or sidecar; remote may have capabilities client doesn't | `(:wat::kernel::spawn-remote-program fn endpoint)` | `:user::remote-program` — `(rx tx) -> :nil` (Q-channel framed) |
+| Tier | Variant | IPC mechanism | Sharing | Substrate primitive | Server contract |
+|---|---|---|---|---|---|
+| **1** | Thread | Crossbeam channels (in-memory typed Values) | Same vm; same OS process; memory shared | `(:wat::kernel::spawn-thread fn)` | `:user::thread` — `(rx tx) -> :nil` |
+| **2** | Process | Pipes (stdin, stdout, stderr — byte streams; stderr carries `Result.Err`) | Forked OS process; host shared, memory boundary (hermetic ambient) | `(:wat::kernel::spawn-process fn)` | `:user::process` — `(stdin stdout stderr) -> :nil` |
+| **3** | Remote *(future)* | Sockets (UDS / localhost HTTP / TLS / mTLS); Q-channel multiplexed `Result<T, E>` | Network shared, host boundary (hermetic ambient + extra) | `(:wat::kernel::spawn-remote-program fn endpoint)` | `:user::remote-program` — `(rx tx) -> :nil` (Q-channel framed) |
+
+(Tier 0 — `(f x y)` direct invocation in the current eval env — isn't a "spawn variant"; it's the base layer. See [`TIERS.md`](./TIERS.md).)
 
 Every server fn returns `:nil` (Program contract per arc 114 —
 "values flow only through channels; return is a panic-free

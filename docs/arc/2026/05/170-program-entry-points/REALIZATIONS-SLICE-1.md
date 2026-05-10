@@ -186,3 +186,83 @@ slice 1 (this realization).
   ships forward
 - `feedback_no_known_defect_left_unfixed.md` — bias is "ship
   everything we know how to do," not "ship the smaller win"
+
+---
+
+## Addendum 2026-05-09 — tier framework alignment
+
+A second alignment surfaced the same day in the same review
+thread. After agreeing to fix the entry-keyword ceremony, the
+conversation pressure-tested the broader pattern.
+
+**First framing attempt** (the orchestrator's): "this is a hermetic
+package primitive that generalizes across thread / process / remote."
+Wrong-shape — over-emphasized hermetic as a thing-in-itself.
+
+**Second framing attempt** (also orchestrator's): four properties
+of the hermetic seal — memory / signal / global-state / runtime-
+sealing isolation. Closer, but still wrong shape — these "four
+properties" are one property manifesting four ways, not four
+separate things.
+
+**The settled framing** (user direction): tiers are the primary
+structural concept. Hermeticness is the ambient consequence of
+tier ≥ 2. There are four tiers:
+
+- Tier 0 — runtime env (call stack; same eval context)
+- Tier 1 — threads (memory shared)
+- Tier 2 — processes (host shared, memory boundary)
+- Tier 3 — remote programs (network shared, host boundary)
+
+Hermetic = "tier ≥ 2." Not a flag; not a label; what the OS-process
+boundary inherently provides. The "four properties" all manifest
+because tier ≥ 2 means a separate OS process; one boundary; one
+seal.
+
+The tier-bridging primitive (closure extraction package) only
+matters at tier ≥ 2 — tier 0 and tier 1 use the fn Value
+directly.
+
+User quote, captured as the framing's load-bearing text:
+
+> *"the entire concept is hermetic in nature... threads don't get
+> hermetic, just a shared space to run in. processes and remote
+> programs are hermetic by nature.... but the interface here...
+> its the same, but the 'runtime env' has different properties...
+> a thread shares memory, a process shares the host, a remote
+> program shares the network"*
+
+> *"tier2 and tier3 are hermetic by the boundary of what's shared...
+> not something explicit, just an ambient property of the runtime"*
+
+This framing is captured in [`TIERS.md`](./TIERS.md). It's
+load-bearing for arc 170 and any future arc that touches the
+spawn family.
+
+### Discipline lesson — for orchestrator framing reflexes
+
+Three framing passes in one conversation thread:
+
+1. Wrong-shape (entry-keyword ceremony at Rust API level)
+2. Wrong-shape (hermetic as primary subject)
+3. Right-shape (tiers as primary; hermetic as ambient)
+
+Each pass was an orchestrator reach for the wrong word. The user
+caught each one through the same probe: *"do you actually know
+this, or are you assuming?"* (per `feedback_assertion_demands_evidence.md`)
++ *"what is X masking?"* (per FM 10's self-probe).
+
+The pattern: when the substrate has a clear structural concept
+(tiers) AND a derivative property of that structure (hermetic at
+tier ≥ 2), the orchestrator's reach is for the derivative property
+as if it were primary. That's wrong-shape. The structure is
+primary; the property emerges.
+
+Add to recovery doc § 6 candidate failure mode (FM 18 candidate):
+**Reaching for derivative property as primary frame.** When the
+substrate has a structural concept and an emergent property of
+that structure, the right doc-architecture is structure-primary +
+property-named-as-emergent. Reaching for the property as primary
+is FM-10-adjacent (type-theoretic reach when entity-kind is the
+answer) but at a higher level — frame-theoretic reach when
+structural-concept is the answer.

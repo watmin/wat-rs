@@ -29,6 +29,13 @@ fn-forms into fn Values directly. Closure extraction does NOT need
 to wrap the fn in a `define` + look up by name; it keeps the entry
 as an expression.
 
+**Where this primitive sits in the substrate:** closure extraction
+is the **tier-bridging primitive** for tier ≥ 2 spawns. See
+[`TIERS.md`](./TIERS.md) for the runtime-tier framework. Tier 0
+and tier 1 don't need it (fn Value used directly via shared
+memory); tier 2 and tier 3 do (separate substrate instances must
+reconstruct the fn-with-its-environment from a portable artifact).
+
 ### Public shape (v2)
 
 ```rust
