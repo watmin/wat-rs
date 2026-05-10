@@ -422,7 +422,7 @@ discipline lesson + slice 1b origin.
 Predicted (original): 90-180 min opus. Actual: ~150 min Mode A
 clean.
 
-### Slice 1b — `ClosurePackage` reshape ("the fn IS the program")
+### Slice 1b — `ClosurePackage` reshape ("the fn IS the program") — SHIPPED
 
 Restructures `ClosurePackage` from `{ forms, entry: String }` to
 `{ prologue: Vec<WatAST>, entry_form: WatAST }`. Retires the
@@ -430,16 +430,46 @@ synthetic-name machinery (`:__closure::__pkg_<n>` counter +
 wrap-in-define). The fn-form AST evaluates to a fn Value
 directly; no naming required.
 
-- `closure_extract.rs` reshape: ClosurePackage shape, entry
-  resolution (no synthetic names), assembly (entry stays as
-  fn-form expression)
-- `tests/wat_arc170_closure_extraction.rs` T1-T15 assertion
-  updates
-- CLOSURE-EXTRACTION.md spec amendment
+**Shipped**: commits `a23acf3` + `365343f` + SCORE `84b6ca6`
+(17/17 pass, Mode A clean, ~40 min — under predicted 60-120 min
+band). One substantive honest delta surfaced: keyword-path
+`entry_form` ships as `WatAST::Keyword`, not `WatAST::Symbol`,
+because eval resolves bare-Symbol via `env.lookup` (lexical only)
+while top-level defns require keyword resolution via `sym.get`.
+Spec intent ("name reference that evaluates to fn Value")
+preserved; surface adjusted for substrate-fit.
 
-Predicted: 60-120 min opus.
+### Slice 1c — typed-channel-over-EDN-pipes substrate + Process<I,O> reshape
 
-### Slice 2 — substrate consumer (uses slice 1b's reshaped foundation)
+Tier 2 substrate plumbing. Mints the EDN-encoded-pipe transport
+behind `Sender<T>` / `Receiver<T>` so the user-visible abstraction
+is uniform across tier 1 (crossbeam) and tier 2 (pipes). Reshapes
+`:wat::kernel::Process<I,O>` to expose typed-channel handles
+instead of byte-pipe handles, per the doctrine that strings stay
+at substrate-internal transport boundaries.
+
+- `Sender<T>` / `Receiver<T>` Value variants extended (or
+  multimethod-dispatched) to support pipe-fd transport with
+  EDN encoding/decoding at the boundary
+- `:wat::kernel::Process<I,O>` struct reshape:
+  `{ stdin :IOWriter, stdout :IOReader, stderr :IOReader, handle }`
+  → `{ tx :Sender<I>, rx :Receiver<O>, handle :ProgramHandle }`
+- All Process-callers in `src/fork.rs`, `src/spawn.rs`, etc.
+  updated for new field shape
+- Errors propagate via `Process/join-result` (existing arc 113
+  cascade pattern); stderr-as-separate-channel drops at the
+  user-visible level
+- Rust integration tests verifying typed-channel-over-pipes
+  round-trips end-to-end (parent sends typed Value; child
+  receives typed Value; bytes are EDN-encoded transport detail)
+
+Zero wat-level surface change in this slice — pure substrate
+plumbing. The wat-level verbs that USE this infrastructure
+(`spawn-process`, etc.) land in slice 2.
+
+Predicted: 90-180 min opus.
+
+### Slice 2 — substrate consumer (uses slices 1b + 1c)
 
 - `:wat::kernel::ExitCode` typealias
 - `:user::main` signature update + validator
