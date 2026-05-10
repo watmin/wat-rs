@@ -1,4 +1,4 @@
-//! Arc 170 slice 1 — Rust closure extraction substrate primitive.
+//! Arc 170 slice 1b — Rust closure extraction substrate primitive.
 //!
 //! These tests exercise `wat::closure_extract::extract_closure` on a
 //! variety of fn shapes (top-level defns, inline lambdas, factory
@@ -10,17 +10,30 @@
 //!    `apply_function` for factory-pattern shapes that build the fn
 //!    dynamically).
 //! 3. Calls `extract_closure` to produce a `ClosurePackage`.
-//! 4. Asserts the package shape (entry name; expected forms).
-//! 5. Re-freezes a fresh world from `package.forms`.
-//! 6. Invokes `package.entry` in the fresh world and compares against
-//!    invoking the original fn directly in the parent world.
+//! 4. Asserts the package shape: `prologue` (Vec<WatAST> — captured
+//!    environment) and `entry_form` (a WatAST that evaluates to a fn
+//!    Value).
+//! 5. Re-freezes a fresh world from `package.prologue`.
+//! 6. Evaluates `package.entry_form` in the fresh world to obtain a
+//!    fn Value, then applies it; compares against invoking the
+//!    original fn directly in the parent world.
+//!
+//! Slice 1b reshape (vs slice 1):
+//!   - `pkg.entry: String` retired → `pkg.entry_form: WatAST`
+//!   - `pkg.forms` renamed to `pkg.prologue`
+//!   - For inline-lambda input: `entry_form` is the reconstructed
+//!     fn-form AST `(:wat::core::fn [name <- :T ...] -> :Ret body)`;
+//!     prologue carries no entry-define
+//!   - For keyword-path input: `entry_form` is a Keyword AST naming
+//!     the entry; the entry's define lives in prologue alongside
+//!     other user deps
 
 use std::sync::Arc;
 use wat::ast::WatAST;
 use wat::closure_extract::{extract_closure, ClosurePackage, ExtractionError};
 use wat::freeze::{startup_from_forms, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::{apply_function, Value};
+use wat::runtime::{apply_function, eval, Environment, Value};
 use wat::span::Span;
 
 // ─── helpers ────────────────────────────────────────────────────────────
@@ -63,13 +76,22 @@ fn extract_err(
         .expect_err("extract_closure should fail")
 }
 
-fn invoke(world: &wat::freeze::FrozenWorld, path: &str, args: Vec<Value>) -> Value {
-    let func = world
-        .symbols()
-        .get(path)
-        .unwrap_or_else(|| panic!("entry {} not registered after re-freeze", path))
-        .clone();
-    apply_function(func, args, world.symbols(), Span::unknown())
+/// Slice 1b consumer pattern: re-freeze prologue, then `eval`
+/// entry_form in the frozen world to obtain the fn Value, then
+/// `apply_function` it to the args.
+fn invoke_via_entry_form(
+    fresh: &wat::freeze::FrozenWorld,
+    entry_form: &WatAST,
+    args: Vec<Value>,
+) -> Value {
+    let env = Environment::new();
+    let fn_value = eval(entry_form, &env, fresh.symbols())
+        .expect("entry_form eval should succeed");
+    let func = match fn_value {
+        Value::wat__core__fn(f) => f,
+        other => panic!("entry_form did not evaluate to a fn Value; got {:?}", other),
+    };
+    apply_function(func, args, fresh.symbols(), Span::unknown())
         .expect("apply_function should succeed")
 }
 
@@ -113,6 +135,117 @@ fn synth_lambda(world: &wat::freeze::FrozenWorld, factory_path: &str) -> Value {
         .expect("factory call ok")
 }
 
+// ─── entry_form-shape assertion helpers ────────────────────────────────
+
+/// Assert that `entry_form` is a Keyword AST whose name equals `expected`.
+fn assert_entry_form_keyword(entry_form: &WatAST, expected: &str) {
+    match entry_form {
+        WatAST::Keyword(k, _) => assert_eq!(
+            k, expected,
+            "expected entry_form Keyword({}); got Keyword({})",
+            expected, k
+        ),
+        other => panic!(
+            "expected entry_form to be Keyword({}); got {:?}",
+            expected, other
+        ),
+    }
+}
+
+/// Assert that `entry_form` is a fn-form AST
+/// `(:wat::core::fn [<param-triples>] -> :Ret <body>)`. Returns the
+/// inner Vec items (params-vector triples, ret-keyword) for callers
+/// that want to dig further.
+struct FnFormShape {
+    /// The flat-vector of triples `name <- :T name <- :T ...`.
+    params_vector: Vec<WatAST>,
+    /// The keyword text of the return type (e.g. `:wat::core::i64`).
+    ret_type_kw: String,
+    /// The (possibly do-wrapped) body AST after the signature.
+    /// Held for completeness / future shape assertions; current tests
+    /// don't introspect the body (behavior equivalence covers it).
+    #[allow(dead_code)]
+    body: WatAST,
+}
+
+fn assert_entry_form_fn_form(entry_form: &WatAST) -> FnFormShape {
+    let items = match entry_form {
+        WatAST::List(items, _) => items,
+        other => panic!("expected entry_form to be a List (fn-form); got {:?}", other),
+    };
+    assert!(
+        items.len() >= 5,
+        "fn-form must have >= 5 elements (head, args-vec, ->, :Ret, body); got {}",
+        items.len()
+    );
+    match &items[0] {
+        WatAST::Keyword(k, _) => assert_eq!(
+            k, ":wat::core::fn",
+            "fn-form head must be :wat::core::fn; got {}",
+            k
+        ),
+        other => panic!("fn-form head must be Keyword; got {:?}", other),
+    }
+    let params_vector = match &items[1] {
+        WatAST::Vector(v, _) => v.clone(),
+        other => panic!(
+            "fn-form args-position must be Vector [name <- :T ...]; got {:?}",
+            other
+        ),
+    };
+    match &items[2] {
+        WatAST::Symbol(s, _) => assert_eq!(
+            s.as_str(),
+            "->",
+            "fn-form must have `->` between args-vector and ret type"
+        ),
+        other => panic!("fn-form expected `->` Symbol; got {:?}", other),
+    }
+    let ret_type_kw = match &items[3] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => panic!("fn-form ret-type must be Keyword; got {:?}", other),
+    };
+    // Body is items[4]; if there were multiple body forms, the
+    // closure-extract path passes a single (already-do-collapsed)
+    // node — the rewriter doesn't re-wrap. Either way, items[4] is
+    // the body node we hand to the consumer.
+    let body = items[4].clone();
+    FnFormShape {
+        params_vector,
+        ret_type_kw,
+        body,
+    }
+}
+
+/// Walk the params-vector in chunks of 3 (name <- :T) and return
+/// (param-name, param-type-kw) pairs.
+fn fn_form_param_pairs(shape: &FnFormShape) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i + 2 < shape.params_vector.len() {
+        let name = match &shape.params_vector[i] {
+            WatAST::Symbol(s, _) => s.name.clone(),
+            other => panic!("fn-form param[{}] name must be Symbol; got {:?}", i / 3, other),
+        };
+        match &shape.params_vector[i + 1] {
+            WatAST::Symbol(s, _) => assert_eq!(
+                s.as_str(),
+                "<-",
+                "fn-form param[{}] must have `<-` arrow",
+                i / 3
+            ),
+            other => panic!("fn-form param[{}] arrow slot must be Symbol; got {:?}", i / 3, other),
+        }
+        let ty = match &shape.params_vector[i + 2] {
+            WatAST::Keyword(k, _) => k.clone(),
+            other => panic!("fn-form param[{}] type slot must be Keyword; got {:?}", i / 3, other),
+        };
+        out.push((name, ty));
+        i += 3;
+    }
+    out
+}
+
 // ─── T1. top-level defn, no deps, no captures ───────────────────────────
 
 #[test]
@@ -126,12 +259,20 @@ fn t1_toplevel_defn_no_deps_no_captures() {
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::add-one");
     let package = extract(&parent, &fn_value, Some(":my::add-one"));
-    assert_eq!(package.entry, ":my::add-one");
-    // No user types; no deps; no captures. Forms should contain only
-    // the entry fn's define form.
-    assert_eq!(package.forms.len(), 1, "{:#?}", package.forms);
-    let fresh = re_freeze(package.forms);
-    let result = invoke(&fresh, ":my::add-one", vec![Value::i64(41)]);
+    // Keyword-path entry: entry_form is the Keyword reference.
+    assert_entry_form_keyword(&package.entry_form, ":my::add-one");
+    // No user types, no extra deps, no captures: prologue contains
+    // exactly the entry's define (it ships in prologue as a regular
+    // dep so the entry_form's Keyword AST resolves at eval-time).
+    let names: Vec<String> = package.prologue.iter().filter_map(extract_define_name).collect();
+    assert_eq!(
+        names,
+        vec![":my::add-one".to_string()],
+        "expected prologue to contain only :my::add-one's define"
+    );
+    let fresh = re_freeze(package.prologue);
+    let result =
+        invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(41)]);
     assert_i64(&result, 42);
 }
 
@@ -150,21 +291,23 @@ fn t2_toplevel_defn_calls_other_defns() {
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::times-four");
     let package = extract(&parent, &fn_value, Some(":my::times-four"));
-    assert_eq!(package.entry, ":my::times-four");
-    // Should contain :my::times-two AND :my::times-four in topological
-    // order (times-two before times-four).
+    assert_entry_form_keyword(&package.entry_form, ":my::times-four");
+    // Should contain :my::times-two then :my::times-four in
+    // topological order (times-two before times-four; entry's
+    // define lands last as a regular dep).
     let names: Vec<String> = package
-        .forms
+        .prologue
         .iter()
         .filter_map(extract_define_name)
         .collect();
     assert_eq!(
         names,
         vec![":my::times-two".to_string(), ":my::times-four".to_string()],
-        "expected topological order"
+        "expected topological order with entry last in prologue"
     );
-    let fresh = re_freeze(package.forms);
-    let result = invoke(&fresh, ":my::times-four", vec![Value::i64(3)]);
+    let fresh = re_freeze(package.prologue);
+    let result =
+        invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(3)]);
     assert_i64(&result, 12);
 }
 
@@ -189,16 +332,17 @@ fn t3_toplevel_defn_uses_user_types() {
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::compute");
     let package = extract(&parent, &fn_value, Some(":my::compute"));
+    assert_entry_form_keyword(&package.entry_form, ":my::compute");
     // The fn signature mentions `:my::Point`; expect that struct + the
-    // accessor fn to be in the package.
-    let type_decls = collect_type_decl_names(&package.forms);
+    // accessor fn to be in the prologue.
+    let type_decls = collect_type_decl_names(&package.prologue);
     assert!(type_decls.contains(&":my::Point".to_string()),
             "Point struct must be extracted; got {:?}", type_decls);
     // PriceUsd, Side, Coord are not referenced — should NOT be extracted.
     assert!(!type_decls.contains(&":my::PriceUsd".to_string()));
     assert!(!type_decls.contains(&":my::Side".to_string()));
     assert!(!type_decls.contains(&":my::Coord".to_string()));
-    let fresh = re_freeze(package.forms);
+    let fresh = re_freeze(package.prologue);
     // Build a Point in the fresh world directly via the constructor.
     let new_func = fresh.symbols().get(":my::Point/new").expect("Point/new").clone();
     let point = apply_function(
@@ -208,7 +352,7 @@ fn t3_toplevel_defn_uses_user_types() {
         Span::unknown(),
     )
     .expect("Point/new ok");
-    let result = invoke(&fresh, ":my::compute", vec![point]);
+    let result = invoke_via_entry_form(&fresh, &package.entry_form, vec![point]);
     assert_i64(&result, 7);
 }
 
@@ -227,15 +371,26 @@ fn t4_inline_lambda_no_captures() {
     let parent = freeze(src);
     let lambda = synth_lambda(&parent, ":my::factory");
     let package = extract(&parent, &lambda, None);
+    // Inline lambda: entry_form is the reconstructed fn-form AST.
+    let shape = assert_entry_form_fn_form(&package.entry_form);
+    let pairs = fn_form_param_pairs(&shape);
+    assert_eq!(
+        pairs,
+        vec![("n".to_string(), ":wat::core::i64".to_string())],
+        "fn-form param signature mismatch"
+    );
+    assert_eq!(shape.ret_type_kw, ":wat::core::i64");
+    // Prologue should be empty (no types, no captures, no deps).
     assert!(
-        package.entry.starts_with(":__closure::__pkg_"),
-        "expected synthetic name, got {}",
-        package.entry
+        package.prologue.is_empty(),
+        "expected empty prologue for no-capture lambda; got {:#?}",
+        package.prologue
     );
     // Behavior equivalence.
     let parent_result = invoke_in_parent(&parent, &lambda, vec![Value::i64(1)]);
-    let fresh = re_freeze(package.forms);
-    let fresh_result = invoke(&fresh, &package.entry, vec![Value::i64(1)]);
+    let fresh = re_freeze(package.prologue);
+    let fresh_result =
+        invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(1)]);
     assert_i64(&parent_result, 8);
     assert_i64(&fresh_result, 8);
 }
@@ -258,17 +413,25 @@ fn t5_inline_lambda_captures_let_scope_struct() {
     let parent = freeze(src);
     let lambda = synth_lambda(&parent, ":my::make-adder");
     let package = extract(&parent, &lambda, None);
-    // Expect: type def for :my::Config, capture binding for `cfg`, and
-    // the entry lambda fn.
-    let type_decls = collect_type_decl_names(&package.forms);
+    // Expect: type def for :my::Config, capture binding for `cfg` in
+    // prologue. entry_form is a fn-form AST.
+    let shape = assert_entry_form_fn_form(&package.entry_form);
+    let pairs = fn_form_param_pairs(&shape);
+    assert_eq!(
+        pairs,
+        vec![("n".to_string(), ":wat::core::i64".to_string())]
+    );
+    assert_eq!(shape.ret_type_kw, ":wat::core::i64");
+    let type_decls = collect_type_decl_names(&package.prologue);
     assert!(type_decls.contains(&":my::Config".to_string()));
-    let captures = collect_def_names(&package.forms);
+    let captures = collect_def_names(&package.prologue);
     assert!(captures.iter().any(|n| n.starts_with(":__captured_cfg")),
             "expected `cfg` capture; got {:?}", captures);
     // Behavior equivalence.
-    let fresh = re_freeze(package.forms);
+    let fresh = re_freeze(package.prologue);
     let parent_result = invoke_in_parent(&parent, &lambda, vec![Value::i64(5)]);
-    let fresh_result = invoke(&fresh, &package.entry, vec![Value::i64(5)]);
+    let fresh_result =
+        invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(5)]);
     assert_i64(&parent_result, 15);
     assert_i64(&fresh_result, 15);
 }
@@ -295,21 +458,21 @@ fn t6_lambda_captures_multiple_mixed_types() {
     let parent = freeze(src);
     let lambda = synth_lambda(&parent, ":my::make-multi");
     let package = extract(&parent, &lambda, None);
-    let captures = collect_def_names(&package.forms);
-    // We expect captures for n, cfg, and xs (cfg might not be referenced
-    // in the body so the rewriter leaves it as a binding regardless;
-    // the body-rewrite-only-on-references nature means the capture
-    // collection is driven by the closed_env). We capture every
-    // closed_env entry whose name appears as a free in the body. For
-    // this test, n and xs are referenced; cfg is encoded but not
-    // referenced (still captured). All three should land as captures.
+    // entry_form is fn-form AST; prologue holds types + captures.
+    let _shape = assert_entry_form_fn_form(&package.entry_form);
+    let captures = collect_def_names(&package.prologue);
+    // We expect captures for n and xs (cfg may also be captured even
+    // though the body doesn't reference it — capture collection is
+    // driven by closed_env). Verify n and xs are present; cfg is
+    // optional.
     assert!(captures.iter().any(|c| c.starts_with(":__captured_n")),
             "missing :__captured_n; got {:?}", captures);
     assert!(captures.iter().any(|c| c.starts_with(":__captured_xs")),
             "missing :__captured_xs; got {:?}", captures);
-    let fresh = re_freeze(package.forms);
+    let fresh = re_freeze(package.prologue);
     // n=7, length(xs)=3, m=10 => 10+7+3 = 20.
-    let result = invoke(&fresh, &package.entry, vec![Value::i64(10)]);
+    let result =
+        invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(10)]);
     assert_i64(&result, 20);
 }
 
@@ -332,11 +495,15 @@ fn t7_factory_pattern() {
     let parent = freeze(src);
     let lambda = synth_lambda(&parent, ":my::make");
     let package = extract(&parent, &lambda, None);
-    let captures = collect_def_names(&package.forms);
+    // entry_form is fn-form AST (factory result is a synthesized
+    // lambda; it has no canonical name).
+    let _shape = assert_entry_form_fn_form(&package.entry_form);
+    let captures = collect_def_names(&package.prologue);
     assert!(captures.iter().any(|c| c.starts_with(":__captured_config")),
             "expected `config` capture (the factory's arg); got {:?}", captures);
-    let fresh = re_freeze(package.forms);
-    let result = invoke(&fresh, &package.entry, vec![Value::i64(7)]);
+    let fresh = re_freeze(package.prologue);
+    let result =
+        invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(7)]);
     assert_i64(&result, 107);
 }
 
@@ -447,11 +614,13 @@ fn t10_captures_with_type_alias() {
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::compute");
     let package = extract(&parent, &fn_value, Some(":my::compute"));
-    let type_decls = collect_type_decl_names(&package.forms);
+    assert_entry_form_keyword(&package.entry_form, ":my::compute");
+    let type_decls = collect_type_decl_names(&package.prologue);
     assert!(type_decls.contains(&":my::Coord".to_string()),
             "expected :my::Coord to be extracted; got {:?}", type_decls);
-    let fresh = re_freeze(package.forms);
-    let result = invoke(&fresh, ":my::compute", vec![Value::i64(41)]);
+    let fresh = re_freeze(package.prologue);
+    let result =
+        invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(41)]);
     assert_i64(&result, 42);
 }
 
@@ -472,10 +641,11 @@ fn t11_captures_with_recursive_struct() {
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::root-value");
     let package = extract(&parent, &fn_value, Some(":my::root-value"));
-    let type_decls = collect_type_decl_names(&package.forms);
+    assert_entry_form_keyword(&package.entry_form, ":my::root-value");
+    let type_decls = collect_type_decl_names(&package.prologue);
     let count_tree = type_decls.iter().filter(|n| *n == ":my::Tree").count();
     assert_eq!(count_tree, 1, "Tree must appear exactly once; got {:?}", type_decls);
-    let fresh = re_freeze(package.forms);
+    let fresh = re_freeze(package.prologue);
     let new_func = fresh.symbols().get(":my::Tree/new").expect("Tree/new").clone();
     let empty_children = Value::Vec(Arc::new(Vec::new()));
     let tree = apply_function(
@@ -485,7 +655,7 @@ fn t11_captures_with_recursive_struct() {
         Span::unknown(),
     )
     .expect("Tree/new ok");
-    let result = invoke(&fresh, ":my::root-value", vec![tree]);
+    let result = invoke_via_entry_form(&fresh, &package.entry_form, vec![tree]);
     assert_i64(&result, 99);
 }
 
@@ -509,12 +679,13 @@ fn t12_body_uses_expanded_substrate_primitive_macro() {
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::classify");
     let package = extract(&parent, &fn_value, Some(":my::classify"));
-    let fresh = re_freeze(package.forms);
-    let r1 = invoke(&fresh, ":my::classify", vec![Value::i64(-5)]);
+    assert_entry_form_keyword(&package.entry_form, ":my::classify");
+    let fresh = re_freeze(package.prologue);
+    let r1 = invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(-5)]);
     assert_string(&r1, "negative");
-    let r2 = invoke(&fresh, ":my::classify", vec![Value::i64(0)]);
+    let r2 = invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(0)]);
     assert_string(&r2, "zero");
-    let r3 = invoke(&fresh, ":my::classify", vec![Value::i64(7)]);
+    let r3 = invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(7)]);
     assert_string(&r3, "positive");
 }
 
@@ -524,7 +695,7 @@ fn t12_body_uses_expanded_substrate_primitive_macro() {
 fn t13_body_uses_user_defined_macro_post_expansion() {
     // User defmacro expands to a substrate-primitive call. Post
     // expansion the body references only substrate; the user macro
-    // itself does NOT need to be in `package.forms` (no runtime
+    // itself does NOT need to be in `package.prologue` (no runtime
     // dependency).
     let src = r#"
         (:wat::core::defmacro (:my::triple (x))
@@ -538,9 +709,10 @@ fn t13_body_uses_user_defined_macro_post_expansion() {
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::compute");
     let package = extract(&parent, &fn_value, Some(":my::compute"));
+    assert_entry_form_keyword(&package.entry_form, ":my::compute");
     // The user macro `:my::triple` is post-expanded; the body has no
     // reference to it. The package should NOT include a defmacro form.
-    for form in &package.forms {
+    for form in &package.prologue {
         if let WatAST::List(items, _) = form {
             if let Some(WatAST::Keyword(k, _)) = items.first() {
                 assert_ne!(k, ":wat::core::defmacro",
@@ -548,8 +720,8 @@ fn t13_body_uses_user_defined_macro_post_expansion() {
             }
         }
     }
-    let fresh = re_freeze(package.forms);
-    let result = invoke(&fresh, ":my::compute", vec![Value::i64(4)]);
+    let fresh = re_freeze(package.prologue);
+    let result = invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(4)]);
     assert_i64(&result, 12);
 }
 
@@ -570,14 +742,17 @@ fn t14_transitive_three_level_dep_chain() {
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::c");
     let package = extract(&parent, &fn_value, Some(":my::c"));
-    let names: Vec<String> = package.forms.iter().filter_map(extract_define_name).collect();
-    // Topological order: a before b before c.
+    assert_entry_form_keyword(&package.entry_form, ":my::c");
+    let names: Vec<String> = package.prologue.iter().filter_map(extract_define_name).collect();
+    // Topological order: a before b before c. Entry's define lands
+    // last in prologue (it's a regular dep that the entry_form's
+    // Keyword AST resolves to).
     let pa = names.iter().position(|n| n == ":my::a").expect("a missing");
     let pb = names.iter().position(|n| n == ":my::b").expect("b missing");
     let pc = names.iter().position(|n| n == ":my::c").expect("c missing");
     assert!(pa < pb && pb < pc, "expected topological a<b<c; got {:?}", names);
-    let fresh = re_freeze(package.forms);
-    let result = invoke(&fresh, ":my::c", vec![Value::i64(0)]);
+    let fresh = re_freeze(package.prologue);
+    let result = invoke_via_entry_form(&fresh, &package.entry_form, vec![Value::i64(0)]);
     // c(0) = b(b(0)) = b(a(a(0))) = b(2) = a(a(2)) = 4 ; b(b(0)) = b(2) = 4
     // c(0) calls b twice: b(b(0)). b(0) = a(a(0)) = 2. b(2) = a(a(2)) = 4.
     assert_i64(&result, 4);
@@ -600,10 +775,11 @@ fn t15_behavior_equivalence_across_shapes() {
     let p1 = freeze(src1);
     let f1 = lookup_fn(&p1, ":my::add-one");
     let pkg1 = extract(&p1, &f1, Some(":my::add-one"));
-    let fr1 = re_freeze(pkg1.forms);
+    let fr1 = re_freeze(pkg1.prologue);
     for x in &[-5_i64, 0, 17, 99] {
         let parent = invoke_in_parent(&p1, &f1, vec![Value::i64(*x)]);
-        let fresh = invoke(&fr1, ":my::add-one", vec![Value::i64(*x)]);
+        let fresh =
+            invoke_via_entry_form(&fr1, &pkg1.entry_form, vec![Value::i64(*x)]);
         match (parent, fresh) {
             (Value::i64(a), Value::i64(b)) => assert_eq!(a, b, "input {}", x),
             other => panic!("non-i64: {:?}", other),
@@ -622,10 +798,11 @@ fn t15_behavior_equivalence_across_shapes() {
     let p5 = freeze(src5);
     let lambda5 = synth_lambda(&p5, ":my::make-adder");
     let pkg5 = extract(&p5, &lambda5, None);
-    let fr5 = re_freeze(pkg5.forms);
+    let fr5 = re_freeze(pkg5.prologue);
     for x in &[-3_i64, 0, 100] {
         let parent = invoke_in_parent(&p5, &lambda5, vec![Value::i64(*x)]);
-        let fresh = invoke(&fr5, &pkg5.entry, vec![Value::i64(*x)]);
+        let fresh =
+            invoke_via_entry_form(&fr5, &pkg5.entry_form, vec![Value::i64(*x)]);
         match (parent, fresh) {
             (Value::i64(a), Value::i64(b)) => assert_eq!(a, b, "input {}", x),
             other => panic!("non-i64: {:?}", other),

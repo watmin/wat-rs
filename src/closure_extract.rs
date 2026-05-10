@@ -273,11 +273,23 @@ pub fn extract_closure(
         Some(path) => {
             // Keyword-path: the entry's own define belongs in
             // prologue (after every dep it transitively pulled in).
-            // The Symbol AST naming it is the entry_form.
+            // The Keyword AST naming it is the entry_form — when
+            // `eval`d in the frozen world, the Keyword arm
+            // (runtime.rs ≈ line 2846) does `sym.get(k)` and lifts
+            // the registered Function to a `Value::wat__core__fn`.
+            //
+            // (Slice 1b honest-delta note: CLOSURE-EXTRACTION.md v2
+            // describes this as "a Symbol AST naming the keyword";
+            // wat-rs's eval resolves bare-Symbol references via
+            // `env.lookup` — only lexical bindings — so naming a
+            // top-level defn requires a Keyword AST. The intent of
+            // the spec — "a name reference that evaluates to the fn
+            // Value" — is preserved; the surface is Keyword, not
+            // Symbol, for substrate-fit.)
             let entry_define =
                 function_to_define_form_with_body(&func, path, rewritten_body);
             prologue.push(entry_define);
-            WatAST::Symbol(Identifier::bare(path.clone()), Span::unknown())
+            WatAST::Keyword(path.clone(), Span::unknown())
         }
         None => {
             // Inline lambda: emit the fn-form AST. The fn-form
