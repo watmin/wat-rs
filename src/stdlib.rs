@@ -90,6 +90,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/services/stdin.wat",
         source: include_str!("../wat/kernel/services/stdin.wat"),
     },
+    // Arc 170 slice 1f-β-ii — `:wat::kernel::services::StdOutService::*`
+    // (wat-side StdOutService program; mirrors StdOutServiceEvent
+    // from src/thread_io.rs).
+    WatSource {
+        path: "wat/kernel/services/stdout.wat",
+        source: include_str!("../wat/kernel/services/stdout.wat"),
+    },
     // Arc 170 slice 1e — `:wat::kernel::ExitCode` retired (REALIZATIONS
     // pass 10 — `:wat::core::nil` IS the success exit code; `:user::main`
     // returns nil; substrate maps to libc::exit(0); panic-cascade maps
