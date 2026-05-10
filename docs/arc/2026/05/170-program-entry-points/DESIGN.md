@@ -44,24 +44,105 @@ EDN-over-pipes for tier 2; EDN-over-sockets for tier 3). WatAST
 serializes to EDN by nature; users never see strings flowing
 through these channels.
 
-**The OS-boundary exception — `:user::main`:** the wat-cli IS the
-OS-boundary, and the OS shell speaks bytes. `:user::main` keeps
-`IOReader`/`IOWriter` for stdin/stdout/stderr; argv stays
-`:Vector<String>`. This is the ONE place strings remain at the
-user-visible level — because it's where wat meets the OS, and the
-OS is bytes. Wat-internal spawning (tier 2 + tier 3) is wat-to-wat
-and works in forms.
+**The OS-boundary handling — `:user::main` + three substrate
+services (locked in 2026-05-10):**
 
-Every server fn returns `:nil` (Program contract per arc 114 —
-"values flow only through channels; return is a panic-free
-marker"). The IPC mechanism is implementation detail.
+The wat-cli IS the OS-boundary. The OS shell speaks bytes
+(stdin/stdout/stderr fds; argv array). But INSIDE wat-land,
+strings stay at substrate-internal transport boundaries (REALIZATIONS
+pass 5). The polished resolution: substrate-managed services own
+the OS-pipe resources; user code never touches fd 0/1/2 directly.
 
-The **CLI** (`wat my-file.wat ...`) is a fourth, special-case
-context. It's not a Program-server in the client/server sense —
-it's the OS-level boundary where a wat binary runs against the
-shell. The OS expects an exit code; the shell may pass `argv`.
-That's `:user::main`'s contract — distinct from the three Program
-contracts.
+**Three substrate services boot before any user code:**
+
+```
+:wat::kernel::StdInService   — owns fd 0; reads bytes; decodes EDN
+                                line-by-line; serves typed Values to
+                                consumers; returns :None on EOF
+:wat::kernel::StdOutService  — owns fd 1; receives typed Values from
+                                per-thread message-pipes; serializes
+                                EDN; writes to fd 1; single-writer guard
+:wat::kernel::StdErrService  — owns fd 2; first panic event drained
+                                wins; emits structured cascade EDN;
+                                calls libc::exit(N); process dies
+```
+
+Each service's loop selects over per-thread input pipes +
+control-pipe (self-pipe trick for thread-list updates).
+
+**`:user::main` simplifies to `[] -> :wat::kernel::ExitCode`.**
+
+The user's program runs against ambient resources:
+- `:wat::runtime::current-thread` — thread-local id
+- `:wat::runtime::argv` — process argv (set-once at start)
+- StdInService/StdOutService/StdErrService — for I/O
+
+The canonical wat server-program form (memory
+`project_arc_170_canonical_server_form.md`):
+
+```scheme
+(:wat::core::defn :user::main [] -> :wat::kernel::ExitCode
+  (:wat::core::let
+    [client (:wat::kernel::StdInService/connect)]
+    (:wat::kernel::server-loop client my-handler)))
+
+(:wat::core::defn :wat::kernel::server-loop<I,O>
+  [client    <- :wat::kernel::Client<I,O>
+   handler   <- :wat::core::fn(I)->O]
+  -> :wat::kernel::ExitCode
+  (:wat::core::match (:wat::kernel::Client/recv client)
+    -> :wat::kernel::ExitCode
+    ((:wat::core::Some req)
+      (:wat::core::let [resp (handler req)]
+        (:wat::kernel::StdOutService/send resp)
+        (:wat::kernel::server-loop client handler)))
+    (:wat::core::None
+      (:wat::kernel::ExitCode 0))))
+```
+
+**Doctrines:**
+
+- **Structured-stderr-only.** Inside wat-land, fd 2 ONLY ever
+  carries panic-cascade EDN. No "regular text" on stderr. wat-cli
+  has zero direct stderr writes (load failures, freeze errors all
+  route through StdErrService → cascade + exit). Pretty-printing
+  is downstream.
+- **Single-shot panic.** `(:wat::runtime::panic! ...)` blocks;
+  thread sends panic event; service drains; emits cascade; calls
+  `libc::exit(N)`. Concurrent panics never get processed (process
+  dies after first); other threads die with the process. No
+  multiplexing.
+- **Console retires.** Today's `:wat::console::Console`
+  (crossbeam-based; arc 109 slice K.console) was a wat-level
+  service for in-thread output mediation. Substrate now provides
+  this for free via StdOutService. Console-the-concept dies;
+  tests using it migrate to StdOutService.
+- **Server / Client unify across tiers.** `Server/run handler`
+  is the canonical service-loop pattern. `Client/spawn` returns
+  a Client handle with typed send/recv. Today's slice 1c PipeFd
+  Sender/Receiver substrate becomes the INTERNAL implementation
+  Server/Client uses for serialization across pipe boundaries.
+- **`:user::process` retires entirely.** There's only `:user::main`
+  for OS-boundary CLI entry; `Server/run handler` for service-loop
+  pattern. Spawn-process invokes a fn `[] -> :ExitCode`; the
+  spawned program's `:user::main` calls `Server/run` to enter
+  service mode (or does one-shot work and returns).
+
+**Variant table — wat-level user surface vs substrate transport:**
+
+The previous variant table showed `Sender<T>` / `Receiver<T>` as
+the user-visible IPC. Post-architecture-lock-in: the user-visible
+surface is `Server` / `Client` abstractions; Sender/Receiver
+become substrate-internal.
+
+| Tier | Variant | User-visible API | Substrate transport |
+|---|---|---|---|
+| **1** | Thread | `Server/run` (in-thread) + `Client` handle | crossbeam channels |
+| **2** | Process | `Server/run` (in fork) + `Client` handle | EDN-over-pipes via StdIn/Out services |
+| **3** | Remote *(future)* | `Server/run` (remote) + `Client` handle | EDN-over-sockets (Q-channel multiplex) |
+
+Same wat-level abstraction at every tier; substrate differs
+internally.
 
 ---
 
@@ -394,8 +475,20 @@ it Rust-internal; later arc may surface it.
 
 ## Slice plan
 
+> **Status (2026-05-10):** Major plan amendment after architecture
+> lock-in conversation (REALIZATIONS passes 7-9). Slices 1e/1f/1g/
+> 1h/1i NEW substrate slices. Slice 3 phase A + B + 1d work in
+> dirty tree on `arc-170-program-entry-points` mostly stays valid
+> (closure-extraction substrate is correct); some elements need
+> revision against new doctrine (`:user::main` 4-arg signature
+> drops to `[] -> :ExitCode`; Server/Client wraps slice 1c PipeFd
+> substrate; testing-lib reshapes around services).
+
 Mirrors the substrate-as-teacher pattern from arcs 167 / 168 /
-169. Seven slices (six original + slice 1b reshape).
+169. The arc has grown into a substantial substrate-foundation
+refactor — appropriate per arc 109's "make the foundation
+impeccable" doctrine + the canonical server form (REALIZATIONS
+pass 8).
 
 ### Slice 1 — closure extraction (Rust substrate; zero callers) — SHIPPED
 
@@ -469,22 +562,174 @@ plumbing. The wat-level verbs that USE this infrastructure
 
 Predicted: 90-180 min opus.
 
-### Slice 2 — substrate consumer (uses slices 1b + 1c)
+### Slice 2 — substrate consumer (uses slices 1b + 1c) — SHIPPED with caveats
 
-- `:wat::kernel::ExitCode` typealias
-- `:user::main` signature update + validator
-- `eval_kernel_spawn_process` minted; uses slice 1's closure
-  extraction; reaches today's fork-program-ast pathway internally
-- `eval_kernel_fork_program*` arms renamed → `eval_kernel_spawn_process*`
-- `eval_kernel_spawn_program*` deleted (Q1 settled)
-- wat-cli pass-through of `std::env::args()`
-- Substrate-as-teacher walkers fire on legacy main signature +
-  legacy fork-program/spawn-program verb usage
-- `tests/wat_arc170_program_contracts.rs` — integration tests
+- `:wat::kernel::ExitCode` typealias — SHIPPED
+- `:user::main` signature update + validator — SHIPPED at 4-arg
+  shape; **slice 1e revises to `[] -> :ExitCode` per architecture
+  lock-in (REALIZATIONS pass 7)**
+- `eval_kernel_spawn_process` minted — SHIPPED
+- `eval_kernel_fork_program*` / `eval_kernel_spawn_program*` arms
+  unchanged during sweep window — slice 4 retires
+- wat-cli `std::env::args()` passthrough — SHIPPED at 4-arg shape;
+  **slice 1e revises to ambient `:wat::runtime::argv`**
+- Three substrate-as-teacher walkers — SHIPPED
+- 11 integration tests in `tests/wat_arc170_program_contracts.rs`
+  — SHIPPED; slice 3 sweep migrates against new shape
 
-Predicted: 90-180 min opus.
+**Shipped:** commit `09d7b04` + SCORE `9879e3b` (19/19 rows pass,
+Mode A clean, ~180 min). Workspace ships RED at 1594/545 — exactly
+the substrate-as-teacher input slice 3 sweeps.
 
-### Slice 3 — consumer sweep + tooling rebuild
+### Slice 1d — closure-extraction walker substrate fixes — SHIPPED
+
+Walker scope-tracking extended to handle match-arm pattern
+bindings + wildcards. ~17 min Mode A clean. Workspace 2015/119
+post-1d.
+
+**Shipped:** commits in dirty tree (uncommitted; bundles into
+slice 3 atomic commit per recovery doc § 7).
+
+### Slice 1e — ambient runtime + drop stdio params (NEW; substrate)
+
+Implements REALIZATIONS pass 7 lock-in:
+- Mint `:wat::runtime::current-thread` (thread-local id) and
+  `:wat::runtime::argv` (set-once at process start) ambient values
+- Retire `:wat::runtime::stdin/stdout/stderr` ambient handles
+  (pass-7 midpoint; pass-9 supersedes — services own them)
+- Drop stdio params from `:user::main` signature: `[] -> :wat::kernel::ExitCode`
+- Drop stdio params from `:user::process` (which retires entirely
+  in favor of Server pattern per pass 8)
+- Update `expected_user_main_signature` / `validate_user_main_signature`
+- Extend substrate's typealias-as-constructor support so
+  `(:wat::kernel::ExitCode 0)` works as a constructor producing
+  a u8 value. Precedent: `:wat::core::nil` works at both type
+  and value positions (per WAT-CHEATSHEET line 61-74). Apply the
+  same pattern to typealiases over primitive types so user code
+  doesn't leak the underlying type when an alias exists.
+- Update wat-cli to use ambient access (no parameter passing for
+  stdin/stdout/stderr)
+- Update spawn-process child invocation
+- Walker `BareLegacyMainSignature` updates to fire on the OLD
+  4-arg shape (now legacy)
+
+Predicted: 60-120 min opus.
+
+### Slice 1f — three substrate services (NEW; substrate)
+
+Implements REALIZATIONS pass 9:
+- Mint `:wat::kernel::StdInService` Rust runtime component
+  (owns fd 0; select-loop; per-thread consumer pipes; control-pipe;
+  decodes EDN; serves typed Values; returns :None on EOF)
+- Mint `:wat::kernel::StdOutService` (owns fd 1; per-thread
+  message-pipes; serializes EDN; writes single-writer)
+- Mint `:wat::kernel::StdErrService` (owns fd 2; per-thread
+  panic-pipes; first panic wins; emits cascade; libc::exit)
+- Substrate runtime startup creates all three services BEFORE
+  `:user::main` invokes
+- Self-pipe trick / control-pipe for dynamic select-set updates
+- Rust integration tests verifying each service's contract
+
+Predicted: 180-300 min opus. This is substantial substrate work.
+
+### Slice 1g — spawn-thread register-with-services (NEW; substrate)
+
+Implements REALIZATIONS pass 9 thread-registration contract:
+- spawn-thread MUST: create per-thread pipes for In/Out/Err
+  services; send `:register thread-id reader-end` to each
+  service's control-pipe; wait for ack; store writers in
+  thread-locals; THEN return Thread<I,O> handle to caller
+- ack-before-return prevents races (new thread might panic
+  before services know about it)
+- `:wat::runtime::current-thread` reads from thread-local
+- Integration tests for register-then-spawn-then-panic flow
+
+Predicted: 90-180 min opus. Touches spawn-thread substrate +
+ProgramHandle plumbing.
+
+### Slice 1h — Server / Client wat-level abstractions + entry-point macros (NEW; wat-level)
+
+Implements REALIZATIONS pass 8 lock-in:
+- Mint `:wat::kernel::Server` and `:wat::kernel::Client`
+  abstractions
+- `(:wat::kernel::server-loop client handler)` — the canonical
+  service-loop fn body
+- `(:wat::kernel::Client/spawn fn)` — spawns; returns Client
+  handle; provides typed send/recv interface
+- Slice 1c PipeFd Sender/Receiver substrate becomes the
+  IMPLEMENTATION DETAIL Server/Client uses
+- The canonical server form (REALIZATIONS pass 8) lives + works
+- **Entry-point helper macros** (encourage the canonical pattern):
+  - `(:wat::kernel::main! handler-expr)` — macro that expands
+    to the canonical server-program shape. `handler-expr` can
+    be ANY expression that evaluates to `:wat::core::fn(I)->O`:
+    a keyword path (`:my::handler`), an inline fn-form,
+    a factory call `(make-handler config)`, etc. The macro
+    evaluates the expression at startup and binds the resulting
+    fn into the server-loop. Expansion:
+    ```scheme
+    (:wat::core::defn :user::main [] -> :wat::kernel::ExitCode
+      (:wat::core::let
+        [client  (:wat::kernel::StdInService/connect)
+         handler handler-expr]
+        (:wat::kernel::server-loop client handler)))
+    ```
+  - `(:wat::kernel::run! form1 form2 ...)` — variadic macro
+    that expands to a one-shot main wrapping the forms in an
+    implicit-do. The last form is the ExitCode value. For CLI
+    utility programs:
+    ```scheme
+    (:wat::core::defn :user::main [] -> :wat::kernel::ExitCode
+      (:wat::core::do form1 form2 ...))
+    ```
+  - Both live in substrate-auto-loaded stdlib (`wat/kernel/main.wat`
+    or similar). Users don't `load!` them explicitly.
+- Integration tests showing the 3-line user program works
+  end-to-end across the supported handler-expr shapes:
+  ```scheme
+  ;; Factory pattern
+  (:wat::core::load! "some-lib.wat")
+  (:wat::kernel::main! (make-handler))
+
+  ;; Keyword path
+  (:wat::core::load! "some-lib.wat")
+  (:wat::kernel::main! :my::handler)
+
+  ;; Inline lambda
+  (:wat::kernel::main!
+    (:wat::core::fn [req <- :MyReqType] -> :MyRespType
+      (... handle req ...)))
+
+  ;; CLI script
+  (:wat::kernel::run!
+    (:wat::kernel::StdOutService/send "hello world")
+    (:wat::kernel::ExitCode 0))
+  ```
+
+Predicted: 90-180 min mixed (opus design + sonnet wat helpers).
+
+### Slice 1i — wat-cli structured-stderr-only (NEW; substrate)
+
+Implements REALIZATIONS pass 9 doctrine:
+- wat-cli has zero direct stderr writes
+- All wat-cli "errors" (load failures, freeze errors, etc.) route
+  through StdErrService → structured cascade EDN → libc::exit
+- panic-cascade emit on fd 2 from Rust (replaces slice 2's flat
+  marker); uses arc 113 cascade pattern via StdErrService
+- Integration tests for shell-level UX (cargo test invokes wat
+  binary; verifies stderr is structured EDN)
+
+Predicted: 60-120 min opus.
+
+### Slice 3 — consumer sweep + tooling rebuild — REVISED post-architecture-lock-in
+
+> **Status (2026-05-10):** Phase A + B + 1d work in dirty tree
+> partially aligns; needs revision against locked-in
+> architecture (REALIZATIONS passes 7-9). After slices 1e through
+> 1i ship, slice 3 sweep finishes the migration: testing-lib
+> rebuilds around services + canonical server form (REALIZATIONS
+> pass 8); test fixtures use ambient runtime + Server/Client; all
+> stderr-text assertions migrate to structured cascade or stdout.
 
 Arc 170 changes the spawn surface (tier 1/2/3 framework; fn-input
 contract; closure-extraction tier-bridging at tier ≥ 2). Every
@@ -589,6 +834,17 @@ sweep window.** The arc cannot close with bandaids in place;
 INSCRIPTION reflects the final correct shape. Arc 170 INSCRIPTION
 must be free of any "future arc retires X" deferral language
 per FM 11.
+
+**Bandaid inventory (2026-05-10 lock-in):**
+- Process<I,O> legacy 3 byte-pipe fields (stdin/stdout/stderr) —
+  slice 1c additive shape
+- Empty stdout in run-hermetic's RunResult (slice 3 phase A)
+- deftest-hermetic alias-of-deftest (slice 3 phase A)
+- `sandbox_scope_leak_fires_with_diagnostic` `#[ignore]` (slice 3 phase A)
+- Slice 1c PipeFd Sender/Receiver substrate exposed at wat level
+  (becomes Server/Client internal-only in slice 1h)
+- Today's `:wat::console::Console` crossbeam service (replaced
+  by StdOutService in slice 1f; tests migrate in slice 3)
 
 Walker + dispatch-arm retirements:
 - `BareLegacyMainSignature` walker variant + Display + Diagnostic + body

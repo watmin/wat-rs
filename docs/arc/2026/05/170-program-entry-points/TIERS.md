@@ -42,22 +42,127 @@ shared); tier 2 encodes through EDN-over-pipes; tier 3 encodes
 through EDN-over-sockets. From the user's POV, all three look
 identical.
 
-### The OS-boundary exception — `:user::main`
+### The OS-boundary handling — three substrate services + ambient runtime (locked-in 2026-05-10)
 
-There's exactly one place where strings remain user-visible: the
-wat-cli IS the OS boundary, and the OS shell speaks bytes.
-`:user::main`'s contract:
+Per REALIZATIONS pass 9, the OS-pipe-resources (fd 0/1/2 + argv)
+are owned by substrate-managed services. User code never touches
+them directly:
 
-- `stdin :wat::io::IOReader`, `stdout :wat::io::IOWriter`, `stderr :wat::io::IOWriter`
-  — byte streams from/to the OS shell
-- `argv :wat::core::Vector<wat::core::String>` — what the OS
-  shell passed; strings by nature
+```
+:wat::kernel::StdInService   — owns fd 0; reads + decodes EDN; serves typed Values
+:wat::kernel::StdOutService  — owns fd 1; receives typed Values; serializes + writes
+:wat::kernel::StdErrService  — owns fd 2; first panic event drained wins; emits + exits
+:wat::runtime::current-thread — thread-local id (ambient value)
+:wat::runtime::argv           — set-once at process start (ambient value)
+```
 
-This is the ONE place strings remain at the user-visible level,
-because it's where wat meets the OS, and the OS is bytes. Wat-
-internal spawning (tier 2 + tier 3) is wat-to-wat and works in
-forms — the OS-shell-bytes shape stops at `:user::main`'s
-threshold.
+`:user::main` simplifies to `[] -> :wat::kernel::ExitCode`. No
+stdio params; no argv param. Programs reach for ambient runtime
++ services as needed.
+
+The previous "OS-boundary exception" framing (passing IOReader/
+IOWriter/Vector\<String\> as `:user::main` params) was the
+midpoint; the locked-in shape replaces it. Services own the
+boundaries; ambient runtime exposes thread-id + argv; user
+writes intent.
+
+**Doctrine: structured-stderr-only.** Inside wat-land, fd 2
+ONLY ever carries panic-cascade EDN. wat-cli has zero direct
+stderr writes. Pretty-printing is downstream (shell user pipes
+through formatter if they want).
+
+**Doctrine: single-shot panic.** `(:wat::runtime::panic! ...)`
+blocks; thread sends panic event to its registered StdErrService
+pipe; service drains; emits cascade; calls `libc::exit(N)`.
+Concurrent panickers in other threads queue at their pipes but
+are never drained — process dies after the first panic.
+
+### The canonical wat server form
+
+Captured as memory `project_arc_170_canonical_server_form.md`.
+This is what arc 170 delivers — the polished shape the user
+direction (2026-05-10) recognized as "incredible":
+
+```scheme
+(:wat::core::defn :user::main [] -> :wat::kernel::ExitCode
+  (:wat::core::let
+    [client (:wat::kernel::StdInService/connect)]
+    (:wat::kernel::server-loop client my-handler)))
+
+(:wat::core::defn :wat::kernel::server-loop<I,O>
+  [client    <- :wat::kernel::Client<I,O>
+   handler   <- :wat::core::fn(I)->O]
+  -> :wat::kernel::ExitCode
+  (:wat::core::match (:wat::kernel::Client/recv client)
+    -> :wat::kernel::ExitCode
+    ((:wat::core::Some req)
+      (:wat::core::let [resp (handler req)]
+        (:wat::kernel::StdOutService/send resp)
+        (:wat::kernel::server-loop client handler)))
+    (:wat::core::None
+      (:wat::kernel::ExitCode 0))))
+```
+
+The user's whole client/server program in 12 lines of wat. No
+fork ceremony, no pipe plumbing, no error-routing scaffolding.
+The substrate provides it all; user writes intent.
+
+### The canonical form is what users UNDERSTAND. The helper is what users WRITE.
+
+The full form above is visible — users see what's happening.
+But typical programs reach for the substrate-provided helper:
+
+```scheme
+;; my-server.wat — three lines is the typical program
+(:wat::core::load! "some-lib.wat")  ;; brings in :my::handler
+
+(:wat::kernel::main! :my::handler)
+```
+
+`(:wat::kernel::main! handler)` is a substrate-auto-loaded
+defmacro (lives in `wat/kernel/main.wat` or similar; no explicit
+`load!` needed; same pattern as `:wat::core::defn`). It expands
+to the canonical server-loop form above.
+
+**`main!` accepts any handler expression** — keyword path,
+inline fn-form, or factory call:
+
+```scheme
+;; Factory pattern (the polished idiom — config baked into closure)
+(:wat::core::load! "some-lib.wat")
+(:wat::kernel::main! (make-handler))
+
+;; Keyword path
+(:wat::core::load! "some-lib.wat")
+(:wat::kernel::main! :my::handler)
+
+;; Inline lambda
+(:wat::kernel::main!
+  (:wat::core::fn [req <- :MyReqType] -> :MyRespType
+    (... handle req ...)))
+```
+
+For CLI utility programs (one-shot; doesn't run a service loop):
+
+```scheme
+;; my-script.wat
+(:wat::kernel::run!
+  (:wat::kernel::StdOutService/send "hello world")
+  (:wat::kernel::ExitCode 0))
+```
+
+`(:wat::kernel::run! form1 form2 ...)` is variadic — wraps
+forms in an implicit-do; the last form is the ExitCode return.
+Expands to a one-shot `:user::main`.
+
+Per `project_wat_llm_first_design.md` ("one canonical path per
+task; reject synonym features"), the macros ARE the canonical
+path. The full form remains for transparency + custom
+deviation. Programs reach for `main!` / `script!` by default.
+
+Memory cross-reference: `project_arc_170_canonical_server_form.md`
+captures the form for compaction-survival per user direction
+2026-05-10.
 
 ### What disappears from the user's view
 

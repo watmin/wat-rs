@@ -241,7 +241,7 @@ spawn family.
 
 ### Discipline lesson — for orchestrator framing reflexes
 
-Five framing passes in one conversation thread:
+Nine framing passes across two days:
 
 1. Wrong-shape (entry-keyword ceremony at Rust API level)
 2. Wrong-shape (hermetic as primary subject)
@@ -251,6 +251,13 @@ Five framing passes in one conversation thread:
 5. Wrong-shape (substrate-level types — IOReader / IOWriter /
    Vec\<String\> stdin / scope — exposed in user-facing
    interfaces; user must work in forms not strings)
+6. Discipline (bandaid-bounded by arc close)
+7. Architecture (ambient runtime model; drop stdio from
+   :user::main; mint :wat::runtime::*)
+8. Architecture (Server/Client wat-level abstractions; canonical
+   server form)
+9. Architecture (three substrate services; single-shot panic;
+   structured-stderr-only doctrine)
 
 Each pass was an orchestrator reach for the wrong word. The user
 caught each one through the same probe: *"do you actually know
@@ -493,3 +500,345 @@ Connects to memory `project_pipe_protocol.md` ("line-delimited
 EDN + kernel pipes. One protocol; four transports.") — the
 protocol is EDN; the transports vary; the user-visible
 abstraction stays form-shaped.
+
+### Pass 7 — Ambient runtime (drop stdio params from `:user::main` and `:user::process`)
+
+User direction (2026-05-09 → 2026-05-10):
+
+> *"do we implement (:wat::kernel::panic! ...) in rust or wat...
+> if in wat... do we need to have [:wat::runtime::stdin,
+> :wat::runtime::stdout, :wat::runtime::stderr] if yes... it
+> means we can drop the values from being a required param for
+> :user::main and :user::process to accept... we provide them
+> via rust... good programs don't use them..."*
+
+The four-questions analysis (run on the ambient runtime model):
+
+- **Obvious?** YES — `:user::main [] -> :wat::kernel::ExitCode`
+  reads as "entry point that returns an exit code"; ambient
+  `:wat::runtime::*` reads as "the runtime's handles."
+- **Simple?** YES — atomic pieces: mint ambient values; drop
+  stdio params; update wat-cli/spawn-process; sweep callsites.
+- **Honest?** YES — fd 0/1/2 always exist for any POSIX process;
+  the param-as-pretend-handed-in shape was lipstick over
+  substrate-internal access. Acknowledging the kernel reality
+  is more honest than theatrical signature padding.
+- **Good UX?** YES — programs that don't use stdio carry no
+  ceremony; programs that do reach for ambient handles directly
+  from any depth; one canonical path.
+
+Comparing to KEEPING current 4-arg `:user::main`:
+
+| Question | Ambient | Keep |
+|---|---|---|
+| Obvious | YES | LESS |
+| Simple | YES | NO (3 unused params) |
+| Honest | YES | NO (lipstick) |
+| Good UX | YES | NO (signature pollution) |
+
+Locks in:
+- `:wat::runtime::current-thread` ambient — thread-local id
+- `:wat::runtime::argv` ambient — set-once at process start
+- `:user::main` `[] -> :wat::kernel::ExitCode` (drop stdio params + argv from signature)
+- `:user::process` retires; replaced by Server pattern (see Pass 8)
+
+Per `project_wat_llm_first_design.md` ("reject synonym
+features; force naming; one canonical path") — ambient with
+explicit `:wat::runtime::*` namespace IS the canonical path;
+the `:user::main` 4-arg shape was a synonym for ambient access.
+
+### Pass 8 — Server / Client wat-level abstractions; the canonical form
+
+User framing:
+
+> *"that child needs to make their console-ish service... we
+> need a name for this... the current console service doesn't
+> do stdin reading... or... it kinda does?... that is the
+> program pattern?... the current console uses crossbeam pipes...
+> the child program should build a service that uses the stdin
+> pipe instead of the crossbeam... that is how the parent (the
+> client) talks to the child (the server)... that server program
+> could make its own threaded workers who do stuff... that child
+> should operate like a good wat program and hide its pipes...
+> so we need a :wat::kernel::Server or something... the thing
+> who invokes that is considered to be a :wat::kernel::Client"*
+
+The pattern: Server runs in spawned context (thread/process/
+remote); processes typed requests; produces typed responses.
+Client is the handle the spawning context holds; provides typed
+send/recv interface. Transport-polymorphic across tier 1/2/3.
+
+The canonical wat server-program form (captured as memory
+`project_arc_170_canonical_server_form.md` per user direction
+2026-05-10 "we must not forget this"):
+
+```scheme
+(:wat::core::defn :user::main [] -> :wat::kernel::ExitCode
+  (:wat::core::let
+    [client (:wat::kernel::StdInService/connect)]
+    (:wat::kernel::server-loop client my-handler)))
+
+(:wat::core::defn :wat::kernel::server-loop<I,O>
+  [client    <- :wat::kernel::Client<I,O>
+   handler   <- :wat::core::fn(I)->O]
+  -> :wat::kernel::ExitCode
+  (:wat::core::match (:wat::kernel::Client/recv client)
+    -> :wat::kernel::ExitCode
+    ((:wat::core::Some req)
+      (:wat::core::let [resp (handler req)]
+        (:wat::kernel::StdOutService/send resp)
+        (:wat::kernel::server-loop client handler)))
+    (:wat::core::None
+      (:wat::kernel::ExitCode 0))))
+```
+
+Slice 1c's PipeFd Sender/Receiver substrate becomes the
+INTERNAL implementation of how Server/Client serialize across
+OS-pipe boundaries. wat-level user code never sees Sender /
+Receiver in fn signatures; they see Server / Client.
+
+`:user::process` contract retires entirely. There's only:
+- `:user::main` `[] -> :ExitCode` for OS-boundary CLI entry
+- `Server/run handler` for service-loop pattern (called inside
+  `:user::main` OR as the spawn-process child's body)
+
+Today's `:wat::console::Console` (crossbeam-based) becomes the
+**tier-1 instance** of the same pattern. Same abstraction;
+transport-polymorphic.
+
+User confirmation (2026-05-10):
+
+> *"that is an incredible wat expression - we must not forget
+> this... this form is incredible... this arc grows into
+> something remarkable now... this is the point of 109... we
+> are making the language outstanding..."*
+
+**The canonical form is what users UNDERSTAND. The helper is
+what users WRITE.**
+
+Per `project_wat_llm_first_design.md` ("one canonical path per
+task; reject synonym features"), the typical user program is
+3 lines:
+
+```scheme
+;; my-server.wat
+(:wat::core::load! "some-lib.wat")  ;; brings in :my::handler
+
+(:wat::kernel::main! :my::handler)  ;; expands to canonical pattern
+```
+
+`:wat::kernel::main!` is a substrate-auto-loaded defmacro that
+expands to the full canonical server-loop form above. The full
+form remains visible (users CAN write it explicitly when they
+need to deviate), but the macro is what programs reach for by
+default.
+
+User direction (2026-05-10):
+
+> *"should we provide a helper form... that main pattern.. we
+> should encourage it..."*
+
+A complementary `:wat::kernel::run!` macro handles the CLI
+utility (one-shot) case for programs that don't run a service
+loop. It's variadic — wraps the forms in an implicit-do; the
+last form is the ExitCode value. Both helpers live in substrate-
+auto-loaded stdlib (no explicit `load!` needed; same pattern as
+`:wat::core::defn`).
+
+`main!` accepts any expression evaluating to a handler fn —
+keyword path, inline fn-form, or factory call. User direction
+(2026-05-10):
+
+> *"(:wat::kernel::main! some-fn) ;; :wat::core::fn(I)->O — the
+> user my pass a fn here.. they can do so using a function call .."*
+
+> *"(load! 'some-lib.wat'); (:wat::kernel::main! (make-client))"*
+
+The factory pattern is the polished idiom. Library defines
+`make-handler` (returns a fn closure with config baked in); user
+program calls it once at startup; macro evaluates the call;
+server-loop drives the resulting fn. Three lines of user code,
+arbitrary handler complexity behind the factory.
+
+### Pass 9 — Three substrate services: structured-stderr-only + single-shot panic
+
+User direction (2026-05-10) — the architecture locks in:
+
+> *"we do the same thing for stdout... console is completely
+> reimagined now... it an always on service with the same
+> behavior as panic service... they get new names... the user's
+> program always boots up with 2 threads runnning... each
+> guarding stdout and stderr respectively... :wat::kernel::StdOutService
+> and :wat::kernel::StdErrService. this also means we need a
+> third thread... :wat::kernel::StdInService"*
+
+> *"we only write structured STDERR - never anything else... the
+> only non structured STDERR is going to be cargo doing tests..
+> anything in wat land is structured STDERR + exit code"*
+
+> *"when users call (:wat::runtime::panic! ...) it does the
+> blocking, it doesn't return until an ack is delivered which
+> means concurrent panics are resolved... the thread pool is
+> guarded by the server's io loop... they never get a chance to
+> be processed as we blow up after processing the first panic
+> completely"*
+
+Locks in:
+
+**Three substrate services boot before any user code:**
+- `:wat::kernel::StdInService` — owns fd 0; reads bytes;
+  decodes EDN line-by-line; serves typed Values to consumers;
+  returns `:None` when fd 0 closes.
+- `:wat::kernel::StdOutService` — owns fd 1; receives typed
+  Values from per-thread message-pipes; serializes EDN; writes
+  to fd 1; single-writer guard.
+- `:wat::kernel::StdErrService` — owns fd 2; first panic event
+  drained wins; serializes structured cascade EDN; writes to
+  fd 2; calls `libc::exit(N)`; process dies.
+
+Each service's loop selects over per-thread input pipes +
+control-pipe (self-pipe trick for thread-list updates).
+
+**Doctrines:**
+
+- **Structured-stderr-only.** Inside wat-land, fd 2 ONLY ever
+  carries structured panic-cascade EDN. No "regular text" on
+  stderr. wat-cli has zero direct stderr writes (load failures,
+  freeze errors, etc. all route through StdErrService → cascade
+  + exit). Pretty-printing is downstream (shell user pipes
+  through formatter if they want); substrate is honest.
+- **Single-shot panic.** `(:wat::runtime::panic! ...)` blocks;
+  thread sends panic event to its registered StdErrService pipe;
+  service drains; emits cascade; calls `libc::exit(N)`; process
+  dies. Concurrent panickers in other threads are queued at
+  their pipes but never drained — process dies after first
+  panic. Other threads die with the process. No multiplexing
+  multiple panics; no escape paths.
+- **Console retires.** Today's `:wat::console::Console`
+  (crossbeam-based; arc 109 slice K.console) was a wat-level
+  service for in-thread output mediation. The substrate now
+  provides this for free via StdOutService. Console-the-concept
+  dies; tests using it migrate to StdOutService.
+- **`:wat::runtime::stdin/stdout/stderr` ambient handles
+  RETIRE.** They were a midpoint in pass 7's design. Users
+  interact with the three services; the ambient runtime stays
+  as a CONCEPT (always-available) but the user-facing surface
+  IS the services. `:wat::runtime::current-thread` and
+  `:wat::runtime::argv` survive (they're values, not services).
+
+**spawn-thread register-with-services contract:**
+
+When the substrate spawns a thread (via spawn-thread or other
+mechanism), the thread MUST register with all three services
+BEFORE returning a handle to caller:
+
+1. Substrate creates per-thread pipes for StdIn (consumer-side),
+   StdOut (writer-side), StdErr (panic-emit-side)
+2. Substrate sends `:register thread-id reader-end` to each
+   service's control-pipe
+3. Each service ack's via the control-pipe's response channel
+4. Substrate stores per-thread pipe writers in thread-locals
+5. ONLY THEN return Thread<I,O> handle to caller
+
+Without ack-before-return, races possible — the new thread
+might panic before services know about it; panic dropped.
+
+**The architectural payoff:**
+
+Every wat process boots with 4 threads minimum: main + 3
+services. Every shared mutable resource (stdout, stderr, stdin,
++ future caches/databases/etc.) is guarded by a service per
+the program-with-mailbox tier of `feedback_zero_mutex.md`.
+
+The user writes intent (handler logic). Substrate provides
+everything else (services, registration, panic routing,
+exit-code propagation, structured emit). The canonical server
+form expresses this in 12 lines.
+
+This IS what arc 109 was building toward. Per the user:
+
+> *"this arc grows into something remarkable now... this is the
+> point of 109... we are making the language outstanding..."*
+
+### Implications for arc 170 slice plan
+
+The substrate refactor is substantial:
+
+```
+Already shipped/in-flight (mostly stays valid):
+  Slice 1   ✓ closure extraction primitive
+  Slice 1b  ✓ ClosurePackage reshape
+  Slice 1c  ✓ typed-channel substrate (becomes StdIn/Out service internals)
+  Slice 1d  ✓ closure-extraction walker fixes
+  Slice 2   ✓ initial wat-level surface (will be revised)
+  Slice 3   ⊘ phase A + B + 1d uncommitted; needs revision against new doctrine
+
+New work:
+  Slice 1e  Ambient `:wat::runtime::*` (current-thread + argv);
+            retire `:wat::runtime::stdin/stdout/stderr`;
+            drop stdio params from `:user::main` signature;
+            wat-cli no direct stderr writes
+  Slice 1f  StdInService / StdOutService / StdErrService substrate
+            (Rust runtime components; always-on; per-process;
+            select-loops; control-pipe; self-pipe trick)
+  Slice 1g  spawn-thread register-with-services contract
+            (ack-before-return; per-thread pipes; thread-locals)
+  Slice 1h  `:wat::kernel::Server` / `Client` wat-level
+            abstractions on top of services + slice 1c PipeFd
+  Slice 1i  panic-cascade emit via StdErrService (replace slice 2
+            "panic: spawn-process body panicked" marker; use full
+            arc 113 cascade structure)
+
+Foundation cleanup:
+  Slice 3 (revised)  Sweep all tests + retire Console + migrate
+                     to services + canonical server form
+  Slice 4   Bandaid retirement (Process<I,O> legacy fields,
+            walker bodies, legacy dispatch arms, slice 1c PipeFd
+            substrate retires if unused at wat level)
+  Slice 5   Closure paperwork → INSCRIPTION
+```
+
+Per the bandaid-bounded discipline (pass 6) — slice 4 retires
+EVERY bandaid carried during sweep windows. Arc 170 closes
+with no deferral language; the canonical server form is the
+inscribed truth.
+
+### Discipline lesson candidates
+
+**FM 22 (recovery doc § 6 future): When in design-mode, name
+the question; ask the user; don't pre-commit.**
+
+This conversation was 9 framing passes across two days. Many
+of them were the orchestrator's wrong-shape proposals
+corrected by user direction. The pattern: orchestrator drafts;
+user pushes back via the four questions or substrate-doctrine
+probe; orchestrator pivots.
+
+The user's tools (probes I should use on myself):
+- "What does this MASK?"
+- "Do I KNOW this or assume?"
+- "Why am I using THIS word?"
+- "Did we already have X (or part of X) somewhere?"
+- "Could this be a new KIND of thing rather than a feature
+  extension?"
+
+The four questions (Obvious, Simple, Honest, Good UX) are the
+explicit decision compass; the probes above are the
+investigation tools.
+
+When the user is sketching architecture (as in passes 7-9),
+the right orchestrator move is: confirm shape, surface
+implications, ASK direction, capture outcomes. Don't pre-decide
+slicing; don't pre-commit doc updates.
+
+This pass-9 lock-in IS that pattern executed: design surfaced;
+canonical form recognized; user said "this is incredible";
+memory + REALIZATIONS captured before compaction risk.
+
+**FM 23 candidate: When the user says "we must not forget
+this," save to memory IMMEDIATELY.**
+
+The auto-memory protocol's explicit-save trigger. User said
+"this form is incredible... we must not forget this" —
+canonical server form saved as `project_*` memory immediately.
+Then captured in REALIZATIONS as the pass-8 record.
