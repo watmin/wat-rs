@@ -1187,6 +1187,24 @@ pub enum RuntimeError {
         call_span: crate::span::Span,
         outer_define_span: crate::span::Span,
     },
+    /// Arc 170 slice 1f-α — a thread-aware stdio helper
+    /// (`:wat::kernel::println` / `eprintln` / `readln`) was
+    /// invoked on a thread whose [`crate::thread_io::ThreadIO`]
+    /// cell is empty. The runtime spawns the three substrate
+    /// stdio services at process start (slice 1f-δ) and the
+    /// orchestrator (slice 1f-γ) populates ThreadIO from
+    /// `:wat::kernel::spawn-thread`; reaching this variant means
+    /// either the helper was called pre-orchestrator-bootstrap
+    /// (a test harness that constructed a SymbolTable directly)
+    /// or the calling thread was started outside the
+    /// `:wat::kernel::spawn-thread` path (e.g., a hand-rolled
+    /// `std::thread::spawn`). Tests populate ThreadIO via
+    /// [`crate::thread_io::install_thread_io`] before invoking
+    /// the primitive.
+    ServiceNotRunning {
+        op: String,
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError,
@@ -1338,6 +1356,11 @@ impl fmt::Display for RuntimeError {
                     call_loc, offending_name, define_loc, offending_name
                 )
             }
+            RuntimeError::ServiceNotRunning { op, span } => write!(
+                f,
+                "{}{}: called before stdio services running. The runtime spawns these services at process start (arc 170 slice 1f-δ); when called from a hand-spawned context (e.g., a test), the test must populate the per-thread routing via `wat::thread_io::install_thread_io` before invoking. See arc 170 REALIZATIONS pass 15 + pass 16 for the substrate's thread-aware-helper architecture.",
+                span_prefix(span), op
+            ),
         }
     }
 }
@@ -3540,6 +3563,15 @@ fn dispatch_keyword_head(
 
         // Kernel primitives — channel IO + stop flag + user signals.
         ":wat::kernel::stopped?" => eval_kernel_stopped(args, list_span),
+        // Arc 170 slice 1f-α — thread-aware stdio helpers. Look up
+        // the calling thread's per-service channel handles from
+        // the `thread_io::THREAD_IO` cell and run the mini-TCP
+        // block-on-completion lockstep. Slices 1f-β / γ / δ ship
+        // the wat-side service implementations + orchestrator;
+        // these primitives are the substrate surface users call.
+        ":wat::kernel::println" => crate::thread_io::eval_kernel_println(args, env, sym),
+        ":wat::kernel::eprintln" => crate::thread_io::eval_kernel_eprintln(args, env, sym),
+        ":wat::kernel::readln" => crate::thread_io::eval_kernel_readln(args, env, sym),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym, list_span),
         ":wat::kernel::try-recv" => eval_kernel_try_recv(args, env, sym, list_span),

@@ -12800,6 +12800,42 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 170 slice 1f-α — thread-aware stdio helpers. Each
+    // looks up the calling thread's per-service channel handles
+    // from a thread-local cell and runs the mini-TCP block-on-
+    // completion lockstep against the substrate's three stdio
+    // services. Slice 1f's wat-side service implementations,
+    // orchestrator, and wat-cli boot integration ship in 1f-β/γ/δ.
+    //
+    // Type schemes:
+    //   :wat::kernel::println  : ∀T. T -> :wat::core::nil
+    //   :wat::kernel::eprintln : ∀T. T -> :wat::core::nil
+    //   :wat::kernel::readln   : ()  -> :wat::holon::HolonAST
+    //
+    // The `T -> nil` shape mirrors `:wat::edn::write` (any-T input)
+    // composed with the unit/nil return that the mini-TCP ack
+    // collapses to. `readln` takes no args; the substrate looks
+    // up routing from the thread-local.
+    for op in [":wat::kernel::println", ":wat::kernel::eprintln"] {
+        env.register(
+            op.into(),
+            TypeScheme {
+                type_params: vec!["T".into()],
+                params: vec![t_var()],
+                ret: unit_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+    env.register(
+        ":wat::kernel::readln".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: holon_ty(),
+            rest_param_type: None,
+        },
+    );
     // Arc 053: Vector-tier algebra primitives. Operate on raw
     // materialized Vectors without round-tripping through HolonAST.
     // Used by Phase 4 learning code that holds emergent vectors.
