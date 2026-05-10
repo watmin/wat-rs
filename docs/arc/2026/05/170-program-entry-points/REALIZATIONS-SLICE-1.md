@@ -1619,3 +1619,155 @@ becomes the lockstep + control-pipe pattern, by demonstration.
   deadlock and proceed" is exactly the FM-pivot-vs-defer trap.
   The deadlock SIGNAL says reframe-needed. Reframing is the
   forward move.
+
+### Pass 16 — Two-signal mini-TCP protocol refinement (post-pass-15 settlement)
+
+User direction (2026-05-10) walked through the protocol details
+that pass 15 left as WIP. Pass 15 captured the architectural
+pivot (services-as-wat-programs); pass 16 captures the protocol
+that runs on top.
+
+**The settlement, summarized:**
+
+1. **Two signals, not three.** Pass 15's draft had
+   `:register/:reap/:sighup`. Refined to `:add/:remove` deltas.
+   The `:sighup` variant rejected ("we have full flexibility
+   here"); shutdown is via scope-drop per SERVICE-PROGRAMS.md
+   doctrine, not a control-pipe message. The `replace`/`reload`
+   variant rejected — FIFO + lockstep + acked deltas can never
+   drift, so a snapshot operation was carrying baggage for a
+   problem the discipline already prevents.
+
+   > *"the entire process is...... when a thread is repeaped..
+   > the same is done... the handles are removed and the io
+   > select loop is signaled to restart - its all lock step"*
+
+   > *"add and remove paths are going to TCO with the updated
+   > refs.... so we just need two signal kinds... add and
+   > remove"*
+
+2. **Per-service Signal enums, not a shared `Roster`.** The
+   four-questions verdict failed shared-enum on all four. Three
+   services means three independent SDKs. The shape is uniform
+   across services; the payload types differ because each
+   service's role determines which crossbeam end it guards.
+
+   > *"the services are guarding their mutable reference... the
+   > thing being added is a crossbeam... the TCO service loop
+   > processes that"*
+
+3. **HashMap routing table, not Vec.** Dynamic-membership pattern
+   needs O(1) reap-by-id; Vec was static-membership thinking
+   carried over from Console + CacheService.
+
+   > *"i think its a hash map?.. we loop the values and reap by
+   > id?"*
+
+4. **Mini-TCP universal — no fire-and-forget anywhere.**
+   Including stdin. The substrate primitives all block:
+
+   ```
+   (:wat::kernel::println v)  -> :wat::core::nil    ; serialize → send → ack
+   (:wat::kernel::eprintln v) -> :wat::core::nil    ; same shape, stderr
+   (:wat::kernel::readln)     -> :wat::holon::HolonAST  ; req → reply
+   ```
+
+   > *"any comm between a service /must/ be 'mini-tcp' there is
+   > no fire and forget here.. its fire and wait for completion
+   > signal"*
+
+   > *"the readln, println eprintln all must handle the blocking
+   > for the user.. the user just uses those interfaces.. they
+   > block as long as they need to... the is the zero mutex
+   > pattern completely"*
+
+5. **Polymorphic println, no value→HolonAST lift required.** The
+   substrate already has `:wat::edn::write` (`src/edn_shim.rs:71`)
+   that takes any wat Value and produces a String via
+   `value_to_edn_with`. The println primitive uses this
+   internally — caller passes any value, substrate handles
+   serialization, sends String through Sender<String> (Console's
+   pattern, ported to dynamic membership).
+
+   > *"both of those will /just work/ right?... the entire
+   > point is to transmit data as edn and either side just works
+   > with data"*
+
+   The asymmetry between stdout/stderr (Sender<String>;
+   pre-serialized at call site) and stdin (Sender<HolonAST>;
+   parsed by service) is honest — the work lives where the work
+   IS: encoding at the producer thread, decoding at the place
+   that has bytes.
+
+6. **Console retires as slice 1f-ε.** The new shape supersedes
+   Console; existing consumer sweep happens after the new shape
+   is proven end-to-end (1f-α through 1f-δ). Console was a
+   stepping stone.
+
+   > *"at the end of this console service will be completely
+   > replaced by the stdin,out,err services -- we have engineered
+   > a better form"*
+
+**The locked Signal enum shapes:**
+
+```
+(:wat::core::enum :wat::kernel::services::StdInService::Signal
+  (add    (thread-id :wat::kernel::ThreadId)
+          (req-rx    :wat::kernel::Receiver<wat::core::nil>)
+          (reply-tx  :wat::kernel::Sender<wat::holon::HolonAST>))
+  (remove (thread-id :wat::kernel::ThreadId)))
+
+(:wat::core::enum :wat::kernel::services::StdOutService::Signal
+  (add    (thread-id :wat::kernel::ThreadId)
+          (req-rx    :wat::kernel::Receiver<wat::core::String>)
+          (ack-tx    :wat::kernel::Sender<wat::core::nil>))
+  (remove (thread-id :wat::kernel::ThreadId)))
+
+(:wat::core::enum :wat::kernel::services::StdErrService::Signal
+  (add    (thread-id :wat::kernel::ThreadId)
+          (req-rx    :wat::kernel::Receiver<wat::core::String>)
+          (ack-tx    :wat::kernel::Sender<wat::core::nil>))
+  (remove (thread-id :wat::kernel::ThreadId)))
+```
+
+Three independent enums; same shape; per-service payload types.
+Routing table per service is `HashMap<ThreadId, (req-rx, reply/ack-tx)>`.
+TCO loop builds select-set from values + control-pipe each
+iteration; on control fire, recurses with mutated map.
+
+**Slice 1f reshaped to α/β/γ/δ/ε** (was α/β/γ/δ in pass 15;
+add 1f-ε for Console retirement):
+
+| Stone | Scope |
+|---|---|
+| 1f-α | substrate primitives println / eprintln / readln |
+| 1f-β | wat-side service implementations (stdin.wat, stdout.wat, stderr.wat) |
+| 1f-γ | runtime orchestrator: spawn-thread emits Signal::add/remove + ledger |
+| 1f-δ | wat-cli boot integration: full lifecycle |
+| 1f-ε | Console retirement + consumer sweep (NEW; folds in via the better-form succession) |
+
+**The four questions, applied:**
+
+The pass-15-to-pass-16 progression followed the four questions
+verbatim at every decision point:
+
+- Shared-vs-per-service Signal enum → per-service wins on all four.
+- Three-vs-two signals → two wins on Simple + Honest (the snapshot
+  operation prevents nothing the lockstep doesn't already prevent).
+- Concrete-vs-generic channel payload → concrete wins on Simple
+  + Honest (the universal form type already covers everything).
+- Mini-TCP universal-vs-asymmetric → universal wins on Honest
+  (fire-and-forget would be a discipline gap).
+
+**Connects to memory:**
+
+- `feedback_four_questions.md` — the decision compass that drove
+  every protocol settlement in this pass
+- `feedback_never_deadlock.md` — universal mini-TCP is the
+  enforcement at the discipline level
+- `feedback_zero_mutex.md` — the architecture this slice IS
+- `feedback_pivot_not_defer.md` — pass 15's reframe was the pivot;
+  pass 16 is what survives the pivot
+- `project_signal_cascade.md` — the control-pipe is wat-substrate's
+  POSIX-signal analog (side-channel for service lifecycle distinct
+  from data flow)

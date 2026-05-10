@@ -211,30 +211,96 @@ treat commas as whitespace (per EDN spec), corrupting the
 keyword. Slice 1f-W locks the protocol BEFORE transmission
 slices send anything.
 
-### Slice 1f — Three substrate stdio services — REFRAMED PER PASS 15
+### Slice 1f — Three substrate stdio services — REFRAMED PER PASSES 15 + 16
 
-**Reframed 2026-05-10 per REALIZATIONS pass 15** after a
-workspace deadlock surfaced. The original Rust-thread singleton
-shape (slices 1f-i/1f-ii/1f-iii/1f-iv) violated ZERO-MUTEX.md
-tier-3 doctrine + SERVICE-PROGRAMS.md "the lockstep." Services
-in wat-rs are **wat programs**, not Rust threads with custom
-APIs. The runtime is the orchestrator; services are wat programs
-spawned via `:wat::kernel::spawn`; helpers are thread-aware
-contexts that "just work."
+**Reframed 2026-05-10 across REALIZATIONS passes 15 (architecture)
+and 16 (protocol)** after a workspace deadlock surfaced. The
+original Rust-thread singleton shape (slices 1f-i / 1f-ii)
+violated ZERO-MUTEX.md tier-3 doctrine + SERVICE-PROGRAMS.md
+"the lockstep." Services in wat-rs are **wat programs**, not
+Rust threads with custom APIs. The runtime is the orchestrator;
+services are wat programs spawned via `:wat::kernel::spawn`;
+helpers (`:wat::kernel::println` / `:wat::kernel::eprintln` /
+`:wat::kernel::readln`) are thread-aware ambient primitives that
+"just work."
 
 **The corrective:**
-- `git revert 630f621` — slice 1f-i Rust singleton wrong shape
-- Discard slice 1f-ii working tree (uncommitted)
-- Slice 1f rebuilds along α/β/γ/δ stones using the existing
-  tier-3 substrate primitives + a NEW control-pipe protocol
+- Archive slice 1f-i + 1f-ii code state to
+  `SLICE-1F-I-AND-II-SUPERSEDED.diff` + `.md` in this arc dir
+  (historical record of the wrong-shape attempt)
+- Delete `src/services/{stdin.rs,mod.rs,stdout.rs}` from live
+  tree
+- Delete `tests/services_stdout.rs`
+- Drop `pub mod services;` from `src/lib.rs`
+- Slice 1f rebuilds along α/β/γ/δ/ε stones using existing tier-3
+  substrate primitives + a NEW per-service control-pipe protocol
   for dynamic membership
 
 **The substrate's dual-canonical pattern library after slice 1f:**
 
 | Pattern | Worked example | Use case |
 |---|---|---|
-| Static-membership | `wat/console.wat`, `crates/wat-lru/.../CacheService.wat`, `crates/wat-telemetry/.../Service.wat` | Client set known at construction |
-| **Dynamic-membership** (NEW; minted in slice 1f) | `wat/kernel/services/stdin.wat`, `stdout.wat`, `stderr.wat` | Clients register/reap during program lifetime |
+| Static-membership | `crates/wat-lru/.../CacheService.wat`, `crates/wat-telemetry/.../Service.wat` | Client set known at construction |
+| **Dynamic-membership** (NEW; minted in slice 1f) | `wat/kernel/services/{stdin,stdout,stderr}.wat` | Clients register/reap during program lifetime |
+
+(Console — currently in this list as static-membership — retires
+as slice 1f-ε; the new shape supersedes it. Future user services
+copy whichever pattern fits.)
+
+**The protocol — per-service Signal enum + universal mini-TCP
+discipline (locked-in pass 16):**
+
+```
+(:wat::core::enum :wat::kernel::services::StdInService::Signal
+  (add    (thread-id :wat::kernel::ThreadId)
+          (req-rx    :wat::kernel::Receiver<wat::core::nil>)
+          (reply-tx  :wat::kernel::Sender<wat::holon::HolonAST>))
+  (remove (thread-id :wat::kernel::ThreadId)))
+
+(:wat::core::enum :wat::kernel::services::StdOutService::Signal
+  (add    (thread-id :wat::kernel::ThreadId)
+          (req-rx    :wat::kernel::Receiver<wat::core::String>)
+          (ack-tx    :wat::kernel::Sender<wat::core::nil>))
+  (remove (thread-id :wat::kernel::ThreadId)))
+
+(:wat::core::enum :wat::kernel::services::StdErrService::Signal
+  (add    (thread-id :wat::kernel::ThreadId)
+          (req-rx    :wat::kernel::Receiver<wat::core::String>)
+          (ack-tx    :wat::kernel::Sender<wat::core::nil>))
+  (remove (thread-id :wat::kernel::ThreadId)))
+```
+
+Two signals only — `:add` / `:remove`. Shutdown is via scope-drop
+per SERVICE-PROGRAMS.md "the lockstep" — not a control-pipe
+message. The runtime emits `Signal::add` when a thread spawns;
+`Signal::remove` when a thread reaps; awaits ack from each
+service before continuing.
+
+The service's routing table is
+`HashMap<ThreadId, (req-rx, reply/ack-tx)>`. Each TCO iteration
+builds the io::select set from
+`(values routing-table) + control-pipe`. On a routing-entry
+firing, the service does work + reply/ack via the matched
+second-end. On a control-pipe firing, the service matches the
+Signal, mutates the map, recurses.
+
+The substrate primitives are polymorphic + blocking:
+
+```
+(:wat::kernel::println v)  -> :wat::core::nil
+  ;; serialize v via :wat::edn::write → String → send
+  ;; → block recv ack → return
+
+(:wat::kernel::eprintln v) -> :wat::core::nil
+  ;; same shape, stderr pair
+
+(:wat::kernel::readln) -> :wat::holon::HolonAST
+  ;; send-req (unit) → block recv reply → return parsed form
+```
+
+User just calls these. Bounded(1) on both pipes IS the
+synchronization. The substrate handles value→EDN encoding;
+caller passes any wat value; the service handles wire bytes.
 
 **Atomic commit per stepping stone.** SCORE per stepping stone.
 
@@ -243,35 +309,34 @@ shipped (wire encoding for parametric type keywords). Slice 1g
 (spawn-thread register-with-services) FOLDS into slice 1f-γ —
 they were always the same concern.
 
-#### Slice 1f-α — `:wat::kernel::println` + `:wat::kernel::readln` substrate primitives
+#### Slice 1f-α — `:wat::kernel::println` + `:wat::kernel::eprintln` + `:wat::kernel::readln` substrate primitives
 
 **Substrate; opus.**
 
 **Scope:**
-- Mint `:wat::kernel::println` (eval arm in `src/runtime.rs`):
-  signature `:T -> :wat::core::nil`; looks up the calling
-  thread's stdout-sender from thread-local ambient; sends
-  `(value, ack-sender)`; blocks on ack-receiver; returns nil
-- Mint `:wat::kernel::readln`: signature
-  `() -> :Option<:wat::holon::Atom>`; looks up the calling
-  thread's stdin-receiver from thread-local; recv; returns
-- Type-check arm registrations
+- Mint three eval arms in `src/runtime.rs`:
+  - `:wat::kernel::println` : `:T -> :wat::core::nil` — serialize
+    via `value_to_edn_with`, send through thread's stdout
+    req-tx, block on stdout ack-rx, return nil
+  - `:wat::kernel::eprintln` : `:T -> :wat::core::nil` — same
+    shape on stderr pair
+  - `:wat::kernel::readln` : `() -> :wat::holon::HolonAST` —
+    send `()` through thread's stdin req-tx, block on reply-rx,
+    return parsed HolonAST
+- Type-check arm registrations in `src/check.rs`
 - New thread-local data structure (Rust): `ThreadIO` carrying
-  per-thread `(stdout-tx, stderr-tx, stdin-rx)` triple; the
-  runtime populates this at spawn-thread time (slice 1f-γ)
-- For slice 1f-α, the helpers can have a "no service running"
-  fallback that errors with a clear diagnostic (helper called
-  before runtime spawned services); the actual service spawn
-  lands in slice 1f-γ
+  per-thread channel handles populated by spawn-thread
+  (slice 1f-γ)
+- For slice 1f-α, helpers carry a "no service running"
+  diagnostic — clean error if called before runtime spawned
+  services; actual service spawn lands in slice 1f-γ
 
-**Dependencies:** slice 1e shipped + slice 1f-W shipped.
+**Dependencies:** slices 1c (typed-channel substrate), 1e
+(ambient runtime), 1f-W (wire encoding) all shipped.
 
 **Ship criteria:**
-- `(:wat::kernel::println v)` evaluates without panic when no
-  thread-local is populated (returns clean error or no-op
-  diagnostic — doesn't matter the exact behavior; integration
-  with services lands in 1f-γ)
-- `(:wat::kernel::readln)` evaluates similarly
+- All three primitives evaluate with clean diagnostic when
+  thread-local unpopulated (no panic; no UB)
 - Type-check arms register correctly
 - Test fixture in `tests/wat_arc170_slice_1f_alpha_helpers.rs`
 
@@ -282,44 +347,35 @@ they were always the same concern.
 **Substrate; opus + wat-author.**
 
 **Scope:**
-- New files: `wat/kernel/services/stdin.wat`,
-  `wat/kernel/services/stdout.wat`,
-  `wat/kernel/services/stderr.wat`
-- Each is a wat program in the canonical `service-template.wat`
-  shape PLUS the control-pipe register/reap/sighup handler
-- `stdin.wat`: driver loop reads bytes from stdin via
-  `:wat::io::IOReader/read-line`; parses with `wat-edn::parse_wire`;
-  routes to per-thread consumer based on routing table;
-  control-pipe ops update routing table
-- `stdout.wat`: driver loop selects across per-thread message
-  receivers + control-pipe; receives `(atom, ack-tx)`; serializes
-  with `wat-edn::write` (depth-aware swap); writes to stdout +
-  newline; signals ack-tx
-- `stderr.wat`: similar to stdout but first-panic-wins; emits
-  structured cascade EDN; calls `:wat::runtime::libc-exit` (or
-  equivalent) after emit
+- New files: `wat/kernel/services/{stdin,stdout,stderr}.wat`
+- Each is a wat program in canonical service-template shape
+  with HashMap routing + control-pipe `Signal::add` /
+  `Signal::remove` handler via TCO loop
+- `stdin.wat`: TCO loop selects across (req-rxs from
+  routing-map + control-pipe + fd 0 byte-readiness); on req-rx
+  fire, parses next line of fd 0 as HolonAST, sends via
+  reply-tx; on control fire, mutates routing
+- `stdout.wat`: TCO loop selects across (req-rxs from
+  routing-map + control-pipe); on req-rx fire, receives
+  serialized String, writes "${msg}\n" to fd 1, acks via
+  ack-tx; on control fire, mutates routing
+- `stderr.wat`: similar to stdout but on fd 2; first-panic-wins
+  for panic events; emits structured cascade EDN; calls
+  `:wat::runtime::libc-exit` after emit
 - Substrate-auto-loaded (like `wat/kernel/main.wat` per pass 8)
-- Tests in `wat-tests/kernel/services/` exercising the canonical
-  service-template patterns + control-pipe protocol
+- Tests in `wat-tests/kernel/services/` exercising the
+  canonical service-template patterns + Signal::add/remove
+  protocol
 
-**The control-pipe protocol (locked-in pass 15):**
-
-```
-control-pipe carries `:wat::kernel::services::Control`:
-  :register :tid (sender / receiver halves)
-  :reap     :tid
-  :sighup
-```
-
-**Dependencies:** slice 1e + slice 1f-W shipped. Slice 1f-α
-shipped (helpers exist to drive the test cases).
+**Dependencies:** slice 1f-α shipped (helpers exist to drive
+test cases).
 
 **Ship criteria:**
 - Three wat-side service files compile + load
-- service-template patterns hold (lockstep + mini-TCP ack)
-- Control-pipe protocol verifiable: register a fake thread-id;
-  send data; assert routed; reap; assert dropped; send sighup;
-  service drains and exits
+- Tier-3 + lockstep discipline holds (no Mutex; scope-drop
+  shutdown)
+- Signal protocol verifiable in test harness: register a fake
+  thread-id; send data; assert routed; remove; assert dropped
 - All three services pass standalone deftest exercises (no
   runtime orchestrator yet — that's slice 1f-γ)
 
@@ -330,93 +386,115 @@ shipped (helpers exist to drive the test cases).
 **Substrate; opus.**
 
 **Scope:**
-- Active-handle ledger as Rust state in `src/runtime.rs` or
-  wat-cli — tracks `(thread_id → (stdin-rx, stdout-tx, stderr-tx))`
-- `:wat::kernel::spawn-thread` substrate primitive emits
-  `:register thread-id pairs` to each service's control-pipe
-  BEFORE returning; awaits ack from each service; populates
-  the new thread's `ThreadIO` thread-local; THEN returns the
-  thread handle
-- Thread reap (on join or panic): runtime emits `:reap thread-id`
-  to each service's control-pipe; service drops routing entry
-- Per-thread `ThreadIO` cleanup on thread exit
+- Active-handle ledger in Rust (`src/runtime.rs` or wat-cli) —
+  tracks per-thread `ThreadIO` channels (req-tx for
+  stdout/stderr, ack-rx pair, req-tx + reply-rx for stdin)
+- `:wat::kernel::spawn-thread` substrate primitive:
+  - Creates per-thread channel pairs (one set per service)
+  - Emits `Signal::add` to each service's control-pipe; awaits
+    ack from each service before continuing
+  - Populates the new thread's `ThreadIO` thread-local
+  - Spawns the thread's wat fn
+- Thread reap (on join or panic):
+  - Runtime emits `Signal::remove` to each service's
+    control-pipe; awaits ack from each service
+  - Per-thread `ThreadIO` cleanup
 - Integration test: spawn N threads; each calls println; verify
-  output ordering per thread + cross-thread interleaving;
-  reap; verify control-pipe messages emitted
+  output ordering per thread + cross-thread interleaving; reap;
+  verify Signal::remove acked from each service
 
-**Subsumes original slice 1g** (spawn-thread register-with-services).
+**Subsumes original slice 1g** (spawn-thread
+register-with-services).
 
-**Dependencies:** slice 1f-α + 1f-β shipped.
+**Dependencies:** slices 1f-α + 1f-β shipped.
 
 **Ship criteria:**
-- spawn-thread emits register; awaits ack-from-each-service
+- spawn-thread emits Signal::add to each service; awaits ack
+  before continuing
 - spawn-thread populates ThreadIO thread-local correctly
-- Helpers `println`/`readln` find their thread-locals after spawn
-- Reap cycle removes routing entries cleanly
-- Active-handle ledger increments/decrements in lockstep
+- Helpers find their thread-locals after spawn
+- Reap cycle removes routing entries cleanly + acked
 
 **Predicted runtime:** 120-180 min opus.
 
-#### Slice 1f-δ — wat-cli boot integration + sighup-and-drain cascade
+#### Slice 1f-δ — wat-cli boot integration + scope-drop shutdown cascade
 
 **Substrate; opus.**
 
 **Scope:**
 - wat-cli's `run` function spawns the three services BEFORE
-  invoking `:user::main`; holds their ProgramHandles
-- main thread's spawn-thread cycle (registers main as thread-0)
-- Invoke `:user::main`; user code uses println/readln freely
-- After main returns: runtime reaps main thread (decrements
-  active-handle ledger); when ledger → 0 (no live user threads),
-  runtime sends `:sighup` to each service
-- Services drain pending; exit
+  invoking `:user::main`; holds their ProgramHandles in outer
+  scope; holds the control-pipe txs + per-thread channels in
+  inner scope
+- main thread's spawn-thread cycle (registers main as thread-0
+  via Signal::add to all three services)
+- Invoke `:user::main`; user code uses println/eprintln/readln
+  freely
+- After main returns: runtime reaps main thread (Signal::remove
+  to each service); when all spawn-thread'd descendants reaped
+  → all per-thread Senders drop → control-pipe Senders drop →
+  services see Disconnected → exit cleanly
 - wat-cli joins each service's ProgramHandle
 - Substrate's epilogue (slice 1i): emits `:wat::core::nil` to
   fd 1 + close + libc::exit(0)
 - Integration test: wat-cli runs a one-shot script
-  (`(println "hello")`); verifies hello on stdout, then `:nil`,
-  then exit 0
+  (`(println "hello")`); verifies hello on stdout, then exit 0
 
-**Dependencies:** slice 1f-α + 1f-β + 1f-γ shipped.
+**Dependencies:** slices 1f-α + 1f-β + 1f-γ shipped.
 
 **Ship criteria:**
 - wat-cli boots services successfully
 - User's main runs with helpers populated
-- Sighup-and-drain cascade fires correctly on graceful exit
-- Panic path bypasses sighup (libc::exit fires from
+- Scope-drop shutdown cascade fires correctly on graceful exit
+- Panic path bypasses the cascade (libc::exit fires from
   StdErrService directly per pass 9 doctrine)
 
 **Predicted runtime:** 60-90 min opus.
 
-#### Total slice 1f budget (REFRAMED)
+#### Slice 1f-ε — Console retirement + consumer sweep
 
-330-510 min opus across α/β/γ/δ. Larger than the original
-195-390 prediction because the new architecture is broader —
-it builds the dynamic-membership pattern as a NEW canonical
-template for the entire ecosystem. The substrate's services
-become worked examples for future user services (telemetry
-dynamic-membership migration etc.).
+**Substrate-wide; opus + sonnet sweep.**
 
-**Expected workspace impact:** parallel infrastructure
-through slice 1f-α + 1f-β. Slice 1f-γ and 1f-δ replace the
-existing wat-cli stdio path; tests using
-`spawn_stdin_proxy` / etc. may flip to passing OR may need
-slice 3 migration. Substrate-as-teacher continues.
+**Scope:**
+- `wat/console.wat` deleted
+- `wat-tests/console.wat` deleted
+- Every `Console/out` / `Console/err` / `Console/spawn` call
+  site migrated to `:wat::kernel::println` /
+  `:wat::kernel::eprintln`
+- Console::* type aliases retired
+- wat-cli's stdio path (which currently boots Console) replaced
+  by the StdIn/Out/Err service spawn cycle (already done in
+  1f-δ; this slice removes Console-related leftovers)
+- INVENTORY § K marks Console retired
+
+**Dependencies:** slices 1f-α through 1f-δ working end-to-end.
+
+**Ship criteria:**
+- Workspace cargo test green; zero `Console::*` references in
+  live tree (only in arc dir / INSCRIPTION docs)
+- Lab tests + wat-rs tests migrated
+- INVENTORY § K updated
+
+**Predicted runtime:** 90-180 min opus + sonnet sweep.
+
+#### Total slice 1f budget (REFRAMED, passes 15 + 16)
+
+420-690 min opus + wat-author + sonnet across α/β/γ/δ/ε.
+Larger than the original prediction because the new
+architecture is broader — it builds the dynamic-membership
+pattern as a NEW canonical template AND retires Console. The
+substrate's services become worked examples for future user
+services (telemetry dynamic-membership migration etc.).
+
+**Expected workspace impact:** parallel infrastructure through
+1f-α + 1f-β. 1f-γ + 1f-δ replace the existing wat-cli stdio
+path. 1f-ε retires Console — substantial consumer sweep across
+wat-rs + lab.
 
 **Original slice 1g RETIRED** — folded into slice 1f-γ. Both
 were always the same concern (spawn-thread cycle + service
 registration); the pass-15 reframe makes it natural to keep
 them together.
-
-**Dependencies:** slice 1f (services must exist to register
-with).
-
-**Ship criteria:**
-- spawn-thread returns only after all three services ack
-- Thread-locals populated in spawned threads
-- Panic from spawned thread routes through StdErrService
-
-**Predicted runtime:** 90-180 min opus.
 
 ### Slice 1h — Server / Client substrate + helpers + macros
 
