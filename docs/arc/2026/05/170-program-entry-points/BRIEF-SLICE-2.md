@@ -1,54 +1,57 @@
-# Arc 170 slice 2 — substrate consumer (uses slice 1 closure extraction)
+# Arc 170 slice 2 — substrate consumer (wat-level surface)
 
-> **Status (2026-05-09):** Slice 1b SHIPPED (commits a23acf3 + 365343f
-> + SCORE 84b6ca6). This BRIEF still references slice 1's old
-> `{ forms, entry }` shape AND spec'd byte-pipe Process<I,O>;
-> both reshape via slice 1c (typed-channel substrate +
-> Process<I,O> reshape). **Do NOT spawn this slice until
-> slice 1c ships.** Per recovery doc § FM 6, this BRIEF is
-> frozen at v1-shape until slice 1c's substrate ships;
-> orchestrator REDRAFTS this BRIEF after slice 1c's SCORE
-> commits. See [`BRIEF-SLICE-1C.md`](./BRIEF-SLICE-1C.md) +
-> [`REALIZATIONS-SLICE-1.md`](./REALIZATIONS-SLICE-1.md).
+> **Status (2026-05-09):** REDRAFTED post-slice-1c. Prior frozen
+> v1-shape content retired. This BRIEF reflects the full settled
+> foundation: slice 1b's `extract_closure` API + ClosurePackage
+> { prologue, entry_form }; slice 1c's typed-channel substrate
+> (PipeFd Sender/Receiver via Option B internal enum) + Process<I,O>
+> additive shape (legacy 4 fields retained as bandaid; slice 4
+> retires per bandaid-bounded-by-arc-close discipline).
 
 ## Goal
 
-Wire `:user::main`'s new contract (argv + ExitCode return) and
-mint `:wat::kernel::spawn-process` (taking a fn directly), reaching
-slice 1's `extract_closure` internally. Rename existing
-`fork-program*` substrate verbs into the `spawn-process*` family.
-Delete `spawn-program*` (in-thread fresh-world variant; Q1 settled
-"retire"). Pass `std::env::args()` through wat-cli to `:user::main`.
-Mint the substrate-as-teacher walkers that fire on legacy
-3-arg-main signature + legacy fork-program / spawn-program verb
-usage so slice 3 sweep can mechanically migrate consumers.
+Mint the wat-level surface that consumes the substrate foundation
+shipped in slices 1 → 1b → 1c. This is the slice that turns the
+substrate primitives into wat-callable verbs; the slice that
+makes `:user::main` argv-aware + ExitCode-returning; the slice
+that fires substrate-as-teacher walkers on legacy callers so
+slice 3 can mechanically sweep them.
 
-**This slice ships a RED workspace.** Per arc 168 precedent
-(`docs/arc/2026/05/168-let-flat-shape/BRIEF-SLICE-1.md` lines
-255-261), the substrate edits + walkers immediately break legacy
-user-source callsites; that broken-test stream is slice 3's input.
-The walker fires fatal at the `freeze.rs:599-607` user-source
-pre-pass (`validate_bare_legacy_primitives`); stdlib paths
-(`register_stdlib_*` — `wat/std/sandbox.wat`, `wat/std/hermetic.wat`)
-do NOT go through the user pre-pass, so they keep working through
-the existing legacy dispatch arms. Slice 4 retires walker bodies +
-legacy dispatch arms together.
+This slice ships RED workspace per arc 168 precedent — the
+walkers fire FATAL on user-source pre-pass; user-authored
+callsites of legacy verbs + 3-arg `:user::main` immediately fail
+to freeze. That broken-test stream is slice 3's input. Stdlib
+paths (`register_stdlib_*`) silently migrate per existing walker
+scoping.
 
-## Slice 1 context (just shipped)
+## Read first (in order)
 
-Slice 1 commit `787c977` minted `src/closure_extract.rs` +
-`tests/wat_arc170_closure_extraction.rs`. Public API:
+1. `docs/arc/2026/05/170-program-entry-points/DESIGN.md` —
+   full arc; tier framework; client/server framing; the bandaid-
+   bounded-by-arc-close discipline at slice 4
+2. `docs/arc/2026/05/170-program-entry-points/TIERS.md` — typed-
+   channel uniformity across tiers; OS-boundary exception
+   (`:user::main` keeps IOReader/IOWriter/argv :Vector\<String\>)
+3. `docs/arc/2026/05/170-program-entry-points/REALIZATIONS-SLICE-1.md`
+   — six framing passes; pass 6 (bandaid-bounded discipline);
+   FM 5/9/10/11 enforcement
+4. `docs/arc/2026/05/170-program-entry-points/SCORE-SLICE-1B.md` —
+   slice 1b's API + Symbol→Keyword precedent
+5. `docs/arc/2026/05/170-program-entry-points/SCORE-SLICE-1C.md` —
+   slice 1c's typed-channel substrate + Process additive shape
+6. `docs/arc/2026/05/170-program-entry-points/EXPECTATIONS-SLICE-2.md`
+   — your scorecard
+7. `docs/COMPACTION-AMNESIA-RECOVERY.md` § 6 (FM 5, FM 9, FM 11,
+   FM 12, FM 16) — discipline floor
+
+## Slice 1b + 1c context (foundation)
+
+**Slice 1b** (commits `a23acf3` + `365343f` + SCORE `84b6ca6`):
 
 ```rust
 pub struct ClosurePackage {
-    pub forms: Vec<WatAST>,
-    pub entry: String,  // synthetic name :__closure::__pkg_<n> for inline lambdas
-}
-
-pub enum ExtractionError {
-    NonPortableCapture { name, type_name, path },
-    UnresolvedSymbol { name, span },
-    Internal(String),  // gaps surfaced honestly
+    pub prologue: Vec<WatAST>,
+    pub entry_form: WatAST,  // Keyword AST for keyword-path; fn-form AST for inline lambda
 }
 
 pub fn extract_closure(
@@ -58,69 +61,64 @@ pub fn extract_closure(
 ) -> Result<ClosurePackage, ExtractionError>;
 ```
 
-Read `SCORE-SLICE-1.md` for the six honest deltas — most relevant
-for slice 2:
-- **Delta A**: `Value::wat__core__fn` arm in encoder returns
-  Internal error. If slice 2 surfaces a real consumer needing
-  captured-fn-value encoding, surface as honest delta — don't
-  bridge in slice 2; slice 1 follow-up implements it.
-- **Delta C**: Several Value kinds (HolonAST, WatAST, RustOpaque,
-  holon::Vector, Instant, Duration) return Internal error. Same
-  rule.
-- **Delta D**: NonPortableCapture diagnostic uses runtime-level
-  type names (e.g., `rust::crossbeam_channel::Sender`); the
-  wat-surface `:wat::kernel::Sender<i64>` form is an extension
-  point if slice 2 needs it.
+**Slice 1c** (commits `3c737ee` + `8eda4d3` + SCORE `5d9fc34`):
+
+```rust
+// Option B substrate (transport-polymorphic with internal enum)
+pub enum SenderInner {
+    Crossbeam(Arc<crossbeam_channel::Sender<Value>>),
+    PipeFd { writer: PipeWriter, encoder: EdnEncoder },
+}
+pub enum ReceiverInner {
+    Crossbeam(Arc<crossbeam_channel::Receiver<Value>>),
+    PipeFd { reader: PipeReader, decoder: EdnDecoder },
+}
+Value::wat__kernel__Sender(Arc<SenderInner>)
+Value::wat__kernel__Receiver(Arc<ReceiverInner>)
+
+// Process<I,O> ADDITIVE (bandaid; retires in slice 4)
+:wat::kernel::Process<I,O> = {
+  stdin :IOWriter,    // legacy bandaid; slice 4 retires
+  stdout :IOReader,   // legacy bandaid; slice 4 retires
+  stderr :IOReader,   // legacy bandaid; slice 4 retires
+  handle :ProgramHandle,
+  tx :Sender<I>,      // typed-channel transport (USE THIS in slice 2)
+  rx :Receiver<O>,    // typed-channel transport (USE THIS in slice 2)
+}
+```
+
+Slice 2 USES the typed-channel fields (`tx` + `rx`); leaves the
+legacy 3 fields populated with placeholder values (slice 1c's
+construction sites already do this; agent inspects + matches).
 
 ## Branch + commit policy
 
-- **Active branch**: `arc-170-program-entry-points` (already
-  carries slice 1 commit + SCORE)
-- Multiple WIP commits + pushes welcome on the branch
+- **Active branch**: `arc-170-program-entry-points`
+- Multiple commits + pushes welcome
 - DO NOT push to main; orchestrator merges atomic to main as one
   squash commit after slice 5 closure paperwork ships
-
-## Read first (in order)
-
-1. `docs/arc/2026/05/170-program-entry-points/DESIGN.md` — full
-   arc scope; client/server framing; settled decisions; "What
-   ships" table (substrate impact) is your shipping checklist
-2. `docs/arc/2026/05/170-program-entry-points/SCORE-SLICE-1.md`
-   — six honest deltas you might hit
-3. `docs/arc/2026/05/170-program-entry-points/EXPECTATIONS-SLICE-2.md`
-   — your scorecard
-4. `docs/COMPACTION-AMNESIA-RECOVERY.md` § 6 (FM 5, FM 9, FM 10,
-   FM 11, FM 16) — discipline floor
-5. Existing pieces this slice touches:
-   - `src/freeze.rs` (lines 700-789) — `invoke_user_main`,
-     `expected_user_main_signature`, `validate_user_main_signature`
-   - `src/fork.rs` (lines 425-878) — `eval_kernel_fork_program_ast`,
-     `eval_kernel_fork_program`, `fork_program_from_source`
-   - `src/spawn.rs` — `eval_kernel_spawn_program{,_ast}` (entire
-     file deletes; mini-TCP guidance in module docstring stays
-     elsewhere)
-   - `src/runtime.rs` lines 3530-3540 — dispatch arms for the four
-     legacy verbs
-   - `crates/wat-cli/src/lib.rs` — argv plumbing + exit code
-     handling
-   - `src/check.rs` — walker pattern (see arcs 167/168/169 for
-     `BareLegacy*` walker variants)
+- DO NOT edit SCORE-SLICE-1.md / SCORE-SLICE-1B.md / SCORE-SLICE-1C.md
+  (immutable per `feedback_inscription_immutable.md`)
 
 ## Substrate edits
 
-### 1. Mint `:wat::kernel::ExitCode` typealias
+### 1. `:wat::kernel::ExitCode` typealias
 
-`(:wat::core::typealias :wat::kernel::ExitCode :wat::core::u8)`
+```scheme
+(:wat::core::typealias :wat::kernel::ExitCode :wat::core::u8)
+```
 
-POSIX truth (0-255). Bodies write `(:wat::core::u8 0)` for
-success; non-zero values propagate to OS. Lives wherever existing
-kernel typealiases live (probably wat-side stdlib;
-`wat/holon/kernel/` or similar — discover by grep).
+POSIX truth (0-255). Place in a wat-side kernel file; `wat/kernel/`
+already has `channel.wat`. Either extend an existing kernel file
+or mint a new `wat/kernel/exit-code.wat`. Agent picks; surfaces
+the choice + reasoning.
 
-### 2. Update `:user::main` signature (4-arg + ExitCode return)
+### 2. `:user::main` 4-arg signature update + validator
+
+`src/freeze.rs`:
 
 ```rust
-// src/freeze.rs::expected_user_main_signature
+// expected_user_main_signature — UPDATE to:
 pub fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
     let params = vec![
         TypeExpr::Path(":wat::io::IOReader".into()),
@@ -134,21 +132,21 @@ pub fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
     let ret = TypeExpr::Path(":wat::kernel::ExitCode".into());
     (params, ret)
 }
+
+// validate_user_main_signature — UPDATE to:
+// - 4 params required (was 3)
+// - 4th param is :wat::core::Vector<wat::core::String> (argv)
+// - return type is :wat::kernel::ExitCode (was :wat::core::nil)
+// - parameter slot labels in error messages: stdin, stdout, stderr, argv
+// - Reject 3-arg main with diagnostic naming the new contract
 ```
 
-`validate_user_main_signature` updates parameter slot labels to
-add `argv` (4th slot) and updates return-type expectation. The
-wat-surface error message for a 3-arg main is the *substrate-as-
-teacher* surface — don't make this hostile; the walker fires the
-diagnostic with migration guidance.
+### 3. `eval_kernel_spawn_process(fn)` dispatch arm
 
-### 3. Mint `eval_kernel_spawn_process(fn)`
-
-Single primitive — fn input, ClosurePackage internally, reaches
-today's `fork_program_from_source` pathway. No `_ast` variant.
+New module `src/spawn_process.rs` (or extend `src/fork.rs` —
+agent picks the cleaner organization). The dispatch arm:
 
 ```rust
-// src/spawn_process.rs (new module) or extend src/fork.rs
 pub fn eval_kernel_spawn_process(
     args: &[WatAST],
     env: &Environment,
@@ -156,206 +154,225 @@ pub fn eval_kernel_spawn_process(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-process";
     // arity 1 (fn)
-    // eval the fn arg
-    // closure_extract::extract_closure(&fn_value, sym, &type_env)
-    //   -> ClosurePackage { forms, entry }
-    // forks OS process; child invokes the entry symbol post-freeze
-    //   (forms include the fn def as :user::process or whatever the
-    //    closure-extraction synthesized name is; entry is what we
-    //    apply_function on the child side)
-    // Returns :wat::kernel::Process struct (same as fork-program-ast)
+    // eval the fn arg → fn Value
+    // Use slice 1b's extract_closure(fn_value, sym, types)
+    //   → ClosurePackage { prologue, entry_form }
+    //
+    // Fork OS process:
+    // - Parent side: build PipeFd Sender + PipeFd Receiver pair
+    //   using slice 1c's substrate (typed_channel module)
+    // - Child side: freeze prologue → eval entry_form in fresh
+    //   world → fn Value; apply fn Value with child-side typed
+    //   channel handles
+    //
+    // Returns :wat::kernel::Process<I,O> Struct Value with the
+    // parent-side typed channel handles (tx + rx) populated; the
+    // legacy stdin/stdout/stderr fields populated with EITHER:
+    //   (a) raw byte-pipe handles (matches slice 1c's
+    //       fork-program-ast pathway construction)
+    //   (b) bridges to the typed channels (each typed Sender wraps
+    //       byte-pipe-fd; expose the underlying fd)
+    //
+    // Per slice 1c's additive shape: choice (a) is what slice 1c
+    // already does in fork-program-ast. spawn-process should
+    // mirror; slice 4 retires both at the legacy-field-removal
+    // pass.
 }
 ```
 
-The reach into `fork_program_from_source` (or
-`fork_program_from_forms` if that's the cleaner pathway) replaces
-the current "freeze from string" with "freeze from forms"; the
-child invokes `entry` not `:user::main` (the extracted fn satisfies
-`:user::process` contract — `(IOReader IOWriter IOWriter) -> :nil`).
-
-This invocation difference is where slice 2 diverges from arc 104:
-the kernel-spawned child no longer evaluates `:user::main`; it
-evaluates the closure-extracted entry directly. `invoke_user_main`
-stays for the CLI path; child-process invocation needs a sibling
-`invoke_program_entry(world, entry_name, args)` helper.
-
-### 4. Add `:wat::kernel::spawn-process` dispatch arm (legacy arms unchanged)
-
-Per arc 168 precedent: legacy dispatch arms stay AS-IS during the
-sweep window. The walker fires at user-source pre-pass; user code
-calling `(:wat::kernel::fork-program ...)` or `(:wat::kernel::spawn-program ...)`
-never reaches the dispatch arm because freeze fails first. Stdlib
-(`wat/std/sandbox.wat`, `wat/std/hermetic.wat`) continues to call
-the legacy verbs and the legacy arms continue to handle them.
-
-So slice 2's runtime work in `src/runtime.rs:3530-3540`:
-
-- ADD: `":wat::kernel::spawn-process" => crate::spawn_process::eval_kernel_spawn_process(...)`
-- KEEP UNCHANGED: existing arms for `fork-program`, `fork-program-ast`,
-  `spawn-program`, `spawn-program-ast`
-- Slice 4 deletes the four legacy arms together with the walker bodies.
-
-### 5. Walkers fire on legacy verbs (no dispatch-arm changes)
-
-`BareLegacyForkProgram` and `BareLegacySpawnProgram` walker variants
-fire on user-source callsites of `:wat::kernel::fork-program{,_ast}`
-and `:wat::kernel::spawn-program{,_ast}` respectively. Diagnostics
-name `:wat::kernel::spawn-process` as the replacement (for fork
-semantics) and surface `:wat::kernel::spawn-thread` (for parent's-
-world semantics) as the alternative idiom.
-
-`src/spawn.rs` stays during the sweep window. Slice 4 retires it.
-
-### 6. wat-cli argv passthrough
+Wire the dispatch arm in `src/runtime.rs:3535-3537`:
 
 ```rust
-// crates/wat-cli/src/lib.rs::run (or wherever invoke_user_main is called)
+":wat::kernel::spawn-process" => crate::spawn_process::eval_kernel_spawn_process(args, env, sym),
+```
+
+Legacy dispatch arms (`fork-program`, `fork-program-ast`,
+`spawn-program`, `spawn-program-ast`) STAY UNCHANGED during the
+sweep window — they keep working for stdlib callers; user-source
+callers fail at the walker pre-pass before reaching them.
+
+### 4. `invoke_program_entry` helper (or equivalent)
+
+Slice 1's `invoke_user_main` invokes the `:user::main` symbol
+specifically. Slice 2's spawn-process invokes the closure-extracted
+entry — a Keyword (for keyword-path input) or fn-form (for
+inline-lambda input) that evaluates to a fn Value.
+
+Add a sibling helper that:
+1. Evaluates `entry_form` in the frozen world → fn Value
+2. Calls `apply_function` on that fn Value with channel-handle args
+
+Or: the spawn-process implementation does this inline (probably
+cleaner).
+
+### 5. wat-cli argv passthrough + ExitCode handling
+
+`crates/wat-cli/src/lib.rs::run` (or wherever `invoke_user_main`
+is called):
+
+```rust
 let argv: Vec<String> = std::env::args().collect();
-// flag parsing already happens (--check, --check-output);
-// pass FULL argv unfiltered to :user::main (per scratch/2026/05/019:
-// "no silent argv reshaping; what the binary received is what the
-// program sees")
 let main_args: Vec<Value> = vec![
     Value::io__IOReader(stdin),
     Value::io__IOWriter(stdout),
     Value::io__IOWriter(stderr),
-    value_vector_of_strings(argv),
+    value_vector_of_strings(argv),  // NEW
 ];
 let exit_value = invoke_user_main(&world, main_args)?;
 let exit_code = match exit_value {
     Value::U8(n) => n as i32,
-    _ => 1,  // type-checker enforces ExitCode return; this arm defensive
+    other => {
+        // type-checker should prevent this; defensive arm
+        eprintln!("error: :user::main returned non-ExitCode value: {:?}", other);
+        1
+    }
 };
 std::process::exit(exit_code);
 ```
 
-The type-checker's contract enforcement guarantees `:user::main`
-returns u8; the runtime arm above is a defensive tail (if the
-contract somehow lies, exit 1 with a meaningful diagnostic). No
-panic path; no silent success.
+### 6. Substrate-as-teacher walker variants
 
-### 7. Substrate-as-teacher walkers
+Three new variants in `src/check.rs`:
 
-Three new walker variants in `src/check.rs` (mirror arcs
-167/168/169 patterns):
+- **`BareLegacyMainSignature { span: Span }`**:
+  - Fires when freezing `:user::main` with 3-arg signature
+  - Diagnostic explains the new 4-arg + ExitCode contract
+  - Migration template included
+  - Wired into `freeze.rs:599-607` user-source pre-pass
 
-- **`BareLegacyMainSignature`** — fires when freezing a `:user::main`
-  with the 3-arg signature. Diagnostic explains the new 4-arg +
-  ExitCode contract; cites scratch/2026/05/019; offers migration
-  template.
-- **`BareLegacyForkProgram`** — fires on `:wat::kernel::fork-program`
-  or `:wat::kernel::fork-program-ast` callsites. Diagnostic names
-  `:wat::kernel::spawn-process` as replacement; explains fn-input
-  reshape; cites DESIGN.
-- **`BareLegacySpawnProgram`** — fires on `:wat::kernel::spawn-program`
-  or `:wat::kernel::spawn-program-ast` callsites. Diagnostic
-  surfaces both options (spawn-process for fork semantics;
-  spawn-thread for parent's world); names DESIGN's two-mode
-  taxonomy.
+- **`BareLegacyForkProgram { span: Span }`**:
+  - Fires on `:wat::kernel::fork-program{,_ast}` callsites
+  - Diagnostic names `:wat::kernel::spawn-process` as replacement
+  - Explains fn-input reshape; cites DESIGN
 
-Each walker's body is the firing pattern + Display + Diagnostic.
-Tests verify walkers fire on legacy shapes and don't fire on
-already-migrated shapes.
+- **`BareLegacySpawnProgram { span: Span }`**:
+  - Fires on `:wat::kernel::spawn-program{,_ast}` callsites
+  - Diagnostic surfaces both options:
+    - `spawn-process(fn)` for fork semantics
+    - `spawn-thread(fn)` for parent's-world semantics
+  - Cites DESIGN's two-mode taxonomy
 
-### 8. New `tests/wat_arc170_program_contracts.rs`
+Each variant follows arc 167/168/169 walker pattern (Display +
+Diagnostic + walker body + tests).
 
-Integration tests covering the new contracts:
+### 7. New `tests/wat_arc170_program_contracts.rs`
 
-- T1: `:user::main` 4-arg signature freezes; 3-arg fires walker
-- T2: `:user::main` returns ExitCode (u8) — value 0 propagates;
+Integration tests for the new contracts:
+
+- **T1**: `:user::main` 4-arg signature freezes; 3-arg fires walker
+- **T2**: `:user::main` returns ExitCode (u8) — value 0 propagates;
   value 42 propagates
-- T3: argv pure passthrough — wat program reads argv[0..N] verifies
-  whatever wat-cli received
-- T4: `(:wat::kernel::spawn-process fn)` — fn matching
-  `:user::process` contract spawns an OS process; pipes work end-
-  to-end; child exits cleanly
-- T5: `(:wat::kernel::spawn-process inline-lambda)` — inline lambda
-  works (uses slice 1's synthetic-name path)
-- T6: `(:wat::kernel::spawn-process factory-fn)` — factory-pattern
-  capture works (single-level; per slice 1 honest delta this is
-  the well-tested case)
-- T7: `(:wat::kernel::spawn-process)` with a fn that captures a
-  Sender — fires NonPortableCapture diagnostic from slice 1
-- T8: `(:wat::kernel::fork-program ...)` callsite — walker fires
-- T9: `(:wat::kernel::spawn-program ...)` callsite — walker fires
-- T10: `(:wat::kernel::spawn-thread fn)` — UNCHANGED behavior;
-  contract conceptually `:user::thread` but no walker fires (this
-  is a positive control; verifies slice 2 doesn't break the
-  existing thread spawn)
+- **T3**: argv pure passthrough — wat program reads argv[0..N]
+  matching what wat-cli received
+- **T4**: `(:wat::kernel::spawn-process fn)` — fn matching
+  `:user::process` contract `[rx <- :Receiver<I> tx <- :Sender<O>] -> :wat::core::nil`
+  spawns OS process; typed-channel send/recv works end-to-end
+  through EDN-encoded pipes (slice 1c substrate); child exits cleanly
+- **T5**: `(:wat::kernel::spawn-process inline-lambda)` — inline
+  lambda works (uses slice 1b's fn-form entry_form path)
+- **T6**: `(:wat::kernel::spawn-process factory-fn)` — factory-pattern
+  capture works (single-level capture via slice 1b's prologue)
+- **T7**: `(:wat::kernel::spawn-process)` with a fn capturing a
+  `Sender<i64>` from let-scope — fires `NonPortableCapture`
+  diagnostic from slice 1
+- **T8**: `(:wat::kernel::fork-program ...)` callsite — walker fires
+- **T9**: `(:wat::kernel::spawn-program ...)` callsite — walker fires
+- **T10**: `(:wat::kernel::spawn-thread fn)` — UNCHANGED behavior;
+  positive control verifying no regression
+- **T11**: 3-arg `:user::main` — walker fires with the
+  BareLegacyMainSignature diagnostic
 
-Predicted: 10 integration tests + whatever in-module unit tests
-make sense for the new walker variants + signature validator.
+## Critical syntax shapes
 
-## Branch isolation
+Per arc 167 + arc 109 + arc 153 doctrines:
 
-- Slice 2 commit(s) on `arc-170-program-entry-points`
-- main untouched
-- Slice 3 (consumer sweep) consumes slice 2's substrate; both walkers
-  + new spawn-process work together
+- fn-form: `(:wat::core::fn [name <- :T ...] -> :Ret body)` —
+  flat-vector binders with `<-` arrows; FQDN keyword
+- defn: `(:wat::core::defn :name [params] -> :Ret body)`
+- Type names: `:wat::core::nil` (NOT bare `:nil`),
+  `:wat::kernel::Receiver<I>`, `:wat::kernel::Sender<O>`,
+  `:wat::kernel::ExitCode`
+- Wat type expressions: no inner colon before generic
+  (per `feedback_wat_colon_quote.md`); no whitespace inside `<>`,
+  `:(...)`, `:fn(...)`, `:[...]`
 
-## What slice 2 does NOT do
+## Honest delta categories (if surfaced, report; don't bridge)
 
-- **Slice 3 (sweep)**: User-code migrations across wat-rs +
-  wat-tests are SLICE 3's territory. Slice 2 ships the substrate
-  + walkers; slice 3 does the mechanical sonnet sweep.
-- **Slice 4 (retirement)**: Old `fork-program*` and
-  `spawn-program*` substrate code stays live during the sweep
-  window. Slice 4 retires them.
-- **Slice 5 (paperwork)**: SCOREs + INSCRIPTION + 058 row +
-  USER-GUIDE.
+- **`invoke_program_entry` vs inline approach** — agent picks.
+  If `apply_function` already handles invoking a non-`:user::main`
+  symbol given its name, no helper needed; surface as "didn't
+  need this" delta.
+- **ExitCode typealias placement** — agent picks file. Surface
+  if pattern not obvious.
+- **Slice 1b honest delta A reprise (Symbol→Keyword)** — already
+  baked into slice 1b's shipped behavior; spawn-process consumes
+  whatever entry_form shape extract_closure returned. No action
+  for slice 2 unless slice 1b's API changes.
+- **Slice 1c honest delta C reprise (select rejects PipeFd
+  Receivers)** — if integration tests need select-over-process-
+  pipes, surface; that's substrate work outside slice 2 scope.
+- **Slice 1c honest delta D reprise (try-recv on PipeFd returns
+  Disconnected)** — if integration tests need real non-blocking
+  recv on process pipes, surface; same scope rule.
+- **Slice 1c honest delta E reprise (EDN round-trip semantics)** —
+  Tuple→Vec, Some(x)→x. Tests should match the documented
+  semantics per slice 1c's tests; surface if tripped.
+- **fn Value → fn-form AST already in slice 1b** — slice 1b's
+  `function_to_fn_form` exists; spawn-process's child-side
+  invocation just evals entry_form (which IS the fn-form for
+  inline-lambda input).
+- **wat-side `:user::main` 4-arg consumers — slice 3 sweeps**.
+  Slice 2's walker fires; slice 3 mass-fixes the existing 3-arg
+  callsites.
+- **stdlib `wat/std/sandbox.wat` + `wat/std/hermetic.wat`** still
+  use legacy fork-program/spawn-program verbs internally (slice
+  1c kept Process additive so stdlib still works through legacy
+  dispatch arms). Slice 2 walkers do NOT fire on stdlib (per
+  freeze.rs:599-607 user-source-only scoping). Stdlib continues
+  working through legacy dispatch arms during sweep window;
+  slice 3 rebuilds sandbox.wat + hermetic.wat on the new
+  spawn-process; slice 4 destructively retires legacy verbs +
+  Process legacy fields.
+- **FM 5 trap** — TODOs verboten. STOP + surface.
 
 ## Predicted runtime
 
 90-180 minutes (opus). Time-box hard cap at 360 minutes.
-Comparable to slice 1 in scope (multiple substrate edits +
-walker minting + integration tests); leverages slice 1's already-
-shipped closure extraction so half the heavy lifting is done.
 
-## On hitting honest deltas
+Comparable to slice 1's prediction (90-180; actual ~150). Slice
+2 work:
+- ExitCode typealias (small)
+- :user::main signature update + validator (small)
+- spawn-process verb dispatch + child-invocation helper (medium)
+- wat-cli argv + ExitCode (small)
+- 3 walker variants + Display + Diagnostic + bodies (medium)
+- 11 integration tests (medium)
 
-Per FM 5: do NOT bridge with TODOs; STOP and surface.
-
-Slice 1's honest deltas are the most likely ones to hit:
-- If a real consumer needs `Value::wat__core__fn` encoded
-  (closure-of-closure), STOP and surface — slice 1 follow-up,
-  don't bridge in slice 2
-- If diagnostic UX surfaces the wat-surface-vs-runtime type-name
-  mismatch (slice 1 delta D), surface as honest delta; orchestrator
-  decides whether to thread type-context through or accept the
-  runtime-level name
-- If the spawn-process pathway needs anything closure_extract
-  doesn't currently provide, surface as honest delta; don't bridge
-  by writing a parallel extraction
+Smaller than slice 1's "from scratch" because the substrate
+foundation (slices 1, 1b, 1c) is settled; slice 2 wires existing
+substrate into wat-level surface.
 
 ## Branch state at slice 2 start
 
 ```
 $ git log --oneline -5
-bb155ed (HEAD -> arc-170-program-entry-points, origin/arc-170-program-entry-points)
-   arc 170 slice 1: SCORE — 14/14 rows pass, Mode A clean
-787c977  arc 170 slice 1: Rust closure extraction substrate primitive
-... (DESIGN + CLOSURE-EXTRACTION + BRIEFs)
-... (slice 0 — branch creation)
+26e8052 arc 170: bandaid-bounded-by-arc-close discipline
+5d9fc34 arc 170 slice 1c: SCORE — 18/18 rows pass, Mode A clean, ~90 min
+8eda4d3 arc 170 slice 1c: Process<I,O> additive reshape + integration tests
+3c737ee arc 170 slice 1c: typed-channel substrate (Option B; transport-polymorphic)
+4ea35bc arc 170 slice 1c: BRIEF + EXPECTATIONS authored
 ```
 
-`cargo test --workspace` baseline at slice 2 start: `passed: 2108
+`cargo test --workspace` baseline at slice 2 start: `passed: 2124
 failed: 0`.
 
-## Slice 2 commit policy
-
-- One commit per logical chunk OK (e.g., "ExitCode + signature
-  update", "spawn-process minted", "walkers minted", "wat-cli
-  argv passthrough", "tests"). Multiple commits help orchestrator
-  review the diff in pieces.
-- Final commit message: "arc 170 slice 2: substrate consumer +
-  walkers (uses slice 1 closure extraction)" (or similar)
-- Push to `arc-170-program-entry-points` after each commit so
-  orchestrator can monitor progress
+Post-slice-2 expected: workspace ships RED (walker fires fatal
+on legacy user-source callsites). Capture actual fail count;
+slice 3 sweeps to green.
 
 ## SCORE artifact
 
-After slice 2 ships green, orchestrator writes
-SCORE-SLICE-2.md with the scorecard from EXPECTATIONS-SLICE-2 +
-honest deltas + calibration row. You report to the chat; the
-orchestrator owns the SCORE artifact + commit (closure paperwork
-is orchestrator-side per memory `feedback_paperwork_orchestrator_side`).
+After slice 2 ships, orchestrator writes SCORE-SLICE-2.md
+(scorecard from EXPECTATIONS-SLICE-2 + honest deltas + calibration
+row). You report to chat; orchestrator owns the SCORE artifact +
+commit per `feedback_paperwork_orchestrator_side.md`.
