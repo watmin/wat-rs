@@ -211,18 +211,22 @@ treat commas as whitespace (per EDN spec), corrupting the
 keyword. Slice 1f-W locks the protocol BEFORE transmission
 slices send anything.
 
-### Slice 1f — Three substrate stdio services — REFRAMED PER PASSES 15 + 16
+### Slice 1f — Three substrate stdio services — REFRAMED PER PASSES 15 + 16 + 18
 
-**Reframed 2026-05-10 across REALIZATIONS passes 15 (architecture)
-and 16 (protocol)** after a workspace deadlock surfaced. The
-original Rust-thread singleton shape (slices 1f-i / 1f-ii)
-violated ZERO-MUTEX.md tier-3 doctrine + SERVICE-PROGRAMS.md
-"the lockstep." Services in wat-rs are **wat programs**, not
-Rust threads with custom APIs. The runtime is the orchestrator;
-services are wat programs spawned via `:wat::kernel::spawn`;
-helpers (`:wat::kernel::println` / `:wat::kernel::eprintln` /
-`:wat::kernel::readln`) are thread-aware ambient primitives that
-"just work."
+**Reframed 2026-05-10 across REALIZATIONS passes 15
+(architecture), 16 (protocol), 17 (wat-cli/VM division), and 18
+(unified Event collapses heterogeneous T's)** — the original
+Rust-thread singleton shape (slices 1f-i / 1f-ii) violated
+ZERO-MUTEX.md tier-3 + SERVICE-PROGRAMS.md lockstep doctrines.
+The corrective architecture: services are wat programs spawned
+via `:wat::kernel::spawn`; the runtime (not wat-cli) is the
+orchestrator; substrate primitives (`:wat::kernel::println` /
+`:wat::kernel::eprintln` / `:wat::kernel::readln`) are
+thread-aware ambient bridges to the per-thread channel halves.
+A unified `Event` enum per service collapses control-plane
+(Signal::add/remove) and data-plane (Read/Write) into one type
+so `:wat::kernel::select` is homogeneous by construction — no
+relay sub-thread, no separate wakeup channel.
 
 **The corrective:**
 - Archive slice 1f-i + 1f-ii code state to
@@ -247,42 +251,58 @@ helpers (`:wat::kernel::println` / `:wat::kernel::eprintln` /
 as slice 1f-ε; the new shape supersedes it. Future user services
 copy whichever pattern fits.)
 
-**The protocol — per-service Signal enum + universal mini-TCP
-discipline (locked-in pass 16):**
+**The protocol — per-service Event enum + universal mini-TCP
+discipline (locked-in pass 18; supersedes pass-16/17 Signal
+framing):**
 
 ```
-(:wat::core::enum :wat::kernel::services::StdInService::Signal
-  (add    (thread-id :wat::kernel::ThreadId)
-          (req-rx    :wat::kernel::Receiver<wat::core::nil>)
+(:wat::core::enum :wat::kernel::services::StdInService::Event
+  (Read)                                                     ; thread asks for next form
+  (Add    (thread-id :wat::kernel::ThreadId)
+          (data-rx   :wat::kernel::Receiver<wat::kernel::services::StdInService::Event>)
           (reply-tx  :wat::kernel::Sender<wat::holon::HolonAST>))
-  (remove (thread-id :wat::kernel::ThreadId)))
+  (Remove (thread-id :wat::kernel::ThreadId)))
 
-(:wat::core::enum :wat::kernel::services::StdOutService::Signal
-  (add    (thread-id :wat::kernel::ThreadId)
-          (req-rx    :wat::kernel::Receiver<wat::core::String>)
+(:wat::core::enum :wat::kernel::services::StdOutService::Event
+  (Write  (line :wat::core::String))                         ; thread sends serialized line
+  (Add    (thread-id :wat::kernel::ThreadId)
+          (data-rx   :wat::kernel::Receiver<wat::kernel::services::StdOutService::Event>)
           (ack-tx    :wat::kernel::Sender<wat::core::nil>))
-  (remove (thread-id :wat::kernel::ThreadId)))
+  (Remove (thread-id :wat::kernel::ThreadId)))
 
-(:wat::core::enum :wat::kernel::services::StdErrService::Signal
-  (add    (thread-id :wat::kernel::ThreadId)
-          (req-rx    :wat::kernel::Receiver<wat::core::String>)
+(:wat::core::enum :wat::kernel::services::StdErrService::Event
+  (Write  (line :wat::core::String))
+  (Add    (thread-id :wat::kernel::ThreadId)
+          (data-rx   :wat::kernel::Receiver<wat::kernel::services::StdErrService::Event>)
           (ack-tx    :wat::kernel::Sender<wat::core::nil>))
-  (remove (thread-id :wat::kernel::ThreadId)))
+  (Remove (thread-id :wat::kernel::ThreadId)))
 ```
 
-Two signals only — `:add` / `:remove`. Shutdown is via scope-drop
-per SERVICE-PROGRAMS.md "the lockstep" — not a control-pipe
-message. The runtime emits `Signal::add` when a thread spawns;
-`Signal::remove` when a thread reaps; awaits ack from each
-service before continuing.
+All channels carry the per-service `Event`. Two control
+variants (`Add` / `Remove`) + per-service data variant(s) live
+in one sum type. Shutdown via scope-drop per SERVICE-PROGRAMS.md
+— not a control-pipe message.
 
 The service's routing table is
-`HashMap<ThreadId, (req-rx, reply/ack-tx)>`. Each TCO iteration
-builds the io::select set from
-`(values routing-table) + control-pipe`. On a routing-entry
-firing, the service does work + reply/ack via the matched
-second-end. On a control-pipe firing, the service matches the
-Signal, mutates the map, recurses.
+`HashMap<ThreadId, (data-rx, reply/ack-tx)>`. Each TCO
+iteration builds the select-set from
+`(values routing-table) ++ [control-rx]` — all are
+`Receiver<Event>`, homogeneous by construction. On any fire,
+the service matches the Event variant:
+- `Read` / `Write` → do the work; reply/ack on the matched
+  second-end (looked up via select index → routing key)
+- `Add` → store `(data-rx, reply/ack-tx)` in routing table
+- `Remove` → drop the entry
+
+The runtime emits `Event::Add` when a thread spawns;
+`Event::Remove` when a thread reaps; awaits ack from each
+service before continuing (mini-TCP universal).
+
+**Why this collapses cleanly** (per pass 18): `:wat::kernel::select`
+takes `Vec<Receiver<T>>` where T can be ANY type — including a
+sum enum with variants for control AND data. Once T = Event,
+the heterogeneity dissolves into match arms inside the loop
+body rather than channel-end type juggling outside.
 
 The substrate primitives are polymorphic + blocking:
 
@@ -309,11 +329,16 @@ shipped (wire encoding for parametric type keywords). Slice 1g
 (spawn-thread register-with-services) FOLDS into slice 1f-γ —
 they were always the same concern.
 
-#### Slice 1f-α — `:wat::kernel::println` + `:wat::kernel::eprintln` + `:wat::kernel::readln` substrate primitives
+#### Slice 1f-α — `:wat::kernel::println` + `:wat::kernel::eprintln` + `:wat::kernel::readln` substrate primitives — SHIPPED at fcaf600; reshape pending in 1f-0b
+
+**Status:** Mode A shipped 2026-05-10 at commit `fcaf600`.
+Channel-payload types as shipped were `Sender<String>` (stdout/
+stderr) + `Sender<()>` (stdin); slice 1f-0b reshapes these to
+the per-service Event-enum payload per pass 18.
 
 **Substrate; opus.**
 
-**Scope:**
+**Scope (as shipped):**
 - Mint three eval arms in `src/runtime.rs`:
   - `:wat::kernel::println` : `:T -> :wat::core::nil` — serialize
     via `value_to_edn_with`, send through thread's stdout
@@ -334,52 +359,180 @@ they were always the same concern.
 **Dependencies:** slices 1c (typed-channel substrate), 1e
 (ambient runtime), 1f-W (wire encoding) all shipped.
 
+**Calibration row (from SCORE-SLICE-1F-A.md):**
+- Actual runtime: ~50 min (under 60-90 predicted band)
+- Workspace post-slice: 1327 passed / 855 failed
+- 21/21 scorecard rows passed
+
+**Pending reshape (slice 1f-0b):** ThreadIO's per-thread
+sender becomes `Sender<Event>` (per-service); the eval arms
+construct the appropriate Event variant before sending. Per
+pass 18: "we fix what we break once the idealized shape is
+realized."
+
+#### Slice 1f-0a — wat-side `:wat::test::deftest` macro migration (foundation crack from slice 1e leftover)
+
+**Substrate (wat-side macro); opus or sonnet.**
+
+**Diagnosed in slice 1f-β-i opus run (Mode B partial):** the
+wat-side `:wat::test::deftest` macro at `wat/test.wat:315`
+emits the retired four-arg `:user::main (stdin stdout stderr)
+-> ()` signature. Slice 1e retired that signature in the
+parser/check but did NOT sweep this consumer. Every deftest
+in the workspace fails with the retired-signature error; the
+855-failure baseline since slice 1e has been THIS rot.
+
+**Scope:**
+- Migrate the macro body at `wat/test.wat:315` to emit the new
+  `(:user::main () -> :wat::core::nil)` shape — same as slice
+  1e's lock-in for direct user programs
+- If the macro emits more than just the signature (e.g.,
+  builds the runtime ambient setup), align all of it
+- Re-run workspace cargo test; expect baseline fail count
+  to drop from 855 to near zero
+
+**Dependencies:** slice 1e shipped (the signature retirement
+that this slice's macro lagged behind). Slice 1f-α shipped
+(its 10 tests will start failing here instead of being noise
+in the baseline; they unblock when the macro lands AND when
+the Event reshape lands in 1f-0b).
+
 **Ship criteria:**
-- All three primitives evaluate with clean diagnostic when
-  thread-local unpopulated (no panic; no UB)
-- Type-check arms register correctly
-- Test fixture in `tests/wat_arc170_slice_1f_alpha_helpers.rs`
+- `cargo test --release --workspace --no-fail-fast` post-slice
+  shows fail count near zero (≤ 10; ideally 0 from
+  deftest-rot)
+- No new test failures introduced (just unblocking existing
+  ones)
+- `cargo check --release` green
+
+**Predicted runtime:** 30-60 min. Mechanical macro migration;
+the rot's diagnosis is the harder part (already done).
+
+#### Slice 1f-0b — `src/thread_io.rs` reshape to per-service Event enum
+
+**Substrate; opus.**
+
+**Per pass 18:** ThreadIO's per-thread channel halves change
+from `Sender<()>` / `Sender<String>` to `Sender<Event>` (one
+Event type per service). The eval arms construct the
+appropriate Event variant internally; users still call
+`(println v)` / `(eprintln v)` / `(readln)` — caller-facing
+surface unchanged.
+
+**Scope:**
+- Define three new Rust enums mirroring the wat-side Event
+  enums (or generate the Rust side from wat types if possible):
+  - `StdInServiceEvent { Read, Add { thread_id, data_rx, reply_tx }, Remove { thread_id } }`
+  - `StdOutServiceEvent { Write { line }, Add { ... }, Remove { thread_id } }`
+  - `StdErrServiceEvent { Write { line }, Add { ... }, Remove { thread_id } }`
+- Update `ThreadIO` struct in `src/thread_io.rs`:
+  - `stdout_tx: Sender<StdOutServiceEvent>` (was `Sender<String>`)
+  - `stderr_tx: Sender<StdErrServiceEvent>` (was `Sender<String>`)
+  - `stdin_tx:  Sender<StdInServiceEvent>` (was `Sender<()>`)
+  - Ack-rx / reply-rx unchanged
+- Update three eval arms:
+  - `eval_kernel_println` constructs `StdOutServiceEvent::Write { line }`
+  - `eval_kernel_eprintln` constructs `StdErrServiceEvent::Write { line }`
+  - `eval_kernel_readln` constructs `StdInServiceEvent::Read`
+- Update `tests/wat_arc170_slice_1f_alpha_helpers.rs` to match
+  new channel-payload types (tester-thread roles change to
+  `recv()` Event variants rather than bare String / unit)
+- Type-check arms unchanged at the user surface (still
+  `∀T. T -> nil` for println / eprintln; `() -> HolonAST`
+  for readln)
+
+**Dependencies:** slice 1f-α shipped (the eval arms + ThreadIO
+exist; this slice modifies them in place). Slice 1f-0a
+shipped (so the 10 existing test rows pass before AND after
+the reshape — otherwise the reshape's pass/fail signal is
+noisy in the deftest-rot baseline).
+
+**Ship criteria:**
+- All 10 test rows in
+  `tests/wat_arc170_slice_1f_alpha_helpers.rs` still pass
+  (the reshape is internal-only; user-facing semantics
+  unchanged)
+- `cargo check --release` green
+- Workspace within ±5 of post-1f-0a baseline (near zero
+  failures + 10 new from 1f-α tests still passing)
+- Zero new Mutex / RwLock / CondVar
+- Zero new dependencies
 
 **Predicted runtime:** 60-90 min opus.
 
-#### Slice 1f-β — Wat-side service implementations
+#### Slice 1f-β — Wat-side service implementations (split into β-i / β-ii / β-iii per stepping-stones; Event-shape per pass 18)
 
-**Substrate; opus + wat-author.**
+**Substrate; opus + wat-author for β-i (pattern-minting); sonnet
+for β-ii / β-iii (mechanical pattern application).**
 
-**Scope:**
-- New files: `wat/kernel/services/{stdin,stdout,stderr}.wat`
-- Each is a wat program in canonical service-template shape
-  with HashMap routing + control-pipe `Signal::add` /
-  `Signal::remove` handler via TCO loop
-- `stdin.wat`: TCO loop selects across (req-rxs from
-  routing-map + control-pipe + fd 0 byte-readiness); on req-rx
-  fire, parses next line of fd 0 as HolonAST, sends via
-  reply-tx; on control fire, mutates routing
-- `stdout.wat`: TCO loop selects across (req-rxs from
-  routing-map + control-pipe); on req-rx fire, receives
-  serialized String, writes "${msg}\n" to fd 1, acks via
-  ack-tx; on control fire, mutates routing
-- `stderr.wat`: similar to stdout but on fd 2; first-panic-wins
-  for panic events; emits structured cascade EDN; calls
-  `:wat::runtime::libc-exit` after emit
-- Substrate-auto-loaded (like `wat/kernel/main.wat` per pass 8)
-- Tests in `wat-tests/kernel/services/` exercising the
-  canonical service-template patterns + Signal::add/remove
-  protocol
+**Per pass 18:** all channels carry the per-service `Event`
+enum. The driver's `select` is uniformly `Vec<Receiver<Event>>`
+— homogeneous. No relay sub-thread. No separate wakeup
+channel. The original opus run (working tree only; never
+committed) implemented a relay-based workaround that the user
+caught + corrected mid-flight; the relay shape retires.
 
-**Dependencies:** slice 1f-α shipped (helpers exist to drive
-test cases).
+**Common scope across the three stones:**
+- New file: `wat/kernel/services/<service>.wat`
+- Define the per-service `Event` enum (Read | Add | Remove for
+  stdin; Write | Add | Remove for stdout/stderr)
+- Define typealiases (DataRx / DataTx / ControlTx / Routing /
+  Spawn) following the wat/console.wat / CacheService.wat
+  channel-naming convention
+- Define `<service>::spawn(...)` returning
+  `(Thread<nil,nil>, ControlTx)` per SERVICE-PROGRAMS.md lockstep
+- TCO driver loop with `HashMap<ThreadId, (data-rx, reply/ack-tx)>`
+  routing + Event-variant match arms
+- Tests in `wat-tests/kernel/services/<service>.wat` using
+  `:wat::test::deftest-hermetic`
+- `src/stdlib.rs` registration entries
 
-**Ship criteria:**
-- Three wat-side service files compile + load
-- Tier-3 + lockstep discipline holds (no Mutex; scope-drop
-  shutdown)
-- Signal protocol verifiable in test harness: register a fake
-  thread-id; send data; assert routed; remove; assert dropped
-- All three services pass standalone deftest exercises (no
-  runtime orchestrator yet — that's slice 1f-γ)
+**Per-service variation (the only differences across stones):**
 
-**Predicted runtime:** 90-150 min opus + wat-author.
+| Service | Event data variant | Routing pair second-end |
+|---|---|---|
+| StdInService | `Read` (no payload) | `Sender<HolonAST>` (reply-tx) |
+| StdOutService | `Write line` | `Sender<nil>` (ack-tx) |
+| StdErrService | `Write line` | `Sender<nil>` (ack-tx) — first-panic-wins + libc::exit deferred to 1i |
+
+**Stones:**
+
+- **1f-β-i — StdInService** (pattern-minting; opus + wat-author).
+  Per-thread `data-rx` carries `Event::Read` requests; service
+  reads line from fd 0 via `:wat::io::IOReader/read-line`,
+  parses via `:wat::edn::read`, replies via the matched
+  reply-tx looked up by select-index → routing-key.
+  Predicted runtime: 60-90 min.
+
+- **1f-β-ii — StdOutService** (mechanical pattern; sonnet).
+  Per-thread `data-rx` carries `Event::Write line`; service
+  writes "${msg}\n" to fd 1 via `:wat::io::IOWriter/println`,
+  acks via the matched ack-tx. Pattern is verbatim from β-i;
+  variations are payload type + IO direction. Predicted
+  runtime: 30-45 min.
+
+- **1f-β-iii — StdErrService** (mechanical pattern; sonnet).
+  Same as β-ii but on fd 2. First-panic-wins semantics +
+  `:wat::runtime::libc-exit` cascade DEFERRED to slice 1i;
+  this stone ships the normal stdio path only. Predicted
+  runtime: 30-45 min.
+
+**Dependencies (all three):** slice 1f-α shipped; slice 1f-0a
+shipped (deftest macro fix so tests actually run); slice 1f-0b
+shipped (Rust ThreadIO + eval arms reshaped to Event payloads;
+the channel-payload types match the wat side).
+
+**Ship criteria (per stone):**
+- Service file compiles + loads via stdlib registration
+- Tier-3 + lockstep discipline holds (zero Mutex; scope-drop
+  shutdown via every Sender dropping)
+- Event protocol verifiable in test harness: register a fake
+  thread-id via `Event::Add`; send data; assert routed; send
+  `Event::Remove`; assert dropped
+- All test rows pass via `cargo test --release --workspace`
+- Workspace fail count within ±5 of post-1f-0b baseline
+
+**Total budget:** ~120-180 min across β-i + β-ii + β-iii.
 
 #### Slice 1f-γ — Runtime orchestrator + spawn-thread integration (absorbs slice 1g)
 

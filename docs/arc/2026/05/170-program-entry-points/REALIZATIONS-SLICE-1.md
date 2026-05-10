@@ -1889,3 +1889,164 @@ automatically.
   recovery doc twice this session because compaction-amnesia
   was surfacing in this same shape (reasoning from scratch
   instead of from doctrine)
+
+### Pass 18 — Unified Event enum collapses heterogeneous T's; per-service Signal becomes per-service Event
+
+Slice 1f-β-i's opus run surfaced a substrate-architecture trap
+and the user's correction defined the architecturally-honest
+shape.
+
+**The trap (opus's deliverable, working-tree-only; discarded):**
+
+Opus implemented a relay sub-thread to bridge between
+`:wat::kernel::select`'s monotyped `Vec<Receiver<T>>` signature
+and pass-16's design that had TWO separate channel types
+(`Receiver<()>` for thread readln-requests + `Receiver<Signal>`
+for control-pipe). The relay converted each Signal arrival
+into a `()` pulse on a wakeup channel + buffered the Signal on
+a sibling channel; driver's select-set became homogeneous
+`Vec<Receiver<()>>`. The classic POSIX self-pipe trick at the
+wat layer — the SAME pattern slice 1f-i's singleton used (with
+libc::poll + self-pipe) that we explicitly retired in pass 15.
+
+The relay wasn't strictly wrong given the constraint opus
+imposed on itself; it was the canonical workaround. But the
+constraint was self-imposed.
+
+**The correction** (user direction 2026-05-10):
+
+> *"T is whatever we want it to be, right? including an enum
+> with different matchables?... signals can coexist with the
+> others?... explain to me why wake up is necessary if the
+> input signal is a participating member?... sending an item
+> on wake up will wake up the select loop as much as the
+> signal bearing do work... the two coexisting makes zero
+> sense"*
+
+`:wat::kernel::select` is monotyped only in the sense that all
+receivers in one select-set must share T. T itself is our
+variable. The relay existed because opus accepted slice 1f-α's
+`Sender<()>` (stdin) and `Sender<String>` (stdout/stderr)
+channel-end types as fixed, then tried to bridge to the Signal
+channel from outside. Once we collapse the two flows into ONE
+unified `Event` enum per service, the select is homogeneous by
+construction — no relay, no sub-thread, no second channel.
+
+**The corrected protocol — per-service Event enum:**
+
+```
+(:wat::core::enum :wat::kernel::services::StdInService::Event
+  (Read)                                                        ; thread asks for next form
+  (Add    (thread-id :wat::kernel::ThreadId)
+          (data-rx   :wat::kernel::Receiver<wat::kernel::services::StdInService::Event>)
+          (reply-tx  :wat::kernel::Sender<wat::holon::HolonAST>))
+  (Remove (thread-id :wat::kernel::ThreadId)))
+
+(:wat::core::enum :wat::kernel::services::StdOutService::Event
+  (Write  (line :wat::core::String))                            ; thread sends serialized line
+  (Add    (thread-id :wat::kernel::ThreadId)
+          (data-rx   :wat::kernel::Receiver<wat::kernel::services::StdOutService::Event>)
+          (ack-tx    :wat::kernel::Sender<wat::core::nil>))
+  (Remove (thread-id :wat::kernel::ThreadId)))
+
+(:wat::core::enum :wat::kernel::services::StdErrService::Event
+  (Write  (line :wat::core::String))
+  (Add    (thread-id :wat::kernel::ThreadId)
+          (data-rx   :wat::kernel::Receiver<wat::kernel::services::StdErrService::Event>)
+          (ack-tx    :wat::kernel::Sender<wat::core::nil>))
+  (Remove (thread-id :wat::kernel::ThreadId)))
+```
+
+All channels carry `Event`. Service's select-set is uniformly
+`Vec<Receiver<Event>>`. The service matches on the variant to
+determine action:
+- `Read` / `Write` variants → do the work; reply/ack on the
+  paired second-end (looked up via select index → routing
+  table)
+- `Add` variant → store `(data-rx, reply/ack-tx)` in routing
+  table keyed by thread-id; rebuild select-set on next TCO
+  iteration
+- `Remove` variant → drop the routing-table entry; rebuild
+  select-set
+
+**Signal becomes Add/Remove variants of Event.** Pass-16/17's
+"per-service Signal enum" language collapses into "per-service
+Event enum"; the Add/Remove subset is structurally identical
+to pass-16's Signal but lives alongside the data variants.
+Pass 17's "per-service" discipline carries forward — three
+independent Event types, one per service.
+
+**The principle:** when select-monotyping pressure surfaces,
+**collapse the heterogeneous flows into a sum type, not bridge
+them with workarounds.** The Event enum is the right
+abstraction; the relay was scar tissue from accepting a fixed
+channel-end type prematurely.
+
+**Implications:**
+
+1. **Slice 1f-α requires reshape (existing slice retroactively
+   modified).** `ThreadIO`'s per-thread sender becomes
+   `Sender<Event>` instead of `Sender<()>` / `Sender<String>`.
+   `println` / `eprintln` / `readln` construct the
+   appropriate Event variant (`Write line` / `Read`) before
+   sending. Caller-facing primitives stay polymorphic in value
+   type at the user surface; only the channel-payload type
+   changes. The 10 test rows in
+   `tests/wat_arc170_slice_1f_alpha_helpers.rs` migrate to the
+   new Event shape. Per user direction 2026-05-10: *"we fix
+   what we break once the idealized shape is realized... they
+   are us and we are fixing our patterns."*
+
+2. **Slice 1f-β-i reshapes.** Original opus deliverable's
+   relay-sub-thread + two-channel topology retire
+   (working-tree-only; never committed; discarded). New shape:
+   unified Event enum + homogeneous select + mechanical TCO
+   loop matching on variants.
+
+3. **Test-harness rot diagnosed (independent foundation crack).**
+   Slice 1e retired the four-arg `:user::main (stdin stdout
+   stderr) -> ()` signature; the wat-side `:wat::test::deftest`
+   macro at `wat/test.wat:315` was not migrated. Every deftest
+   in the workspace fails with the retired-signature error;
+   the 855-failure baseline since slice 1e shipped is THIS rot.
+   A pre-slice fixes the macro to emit the new `() ->
+   :wat::core::nil` shape — expects fail count to drop near
+   zero.
+
+4. **Heterogeneous-select substrate primitive NOT needed.** The
+   Event-enum approach handles this cleanly within the existing
+   monotyped select. The hypothetical `select-heterogeneous`
+   primitive surfaces no longer; one less substrate extension
+   to maintain.
+
+**Slice 1f stones — re-ordered to address foundation cracks first:**
+
+| Stone | Scope | Status |
+|---|---|---|
+| 1f-0a | Migrate `:wat::test::deftest` macro at `wat/test.wat:315` to emit `() -> :wat::core::nil` user::main; expect 855-failure baseline → near zero | pending |
+| 1f-0b | `src/thread_io.rs` ThreadIO + `println` / `eprintln` / `readln` reshape to per-service Event enum; migrate slice 1f-α's 10 test rows | pending |
+| 1f-β-i | wat-side StdInService implementing unified Event protocol (no relay) | pending (was: opus working tree, discarded) |
+| 1f-β-ii | StdOutService — mechanical pattern application | pending |
+| 1f-β-iii | StdErrService — mechanical pattern application | pending |
+| 1f-γ | Runtime orchestrator + spawn-thread integration | pending |
+| 1f-δ | Runtime boot integration + scope-drop shutdown cascade | pending |
+| 1f-ε | Console retirement + consumer sweep | pending |
+
+**Connects to memory:**
+
+- `feedback_attack_foundation_cracks.md` — opus's relay was a
+  bridge over a wrong-framing crack; pivot forward into the
+  cleaner type-shape that eliminates the bridge
+- `feedback_substrate_already_typed.md` — the substrate's
+  `:wat::kernel::select` already accepts any T; the constraint
+  was self-imposed by fixing channel-end types prematurely
+- `feedback_probe_before_framing.md` — opus's "we need a
+  relay" framing was a type-theoretic bridge over what is
+  actually a sum-type entity-kind problem; collapse to a sum,
+  don't bridge it
+- `feedback_collapse_to_llm_in_loop.md` — same shape: when a
+  workaround surfaces, check if the underlying type-system
+  pressure is real or just unexamined
+- `feedback_no_known_defect_left_unfixed.md` — the
+  855-failure baseline was diagnosed; foundation slice 1f-0a
+  fixes it before extending
