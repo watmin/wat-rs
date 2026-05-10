@@ -531,16 +531,18 @@ pub enum CheckError {
         /// Source location of the new (colliding) binding.
         current_loc: Span,
     },
-    /// Arc 170 slice 2 — `:user::main` declared with the legacy
-    /// 3-arg `(IOReader IOWriter IOWriter) -> :wat::core::nil`
-    /// signature. Arc 170 changed `:user::main` to a 4-arg shape with
-    /// `argv :wat::core::Vector<wat::core::String>` plus a
-    /// `:wat::kernel::ExitCode` return. Substrate-as-teacher pattern
-    /// 3 — the diagnostic carries the migration template; sweep
-    /// (slice 3) uses the diagnostic stream as work list; slice 4
-    /// retires the firing body.
+    /// Arc 170 slice 1e — `:user::main` declared with any non-canonical
+    /// shape. REALIZATIONS pass 7 + pass 10 make the canonical shape
+    /// `[] -> :wat::core::nil`: argv lives in the ambient
+    /// `(:wat::runtime::argv)`; stdio access moves to the three
+    /// substrate services (slice 1f); `nil` IS the success exit code.
+    /// Walker fires on every define whose params are non-empty OR
+    /// whose return-type keyword is not `:wat::core::nil`. Substrate-
+    /// as-teacher pattern 3 — the diagnostic carries the migration
+    /// template; sweep (revised slice 3) uses the diagnostic stream
+    /// as work list; slice 4 retires the firing body.
     BareLegacyMainSignature {
-        /// Source location of the legacy `:user::main` define form.
+        /// Source location of the offending `:user::main` define form.
         span: Span,
     },
     /// Arc 170 slice 2 — user-source callsite of legacy
@@ -754,7 +756,7 @@ impl fmt::Display for CheckError {
             ),
             CheckError::BareLegacyMainSignature { span } => write!(
                 f,
-                "{}`:user::main` declared with the legacy 3-arg signature is retired (arc 170 slice 2); canonical shape is 4-arg with argv plus an `:wat::kernel::ExitCode` return. The OS-boundary `:user::main` (the ONE place strings + ExitCode remain at the user-visible level per arc 170 TIERS.md) sees `std::env::args()` directly — argv[0]=binary path, argv[1]=source path, argv[2..]=remainder. Migrate the define to:\n  (:wat::core::define (:user::main\n      [stdin  <- :wat::io::IOReader\n       stdout <- :wat::io::IOWriter\n       stderr <- :wat::io::IOWriter\n       argv   <- :wat::core::Vector<wat::core::String>])\n    -> :wat::kernel::ExitCode\n    <body that returns (:wat::core::u8 0) or non-zero>)\nWat-internal spawn targets (`:user::process` / `:user::thread`) keep the typed-channel + :wat::core::nil-return Program contract — only `:user::main` returns ExitCode.",
+                "{}`:user::main` declared with a non-canonical signature is retired (arc 170 slice 1e — REALIZATIONS pass 7 + pass 10); canonical shape is `[] -> :wat::core::nil`. The four-arg shape (stdin/stdout/stderr/argv) retired: argv moves to the ambient `(:wat::runtime::argv)`; stdio access moves to the three substrate services (`:wat::kernel::StdInService` / `StdOutService` / `StdErrService` per slice 1f). `nil` IS the success exit code — clean nil-return maps to libc::exit(0); panic-cascade maps to libc::exit(N) via the StdErrService epilogue. User code never participates in exit-code arithmetic. Migrate the define to:\n  (:wat::core::define (:user::main -> :wat::core::nil)\n    <body that does work and returns :wat::core::nil>)\nor with `defn`:\n  (:wat::core::defn :user::main [] -> :wat::core::nil\n    <body>)",
                 span_prefix(span)
             ),
             CheckError::BareLegacyForkProgram { verb, span } => write!(
@@ -1069,9 +1071,10 @@ impl CheckError {
             // spawn-thread(fn) two-mode taxonomy).
             CheckError::BareLegacyMainSignature { span } => {
                 Diagnostic::new("BareLegacyMainSignature")
+                    .field("canonical_signature", "[] -> :wat::core::nil")
                     .field(
-                        "canonical_signature",
-                        "[stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode",
+                        "rationale",
+                        "arc 170 slice 1e (REALIZATIONS pass 7 + pass 10): argv ambient via (:wat::runtime::argv); stdio via three substrate services (slice 1f); nil IS the success exit code",
                     )
                     .field("location", format!("{}", span))
             }
@@ -2193,16 +2196,15 @@ pub fn validate_bare_legacy_primitives(node: &WatAST, errors: &mut Vec<CheckErro
     walk_for_bare_primitives(node, errors);
 }
 
-/// Arc 170 slice 2 — substrate-as-teacher walker for the spawn-verb
-/// consolidation + `:user::main` 4-arg + ExitCode contract change.
+/// Arc 170 — substrate-as-teacher walker for the spawn-verb
+/// consolidation + `:user::main` contract changes.
 ///
 /// Three classes:
 ///   - `BareLegacyMainSignature` — `:user::main` define declared
-///     with the legacy 3-arg signature (no argv, return type
-///     `:wat::core::nil`). Detected at the define-form structural
-///     level: a `(:wat::core::define (:user::main params...) -> ret
-///     body)` whose `params` length is 3 OR whose `ret` keyword is
-///     `:wat::core::nil` / `:()`.
+///     with any non-canonical shape. Arc 170 slice 1e (REALIZATIONS
+///     pass 7 + pass 10) makes the canonical shape `[] -> :wat::core::nil`.
+///     Walker fires on every define whose params are non-empty OR
+///     whose return-type keyword is not `:wat::core::nil`.
 ///   - `BareLegacyForkProgram` — call to `:wat::kernel::fork-program`
 ///     or `:wat::kernel::fork-program-ast`.
 ///   - `BareLegacySpawnProgram` — call to `:wat::kernel::spawn-program`
@@ -2272,8 +2274,9 @@ fn walk_for_arc170_legacy(node: &WatAST, errors: &mut Vec<CheckError>) {
     }
 }
 
-/// Detects a `:user::main` define form with the legacy 3-arg
-/// signature. Two define shapes are supported:
+/// Detects a `:user::main` define form whose signature is NOT the
+/// canonical post-arc-170-slice-1e shape `[] -> :wat::core::nil`.
+/// Two define shapes are supported:
 ///
 ///   (:wat::core::define
 ///     (:user::main (name :T) (name :T) (name :T) -> :Ret)
@@ -2284,8 +2287,13 @@ fn walk_for_arc170_legacy(node: &WatAST, errors: &mut Vec<CheckError>) {
 /// `define`'s signature uses paired `(name :T)` Lists inside the
 /// outer sig parens; `defn` (arc 166+) uses a flat Vector
 /// `[name <- :T ...]`. Both shapes converge to the same param-type
-/// list which we probe for the legacy SIO triple
-/// (IOReader, IOWriter, IOWriter).
+/// list + return-type slot which we probe for the canonical shape.
+///
+/// Arc 170 slice 1e — fires on EVERY non-canonical shape (REALIZATIONS
+/// pass 7 + pass 10): zero params, return-type `:wat::core::nil`.
+/// argv lives in the ambient `:wat::runtime::argv`; nil IS the
+/// success exit code. The diagnostic names the new canonical form;
+/// sweep (revised slice 3) uses the diagnostic stream as work list.
 fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckError>) {
     if items.is_empty() {
         return;
@@ -2295,7 +2303,7 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
         _ => return,
     };
 
-    let (main_span, param_types) = match head {
+    let (main_span, param_types, ret_type) = match head {
         ":wat::core::define" => {
             // Shape: (:wat::core::define (sig...) body)
             // sig = (:user::main (name :T) (name :T) ... -> :Ret)
@@ -2314,14 +2322,24 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
                 _ => return,
             };
             // Walk sig_list[1..]; collect type keywords from
-            // (name :T) pair Lists; stop at `->`.
+            // (name :T) pair Lists; stop at `->` then capture the
+            // single keyword that follows as ret_type.
             let mut params: Vec<String> = Vec::new();
+            let mut ret: Option<String> = None;
+            let mut after_arrow = false;
             for item in &sig_list[1..] {
+                if after_arrow {
+                    if let WatAST::Keyword(k, _) = item {
+                        ret = Some(k.clone());
+                    }
+                    break;
+                }
                 // `->` arrow signals end of params.
                 if matches!(item, WatAST::Symbol(id, _) if id.name == "->")
                     || matches!(item, WatAST::Keyword(k, _) if k == "->")
                 {
-                    break;
+                    after_arrow = true;
+                    continue;
                 }
                 // Each binder is a (name :T) two-element List.
                 if let WatAST::List(pair, _) = item {
@@ -2333,7 +2351,7 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
                     }
                 }
             }
-            (name_span, params)
+            (name_span, params, ret)
         }
         ":wat::core::defn" => {
             // Shape: (:wat::core::defn :user::main [name <- :T ...] -> :Ret body)
@@ -2357,25 +2375,30 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
                 }
                 i += 3;
             }
-            (name_span, params)
+            // After the binder Vector, the defn shape is
+            //   items[3] == `->` (Symbol or Keyword)
+            //   items[4] == :Ret keyword
+            //   items[5..] == body
+            let ret = if items.len() >= 5 {
+                match &items[4] {
+                    WatAST::Keyword(k, _) => Some(k.clone()),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            (name_span, params, ret)
         }
         _ => return,
     };
 
-    // Arc 170 slice 2 — fire only on the SPECIFIC legacy shape
-    // we're migrating from: 3-arg signature with the canonical
-    // (IOReader, IOWriter, IOWriter) types. This catches every
-    // pre-arc-170 user CLI program; sweep migrates to the 4-arg +
-    // ExitCode shape. Other arities (0-arg test fixtures, 1-arg
-    // stubs) are left alone — they predate arc 170's contract and
-    // weren't passing `validate_user_main_signature` anyway.
-    if param_types.len() != 3 {
-        return;
-    }
-    let is_legacy_sio = param_types[0] == ":wat::io::IOReader"
-        && param_types[1] == ":wat::io::IOWriter"
-        && param_types[2] == ":wat::io::IOWriter";
-    if !is_legacy_sio {
+    // Arc 170 slice 1e — fire on anything that's NOT the canonical
+    // post-slice-1e shape: empty params + return-type `:wat::core::nil`.
+    // REALIZATIONS pass 7 (ambient runtime) + pass 10 (nil IS the
+    // exit code) — the canonical shape is `[] -> :wat::core::nil`.
+    let canonical_params = param_types.is_empty();
+    let canonical_ret = matches!(ret_type.as_deref(), Some(":wat::core::nil"));
+    if canonical_params && canonical_ret {
         return;
     }
     errors.push(CheckError::BareLegacyMainSignature { span: main_span });
@@ -11957,6 +11980,35 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 170 slice 1e — ambient runtime values per REALIZATIONS pass 7.
+    // `(:wat::runtime::argv) → :wat::core::Vector<wat::core::String>`
+    // — process-wide argv handed in by wat-cli (or any embedder)
+    // before `:user::main` runs.
+    env.register(
+        ":wat::runtime::argv".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::core::String".into())],
+            },
+            rest_param_type: None,
+        },
+    );
+    // `(:wat::runtime::current-thread) → :wat::core::String` — the
+    // calling thread's identifier. Slice 1e implements against the
+    // main thread; slice 1g extends to spawned threads via thread-
+    // locals populated at spawn-time.
+    env.register(
+        ":wat::runtime::current-thread".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
         },
     );

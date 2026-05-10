@@ -702,17 +702,18 @@ fn startup_from_forms_post_config(
 /// kernel invokes). Zero or more-than-one declarations halt.
 pub const USER_MAIN_PATH: &str = ":user::main";
 
-/// Look up `:user::main` in the frozen world and apply it to the
-/// provided argument values.
+/// Look up `:user::main` in the frozen world and apply it.
 ///
-/// Per FOUNDATION § "The kernel invokes `:user::main` with four
-/// parameters" (line 1041), the kernel hands the user's entry point
-/// four channel values — `stdin`, `stdout`, `stderr`, `signals` —
-/// plus any additional typed state the deployment signature declares.
-/// This function is agnostic to the number / type of arguments; the
-/// caller (the wat CLI binary in `src/bin/wat.rs`) constructs the channel
-/// [`Value`]s and passes them in. Arity mismatch is caught by
-/// [`apply_function`] and surfaces as `ArityMismatch`.
+/// Per arc 170 REALIZATIONS pass 7 (ambient runtime) + pass 10
+/// (`:wat::core::nil` IS the exit code), `:user::main` is now
+/// `[] -> :wat::core::nil`. argv moves to the ambient
+/// `:wat::runtime::argv` (set via [`crate::runtime::set_argv`]
+/// before this function runs); stdio access moves to the three
+/// substrate services (slice 1f); the entry point takes no
+/// arguments at all. The `args: Vec<Value>` parameter is retained
+/// to keep call-site changes minimal during the transition; callers
+/// pass `Vec::new()`. Non-empty `args` triggers `ArityMismatch` via
+/// [`apply_function`] — the substrate honors the new contract.
 pub fn invoke_user_main(
     frozen: &FrozenWorld,
     args: Vec<Value>,
@@ -734,40 +735,35 @@ pub fn invoke_user_main(
 /// The exact signature `:user::main` must declare. Startup halts if
 /// the program's `:user::main` doesn't match.
 ///
-/// Arc 008 (2026-04-21): stdio is passed as abstract IO values —
-/// `:wat::io::IOReader` for stdin, `:wat::io::IOWriter` for stdout and
-/// stderr. Production (the CLI) wraps real `std::io::Stdin` / `Stdout`
-/// / `Stderr` in IO-trait-objects; tests (`run-sandboxed`) pass
-/// `StringIo` stand-ins that look identical at the wat surface. Same
-/// wat source runs in both. Ruby StringIO model made operational.
+/// Arc 170 slice 1e (REALIZATIONS pass 7 + pass 10): the canonical
+/// shape is `[] -> :wat::core::nil`. argv moves to the ambient
+/// `:wat::runtime::argv` (set by wat-cli via
+/// [`crate::runtime::set_argv`] before invocation); stdio access
+/// moves to the three substrate services (slice 1f's
+/// `StdInService` / `StdOutService` / `StdErrService`); the entry
+/// point takes no arguments and the success marker is `nil`. The
+/// substrate maps clean nil-return to `libc::exit(0)`; panic-cascade
+/// maps to `libc::exit(N)` via slice 1i's `StdErrService` epilogue.
+/// User code never participates in exit-code arithmetic.
 ///
-/// Arc 170 slice 2 — `:user::main` gains a fourth parameter `argv`
-/// (`:wat::core::Vector<wat::core::String>`) for the OS shell argv
-/// passthrough, and the return type changes from `:wat::core::nil`
-/// (was `:()` pre-arc-153) to `:wat::kernel::ExitCode` (POSIX-truth
-/// u8). The OS-boundary exception per arc 170 TIERS.md: this is the
-/// ONE place strings + ExitCode remain at the user-visible level
-/// because wat meets the OS shell here. Wat-internal spawn targets
-/// (`:user::process` / `:user::thread`) keep the typed-channel +
-/// nil-return Program contract.
+/// `:wat::core::nil` canonicalizes to `TypeExpr::Tuple(vec![])` at
+/// type-check time (per `src/types.rs:1740`); the validator
+/// compares against that internal form so wat source written as
+/// `-> :wat::core::nil` flows through unification cleanly.
 pub fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
-    let params = vec![
-        TypeExpr::Path(":wat::io::IOReader".into()),
-        TypeExpr::Path(":wat::io::IOWriter".into()),
-        TypeExpr::Path(":wat::io::IOWriter".into()),
-        TypeExpr::Parametric {
-            head: "wat::core::Vector".into(),
-            args: vec![TypeExpr::Path(":wat::core::String".into())],
-        },
-    ];
-    let ret = TypeExpr::Path(":wat::kernel::ExitCode".into());
+    let params = vec![]; // empty — argv is ambient (REALIZATIONS pass 7)
+    let ret = TypeExpr::Tuple(vec![]); // :wat::core::nil canonical (REALIZATIONS pass 10)
     (params, ret)
 }
 
-/// Check that a frozen world's `:user::main` declares the expected
-/// four-arg signature with `:wat::kernel::ExitCode` return. Returns
-/// `Err(message)` with a reader-friendly diagnostic naming the
-/// offending parameter or return type.
+/// Check that a frozen world's `:user::main` declares the canonical
+/// `[] -> :wat::core::nil` shape. Returns `Err(message)` with a
+/// reader-friendly diagnostic naming the offending shape.
+///
+/// Per arc 170 REALIZATIONS pass 7 + pass 10: argv is ambient
+/// (`:wat::runtime::argv`); stdio access is via the three substrate
+/// services (slice 1f); `nil` IS the success exit code. The entry
+/// point takes no arguments and returns `:wat::core::nil`.
 pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> {
     let func = frozen.symbols().get(":user::main").ok_or_else(|| {
         ":user::main not defined — a wat program needs an entry point".to_string()
@@ -775,13 +771,13 @@ pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> 
     let (expected_params, expected_ret) = expected_user_main_signature();
     if func.param_types.len() != expected_params.len() {
         return Err(format!(
-            ":user::main must take exactly {} parameters \
-             (stdin :wat::io::IOReader, stdout :wat::io::IOWriter, \
-             stderr :wat::io::IOWriter, argv :wat::core::Vector<wat::core::String>); \
-             got {}. \
-             Arc 170 slice 2 added the argv parameter; \
-             :user::main now sees the OS shell's std::env::args() \
-             (argv[0]=binary path, argv[1]=source path, argv[2..]=remainder).",
+            ":user::main must take exactly {} parameters; got {}. \
+             Arc 170 slice 1e (REALIZATIONS pass 7) — `:user::main` \
+             takes no arguments. argv is ambient via \
+             `(:wat::runtime::argv)`; stdio is mediated by the three \
+             substrate services (slice 1f's StdInService / StdOutService / \
+             StdErrService). The canonical signature is \
+             `[] -> :wat::core::nil`.",
             expected_params.len(),
             func.param_types.len()
         ));
@@ -793,17 +789,9 @@ pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> 
         .enumerate()
     {
         if got != want {
-            let slot = match i {
-                0 => "stdin",
-                1 => "stdout",
-                2 => "stderr",
-                3 => "argv",
-                _ => "extra",
-            };
             return Err(format!(
-                ":user::main parameter #{} ({}) expected {}, got {}",
+                ":user::main parameter #{} expected {}, got {}",
                 i + 1,
-                slot,
                 format_type_expr(want),
                 format_type_expr(got)
             ));
@@ -811,13 +799,13 @@ pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> 
     }
     if func.ret_type != expected_ret {
         return Err(format!(
-            ":user::main return type expected {} (POSIX-truth exit code; \
-             0 means success, non-zero propagates to the OS shell); got {}. \
-             Arc 170 slice 2 changed the return type — wat-internal spawn \
-             targets (`:user::process` / `:user::thread`) keep the typed-\
-             channel + :wat::core::nil-return Program contract; only the \
-             OS-boundary `:user::main` returns ExitCode.",
-            format_type_expr(&expected_ret),
+            ":user::main return type expected :wat::core::nil; got {}. \
+             Arc 170 slice 1e (REALIZATIONS pass 10) — `nil` IS the \
+             success exit code. Clean nil-return maps to libc::exit(0); \
+             panic-cascade maps to libc::exit(N) via the StdErrService \
+             epilogue (slice 1i). User code never participates in \
+             exit-code arithmetic. The canonical signature is \
+             `[] -> :wat::core::nil`.",
             format_type_expr(&func.ret_type)
         ));
     }
@@ -1173,30 +1161,33 @@ mod tests {
 
     #[test]
     fn invoke_main_happy_path() {
-        // :user::main takes no arguments and returns an Int.
+        // Arc 170 slice 1e — canonical `[] -> :wat::core::nil` shape
+        // (REALIZATIONS pass 7 + pass 10). `:user::main` returns nil;
+        // substrate maps to libc::exit(0).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:user::main -> :wat::core::i64)
-              (:wat::core::i64::+,2 21 21))
+            (:wat::core::define (:user::main -> :wat::core::nil)
+              :wat::core::nil)
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
-        assert!(matches!(result, Value::i64(42)));
+        assert!(matches!(result, Value::Unit));
     }
 
     #[test]
     fn invoke_main_calls_user_define() {
-        // :user::main delegates to a user-defined helper.
+        // :user::main delegates to a user-defined helper that
+        // side-effects (or in this minimal case, just produces nil).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::app::double (x :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::*,2 x 2))
-            (:wat::core::define (:user::main -> :wat::core::i64)
-              (:my::app::double 21))
+            (:wat::core::define (:my::app::do-work -> :wat::core::nil)
+              :wat::core::nil)
+            (:wat::core::define (:user::main -> :wat::core::nil)
+              (:my::app::do-work))
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
-        assert!(matches!(result, Value::i64(42)));
+        assert!(matches!(result, Value::Unit));
     }
 
     #[test]
@@ -1209,36 +1200,18 @@ mod tests {
         assert!(matches!(err, RuntimeError::UserMainMissing));
     }
 
-    #[test]
-    fn invoke_main_wrong_arity_is_error() {
-        // :user::main declared with one parameter; invoke with zero.
-        let src = r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:user::main (x :wat::core::i64) -> :wat::core::i64) x)
-        "#;
-        let world = startup(src).expect("startup");
-        let err = invoke_user_main(&world, Vec::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::ArityMismatch { expected: 1, got: 0, .. }));
-    }
-
     // LocalCache stdlib-composition test retired in arc 013 slice 4b
     // — the wat-lru sibling crate owns that surface now. End-to-end
     // composition coverage lives in crates/wat-lru/tests/.
-
-    #[test]
-    fn invoke_main_passes_channel_value_through() {
-        // :user::main takes one argument; we pass an Int as an opaque
-        // stand-in for a channel value. The runtime doesn't inspect
-        // the arg type — it passes through to the body.
-        let src = r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:user::main (x :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::+,2 x 1))
-        "#;
-        let world = startup(src).expect("startup");
-        let result = invoke_user_main(&world, vec![Value::i64(41)]).expect("main runs");
-        assert!(matches!(result, Value::i64(42)));
-    }
+    //
+    // `invoke_main_wrong_arity_is_error` and
+    // `invoke_main_passes_channel_value_through` retired in arc 170
+    // slice 1e — both relied on declaring `:user::main` with non-
+    // canonical parameters (REALIZATIONS pass 7 made `:user::main`
+    // arg-free; ambient runtime carries argv). The arity-mismatch
+    // path is exercised by `apply_function` callers other than
+    // `invoke_user_main`; the apply mechanic itself is tested at
+    // the `Function` layer.
 
     // ─── Constrained eval ───────────────────────────────────────────────
 

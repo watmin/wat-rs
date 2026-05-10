@@ -33,14 +33,12 @@
 use crate::panic_hook;
 use crate::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
 use crate::harness::HarnessError;
-use crate::io::{RealStderr, RealStdin, RealStdout, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{
-    request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2, Value,
+    request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2,
 };
 use crate::source::{self, WatSource};
-use std::io;
 use std::sync::Arc;
 
 /// Function-pointer shape every external wat crate exposes for its
@@ -191,31 +189,14 @@ pub fn compose_and_run_with_loader(
 
     install_signal_handlers();
 
-    // Hand the wat program abstract IO values backed by REAL OS
-    // stdio handles. Same pattern the wat CLI uses
-    // (`src/bin/wat.rs`): std::io::{Stdin, Stdout, Stderr} wrapped
-    // in `Real*` trait objects. Rust stdlib's internal locking
-    // handles concurrent access; wat-rs introduces no Mutex.
-    let reader_stdin: Arc<dyn WatReader> = Arc::new(RealStdin::new(Arc::new(io::stdin())));
-    let writer_stdout: Arc<dyn WatWriter> = Arc::new(RealStdout::new(Arc::new(io::stdout())));
-    let writer_stderr: Arc<dyn WatWriter> = Arc::new(RealStderr::new(Arc::new(io::stderr())));
-
-    // Arc 170 slice 2 — `:user::main` takes a 4th `argv` parameter
-    // (`:wat::core::Vector<wat::core::String>`). compose_and_run is a
-    // library-bridge entry that doesn't go through wat-cli's argv
-    // pipeline; pass empty argv (the wat program built atop this
-    // harness owns its own argv handling if it cares). wat-cli's
-    // own dispatch path collects `std::env::args()` separately
-    // through `fork_program_from_source`.
-    let argv_value = Value::Vec(Arc::new(Vec::new()));
-
-    let args = vec![
-        Value::io__IOReader(reader_stdin),
-        Value::io__IOWriter(writer_stdout),
-        Value::io__IOWriter(writer_stderr),
-        argv_value,
-    ];
-
-    invoke_user_main(&world, args).map_err(HarnessError::Runtime)?;
+    // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
+    // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is
+    // ambient. compose_and_run is a library-bridge entry that
+    // doesn't go through wat-cli's argv pipeline; the ambient
+    // remains whatever an embedder set via `runtime::set_argv`
+    // (empty Vec by default). Slice 1f's three substrate services
+    // will own fd 0/1/2; the Real* IO trait construction this fn
+    // previously did retires alongside the four-arg main_args plumbing.
+    invoke_user_main(&world, Vec::new()).map_err(HarnessError::Runtime)?;
     Ok(())
 }

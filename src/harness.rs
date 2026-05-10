@@ -40,10 +40,9 @@ use crate::compose::DepRegistrar;
 use crate::freeze::{
     invoke_user_main, startup_from_source, validate_user_main_signature, FrozenWorld, StartupError,
 };
-use crate::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
-use crate::runtime::{RuntimeError, Value};
+use crate::runtime::RuntimeError;
 use crate::source::{self, WatSource};
 use std::sync::Arc;
 
@@ -187,48 +186,26 @@ impl Harness {
     /// `:wat::kernel::run-sandboxed` on itself and return the
     /// structured `RunResult`.
     pub fn run(&self, stdin: &[&str]) -> Result<Outcome, HarnessError> {
-        let stdin_data = stdin.join("\n");
-        let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(stdin_data));
+        // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
+        // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is
+        // ambient. The Harness helper is a library-bridge for in-process
+        // testing; the StringIo* captures retire alongside the
+        // four-arg main_args plumbing because slice 1f's three substrate
+        // services own stdin/stdout/stderr at the substrate layer.
+        // Until slice 1f lands, harness-based tests that need stdio
+        // capture exercise it via dedicated tests through the wat-cli
+        // path (or by invoking spawn-process / spawn-thread directly).
+        let _ = stdin; // pre-seeded stdin retires with the four-arg shape.
 
-        let stdout_writer = Arc::new(StringIoWriter::new());
-        let stderr_writer = Arc::new(StringIoWriter::new());
-        let stdout_dyn: Arc<dyn WatWriter> = stdout_writer.clone();
-        let stderr_dyn: Arc<dyn WatWriter> = stderr_writer.clone();
+        invoke_user_main(&self.world, Vec::new()).map_err(HarnessError::Runtime)?;
 
-        // Arc 170 slice 2 — `:user::main` takes a 4th `argv` parameter
-        // (`:wat::core::Vector<wat::core::String>`). The Harness
-        // helper is a library-bridge for in-process testing; pass
-        // empty argv (test programs that need argv exercise it via
-        // dedicated tests through the wat-cli path).
-        let argv_value = Value::Vec(Arc::new(Vec::new()));
-
-        let args = vec![
-            Value::io__IOReader(reader),
-            Value::io__IOWriter(stdout_dyn),
-            Value::io__IOWriter(stderr_dyn),
-            argv_value,
-        ];
-
-        invoke_user_main(&self.world, args).map_err(HarnessError::Runtime)?;
-
-        let stdout = snapshot_lines(&stdout_writer)?;
-        let stderr = snapshot_lines(&stderr_writer)?;
+        let stdout: Vec<String> = Vec::new();
+        let stderr: Vec<String> = Vec::new();
         Ok(Outcome { stdout, stderr })
     }
 }
 
-fn snapshot_lines(writer: &Arc<StringIoWriter>) -> Result<Vec<String>, HarnessError> {
-    let bytes = writer
-        .snapshot_bytes()
-        .map_err(|e| HarnessError::StdioSnapshot(format!("{:?}", e)))?;
-    let s = String::from_utf8(bytes)
-        .map_err(|e| HarnessError::StdioSnapshot(format!("utf-8: {}", e)))?;
-    if s.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
-    }
-    Ok(lines)
-}
+// Arc 170 slice 1e — `snapshot_lines` retired alongside the
+// StringIo*-backed stdio plumbing. Slice 1f's three substrate
+// services own stdin/stdout/stderr at the substrate layer; the
+// Harness helper's stdio capture path retires with them.

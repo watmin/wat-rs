@@ -121,7 +121,7 @@ use wat::fork::fork_program_from_source;
 use wat::freeze::startup_from_source;
 use wat::load::FsLoader;
 use wat::runtime::{
-    request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2,
+    request_kernel_stop, set_argv, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2,
 };
 
 /// Arc 115 slice 1 — output format for `wat --check` diagnostics.
@@ -256,6 +256,15 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
 
     let argv: Vec<String> = std::env::args().collect();
     let prog = argv.first().map(String::as_str).unwrap_or("wat");
+
+    // Arc 170 slice 1e (REALIZATIONS pass 7) — populate the
+    // process-wide argv ambient. After fork(2) the child inherits
+    // this OnceLock value via COW; `(:wat::runtime::argv)` reads it
+    // from any depth in the wat program. Set BEFORE
+    // `fork_program_from_source` so the child sees the same argv
+    // wat-cli received from the OS shell (argv[0]=binary path,
+    // argv[1]=source path, argv[2..]=remainder).
+    set_argv(argv.clone());
 
     // Arc 115 — `--check` flag: load + parse + type-check + freeze
     // without invoking :user::main. Cargo-check ergonomics for wat.

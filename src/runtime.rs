@@ -46,7 +46,7 @@ use holon::{encode, HolonAST, Similarity};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
 ///
@@ -117,6 +117,53 @@ pub fn reset_user_signals() {
     KERNEL_SIGUSR2.store(false, Ordering::SeqCst);
     KERNEL_SIGHUP.store(false, Ordering::SeqCst);
 }
+
+/// Process-wide argv ambient — populated once by wat-cli (or any
+/// embedder) before `:user::main` runs; thereafter accessible from
+/// any wat code via `(:wat::runtime::argv)`.
+///
+/// Per arc 170 REALIZATIONS pass 7 (ambient runtime) the four-arg
+/// `:user::main` shape (stdin/stdout/stderr/argv) retires; argv moves
+/// to an ambient runtime value. Pattern mirrors [`KERNEL_STOPPED`]
+/// (set-once kernel-owned static) but uses `OnceLock<Arc<Vec<String>>>`
+/// because the value is structured (a Vec of String, not a single
+/// boolean). The Arc keeps clone-out cheap on each ambient read.
+///
+/// Set once via [`set_argv`]; subsequent `set_argv` calls panic via
+/// `OnceLock::set`'s Err path (caller misuse — argv is set-once at
+/// process start).
+pub static ARGV: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+
+/// Set the process-wide argv ambient. Called by wat-cli (or any
+/// embedder) BEFORE `invoke_user_main` runs; `(:wat::runtime::argv)`
+/// reads thereafter.
+///
+/// Set-once: a second call returns the original value back via
+/// `OnceLock::set`'s Err arm. We swallow that Err — the semantics are
+/// "first set wins" and tests that re-invoke wat-cli inside one
+/// process get the first invocation's argv. Production wat-cli runs
+/// exactly once per process; the Err arm is a test-isolation
+/// affordance, not user surface.
+pub fn set_argv(argv: Vec<String>) {
+    let _ = ARGV.set(Arc::new(argv));
+}
+
+/// Read the process-wide argv ambient. Returns an empty Vec if no
+/// embedder set argv (in-process tests, library bridges that bypass
+/// wat-cli). The ambient is "always available"; callers don't have
+/// to gate on whether it was set.
+pub fn argv() -> Arc<Vec<String>> {
+    ARGV.get()
+        .cloned()
+        .unwrap_or_else(|| Arc::new(Vec::new()))
+}
+
+// Note: `OnceLock` has no public reset; tests that need to vary argv
+// across cases run in separate processes (cargo test default) or
+// cooperate by reading `argv()` and not assuming one fixed value
+// across calls. The "first set wins" semantics of `set_argv` are
+// the correct shape for production (wat-cli sets once at process
+// start); test cooperation handles the rest.
 
 /// Runtime value.
 ///
@@ -3008,6 +3055,11 @@ fn dispatch_keyword_head(
         // Arc 143 slice 3 — HolonAST manipulation primitives.
         ":wat::runtime::rename-callable-name" => eval_rename_callable_name(args, env, sym),
         ":wat::runtime::extract-arg-names" => eval_extract_arg_names(args, env, sym),
+        // Arc 170 slice 1e — ambient runtime values per REALIZATIONS
+        // pass 7 (drop stdio params from `:user::main`; argv +
+        // current-thread move to ambient).
+        ":wat::runtime::argv" => eval_runtime_argv(args, list_span),
+        ":wat::runtime::current-thread" => eval_runtime_current_thread(args, list_span),
         // Arc 098 — Clara-style single-item pattern matcher.
         // Both type checker and runtime walk the same pattern grammar
         // via the shared classifier in `crate::form_match`.
@@ -14356,6 +14408,57 @@ fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<Value, Runti
         });
     }
     Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
+}
+
+/// `(:wat::runtime::argv)` — nullary; returns the process-wide argv
+/// ambient as `:wat::core::Vector<wat::core::String>`.
+///
+/// Arc 170 slice 1e (REALIZATIONS pass 7). The four-arg `:user::main`
+/// shape (stdin/stdout/stderr/argv) retires; argv moves to ambient.
+/// Wat-cli (or any embedder) calls [`crate::runtime::set_argv`]
+/// before `:user::main` runs; subsequent reads from any depth in the
+/// program return the same Vec. Empty Vec when no embedder set it
+/// (in-process tests, library bridges that bypass wat-cli) — the
+/// ambient is "always available."
+fn eval_runtime_argv(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::runtime::argv".into(),
+            expected: 0,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let argv = argv();
+    let values: Vec<Value> = argv
+        .iter()
+        .map(|s| Value::String(Arc::new(s.clone())))
+        .collect();
+    Ok(Value::Vec(Arc::new(values)))
+}
+
+/// `(:wat::runtime::current-thread)` — nullary; returns the calling
+/// thread's id as `:wat::core::String`.
+///
+/// Arc 170 slice 1e (REALIZATIONS pass 7). For slice 1e this is the
+/// main thread's representation; slice 1g extends to spawned threads
+/// via thread-locals populated at spawn-time. Implemented against
+/// `std::thread::current().id()` which is meaningful on every thread
+/// the substrate creates today.
+fn eval_runtime_current_thread(
+    args: &[WatAST],
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::runtime::current-thread".into(),
+            expected: 0,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let id = std::thread::current().id();
+    Ok(Value::String(Arc::new(format!("{:?}", id))))
 }
 
 /// Shared body for the three user-signal predicates — nullary, reads a

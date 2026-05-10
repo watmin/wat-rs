@@ -640,47 +640,35 @@ fn child_branch(
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }
 
-    // Arc 113 slice 3 — keep stderr's wat-side IOWriter Arc alive
-    // past the catch_unwind closure. The Arc<dyn WatWriter> wraps an
-    // OwnedFd over fd 2; when ALL Arcs drop, the OwnedFd's Drop
-    // closes fd 2. invoke_user_main consumes its argument vector;
-    // when the closure returns (Ok or Err), the moved Arc inside
-    // main_args drops. Without this clone, fd 2 closes BEFORE the
-    // panic-arm writes run — write_direct_to_stderr's libc::write
-    // hits EBADF and the cascade-chain marker never reaches the
-    // parent's pipe. The held clone keeps the refcount at ≥1
-    // through the post-catch writes; dropped after _exit (which
-    // never returns, so it's effectively a leak the kernel reaps).
+    // Arc 113 slice 3 — keep stderr's wat-side IOWriter Arc alive past
+    // the catch_unwind closure (Arc 170 slice 1e dropped the main_args
+    // plumbing but the OwnedFd-keepalive concern survives — the writer
+    // Arc is still held in this scope and its OwnedFd over fd 2 must
+    // outlive any post-catch writes).
     let stderr_keepalive = Arc::clone(&stderr_writer);
+    let _ = &stdin_reader; // OwnedFd keepalive — slice 1f services own this
+    let _ = &stdout_writer; // OwnedFd keepalive — slice 1f services own this
 
-    // Arc 170 slice 2 — fork-program-ast / forms-entry has no
-    // wat-cli argv concept (legacy substrate-internal callers
-    // including stdlib hermetic.wat). Pass empty argv to satisfy
-    // `:user::main`'s 4-arg contract; the legacy callers operate
-    // through `BareLegacyMainSignature` walker scope (user-source
-    // only). Stdlib forms-entry continues to work because the
-    // walker doesn't fire on stdlib.
-    let argv_value = Value::Vec(Arc::new(Vec::new()));
-
-    let main_args = vec![
-        Value::io__IOReader(stdin_reader),
-        Value::io__IOWriter(stdout_writer),
-        Value::io__IOWriter(stderr_writer),
-        argv_value,
-    ];
-
+    // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
+    // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is
+    // ambient (already populated by wat-cli pre-fork; COW-inherited
+    // by the child). Slice 1f's three substrate services will own
+    // fd 0/1/2 directly; the byte-pipe stdio handles built above
+    // remain as keepalives until that slice lands.
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        invoke_user_main(&world, main_args)
+        invoke_user_main(&world, Vec::new())
     }));
     let _ = &stderr_keepalive; // borrow-check: prove the clone is held until here
 
     match outcome {
-        // Arc 170 slice 2 — `:user::main` returns ExitCode (u8); see
-        // `child_branch_from_source` for the matching arm.
-        Ok(Ok(Value::u8(n))) => unsafe { libc::_exit(n as i32) },
+        // Arc 170 slice 1e — `:user::main` returns `:wat::core::nil`;
+        // clean nil-return maps to libc::exit(0). REALIZATIONS pass 10
+        // — nil IS the success exit code; user code never participates
+        // in exit-code arithmetic.
+        Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Ok(other)) => {
             write_direct_to_stderr(&format!(
-                "runtime: :user::main returned non-ExitCode value: {:?}\n",
+                "runtime: :user::main returned non-nil value: {:?}\n",
                 other
             ));
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
@@ -1026,47 +1014,46 @@ fn child_branch_from_source(
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }
 
-    // Arc 113 slice 3 — see child_branch's matching keepalive
-    // for the full rationale: stderr_writer's OwnedFd over fd 2
-    // would close when main_args drops; the held Arc clone keeps
-    // fd 2 alive through the catch_unwind Err arm.
+    // Arc 113 slice 3 — see child_branch's matching keepalive for the
+    // full rationale (Arc 170 slice 1e dropped the main_args plumbing;
+    // OwnedFd-keepalive concern survives — the writer Arc must outlive
+    // any post-catch writes against fd 2).
     let stderr_keepalive = Arc::clone(&stderr_writer);
+    let _ = &stdin_reader; // OwnedFd keepalive — slice 1f services own this
+    let _ = &stdout_writer; // OwnedFd keepalive — slice 1f services own this
 
-    // Arc 170 slice 2 — argv is the OS shell's std::env::args()
-    // passed through as a typed Value::Vec of Value::String. Pure
-    // passthrough; no flag-stripping at the substrate layer (per
-    // arc 170 § "argv pure passthrough"). argv[0] is the binary
-    // path; argv[1] (when present) is the source path; argv[2..]
-    // are subsequent shell args.
-    let argv_value = Value::Vec(Arc::new(
-        argv.into_iter()
-            .map(|s| Value::String(Arc::new(s)))
-            .collect(),
-    ));
+    // Arc 170 slice 1e (REALIZATIONS pass 7) — argv is ambient. wat-cli
+    // populated `runtime::ARGV` BEFORE forking; the child inherits the
+    // OnceLock value via fork's COW snapshot and reads it via
+    // `(:wat::runtime::argv)`. The `argv: Vec<String>` parameter on
+    // this fn signature carries argv from legacy callers (wat-cli
+    // pre-arc-170; wat-level fork-program legacy paths); we re-set
+    // the ambient defensively so the child always sees a populated
+    // value even if the call path bypassed wat-cli's set_argv (the
+    // OnceLock's "first set wins" semantics make subsequent set_argv
+    // calls a no-op, so wat-cli's pre-fork set still wins for the
+    // common path).
+    crate::runtime::set_argv(argv);
 
-    let main_args = vec![
-        Value::io__IOReader(stdin_reader),
-        Value::io__IOWriter(stdout_writer),
-        Value::io__IOWriter(stderr_writer),
-        argv_value,
-    ];
-
+    // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
+    // (REALIZATIONS pass 10). No stdio Values; nil-return maps to
+    // libc::exit(0). Slice 1f's three substrate services will own
+    // fd 0/1/2 directly; the byte-pipe stdio handles built above
+    // remain as keepalives until that slice lands.
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        invoke_user_main(&world, main_args)
+        invoke_user_main(&world, Vec::new())
     }));
     let _ = &stderr_keepalive;
 
     match outcome {
-        // Arc 170 slice 2 — `:user::main` returns
-        // `:wat::kernel::ExitCode` (= u8). Propagate the byte to the
-        // OS via _exit; non-zero values flow through to the shell.
-        // Defensive arm for non-u8 values (the type-checker should
-        // prevent this; if it slips through, surface as runtime
-        // error + non-zero exit).
-        Ok(Ok(Value::u8(n))) => unsafe { libc::_exit(n as i32) },
+        // Arc 170 slice 1e — `:user::main` returns `:wat::core::nil`;
+        // clean nil-return maps to libc::exit(0). REALIZATIONS pass 10
+        // — nil IS the success exit code; user code never participates
+        // in exit-code arithmetic.
+        Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Ok(other)) => {
             write_direct_to_stderr(&format!(
-                "runtime: :user::main returned non-ExitCode value: {:?}\n",
+                "runtime: :user::main returned non-nil value: {:?}\n",
                 other
             ));
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };

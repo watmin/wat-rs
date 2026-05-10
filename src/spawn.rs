@@ -180,32 +180,37 @@ fn spawn_with_world_into_result(
     // work without modification on Process.join.
     let (tx, rx) = crossbeam_channel::bounded::<SpawnOutcome>(1);
 
+    // Arc 170 slice 1e — keep child-side stdio Arcs alive across
+    // the worker thread for legacy `Process` field plumbing
+    // (BareLegacySpawnProgram walker fires on user-source callers;
+    // slice 4 retires the verb wholesale). The Arcs drop when the
+    // thread exits, closing the child-side fds so the parent's
+    // EOF cascade fires.
+    let _stdio_keepalive = (child_stdin, child_stdout, child_stderr);
+
     std::thread::Builder::new()
         .name(format!("wat-thread::{}", op))
         .spawn(move || {
-            // Arc 170 slice 2 — `:user::main` takes a 4th `argv`
-            // parameter (`:wat::core::Vector<wat::core::String>`).
-            // Legacy spawn-program (in-thread fresh-world) has no
-            // argv concept and retires in slice 4; until then pass
-            // empty argv to satisfy the contract. User-source
-            // callers fail at the BareLegacySpawnProgram walker
-            // pre-pass before reaching this code.
-            let argv_value = Value::Vec(Arc::new(Vec::new()));
+            // Move the keepalive into the worker thread so the Arcs
+            // outlive `invoke_user_main`. Slice 1f's services boot
+            // replaces this stdio path entirely; this in-thread fresh-
+            // world spawn retires in slice 4 alongside the legacy
+            // spawn-program walker.
+            let _stdio = _stdio_keepalive;
 
-            let main_args = vec![
-                Value::io__IOReader(child_stdin),
-                Value::io__IOWriter(child_stdout),
-                Value::io__IOWriter(child_stderr),
-                argv_value,
-            ];
-
+            // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
+            // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is
+            // ambient. Legacy in-thread spawn-program walker fires on
+            // user-source callers (BareLegacySpawnProgram); this path
+            // remains as a substrate transitional state until slice 4.
+            //
             // Catch panics in the inner :user::main so the parent's
             // join surfaces them as data instead of unwinding silently.
-            // AssertUnwindSafe is honest — `world` and `main_args` are
-            // owned by this closure; nothing the caller still references
-            // gets corrupted by a panic-mid-eval.
+            // AssertUnwindSafe is honest — `world` is moved into this
+            // closure; nothing the caller still references gets
+            // corrupted by a panic-mid-eval.
             let outcome = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                invoke_user_main(&world, main_args)
+                invoke_user_main(&world, Vec::new())
             })) {
                 Ok(Ok(v)) => SpawnOutcome::Ok(v),
                 Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),

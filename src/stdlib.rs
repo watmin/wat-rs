@@ -82,14 +82,12 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/channel.wat",
         source: include_str!("../wat/kernel/channel.wat"),
     },
-    // Arc 170 slice 2 — `:wat::kernel::ExitCode` typealias for
-    // `:wat::core::u8`. POSIX-truth exit code shape; what `:user::main`
-    // returns to the OS shell. See wat/kernel/exit-code.wat for the
-    // load-bearing comment.
-    WatSource {
-        path: "wat/kernel/exit-code.wat",
-        source: include_str!("../wat/kernel/exit-code.wat"),
-    },
+    // Arc 170 slice 1e — `:wat::kernel::ExitCode` retired (REALIZATIONS
+    // pass 10 — `:wat::core::nil` IS the success exit code; `:user::main`
+    // returns nil; substrate maps to libc::exit(0); panic-cascade maps
+    // to libc::exit(N) via slice 1i's StdErrService epilogue). The
+    // typealias and its loaded form deleted; `wat/kernel/exit-code.wat`
+    // removed in this slice.
     WatSource {
         path: "wat/stream.wat",
         source: include_str!("../wat/stream.wat"),
