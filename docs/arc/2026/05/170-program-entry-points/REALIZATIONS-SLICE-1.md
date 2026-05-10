@@ -319,6 +319,90 @@ depends on. The arc covers all implications of its substrate
 change; "we'll polish later" is FM-11-adjacent (deferral as
 done).
 
+### Pass 6 — bandaid bounded by arc close
+
+Slice 1c shipped Process<I,O> ADDITIVE (legacy 4 fields stay;
+typed-channel 2 fields appended) instead of destructively
+reshaping to the final 3-field form. The agent's reasoning:
+destructive reshape would brick stdlib (sandbox.wat backs every
+deftest); additive ships green and unblocks slice 2.
+
+User direction (2026-05-09):
+
+> *"the bandaid is tolerable as long as its short term - the arc
+> cannot be closed with bandaids. if the bandaids reduce the
+> friction to deliver correctness they are justified - they
+> cannot persist beyond the arc"*
+
+> *"i fully intend to break shit all over and mass fix it. half
+> measures from 'i don't want to break things' is a behavior i
+> do not tolerate."*
+
+> *"we use sonnet to do mass fixes and opus to land the platform
+> that enforces some new correct behavior"*
+
+The settled principle:
+
+- **Bandaids are tolerable DURING arc work** when they reduce
+  friction-to-deliver-correctness (slice 1c additive Process
+  kept slice 2 unblocked while testing tooling rebuild slated
+  for slice 3)
+- **Bandaids CANNOT persist past arc close** (slice 5 INSCRIPTION
+  must reflect the final correct shape; FM 11 "INSCRIPTION =
+  DONE" forbids deferral language)
+- **Slice 4 (substrate retirement) is the bandaid-retirement
+  slice** — every bandaid carried during sweep window
+  destructively retires before INSCRIPTION
+- **Atomic-commit pattern for destructive substrate work**:
+  opus lands new correctness (don't commit); sonnet mass-sweeps
+  consumers (don't commit); orchestrator commits both as ONE
+  atomic commit when workspace = 0-failed (recovery doc § 7
+  atomic-commit pattern)
+- **Opus lands platform; sonnet does mechanical mass-fixes** —
+  not because opus can't sweep but because the labor split is
+  honest about the work shapes (judgment vs mechanical)
+
+The orchestrator failure: my BRIEF-SLICE-1C row G offered the
+shim option ("investigate + pick: break-as-substrate-as-teacher
+OR shim-with-warn"). Offering the shim path enabled the
+silent-additive bandaid. Future BRIEFs for substrate-shape
+changes during sweep windows: name the bandaid as TEMPORARY;
+explicitly slate the bandaid retirement in the slice-4-equivalent;
+require the slice plan to enforce arc close = bandaid free.
+
+DESIGN.md slice 4 amended (this commit) to explicitly include
+Process<I,O> legacy 3-field retirement. Bandaid is now bounded
+by arc 170 close.
+
+### Discipline lesson candidate FM 21 — bandaids must be bounded
+
+When a substrate-shape change ripples wide enough to brick
+stdlib bootstrap or block subsequent slices, an additive
+intermediate ("bandaid") is acceptable IF AND ONLY IF the
+slice plan explicitly slates the bandaid retirement before
+arc close.
+
+STOP signals — phrases that mean you're about to fail this:
+
+- "future arc retires X" while X is the arc's bandaid
+- "later" without a named slice
+- offering "additive OR destructive" as caller choice without
+  bounding the additive option
+
+DO this instead:
+
+- Bandaid ships in slice N (sweep window)
+- Slice N+M (substrate retirement, before closure paperwork)
+  destructively retires the bandaid
+- INSCRIPTION at slice closure reflects the final clean shape
+- Atomic-commit pattern (opus → sonnet → bundled commit) for
+  destructive substrate transitions
+
+Connects to:
+- FM 11 (INSCRIPTION = DONE; no deferral language)
+- `feedback_pivot_not_defer.md` (don't write "future arc")
+- recovery doc § 7 atomic-commit pattern
+
 ### Pass 5 — strings stay at the substrate boundary, not in user-facing interfaces
 
 User direction:

@@ -582,8 +582,15 @@ Predicted: 90-180 min sonnet for the mechanical sweep; orchestrator
 time for the hermetic rebuild + caller migration TBD when slice 3
 is briefed.
 
-### Slice 4 — substrate retirement (opus)
+### Slice 4 — substrate retirement (opus + sonnet pair)
 
+**This slice retires every bandaid arc 170 carried during its
+sweep window.** The arc cannot close with bandaids in place;
+INSCRIPTION reflects the final correct shape. Arc 170 INSCRIPTION
+must be free of any "future arc retires X" deferral language
+per FM 11.
+
+Walker + dispatch-arm retirements:
 - `BareLegacyMainSignature` walker variant + Display + Diagnostic + body
 - `BareLegacyForkProgram` walker variant + Display + Diagnostic + body
 - `BareLegacySpawnProgram` walker variant + Display + Diagnostic + body
@@ -591,7 +598,35 @@ is briefed.
 - `validate_user_main_signature` legacy 3-arg fall-through
 - Vacuous walker-firing tests retired
 
-Predicted: 30-60 min opus.
+**`:wat::kernel::Process<I,O>` legacy field retirement (slice 1c
+bandaid retirement) — load-bearing for arc 170 close:**
+
+Slice 1c shipped Process<I,O> ADDITIVE — legacy 4 fields
+(stdin :IOWriter, stdout :IOReader, stderr :IOReader, handle)
+PLUS new typed-channel fields (tx :Sender<I>, rx :Receiver<O>).
+The legacy 3 byte-pipe fields (stdin, stdout, stderr) MUST
+retire in slice 4 — that's the arc-close discipline. Slice 3's
+testing-tooling rebuild migrates ALL callers to typed-channel
+accessors; slice 4 destructively removes the legacy fields:
+
+- `:wat::kernel::Process<I,O>` struct in `src/types.rs` —
+  remove stdin / stdout / stderr fields; final shape is
+  `{ tx :Sender<I>, rx :Receiver<O>, handle :ProgramHandle }`
+- All Rust callers updated for 3-field shape (workspace breaks
+  at substrate destructive-edit; sonnet sweeps any remaining
+  callers slice 3 missed)
+- All wat-side accessors (`Process/stdin`, `Process/stdout`,
+  `Process/stderr`) retired
+- Atomic-commit pattern: opus destructive (don't commit) →
+  sonnet sweep (don't commit) → orchestrator commits both as
+  ONE atomic commit when workspace = 0-failed
+
+The bandaid was tolerable during the sweep window (kept slice 2
+unblocked, kept stdlib tests green during slice 1c → slice 3
+transition). It is NOT tolerable past arc close.
+
+Predicted: 60-120 min opus + 30-90 min sonnet sweep =
+~90-210 min total.
 
 ### Slice 5 — closure paperwork (orchestrator)
 
