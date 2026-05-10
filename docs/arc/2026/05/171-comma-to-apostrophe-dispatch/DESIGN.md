@@ -1,138 +1,193 @@
-# Arc 171 — Comma → apostrophe in fixed-arity dispatch suffix
+# Arc 171 — Comma → apostrophe inside keyword/symbol bodies
 
 **Status:** opened 2026-05-10 per arc 170 REALIZATIONS pass 14
-decision. Sized at author time per pass 14 disposition.
+decision; scope broadened by user 2026-05-10 (this revision).
 
-**Sibling-coordinated with arc 172** (Scheme → Clojure macro
-flavor swap). Both arcs together complete the lexical
-EDN-compliance pivot that slice 1f-W opened (commas inside
-`<>` were the first thread; commas in dispatch suffix +
-commas as unquote-token are the remaining two).
+**Pass 14 framed narrowly** (arity suffix `:foo,2` only).
+**User broadened the scope on the spot** to cover ALL
+comma-in-keyword/symbol usage, per the principle "symbols may
+not contain commas, however they can use underscores" (pass 14
+quote) and the explicit table the user locked in:
+
+```
+:wat::core::op
+:wat::core::op'2
+:wat::core::op'i64'i64
+:wat::core::op'i64'f64
+:wat::core::op'f64'i64
+:wat::core::op'f64'f64
+```
+
+**`'` (apostrophe) is the universal separator inside
+keyword/symbol bodies.** Arity-suffix, type-discriminator,
+inter-arg separator — all collapse to apostrophe. No commas
+remain in keyword/symbol bodies after this arc ships.
+
+Sibling-coordinated with arc 172 (Scheme → Clojure macros).
+Both arcs together complete the lexical EDN-compliance pivot
+opened by slice 1f-W (commas inside `<>` already retired in
+favor of wire-encoding swap to underscore).
+
+See memory: `feedback_apostrophe_dispatch_separator.md` —
+the user's explicit lock-in.
 
 ## Motivation
 
-Per REALIZATIONS pass 14 (lock-in 2026-05-10):
+EDN compliance. The substrate currently allows commas inside
+keyword bodies (`lex_keyword` accepts `,` as keyword-body
+character); commas-as-Unquote-token apply only OUTSIDE keyword
+bodies. EDN treats commas as whitespace everywhere — so
+keyword bodies containing commas don't round-trip through EDN
+parsers without lossy re-interpretation.
 
-> *"we have scheme macros now.... we need to swap to clojure
-> macros... we also need to impose our pending rules... type
-> declarations may only be keywords. keywords may not contain
-> underscores. underscores are reserved for swapping from
-> commas when transmitting EDN ... :wat::core::HashMap<wat::core::String_wat::core::i64>
-> further... symbols may not contain commas, however they can
-> use underscores..."*
+After this arc: zero commas in any keyword or symbol; apostrophe
+fills every position commas previously held. wat source becomes
+EDN-compliant at the lexical level (combined with arc 172's
+comma-as-whitespace + ~/~@ unquote, the substrate is fully EDN).
 
-The current substrate uses `,` as a meaningful character in
-three positions:
-1. **Inside `<...>`** — type-arg separator. Arc 170 slice 1f-W
-   shipped the position-aware lexical rule + wire-encoding
-   swap (commas ↔ underscores).
-2. **In fixed-arity dispatch suffix** — `:wat::core::-,2`
-   means "the binary minus dispatch entry." Arc 171 (this arc)
-   swaps to `:wat::core::-'2`.
-3. **In quasiquote bodies** — `,name` is unquote, `,@list` is
-   splice (Scheme/CL tradition). Arc 172 swaps to Clojure
-   `~name` / `~@list` and makes `,` pure whitespace per EDN.
+## Scope — sized at author time
 
-Once arc 171 + 172 ship, **`,` carries no meaning in wat
-source — pure whitespace per EDN spec.** wat-rs becomes
-lexically EDN-compliant.
+**167 sites across 14+ files** per `grep -rE ":[a-zA-Z][a-zA-Z_:\*\+\-/]*,[0-9a-zA-Z\-]+"`:
 
-## Scope
+- `wat/core.wat` — define-dispatch entries for arithmetic + comparison family
+- `wat-tests/service-template.wat`
+- `wat-scripts/` (ping-pong, seed-fixture)
+- `examples/interrogate/wat/main.wat`
+- `crates/wat-telemetry/wat/*` + `wat-tests/*`
+- `crates/wat-telemetry-sqlite/wat/*` + `wat-tests/*`
+- `crates/wat-holon-lru/wat/holon/lru/HologramCache.wat`
+- `src/lexer.rs` / `src/types.rs` / `src/runtime.rs` / `src/check.rs` (Rust string literals for diagnostics + matchers)
+- `crates/wat-edn/tests/wire_encoding.rs`
+- `docs/arc/2026/05/130-cache-services-pair-by-index/complected-2026-05-02/*.wat` (archived; verify scope at sweep time)
 
 ### Substrate edits
 
 **Lexer change** (`src/lexer.rs`):
-- Recognize `'` as a token in the position currently held by
-  `,` for dispatch-suffix
-- During transition (this arc): accept BOTH `'` and `,` in the
-  dispatch suffix; emit a deprecation diagnostic for `,` use
-- Arc closure: retire `,` acceptance in dispatch-suffix
-  position (commas in dispatch fully gone)
+- `lex_keyword` body: accept `'` (apostrophe) as keyword-body
+  character. Same position-aware treatment commas currently
+  have (no-op outside keyword bodies; passthrough inside).
+- During transition (this arc): KEEP `,` accepted as
+  keyword-body character. Both work concurrently.
+- Arc closure: retire `,` acceptance inside keyword bodies
+  with a clean diagnostic naming the apostrophe-canonical
+  shape.
 
-**Parser change** (`src/parser.rs`):
-- Update fixed-arity dispatch parsing to accept `'` (or both
-  during transition)
+**Parser change** (`src/parser.rs`): none — apostrophe inside a
+keyword body is just lexical; the parser sees the keyword as a
+whole.
 
-**Consumer sweep** — one site:
-- `wat/core.wat:96`: `(:wat::core::define-dispatch :wat::core::-,2 ...)`
-  → `(:wat::core::define-dispatch :wat::core::-'2 ...)`
+### Consumer sweep — 167 sites
 
-That's the entire substrate-level consumer sweep per
-2026-05-10 grep (`grep -rEn ":[a-zA-Z][a-zA-Z_:\\-]*,[0-9]+\\b"`
-across all wat/.rs sources). One site.
+Mechanical pattern: every `:<verb>,<suffix>` becomes
+`:<verb>'<suffix>`. For multi-arg discriminators (e.g.,
+`:wat::core::+,i64-f64`), the `-` between type names also
+becomes `'`: `:wat::core::+'i64'f64`. Per user's locked table.
+
+The 167 sites split into:
+- ~60-80 wat source files (`wat/`, `wat-tests/`,
+  `crates/*/wat/`, `crates/*/wat-tests/`, `examples/*/wat/`,
+  `wat-scripts/`)
+- ~10 Rust files (string literals in diagnostics + matchers)
+- ~14 archived arc docs (verify whether they need migration —
+  archived docs are historical record per "what is inscribed
+  is inscribed"; likely skip)
 
 ### What does NOT change
 
-- Commas inside `<>` keyword bodies — unaffected (slice 1f-W
-  already shipped that rule)
-- Commas in quasiquote bodies (`,name` / `,@list`) — arc 172's
-  domain
-- Type declarations / typealiases / struct fields — comma not
-  used in source for these
-- Symbol names — symbols never contained commas
+- Commas as whitespace OUTSIDE keyword bodies — pure
+  whitespace per EDN spec (no change needed; arc 172 closes
+  the comma-as-Unquote-token gap)
+- Slice 1f-W's wire encoding (commas inside `<>` swap to
+  underscore on the wire) — independent rule; unchanged
+- Symbol/keyword content other than commas — apostrophe is
+  added as accepted character; underscores stay allowed; dashes
+  stay allowed; etc.
 
 ## Slicing plan
 
-Three small slices. Total predicted: 60-120 min sonnet.
+Three slices. Total predicted: 2-4 hours mixed sonnet.
 
-### Slice 1 — Lexer + parser accept `'` (transitional)
+### Slice 1 — Lexer accepts apostrophe inside keyword body
 
-- Lexer recognizes `'` after a keyword body as dispatch-suffix
-  separator
-- Parser accepts `'N` arity suffix on dispatch-form keywords
-- Tests verify the new shape parses; existing comma-suffix
-  tests still pass
+- `lex_keyword` accepts `'` as keyword-body character; same
+  position-aware treatment as commas
+- Tests: verify `:wat::core::op'2` parses as a single keyword;
+  verify `:wat::core::op'i64'i64` parses (multi-apostrophe);
+  existing `,N` tests continue to pass (transition mode)
+- Workspace cargo test unchanged (purely additive)
 
-Predicted: 30-60 min sonnet.
+Sonnet. Predicted: 30-45 min.
 
-### Slice 2 — Single-site consumer sweep
+### Slice 2 — Consumer sweep across all 167 sites
 
-- Edit `wat/core.wat:96` from `,2` to `'2`
-- Re-run cargo test; verify the dispatch works under the new
-  shape
+- Mechanical sed/awk-style migration: `,<suffix>` → `'<suffix>`
+  in keyword bodies; multi-suffix entries split each `-` between
+  type names also to `'` per user's table
+- All ~80 source files: wat + Rust diagnostic strings
+- Cargo test workspace must stay green throughout (or surface
+  any test that depends on the specific keyword spelling)
+- Archived arc docs (`docs/arc/2026/05/130-*/complected*`):
+  surface as honest delta; archive may NOT need migration
+  per "what is inscribed is inscribed"
 
-Predicted: 5-10 min sonnet.
+Sonnet. Predicted: 60-120 min.
 
-### Slice 3 — Closure (retire `,` in dispatch position)
+### Slice 3 — Closure: retire comma in keyword body
 
-- Lexer rejects `,` in dispatch-suffix position with a clean
-  diagnostic naming the new shape
-- Memory + INSCRIPTION + USER-GUIDE row (the deprecation is
-  complete; new docs lock in `'N` as canonical)
+- `lex_keyword`: reject `,` inside keyword body with a clean
+  diagnostic naming `'` as the canonical shape and the
+  migration arc (this arc, 171)
+- Tests: assert the rejection diagnostic exists; assert all
+  current consumers use `'`
+- Memory entry update + INSCRIPTION + USER-GUIDE +
+  058 changelog row + amend
+  `feedback_apostrophe_dispatch_separator.md` with shipped
+  status
 
-Predicted: 30-60 min sonnet.
+Sonnet. Predicted: 30-45 min.
 
 ## Dependencies
 
 - Arc 170 slice 1f-W shipped (`4278c4d`) — wire encoding rule
-  already locked; this arc doesn't change that.
-- Independent of arc 172. Either can ship first.
+  for `<>` already locked; this arc doesn't change it
+- Independent of arc 172. Arc 171 ships FIRST (retires comma
+  inside keyword bodies) so arc 172's lexer change (comma →
+  whitespace OUTSIDE keyword bodies) doesn't collide with
+  any remaining comma-in-keyword sites
 
 ## Risks
 
-- **Apostrophe collision with quote in other lisps** — Scheme
-  uses `'foo` for quote (equivalent to `(quote foo)`). Arc 172
-  introduces Clojure `'foo` quote with the same meaning. The
-  apostrophe in dispatch suffix is in a DIFFERENT position
-  (after a keyword + arity digit) — no ambiguity per lexer's
-  position-awareness, but worth verifying.
-- **Workspace sweep larger than expected** — grep found one
-  site, but the lab repo might have more once we look beyond
-  `wat-rs/`. Verify with sonnet during slice 2.
+- **Apostrophe collision with Lisp/Clojure quote** — `'foo`
+  (start of token; quote shorthand) vs `:foo'bar` (apostrophe
+  inside keyword body; just a separator). Position-aware lexing
+  already distinguishes by `:` prefix. The lex_keyword routine
+  handles this naturally — commas have the same position-aware
+  status today.
+- **Sweep miscount** — the 167 estimate is from one grep
+  pattern. Sonnet may surface additional sites. Surface as
+  honest delta; orchestrator decides scope.
+- **Archived arc docs** — `docs/arc/2026/05/130-*/complected*`
+  has 14 comma sites. Per "what is inscribed is inscribed,"
+  archived docs likely stay as historical record. Sonnet
+  surfaces; orchestrator confirms skip.
 
 ## Ship criteria (whole-arc)
 
-- Substrate lexer/parser accept `'N` dispatch suffix
-- `wat/core.wat:96` updated
-- Workspace cargo test green (no regressions)
-- Final closure slice retires `,` acceptance with clean
-  diagnostic if user code still uses `,N`
+- `lex_keyword` accepts `'` inside keyword body; rejects `,`
+  inside keyword body (after slice 3)
+- All 167 source-tree sites swept (archived docs likely skipped)
+- Workspace cargo test green; no regressions
+- Memory amended with shipped status
+- INSCRIPTION per FM 11 (no "deferred to future" language)
 
 ## Cross-references
 
+- Memory: `feedback_apostrophe_dispatch_separator.md` (the
+  user's locked convention)
 - Arc 170 REALIZATIONS pass 14 (the decision that opened this
-  arc)
-- Arc 170 slice 1f-W (the FIRST thread of EDN-compliance to
-  ship — commas inside `<>`)
-- Arc 172 (sibling — the THIRD thread; macros)
+  arc; framed arity-only; user broadened on the spot 2026-05-10)
+- Arc 170 slice 1f-W (`4278c4d`) — sibling EDN-compliance work
+  for commas inside `<>`
+- Arc 172 (sibling — Scheme → Clojure macros); arc 171 ships
+  BEFORE arc 172 to clear keyword-body commas
 - Arc 146 — dispatch mechanism this arc fine-tunes
