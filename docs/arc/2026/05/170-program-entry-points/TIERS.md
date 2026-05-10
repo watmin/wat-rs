@@ -101,17 +101,41 @@ This is the substrate primitive that **bridges tier boundaries
 when tier ≥ 2.** It's the only shared piece across the hermetic
 tiers — different transports, same package.
 
-## Today's `wat/std/hermetic.wat` is a tier-2 wrapper
+## Today's `wat/std/hermetic.wat` is a tier-2 wrapper — gets rebuilt in arc 170 slice 3
 
 `wat/std/hermetic.wat` ships in the substrate today as a
-wat-level convenience over `fork-program-ast` (string source →
-forked process). It's a tier-2 spawn with a specific input shape
-(string source rather than fn).
+wat-level convenience over `fork-program-ast` (forms → forked
+process). It's a tier-2 spawn with the legacy input shape
+(`Vec<WatAST>` with an embedded `:user::main` define).
 
-After arc 170 ships, this wrapper becomes a candidate for rebuild
-on top of `(spawn-process fn)` — the uniform tier-2 surface. Same
-hermetic property; same tier-bridging primitive; one less
-special-case in the wat-level surface. Future arc, not arc 170.
+Arc 170 changes the tier-2 surface to take a fn directly. The
+existing hermetic tooling MUST reach its polished form on the new
+substrate — not just functionally work, but be **as good as the
+new substrate allows**. That rebuild is slice 3's scope.
+
+Polished shape (slice 3 target):
+
+```scheme
+;; before arc 170 — caller constructs Vec<WatAST> with embedded :user::main
+(:wat::kernel::run-sandboxed-hermetic-ast forms stdin-data scope)
+
+;; after arc 170 — caller passes a fn; tooling handles the ceremony
+(:wat::kernel::run-sandboxed-hermetic
+  (fn [stdin :wat::io::IOReader stdout :wat::io::IOWriter stderr :wat::io::IOWriter] :nil
+    (... test body ...))
+  stdin-data
+  scope)
+```
+
+The call site collapses to "write your test as a fn; we
+hermetically run it." Same hermetic property (tier 2; ambient);
+same tier-bridging primitive (closure-extraction package); but
+the call surface aligns with the rest of arc 170's spawn family
+(fn in, Process out).
+
+Slice 3 also migrates all callers of the legacy hermetic API to
+the new shape. `wat/test.wat` and any other tooling that wraps
+the spawn family get the same polish.
 
 ## Future tiers
 

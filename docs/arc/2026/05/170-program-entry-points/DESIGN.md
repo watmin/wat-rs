@@ -424,22 +424,52 @@ Predicted: 60-120 min opus.
 
 Predicted: 90-180 min opus.
 
-### Slice 3 — consumer sweep (sonnet)
+### Slice 3 — consumer sweep + tooling rebuild
 
-Mechanical sweep across:
+Arc 170 changes the spawn surface (tier 1/2/3 framework; fn-input
+contract; closure-extraction tier-bridging at tier ≥ 2). Every
+existing user-facing thing that interfaces with the spawn family
+MUST reach its polished form on the new substrate — not just
+functionally work, but **as good as the new substrate allows**.
+
+**Mechanical sweep (sonnet):**
 
 - All `:user::main` definitions:
   - CLI-only programs: migrate to new signature (add argv,
     change return to ExitCode)
-  - Substrate-spawn-target programs: rename `:user::main` to a
-    bespoke entry name satisfying `:user::process` contract;
-    callers pass the fn directly to spawn-process
+  - Substrate-spawn-target programs: rewrite as anonymous fn
+    satisfying `:user::process` contract; callers pass the fn
+    directly to spawn-process
   - Both contexts: define both
 - `fork-program*` callsites → `spawn-process(fn)` shape
-- `spawn-program*` callsites → migrate to spawn-process(fn) (real
-  fork) OR spawn-thread(fn) (parent world; services pattern)
+- `spawn-program*` callsites → migrate to `spawn-process(fn)` (real
+  fork) OR `spawn-thread(fn)` (parent world; services pattern)
 
-Predicted: 90-180 min sonnet.
+**Tooling rebuild (orchestrator + sonnet pair, more than mechanical):**
+
+- **`wat/std/hermetic.wat`** — currently takes
+  `(forms :Vector<WatAST>) (stdin) (scope)` and calls
+  `fork-program-ast` with embedded `:user::main`. Rebuilds to take
+  `(test-fn) (stdin) (scope)` and use spawn-process(fn) under the
+  hood. Polished call site: `(run-sandboxed-hermetic
+  (fn [stdin stdout stderr] :nil ...) "" :None)`. See
+  [`TIERS.md`](./TIERS.md) for the polished shape.
+- **`wat/test.wat`** — references fork-program-ast; same
+  treatment per its own surface.
+- **All callers of the legacy hermetic API** — migrate to the new
+  call shape. This is wider than the verb-level mechanical sweep
+  because the hermetic function's own input shape changed.
+- **Any other stdlib that wraps the spawn family** — same scope:
+  reach the polished form on the new substrate.
+
+The slice is sonnet-mechanical for the verb renames + signature
+updates, but the hermetic tooling rebuild + caller migration is
+orchestrator-judged. Slice 3's BRIEF (drafted post-slice-1b +
+post-slice-2) splits these explicitly.
+
+Predicted: 90-180 min sonnet for the mechanical sweep; orchestrator
+time for the hermetic rebuild + caller migration TBD when slice 3
+is briefed.
 
 ### Slice 4 — substrate retirement (opus)
 

@@ -241,11 +241,13 @@ spawn family.
 
 ### Discipline lesson — for orchestrator framing reflexes
 
-Three framing passes in one conversation thread:
+Four framing passes in one conversation thread:
 
 1. Wrong-shape (entry-keyword ceremony at Rust API level)
 2. Wrong-shape (hermetic as primary subject)
 3. Right-shape (tiers as primary; hermetic as ambient)
+4. Wrong-shape (under-scoped slice 3; "future arc" framing on
+   hermetic.wat rebuild)
 
 Each pass was an orchestrator reach for the wrong word. The user
 caught each one through the same probe: *"do you actually know
@@ -266,3 +268,50 @@ property-named-as-emergent. Reaching for the property as primary
 is FM-10-adjacent (type-theoretic reach when entity-kind is the
 answer) but at a higher level — frame-theoretic reach when
 structural-concept is the answer.
+
+### Pass 4 — under-scoping reflex
+
+User caught me marking the hermetic.wat rebuild as "Future arc,
+not arc 170" when it absolutely IS arc 170's scope.
+
+User direction:
+
+> *"these arcs cover whatever amount of work is necessary - they
+> do not have a defined 'limited scope of work' they are defined
+> as 'we have a change to the substrate, we deal with whatever
+> implications come from it'"*
+
+> *"arc 109 is making our lang's UX outstandingly good"*
+
+> *"working isn't a polished state"*
+
+The arc-scope doctrine: when the substrate's contract changes,
+EVERY existing user-facing thing that interfaces with that
+contract must reach its CORRECT polished form on the new
+substrate. Not "still works." Not "minimal mechanical update."
+**As good as the new substrate allows.**
+
+The arc covers all implications. Splitting "make it work" from
+"make it polished" into separate arcs is wrong — the polish IS
+the arc's deliverable.
+
+This is the same shape of failure as `feedback_pivot_not_defer.md`:
+marking known work as "future arc" when it actually belongs in
+the current arc. The reflex is "scope this down to ship faster";
+the doctrine is "polish is the bar; arc covers all implications."
+
+Doc updates from this pass:
+
+- TIERS.md — dropped "Future arc, not arc 170" framing on the
+  hermetic.wat rebuild; in-scope for slice 3
+- DESIGN.md slice 3 — expanded from "mechanical sweep" to
+  "consumer sweep + tooling rebuild to polished form"; explicit
+  hermetic.wat call-out
+
+Candidate FM 19 (recovery doc § 6): **Under-scoping reflex —
+marking polish as future arc.** STOP signal: writing "future arc,
+not arc N" or "out of scope; later arc handles it" while the
+current arc is the arc that changes the substrate that thing
+depends on. The arc covers all implications of its substrate
+change; "we'll polish later" is FM-11-adjacent (deferral as
+done).
