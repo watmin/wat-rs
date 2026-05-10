@@ -1,5 +1,15 @@
 # Arc 170 slice 2 — substrate consumer (uses slice 1 closure extraction)
 
+> **Status (2026-05-09):** This BRIEF references slice 1's `ClosurePackage
+> { forms, entry }` shape, which is being reshaped by slice 1b to
+> `{ prologue, entry_form }`. **Do NOT spawn this slice until
+> slice 1b ships.** Per recovery doc § FM 6 (no speculative
+> BRIEF updates), this BRIEF is frozen at v1-shape until slice
+> 1b's substrate ships; orchestrator updates this BRIEF after
+> slice 1b's SCORE commits. See
+> [`REALIZATIONS-SLICE-1.md`](./REALIZATIONS-SLICE-1.md) +
+> [`BRIEF-SLICE-1B.md`](./BRIEF-SLICE-1B.md).
+
 ## Goal
 
 Wire `:user::main`'s new contract (argv + ExitCode return) and

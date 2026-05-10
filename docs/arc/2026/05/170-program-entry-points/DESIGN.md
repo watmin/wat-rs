@@ -355,9 +355,9 @@ it Rust-internal; later arc may surface it.
 ## Slice plan
 
 Mirrors the substrate-as-teacher pattern from arcs 167 / 168 /
-169. Six slices.
+169. Seven slices (six original + slice 1b reshape).
 
-### Slice 1 — closure extraction (Rust substrate; zero callers)
+### Slice 1 — closure extraction (Rust substrate; zero callers) — SHIPPED
 
 Build the foundation primitive in Rust. Zero wat-level callers
 initially; testable in isolation.
@@ -366,14 +366,40 @@ initially; testable in isolation.
 - Dep-closure builder (recursive)
 - Value→AST encoder (extending existing struct→form)
 - Portability type-check (channel-bearing values refused)
-- Rust integration tests verifying extracted Vec\<WatAST\>
-  re-freezes correctly
+- Rust integration tests verifying extracted forms re-freeze
+  correctly
 
 Detailed in [`CLOSURE-EXTRACTION.md`](./CLOSURE-EXTRACTION.md).
 
-Predicted: 90-180 min opus.
+**Shipped**: commit `787c977` + SCORE `bb155ed` (14/14 pass,
+Mode A clean). **However** — review surfaced that the public
+shape of `ClosurePackage { forms, entry }` carries the
+entry-keyword ceremony DESIGN explicitly killed (lines 102-108
++ 484-509). See
+[`REALIZATIONS-SLICE-1.md`](./REALIZATIONS-SLICE-1.md) for the
+discipline lesson + slice 1b origin.
 
-### Slice 2 — substrate consumer (uses slice 1)
+Predicted (original): 90-180 min opus. Actual: ~150 min Mode A
+clean.
+
+### Slice 1b — `ClosurePackage` reshape ("the fn IS the program")
+
+Restructures `ClosurePackage` from `{ forms, entry: String }` to
+`{ prologue: Vec<WatAST>, entry_form: WatAST }`. Retires the
+synthetic-name machinery (`:__closure::__pkg_<n>` counter +
+wrap-in-define). The fn-form AST evaluates to a fn Value
+directly; no naming required.
+
+- `closure_extract.rs` reshape: ClosurePackage shape, entry
+  resolution (no synthetic names), assembly (entry stays as
+  fn-form expression)
+- `tests/wat_arc170_closure_extraction.rs` T1-T15 assertion
+  updates
+- CLOSURE-EXTRACTION.md spec amendment
+
+Predicted: 60-120 min opus.
+
+### Slice 2 — substrate consumer (uses slice 1b's reshaped foundation)
 
 - `:wat::kernel::ExitCode` typealias
 - `:user::main` signature update + validator

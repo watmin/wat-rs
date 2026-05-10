@@ -1,14 +1,150 @@
 # Arc 170 — Closure extraction (substrate primitive deep-dive)
 
+> **Status:** v2 (2026-05-09; supersedes v1 below). v1 spec'd a
+> synthetic-name + `entry: String` approach that re-introduced the
+> entry-keyword ceremony DESIGN explicitly killed. v2 retires the
+> synthesis: the fn-form AST evaluates to a fn Value directly. See
+> [`REALIZATIONS-SLICE-1.md`](./REALIZATIONS-SLICE-1.md) for the
+> discipline lesson. Slice 1 (commit `787c977`) shipped against v1;
+> slice 1b reshapes to v2.
+
 The load-bearing substrate work for arc 170. Arc 170's spawn-process
 takes a fn directly; the substrate must turn that fn into a portable
-description (Vec\<WatAST\> + a way to find the entry) suitable for
-shipping to a forked OS process. This doc is the algorithm + invariants
-+ test strategy.
+description (a captured-environment prologue + an entry expression
+that evaluates to a fn Value) suitable for shipping to a forked OS
+process. This doc is the algorithm + invariants + test strategy.
 
 **Scope:** Rust-internal capability in arc 170. NOT exposed at wat
 level. Future remote-program arc may surface it for over-the-wire
 transport.
+
+---
+
+## v2 — corrected algorithm + shape
+
+**The honest principle:** "the fn IS the program." A fn-form
+expression like `(fn [stdin :IOReader stdout :IOWriter stderr :IOWriter] :nil ...)`
+already evaluates to a fn Value. The substrate's evaluator turns
+fn-forms into fn Values directly. Closure extraction does NOT need
+to wrap the fn in a `define` + look up by name; it keeps the entry
+as an expression.
+
+### Public shape (v2)
+
+```rust
+pub struct ClosurePackage {
+    pub prologue: Vec<WatAST>,  // type defs + dep defs (the captured
+                                // environment); does NOT include the
+                                // entry as a trailing define
+    pub entry_form: WatAST,     // an expression evaluating to a fn Value:
+                                //   - inline-lambda input: the fn-form
+                                //     AST itself
+                                //   - keyword-path input:  a Symbol AST
+                                //     that resolves into prologue's defines
+}
+```
+
+**No `entry: String` field.** The entry is an expression, not a name.
+
+### Consumer pattern (v2)
+
+```rust
+let pkg = extract_closure(&fn_value, sym, &types)?;
+let frozen = startup_from_forms(pkg.prologue, ...)?;
+let fn_value = eval(&pkg.entry_form, env, frozen.symbols())?;
+let result = apply_function(fn_value, args, frozen.symbols(), span)?;
+```
+
+The consumer freezes the prologue (which seeds types + symbol
+table), then evaluates `entry_form` in that frozen world — the
+fn-form AST evaluates to a fn Value, which gets applied to args.
+
+### Algorithm (v2 deltas vs v1)
+
+The free-symbol walker, dep-closure builder, capture encoding,
+portability check, and topological sort are all unchanged from v1
+(slice 1 implemented them correctly). The deltas are:
+
+**Step 1 (entry resolution) — v2:**
+
+- For inline-lambda input: `entry_form = the fn-form AST itself`,
+  reconstructed from the fn Value's params + body + ret_type. No
+  synthetic name is generated. No define wrapper.
+- For keyword-path input: `entry_form = (Symbol :my::worker)` (a
+  Symbol AST). The user's existing `(:wat::core::define :my::worker (fn ...))`
+  is in `prologue` as a dep (it's a user defn the closure-extraction
+  walker pulled in); evaluating the symbol resolves to the fn Value
+  bound there.
+
+**Step 6 (assembly) — v2:**
+
+`prologue: Vec<WatAST>` contains:
+
+1. Type definitions (struct / enum / newtype / typealias) in
+   topological order
+2. Capture binding defines (if any)
+3. User dependency defines in topological order (deps before
+   consumers) — INCLUDING the user's existing define for the entry
+   fn IF the input was a keyword path
+
+`entry_form: WatAST` contains:
+
+- The reconstructed fn-form AST (inline-lambda input), OR
+- The Symbol AST naming a fn defined in `prologue` (keyword-path
+  input)
+
+The entry is NEVER a trailing define in `prologue`. Position is
+the contract: prologue is the captured environment; entry_form is
+the program.
+
+### Invariants (v2)
+
+**I1. Self-contained freeze.** `startup_from_forms(package.prologue)`
+succeeds. No undefined symbols, no missing types.
+
+**I2-v2. Entry evaluates to a fn Value.** `eval(&package.entry_form,
+env, frozen.symbols())` returns `Value::wat__core__fn` (or
+equivalent). Replaces v1's "entry resolvable by name" invariant.
+
+**I3. Behavioral equivalence.** For any `Vec<Value>` inputs that
+match the entry fn's signature: applying the fn Value (resolved
+from `entry_form` in the frozen fresh world) produces the same
+observable side effects as invoking the original fn in the
+parent's world (modulo the IPC mechanism's wire effects).
+
+**I4. No substrate primitive leakage.** `package.prologue` does
+NOT contain `(:wat::core::define ...)` for substrate primitives.
+
+**I5-v2. No synthesized names.** `package.prologue` does NOT
+contain any `:__closure::__pkg_<n>` synthetic identifier. The
+counter machinery is retired. Capture-binding names (e.g.,
+`:wat::kernel::__closure::__captured_X` from v1's step 4) follow
+their own naming convention; they are NOT entry names.
+
+### Tests (v2 deltas)
+
+T1-T15 from slice 1 stay structurally; assertions update:
+
+- T1-T15 assertions on `pkg.entry` (string) → assertions on
+  `pkg.entry_form` (WatAST shape)
+- For inline-lambda inputs: assert `pkg.entry_form` is a
+  fn-form AST `(fn [params...] -> :T body...)` matching the
+  input fn's signature
+- For keyword-path inputs: assert `pkg.entry_form` is a Symbol AST
+  matching the input keyword
+- Behavior-equivalence tests: freeze `prologue` + `eval(entry_form)`
+  → fn Value → apply to test args → compare against parent-world
+  invocation
+
+---
+
+## v1 — original spec (HISTORICAL; supersded by v2)
+
+> The text below is the original CLOSURE-EXTRACTION.md spec that
+> drove slice 1's implementation. It is retained as historical
+> record per `feedback_inscription_immutable.md`. The
+> synthetic-name + `entry: String` approach below is RETIRED in
+> v2 above; do not implement against v1.
 
 ---
 

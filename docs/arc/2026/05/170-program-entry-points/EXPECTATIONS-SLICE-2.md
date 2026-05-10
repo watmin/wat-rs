@@ -1,5 +1,8 @@
 # Arc 170 slice 2 — EXPECTATIONS
 
+> **Status (2026-05-09):** Frozen at v1-shape pending slice 1b
+> substrate reshape. See `BRIEF-SLICE-2.md` header.
+
 ## Independent prediction
 
 **Predicted runtime band: 90-180 minutes (opus agent).**
