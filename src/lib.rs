@@ -82,6 +82,7 @@ pub mod resolve;
 pub mod runtime;
 pub mod rust_deps;
 pub mod sandbox;
+pub mod services;
 pub mod spawn;
 pub mod spawn_process;
 pub mod panic_hook;
