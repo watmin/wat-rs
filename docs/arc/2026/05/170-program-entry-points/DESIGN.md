@@ -29,13 +29,28 @@ heart, a **client / server** relationship:
 Each spawn variant differs ONLY in the IPC mechanism connecting
 client to server:
 
-| Tier | Variant | IPC mechanism | Sharing | Substrate primitive | Server contract |
-|---|---|---|---|---|---|
-| **1** | Thread | Crossbeam channels (in-memory typed Values) | Same vm; same OS process; memory shared | `(:wat::kernel::spawn-thread fn)` | `:user::thread` — `(rx tx) -> :nil` |
-| **2** | Process | Pipes (stdin, stdout, stderr — byte streams; stderr carries `Result.Err`) | Forked OS process; host shared, memory boundary (hermetic ambient) | `(:wat::kernel::spawn-process fn)` | `:user::process` — `(stdin stdout stderr) -> :nil` |
-| **3** | Remote *(future)* | Sockets (UDS / localhost HTTP / TLS / mTLS); Q-channel multiplexed `Result<T, E>` | Network shared, host boundary (hermetic ambient + extra) | `(:wat::kernel::spawn-remote-program fn endpoint)` | `:user::remote-program` — `(rx tx) -> :nil` (Q-channel framed) |
+| Tier | Variant | User-visible IPC | Substrate transport | Sharing | Substrate primitive | Server contract |
+|---|---|---|---|---|---|---|
+| **1** | Thread | `Sender<T>` / `Receiver<T>` | crossbeam channels (in-memory typed Values) | memory shared | `(:wat::kernel::spawn-thread fn)` | `:user::thread` — `(rx :Receiver<I> tx :Sender<O>) -> :nil` |
+| **2** | Process | `Sender<T>` / `Receiver<T>` | EDN-over-pipes (substrate encodes/decodes) | host shared, memory boundary (hermetic ambient) | `(:wat::kernel::spawn-process fn)` | `:user::process` — `(rx :Receiver<I> tx :Sender<O>) -> :nil` |
+| **3** | Remote *(future)* | `Sender<T>` / `Receiver<T>` (Q-channel multiplex) | EDN-over-sockets | network shared, host boundary | `(:wat::kernel::spawn-remote-program fn endpoint)` | `:user::remote-program` — `(rx :Receiver<I> tx :Sender<O>) -> :nil` |
 
 (Tier 0 — `(f x y)` direct invocation in the current eval env — isn't a "spawn variant"; it's the base layer. See [`TIERS.md`](./TIERS.md).)
+
+**Same user-visible abstraction at every tier.** The user writes
+the same `(rx :Receiver<I> tx :Sender<O>)` shape regardless of
+tier; the substrate handles transport encoding (none for tier 1;
+EDN-over-pipes for tier 2; EDN-over-sockets for tier 3). WatAST
+serializes to EDN by nature; users never see strings flowing
+through these channels.
+
+**The OS-boundary exception — `:user::main`:** the wat-cli IS the
+OS-boundary, and the OS shell speaks bytes. `:user::main` keeps
+`IOReader`/`IOWriter` for stdin/stdout/stderr; argv stays
+`:Vector<String>`. This is the ONE place strings remain at the
+user-visible level — because it's where wat meets the OS, and the
+OS is bytes. Wat-internal spawning (tier 2 + tier 3) is wat-to-wat
+and works in forms.
 
 Every server fn returns `:nil` (Program contract per arc 114 —
 "values flow only through channels; return is a panic-free
@@ -452,16 +467,18 @@ testing lib's job is to hide constant ceremony for typical test
 usage. Three layers per [`TIERS.md`](./TIERS.md):
 
 - **Layer 1 — `(:wat::test::run-hermetic (fn [] :nil ...))`** —
-  the 90% case. fn takes no params; harness wires stdio behind
-  the scenes; returns `RunResult`. No stdio-signature ceremony,
-  no stdin-data, no scope.
-- **Layer 2 — `(:wat::test::run-hermetic-with-io fn input)`** —
-  the 9% case. fn takes `(stdin stdout stderr)`; harness feeds
-  input to stdin, drains stdout/stderr, returns `RunResult`. For
-  tests that actually interact with stdio.
+  the 90% case. fn takes no params; harness handles channel
+  setup behind the scenes; returns `RunResult`. No channels in
+  the signature; no inputs; no scope.
+- **Layer 2 — `(:wat::test::run-hermetic-with-io<I,O> fn inputs)`** —
+  the 9% case. fn takes `(rx :Receiver<I> tx :Sender<O>)`;
+  harness feeds typed Values via rx, drains typed Values via tx,
+  returns parsed outputs. **Typed channels, not byte streams.**
+  Substrate handles EDN-over-pipes encoding internally.
 - **Layer 3 — `(:wat::kernel::spawn-process fn)`** — the
-  substrate; full surface for production code. Tests don't reach
-  here unless they really need it.
+  substrate; full surface for production code. Same typed-channel
+  fn signature `(rx :Receiver<I> tx :Sender<O>)`. Tests don't
+  reach here unless they really need it.
 
 What disappears from EVERY testing layer:
 
@@ -469,11 +486,18 @@ What disappears from EVERY testing layer:
   hermetic.wat errors on `:Some`; not functional anyway. Drops.
 - `forms :Vector<WatAST>` — caller writes a fn directly; no AST
   construction.
+- **`stdin :Vector<String>` and stdout/stderr as `Vec<String>`** —
+  string-shaped IO drops from every testing layer. The user
+  works in typed Values; the substrate handles EDN encoding at
+  the pipe boundary.
+- **`IOReader`/`IOWriter`** — byte-stream types drop from every
+  testing layer. Layer 2's fn takes `Receiver<I>`/`Sender<O>`
+  (typed channels); the substrate's pipe-fd plumbing is hidden.
 
 What disappears from Layer 1:
 
-- The fn's stdio parameters (Layer 2 has them when needed)
-- `stdin` input bytes (Layer 2 has them when needed)
+- The fn's channel parameters (Layer 2 has them when needed)
+- The input data parameter (Layer 2 has it when needed)
 
 **Migration scope:**
 

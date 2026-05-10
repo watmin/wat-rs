@@ -241,13 +241,16 @@ spawn family.
 
 ### Discipline lesson — for orchestrator framing reflexes
 
-Four framing passes in one conversation thread:
+Five framing passes in one conversation thread:
 
 1. Wrong-shape (entry-keyword ceremony at Rust API level)
 2. Wrong-shape (hermetic as primary subject)
 3. Right-shape (tiers as primary; hermetic as ambient)
 4. Wrong-shape (under-scoped slice 3; "future arc" framing on
    hermetic.wat rebuild)
+5. Wrong-shape (substrate-level types — IOReader / IOWriter /
+   Vec\<String\> stdin / scope — exposed in user-facing
+   interfaces; user must work in forms not strings)
 
 Each pass was an orchestrator reach for the wrong word. The user
 caught each one through the same probe: *"do you actually know
@@ -315,3 +318,94 @@ current arc is the arc that changes the substrate that thing
 depends on. The arc covers all implications of its substrate
 change; "we'll polish later" is FM-11-adjacent (deferral as
 done).
+
+### Pass 5 — strings stay at the substrate boundary, not in user-facing interfaces
+
+User direction:
+
+> *"we should further hide away string conveyance - we will /only/
+> ever transmit edn... WatAST serializes to a string by its
+> nature... we should only ever expose an interface where forms
+> are moved around.. the fact that they need to be strings at some
+> point (process boundary, network boundary) is the runtime's
+> concern - not the user. the user continues working in wat
+> natively"*
+
+I had drafted Layer 2 of the testing API as:
+
+```scheme
+(:wat::test::run-hermetic-with-io
+  (fn [stdin :wat::io::IOReader stdout :wat::io::IOWriter stderr :wat::io::IOWriter] :nil
+    ...)
+  "input bytes")
+```
+
+— which still leaks substrate-level types (IOReader, IOWriter)
+and substrate-level concepts (raw byte stdio) into the user's
+view. Wrong-shape.
+
+The settled doctrine: **the user works in forms at every tier;
+strings are the substrate's transport detail.** The polished
+abstraction is uniform across tiers:
+
+| Tier | User-visible IPC | Substrate transport |
+|---|---|---|
+| 1 — threads | `Sender<T>` / `Receiver<T>` | crossbeam (in-memory; no encoding) |
+| 2 — processes | `Sender<T>` / `Receiver<T>` | EDN-over-pipes (substrate encodes/decodes) |
+| 3 — remote | `Sender<T>` / `Receiver<T>` (Q-channel) | EDN-over-sockets |
+
+Same shape at every tier. WatAST serializes to EDN by nature; the
+substrate handles encoding at the pipe/socket boundary; users
+never see strings flowing through these channels.
+
+The OS-boundary exception: `:user::main`'s stdin/stdout/stderr
+stay `IOReader`/`IOWriter` (the OS shell speaks bytes; we can't
+pretend otherwise). argv stays `:Vector<String>`. This is the
+ONE place strings remain user-visible — because it's where wat
+meets the OS.
+
+**This is a substrate-shape change beyond what slice 2's BRIEF
+currently spec'd.** Slice 2 is already frozen at v1-shape (per
+FM 6) waiting on slice 1b; it now ALSO needs:
+
+- `:user::process` contract change: from
+  `(stdin :IOReader stdout :IOWriter stderr :IOWriter) -> :nil`
+  to `(rx :Receiver<I> tx :Sender<O>) -> :nil` — same shape as
+  `:user::thread`
+- `:wat::kernel::Process<I,O>` struct shape change: byte-pipe
+  handles (stdin/stdout/stderr IOReader/IOWriter) drop;
+  typed-channel handles (tx :Sender<I> + rx :Receiver<O> +
+  ProgramHandle) replace them
+- spawn-process implementation creates EDN-over-pipe channels
+  internally; the byte-pipe + EDN-encoder/decoder pair is
+  substrate-internal plumbing
+
+Slice 2 will be redrafted (post-slice-1b) with these typed-channel
++ form-only changes layered onto the closure-extraction reshape.
+
+### Discipline lesson candidate FM 20 — strings as substrate-leakage
+
+When designing user-facing interfaces, **strings (and the byte
+streams they imply) are substrate-level types that should not
+appear at the user's level unless the user is genuinely AT the
+OS boundary.** Wat-internal communication is form-shaped; the
+substrate's transport (bytes over pipes/sockets/files) is its
+own concern.
+
+STOP signal — phrases that mean you're about to fail this:
+
+- "the user passes a `Vec<String>` for stdin..."
+- "the fn takes `(stdin :IOReader stdout :IOWriter stderr :IOWriter)`..."
+- "scope :Option\<String\>"
+- "we drain the output to `Vec<String>`"
+
+When these surface in a user-facing interface design, ask: is
+the user genuinely at the OS boundary? If yes (`:user::main`,
+wat-cli's argv), strings stay. If no (any wat-internal spawn,
+test harness, IPC), the substrate handles serialization; the
+user works in typed Values.
+
+Connects to memory `project_pipe_protocol.md` ("line-delimited
+EDN + kernel pipes. One protocol; four transports.") — the
+protocol is EDN; the transports vary; the user-visible
+abstraction stays form-shaped.

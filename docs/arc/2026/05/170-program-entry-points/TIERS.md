@@ -12,12 +12,12 @@
 A wat form runs in one of four runtime tiers, ordered by what
 the runtime shares with the spawning context:
 
-| Tier | Sharing | IPC mechanism | Substrate primitive | Hermetic? |
-|---|---|---|---|---|
-| **0** — runtime env | call stack | direct invocation `(f x y)` | (the eval loop itself) | NO |
-| **1** — threads | memory (same wat world) | crossbeam channels `(tx, rx)` | `(:wat::kernel::spawn-thread fn)` | NO |
-| **2** — processes | host (filesystem, OS kernel) | linux fds — stdin/stdout/stderr | `(:wat::kernel::spawn-process fn)` | YES |
-| **3** — remote programs *(future)* | network | linux sockets `(tx, rx)` multiplexed | `(:wat::kernel::spawn-remote-program fn)` | YES |
+| Tier | Sharing | User-visible IPC | Substrate transport | Substrate primitive | Hermetic? |
+|---|---|---|---|---|---|
+| **0** — runtime env | call stack | direct call `(f x y)` | call stack | (the eval loop itself) | NO |
+| **1** — threads | memory (same wat world) | `Sender<T>` / `Receiver<T>` | crossbeam channels (in-memory typed Values) | `(:wat::kernel::spawn-thread fn)` | NO |
+| **2** — processes | host (filesystem, OS kernel) | `Sender<T>` / `Receiver<T>` | EDN-over-pipes (substrate encodes/decodes) | `(:wat::kernel::spawn-process fn)` | YES |
+| **3** — remote programs *(future)* | network | `Sender<T>` / `Receiver<T>` (Q-channel multiplex) | EDN-over-sockets | `(:wat::kernel::spawn-remote-program fn)` | YES |
 
 Each tier "shares less" than the previous. The tier number is
 the depth of isolation — tier 0 shares everything (same eval
@@ -27,6 +27,50 @@ The user-facing **interface stays uniform** across tiers: a fn
 satisfying a contract, paired with a client/server channel
 metaphor. What changes between tiers is the runtime env's
 sharing surface and the IPC mechanism that bridges it.
+
+## Same abstraction at every tier — typed channels
+
+The user writes the same `Sender<T>` / `Receiver<T>` shape at
+every tier. WatAST serializes to EDN by nature; the substrate
+handles encoding at the pipe/socket boundary. Users never see
+strings flowing through these channels.
+
+This is a **uniformity property**: the parent and child agree on
+types `I` and `O`; both sides see typed Values; transport is the
+substrate's secret. Tier 1 has no encoding step (memory is
+shared); tier 2 encodes through EDN-over-pipes; tier 3 encodes
+through EDN-over-sockets. From the user's POV, all three look
+identical.
+
+### The OS-boundary exception — `:user::main`
+
+There's exactly one place where strings remain user-visible: the
+wat-cli IS the OS boundary, and the OS shell speaks bytes.
+`:user::main`'s contract:
+
+- `stdin :wat::io::IOReader`, `stdout :wat::io::IOWriter`, `stderr :wat::io::IOWriter`
+  — byte streams from/to the OS shell
+- `argv :wat::core::Vector<wat::core::String>` — what the OS
+  shell passed; strings by nature
+
+This is the ONE place strings remain at the user-visible level,
+because it's where wat meets the OS, and the OS is bytes. Wat-
+internal spawning (tier 2 + tier 3) is wat-to-wat and works in
+forms — the OS-shell-bytes shape stops at `:user::main`'s
+threshold.
+
+### What disappears from the user's view
+
+| Where | Before | After |
+|---|---|---|
+| `:user::process` contract | `(stdin :IOReader stdout :IOWriter stderr :IOWriter)` | `(rx :Receiver<I> tx :Sender<O>)` |
+| `:wat::kernel::Process<I,O>` struct | `{ stdin :IOWriter, stdout :IOReader, stderr :IOReader, handle }` | `{ tx :Sender<I>, rx :Receiver<O>, handle }` |
+| Testing lib `RunResult` | `{ stdout :Vec<String>, stderr :Vec<String>, failure }` | `{ outputs :Vec<O>, failure }` (parsed Values) |
+| Testing lib stdin input | `Vec<String>` (joined to bytes) | `Vec<I>` (typed Values) |
+
+The tier-2 substrate transport (linux fds + EDN encoding) is
+substrate-internal plumbing. Users at tier 2 work in `Sender<T>` /
+`Receiver<T>` like at tier 1 — same shape, different transport.
 
 ## Hermeticness is an ambient property
 
@@ -129,19 +173,20 @@ want one thing: "run this code; tell me if it broke."
 (:wat::test::run-hermetic
   (fn [] :nil
     (:wat::core::assert-eq 42 (my-test-helper))))
-;; → returns :wat::kernel::RunResult { stdout, stderr, failure }
-;; user wrote: their test body. Nothing else. No stdio in the
-;; signature; no scope; no stdin-data.
+;; → returns :wat::kernel::RunResult { outputs :Vec<O>, failure }
+;; user wrote: their test body. Nothing else.
 
-;; LAYER 2 — the 9% case: tests that interact with stdio
-(:wat::test::run-hermetic-with-io
-  (fn [stdin :wat::io::IOReader stdout :wat::io::IOWriter stderr :wat::io::IOWriter] :nil
-    (... test reads/writes pipes ...))
-  "input bytes if any")
+;; LAYER 2 — the 9% case: tests that interact with the spawned channels
+(:wat::test::run-hermetic-with-io<I,O>
+  (fn [rx :wat::kernel::Receiver<I> tx :wat::kernel::Sender<O>] :nil
+    (... test sends/receives typed Values ...))
+  inputs)
+;; → outputs :Vec<O>; substrate encodes/decodes EDN over pipes;
+;; user sees typed Values both directions
 
-;; LAYER 3 — the 1% case: full substrate power, full surface
+;; LAYER 3 — the 1% case: full substrate, no testing-lib wrapper
 (:wat::kernel::spawn-process
-  (fn [stdin :wat::io::IOReader stdout :wat::io::IOWriter stderr :wat::io::IOWriter] :nil
+  (fn [rx :wat::kernel::Receiver<I> tx :wat::kernel::Sender<O>] :nil
     ...))
 ;; this is the production form; not for tests
 ```
