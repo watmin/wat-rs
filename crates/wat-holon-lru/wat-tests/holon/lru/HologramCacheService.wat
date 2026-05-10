@@ -251,8 +251,8 @@
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 2)
              "hcs-probe-three-on-handle: results[2] missing"))]
-       (:wat::core::i64::+,2
-         (:wat::core::i64::+,2 (:wat::core::i64::*,2 p0 100) (:wat::core::i64::*,2 p1 10))
+       (:wat::core::i64::+'2
+         (:wat::core::i64::+'2 (:wat::core::i64::*'2 p0 100) (:wat::core::i64::*'2 p1 10))
          p2)))
 
    ;; ─── Layer 4 helper — multi-key probe with full lifecycle ─────────
@@ -324,8 +324,8 @@
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 2)
              "hcs-eviction-on-handle: results[2] missing"))]
-       (:wat::core::i64::+,2
-         (:wat::core::i64::+,2 (:wat::core::i64::*,2 p0 100) (:wat::core::i64::*,2 p1 10))
+       (:wat::core::i64::+'2
+         (:wat::core::i64::+'2 (:wat::core::i64::*'2 p0 100) (:wat::core::i64::*'2 p1 10))
          p2)))
 
    ;; ─── Layer 5 helper — eviction at cap=2 with full lifecycle ───────
@@ -405,7 +405,7 @@
                (:wat::holon::leaf :beta)  (:wat::holon::leaf :bv))
             _finish
              (:wat::kernel::HandlePool::finish pool)]
-           (:wat::core::Tuple d (:wat::core::i64::+,2 (:wat::core::i64::*,2 pa 10) pb)))
+           (:wat::core::Tuple d (:wat::core::i64::+'2 (:wat::core::i64::*'2 pa 10) pb)))
         driver
          (:wat::core::first driver-and-pat)
         pat (:wat::core::second driver-and-pat)]

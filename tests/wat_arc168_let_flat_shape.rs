@@ -56,7 +56,7 @@ fn single_binding() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let [x 1]
-            (:wat::core::i64::+,2 x 1)))
+            (:wat::core::i64::+'2 x 1)))
     "#;
     let v = run(src);
     match v {
@@ -72,7 +72,7 @@ fn multiple_bindings() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let [x 1 y 2]
-            (:wat::core::i64::+,2 x y)))
+            (:wat::core::i64::+'2 x y)))
     "#;
     let v = run(src);
     match v {
@@ -88,7 +88,7 @@ fn sequential_references() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let [x 1
-                            y (:wat::core::i64::+,2 x 1)]
+                            y (:wat::core::i64::+'2 x 1)]
             y))
     "#;
     let v = run(src);
@@ -105,7 +105,7 @@ fn empty_bindings() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let []
-            (:wat::core::i64::+,2 1 1)))
+            (:wat::core::i64::+'2 1 1)))
     "#;
     let v = run(src);
     match v {
@@ -140,7 +140,7 @@ fn destructure_binding() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let [[a b] (:wat::core::Tuple 3 4)]
-            (:wat::core::i64::+,2 a b)))
+            (:wat::core::i64::+'2 a b)))
     "#;
     let v = run(src);
     match v {
@@ -196,9 +196,9 @@ fn multi_form_let_body() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let [x 1]
-            (:wat::core::i64::+,2 x 99)
-            (:wat::core::i64::+,2 x 50)
-            (:wat::core::i64::+,2 x 41)))
+            (:wat::core::i64::+'2 x 99)
+            (:wat::core::i64::+'2 x 50)
+            (:wat::core::i64::+'2 x 41)))
     "#;
     let v = run(src);
     match v {
@@ -217,8 +217,8 @@ fn multi_form_let_body_typecheck() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let [x 1]
-            (:wat::core::i64::+,2 x "not an int")
-            (:wat::core::i64::+,2 x 41)))
+            (:wat::core::i64::+'2 x "not an int")
+            (:wat::core::i64::+'2 x 41)))
     "#;
     let err = startup_err(src);
     assert!(
@@ -241,9 +241,9 @@ fn multi_form_fn_body() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::fn [x <- :wat::core::i64]
              -> :wat::core::i64
-             (:wat::core::i64::+,2 x 99)
-             (:wat::core::i64::+,2 x 50)
-             (:wat::core::i64::+,2 x 41))
+             (:wat::core::i64::+'2 x 99)
+             (:wat::core::i64::+'2 x 50)
+             (:wat::core::i64::+'2 x 41))
            1))
     "#;
     let v = run(src);
@@ -263,9 +263,9 @@ fn multi_form_defn_body() {
         (:wat::core::defn :user::triple-body
           [x <- :wat::core::i64]
           -> :wat::core::i64
-          (:wat::core::i64::+,2 x 99)
-          (:wat::core::i64::+,2 x 50)
-          (:wat::core::i64::+,2 x 41))
+          (:wat::core::i64::+'2 x 99)
+          (:wat::core::i64::+'2 x 50)
+          (:wat::core::i64::+'2 x 41))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:user::triple-body 1))
@@ -286,7 +286,7 @@ fn single_body_let_regression() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let [x 10 y 20]
-            (:wat::core::i64::+,2 x y)))
+            (:wat::core::i64::+'2 x y)))
     "#;
     let v = run(src);
     match v {
@@ -305,7 +305,7 @@ fn single_body_fn_regression() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::fn [x <- :wat::core::i64 y <- :wat::core::i64]
              -> :wat::core::i64
-             (:wat::core::i64::+,2 x y))
+             (:wat::core::i64::+'2 x y))
            7 8))
     "#;
     let v = run(src);

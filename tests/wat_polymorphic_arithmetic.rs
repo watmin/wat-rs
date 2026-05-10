@@ -404,7 +404,7 @@ fn poly_add_string_rejected_at_check() {
 
 #[test]
 fn typed_strict_arithmetic_coexists() {
-    // Existing :wat::core::i64::+,2 / :wat::core::f64::+,2 still work
+    // Existing :wat::core::i64::+'2 / :wat::core::f64::+'2 still work
     // and reject cross-type. Polymorphic + works alongside.
     let src = r##"
         (:wat::core::define
@@ -414,8 +414,8 @@ fn typed_strict_arithmetic_coexists() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            [a (:wat::core::i64::+,2 1 2)
-             b (:wat::core::f64::+,2 1.0 2.0)
+            [a (:wat::core::i64::+'2 1 2)
+             b (:wat::core::f64::+'2 1.0 2.0)
              c (:wat::core::+ 1 2.5)]
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string a))))
     "##;
@@ -619,7 +619,7 @@ fn slice4_mixed_type_leaf_directly_callable() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let [s (:wat::core::+,i64-f64 1 2.0)]
+          (:wat::core::let [s (:wat::core::+'i64'f64 1 2.0)]
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string s))))
     "##;
     assert_eq!(run(src), vec!["3".to_string()]);
@@ -627,7 +627,7 @@ fn slice4_mixed_type_leaf_directly_callable() {
 
 #[test]
 fn slice4_binary_dispatch_directly_callable() {
-    // The binary Dispatch entity at :wat::core::+,2 routes by type.
+    // The binary Dispatch entity at :wat::core::+'2 routes by type.
     let src = r##"
         (:wat::core::define
           (:user::main
@@ -635,7 +635,7 @@ fn slice4_binary_dispatch_directly_callable() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
-          (:wat::core::let [s (:wat::core::+,2 1 2.0)]
+          (:wat::core::let [s (:wat::core::+'2 1 2.0)]
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string s))))
     "##;
     assert_eq!(run(src), vec!["3".to_string()]);

@@ -1029,7 +1029,7 @@ mod tests {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::define (:my::app::add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::+,2 x y))
+              (:wat::core::i64::+'2 x y))
         "#;
         let world = startup(src).expect("startup");
         assert!(world.symbols().get(":my::app::add").is_some());
@@ -1090,7 +1090,7 @@ mod tests {
         // Passing :i64 to a define that declared :bool — type mismatch.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::i64::+,2 "hello" 1)
+            (:wat::core::i64::+'2 "hello" 1)
         "#;
         let err = startup(src).unwrap_err();
         assert!(matches!(err, StartupError::Check(_)));
@@ -1147,7 +1147,7 @@ mod tests {
         loader.add_source(
             "lib.wat",
             r#"(:wat::core::define (:lib::square (x :wat::core::i64) -> :wat::core::i64)
-                 (:wat::core::i64::*,2 x x))"#,
+                 (:wat::core::i64::*'2 x x))"#,
         );
         let entry = r#"
             (:wat::config::set-capacity-mode! :error)
@@ -1225,7 +1225,7 @@ mod tests {
             r#"
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::define (:my::app::triple (x :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::*,2 x 3))
+              (:wat::core::i64::*'2 x 3))
         "#,
         );
         let ast = crate::parse_one!("(:my::app::triple 7)").unwrap();
@@ -1434,7 +1434,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parse_one!(r#"(:wat::core::i64::+,2 20 22)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::i64::+'2 20 22)"#).unwrap();
         let hex = digest_hex_for(&ast);
         let result =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
@@ -1449,7 +1449,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parse_one!(r#"(:wat::core::i64::+,2 1 1)"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::i64::+'2 1 1)"#).unwrap();
         let wrong =
             "0000000000000000000000000000000000000000000000000000000000000000";
         let err =
@@ -1505,7 +1505,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parse_one!(r#"(:wat::core::i64::+,2 40 2)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::i64::+'2 40 2)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&ast);
         let result = eval_signed_in_frozen(
             &ast,
@@ -1526,8 +1526,8 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let original = crate::parse_one!(r#"(:wat::core::i64::+,2 1 1)"#).unwrap();
-        let tampered = crate::parse_one!(r#"(:wat::core::i64::+,2 99 99)"#).unwrap();
+        let original = crate::parse_one!(r#"(:wat::core::i64::+'2 1 1)"#).unwrap();
+        let tampered = crate::parse_one!(r#"(:wat::core::i64::+'2 99 99)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&original);
         let err = eval_signed_in_frozen(
             &tampered,

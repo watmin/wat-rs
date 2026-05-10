@@ -242,7 +242,7 @@ fn fqdn_fn_type_does_not_fire_lowercase_fn_walker() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:user::apply
             (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+,2 x 1))
+              (:wat::core::i64::+'2 x 1))
             10))
     "#;
     let err_str = match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
@@ -270,7 +270,7 @@ fn multiple_lambda_sites_post_retirement_silently_alias() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::lambda (() -> :wat::core::i64)
-             (:wat::core::i64::+,2 1 2))
+             (:wat::core::i64::+'2 1 2))
            ))
     "#;
     let err = startup_err(src);
@@ -294,7 +294,7 @@ fn fn_body_in_tail_position_type_checks() {
         (:wat::core::define (:user::double
                               (n :wat::core::i64)
                               -> :wat::core::i64)
-          (:wat::core::i64::*,2 n 2))
+          (:wat::core::i64::*'2 n 2))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
@@ -332,7 +332,7 @@ fn mixed_canonical_fn_operator_and_fn_type_work_together() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:user::apply
             (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+,2 x 1))
+              (:wat::core::i64::+'2 x 1))
             5))
     "#;
     match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
@@ -360,8 +360,8 @@ fn fn_body_with_let_type_checks() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
              (:wat::core::let
-               [a (:wat::core::i64::+,2 x 5)
-                b (:wat::core::i64::*,2 a 2)]
+               [a (:wat::core::i64::+'2 x 5)
+                b (:wat::core::i64::*'2 a 2)]
                b))
            3))
     "#;
@@ -390,7 +390,7 @@ fn reflection_fn_registry_entry_exists() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-             (:wat::core::i64::+,2 a b))
+             (:wat::core::i64::+'2 a b))
            10 20))
     "#;
     match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {

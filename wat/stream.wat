@@ -659,7 +659,7 @@
         (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
           ((:wat::core::Ok _)
             (:wat::stream::take-worker in out
-              (:wat::core::i64::-,2 remaining 1)))
+              (:wat::core::i64::-'2 remaining 1)))
           ((:wat::core::Err _) :wat::core::nil)))
       ((:wat::core::Ok :wat::core::None) :wat::core::nil)
       ((:wat::core::Err _died) :wat::core::nil))))

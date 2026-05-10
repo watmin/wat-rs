@@ -74,12 +74,12 @@
 ;;      type expresses "Vector of mixed numerics with f64-promoting
 ;;      fold." Variadic arity per Lisp/Clojure tradition.
 ;;
-;;   2. Binary Dispatch entity at `:wat::core::<v>,2` — declared
+;;   2. Binary Dispatch entity at `:wat::core::<v>'2` — declared
 ;;      below. 4 arms covering (i64,i64), (f64,f64), (i64,f64),
 ;;      (f64,i64). Routes to per-Type leaves and mixed leaves.
 ;;
-;;   3. Per-Type Rust binary primitives at `:wat::core::<Type>::<v>,2`
-;;      and mixed-type leaves at `:wat::core::<v>,<type1>-<type2>` —
+;;   3. Per-Type Rust binary primitives at `:wat::core::<Type>::<v>'2`
+;;      and mixed-type leaves at `:wat::core::<v>'<type1>'<type2>` —
 ;;      registered in `register_builtins` (src/runtime.rs +
 ;;      src/check.rs). Reachable per the no-privacy doctrine.
 ;;
@@ -87,29 +87,29 @@
 ;; per-Type name) wrap the per-Type binary leaf via arc 150's variadic
 ;; define + `:wat::core::foldl` — declared after the dispatches below.
 
-(:wat::core::define-dispatch :wat::core::+,2
-  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::+,2)
-  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::+,2)
-  ((:wat::core::i64 :wat::core::f64)  :wat::core::+,i64-f64)
-  ((:wat::core::f64 :wat::core::i64)  :wat::core::+,f64-i64))
+(:wat::core::define-dispatch :wat::core::+'2
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::+'2)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::+'2)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::+'i64'f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::+'f64'i64))
 
-(:wat::core::define-dispatch :wat::core::-,2
-  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::-,2)
-  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::-,2)
-  ((:wat::core::i64 :wat::core::f64)  :wat::core::-,i64-f64)
-  ((:wat::core::f64 :wat::core::i64)  :wat::core::-,f64-i64))
+(:wat::core::define-dispatch :wat::core::-'2
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::-'2)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::-'2)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::-'i64'f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::-'f64'i64))
 
-(:wat::core::define-dispatch :wat::core::*,2
-  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::*,2)
-  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::*,2)
-  ((:wat::core::i64 :wat::core::f64)  :wat::core::*,i64-f64)
-  ((:wat::core::f64 :wat::core::i64)  :wat::core::*,f64-i64))
+(:wat::core::define-dispatch :wat::core::*'2
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::*'2)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::*'2)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::*'i64'f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::*'f64'i64))
 
-(:wat::core::define-dispatch :wat::core::/,2
-  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::/,2)
-  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::/,2)
-  ((:wat::core::i64 :wat::core::f64)  :wat::core::/,i64-f64)
-  ((:wat::core::f64 :wat::core::i64)  :wat::core::/,f64-i64))
+(:wat::core::define-dispatch :wat::core::/'2
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::/'2)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::/'2)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::/'i64'f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::/'f64'i64))
 
 ;; ─── Same-type variadic wat fns (8 total) ─────────────────────────────
 ;;
@@ -133,13 +133,13 @@
   (:wat::core::i64::+ & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
   (:wat::core::foldl xs 0
     (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::+,2 acc x))))
+      (:wat::core::i64::+'2 acc x))))
 
 (:wat::core::define
   (:wat::core::i64::* & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
   (:wat::core::foldl xs 1
     (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::*,2 acc x))))
+      (:wat::core::i64::*'2 acc x))))
 
 ;; `:-` and `:/` require >= 1 arg. Express via fixed first param +
 ;; rest. 1-ary inserts identity-on-left; 2+-ary folds. The arity
@@ -148,18 +148,18 @@
 (:wat::core::define
   (:wat::core::i64::- (first :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
-    (:wat::core::i64::-,2 0 first)
+    (:wat::core::i64::-'2 0 first)
     (:wat::core::foldl xs first
       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::-,2 acc x)))))
+        (:wat::core::i64::-'2 acc x)))))
 
 (:wat::core::define
   (:wat::core::i64::/ (first :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
-    (:wat::core::i64::/,2 1 first)
+    (:wat::core::i64::/'2 1 first)
     (:wat::core::foldl xs first
       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::/,2 acc x)))))
+        (:wat::core::i64::/'2 acc x)))))
 
 ;; ─── Named-function binding ───────────────────────────────────────
 ;;
@@ -211,26 +211,26 @@
   (:wat::core::f64::+ & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
   (:wat::core::foldl xs 0.0
     (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-      (:wat::core::f64::+,2 acc x))))
+      (:wat::core::f64::+'2 acc x))))
 
 (:wat::core::define
   (:wat::core::f64::* & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
   (:wat::core::foldl xs 1.0
     (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-      (:wat::core::f64::*,2 acc x))))
+      (:wat::core::f64::*'2 acc x))))
 
 (:wat::core::define
   (:wat::core::f64::- (first :wat::core::f64) & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
-    (:wat::core::f64::-,2 0.0 first)
+    (:wat::core::f64::-'2 0.0 first)
     (:wat::core::foldl xs first
       (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::-,2 acc x)))))
+        (:wat::core::f64::-'2 acc x)))))
 
 (:wat::core::define
   (:wat::core::f64::/ (first :wat::core::f64) & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
-    (:wat::core::f64::/,2 1.0 first)
+    (:wat::core::f64::/'2 1.0 first)
     (:wat::core::foldl xs first
       (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::/,2 acc x)))))
+        (:wat::core::f64::/'2 acc x)))))

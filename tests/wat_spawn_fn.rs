@@ -57,7 +57,7 @@ fn spawn_thread_named_define_body() {
                  (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
                 ((:wat::core::Err _)
                  (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
-             sum (:wat::core::i64::+,2 value 1)]
+             sum (:wat::core::i64::+'2 value 1)]
             (:wat::core::match (:wat::kernel::send out sum)
               -> :wat::core::nil
               ((:wat::core::Ok _) ())
@@ -116,7 +116,7 @@ fn spawn_thread_inline_fn_body() {
                          (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
                         ((:wat::core::Err _)
                          (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
-                     doubled (:wat::core::i64::*,2 value 2)]
+                     doubled (:wat::core::i64::*'2 value 2)]
                     (:wat::core::match (:wat::kernel::send out doubled)
                       -> :wat::core::nil
                       ((:wat::core::Ok _) ())
@@ -176,7 +176,7 @@ fn spawn_thread_closure_capture() {
                        (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
                       ((:wat::core::Err _)
                        (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
-                   sum (:wat::core::i64::+,2 n delta)]
+                   sum (:wat::core::i64::+'2 n delta)]
                   (:wat::core::match (:wat::kernel::send out sum)
                     -> :wat::core::nil
                     ((:wat::core::Ok _) ())

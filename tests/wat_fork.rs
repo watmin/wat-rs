@@ -167,7 +167,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
                     (:wat::core::let
-                      [_ (:wat::core::i64::+,2 1 "two")]
+                      [_ (:wat::core::i64::+'2 1 "two")]
                       ()))))]
             (:wat::kernel::Process/join-result child)))
     "#;

@@ -289,7 +289,7 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
                 "stream closed")
              _send
               (:wat::core::Result/expect -> :wat::core::nil
-                (:wat::kernel::send tx (:wat::core::i64::+,2 n 1))
+                (:wat::kernel::send tx (:wat::core::i64::+'2 n 1))
                 "send failed")]
             :wat::core::nil))
     "#;
@@ -382,7 +382,7 @@ fn t5_spawn_process_inline_lambda_round_trips() {
                     "stream closed")
                  _send
                   (:wat::core::Result/expect -> :wat::core::nil
-                    (:wat::kernel::send tx (:wat::core::i64::*,2 n 2))
+                    (:wat::kernel::send tx (:wat::core::i64::*'2 n 2))
                     "send failed")]
                 :wat::core::nil))))
     "#;
@@ -440,7 +440,7 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
                     "stream closed")
                  _send
                   (:wat::core::Result/expect -> :wat::core::nil
-                    (:wat::kernel::send tx (:wat::core::i64::+,2 n offset))
+                    (:wat::kernel::send tx (:wat::core::i64::+'2 n offset))
                     "send failed")]
                 :wat::core::nil))))
     "#;
@@ -662,7 +662,7 @@ fn t10_spawn_thread_unchanged_positive_control() {
           -> :wat::core::nil
           (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
             ((:wat::core::Ok (:wat::core::Some n))
-              (:wat::core::match (:wat::kernel::send tx (:wat::core::i64::*,2 n 2)) -> :wat::core::nil
+              (:wat::core::match (:wat::kernel::send tx (:wat::core::i64::*'2 n 2)) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))
             ((:wat::core::Ok :wat::core::None) :wat::core::nil)

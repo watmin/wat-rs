@@ -25,8 +25,8 @@
   (:wat::core::let
     [r
       (:wat::holon::eval-coincident?
-        (:wat::core::quote (:wat::core::i64::+,2 2 2))
-        (:wat::core::quote (:wat::core::i64::*,2 1 4)))]
+        (:wat::core::quote (:wat::core::i64::+'2 2 2))
+        (:wat::core::quote (:wat::core::i64::*'2 1 4)))]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -87,8 +87,8 @@
   (:wat::core::let
     [r
       (:wat::holon::eval-edn-coincident?
- "(:wat::core::i64::+,2 2 2)"
- "(:wat::core::i64::*,2 1 4)")]
+ "(:wat::core::i64::+'2 2 2)"
+ "(:wat::core::i64::*'2 1 4)")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -100,8 +100,8 @@
   (:wat::core::let
     [r
       (:wat::holon::eval-edn-coincident?
- "(:wat::core::i64::+,2 2 2)"
- "(:wat::core::i64::+,2 2 3)")]
+ "(:wat::core::i64::+'2 2 2)"
+ "(:wat::core::i64::+'2 2 3)")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -111,10 +111,10 @@
 ;; ─── eval-digest-coincident? — SHA-256-verified per side ─────────
 ;;
 ;; Pre-computed digests (run `printf '%s' '<src>' | sha256sum`):
-;;   "(:wat::core::i64::+,2 2 2)" ->
-;;     d4e368d75d1972482ae02398a37cef9fed68d2cb572f2354e31930b07ebb37cc
-;;   "(:wat::core::i64::*,2 1 4)" ->
-;;     03e5d2e5386ae6a04a279ad2c3bef2d2c6b6bca0bac25e3f902b68764a5a0484
+;;   "(:wat::core::i64::+'2 2 2)" ->
+;;     fb0e9f41a0cdb2047dfc61adae2f6d9ff593d4420dfc749f4a53adba3c7fb4dd
+;;   "(:wat::core::i64::*'2 1 4)" ->
+;;     650e4f7eae1f801cc8f0b65c9ebd1a3027b003757bd602df75191693f77db2d5
 ;;
 ;; If a source string changes, regenerate; the load.rs digest-load
 ;; tests follow the same pattern for a runnable template.
@@ -124,12 +124,12 @@
   (:wat::core::let
     [r
       (:wat::holon::eval-digest-string-coincident?
- "(:wat::core::i64::+,2 2 2)"
+ "(:wat::core::i64::+'2 2 2)"
         :wat::verify::digest-sha256
-        :wat::verify::string "d4e368d75d1972482ae02398a37cef9fed68d2cb572f2354e31930b07ebb37cc"
- "(:wat::core::i64::*,2 1 4)"
+        :wat::verify::string "fb0e9f41a0cdb2047dfc61adae2f6d9ff593d4420dfc749f4a53adba3c7fb4dd"
+ "(:wat::core::i64::*'2 1 4)"
         :wat::verify::digest-sha256
-        :wat::verify::string "03e5d2e5386ae6a04a279ad2c3bef2d2c6b6bca0bac25e3f902b68764a5a0484")]
+        :wat::verify::string "650e4f7eae1f801cc8f0b65c9ebd1a3027b003757bd602df75191693f77db2d5")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)
@@ -143,12 +143,12 @@
   (:wat::core::let
     [r
       (:wat::holon::eval-digest-string-coincident?
- "(:wat::core::i64::+,2 2 2)"
+ "(:wat::core::i64::+'2 2 2)"
         :wat::verify::digest-sha256
         :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"
- "(:wat::core::i64::*,2 1 4)"
+ "(:wat::core::i64::*'2 1 4)"
         :wat::verify::digest-sha256
-        :wat::verify::string "03e5d2e5386ae6a04a279ad2c3bef2d2c6b6bca0bac25e3f902b68764a5a0484")]
+        :wat::verify::string "650e4f7eae1f801cc8f0b65c9ebd1a3027b003757bd602df75191693f77db2d5")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok _)  true)     ;; unexpected — verify should have failed
@@ -165,21 +165,21 @@
 ;; with "SRC_X signature drifted." Regenerate by adding a temporary
 ;; eprintln to sign_src_ed25519, OR via a scratch binary that calls
 ;; the helper:
-;;   src-a sig = 3bQjvWistCp2jyK0AU6+9ZQZp/yMk2gB/ycbjIOGpFd3FBIwGaa/TqsHV4Elb4P0HxBo6eSr0q3qwZ8xaKOgBw==
-;;   src-b sig = OrYNwvRnWgytoHL77zLAB8EQItkav/KnUTpmacu9AuxS8LKu4Fjda9dvgc5ruNq5Fc8GB52v+/BGew7rxxiXCw==
+;;   src-a sig = HaTLEiKRCLtGasU1EN2OGV7lQaAqBa0hDfoIxTluHPHVw+DaVDFpDZz+lVImDFDUCqohngJr/C1fB2v4vaOdBg==
+;;   src-b sig = m1rJF1VB4dEPzoF8hwc/F70+DTxDoXEHno1MiV4wW1QZbvbGgeiSXA2sK1RO5tdFPen+NF8MJQttEQveDlmOBA==
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-signed-arithmetic-equivalence
   ()
   (:wat::core::let
     [r
       (:wat::holon::eval-signed-string-coincident?
- "(:wat::core::i64::+,2 2 2)"
+ "(:wat::core::i64::+'2 2 2)"
         :wat::verify::signed-ed25519
-        :wat::verify::string "3bQjvWistCp2jyK0AU6+9ZQZp/yMk2gB/ycbjIOGpFd3FBIwGaa/TqsHV4Elb4P0HxBo6eSr0q3qwZ8xaKOgBw=="
+        :wat::verify::string "HaTLEiKRCLtGasU1EN2OGV7lQaAqBa0hDfoIxTluHPHVw+DaVDFpDZz+lVImDFDUCqohngJr/C1fB2v4vaOdBg=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw="
- "(:wat::core::i64::*,2 1 4)"
+ "(:wat::core::i64::*'2 1 4)"
         :wat::verify::signed-ed25519
-        :wat::verify::string "OrYNwvRnWgytoHL77zLAB8EQItkav/KnUTpmacu9AuxS8LKu4Fjda9dvgc5ruNq5Fc8GB52v+/BGew7rxxiXCw=="
+        :wat::verify::string "m1rJF1VB4dEPzoF8hwc/F70+DTxDoXEHno1MiV4wW1QZbvbGgeiSXA2sK1RO5tdFPen+NF8MJQttEQveDlmOBA=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
@@ -194,13 +194,13 @@
   (:wat::core::let
     [r
       (:wat::holon::eval-signed-string-coincident?
- "(:wat::core::i64::+,2 2 2)"
+ "(:wat::core::i64::+'2 2 2)"
         :wat::verify::signed-ed25519
-        :wat::verify::string "OrYNwvRnWgytoHL77zLAB8EQItkav/KnUTpmacu9AuxS8LKu4Fjda9dvgc5ruNq5Fc8GB52v+/BGew7rxxiXCw=="
+        :wat::verify::string "m1rJF1VB4dEPzoF8hwc/F70+DTxDoXEHno1MiV4wW1QZbvbGgeiSXA2sK1RO5tdFPen+NF8MJQttEQveDlmOBA=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw="
- "(:wat::core::i64::*,2 1 4)"
+ "(:wat::core::i64::*'2 1 4)"
         :wat::verify::signed-ed25519
-        :wat::verify::string "OrYNwvRnWgytoHL77zLAB8EQItkav/KnUTpmacu9AuxS8LKu4Fjda9dvgc5ruNq5Fc8GB52v+/BGew7rxxiXCw=="
+        :wat::verify::string "m1rJF1VB4dEPzoF8hwc/F70+DTxDoXEHno1MiV4wW1QZbvbGgeiSXA2sK1RO5tdFPen+NF8MJQttEQveDlmOBA=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool

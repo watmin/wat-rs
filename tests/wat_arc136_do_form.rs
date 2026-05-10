@@ -132,7 +132,7 @@ fn do_recipient_unifies_with_final_form_type() {
     let src = r#"
         (:wat::core::define (:my::probe -> :wat::core::i64)
           (:wat::core::do
-            (:wat::core::i64::+,2 1 1)
+            (:wat::core::i64::+'2 1 1)
             42))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -152,7 +152,7 @@ fn do_recipient_mismatch_fires_type_mismatch() {
     let src = r#"
         (:wat::core::define (:my::probe -> :wat::core::String)
           (:wat::core::do
-            (:wat::core::i64::+,2 1 1)
+            (:wat::core::i64::+'2 1 1)
             42))
 
         (:wat::core::define (:user::main -> :wat::core::String)
@@ -179,7 +179,7 @@ fn do_non_final_type_is_unconstrained() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::do
             "string-not-unit"
-            (:wat::core::i64::+,2 1 1)
+            (:wat::core::i64::+'2 1 1)
             42))
     "#;
     assert_eq!(unwrap_i64(run(src)), 42);
@@ -235,8 +235,8 @@ fn do_in_tail_position_preserves_tail_call() {
             -> :wat::core::i64
             n
             (:wat::core::do
-              (:wat::core::i64::+,2 n 0)
-              (:my::countdown (:wat::core::i64::-,2 n 1)))))
+              (:wat::core::i64::+'2 n 0)
+              (:my::countdown (:wat::core::i64::-'2 n 1)))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:my::countdown 100000))
@@ -282,7 +282,7 @@ fn do_inside_let_body_composes_types_cleanly() {
           (:wat::core::let
             [x 7]
             (:wat::core::do
-              (:wat::core::i64::+,2 x 1)
+              (:wat::core::i64::+'2 x 1)
               x)))
     "#;
     assert_eq!(unwrap_i64(run(src)), 7);

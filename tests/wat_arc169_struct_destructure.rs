@@ -134,7 +134,7 @@ fn nested_let() {
             [p (:test::PaperResolved/new "Grace" 4.0)
              {{outcome grace-residue}} p]
             (:wat::core::let
-              [doubled (:wat::core::f64::*,2 grace-residue 2.0)]
+              [doubled (:wat::core::f64::*'2 grace-residue 2.0)]
               doubled)))
         "#,
         prologue = PROLOGUE
@@ -301,9 +301,9 @@ fn multi_form_body_with_destructure() {
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 1.0)
              {{outcome grace-residue}} p]
-            (:wat::core::f64::+,2 grace-residue 99.0)
-            (:wat::core::f64::+,2 grace-residue 50.0)
-            (:wat::core::f64::+,2 grace-residue 41.0)))
+            (:wat::core::f64::+'2 grace-residue 99.0)
+            (:wat::core::f64::+'2 grace-residue 50.0)
+            (:wat::core::f64::+'2 grace-residue 41.0)))
         "#,
         prologue = PROLOGUE
     );

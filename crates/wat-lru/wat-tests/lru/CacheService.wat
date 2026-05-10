@@ -225,8 +225,8 @@
            (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
              (:wat::core::get results 2)
              "lru-probe-three-on-handle: results[2] missing"))]
-       (:wat::core::i64::+,2
-         (:wat::core::i64::+,2 (:wat::core::i64::*,2 p0 100) (:wat::core::i64::*,2 p1 10))
+       (:wat::core::i64::+'2
+         (:wat::core::i64::+'2 (:wat::core::i64::*'2 p0 100) (:wat::core::i64::*'2 p1 10))
          p2)))
 
    ;; ─── Layer 4 helper — multi-key probe with full lifecycle ─────────
