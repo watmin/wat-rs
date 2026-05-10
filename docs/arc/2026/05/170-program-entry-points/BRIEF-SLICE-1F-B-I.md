@@ -1,5 +1,36 @@
 # Arc 170 slice 1f-β-i — BRIEF
 
+> ⚠️ **STALE — DO NOT EXECUTE THIS BRIEF AS-IS.**
+> This BRIEF was authored before REALIZATIONS pass 18 (the
+> unified Event-enum decision). It references separate Signal
+> channels and the relay-sub-thread shape that was explicitly
+> retired by the user 2026-05-10. Following this BRIEF would
+> re-create the relay-shape design opus shipped + we discarded.
+>
+> **The corrected slice 1f-β-i** must mirror the per-service
+> `Event` enum from `src/thread_io.rs` (slice 1f-0b shipped
+> these as concrete Rust types: `StdInServiceEvent { Read, Add
+> { thread_id, data_rx, reply_tx }, Remove { thread_id } }`,
+> etc.); use a single homogeneous `Vec<Receiver<Event>>` select
+> set; HashMap routing table; no relay sub-thread.
+>
+> **Path forward post-compaction:**
+> 1. Read `project_arc_170_state_post_arc_172.md` memory for
+>    full state
+> 2. Read REALIZATIONS-SLICE-1.md § Pass 18 for the locked
+>    Event protocol
+> 3. Read `src/thread_io.rs` for the concrete Rust Event
+>    types to mirror
+> 4. Author replacement BRIEF (BRIEF-SLICE-1F-B-I-V2.md or
+>    similar; this file stays as historical record per "what
+>    is inscribed is inscribed")
+> 5. Spawn sonnet (mechanical pattern given Rust types
+>    concrete + DESIGN locked)
+>
+> Original (stale) content below for historical reference.
+
+---
+
 **Substrate; opus + wat-author.** Mint the FIRST of three
 wat-side service implementations: `StdInService`. This stone
 mints the dynamic-membership service pattern; slices 1f-β-ii
