@@ -195,10 +195,18 @@ impl Harness {
         let stdout_dyn: Arc<dyn WatWriter> = stdout_writer.clone();
         let stderr_dyn: Arc<dyn WatWriter> = stderr_writer.clone();
 
+        // Arc 170 slice 2 — `:user::main` takes a 4th `argv` parameter
+        // (`:wat::core::Vector<wat::core::String>`). The Harness
+        // helper is a library-bridge for in-process testing; pass
+        // empty argv (test programs that need argv exercise it via
+        // dedicated tests through the wat-cli path).
+        let argv_value = Value::Vec(Arc::new(Vec::new()));
+
         let args = vec![
             Value::io__IOReader(reader),
             Value::io__IOWriter(stdout_dyn),
             Value::io__IOWriter(stderr_dyn),
+            argv_value,
         ];
 
         invoke_user_main(&self.world, args).map_err(HarnessError::Runtime)?;

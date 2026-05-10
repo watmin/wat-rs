@@ -3555,6 +3555,18 @@ fn dispatch_keyword_head(
         ":wat::kernel::spawn-program-ast" => {
             crate::spawn::eval_kernel_spawn_program_ast(args, env, sym)
         }
+        // Arc 170 slice 2 — `:wat::kernel::spawn-process` takes a fn
+        // satisfying the `:user::process` contract and forks an OS
+        // process running it. "The fn IS the program." Slice 1b's
+        // closure extraction packages the fn + captured environment;
+        // slice 1c's PipeFd Sender/Receiver substrate carries typed
+        // Values across the OS-process boundary via EDN-encoded pipes.
+        // See src/spawn_process.rs for the pipeline. Legacy
+        // fork-program / spawn-program arms above stay unchanged
+        // during the sweep window; slice 4 retires them.
+        ":wat::kernel::spawn-process" => {
+            crate::spawn_process::eval_kernel_spawn_process(args, env, sym)
+        }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
         // ProcessDiedError>. The runtime fn in src/fork.rs is left

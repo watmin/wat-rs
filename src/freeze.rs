@@ -601,6 +601,14 @@ fn startup_from_forms_post_config(
         for form in &expanded_user {
             crate::check::validate_bare_legacy_primitives(form, &mut bare_errors);
         }
+        // Arc 170 slice 2 — substrate-as-teacher walker for the
+        // spawn-verb consolidation + `:user::main` 4-arg + ExitCode
+        // contract change. User-source only (stdlib paths continue
+        // to call legacy verbs through the sweep window; slice 4
+        // retires both walker bodies + legacy dispatch arms).
+        for form in &expanded_user {
+            crate::check::validate_arc170_legacy_callsites(form, &mut bare_errors);
+        }
         if !bare_errors.is_empty() {
             return Err(StartupError::Check(crate::check::CheckErrors(bare_errors)));
         }
@@ -732,19 +740,34 @@ pub fn invoke_user_main(
 /// / `Stderr` in IO-trait-objects; tests (`run-sandboxed`) pass
 /// `StringIo` stand-ins that look identical at the wat surface. Same
 /// wat source runs in both. Ruby StringIO model made operational.
+///
+/// Arc 170 slice 2 — `:user::main` gains a fourth parameter `argv`
+/// (`:wat::core::Vector<wat::core::String>`) for the OS shell argv
+/// passthrough, and the return type changes from `:wat::core::nil`
+/// (was `:()` pre-arc-153) to `:wat::kernel::ExitCode` (POSIX-truth
+/// u8). The OS-boundary exception per arc 170 TIERS.md: this is the
+/// ONE place strings + ExitCode remain at the user-visible level
+/// because wat meets the OS shell here. Wat-internal spawn targets
+/// (`:user::process` / `:user::thread`) keep the typed-channel +
+/// nil-return Program contract.
 pub fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
     let params = vec![
         TypeExpr::Path(":wat::io::IOReader".into()),
         TypeExpr::Path(":wat::io::IOWriter".into()),
         TypeExpr::Path(":wat::io::IOWriter".into()),
+        TypeExpr::Parametric {
+            head: "wat::core::Vector".into(),
+            args: vec![TypeExpr::Path(":wat::core::String".into())],
+        },
     ];
-    let ret = TypeExpr::Tuple(vec![]);
+    let ret = TypeExpr::Path(":wat::kernel::ExitCode".into());
     (params, ret)
 }
 
 /// Check that a frozen world's `:user::main` declares the expected
-/// three-IO signature. Returns `Err(message)` with a reader-friendly
-/// diagnostic naming the offending parameter or return type.
+/// four-arg signature with `:wat::kernel::ExitCode` return. Returns
+/// `Err(message)` with a reader-friendly diagnostic naming the
+/// offending parameter or return type.
 pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> {
     let func = frozen.symbols().get(":user::main").ok_or_else(|| {
         ":user::main not defined — a wat program needs an entry point".to_string()
@@ -752,7 +775,13 @@ pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> 
     let (expected_params, expected_ret) = expected_user_main_signature();
     if func.param_types.len() != expected_params.len() {
         return Err(format!(
-            ":user::main must take exactly {} parameters; got {}",
+            ":user::main must take exactly {} parameters \
+             (stdin :wat::io::IOReader, stdout :wat::io::IOWriter, \
+             stderr :wat::io::IOWriter, argv :wat::core::Vector<wat::core::String>); \
+             got {}. \
+             Arc 170 slice 2 added the argv parameter; \
+             :user::main now sees the OS shell's std::env::args() \
+             (argv[0]=binary path, argv[1]=source path, argv[2..]=remainder).",
             expected_params.len(),
             func.param_types.len()
         ));
@@ -768,6 +797,7 @@ pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> 
                 0 => "stdin",
                 1 => "stdout",
                 2 => "stderr",
+                3 => "argv",
                 _ => "extra",
             };
             return Err(format!(
@@ -781,7 +811,13 @@ pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> 
     }
     if func.ret_type != expected_ret {
         return Err(format!(
-            ":user::main return type expected :(), got {}",
+            ":user::main return type expected {} (POSIX-truth exit code; \
+             0 means success, non-zero propagates to the OS shell); got {}. \
+             Arc 170 slice 2 changed the return type — wat-internal spawn \
+             targets (`:user::process` / `:user::thread`) keep the typed-\
+             channel + :wat::core::nil-return Program contract; only the \
+             OS-boundary `:user::main` returns ExitCode.",
+            format_type_expr(&expected_ret),
             format_type_expr(&func.ret_type)
         ));
     }

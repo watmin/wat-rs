@@ -183,10 +183,20 @@ fn spawn_with_world_into_result(
     std::thread::Builder::new()
         .name(format!("wat-thread::{}", op))
         .spawn(move || {
+            // Arc 170 slice 2 — `:user::main` takes a 4th `argv`
+            // parameter (`:wat::core::Vector<wat::core::String>`).
+            // Legacy spawn-program (in-thread fresh-world) has no
+            // argv concept and retires in slice 4; until then pass
+            // empty argv to satisfy the contract. User-source
+            // callers fail at the BareLegacySpawnProgram walker
+            // pre-pass before reaching this code.
+            let argv_value = Value::Vec(Arc::new(Vec::new()));
+
             let main_args = vec![
                 Value::io__IOReader(child_stdin),
                 Value::io__IOWriter(child_stdout),
                 Value::io__IOWriter(child_stderr),
+                argv_value,
             ];
 
             // Catch panics in the inner :user::main so the parent's

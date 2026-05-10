@@ -531,6 +531,46 @@ pub enum CheckError {
         /// Source location of the new (colliding) binding.
         current_loc: Span,
     },
+    /// Arc 170 slice 2 — `:user::main` declared with the legacy
+    /// 3-arg `(IOReader IOWriter IOWriter) -> :wat::core::nil`
+    /// signature. Arc 170 changed `:user::main` to a 4-arg shape with
+    /// `argv :wat::core::Vector<wat::core::String>` plus a
+    /// `:wat::kernel::ExitCode` return. Substrate-as-teacher pattern
+    /// 3 — the diagnostic carries the migration template; sweep
+    /// (slice 3) uses the diagnostic stream as work list; slice 4
+    /// retires the firing body.
+    BareLegacyMainSignature {
+        /// Source location of the legacy `:user::main` define form.
+        span: Span,
+    },
+    /// Arc 170 slice 2 — user-source callsite of legacy
+    /// `:wat::kernel::fork-program{,_ast}`. Arc 170 consolidated the
+    /// fork verbs under `:wat::kernel::spawn-process` (fn-input
+    /// surface; substrate handles closure extraction internally; "the
+    /// fn IS the program"). Pattern 3 walker; sweep migrates user
+    /// callsites; slice 4 retires the legacy verbs + this firing
+    /// body.
+    BareLegacyForkProgram {
+        /// User-source spelling — `":wat::kernel::fork-program"` or
+        /// `":wat::kernel::fork-program-ast"`.
+        verb: String,
+        /// Source location of the offending callsite.
+        span: Span,
+    },
+    /// Arc 170 slice 2 — user-source callsite of legacy
+    /// `:wat::kernel::spawn-program{,_ast}`. Arc 170 retired the
+    /// in-thread fresh-world spawn-program family entirely (Q1 in
+    /// DESIGN). Two-mode taxonomy: spawn-thread (parent's world,
+    /// shared memory) OR spawn-process (forked OS process, hermetic
+    /// boundary). Pattern 3 walker; sweep migrates user callsites;
+    /// slice 4 retires.
+    BareLegacySpawnProgram {
+        /// User-source spelling — `":wat::kernel::spawn-program"` or
+        /// `":wat::kernel::spawn-program-ast"`.
+        verb: String,
+        /// Source location of the offending callsite.
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 1 — render the file:line:col prefix for an error,
@@ -711,6 +751,21 @@ impl fmt::Display for CheckError {
                 f,
                 "{}`:wat::core::def` redef of `{}` changes type from `{}` to `{}` (prior binding at {}). Type-stability is mandatory on redef — the signature downstream callers depend on must stay intact. Only the expression's value may change; the type must not.",
                 span_prefix(current_loc), name, prior_type, new_type, prior_loc
+            ),
+            CheckError::BareLegacyMainSignature { span } => write!(
+                f,
+                "{}`:user::main` declared with the legacy 3-arg signature is retired (arc 170 slice 2); canonical shape is 4-arg with argv plus an `:wat::kernel::ExitCode` return. The OS-boundary `:user::main` (the ONE place strings + ExitCode remain at the user-visible level per arc 170 TIERS.md) sees `std::env::args()` directly — argv[0]=binary path, argv[1]=source path, argv[2..]=remainder. Migrate the define to:\n  (:wat::core::define (:user::main\n      [stdin  <- :wat::io::IOReader\n       stdout <- :wat::io::IOWriter\n       stderr <- :wat::io::IOWriter\n       argv   <- :wat::core::Vector<wat::core::String>])\n    -> :wat::kernel::ExitCode\n    <body that returns (:wat::core::u8 0) or non-zero>)\nWat-internal spawn targets (`:user::process` / `:user::thread`) keep the typed-channel + :wat::core::nil-return Program contract — only `:user::main` returns ExitCode.",
+                span_prefix(span)
+            ),
+            CheckError::BareLegacyForkProgram { verb, span } => write!(
+                f,
+                "{}`{}` is retired (arc 170 slice 2); canonical replacement is `:wat::kernel::spawn-process` (fn-input surface). The fn IS the program — substrate handles closure extraction + fork internally; user passes a fn directly that satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. Migrate:\n  ({} src scope)         → (:wat::kernel::spawn-process worker-fn)\n  (:wat::kernel::fork-program-ast forms) → (:wat::kernel::spawn-process worker-fn)\nwhere `worker-fn` reads from `rx`, writes to `tx`. See `docs/arc/2026/05/170-program-entry-points/DESIGN.md` § \"The API — `spawn-* fn`\".",
+                span_prefix(span), verb, verb
+            ),
+            CheckError::BareLegacySpawnProgram { verb, span } => write!(
+                f,
+                "{}`{}` is retired (arc 170 slice 2); canonical taxonomy is two-mode (spawn-thread for parent's world; spawn-process for forked OS process). Migrate:\n  ({} src scope) — for fork semantics → (:wat::kernel::spawn-process worker-fn)\n  ({} src scope) — for parent-world (services pattern) → (:wat::kernel::spawn-thread worker-fn)\nwhere `worker-fn` satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. The in-thread fresh-world `spawn-program` family retired entirely per arc 170 DESIGN Q1 — closures over let-scope make spawn-thread the honest in-thread surface; OS-process isolation gets spawn-process.",
+                span_prefix(span), verb, verb, verb
             ),
         }
     }
@@ -1006,6 +1061,32 @@ impl CheckError {
                     .field("new_type", new_type.as_str())
                     .field("prior_loc", format!("{}", prior_loc))
                     .field("current_loc", format!("{}", current_loc))
+            }
+            // Arc 170 slice 2 — substrate-as-teacher walkers for the
+            // OS-boundary contract change (`:user::main` 4-arg + ExitCode)
+            // plus the spawn verb consolidation (fork-program* +
+            // spawn-program* retire under the spawn-process(fn) /
+            // spawn-thread(fn) two-mode taxonomy).
+            CheckError::BareLegacyMainSignature { span } => {
+                Diagnostic::new("BareLegacyMainSignature")
+                    .field(
+                        "canonical_signature",
+                        "[stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode",
+                    )
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyForkProgram { verb, span } => {
+                Diagnostic::new("BareLegacyForkProgram")
+                    .field("retired", verb.as_str())
+                    .field("canonical", ":wat::kernel::spawn-process")
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacySpawnProgram { verb, span } => {
+                Diagnostic::new("BareLegacySpawnProgram")
+                    .field("retired", verb.as_str())
+                    .field("canonical_fork_semantics", ":wat::kernel::spawn-process")
+                    .field("canonical_thread_semantics", ":wat::kernel::spawn-thread")
+                    .field("location", format!("{}", span))
             }
         }
     }
@@ -2110,6 +2191,194 @@ fn validate_scope_deadlock(node: &WatAST, types: &TypeEnv, errors: &mut Vec<Chec
 /// check_program). Arc 163 slice 3g phase A.
 pub fn validate_bare_legacy_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
     walk_for_bare_primitives(node, errors);
+}
+
+/// Arc 170 slice 2 — substrate-as-teacher walker for the spawn-verb
+/// consolidation + `:user::main` 4-arg + ExitCode contract change.
+///
+/// Three classes:
+///   - `BareLegacyMainSignature` — `:user::main` define declared
+///     with the legacy 3-arg signature (no argv, return type
+///     `:wat::core::nil`). Detected at the define-form structural
+///     level: a `(:wat::core::define (:user::main params...) -> ret
+///     body)` whose `params` length is 3 OR whose `ret` keyword is
+///     `:wat::core::nil` / `:()`.
+///   - `BareLegacyForkProgram` — call to `:wat::kernel::fork-program`
+///     or `:wat::kernel::fork-program-ast`.
+///   - `BareLegacySpawnProgram` — call to `:wat::kernel::spawn-program`
+///     or `:wat::kernel::spawn-program-ast`.
+///
+/// Pattern 3 (`docs/SUBSTRATE-AS-TEACHER.md`) — dedicated CheckError
+/// variants per migration class; Display IS the brief; sweep
+/// (slice 3) uses the diagnostic stream as work list; slice 4
+/// retires.
+///
+/// Public so freeze.rs's user-source pre-pass can run the walker on
+/// raw post-expansion user forms before `register_types` /
+/// `register_defines` consume them. Stdlib forms are NOT walked
+/// (they continue to call legacy verbs during the sweep window;
+/// slice 3 rebuilds testing-lib on the new spawn-process; slice 4
+/// retires the legacy verbs after stdlib's swept).
+pub fn validate_arc170_legacy_callsites(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_arc170_legacy(node, errors);
+}
+
+fn walk_for_arc170_legacy(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            if s == ":wat::kernel::fork-program" || s == ":wat::kernel::fork-program-ast" {
+                errors.push(CheckError::BareLegacyForkProgram {
+                    verb: s.clone(),
+                    span: span.clone(),
+                });
+                return;
+            }
+            if s == ":wat::kernel::spawn-program" || s == ":wat::kernel::spawn-program-ast" {
+                errors.push(CheckError::BareLegacySpawnProgram {
+                    verb: s.clone(),
+                    span: span.clone(),
+                });
+                return;
+            }
+        }
+        WatAST::List(items, _) => {
+            // Detect `:user::main` define forms with the legacy
+            // 3-arg signature. The define shape is:
+            //   (:wat::core::define (:user::main [<binders>]) -> :Ret <body>)
+            // or
+            //   (:wat::core::defn :user::main [<binders>] -> :Ret <body>)
+            // Either head is acceptable here — we look for a 3-binder
+            // [stdin <- :T0 stdout <- :T1 stderr <- :T2] params shape
+            // (3 typed slots) and treat it as legacy. Slice 1b's flat-
+            // shape arrows ([name <- :Ty ...]) means binders pair
+            // `(name, <-, type)` triples inside the params Vector.
+            check_legacy_user_main_signature(items, errors);
+
+            // Recurse into list children for any nested cases
+            // (a deftest body with a legacy `:user::main` define
+            // counts; the walker fires once per offending site).
+            for item in items {
+                walk_for_arc170_legacy(item, errors);
+            }
+            return;
+        }
+        WatAST::Vector(items, _) => {
+            for item in items {
+                walk_for_arc170_legacy(item, errors);
+            }
+            return;
+        }
+        _ => {}
+    }
+}
+
+/// Detects a `:user::main` define form with the legacy 3-arg
+/// signature. Two define shapes are supported:
+///
+///   (:wat::core::define
+///     (:user::main (name :T) (name :T) (name :T) -> :Ret)
+///     body)
+///   (:wat::core::defn :user::main [name <- :T name <- :T name <- :T]
+///     -> :Ret body)
+///
+/// `define`'s signature uses paired `(name :T)` Lists inside the
+/// outer sig parens; `defn` (arc 166+) uses a flat Vector
+/// `[name <- :T ...]`. Both shapes converge to the same param-type
+/// list which we probe for the legacy SIO triple
+/// (IOReader, IOWriter, IOWriter).
+fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckError>) {
+    if items.is_empty() {
+        return;
+    }
+    let head = match &items[0] {
+        WatAST::Keyword(k, _) => k.as_str(),
+        _ => return,
+    };
+
+    let (main_span, param_types) = match head {
+        ":wat::core::define" => {
+            // Shape: (:wat::core::define (sig...) body)
+            // sig = (:user::main (name :T) (name :T) ... -> :Ret)
+            if items.len() < 3 {
+                return;
+            }
+            let sig_list = match &items[1] {
+                WatAST::List(xs, _) => xs,
+                _ => return,
+            };
+            if sig_list.is_empty() {
+                return;
+            }
+            let name_span = match &sig_list[0] {
+                WatAST::Keyword(k, sp) if k == ":user::main" => sp.clone(),
+                _ => return,
+            };
+            // Walk sig_list[1..]; collect type keywords from
+            // (name :T) pair Lists; stop at `->`.
+            let mut params: Vec<String> = Vec::new();
+            for item in &sig_list[1..] {
+                // `->` arrow signals end of params.
+                if matches!(item, WatAST::Symbol(id, _) if id.name == "->")
+                    || matches!(item, WatAST::Keyword(k, _) if k == "->")
+                {
+                    break;
+                }
+                // Each binder is a (name :T) two-element List.
+                if let WatAST::List(pair, _) = item {
+                    if pair.len() == 2 {
+                        if let WatAST::Keyword(ty_kw, _) = &pair[1] {
+                            params.push(ty_kw.clone());
+                            continue;
+                        }
+                    }
+                }
+            }
+            (name_span, params)
+        }
+        ":wat::core::defn" => {
+            // Shape: (:wat::core::defn :user::main [name <- :T ...] -> :Ret body)
+            if items.len() < 5 {
+                return;
+            }
+            let name_span = match &items[1] {
+                WatAST::Keyword(k, sp) if k == ":user::main" => sp.clone(),
+                _ => return,
+            };
+            let binders = match &items[2] {
+                WatAST::Vector(xs, _) => xs,
+                _ => return,
+            };
+            // Each binder occupies 3 elements (name, `<-`, type).
+            let mut params: Vec<String> = Vec::new();
+            let mut i = 0;
+            while i + 2 < binders.len() {
+                if let WatAST::Keyword(ty_kw, _) = &binders[i + 2] {
+                    params.push(ty_kw.clone());
+                }
+                i += 3;
+            }
+            (name_span, params)
+        }
+        _ => return,
+    };
+
+    // Arc 170 slice 2 — fire only on the SPECIFIC legacy shape
+    // we're migrating from: 3-arg signature with the canonical
+    // (IOReader, IOWriter, IOWriter) types. This catches every
+    // pre-arc-170 user CLI program; sweep migrates to the 4-arg +
+    // ExitCode shape. Other arities (0-arg test fixtures, 1-arg
+    // stubs) are left alone — they predate arc 170's contract and
+    // weren't passing `validate_user_main_signature` anyway.
+    if param_types.len() != 3 {
+        return;
+    }
+    let is_legacy_sio = param_types[0] == ":wat::io::IOReader"
+        && param_types[1] == ":wat::io::IOWriter"
+        && param_types[2] == ":wat::io::IOWriter";
+    if !is_legacy_sio {
+        return;
+    }
+    errors.push(CheckError::BareLegacyMainSignature { span: main_span });
 }
 
 fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
@@ -11925,6 +12194,45 @@ fn register_builtins(env: &mut CheckEnv) {
                     thread_died_chain_ty(),
                 ],
             },
+            rest_param_type: None,
+        },
+    );
+
+    // (:wat::kernel::spawn-process body) → :wat::kernel::Process<I,O>.
+    //
+    // Arc 170 slice 2. Fn-input sibling of `:wat::kernel::spawn-thread`.
+    // Body is a function whose signature MUST be
+    //   :Fn(:wat::kernel::Receiver<I>, :wat::kernel::Sender<O>)
+    //     -> :wat::core::nil
+    // (the body reads from the input half, writes to the output half;
+    // values flow only through channels — never via a return).
+    //
+    // Substrate uses slice 1b's closure extraction to package the fn
+    // for cross-OS-process portability and slice 1c's PipeFd transport
+    // to carry typed Values across the OS-process boundary via EDN-
+    // encoded pipes. Same user-visible interface as spawn-thread; the
+    // hermetic ambient property of tier 2 (per
+    // `docs/arc/2026/05/170-program-entry-points/TIERS.md`) follows
+    // from the OS-process boundary.
+    let process_body_fn_ty = || TypeExpr::Fn {
+        args: vec![
+            TypeExpr::Parametric {
+                head: "wat::kernel::Receiver".into(),
+                args: vec![TypeExpr::Path(":I".into())],
+            },
+            TypeExpr::Parametric {
+                head: "wat::kernel::Sender".into(),
+                args: vec![TypeExpr::Path(":O".into())],
+            },
+        ],
+        ret: Box::new(TypeExpr::Path(":wat::core::nil".into())),
+    };
+    env.register(
+        ":wat::kernel::spawn-process".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_body_fn_ty()],
+            ret: process_ty(),
             rest_param_type: None,
         },
     );

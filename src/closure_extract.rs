@@ -1711,7 +1711,7 @@ fn function_to_define_form_with_body(
         sig_items.push(WatAST::List(
             vec![
                 WatAST::Symbol(Identifier::bare(param.clone()), span.clone()),
-                WatAST::Keyword(crate::check::format_type(ty), span.clone()),
+                WatAST::Keyword(format_type_for_emit(ty), span.clone()),
             ],
             span.clone(),
         ));
@@ -1723,14 +1723,14 @@ fn function_to_define_form_with_body(
         sig_items.push(WatAST::List(
             vec![
                 WatAST::Symbol(Identifier::bare(rname.clone()), span.clone()),
-                WatAST::Keyword(crate::check::format_type(rty), span.clone()),
+                WatAST::Keyword(format_type_for_emit(rty), span.clone()),
             ],
             span.clone(),
         ));
     }
     sig_items.push(WatAST::Symbol(Identifier::bare("->"), span.clone()));
     sig_items.push(WatAST::Keyword(
-        crate::check::format_type(&func.ret_type),
+        format_type_for_emit(&func.ret_type),
         span.clone(),
     ));
     let signature = WatAST::List(sig_items, span.clone());
@@ -1742,6 +1742,81 @@ fn function_to_define_form_with_body(
         ],
         span,
     )
+}
+
+/// Render a TypeExpr into the wat keyword form WITH the arc 153
+/// `Tuple([])` → `:wat::core::nil` round-trip discipline applied at
+/// every nesting depth. The substrate stores `:wat::core::nil` as
+/// `TypeExpr::Tuple(vec![])` after canonicalization (per
+/// `types.rs::parse_type_expr` arc 153 reduction); rendering that
+/// back as `:()` would re-introduce the bare unit-type spelling that
+/// the post-arc-109 BareLegacyUnitType walker rejects in user-source
+/// pre-pass.
+///
+/// `crate::check::format_type` predates this round-trip discipline
+/// (it's load-bearing for diagnostic prose where `:()` is the user-
+/// readable shape). closure_extract emits AST that goes through
+/// the freeze pipeline as user input, so the round-trip MUST honor
+/// the canonical FQDN spelling. Slice 1b honest delta surfaced
+/// during slice 2 testing: keyword-path entries with nil returns
+/// produced `:()`-shaped defines that the child's freeze rejected.
+fn format_type_for_emit(t: &TypeExpr) -> String {
+    match t {
+        TypeExpr::Tuple(elements) if elements.is_empty() => ":wat::core::nil".to_string(),
+        TypeExpr::Path(p) => p.clone(),
+        TypeExpr::Parametric { head, args } => {
+            let inner: Vec<_> = args.iter().map(format_type_for_emit_inner).collect();
+            format!(":{}<{}>", head, inner.join(","))
+        }
+        TypeExpr::Fn { args, ret } => {
+            let in_parts: Vec<_> = args.iter().map(format_type_for_emit_inner).collect();
+            format!(
+                ":wat::core::Fn({})->{}",
+                in_parts.join(","),
+                format_type_for_emit_inner(ret)
+            )
+        }
+        TypeExpr::Tuple(elements) => {
+            let inner: Vec<_> = elements.iter().map(format_type_for_emit_inner).collect();
+            if elements.len() == 1 {
+                format!(":({},)", inner[0])
+            } else {
+                format!(":({})", inner.join(","))
+            }
+        }
+        TypeExpr::Var(id) => format!(":?{}", id),
+    }
+}
+
+/// Inner-position counterpart of [`format_type_for_emit`] — colon
+/// stripped, `Tuple([])` rendered as `wat::core::nil` (no leading
+/// colon, matching arc 167's inner-position rendering convention).
+fn format_type_for_emit_inner(t: &TypeExpr) -> String {
+    match t {
+        TypeExpr::Tuple(elements) if elements.is_empty() => "wat::core::nil".to_string(),
+        TypeExpr::Path(p) => p.strip_prefix(':').unwrap_or(p).to_string(),
+        TypeExpr::Parametric { head, args } => {
+            let inner: Vec<_> = args.iter().map(format_type_for_emit_inner).collect();
+            format!("{}<{}>", head, inner.join(","))
+        }
+        TypeExpr::Fn { args, ret } => {
+            let in_parts: Vec<_> = args.iter().map(format_type_for_emit_inner).collect();
+            format!(
+                "wat::core::Fn({})->{}",
+                in_parts.join(","),
+                format_type_for_emit_inner(ret)
+            )
+        }
+        TypeExpr::Tuple(elements) => {
+            let inner: Vec<_> = elements.iter().map(format_type_for_emit_inner).collect();
+            if elements.len() == 1 {
+                format!("({},)", inner[0])
+            } else {
+                format!("({})", inner.join(","))
+            }
+        }
+        TypeExpr::Var(id) => format!("?{}", id),
+    }
 }
 
 /// Build a `(:wat::core::fn ARGS-VECTOR -> :RET-TYPE body)` AST
@@ -1765,7 +1840,7 @@ fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
     for (param, ty) in func.params.iter().zip(func.param_types.iter()) {
         args_items.push(WatAST::Symbol(Identifier::bare(param.clone()), span.clone()));
         args_items.push(WatAST::Symbol(Identifier::bare("<-"), span.clone()));
-        args_items.push(WatAST::Keyword(crate::check::format_type(ty), span.clone()));
+        args_items.push(WatAST::Keyword(format_type_for_emit(ty), span.clone()));
     }
     // Rest-param. The flat-vector fn-form doesn't currently carry a
     // dedicated `&` marker the way `define`-form signatures do; the
@@ -1787,7 +1862,7 @@ fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
                 WatAST::Keyword(":wat::core::fn".into(), span.clone()),
                 WatAST::Vector(args_items, span.clone()),
                 WatAST::Symbol(Identifier::bare("->"), span.clone()),
-                WatAST::Keyword(crate::check::format_type(&func.ret_type), span.clone()),
+                WatAST::Keyword(format_type_for_emit(&func.ret_type), span.clone()),
                 rewritten_body,
             ],
             span,

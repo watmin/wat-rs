@@ -350,11 +350,20 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     // no scope restriction — the same capability the pre-arc-104 cli
     // gave to in-process invocation. The wat program is what the
     // operator chose to run; trust flows downward.
+    // Arc 170 slice 2 — argv pure passthrough. wat-cli forwards
+    // `std::env::args()` to `:user::main` as a typed
+    // `:wat::core::Vector<wat::core::String>`. The argv layout is
+    // OS-shell convention: argv[0] = path to the wat binary,
+    // argv[1] = path to the wat source file, argv[2..N] = subsequent
+    // shell args. Flag-stripping (e.g. `--check`) happens at the
+    // wat-cli layer above; if the program reaches the fork path,
+    // every shell arg passes through unfiltered.
     let handles = match fork_program_from_source(
         &source,
         canonical.as_deref(),
         Arc::new(FsLoader),
         None, // no Config to inherit — cli has no outer wat program
+        argv.clone(),
     ) {
         Ok(h) => h,
         Err(e) => {

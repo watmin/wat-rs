@@ -200,10 +200,20 @@ pub fn compose_and_run_with_loader(
     let writer_stdout: Arc<dyn WatWriter> = Arc::new(RealStdout::new(Arc::new(io::stdout())));
     let writer_stderr: Arc<dyn WatWriter> = Arc::new(RealStderr::new(Arc::new(io::stderr())));
 
+    // Arc 170 slice 2 — `:user::main` takes a 4th `argv` parameter
+    // (`:wat::core::Vector<wat::core::String>`). compose_and_run is a
+    // library-bridge entry that doesn't go through wat-cli's argv
+    // pipeline; pass empty argv (the wat program built atop this
+    // harness owns its own argv handling if it cares). wat-cli's
+    // own dispatch path collects `std::env::args()` separately
+    // through `fork_program_from_source`.
+    let argv_value = Value::Vec(Arc::new(Vec::new()));
+
     let args = vec![
         Value::io__IOReader(reader_stdin),
         Value::io__IOWriter(writer_stdout),
         Value::io__IOWriter(writer_stderr),
+        argv_value,
     ];
 
     invoke_user_main(&world, args).map_err(HarnessError::Runtime)?;

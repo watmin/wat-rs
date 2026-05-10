@@ -653,10 +653,20 @@ fn child_branch(
     // never returns, so it's effectively a leak the kernel reaps).
     let stderr_keepalive = Arc::clone(&stderr_writer);
 
+    // Arc 170 slice 2 — fork-program-ast / forms-entry has no
+    // wat-cli argv concept (legacy substrate-internal callers
+    // including stdlib hermetic.wat). Pass empty argv to satisfy
+    // `:user::main`'s 4-arg contract; the legacy callers operate
+    // through `BareLegacyMainSignature` walker scope (user-source
+    // only). Stdlib forms-entry continues to work because the
+    // walker doesn't fire on stdlib.
+    let argv_value = Value::Vec(Arc::new(Vec::new()));
+
     let main_args = vec![
         Value::io__IOReader(stdin_reader),
         Value::io__IOWriter(stdout_writer),
         Value::io__IOWriter(stderr_writer),
+        argv_value,
     ];
 
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -665,7 +675,16 @@ fn child_branch(
     let _ = &stderr_keepalive; // borrow-check: prove the clone is held until here
 
     match outcome {
-        Ok(Ok(_)) => unsafe { libc::_exit(EXIT_SUCCESS) },
+        // Arc 170 slice 2 — `:user::main` returns ExitCode (u8); see
+        // `child_branch_from_source` for the matching arm.
+        Ok(Ok(Value::u8(n))) => unsafe { libc::_exit(n as i32) },
+        Ok(Ok(other)) => {
+            write_direct_to_stderr(&format!(
+                "runtime: :user::main returned non-ExitCode value: {:?}\n",
+                other
+            ));
+            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
+        }
         Ok(Err(runtime_err)) => {
             write_direct_to_stderr(&format!("runtime: {:?}\n", runtime_err));
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
@@ -736,6 +755,7 @@ pub fn fork_program_from_source(
     canonical: Option<&str>,
     loader: Arc<dyn SourceLoader>,
     _inherit_config: Option<&Config>,
+    argv: Vec<String>,
 ) -> Result<ForkedProgramHandles, RuntimeError> {
     const OP: &str = ":wat::kernel::fork-program";
 
@@ -773,6 +793,7 @@ pub fn fork_program_from_source(
             owned_source,
             owned_canonical,
             loader,
+            argv,
             stdin_r_raw,
             stdout_w_raw,
             stderr_w_raw,
@@ -873,7 +894,14 @@ pub fn eval_kernel_fork_program(
         None => Arc::new(InMemoryLoader::new()),
     };
 
-    let handles = fork_program_from_source(&src, None, loader, inherit_config.as_ref())?;
+    // Arc 170 slice 2 — legacy `:wat::kernel::fork-program` has no
+    // argv concept (predates the OS-shell-passthrough surface).
+    // Empty argv keeps the substrate in lockstep with `:user::main`'s
+    // 4-arg contract; the legacy callsite ships an empty Vector
+    // through to the child. `BareLegacyForkProgram` walker fires on
+    // user-source callers; slice 3 sweeps; slice 4 retires the verb
+    // wholesale.
+    let handles = fork_program_from_source(&src, None, loader, inherit_config.as_ref(), Vec::new())?;
 
     let stdin_writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(handles.stdin_w));
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(handles.stdout_r));
@@ -912,6 +940,7 @@ fn child_branch_from_source(
     source: String,
     canonical: Option<String>,
     loader: Arc<dyn SourceLoader>,
+    argv: Vec<String>,
     stdin_r_raw: i32,
     stdout_w_raw: i32,
     stderr_w_raw: i32,
@@ -1003,10 +1032,23 @@ fn child_branch_from_source(
     // fd 2 alive through the catch_unwind Err arm.
     let stderr_keepalive = Arc::clone(&stderr_writer);
 
+    // Arc 170 slice 2 — argv is the OS shell's std::env::args()
+    // passed through as a typed Value::Vec of Value::String. Pure
+    // passthrough; no flag-stripping at the substrate layer (per
+    // arc 170 § "argv pure passthrough"). argv[0] is the binary
+    // path; argv[1] (when present) is the source path; argv[2..]
+    // are subsequent shell args.
+    let argv_value = Value::Vec(Arc::new(
+        argv.into_iter()
+            .map(|s| Value::String(Arc::new(s)))
+            .collect(),
+    ));
+
     let main_args = vec![
         Value::io__IOReader(stdin_reader),
         Value::io__IOWriter(stdout_writer),
         Value::io__IOWriter(stderr_writer),
+        argv_value,
     ];
 
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -1015,7 +1057,20 @@ fn child_branch_from_source(
     let _ = &stderr_keepalive;
 
     match outcome {
-        Ok(Ok(_)) => unsafe { libc::_exit(EXIT_SUCCESS) },
+        // Arc 170 slice 2 — `:user::main` returns
+        // `:wat::kernel::ExitCode` (= u8). Propagate the byte to the
+        // OS via _exit; non-zero values flow through to the shell.
+        // Defensive arm for non-u8 values (the type-checker should
+        // prevent this; if it slips through, surface as runtime
+        // error + non-zero exit).
+        Ok(Ok(Value::u8(n))) => unsafe { libc::_exit(n as i32) },
+        Ok(Ok(other)) => {
+            write_direct_to_stderr(&format!(
+                "runtime: :user::main returned non-ExitCode value: {:?}\n",
+                other
+            ));
+            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
+        }
         Ok(Err(runtime_err)) => {
             write_direct_to_stderr(&format!("runtime: {:?}\n", runtime_err));
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
