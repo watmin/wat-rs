@@ -106,8 +106,8 @@ updates:
   `pkg.entry_form` (WatAST shape):
   - **Inline-lambda inputs (T2 factory, T5/T6 with-captures, etc.)**:
     assert `pkg.entry_form` is a fn-form AST. Match shape:
-    `(fn [<params>] -> <ret-type> <body>...)`. Verify params +
-    ret-type + body match the input fn's signature.
+    `(:wat::core::fn [name <- :T ...] -> :Ret body...)`. Verify
+    params + ret-type + body match the input fn's signature.
   - **Keyword-path inputs (T1 top-level defn)**:
     assert `pkg.entry_form` is a Symbol AST whose name matches
     the input keyword.
@@ -178,11 +178,14 @@ further doc changes in this slice.
 - **fn Value → fn-form AST reconstruction**. The new approach
   needs to reconstruct the fn-form AST from the fn Value's
   params + body + ret_type. The fn Value's `Function::body`
-  carries the body AST. The params + ret_type need to be
-  re-emitted as the fn-form's signature shape. If the substrate
-  doesn't have a clean Function-Value-to-fn-form-AST helper,
-  surface as honest delta — the work is mechanical AST
-  construction; should not require new substrate.
+  carries the body AST. Output shape:
+  `(:wat::core::fn [name <- :T ...] -> :Ret body)` — flat
+  vector binders with `<-` arrows per arc 167; FQDN keyword for
+  `:wat::core::fn`; FQDN keyword for `:wat::core::nil` if that's
+  the return type. If the substrate doesn't have a clean
+  Function-Value-to-fn-form-AST helper, surface as honest delta —
+  the work is mechanical AST construction; should not require
+  new substrate.
 - **Body-rewrite ordering vs entry_form emission**. Slice 1's
   body rewrite operates on the AST inside the synthesized
   define. Slice 1b emits the (rewritten) AST as `entry_form`

@@ -23,7 +23,8 @@ transport.
 ## v2 — corrected algorithm + shape
 
 **The honest principle:** "the fn IS the program." A fn-form
-expression like `(fn [stdin :IOReader stdout :IOWriter stderr :IOWriter] :nil ...)`
+expression like
+`(:wat::core::fn [rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil ...)`
 already evaluates to a fn Value. The substrate's evaluator turns
 fn-forms into fn Values directly. Closure extraction does NOT need
 to wrap the fn in a `define` + look up by name; it keeps the entry
@@ -75,7 +76,8 @@ portability check, and topological sort are all unchanged from v1
 **Step 1 (entry resolution) — v2:**
 
 - For inline-lambda input: `entry_form = the fn-form AST itself`,
-  reconstructed from the fn Value's params + body + ret_type. No
+  reconstructed from the fn Value's params + body + ret_type — i.e.
+  a `(:wat::core::fn [name <- :T ...] -> :Ret body)` AST. No
   synthetic name is generated. No define wrapper.
 - For keyword-path input: `entry_form = (Symbol :my::worker)` (a
   Symbol AST). The user's existing `(:wat::core::define :my::worker (fn ...))`
@@ -135,8 +137,8 @@ T1-T15 from slice 1 stay structurally; assertions update:
 - T1-T15 assertions on `pkg.entry` (string) → assertions on
   `pkg.entry_form` (WatAST shape)
 - For inline-lambda inputs: assert `pkg.entry_form` is a
-  fn-form AST `(fn [params...] -> :T body...)` matching the
-  input fn's signature
+  fn-form AST `(:wat::core::fn [name <- :T ...] -> :Ret body...)`
+  matching the input fn's signature
 - For keyword-path inputs: assert `pkg.entry_form` is a Symbol AST
   matching the input keyword
 - Behavior-equivalence tests: freeze `prologue` + `eval(entry_form)`

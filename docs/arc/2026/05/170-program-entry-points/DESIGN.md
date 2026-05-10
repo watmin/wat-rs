@@ -31,9 +31,9 @@ client to server:
 
 | Tier | Variant | User-visible IPC | Substrate transport | Sharing | Substrate primitive | Server contract |
 |---|---|---|---|---|---|---|
-| **1** | Thread | `Sender<T>` / `Receiver<T>` | crossbeam channels (in-memory typed Values) | memory shared | `(:wat::kernel::spawn-thread fn)` | `:user::thread` — `(rx :Receiver<I> tx :Sender<O>) -> :nil` |
-| **2** | Process | `Sender<T>` / `Receiver<T>` | EDN-over-pipes (substrate encodes/decodes) | host shared, memory boundary (hermetic ambient) | `(:wat::kernel::spawn-process fn)` | `:user::process` — `(rx :Receiver<I> tx :Sender<O>) -> :nil` |
-| **3** | Remote *(future)* | `Sender<T>` / `Receiver<T>` (Q-channel multiplex) | EDN-over-sockets | network shared, host boundary | `(:wat::kernel::spawn-remote-program fn endpoint)` | `:user::remote-program` — `(rx :Receiver<I> tx :Sender<O>) -> :nil` |
+| **1** | Thread | `Sender<T>` / `Receiver<T>` | crossbeam channels (in-memory typed Values) | memory shared | `(:wat::kernel::spawn-thread fn)` | `:user::thread` — `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil` |
+| **2** | Process | `Sender<T>` / `Receiver<T>` | EDN-over-pipes (substrate encodes/decodes) | host shared, memory boundary (hermetic ambient) | `(:wat::kernel::spawn-process fn)` | `:user::process` — `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil` |
+| **3** | Remote *(future)* | `Sender<T>` / `Receiver<T>` (Q-channel multiplex) | EDN-over-sockets | network shared, host boundary | `(:wat::kernel::spawn-remote-program fn endpoint)` | `:user::remote-program` — `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil` |
 
 (Tier 0 — `(f x y)` direct invocation in the current eval env — isn't a "spawn variant"; it's the base layer. See [`TIERS.md`](./TIERS.md).)
 
@@ -151,15 +151,21 @@ leaving the substrate in a half-state.
 
 ```scheme
 ;; before
-(:user::main (stdin :IOReader stdout :IOWriter stderr :IOWriter) -> :nil)
+(:wat::core::defn :user::main
+  [stdin  <- :wat::io::IOReader
+   stdout <- :wat::io::IOWriter
+   stderr <- :wat::io::IOWriter]
+  -> :wat::core::nil
+  ...)
 
 ;; after
-(:user::main
-  (stdin  :wat::io::IOReader)
-  (stdout :wat::io::IOWriter)
-  (stderr :wat::io::IOWriter)
-  (argv   :wat::core::Vector<wat::core::String>)
-  -> :wat::kernel::ExitCode)
+(:wat::core::defn :user::main
+  [stdin  <- :wat::io::IOReader
+   stdout <- :wat::io::IOWriter
+   stderr <- :wat::io::IOWriter
+   argv   <- :wat::core::Vector<wat::core::String>]
+  -> :wat::kernel::ExitCode
+  ...)
 ```
 
 argv layout (pure passthrough — what the binary received is what
@@ -192,11 +198,20 @@ match). Programs name their actual entries whatever they want
 the signature satisfy the contract.
 
 ```scheme
-;; :user::process contract
-(my::any-name (stdin :IOReader stdout :IOWriter stderr :IOWriter) -> :nil)
+;; :user::process contract — the SHAPE the user's fn must satisfy
+;;   (post arc 170 + typed-channel substrate)
+[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>]
+  -> :wat::core::nil
 
-;; :user::thread contract
-(my::any-name (rx :Receiver<I> tx :Sender<O>) -> :nil)
+;; :user::thread contract — same shape
+[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>]
+  -> :wat::core::nil
+
+;; example: a defn satisfying :user::process
+(:wat::core::defn :my::worker
+  [rx <- :wat::kernel::Receiver<i64> tx <- :wat::kernel::Sender<i64>]
+  -> :wat::core::nil
+  (... loop receiving from rx, sending to tx ...))
 ```
 
 ### 4. `spawn-process` / `spawn-process-ast` — verb consolidation + fn input
@@ -269,8 +284,8 @@ transport).
 | Surface | Pre-arc-170 | Post-arc-170 |
 |---|---|---|
 | `:user::main` signature | `(IOReader IOWriter IOWriter) -> :nil` | `(IOReader IOWriter IOWriter Vector<String>) -> :wat::kernel::ExitCode` |
-| `:user::process` contract | n/a | documentation contract — `(IOReader IOWriter IOWriter) -> :nil` |
-| `:user::thread` contract | n/a | documentation contract — `(Receiver<I> Sender<O>) -> :nil` |
+| `:user::process` contract | n/a | documentation contract — `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil` |
+| `:user::thread` contract | n/a | documentation contract — `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil` |
 | `:wat::kernel::ExitCode` | n/a | typealias for `:wat::core::u8` |
 | `:wat::kernel::Program<I,O>` typealias | aliases `:Process<I,O>` (arc 109 § J slice 10a) | UNCHANGED — kept as a typealias for now; future arc may unify Thread + Process under a real Program supertype |
 | `:wat::kernel::fork-program` | live; calls `:user::main` | DELETED → spawn-process |
@@ -466,18 +481,20 @@ The substrate (`spawn-process fn`) is the full-power form. The
 testing lib's job is to hide constant ceremony for typical test
 usage. Three layers per [`TIERS.md`](./TIERS.md):
 
-- **Layer 1 — `(:wat::test::run-hermetic (fn [] :nil ...))`** —
-  the 90% case. fn takes no params; harness handles channel
-  setup behind the scenes; returns `RunResult`. No channels in
-  the signature; no inputs; no scope.
-- **Layer 2 — `(:wat::test::run-hermetic-with-io<I,O> fn inputs)`** —
-  the 9% case. fn takes `(rx :Receiver<I> tx :Sender<O>)`;
-  harness feeds typed Values via rx, drains typed Values via tx,
-  returns parsed outputs. **Typed channels, not byte streams.**
-  Substrate handles EDN-over-pipes encoding internally.
+- **Layer 1 — `(:wat::test::run-hermetic body)`** — the 90% case.
+  `run-hermetic` is a macro; user writes the body directly; the
+  fn-wrapper (`(:wat::core::fn [] -> :wat::core::nil body)`) is
+  generated. No channels in the signature, no inputs, no scope,
+  no fn ceremony at all. Returns `RunResult`.
+- **Layer 2 — `(:wat::test::run-hermetic-with-io<I,O> inputs body)`** —
+  the 9% case. Macro introduces `rx :Receiver<I>` and
+  `tx :Sender<O>` as bindings in scope of `body`; harness feeds
+  Values via rx, drains Values via tx, returns parsed outputs.
+  **Typed channels, not byte streams.** Substrate handles
+  EDN-over-pipes encoding internally.
 - **Layer 3 — `(:wat::kernel::spawn-process fn)`** — the
-  substrate; full surface for production code. Same typed-channel
-  fn signature `(rx :Receiver<I> tx :Sender<O>)`. Tests don't
+  substrate; full surface for production code. Caller writes an
+  explicit fn-form with typed-channel signature. Tests don't
   reach here unless they really need it.
 
 What disappears from EVERY testing layer:
@@ -498,6 +515,18 @@ What disappears from Layer 1:
 
 - The fn's channel parameters (Layer 2 has them when needed)
 - The input data parameter (Layer 2 has it when needed)
+- **The fn-form wrapper itself** — `run-hermetic` is a macro;
+  user writes the body directly; macro generates
+  `(:wat::core::fn [] -> :wat::core::nil body)` internally. The
+  empty params + nil return are constant ceremony hidden from
+  every Layer 1 caller.
+
+What disappears from Layer 2:
+
+- **The fn-form wrapper** — `run-hermetic-with-io` is a macro;
+  it introduces `rx` and `tx` as bindings in the body scope.
+  User writes body using rx/tx directly; macro generates the
+  fn-form with typed-channel signature.
 
 **Migration scope:**
 
