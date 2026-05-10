@@ -808,7 +808,7 @@ inscribed truth.
 **FM 22 (recovery doc § 6 future): When in design-mode, name
 the question; ask the user; don't pre-commit.**
 
-This conversation was 11 framing passes across two days. Many
+This conversation was 13 framing passes across two days. Many
 of them were the orchestrator's wrong-shape proposals
 corrected by user direction. The pattern: orchestrator drafts;
 user pushes back via the four questions or substrate-doctrine
@@ -1091,3 +1091,253 @@ substrate carries every concern user code drops.
 - `project_arc_170_canonical_server_form.md` — canonical form
   amended to drop client binding + use helpers.
 Then captured in REALIZATIONS as the pass-8 record.
+
+### Pass 12 — `println` + `readln` are the canonical verbs; protocol is line-delimited EDN; data IS HolonAST
+
+User direction (2026-05-10):
+
+> *"so the protocol is the newline is the end of the data...
+> users /must/ append new line for recv to work.. it doesn't
+> choose bytes.. it chooses data and data ends with a new line"*
+
+> *"the ret val of recv /is data/ -> HolonAST and we can do work
+> on that.... we can eval it to extract a value .. we can cast
+> it to a string.. a vector... it data that we can work on"*
+
+> *"C - we provide both... `(:wat::kernel::println some-forms)`
+> exists as an opinionated convenience - it has earned its spot
+> as it provides a good UX that leverages all the dependencies
+> we've been building.. it blocks, it passes data - its what we
+> need... in a fork it provides the data transmission path for
+> the client/server architecture... `(:wat::kernel::readln) ->`
+> parses the `(:wat::kernel::println some-forms)` into some-forms
+> in the local binding that's the UX"*
+
+The pass-11 names `StdIn/recv` / `StdOut/send` retire from the
+user surface. Pass-12 locks-in mainstream-named helpers:
+
+| Helper | Type | Behavior |
+|---|---|---|
+| `(:wat::kernel::println v)` | `:T -> :nil` | write data + newline; blocks until written |
+| `(:wat::kernel::readln)` | `() -> :Option<:wat::holon::Atom>` | read line + parse EDN to Atom; blocks; None on fd 0 closed |
+| `(:wat::kernel::StdIn/client)` | `() -> :Client` | escape hatch (advanced) |
+| `(:wat::kernel::StdOut/client)` | `() -> :Client` | escape hatch (advanced) |
+
+**The protocol is line-delimited EDN; data IS HolonAST.** Per
+memory `project_pipe_protocol.md` ("line-delimited EDN + kernel
+pipes. One protocol; four transports."). Pass-11's parametric
+`Sender<T>` / `Receiver<T>` framing was wrong for the OS
+boundary — at fd 0 / fd 1, users get `:wat::holon::Atom`, NOT a
+typed parametric I/O. The user works on the AST and chooses how
+to interpret:
+
+- `(:wat::core::eval req)` — evaluate to a value
+- `(:wat::holon::Atom/as-string req)` — cast to string
+- pattern-match the AST shape directly
+
+The handler signature changes:
+- pass-11: `:fn(I)->O` (parametric)
+- pass-12: `:fn(wat::holon::Atom)->wat::holon::Atom`
+
+Per `project_wat_llm_first_design.md` ("reject synonym features"),
+`println` + `readln` ARE the canonical verbs; `StdIn/recv` /
+`StdOut/send` (my pass-11 terminology) are renamed away — not
+preserved as synonyms. Type/verb shape survives only on the
+escape-hatch accessors (`StdIn/client`, `StdOut/client`).
+
+### Pass 13 — `:wat::core::nil` IS the graceful "done" message; user owns signal-cleanup path
+
+User direction (2026-05-10):
+
+> *"processes may be intentionally short lived... and we need to
+> communicate graceful shutdowns.. we have pid groups enabled...
+> so the file descriptors should organically close... so us
+> getting a closed file descriptor is normal... the forked
+> process was intentionally short (think hermetic tests) or a
+> long term process is shutting down from a SIGTERM or SIGINT
+> being passed... the fork needs to communicate its done before
+> it exists... so it must write `:wat::core::nil` as its final
+> message to communicate its over"*
+
+User correction (after orchestrator's first wrong-shape proposal):
+
+> *"the user must be allowed to perform their own clean up - go
+> study how we manage signals - your response scares me - you
+> have forgotten too much"*
+
+User confirmation (after orchestrator crawled arc 106 + memory):
+
+> *"those expressions are so fucking good - don't forget those -
+> they are absolutely arc worthy"*
+
+**Failure-engineering paid lesson:** the orchestrator's first
+pass-13 proposal conflated substrate-automatic-`:nil` with
+substrate-automatic-signal-handling. Wrong: arc 106 established
+a model where the kernel MEASURES (per-process atomic flags
+flipped by async-signal-safe handlers) and userland TRANSITIONS
+(wat program polls `(:wat::kernel::stopped?)` etc., decides what
+to do, returns when ready). The substrate's automatic `:nil` is
+only the post-main exit epilogue, NOT a forced shutdown on
+signal.
+
+The recovery: orchestrator crawled `src/fork.rs:81-130` +
+`src/runtime.rs:51-119` + memory `project_signal_cascade.md`
+before re-proposing. The corrected pass-13 lock-in respects the
+arc-106 model.
+
+**The protocol's terminal states (post-pass-13):**
+
+| `(readln)` returns | Meaning | Handling |
+|---|---|---|
+| `Some(:wat::core::nil)` | peer announced graceful done | exit loop cleanly; substrate emits our `:nil` on main-return |
+| `Some(other)` | peer sent data | process; respond; loop |
+| `None` | fd 0 closed without graceful `:nil` | ungraceful (SIGKILL, panic that escaped cascade); user chooses panic / log / exit |
+
+**The four-layer ownership table:**
+
+| Layer | Owner | Contract |
+|---|---|---|
+| OS signal arrival | kernel + arc 106 handlers | flip atomic flag; return; async-signal-safe |
+| Cascade across pid group | OS (`killpg`) | wat-cli broadcasts; kernel delivers; per-process handlers fire |
+| Stopped/sigusr polling | **user wat program** | `(:wat::kernel::stopped?)` / `(sigusr1?)` etc. at safe checkpoints |
+| Cleanup logic on observed stop | **user wat program** | drain work, close resources, return nil |
+| Final `:nil` emit + libc::exit(0) | substrate | post-main epilogue |
+
+**Substrate-automatic graceful-`:nil` epilogue (option A):**
+
+```
+user's main returns :nil
+  ↓
+substrate epilogue:
+    1. emit :wat::core::nil to fd 1     ← protocol-compliance final
+    2. close fd 1
+    3. libc::exit(0)
+```
+
+Independent of WHY main returned. Panic exit skips this path
+(StdErrService cascade fires libc::exit(N) directly; consumer
+sees ungraceful `None`).
+
+User confirmation:
+> *"I agree with A - we adhere to the protocol ourselves -
+> that's our leg of the work. we write nil to the stdout and
+> exit 0 - that's our protocol compliance for the runtime"*
+
+**The locked-in canonical form (post-pass-13):**
+
+```scheme
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::server-loop my-handler))
+
+(:wat::core::defn :wat::kernel::server-loop
+  [handler <- :wat::core::fn(wat::holon::Atom)->wat::holon::Atom]
+  -> :wat::core::nil
+  (:wat::core::if (:wat::kernel::stopped?)
+    -> :wat::core::nil
+    ;; stop signal observed; user-side returns nil; substrate emits :nil + exits
+    :wat::core::nil
+    (:wat::core::match (:wat::kernel::readln)
+      -> :wat::core::nil
+      ;; peer signaled done
+      ((:wat::core::Some :wat::core::nil)
+        :wat::core::nil)
+      ;; data; process; loop
+      ((:wat::core::Some req)
+        (:wat::core::let [resp (handler req)]
+          (:wat::kernel::println resp)
+          (:wat::kernel::server-loop handler)))
+      ;; ungraceful close — peer died without :nil
+      (:wat::core::None
+        (:wat::runtime::panic! "stdin closed without graceful :nil")))))
+```
+
+**User-cleanup pattern** — when the user needs pre-exit work on
+observed stop:
+
+```scheme
+(:wat::core::if (:wat::kernel::stopped?)
+  -> :wat::core::nil
+  (:wat::core::do
+    (my::flush-caches!)
+    (my::log-shutdown-state!)
+    :wat::core::nil)
+  ...)
+```
+
+The user owns the path between "stop observed" and "main returns
+nil." Substrate stays out.
+
+**Cascade on the slice plan:**
+
+- Slice 1i extends scope to "wat-cli exit-path discipline" —
+  panic-cascade on stderr (existing) + graceful-`:nil` epilogue
+  on stdout (new). Both are exit-path doctrines.
+
+**Connects to memory:**
+- `project_signal_cascade.md` — wat-rs cascades signals via
+  POSIX pgid + killpg; cascade is mandatory; kernel tracks
+  membership; substrate has no registry
+- `project_pipe_protocol.md` — line-delimited EDN; one protocol;
+  four transports
+- arc 057 (HolonAST schema in holon-rs)
+- arc 092 (wat-edn line-delimited serialization)
+- arc 106 (substrate-level signal handlers for fork children)
+- arc 110 (silent kernel-comm illegal — None must surface in match)
+- `feedback_assertion_demands_evidence.md` — the orchestrator's
+  first pass-13 proposal asserted "SIGTERM converts to
+  main-should-return" without crawling. The user's "your response
+  scares me - you have forgotten too much" is exactly the
+  assertion-demands-evidence trigger. Crawl restored.
+
+### Pass 13 meta-observation — TCO idealization without prompt
+
+User direction (2026-05-10):
+
+> *"you should note that we reached for TCO without explicit
+> direction and its the idealized state"*
+
+The canonical server-loop form was written with recursion in tail
+position (`(server-loop handler)` as the let-body's last form,
+inside the match arm, inside the if-else branch). The orchestrator
+wrote this shape without being prompted to make it tail-recursive
+or to think about stack growth. The user verified ("this is a
+TCO pattern, right?"); the orchestrator crawled arc 003 + memory;
+arc 003's trampoline (RuntimeError::TailCall + apply_function
+loop) supports exactly this shape. The 100k match-recursion
+benchmark in `tests/wat_tco.rs` is named "the Console/loop shape"
+— precisely what we reached for.
+
+**The signal:** the natural shape AND the substrate's idealized
+state CONVERGED without orchestrator prompting. This is a
+maturity signal — the substrate's idiomatic patterns are now
+honest enough that "write the obvious shape" produces "the
+substrate's intended form."
+
+Cross-arc precedent reinforcement:
+- arc 003 (TCO) — built the trampoline so this shape works
+  indefinitely
+- arc 167 (fn-flat-signature), arc 159 (let new-shape) — pruned
+  syntactic shapes so the obvious form IS the canonical form
+- arc 109 (kill-std + FQDN doctrine) — every helper named
+  consistently so the obvious name IS the substrate name
+- arc 167+159+109+003 together → "the natural way to write a
+  server-loop is the TCO-correct way is the canonical way"
+
+This convergence is what we mean by "the foundation is
+impeccable" (per `feedback_compaction_protocols.md` §
+strategic-context). When the orchestrator writes idiomatic wat
+without effort and the substrate's existing test coverage names
+that exact pattern, the foundation has settled.
+
+**For the arc-170 INSCRIPTION (slice 5 paperwork):** the
+canonical form's tail-recursive shape is INTENTIONAL alignment
+with arc 003. Cross-reference `tests/wat_tco.rs` "the
+Console/loop shape" benchmark explicitly. Future readers see
+the lineage: arc 003 built the runway; arc 170 lands on it.
+
+**Connects to memory:**
+- `feedback_simple_is_uniform_composition.md` — the obvious
+  composition IS the simple composition. Don't over-think it.
+- `feedback_no_speculation.md` — the orchestrator didn't
+  speculate "this should be tail-recursive"; the obvious shape
+  emerged. The user verified post-hoc; arc 003 supports it.

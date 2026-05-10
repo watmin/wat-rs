@@ -93,26 +93,48 @@ direction (2026-05-10) recognized as "incredible":
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::server-loop my-handler))
 
-(:wat::core::defn :wat::kernel::server-loop<I,O>
-  [handler <- :wat::core::fn(I)->O]
+(:wat::core::defn :wat::kernel::server-loop
+  [handler <- :wat::core::fn(wat::holon::Atom)->wat::holon::Atom]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::StdIn/recv)
+  (:wat::core::if (:wat::kernel::stopped?)
     -> :wat::core::nil
-    ((:wat::core::Some req)
-      (:wat::core::let [resp (handler req)]
-        (:wat::kernel::StdOut/send resp)
-        (:wat::kernel::server-loop handler)))
-    (:wat::core::None
-      :wat::core::nil)))
+    ;; stop signal observed; user-side returns nil; substrate emits :nil + exits
+    :wat::core::nil
+    (:wat::core::match (:wat::kernel::readln)
+      -> :wat::core::nil
+      ;; peer signaled done
+      ((:wat::core::Some :wat::core::nil)
+        :wat::core::nil)
+      ;; data; process; loop (TCO via arc 003 trampoline)
+      ((:wat::core::Some req)
+        (:wat::core::let [resp (handler req)]
+          (:wat::kernel::println resp)
+          (:wat::kernel::server-loop handler)))
+      ;; ungraceful close — peer died without :nil
+      (:wat::core::None
+        (:wat::runtime::panic! "stdin closed without graceful :nil")))))
 ```
 
-`(:wat::kernel::StdIn/recv)` and `(:wat::kernel::StdOut/send v)`
-are helpers that route through per-thread Client thread-locals
-(set by spawn-thread's register-with-services contract). Users
-typically never instantiate Client directly. Advanced cases
-reach for `(:wat::kernel::StdIn/client)` /
-`(:wat::kernel::StdOut/client)` escape hatches — substrate
-honest about the internals; canonical surface stays clean.
+`(:wat::kernel::println v)` writes data + newline (blocks).
+`(:wat::kernel::readln)` returns `:Option<:wat::holon::Atom>`
+(blocks; `:None` on fd 0 closed). Both helpers route through
+per-thread Client thread-locals (set by spawn-thread's
+register-with-services contract). Users typically never
+instantiate Client directly. Advanced cases reach for
+`(:wat::kernel::StdIn/client)` / `(:wat::kernel::StdOut/client)`
+escape hatches — substrate honest about the internals; canonical
+surface stays clean. Recursion is in tail position; arc 003's
+trampoline handles indefinite loops without stack growth.
+
+**Three protocol terminal states (post-pass-13):**
+- `Some(:wat::core::nil)` — peer announced graceful done
+- `Some(other)` — peer sent data; process; respond; loop
+- `None` — fd 0 closed without graceful `:nil`; ungraceful
+
+The substrate auto-emits `:wat::core::nil` to fd 1 after
+`:user::main` returns nil cleanly (signal-cleanup path is the
+user's responsibility per arc 106; substrate measures, userland
+transitions). See `project_signal_cascade.md`.
 
 The user's whole client/server program in 12 lines of wat. No
 fork ceremony, no pipe plumbing, no error-routing scaffolding.
@@ -158,7 +180,7 @@ For CLI utility programs (one-shot; doesn't run a service loop):
 ```scheme
 ;; my-script.wat — last form returns nil; signature satisfied
 (:wat::kernel::run!
-  (:wat::kernel::StdOutService/send "hello world"))
+  (:wat::kernel::println "Hello, world!"))
 ```
 
 `(:wat::kernel::run! form1 form2 ...)` is variadic — wraps

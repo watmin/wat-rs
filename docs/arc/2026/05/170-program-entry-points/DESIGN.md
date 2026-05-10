@@ -82,32 +82,81 @@ The user's program runs against ambient resources:
 - StdInService/StdOutService/StdErrService — for I/O
 
 The canonical wat server-program form (memory
-`project_arc_170_canonical_server_form.md`; locked-in post-pass-11
-— helpers + ambient + escape-hatch):
+`project_arc_170_canonical_server_form.md`; locked-in post-pass-13
+— helpers + ambient + stopped?-poll + graceful-`:nil`):
 
 ```scheme
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::server-loop my-handler))
 
-(:wat::core::defn :wat::kernel::server-loop<I,O>
-  [handler <- :wat::core::fn(I)->O]
+(:wat::core::defn :wat::kernel::server-loop
+  [handler <- :wat::core::fn(wat::holon::Atom)->wat::holon::Atom]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::StdIn/recv)
+  (:wat::core::if (:wat::kernel::stopped?)
     -> :wat::core::nil
-    ((:wat::core::Some req)
-      (:wat::core::let [resp (handler req)]
-        (:wat::kernel::StdOut/send resp)
-        (:wat::kernel::server-loop handler)))
-    (:wat::core::None
-      :wat::core::nil)))
+    ;; stop signal observed; user-side returns nil; substrate emits :nil + exits
+    :wat::core::nil
+    (:wat::core::match (:wat::kernel::readln)
+      -> :wat::core::nil
+      ;; peer signaled done
+      ((:wat::core::Some :wat::core::nil)
+        :wat::core::nil)
+      ;; data; process; loop (TCO via arc 003 trampoline)
+      ((:wat::core::Some req)
+        (:wat::core::let [resp (handler req)]
+          (:wat::kernel::println resp)
+          (:wat::kernel::server-loop handler)))
+      ;; ungraceful close — peer died without :nil
+      (:wat::core::None
+        (:wat::runtime::panic! "stdin closed without graceful :nil")))))
 ```
 
-`(:wat::kernel::StdIn/recv)` and `(:wat::kernel::StdOut/send v)`
-are helpers that route through per-thread Client thread-locals
-(set by spawn-thread's register-with-services contract per
-slice 1g). Users typically never instantiate Client directly;
-advanced cases reach for `(:wat::kernel::StdIn/client)` /
-`(:wat::kernel::StdOut/client)` escape hatches.
+`(:wat::kernel::println v)` writes data + newline; blocks.
+`(:wat::kernel::readln)` returns `:Option<:wat::holon::Atom>`;
+blocks; `:None` on fd 0 closed (per pass-13: ungraceful since
+the peer didn't write `:nil` first). Both helpers route through
+per-thread Client thread-locals (set by spawn-thread's
+register-with-services contract per slice 1g). Users typically
+never instantiate Client directly; advanced cases reach for
+`(:wat::kernel::StdIn/client)` / `(:wat::kernel::StdOut/client)`
+escape hatches. The recursive `(server-loop handler)` is in
+tail position; arc 003's trampoline handles it without stack
+growth.
+
+**User-cleanup pattern** — when the user needs pre-exit work on
+observed stop, they wrap their cleanup before returning nil.
+Substrate stays out:
+
+```scheme
+(:wat::core::if (:wat::kernel::stopped?)
+  -> :wat::core::nil
+  (:wat::core::do
+    (my::flush-caches!)
+    (my::log-shutdown-state!)
+    :wat::core::nil)
+  ...)
+```
+
+**Signal model** (per arc 106 + memory `project_signal_cascade.md`):
+
+| Layer | Owner | Contract |
+|---|---|---|
+| OS signal arrival | kernel + arc 106 handlers | flip atomic flag; return |
+| Cascade across pid group | OS (`killpg`) | wat-cli broadcasts; kernel delivers |
+| Stopped/sigusr polling | **user wat program** | `(stopped?)` etc. at safe checkpoints |
+| Cleanup logic on observed stop | **user wat program** | drain work, close resources, return nil |
+| Final `:nil` emit + libc::exit(0) | substrate | post-main epilogue (slice 1i) |
+
+The substrate measures; userland transitions. Substrate's
+automatic `:nil` runs ONLY after graceful main-return.
+
+**Protocol terminal states (post-pass-13):**
+
+| `(readln)` returns | Meaning | Handling |
+|---|---|---|
+| `Some(:wat::core::nil)` | peer announced graceful done | exit loop; substrate emits our `:nil` on main-return |
+| `Some(other)` | peer sent data | process; respond; loop |
+| `None` | fd 0 closed without prior `:nil` | ungraceful (SIGKILL, escaped panic); user chooses panic / log / exit |
 
 **Doctrines:**
 
@@ -383,8 +432,8 @@ transport).
 | `:wat::kernel::StdOutService` | n/a | substrate runtime service; owns fd 1; receives typed Values |
 | `:wat::kernel::StdErrService` | n/a | substrate runtime service; owns fd 2; first-panic-wins; libc::exit |
 | `:wat::kernel::Server` / `Client` types | n/a | substrate-internal + tier 1/2/3 unification; tested + documented; unsurfaced in canonical form |
-| `:wat::kernel::StdIn/recv` | n/a | helper; reads typed value from per-thread stdin client |
-| `:wat::kernel::StdOut/send` | n/a | helper; writes typed value through per-thread stdout client |
+|  `:wat::kernel::println` | n/a | helper; writes data + newline to per-thread stdout client |
+|  `:wat::kernel::readln` | n/a | helper; reads line + parses EDN to :wat::holon::Atom from per-thread stdin client |
 | `:wat::kernel::StdIn/client` | n/a | escape hatch; returns per-thread Client (advanced cases) |
 | `:wat::kernel::StdOut/client` | n/a | escape hatch; returns per-thread Client (advanced cases) |
 | `:wat::kernel::main!` macro | n/a | substrate-auto-loaded; expands to canonical server-program form (uses helpers; no explicit client binding) |
@@ -507,7 +556,7 @@ it Rust-internal; later arc may surface it.
 ## Slice plan
 
 > **Status (2026-05-10):** Major plan amendment after architecture
-> lock-in conversation (REALIZATIONS passes 7-11). Slices 1e/1f/1g/
+> lock-in conversation (REALIZATIONS passes 7-13). Slices 1e/1f/1g/
 > 1h/1i NEW substrate slices. Slice 3 phase A + B + 1d work in
 > dirty tree on `arc-170-program-entry-points` mostly stays valid
 > (closure-extraction substrate is correct); some elements need
@@ -684,7 +733,8 @@ pass 11 per-thread-Client thread-locals:
   before services know about it)
 - `:wat::runtime::current-thread` reads from thread-local
 - Per-thread stdin Client + stdout Client read from thread-locals
-  (used by `StdIn/recv`, `StdOut/send`, escape hatches)
+  (used by `println` / `readln` helpers + `StdIn/client` /
+  `StdOut/client` escape hatches)
 - Integration tests for register-then-spawn-then-panic flow
 
 Predicted: 90-180 min opus. Touches spawn-thread substrate +
@@ -700,27 +750,32 @@ Implements REALIZATIONS pass 8 + pass 11 lock-in:
   uses ambient per-thread Client via helpers)
 - Slice 1c PipeFd Sender/Receiver substrate becomes the
   IMPLEMENTATION DETAIL Server/Client uses
-- **User-facing helpers (post-pass-11; the canonical surface):**
-  - `(:wat::kernel::StdIn/recv)` → `:wat::core::Option<I>`
-    — reads typed value from per-thread stdin Client (in
-    thread-locals)
-  - `(:wat::kernel::StdOut/send v)` → `:wat::core::nil`
-    — writes typed value through per-thread stdout Client
+- **User-facing helpers (post-pass-12; the canonical surface):**
+  - `(:wat::kernel::println v)` → `:wat::core::nil`
+    — writes data + newline via per-thread stdout Client; blocks
+  - `(:wat::kernel::readln)` → `:Option<:wat::holon::Atom>`
+    — reads line + parses EDN to HolonAST via per-thread stdin
+    Client; blocks; `:None` on fd 0 closed (ungraceful)
 - **Advanced escape hatches** (return per-thread Client values
   from thread-locals; users rarely need; substrate honest):
-  - `(:wat::kernel::StdIn/client)` → `Client<I,...>`
-  - `(:wat::kernel::StdOut/client)` → `Client<...,O>`
-- The canonical server form (REALIZATIONS pass 11) lives + works
+  - `(:wat::kernel::StdIn/client)` → `Client`
+  - `(:wat::kernel::StdOut/client)` → `Client`
+- The canonical server form (REALIZATIONS pass 13) lives + works
+  with `(stopped?)` polling + three-branch `(readln)` match
+  (Some(:nil), Some(req), None) + tail-recursive `(server-loop
+  handler)` handled by arc 003's trampoline
 - **Entry-point helper macros** (encourage the canonical pattern):
   - `(:wat::kernel::main! handler-expr)` — macro that expands
     to the canonical server-program shape. `handler-expr` can
-    be ANY expression that evaluates to `:wat::core::fn(I)->O`:
+    be ANY expression that evaluates to
+    `:wat::core::fn(wat::holon::Atom)->wat::holon::Atom`:
     a keyword path (`:my::handler`), an inline fn-form,
     a factory call `(make-handler config)`, etc. The macro
     evaluates the expression at startup and binds the resulting
-    fn into the server-loop. Expansion (post-pass-11; no
+    fn into the server-loop. Expansion (post-pass-13; no
     explicit client binding — server-loop uses ambient helpers
-    internally):
+    internally; the loop body includes `(stopped?)` poll +
+    three-branch `(readln)` match per pass-13 protocol):
     ```scheme
     (:wat::core::defn :user::main [] -> :wat::core::nil
       (:wat::core::let
@@ -761,24 +816,53 @@ Implements REALIZATIONS pass 8 + pass 11 lock-in:
 
 Predicted: 90-180 min mixed (opus design + sonnet wat helpers).
 
-### Slice 1i — wat-cli structured-stderr-only (NEW; substrate)
+### Slice 1i — wat-cli exit-path discipline (NEW; substrate)
 
-Implements REALIZATIONS pass 9 doctrine:
+Implements REALIZATIONS pass 9 (structured-stderr-only) +
+pass 13 (graceful-`:nil` epilogue) doctrines together. Both are
+exit-path concerns; pair them for atomic landing.
+
+**Structured-stderr-only (pass 9):**
 - wat-cli has zero direct stderr writes
 - All wat-cli "errors" (load failures, freeze errors, etc.) route
   through StdErrService → structured cascade EDN → libc::exit
 - panic-cascade emit on fd 2 from Rust (replaces slice 2's flat
   marker); uses arc 113 cascade pattern via StdErrService
-- Integration tests for shell-level UX (cargo test invokes wat
-  binary; verifies stderr is structured EDN)
 
-Predicted: 60-120 min opus.
+**Graceful-`:nil` epilogue (pass 13):**
+- Substrate's exit path after `:user::main` returns nil:
+  1. emit `:wat::core::nil` to fd 1 (protocol-compliance final)
+  2. close fd 1
+  3. libc::exit(0)
+- Independent of WHY main returned (clean completion, observed
+  `(stopped?)` and unwound, finished one-shot)
+- Panic exit skips this path (StdErrService cascade fires
+  libc::exit(N) directly; consumer sees ungraceful `None`)
+- The substrate emits `:nil` on the program's behalf — adheres to
+  protocol on the user's behalf; user just returns nil
+
+**Signal model preserved (per arc 106 + memory `project_signal_cascade.md`):**
+- OS handlers flip atomic flags only; substrate does NOT
+  auto-trigger main-return on signal
+- User polls `(stopped?)` etc.; user owns cleanup logic; user
+  decides when to return nil from main
+- Substrate's epilogue runs only AFTER user returns nil
+
+**Tests:**
+- Shell-level UX (cargo test invokes wat binary; verifies stderr
+  is structured EDN; verifies stdout has trailing `:nil` + close)
+- Hermetic test harness reads `Some(:nil)` as graceful-done marker
+- Panic case: ungraceful `None` on stdout; cascade EDN on stderr;
+  non-zero exit code
+
+Predicted: 90-180 min opus (expanded from 60-120 to absorb the
+epilogue work).
 
 ### Slice 3 — consumer sweep + tooling rebuild — REVISED post-architecture-lock-in
 
 > **Status (2026-05-10):** Phase A + B + 1d work in dirty tree
 > partially aligns; needs revision against locked-in
-> architecture (REALIZATIONS passes 7-11). After slices 1e through
+> architecture (REALIZATIONS passes 7-13). After slices 1e through
 > 1i ship, slice 3 sweep finishes the migration: testing-lib
 > rebuilds around services + canonical server form (REALIZATIONS
 > pass 8); test fixtures use ambient runtime + Server/Client; all
@@ -1026,14 +1110,19 @@ The architecture settled across roughly 20 exchanges. Key beats:
 18. User pressure-tested: does this set up remote-program? Confirmed yes — closure extraction + Vec\<WatAST\> wire form is the foundation; remote arc adds transport + protocol
 19. **(2026-05-10) User raised three substrate services + structured-stderr-only + single-shot panic + canonical server form + main!/run! macros** (REALIZATIONS passes 7-9)
 20. **(2026-05-10) User reversed beat #2/#3: "do we need ExitCode at all? nil /is/ the exit code"** — uniform `[] -> :wat::core::nil` across tier 0/1/2; ExitCode typealias retires from arc 170 scope (REALIZATIONS pass 10)
-21. **(2026-05-10) User probed the explicit `client` binding: "what are we trying to communicate there.. we could just have... `(send-stdout! some-forms)`"** — drop client binding; mint `StdIn/recv` + `StdOut/send` helpers using per-thread ambient client; expose `StdIn/client` + `StdOut/client` escape hatches for advanced cases; Server/Client substrate types preserved (REALIZATIONS pass 11). User confirmed: *"outstanding - phenominal - we're back to ourselves again - the good UX matters - but we cannot ignore the stepping stones to deliver it.. we do the hard work to make the good work easy"*
+21. **(2026-05-10) User probed the explicit `client` binding: "what are we trying to communicate there.. we could just have... `(send-stdout! some-forms)`"** — drop client binding; mint helpers using per-thread ambient client; expose `StdIn/client` + `StdOut/client` escape hatches; Server/Client substrate types preserved (REALIZATIONS pass 11). User confirmed: *"outstanding - phenominal - we're back to ourselves again - the good UX matters - but we cannot ignore the stepping stones to deliver it.. we do the hard work to make the good work easy"*
+22. **(2026-05-10) User clarified the protocol semantics: "the protocol is the newline is the end of the data... users /must/ append new line for recv to work... the ret val of recv /is data/ -> HolonAST"** — line-delimited EDN; `readln` returns `:Option<:wat::holon::Atom>` (HolonAST; user evals/casts); `println` is the canonical write verb; pass-11's `StdIn/recv`/`StdOut/send` retire from user surface. The handler signature drops parametric `<I,O>` framing; becomes `:fn(wat::holon::Atom)->wat::holon::Atom` (REALIZATIONS pass 12).
+23. **(2026-05-10) User locked-in graceful-shutdown protocol: ":wat::core::nil is the final message before exit; processes communicate done before exiting"** — `Some(:nil)` from readln = graceful peer-done; `None` = ungraceful. User picked option A: substrate-automatic graceful-`:nil` epilogue on main-return. User pushed back on conflated signal-handling: *"the user must be allowed to perform their own clean up - go study how we manage signals - your response scares me - you have forgotten too much"*. Orchestrator crawled arc 106 + memory; corrected to "kernel measures, userland transitions" model. User confirmed: *"those expressions are so fucking good - don't forget those - they are absolutely arc worthy"* (REALIZATIONS pass 13).
+24. **(2026-05-10) User noted the convergence meta-observation: "we reached for TCO without explicit direction and its the idealized state"** — the canonical server-loop's recursive shape is in tail position naturally; arc 003's trampoline supports it. The natural shape AND the substrate's idealized state CONVERGED without prompting — a maturity signal that the foundation has settled (REALIZATIONS pass 13 meta-observation).
 
 Each refinement made the design simpler and more honest. The
 final shape: spawn-* takes a fn matching its contract; substrate
 handles all internals; no wat-level Program type; no entry-keyword;
-no discovery; the fn IS the program. Nil IS the exit code. The
-canonical 9-line server form uses helpers; substrate carries
-every concern user code drops.
+no discovery; the fn IS the program. Nil IS the exit code AND the
+graceful "done" message. The canonical 9-line server form uses
+`println` + `readln` helpers; substrate carries every concern user
+code drops; signal-cleanup logic stays user-side; recursion in
+tail position rides arc 003's trampoline.
 
 ---
 
