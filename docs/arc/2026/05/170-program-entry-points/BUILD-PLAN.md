@@ -161,43 +161,142 @@ beside the commit.
 ExitCode references + 4-arg signature assumptions. Slice 3
 sweep fixes; slice 1e leaves them as substrate-as-teacher input.
 
-### Slice 1f — Three substrate services (StdIn / StdOut / StdErr)
+### Slice 1f — Three substrate services (StdIn / StdOut / StdErr) — SPLIT
 
-**Substrate; opus. Heaviest slice.**
+**Per BUILD-PLAN §5 R1:** the original combined slice was
+predicted 180-300 min opus — heaviest single slice, splittable
+along service-by-service lines for verification cadence.
+Stepping-stones discipline (recovery doc § 5) wins: each
+service is verifiable independently; the registration pattern
+proven in 1f-i propagates to 1f-ii + 1f-iii.
+
+**Atomic commit per stepping stone.** SCORE per stepping stone.
+
+**Dependencies:** slice 1e shipped (ambient runtime exists for
+services to boot against).
+
+#### Slice 1f-i — `:wat::kernel::StdInService` + per-thread registration API
+
+**Substrate; opus.**
 
 **Scope:**
-- Mint `:wat::kernel::StdInService` Rust runtime component:
-  owns fd 0; select-loop over per-thread consumer pipes +
-  control-pipe (self-pipe trick); reads bytes; parses
-  line-delimited EDN to `:wat::holon::Atom`; dispatches to
-  registered consumers; `:None` on EOF
-- Mint `:wat::kernel::StdOutService`: owns fd 1; select-loop
-  over per-thread message-pipes + control-pipe; serializes
-  Atoms (or raw bytes for `println`'s string-passthrough case
-  TBD) to EDN; writes to fd 1 with single-writer guard
-- Mint `:wat::kernel::StdErrService`: owns fd 2; select-loop
-  over per-thread panic-pipes + control-pipe; first panic event
-  drained wins; emits structured cascade EDN; calls
-  `libc::exit(N)`
-- Substrate runtime startup creates all three services BEFORE
-  `:user::main` invokes
-- Rust integration tests verifying each service's contract
+- New `src/services/stdin.rs` (or wherever services land):
+  Rust thread that owns fd 0
+- Select-loop pattern (libc::poll(2) or self-pipe-driven loop)
+  over per-thread consumer pipes + control-pipe
+- Control-pipe accepts `:register thread-id reader-fd` /
+  `:unregister thread-id` messages
+- Per-thread tracking via HashMap<thread_id, fd>
+- Reads bytes from fd 0; parses line-delimited EDN to
+  `:wat::holon::Atom`; dispatches to registered consumer pipe
+- Returns `:None` (close consumer pipe) on EOF
+- Service starts via a `runtime::start_stdin_service()` Rust
+  fn (not yet wired into substrate boot — that's 1f-iv)
+- Rust integration tests (`tests/services_stdin.rs` or similar):
+  start service; register a consumer; feed bytes; assert
+  parsed Atom; close fd; assert :None propagation
 
-**Dependencies:** slice 1e (ambient runtime needs to exist
-before services boot for a thread).
+**The registration API minted here is reused by 1f-ii + 1f-iii.**
 
 **Ship criteria:**
-- Services boot at runtime startup; visible in process listing
-  (4 threads minimum: main + 3 services)
-- Each service's loop runs without panicking
-- Service Rust integration tests pass
+- Service compiles + runs
+- Registration roundtrips (register → get pipe → unregister)
+- EDN parsing roundtrips
+- EOF propagates :None correctly
+- No `Mutex`; uses `crossbeam_channel` + `std::sync::OnceLock` +
+  `AtomicBool` per ZERO-MUTEX doctrine
 
-**Predicted runtime:** 180-300 min opus. Substantial
-substrate-as-teacher input.
+**Predicted runtime:** 90-150 min opus. The pattern is novel;
+budget reflects that.
 
-**Expected workspace impact:** large — services replace
-arc 109's Console crossbeam pattern for many tests. Slice 3
-migrates Console-using tests to services in revised sweep.
+#### Slice 1f-ii — `:wat::kernel::StdOutService`
+
+**Substrate; opus.**
+
+**Scope:**
+- Mirror the registration pattern from 1f-i for fd 1
+- Per-thread message-pipes (typed Atom messages)
+- Single-writer guard on fd 1 (only the service writes)
+- Serializes Atom → line-delimited EDN
+- Per-message ack channel (mini-TCP — same shape as
+  `wat/console.wat`'s arc 089 ack pattern; consumers know
+  their write completed)
+- Rust integration tests
+
+**Ship criteria:**
+- Service compiles + runs
+- Per-thread registration works
+- Atoms serialize correctly
+- Multiple threads writing concurrently produces ordered output
+- ack channel works (caller blocks until write completes)
+
+**Predicted runtime:** 60-90 min opus. Pattern proven in 1f-i;
+budget reflects the speed-up.
+
+#### Slice 1f-iii — `:wat::kernel::StdErrService`
+
+**Substrate; opus.**
+
+**Scope:**
+- Mirror registration for fd 2
+- Per-thread panic-pipes
+- First-panic-wins semantics (not a general-purpose service —
+  specific to panic cascade)
+- Emits structured cascade EDN (per arc 113 pattern)
+- Calls `libc::exit(non-zero)` after emit
+- Concurrent panickers from other threads NEVER get drained
+  (process dies after first panic)
+- Rust integration tests:
+  - Single panic: cascade emitted; libc::exit fires
+  - Concurrent panics: only first emitted
+  - No-panic path: service stays idle indefinitely
+
+**Ship criteria:**
+- Service compiles + runs
+- Single-panic emit + exit works
+- Concurrent-panic semantics hold (first wins)
+- Idle path doesn't crash
+
+**Predicted runtime:** 60-90 min opus. Cascade emit + libc::exit
+is novel; budget reflects that.
+
+#### Slice 1f-iv — Substrate runtime startup integration
+
+**Substrate; opus.**
+
+**Scope:**
+- Wire all three services into substrate boot:
+  `runtime::start_services()` boots StdIn + StdOut + StdErr
+  in their own threads BEFORE `:user::main` invokes
+- wat-cli calls `start_services()` after `set_argv()` and
+  before `invoke_user_main()`
+- Per-thread pipes for the MAIN thread are constructed at boot
+  (the registration-with-services contract is slice 1g; 1f-iv
+  hardwires the main thread's registration so main can use
+  println/readln)
+- Rust integration test: wat-cli boots; services running;
+  process has ≥4 threads (main + 3 services)
+
+**Ship criteria:**
+- Substrate boots all three services successfully
+- Main thread's per-thread Client values populated for In/Out
+  (StdErr panic path doesn't need pre-registered Client; just
+  the service's panic-emit fd writer)
+- `cargo test` workspace runs (red is fine; substrate-as-teacher
+  input continues)
+
+**Predicted runtime:** 30-60 min opus. Integration only — small.
+
+#### Total slice 1f budget
+
+195-390 min opus (1f-i 90-150 + 1f-ii 60-90 + 1f-iii 60-90 +
+1f-iv 30-60). Equivalent to original 180-300 prediction; split
+gives verification per stepping stone.
+
+**Expected workspace impact (cumulative across 1f-i → 1f-iv):**
+small until slice 3 — these substrate services don't directly
+fail tests (they're new infrastructure). Console crossbeam
+service still works for tests using it (slice 3 migrates).
 
 ### Slice 1g — spawn-thread register-with-services + per-thread Client thread-locals
 
