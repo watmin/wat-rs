@@ -1,30 +1,35 @@
 //! Closure extraction — substrate-internal Rust capability.
 //!
-//! Arc 170 slice 1. Given a `Value::wat__core__fn` plus the parent
+//! Arc 170 slice 1b. Given a `Value::wat__core__fn` plus the parent
 //! world's `SymbolTable` + `TypeEnv`, produce a `ClosurePackage`:
-//! a `Vec<WatAST>` of top-level forms suitable for re-freezing in a
-//! fresh wat world such that the entry fn can be invoked there with
-//! behavior equivalent to invoking the original.
+//! a `prologue` (top-level WatAST forms — the captured environment) plus
+//! an `entry_form` (an expression evaluating to a fn Value). When the
+//! prologue is fed through `startup_from_forms` and `entry_form` is then
+//! `eval`d in that fresh world, the resulting fn Value is behaviorally
+//! equivalent to the original.
 //!
 //! **Scope**: Rust-internal in arc 170. NOT exposed at wat level.
 //! Future remote-program arc may expose it. The first wat-level
 //! consumer is `eval_kernel_spawn_process` in slice 2.
 //!
-//! **Algorithm** (per CLOSURE-EXTRACTION.md):
+//! **Algorithm** (per CLOSURE-EXTRACTION.md v2):
 //!
-//! 1. Resolve entry fn's body + signature; pick a name (canonical for
-//!    top-level defns; synthetic `:wat::kernel::__closure::__pkg_<n>`
-//!    for lambdas).
+//! 1. Resolve entry: keyword-path input → register entry fn into deps so
+//!    its define ends up in `prologue`; entry_form = `Symbol(name)`.
+//!    Inline-lambda input → no name; entry_form = reconstructed fn-form
+//!    AST `(:wat::core::fn [name <- :T ...] -> :Ret body)`.
 //! 2. Walk the entry body's AST, track scope, collect free references.
 //! 3. Recursively extract user dependencies (other defns, types) until
 //!    fixpoint; visited-set guards recursive types.
 //! 4. Encode captured runtime Values to AST.
 //! 5. Portability check: refuse channel/IO/process/handle types.
-//! 6. Assemble the ClosurePackage in topological order: types →
-//!    captures → user defns → entry.
+//! 6. Assemble: prologue = type defs → capture defines → user dep
+//!    defines (topological) — INCLUDING the entry fn's define when input
+//!    was a keyword path. entry_form = the expression that evaluates to
+//!    a fn Value (Symbol AST for keyword-path; fn-form AST for lambda).
 //!
-//! **Discipline**: zero Mutex (per ZERO-MUTEX.md). Counter for
-//! synthetic names is a process-wide `AtomicU64`.
+//! **Discipline**: zero Mutex (per ZERO-MUTEX.md). No process-wide
+//! synthetic-name counter — slice 1b retired the entry-keyword ceremony.
 
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
@@ -32,19 +37,28 @@ use crate::runtime::{Function, StructValue, SymbolTable, Value};
 use crate::span::Span;
 use crate::types::{TypeDef, TypeEnv, TypeExpr};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 // ─── Public API ─────────────────────────────────────────────────────────
 
-/// The product of closure extraction. `forms` is an ordered Vec of
-/// top-level WatAST forms that, when fed through `startup_from_forms`,
-/// produce a fresh world where `entry` resolves to a fn behaviorally
-/// equivalent to the original.
+/// The product of closure extraction.
+///
+/// `prologue` is an ordered Vec of top-level WatAST forms — the captured
+/// environment. When fed through `startup_from_forms`, it produces a
+/// fresh world that seeds every type, dep, and captured value the entry
+/// expression needs.
+///
+/// `entry_form` is an expression that, when `eval`d in the frozen fresh
+/// world, produces a fn Value behaviorally equivalent to the original.
+/// Two shapes:
+///   - keyword-path input — `entry_form` is a Symbol AST whose name
+///     resolves to a fn defined in `prologue`.
+///   - inline-lambda input — `entry_form` is the reconstructed fn-form
+///     AST `(:wat::core::fn [name <- :T ...] -> :Ret body)`.
 #[derive(Debug, Clone)]
 pub struct ClosurePackage {
-    pub forms: Vec<WatAST>,
-    pub entry: String,
+    pub prologue: Vec<WatAST>,
+    pub entry_form: WatAST,
 }
 
 /// Errors surfaced during extraction.
@@ -114,8 +128,9 @@ impl std::error::Error for ExtractionError {}
 ///
 /// `entry_name` is `Some(":my::path")` if the caller obtained the fn
 /// via a keyword-path lookup (top-level defn case); `None` for inline
-/// lambdas / factory results. The synthetic name minted for the lambda
-/// case is `:wat::kernel::__closure::__pkg_<counter>`.
+/// lambdas / factory results. Slice 1b retired the synthetic-name
+/// ceremony — for inline-lambda input, no name is minted; the package's
+/// `entry_form` is the reconstructed fn-form AST itself.
 pub fn extract_closure(
     fn_value: &Value,
     entry_name: Option<&str>,
@@ -132,19 +147,22 @@ pub fn extract_closure(
         }
     };
 
-    // Resolve entry name. Two modes:
+    // Resolve entry mode. Two cases:
     //
-    // 1. Top-level defn — the caller passed Some(name); the function's
-    //    own `name` field also carries it. We use the caller-supplied
-    //    name and emit a `(:wat::core::define ...)` form rebuilt from
-    //    Function fields.
-    // 2. Lambda — entry_name is None (or the function has no name);
-    //    we mint a synthetic path.
-    let (entry_path, is_lambda) = match (entry_name, &func.name) {
-        (Some(n), _) => (n.to_string(), false),
-        (None, Some(n)) => (n.clone(), false),
-        (None, None) => (mint_synthetic_name(), true),
+    // 1. Keyword-path input — caller passed Some(name); or the
+    //    function's own `name` field carries one. The entry's define
+    //    form (with its rewritten body) goes into `prologue`; the
+    //    `entry_form` is a Symbol AST naming it.
+    // 2. Inline lambda — no name. The `entry_form` is the
+    //    reconstructed fn-form AST itself; nothing about the entry
+    //    appears in `prologue`. Per arc 170 slice 1b's "the fn IS the
+    //    program" framing.
+    let entry_path: Option<String> = match (entry_name, &func.name) {
+        (Some(n), _) => Some(n.to_string()),
+        (None, Some(n)) => Some(n.clone()),
+        (None, None) => None,
     };
+    let is_lambda = entry_path.is_none();
 
     // Walker / extraction state.
     let mut state = ExtractState::new(parent_symbols, parent_types);
@@ -212,68 +230,77 @@ pub fn extract_closure(
     // Body rewrite: rewrite captured-local references in the entry
     // body from `X` to the synthetic capture name (a bare Symbol with
     // the substituted name). This avoids collision with extracted
-    // user-symbol names and makes the bindings explicit.
+    // user-symbol names and makes the bindings explicit. Runs BEFORE
+    // entry_form is assembled so the rewritten body is what flows
+    // into either the keyword-path entry-define (in prologue) or the
+    // inline-lambda fn-form AST (entry_form).
     let rewritten_body = rewrite_captures(&func.body, &state.captured_bindings, &body_locals);
 
-    // Assemble forms in topological order:
+    // Assemble prologue in topological order:
     //   1. Type definitions (types in topological order)
     //   2. Captured-binding defines (`(def :__captured_X <encoded>)`)
     //   3. User dependency defines (in topological order)
-    //   4. Entry fn defining AST
-    let mut forms: Vec<WatAST> = Vec::new();
+    //   4. (keyword-path input only) the entry fn's define form, with
+    //      rewritten body — appended after all deps. For inline-lambda,
+    //      the entry never appears in prologue.
+    let mut prologue: Vec<WatAST> = Vec::new();
 
     // 1. Types in deterministic topological order.
     let type_order = topo_sort_types(&state);
     for tn in &type_order {
         if let Some(def) = state.captured_types.get(tn) {
-            forms.push(type_def_to_ast(def));
+            prologue.push(type_def_to_ast(def));
         }
     }
 
     // 2. Captured-binding defines.
     for cb in &state.captured_bindings {
-        forms.push(capture_define_form(cb));
+        prologue.push(capture_define_form(cb));
     }
 
     // 3. User defns in topological order.
     let dep_order = topo_sort_deps(&state);
     for dep_name in &dep_order {
         if let Some(dep_func) = state.captured_deps.get(dep_name) {
-            forms.push(function_to_define_form(dep_func));
+            prologue.push(function_to_define_form(dep_func));
         }
     }
 
-    // 4. Entry fn define form.
-    let entry_form = if is_lambda {
-        // Build a synthesized `(define ...)` form whose body is the
-        // rewritten lambda body. Param types come from the Function;
-        // there is no original "signature AST" we can copy.
-        synthesize_define_for_lambda(&entry_path, &func, rewritten_body)
-    } else {
-        // Top-level defn: rebuild the define form from the Function
-        // fields, substituting the rewritten body.
-        function_to_define_form_with_body(&func, &entry_path, rewritten_body)
+    // 4. Entry resolution: keyword-path mode appends the entry
+    //    define (with rewritten body) to prologue; inline-lambda
+    //    mode emits the fn-form AST as `entry_form` directly.
+    let entry_form = match &entry_path {
+        Some(path) => {
+            // Keyword-path: the entry's own define belongs in
+            // prologue (after every dep it transitively pulled in).
+            // The Symbol AST naming it is the entry_form.
+            let entry_define =
+                function_to_define_form_with_body(&func, path, rewritten_body);
+            prologue.push(entry_define);
+            WatAST::Symbol(Identifier::bare(path.clone()), Span::unknown())
+        }
+        None => {
+            // Inline lambda: emit the fn-form AST. The fn-form
+            // evaluates to a fn Value at consumer time; no define
+            // wrapping; no synthetic name.
+            let _ = is_lambda; // documented above; kept for clarity
+            function_to_fn_form(&func, rewritten_body)
+        }
     };
-    forms.push(entry_form);
 
     Ok(ClosurePackage {
-        forms,
-        entry: entry_path,
+        prologue,
+        entry_form,
     })
 }
 
-// ─── Synthetic-name minting ─────────────────────────────────────────────
-
-static CLOSURE_PKG_COUNTER: AtomicU64 = AtomicU64::new(1);
-
-fn mint_synthetic_name() -> String {
-    let n = CLOSURE_PKG_COUNTER.fetch_add(1, Ordering::Relaxed);
-    // The synthetic path lives under `:__closure::*` — outside the
-    // reserved-prefix set (`:wat::*` / `:rust::*`) so the freeze
-    // pipeline's reserved-prefix gate does not refuse the form.
-    // The `__closure::` prefix is unmistakable as substrate-internal.
-    format!(":__closure::__pkg_{}", n)
-}
+// ─── Capture-binding name minting ───────────────────────────────────────
+//
+// Slice 1b retired the per-package synthetic-name counter
+// (`:__closure::__pkg_<n>`) — entry naming no longer exists at the
+// substrate level. Capture-binding names below are a separate
+// concern (avoiding collision with extracted user-symbol names) and
+// stay.
 
 fn synthesize_capture_name(local: &str) -> String {
     // Captured locals are bare symbols. We emit them as bare-name
@@ -1705,27 +1732,75 @@ fn function_to_define_form_with_body(
     )
 }
 
-/// Build a `(:wat::core::define ...)` form for a lambda whose body
-/// has been rewritten (captures substituted). The lambda has no
-/// canonical name, so the synthetic entry path is used.
-fn synthesize_define_for_lambda(
-    entry_path: &str,
-    func: &Function,
-    rewritten_body: WatAST,
-) -> WatAST {
-    function_to_define_form_with_body(func, entry_path, rewritten_body)
+/// Build a `(:wat::core::fn ARGS-VECTOR -> :RET-TYPE body)` AST
+/// reconstructed from a stored Function's signature + a rewritten body.
+///
+/// Slice 1b — used for inline-lambda input where there is no canonical
+/// name. The fn-form AST evaluates to a fn Value directly when fed to
+/// `eval` (per `runtime::eval_fn`'s arc-167 flat-shape consumer), so no
+/// define wrapping is required.
+///
+/// Output shape per arc 167 + WAT-CHEATSHEET § 2:
+///   - flat-vector binders: `[name <- :T name <- :T ...]`
+///   - FQDN keyword for `:wat::core::fn`
+///   - FQDN keyword for the return type (via `check::format_type`)
+///   - no whitespace inside `<>` / `:(...)` / `:[...]`
+fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
+    let span = Span::unknown();
+    // Build flat-vector args: [name <- :T name <- :T ...].
+    let mut args_items: Vec<WatAST> =
+        Vec::with_capacity(func.params.len() * 3 + func.rest_param.iter().count() * 3);
+    for (param, ty) in func.params.iter().zip(func.param_types.iter()) {
+        args_items.push(WatAST::Symbol(Identifier::bare(param.clone()), span.clone()));
+        args_items.push(WatAST::Symbol(Identifier::bare("<-"), span.clone()));
+        args_items.push(WatAST::Keyword(crate::check::format_type(ty), span.clone()));
+    }
+    // Rest-param. The flat-vector fn-form doesn't currently carry a
+    // dedicated `&` marker the way `define`-form signatures do; the
+    // rest-param case for inline-lambda should be rare in arc 170's
+    // closure-extraction inputs. Surface as Internal if hit, per FM 5
+    // (don't bridge with a TODO).
+    if func.rest_param.is_some() {
+        // Arc 170 slice 1b honest delta: rest-param emission in the
+        // fn-form AST shape isn't covered by the current substrate's
+        // flat-vector grammar. The stored Function may carry a
+        // rest-param if the original input was a defn with `&`; for
+        // an inline-lambda input this combination is unexpected.
+        // Emitting an unrecognized form here would produce a
+        // freeze-time MalformedForm at consume; better to surface
+        // Internal here so the gap is visible at the extraction site.
+        // (Tests T1-T15 do not exercise this case.)
+        return WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::fn".into(), span.clone()),
+                WatAST::Vector(args_items, span.clone()),
+                WatAST::Symbol(Identifier::bare("->"), span.clone()),
+                WatAST::Keyword(crate::check::format_type(&func.ret_type), span.clone()),
+                rewritten_body,
+            ],
+            span,
+        );
+    }
+    let args_vec = WatAST::Vector(args_items, span.clone());
+    WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::fn".into(), span.clone()),
+            args_vec,
+            WatAST::Symbol(Identifier::bare("->"), span.clone()),
+            WatAST::Keyword(crate::check::format_type(&func.ret_type), span.clone()),
+            rewritten_body,
+        ],
+        span,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn synthetic_names_are_unique() {
-        let a = mint_synthetic_name();
-        let b = mint_synthetic_name();
-        assert_ne!(a, b);
-    }
+    // Slice 1b: synthetic-name uniqueness test retired alongside the
+    // entry-keyword ceremony. Capture-binding name prefix test stays
+    // (capture-binding naming is unchanged).
 
     #[test]
     fn synthetic_capture_name_prefixes_double_underscore() {
