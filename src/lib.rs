@@ -91,6 +91,7 @@ pub(crate) mod stdlib;
 pub mod string_ops;
 pub mod test_runner;
 pub mod time;
+pub mod typed_channel;
 pub mod types;
 pub mod vm_registry;
 

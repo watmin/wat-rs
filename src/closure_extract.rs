@@ -1267,8 +1267,8 @@ fn encode_value_with_path(
         }
 
         // ─── non-portable arms ────────────────────────────────────────
-        Value::crossbeam_channel__Sender(_)
-        | Value::crossbeam_channel__Receiver(_)
+        Value::wat__kernel__Sender(_)
+        | Value::wat__kernel__Receiver(_)
         | Value::wat__kernel__ProgramHandle(_)
         | Value::wat__kernel__HandlePool { .. }
         | Value::wat__kernel__ChildHandle(_)

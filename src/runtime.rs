@@ -165,15 +165,29 @@ pub enum Value {
     /// [`Value::String`] (raw EDN text that still needs parsing) and
     /// from [`Value::holon__HolonAST`] (algebra AST).
     wat__WatAST(Arc<WatAST>),
-    /// A channel sender handle. Carries `Value` — any wat runtime
-    /// value can travel through a queue. The variant encodes the full
-    /// `crossbeam_channel::Sender` path; wat takes a direct dep on
-    /// `crossbeam-channel` and does not hide it. Type-level
-    /// parameterization (`Sender<T>`) lives in the type checker; the
-    /// runtime transports `Value` generically.
-    crossbeam_channel__Sender(Arc<crossbeam_channel::Sender<Value>>),
-    /// A channel receiver handle. Carries `Value`; see `Sender`.
-    crossbeam_channel__Receiver(Arc<crossbeam_channel::Receiver<Value>>),
+    /// A `:wat::kernel::Sender<T>` handle (arc 170 slice 1c).
+    /// Carries `Value` — any wat runtime value can travel through.
+    /// Transport-polymorphic via [`crate::typed_channel::SenderInner`]:
+    /// `Crossbeam` for tier 1 (in-memory), `PipeFd` for tier 2
+    /// (EDN-encoded over linux pipes). The user-visible
+    /// `Sender<T>` abstraction is uniform across tiers; the
+    /// substrate dispatches on the inner enum.
+    ///
+    /// Pre-arc-170: this variant was named `crossbeam_channel__Sender`
+    /// and carried only a crossbeam Sender. Slice 1c renames to the
+    /// tier-1/tier-2-honest `wat__kernel__Sender` and adds the
+    /// PipeFd transport. The wat-side type alias
+    /// `:wat::kernel::Sender<T>` continues to point at this Value
+    /// variant; the alias chain to
+    /// `:rust::crossbeam_channel::Sender<T>` (in
+    /// `wat/kernel/channel.wat`) is preserved for back-compat with
+    /// existing user code.
+    wat__kernel__Sender(Arc<crate::typed_channel::SenderInner>),
+    /// A `:wat::kernel::Receiver<T>` handle (arc 170 slice 1c).
+    /// Sibling of [`Self::wat__kernel__Sender`]; same transport
+    /// polymorphism shape via
+    /// [`crate::typed_channel::ReceiverInner`].
+    wat__kernel__Receiver(Arc<crate::typed_channel::ReceiverInner>),
     /// A `:HashMap<K,V>` — Rust std's `HashMap` backing, wrapped for
     /// cheap Arc-cloning. Keys are serialized to type-tagged strings
     /// at insertion so heterogeneous-K programs don't collide
@@ -468,8 +482,13 @@ impl Value {
             Value::wat__core__fn(_) => "wat::core::fn",
             Value::holon__HolonAST(_) => "wat::holon::HolonAST",
             Value::wat__WatAST(_) => "wat::WatAST",
-            Value::crossbeam_channel__Sender(_) => "rust::crossbeam_channel::Sender",
-            Value::crossbeam_channel__Receiver(_) => "rust::crossbeam_channel::Receiver",
+            // Arc 170 slice 1c — both tier-1 (Crossbeam) and tier-2
+            // (PipeFd) backed senders / receivers report the same
+            // type_name. The wat-level type checker enforces the
+            // tier distinction structurally; runtime type_name names
+            // the user-visible kind, not the internal transport.
+            Value::wat__kernel__Sender(_) => "rust::crossbeam_channel::Sender",
+            Value::wat__kernel__Receiver(_) => "rust::crossbeam_channel::Receiver",
             Value::wat__std__HashMap(_) => "wat::core::HashMap",
             Value::wat__std__HashSet(_) => "wat::core::HashSet",
             Value::RustOpaque(inner) => inner.type_path,
@@ -12900,8 +12919,8 @@ fn render_value(v: &Value, depth: usize) -> String {
         Value::Vector(v) => format!("<Vector dim={}>", v.dimensions()),
         Value::wat__WatAST(_) => "<WatAST>".to_string(),
         Value::wat__core__fn(_) => "<fn>".to_string(),
-        Value::crossbeam_channel__Sender(_) => "<Sender>".to_string(),
-        Value::crossbeam_channel__Receiver(_) => "<Receiver>".to_string(),
+        Value::wat__kernel__Sender(_) => "<Sender>".to_string(),
+        Value::wat__kernel__Receiver(_) => "<Receiver>".to_string(),
         Value::wat__kernel__ProgramHandle(_) => "<ProgramHandle>".to_string(),
         Value::wat__kernel__HandlePool { name, .. } => {
             format!("<HandlePool {:?}>", name)
@@ -14528,8 +14547,8 @@ fn eval_make_bounded_queue(
     };
     let (tx, rx) = crossbeam_channel::bounded::<Value>(capacity);
     Ok(Value::Tuple(Arc::new(vec![
-        Value::crossbeam_channel__Sender(Arc::new(tx)),
-        Value::crossbeam_channel__Receiver(Arc::new(rx)),
+        crate::typed_channel::sender_from_crossbeam(tx),
+        crate::typed_channel::receiver_from_crossbeam(rx),
     ])))
 }
 
@@ -14557,8 +14576,8 @@ fn eval_make_unbounded_queue(args: &[WatAST], list_span: &Span) -> Result<Value,
     }
     let (tx, rx) = crossbeam_channel::unbounded::<Value>();
     Ok(Value::Tuple(Arc::new(vec![
-        Value::crossbeam_channel__Sender(Arc::new(tx)),
-        Value::crossbeam_channel__Receiver(Arc::new(rx)),
+        crate::typed_channel::sender_from_crossbeam(tx),
+        crate::typed_channel::receiver_from_crossbeam(rx),
     ])))
 }
 
@@ -14593,7 +14612,7 @@ fn eval_kernel_send(
         });
     }
     let sender = match eval(&args[0], env, sym)? {
-        Value::crossbeam_channel__Sender(s) => s,
+        Value::wat__kernel__Sender(s) => s,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::send".into(),
@@ -14605,15 +14624,25 @@ fn eval_kernel_send(
     };
     let msg = eval(&args[1], env, sym)?;
     // Arc 111 slice 1 — return type is Result<(), ThreadDiedError>.
-    // Ok(()) on landed; Err(ChannelDisconnected) on disconnect.
-    // Slice 2 wires the OnceLock plumbing so the panic case surfaces as
-    // Err(Panic msg failure); slice 1 ships the type shape with Err
-    // always carrying ChannelDisconnected as a stand-in.
-    match sender.send(msg) {
-        Ok(()) => Ok(Value::Result(Arc::new(Ok(Value::Unit)))),
-        Err(_) => Ok(Value::Result(Arc::new(Err(single_died_chain(
-            thread_died_error_channel_disconnected(),
-        ))))),
+    // Arc 170 slice 1c — dispatch on the transport (Crossbeam vs
+    // PipeFd). Both transports surface disconnect via the same
+    // wat-level Result.Err(ChannelDisconnected) so user code matches
+    // one shape regardless of tier.
+    let outcome = crate::typed_channel::typed_send(
+        sender.as_ref(),
+        msg,
+        sym.types().map(|a| a.as_ref()),
+        list_span.clone(),
+    );
+    match outcome {
+        crate::typed_channel::SendOutcome::Ok => {
+            Ok(Value::Result(Arc::new(Ok(Value::Unit))))
+        }
+        crate::typed_channel::SendOutcome::Disconnected => {
+            Ok(Value::Result(Arc::new(Err(single_died_chain(
+                thread_died_error_channel_disconnected(),
+            )))))
+        }
     }
 }
 
@@ -14637,7 +14666,7 @@ fn eval_kernel_recv(
         });
     }
     let receiver = match eval(&args[0], env, sym)? {
-        Value::crossbeam_channel__Receiver(r) => r,
+        Value::wat__kernel__Receiver(r) => r,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::recv".into(),
@@ -14648,9 +14677,30 @@ fn eval_kernel_recv(
         }
     };
     // Arc 111 slice 1 — return type is Result<Option<T>, ThreadDiedError>.
-    match receiver.recv() {
-        Ok(v) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v))))))),
-        Err(_) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None)))))),
+    // Arc 170 slice 1c — dispatch on the transport. Both Crossbeam
+    // and PipeFd map disconnect to Ok(:None) (FOUNDATION's clean-
+    // shutdown shape); a PipeFd EDN parse failure surfaces as
+    // RuntimeError so the user gets a diagnostic rather than a
+    // silent shutdown.
+    let outcome = crate::typed_channel::typed_recv(
+        receiver.as_ref(),
+        sym.types().map(|a| a.as_ref()),
+        list_span.clone(),
+    );
+    match outcome {
+        crate::typed_channel::RecvOutcome::Value(v) => {
+            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
+        }
+        crate::typed_channel::RecvOutcome::Disconnected => {
+            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
+        }
+        crate::typed_channel::RecvOutcome::DecodeError(msg) => {
+            Err(RuntimeError::MalformedForm {
+                head: ":wat::kernel::recv".into(),
+                reason: format!("EDN decode on pipe-channel recv: {}", msg),
+                span: list_span.clone(),
+            })
+        }
     }
 }
 
@@ -14675,7 +14725,7 @@ fn eval_kernel_try_recv(
         });
     }
     let receiver = match eval(&args[0], env, sym)? {
-        Value::crossbeam_channel__Receiver(r) => r,
+        Value::wat__kernel__Receiver(r) => r,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::try-recv".into(),
@@ -14686,9 +14736,30 @@ fn eval_kernel_try_recv(
         }
     };
     // Arc 111 slice 1 — return type is Result<Option<T>, ThreadDiedError>.
-    match receiver.try_recv() {
-        Ok(v) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v))))))),
-        Err(_) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None)))))),
+    // Arc 170 slice 1c — Crossbeam path uses crossbeam's try_recv;
+    // PipeFd transport doesn't have non-blocking semantics today
+    // (pipe fds aren't O_NONBLOCK by default). PipeFd try-recv
+    // returns Disconnected as a stand-in (matches the empty /
+    // disconnected collapse FOUNDATION mandates).
+    let outcome = crate::typed_channel::typed_try_recv(
+        receiver.as_ref(),
+        sym.types().map(|a| a.as_ref()),
+        list_span.clone(),
+    );
+    match outcome {
+        crate::typed_channel::RecvOutcome::Value(v) => {
+            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
+        }
+        crate::typed_channel::RecvOutcome::Disconnected => {
+            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
+        }
+        crate::typed_channel::RecvOutcome::DecodeError(msg) => {
+            Err(RuntimeError::MalformedForm {
+                head: ":wat::kernel::try-recv".into(),
+                reason: format!("EDN decode on pipe-channel try-recv: {}", msg),
+                span: list_span.clone(),
+            })
+        }
     }
 }
 
@@ -14726,7 +14797,7 @@ fn eval_kernel_drop(
     }
     let handle = eval(&args[0], env, sym)?;
     match handle {
-        Value::crossbeam_channel__Sender(_) | Value::crossbeam_channel__Receiver(_) => {
+        Value::wat__kernel__Sender(_) | Value::wat__kernel__Receiver(_) => {
             // Intentional no-op. The Arc we just evaluated into
             // `handle` drops here at end-of-scope, decrementing the
             // refcount by one. Close happens when the caller's
@@ -15120,10 +15191,33 @@ fn eval_kernel_select(
     }
     // Extract Arc<Receiver<Value>> for each element; error on any
     // non-receiver Value so the typed-pipe contract is visible.
+    //
+    // Arc 170 slice 1c — `select` is implemented on top of
+    // `crossbeam_channel::Select`, which only accepts crossbeam
+    // Receivers. PipeFd-backed Receivers are rejected with a
+    // diagnostic pointing at the substrate gap; they would need
+    // an epoll/poll integration to participate in a select set.
+    // No real consumer demands tier-2 select today; surface as
+    // honest delta if one shows up. Tier-1-only select keeps the
+    // crossbeam fast path uncompromised.
     let mut rxs: Vec<Arc<crossbeam_channel::Receiver<Value>>> = Vec::with_capacity(items.len());
     for v in items.iter() {
         match v {
-            Value::crossbeam_channel__Receiver(r) => rxs.push(r.clone()),
+            Value::wat__kernel__Receiver(inner) => {
+                match crate::typed_channel::try_as_crossbeam_receiver(inner.as_ref()) {
+                    Some(rx) => rxs.push(Arc::new(rx.clone())),
+                    None => {
+                        return Err(RuntimeError::MalformedForm {
+                            head: ":wat::kernel::select".into(),
+                            reason: "select on a PipeFd-backed Receiver is not supported \
+                                     (tier-2 select would require epoll/poll integration; \
+                                     no consumer demand today)"
+                                .into(),
+                            span: args[0].span().clone(),
+                        });
+                    }
+                }
+            }
             other => {
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::kernel::select".into(),
@@ -15385,8 +15479,8 @@ fn eval_kernel_spawn_thread(
             .to_string(),
     };
     let body_args = vec![
-        Value::crossbeam_channel__Receiver(Arc::new(in_rx)),
-        Value::crossbeam_channel__Sender(Arc::new(out_tx)),
+        crate::typed_channel::receiver_from_crossbeam(in_rx),
+        crate::typed_channel::sender_from_crossbeam(out_tx),
     ];
     std::thread::Builder::new()
         .name(format!("wat-thread::{}", thread_fn_name))
@@ -15412,8 +15506,8 @@ fn eval_kernel_spawn_thread(
     Ok(Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Thread".into(),
         fields: vec![
-            Value::crossbeam_channel__Sender(Arc::new(in_tx)),
-            Value::crossbeam_channel__Receiver(Arc::new(out_rx)),
+            crate::typed_channel::sender_from_crossbeam(in_tx),
+            crate::typed_channel::receiver_from_crossbeam(out_rx),
             Value::wat__kernel__ProgramHandle(Arc::new(
                 ProgramHandleInner::InThread(outcome_rx),
             )),
@@ -20851,8 +20945,8 @@ mod tests {
         match eval_expr(src).unwrap() {
             Value::Tuple(items) => {
                 assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], Value::crossbeam_channel__Sender(_)));
-                assert!(matches!(&items[1], Value::crossbeam_channel__Receiver(_)));
+                assert!(matches!(&items[0], Value::wat__kernel__Sender(_)));
+                assert!(matches!(&items[1], Value::wat__kernel__Receiver(_)));
             }
             v => panic!("expected tuple, got {:?}", v),
         }
@@ -20864,8 +20958,8 @@ mod tests {
         match eval_expr(src).unwrap() {
             Value::Tuple(items) => {
                 assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], Value::crossbeam_channel__Sender(_)));
-                assert!(matches!(&items[1], Value::crossbeam_channel__Receiver(_)));
+                assert!(matches!(&items[0], Value::wat__kernel__Sender(_)));
+                assert!(matches!(&items[1], Value::wat__kernel__Receiver(_)));
             }
             v => panic!("expected tuple, got {:?}", v),
         }
@@ -23698,8 +23792,8 @@ mod tests {
         drop(tx0); // rx0 disconnected
         tx1.send(Value::i64(7)).unwrap();
         let rxs = Value::Vec(Arc::new(vec![
-            Value::crossbeam_channel__Receiver(Arc::new(rx0)),
-            Value::crossbeam_channel__Receiver(Arc::new(rx1)),
+            crate::typed_channel::receiver_from_crossbeam(rx0),
+            crate::typed_channel::receiver_from_crossbeam(rx1),
         ]));
         let env = Environment::new().child().bind("rxs", rxs).build();
         let ast = crate::parse_one!("(:wat::kernel::select rxs)").expect("parse");
