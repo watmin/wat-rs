@@ -383,8 +383,12 @@ fn lex_string(src: &str, start: usize) -> Result<(String, usize), LexError> {
 /// characters (Rust's path separator); the leading `:` is the only
 /// one that marks "symbol starts here."
 ///
-/// Every other character (including `<`, `>`, `/`, `-`, `,`, `!`, `?`)
-/// is pushed as-is. Whitespace inside an unclosed `(` is an error.
+/// Every other character (including `<`, `>`, `/`, `-`, `,`, `'`, `!`, `?`)
+/// is pushed as-is. `'` (apostrophe) is the canonical separator inside
+/// keyword bodies for arity suffixes and type discriminators (e.g.
+/// `:wat::core::op'2`, `:wat::core::op'i64'i64`); `,` is accepted during
+/// the transition period (arc 171) and will be retired in slice 3.
+/// Whitespace inside an unclosed `(` is an error.
 /// `"` and `;` terminate the keyword — they never appear inside one.
 fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
     let bytes = src.as_bytes();
@@ -812,6 +816,79 @@ mod tests {
         assert_eq!(
             lex_tokens(":HashMap<String,fn(i32)->i32>").unwrap(),
             vec![Token::Keyword(":HashMap<String,fn(i32)->i32>".into())]
+        );
+    }
+
+    // ─── Arc 171 slice 1 — apostrophe as keyword-body separator ──────────
+
+    #[test]
+    fn keyword_apostrophe_arity_suffix() {
+        // A — `:wat::core::op'2` parses as a single keyword.
+        // Apostrophe falls through to the _ arm in lex_keyword (no
+        // functional change needed; this test proves it and pins the
+        // behaviour).
+        assert_eq!(
+            lex_tokens(":wat::core::op'2").unwrap(),
+            vec![Token::Keyword(":wat::core::op'2".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_apostrophe_multi_discriminator() {
+        // B — `:wat::core::op'i64'i64` parses as a single keyword
+        // (multi-apostrophe; both separators absorbed in one token).
+        assert_eq!(
+            lex_tokens(":wat::core::op'i64'i64").unwrap(),
+            vec![Token::Keyword(":wat::core::op'i64'i64".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_apostrophe_full_op_table() {
+        // C — all four mixed-type variants parse as single keywords.
+        for kw in &[
+            ":wat::core::op'f64'i64",
+            ":wat::core::op'i64'f64",
+            ":wat::core::op'f64'f64",
+        ] {
+            assert_eq!(
+                lex_tokens(kw).unwrap(),
+                vec![Token::Keyword((*kw).into())]
+            );
+        }
+    }
+
+    #[test]
+    fn keyword_apostrophe_after_parametric_close() {
+        // D — apostrophe after `>` (outside `<...>`) is pushed as-is,
+        // same as commas outside brackets.
+        assert_eq!(
+            lex_tokens(":HashMap<i64,String>'snapshot").unwrap(),
+            vec![Token::Keyword(":HashMap<i64,String>'snapshot".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_comma_suffix_transition() {
+        // E — `,N` style still parses during transition period (arc 171
+        // slice 2 sweeps consumers; slice 3 retires comma acceptance).
+        assert_eq!(
+            lex_tokens(":wat::core::op,2").unwrap(),
+            vec![Token::Keyword(":wat::core::op,2".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_apostrophe_only_no_body() {
+        // F — `:'foo` is the shortest apostrophe-inside-keyword case.
+        // `'` is not a terminator, so it becomes part of the keyword
+        // body; `foo` continues. Honest delta: no quote-shorthand
+        // collision because `lex_keyword` is only entered after `:` is
+        // already consumed by the main lex loop; `'` seen here is
+        // always body content, never a Lisp/Clojure quote reader-macro.
+        assert_eq!(
+            lex_tokens(":'foo").unwrap(),
+            vec![Token::Keyword(":'foo".into())]
         );
     }
 
