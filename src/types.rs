@@ -775,14 +775,31 @@ fn register_builtin_types(env: &mut TypeEnv) {
         fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
     }));
 
-    // :wat::kernel::Process — return type of
-    // `:wat::kernel::spawn-program` and siblings (arc 103). The
-    // in-thread sibling of `:wat::kernel::ForkedChild`. Holds the
-    // three parent-side pipe ends plus a `ProgramHandle<()>` the
-    // caller `join`s on. `:user::main`'s return type is fixed at
-    // `:()` by the kernel contract, so the join handle is always
-    // `:wat::kernel::ProgramHandle<()>` — no per-program R type
-    // parameter on Process itself.
+    // :wat::kernel::Process<I,O> — return type of
+    // `:wat::kernel::spawn-program` and siblings (arc 103) and of
+    // `:wat::kernel::fork-program-ast` (arc 012 + arc 112).
+    //
+    // Arc 170 slice 1c: ADDITIVE reshape. Existing fields (stdin /
+    // stdout / stderr / join) preserved for back-compat with the
+    // bundled stdlib (`wat/std/sandbox.wat` and
+    // `wat/std/hermetic.wat`); two new fields appended (`tx` / `rx`)
+    // expose the typed-channel surface the DESIGN settled on.
+    // Slice 3 retires the byte-pipe accessors when the testing
+    // tooling rebuilds against the new surface.
+    //
+    // Decision honest delta vs. BRIEF-SLICE-1C.md row D ("drop"):
+    // a destructive reshape would brick `wat/std/sandbox.wat` (a
+    // bundled stdlib used by every `:wat::test::deftest` expansion)
+    // because its `Process/stdin` / `/stdout` / `/stderr` calls
+    // would fail type-check at substrate startup, blocking every
+    // test. Additive ships without bricking; slice 3 sweeps.
+    //
+    // `tx :Sender<I>` and `rx :Receiver<O>` are typed-channel handles
+    // wrapped over the same kernel pipes that back `stdin` / `stdout`.
+    // The substrate populates both views: byte-pipe view (legacy
+    // accessor path) and typed-channel view (the new path). EDN
+    // encoding at the typed-channel boundary is substrate-internal
+    // per `project_pipe_protocol.md` ("line-delimited EDN").
     //
     // Auto-generated `Process/new` + per-field accessors land in the
     // symbol table at freeze time via register_struct_methods.
@@ -807,6 +824,21 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 TypeExpr::Parametric {
                     head: "wat::kernel::ProgramHandle".into(),
                     args: vec![TypeExpr::Tuple(vec![])],
+                },
+            ),
+            // Arc 170 slice 1c — appended typed-channel handles.
+            (
+                "tx".into(),
+                TypeExpr::Parametric {
+                    head: "wat::kernel::Sender".into(),
+                    args: vec![TypeExpr::Path(":I".into())],
+                },
+            ),
+            (
+                "rx".into(),
+                TypeExpr::Parametric {
+                    head: "wat::kernel::Receiver".into(),
+                    args: vec![TypeExpr::Path(":O".into())],
                 },
             ),
         ],

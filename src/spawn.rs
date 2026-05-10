@@ -217,6 +217,16 @@ fn spawn_with_world_into_result(
     let parent_stdout: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stdout_r));
     let parent_stderr: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stderr_r));
 
+    // Arc 170 slice 1c — typed-channel handles wrap the same parent
+    // pipe ends. Tier-1 in-thread Process exposes the typed-channel
+    // surface for symmetry with tier-2 forked Process; the underlying
+    // transport is still kernel pipes either way (spawn-program-ast
+    // uses pipe(2) too — see arc 103). spawn-program-ast retires in
+    // arc 170 slice 2; until then this site populates both views to
+    // match the new struct shape.
+    let tx = crate::typed_channel::sender_from_pipe(parent_stdin.clone());
+    let rx_pipe = crate::typed_channel::receiver_from_pipe(parent_stdout.clone());
+
     let process = Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Process".into(),
         fields: vec![
@@ -226,6 +236,8 @@ fn spawn_with_world_into_result(
             Value::wat__kernel__ProgramHandle(Arc::new(
                 crate::runtime::ProgramHandleInner::InThread(rx),
             )),
+            tx,
+            rx_pipe,
         ],
     }));
     Ok(Value::Result(Arc::new(Ok(process))))

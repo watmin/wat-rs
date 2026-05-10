@@ -312,7 +312,13 @@ pub fn eval_kernel_wait_child(
 }
 
 /// Allocate a pipe pair; returns `(read_end, write_end)` as OwnedFds.
-pub(crate) fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
+///
+/// Public for arc 170 slice 1c — `tests/wat_arc170_typed_channel_pipes.rs`
+/// composes typed-channel pairs over fresh OS pipes. The function
+/// is otherwise substrate-internal; user code reaches for typed
+/// channels via the `:wat::kernel::make-bounded-channel` family
+/// (tier 1) or via the spawn primitives' Process/tx/rx (tier 2).
+pub fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
     let mut fds = [0i32; 2];
     let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
     if ret != 0 {
@@ -527,6 +533,14 @@ pub fn eval_kernel_fork_program_ast(
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stdout_r));
     let stderr_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stderr_r));
 
+    // Arc 170 slice 1c — typed-channel handles share the underlying
+    // pipe fds with the byte-pipe handles. Both abstractions are
+    // exposed via Process<I,O>; user code picks the one matching its
+    // tier-2 contract (`Process/tx` + `Process/rx`) or its legacy
+    // byte-pipe shape.
+    let tx = crate::typed_channel::sender_from_pipe(stdin_writer.clone());
+    let rx = crate::typed_channel::receiver_from_pipe(stdout_reader.clone());
+
     // Arc 112 — fork-program-ast returns the same :wat::kernel::Process
     // struct shape spawn-program returns. The join field carries a
     // ProgramHandle whose internal variant is Forked (waitpid-backed)
@@ -540,6 +554,8 @@ pub fn eval_kernel_fork_program_ast(
             Value::wat__kernel__ProgramHandle(Arc::new(
                 crate::runtime::ProgramHandleInner::Forked(handle),
             )),
+            tx,
+            rx,
         ],
     })))
 }
@@ -863,6 +879,14 @@ pub fn eval_kernel_fork_program(
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(handles.stdout_r));
     let stderr_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(handles.stderr_r));
 
+    // Arc 170 slice 1c — typed-channel handles wrapped over the
+    // same parent-side pipe ends as the byte-pipe view. Both views
+    // share the underlying fd; users pick the abstraction that
+    // matches their tier (bytes for legacy `Process/stdin`,
+    // typed Values for `Process/tx` / `Process/rx`).
+    let tx = crate::typed_channel::sender_from_pipe(stdin_writer.clone());
+    let rx = crate::typed_channel::receiver_from_pipe(stdout_reader.clone());
+
     // Arc 112 — fork-program returns Process<I,O> like fork-program-ast.
     Ok(Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Process".into(),
@@ -873,6 +897,8 @@ pub fn eval_kernel_fork_program(
             Value::wat__kernel__ProgramHandle(Arc::new(
                 crate::runtime::ProgramHandleInner::Forked(handles.child_handle),
             )),
+            tx,
+            rx,
         ],
     })))
 }
