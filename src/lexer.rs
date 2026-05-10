@@ -28,8 +28,11 @@
 //!   their depth inside a keyword body so an internal balanced pair
 //!   (`:fn(T,U)->R` or `:(i64,String)`) doesn't get cut short by the
 //!   `)` that closes the enclosing form. Every other character is
-//!   plain: `<`, `>`, `/`, `-`, `,`, `:`, `::`, digits, letters — all
-//!   just body characters. A keyword ends at whitespace at paren-depth
+//!   plain: `<`, `>`, `/`, `-`, `'`, `:`, `::`, digits, letters — all
+//!   just body characters. `'` (apostrophe) is the canonical dispatch /
+//!   discriminator separator (arc 171). `,` at depth 0 (outside `(...)`
+//!   or `<...>`) is rejected; commas inside tuple or parametric type
+//!   positions remain valid. A keyword ends at whitespace at paren-depth
 //!   0, or at an unmatched `)`, or at a `"` / `;` (which can't appear
 //!   inside a keyword). Whitespace inside an unclosed `(` is a lex
 //!   error (malformed keyword).
@@ -125,6 +128,13 @@ pub enum LexError {
     /// internal whitespace in keywords; if we hit one while parens are
     /// still open, the keyword is malformed.
     UnclosedBracketInKeyword(Position),
+    /// Comma inside a keyword body at depth 0 (not inside `(...)` or
+    /// `<...>`). Comma as keyword-body separator was retired in arc 171;
+    /// `'` (apostrophe) is now the canonical dispatch / discriminator
+    /// separator. Example: `:wat::core::op'2` (arity),
+    /// `:wat::core::op'i64'i64` (type-discriminator). The legacy `,2` /
+    /// `,i64-f64` shape was swept in arc 171 slice 2 (~440 sites).
+    CommaInKeywordBody(Position),
 }
 
 impl fmt::Display for LexError {
@@ -145,6 +155,14 @@ impl fmt::Display for LexError {
             LexError::UnclosedBracketInKeyword(p) => write!(
                 f,
                 "whitespace inside unclosed bracket in keyword at byte {} — keywords cannot contain whitespace",
+                p
+            ),
+            LexError::CommaInKeywordBody(p) => write!(
+                f,
+                "comma inside keyword body at byte {} retired (arc 171); use apostrophe `'` as \
+                the dispatch / discriminator separator. Example: `:wat::core::op'2` (arity), \
+                `:wat::core::op'i64'i64` (type-discriminator). The legacy `,2` / `,i64-f64` \
+                shape was swept in arc 171 slice 2 (~440 sites).",
                 p
             ),
         }
@@ -383,11 +401,12 @@ fn lex_string(src: &str, start: usize) -> Result<(String, usize), LexError> {
 /// characters (Rust's path separator); the leading `:` is the only
 /// one that marks "symbol starts here."
 ///
-/// Every other character (including `<`, `>`, `/`, `-`, `,`, `'`, `!`, `?`)
-/// is pushed as-is. `'` (apostrophe) is the canonical separator inside
-/// keyword bodies for arity suffixes and type discriminators (e.g.
-/// `:wat::core::op'2`, `:wat::core::op'i64'i64`); `,` is accepted during
-/// the transition period (arc 171) and will be retired in slice 3.
+/// `'` (apostrophe) is the canonical separator inside keyword bodies
+/// for arity suffixes and type discriminators (e.g. `:wat::core::op'2`,
+/// `:wat::core::op'i64'i64`). `,` at depth 0 (outside `(...)` and
+/// `<...>`) is rejected with `LexError::CommaInKeywordBody` (arc 171
+/// closure). Commas inside `(...)` (tuple types like `:(A,B,C)`) and
+/// inside `<...>` (parametric types like `:HashMap<K,V>`) remain valid.
 /// Whitespace inside an unclosed `(` is an error.
 /// `"` and `;` terminate the keyword — they never appear inside one.
 fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
@@ -506,6 +525,18 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
             '"' | ';' => {
                 // These never appear inside a keyword.
                 break;
+            }
+            ',' => {
+                // Arc 171 closure — comma at depth 0 is rejected.
+                // Commas inside `(...)` (tuple types) or `<...>`
+                // (parametric types) are valid and reach this arm only
+                // when paren_depth > 0 or angle_depth > 0; those are
+                // handled by the fall-through. Commas at depth 0 are
+                // the retired keyword-body separator shape.
+                if paren_depth == 0 && angle_depth == 0 {
+                    return Err(LexError::CommaInKeywordBody(i));
+                }
+                out.push(c);
             }
             _ => out.push(c),
         }
@@ -869,12 +900,27 @@ mod tests {
     }
 
     #[test]
-    fn keyword_comma_suffix_transition() {
-        // E — `,N` style still parses during transition period (arc 171
-        // slice 2 sweeps consumers; slice 3 retires comma acceptance).
+    fn keyword_comma_in_body_rejected() {
+        // E — `,N` style is rejected at depth 0 (arc 171 closure).
+        // Comma as keyword-body separator retired; `'` is canonical.
+        assert!(matches!(
+            lex_tokens(":wat::core::op,2"),
+            Err(LexError::CommaInKeywordBody(_))
+        ));
+        // Depth-0 comma mid-body is also rejected.
+        assert!(matches!(
+            lex_tokens(":foo,bar"),
+            Err(LexError::CommaInKeywordBody(_))
+        ));
+        // Commas inside `(...)` (tuple types) are still valid.
         assert_eq!(
-            lex_tokens(":wat::core::op,2").unwrap(),
-            vec![Token::Keyword(":wat::core::op,2".into())]
+            lex_tokens(":(i64,String)").unwrap(),
+            vec![Token::Keyword(":(i64,String)".into())]
+        );
+        // Commas inside `<...>` (parametric types) are still valid.
+        assert_eq!(
+            lex_tokens(":HashMap<K,V>").unwrap(),
+            vec![Token::Keyword(":HashMap<K,V>".into())]
         );
     }
 
