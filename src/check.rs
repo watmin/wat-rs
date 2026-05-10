@@ -14076,13 +14076,26 @@ mod tests {
     /// the offending invocation AND the outer-scope define — so users
     /// navigate to both sites without grepping. Substrate-as-teacher
     /// pattern; the failure is the user's nudge.
+    ///
+    /// Arc 170 slice 3 — RETIRED. Deftest now expands to
+    /// `(:wat::test::run-hermetic body)` per
+    /// `docs/arc/2026/05/170-program-entry-points/TIERS.md` Layer 1;
+    /// run-hermetic routes through `(:wat::kernel::spawn-process fn)`
+    /// which closure-extracts the parent's symbol table into the
+    /// child's prologue. Outer-scope helper references are now valid
+    /// CAPTURES, not leaks — `:my::helper` is pulled into the spawned
+    /// process automatically. The `validate_sandbox_scope_leak`
+    /// walker (which fires on `run-sandboxed-ast` heads only) no
+    /// longer sees deftest expansions; the diagnostic the test
+    /// asserts is no longer emitted because the failure mode the test
+    /// described doesn't exist under the new substrate. Slice 4
+    /// retires the walker body entirely with the legacy verb arms.
     #[test]
+    #[ignore = "arc 170 slice 3 — sandbox-scope-leak walker no longer fires on deftest (run-hermetic captures outer-scope helpers via closure extraction); test retired with the walker in slice 4"]
     fn sandbox_scope_leak_fires_with_diagnostic() {
-        // Top-level define :my::helper. Deftest body invokes it
-        // without including it in the prelude (the empty `()` second
-        // argument). The sub-program's scope at runtime would NOT
-        // contain :my::helper — sandbox isolation. Arc 140's check
-        // catches this at outer freeze.
+        // Test body left as-is for historical record. The original
+        // assertion (SandboxScopeLeak fires) no longer holds under
+        // the new deftest expansion; the test will fail if un-ignored.
         let src = r#"
             (:wat::core::define
               (:my::helper (x :wat::core::i64) -> :wat::core::i64)
@@ -14094,27 +14107,14 @@ mod tests {
         "#;
         let err = check(src).unwrap_err();
         let rendered = format!("{}", err);
-        // Hard guarantees the diagnostic must satisfy:
         assert!(
             err.0.iter().any(|e| matches!(e, CheckError::SandboxScopeLeak { .. })),
             "expected SandboxScopeLeak; rendered:\n{}", rendered
         );
-        assert!(
-            rendered.contains("sandbox-scope leak"),
-            "rendered must contain 'sandbox-scope leak'; got:\n{}", rendered
-        );
-        assert!(
-            rendered.contains(":my::helper"),
-            "rendered must name the offending function; got:\n{}", rendered
-        );
-        assert!(
-            rendered.contains("src/") || rendered.contains(".rs:"),
-            "rendered must include file:line:col coordinates (arc 138); got:\n{}", rendered
-        );
-        assert!(
-            rendered.contains("prelude"),
-            "rendered must teach the user to move the define into the prelude; got:\n{}", rendered
-        );
+        assert!(rendered.contains("sandbox-scope leak"));
+        assert!(rendered.contains(":my::helper"));
+        assert!(rendered.contains("src/") || rendered.contains(".rs:"));
+        assert!(rendered.contains("prelude"));
     }
 
     /// Arc 140 slice 2 — confirm the leak rule does NOT misfire when

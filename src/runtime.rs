@@ -22681,52 +22681,49 @@ mod tests {
 
     #[test]
     fn assert_eq_failure_renders_actual_and_expected() {
-        // Arc 064 — a failed assert-eq should populate the Failure's
-        // actual/expected slots with the rendered values via show.
-        // Drive the failure through run-sandboxed and inspect the
-        // resulting RunResult.failure struct.
+        // Arc 064 — a failed assert-eq should populate the
+        // AssertionPayload's actual/expected slots with the rendered
+        // values via show.
+        //
+        // Post-arc-170: run-sandboxed + run-ast are retired. The
+        // property is verified directly: define a WAT fn that calls
+        // assert-eq(1, 2), invoke it via apply_function, catch the
+        // AssertionPayload panic, inspect actual/expected.
+        use crate::assertion::AssertionPayload;
         let src = r#"
-            (:wat::test::run-ast
-              (:wat::test::program
-                (:wat::core::define
-                  (:user::main
-                    (stdin  :wat::io::IOReader)
-                    (stdout :wat::io::IOWriter)
-                    (stderr :wat::io::IOWriter)
-                    -> :wat::core::nil)
-                  (:wat::test::assert-eq 1 2)))
-              (:wat::core::Vector :wat::core::String))
+            (:wat::core::define (:my::test::assert-mismatched -> :())
+              (:wat::test::assert-eq 1 2))
         "#;
-        let result = run(src).unwrap();
-        // Walk RunResult.failure (field 2) → Failure { actual (3),
-        // expected (4) }.
-        let result_struct = match result {
-            Value::Struct(s) => s,
-            other => panic!("expected RunResult struct, got {:?}", other),
+        let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
+        let mut macros = stdlib_macros.clone();
+        let forms = crate::parse_all!(src).expect("parse");
+        let expanded = crate::macros::expand_all(
+            forms,
+            &mut macros,
+            &Environment::new(),
+            stdlib_sym,
+        )
+        .expect("expand");
+        let mut sym = stdlib_sym.clone();
+        let _ = register_defines(expanded, &mut sym).expect("register");
+        let func = sym.get(":my::test::assert-mismatched").expect("defined").clone();
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || apply_function(func, Vec::new(), &sym, crate::rust_caller_span!()),
+        ));
+
+        let payload = match result {
+            Ok(_) => panic!("expected AssertionPayload panic; got Ok"),
+            Err(p) => p,
         };
-        let failure_opt = match result_struct.fields.get(2).unwrap() {
-            Value::Option(opt) => opt,
-            other => panic!("expected Option for failure, got {:?}", other),
+        let boxed = match payload.downcast::<AssertionPayload>() {
+            Ok(b) => *b,
+            Err(_) => panic!("expected AssertionPayload in panic payload"),
         };
-        let failure_struct = match &**failure_opt {
-            Some(Value::Struct(s)) => s,
-            other => panic!("expected Some(Failure struct), got {:?}", other),
-        };
-        // actual (field index 3) — Option<String>.
-        let actual = match failure_struct.fields.get(3).unwrap() {
-            Value::Option(opt) => match &**opt {
-                Some(Value::String(s)) => (**s).clone(),
-                other => panic!("expected Some(String) for actual, got {:?}", other),
-            },
-            other => panic!("expected Option for actual, got {:?}", other),
-        };
-        let expected = match failure_struct.fields.get(4).unwrap() {
-            Value::Option(opt) => match &**opt {
-                Some(Value::String(s)) => (**s).clone(),
-                other => panic!("expected Some(String) for expected, got {:?}", other),
-            },
-            other => panic!("expected Option for expected, got {:?}", other),
-        };
+        // actual and expected must be populated — assert-eq renders
+        // each argument via show and stores them.
+        let actual = boxed.actual.expect("actual should be Some");
+        let expected = boxed.expected.expect("expected should be Some");
         assert_eq!(actual, "1");
         assert_eq!(expected, "2");
     }

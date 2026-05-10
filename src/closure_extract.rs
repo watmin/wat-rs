@@ -426,10 +426,12 @@ fn walk_free_symbols(
             let name = ident.name.clone();
             // Syntactic markers: `->` (return-type arrow), `<-` (input
             // direction arrow in fn signatures), `&` (rest-binder
-            // marker), `:else` would never appear here as a Symbol.
+            // marker), `_` (wildcard at any position — never a
+            // reference; in let-binder position it's a permissive
+            // discard, in match-arm pattern position it's a wildcard).
             // These are NOT references and must not enter the
             // free-Symbol set.
-            if matches!(name.as_str(), "->" | "<-" | "&") {
+            if matches!(name.as_str(), "->" | "<-" | "&" | "_") {
                 return Ok(());
             }
             if !locals.contains(&name) {
@@ -491,8 +493,9 @@ fn walk_free_symbols(
 
         WatAST::List(items, _span) => {
             // First: detect binding-introducing forms by head keyword.
-            // We honor `:wat::core::let` and `:wat::core::fn` (and
-            // `:wat::core::define` for completeness, though entry-fn
+            // We honor `:wat::core::let`, `:wat::core::fn`, `:wat::core::match`
+            // (whose arm patterns introduce bindings into the arm body's
+            // scope), and `:wat::core::define` (for completeness; entry-fn
             // bodies don't usually contain a top-level define).
             if let Some((head, rest)) = items.split_first() {
                 if let WatAST::Keyword(k, _) = head {
@@ -505,6 +508,9 @@ fn walk_free_symbols(
                         }
                         ":wat::core::define" => {
                             return walk_define_form(rest, locals, state);
+                        }
+                        ":wat::core::match" => {
+                            return walk_match_form(rest, locals, state);
                         }
                         _ => {}
                     }
@@ -668,6 +674,152 @@ fn walk_define_form(
     }
     walk_free_symbols(body, &new_locals, state)?;
     Ok(())
+}
+
+/// Walk a `(:wat::core::match scrut -> :Ret arm1 arm2 ...)` form.
+///
+/// Each arm is a 2-list `(pattern body)`. Pattern names BIND inside
+/// the arm's body — they are NOT free symbols. The pattern is walked
+/// separately to collect bindings AND to record any user-enum variant
+/// keyword as a type dependency (the variant's enclosing enum is the
+/// type the closure-extraction needs in the prologue).
+///
+/// Pattern shapes recognized (mirroring `runtime::try_match_pattern`):
+///   - `_` wildcard         — no binding
+///   - bare Symbol          — binds that name
+///   - `:enum::Variant`     — unit-variant keyword (no binding)
+///   - literal              — int/float/bool/string/None — no binding
+///   - `(Some pat)` / `(Ok pat)` / `(Err pat)`  — sub-pattern recursion
+///   - `(:enum::Variant pat1 pat2 ...)` — tagged variant; sub-patterns recurse
+///   - `(pat1 pat2 ...)`    — tuple destructure; sub-patterns recurse
+fn walk_match_form(
+    args: &[WatAST],
+    outer_locals: &BTreeSet<String>,
+    state: &mut ExtractState<'_>,
+) -> Result<(), ExtractionError> {
+    // `(:wat::core::match scrut -> :Ret arm1 arm2 ...)` requires:
+    // args[0] = scrut, args[1] = `->` Symbol, args[2] = :Ret keyword,
+    // args[3..] = arms. If shape is malformed, fall through to a
+    // defensive recurse so the runtime's MalformedForm fires when the
+    // form executes.
+    if args.len() < 4 {
+        for a in args {
+            walk_free_symbols(a, outer_locals, state)?;
+        }
+        return Ok(());
+    }
+    // Walk scrutinee in outer scope.
+    walk_free_symbols(&args[0], outer_locals, state)?;
+    // args[1] is `->` (Symbol marker); args[2] is :Ret type keyword
+    // — walk it for type-ref extraction.
+    walk_free_symbols(&args[2], outer_locals, state)?;
+    // For each arm: the arm is a 2-list `(pattern body)`. Bindings
+    // collected from the pattern enter the arm's body scope.
+    for arm in &args[3..] {
+        let arm_items = match arm {
+            WatAST::List(items, _) if items.len() == 2 => items,
+            _ => {
+                // Malformed arm — defensive recurse.
+                walk_free_symbols(arm, outer_locals, state)?;
+                continue;
+            }
+        };
+        let pattern = &arm_items[0];
+        let body = &arm_items[1];
+        let mut arm_locals = outer_locals.clone();
+        // Collect pattern bindings AND record type deps for any
+        // user-enum-variant keywords found inside.
+        collect_pattern_bindings(pattern, &mut arm_locals, state)?;
+        // Walk the body under the augmented scope.
+        walk_free_symbols(body, &arm_locals, state)?;
+    }
+    Ok(())
+}
+
+/// Recursively walk a match-arm pattern, accumulating binding names
+/// into `locals` and recording any user-defined type dependency the
+/// pattern references through a variant keyword.
+///
+/// The runtime's `try_match_pattern` is the source of truth for which
+/// AST shapes introduce bindings; this helper mirrors that classifier.
+fn collect_pattern_bindings(
+    pattern: &WatAST,
+    locals: &mut BTreeSet<String>,
+    state: &mut ExtractState<'_>,
+) -> Result<(), ExtractionError> {
+    match pattern {
+        // Literals — no binding.
+        WatAST::IntLit(..)
+        | WatAST::FloatLit(..)
+        | WatAST::BoolLit(..)
+        | WatAST::StringLit(..) => Ok(()),
+        // Symbol pattern: `_` wildcard binds nothing; any other bare
+        // symbol binds that name to the matched scrutinee.
+        WatAST::Symbol(ident, _) => {
+            let name = ident.as_str();
+            if name != "_" {
+                locals.insert(name.to_string());
+            }
+            Ok(())
+        }
+        // Keyword pattern — unit-variant (`:wat::core::None`,
+        // `:my::E::Variant`) or `:None` literal. Resolve type deps
+        // through the existing free-symbol machinery so user-enum
+        // unit-variant patterns pull their enum into prologue.
+        WatAST::Keyword(_, _) => walk_free_symbols(pattern, locals, state),
+        // List pattern: tagged variant constructor or tuple destructure.
+        WatAST::List(items, _) => {
+            // Resolve the head if it's a user-enum variant keyword
+            // (Some/Ok/Err have reserved-prefix and become no-ops in
+            // walk_free_symbols; user variants pull their enum's type
+            // into the dep set).
+            if let Some(head) = items.first() {
+                match head {
+                    WatAST::Keyword(_, _) => {
+                        walk_free_symbols(head, locals, state)?;
+                    }
+                    // Bare-symbol heads `Some`/`Ok`/`Err` (legacy
+                    // pre-FQDN form) carry no binding semantics —
+                    // skip head, recurse into sub-patterns.
+                    WatAST::Symbol(_, _) => {}
+                    // First element is itself a sub-pattern (tuple
+                    // destructure) — recurse.
+                    _ => collect_pattern_bindings(head, locals, state)?,
+                }
+            }
+            // Whether the head was a constructor keyword/symbol or a
+            // sub-pattern, the REMAINING items are sub-patterns. For
+            // a constructor head, items[0] was the tag (already
+            // handled); for tuple destructure, items[0] was a
+            // sub-pattern (already collected above). Either way, we
+            // only need to recurse into items[1..].
+            for sub in items.iter().skip(1) {
+                collect_pattern_bindings(sub, locals, state)?;
+            }
+            Ok(())
+        }
+        // Vector at pattern position — defensive: not a wat-rs match
+        // pattern shape today, but recurse for any future binders.
+        WatAST::Vector(items, _) => {
+            for sub in items {
+                collect_pattern_bindings(sub, locals, state)?;
+            }
+            Ok(())
+        }
+        // StructPattern at pattern position — let-binder territory
+        // today, not match-arm; defensive recurse so any name surfaces.
+        WatAST::StructPattern(items, _) => {
+            for it in items {
+                if let WatAST::Symbol(ident, _) = it {
+                    let n = ident.as_str();
+                    if n != "_" {
+                        locals.insert(n.to_string());
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
 }
 
 // ─── Dep + type recording ───────────────────────────────────────────────

@@ -94,26 +94,36 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/stream.wat",
         source: include_str!("../wat/stream.wat"),
     },
-    WatSource {
-        path: "wat/std/hermetic.wat",
-        source: include_str!("../wat/std/hermetic.wat"),
-    },
-    // Arc 105c — wat/std/sandbox.wat is now bundled. With arc
-    // 105a's spawn-program-returns-Result + arc 105b's
-    // ThreadDiedError/message accessor, the wat-level
-    // `:wat::kernel::run-sandboxed` / `-ast` defines replace the
-    // substrate Rust impls (deleted in arc 105c). Vec<String>
-    // exits the kernel boundary; it survives only inside this
-    // wat-level test-convenience helper where collected output IS
-    // the assertion target — the discipline arc 103 named.
+    // Arc 170 slice 3 — wat/std/hermetic.wat retired. The
+    // `:wat::kernel::run-sandboxed-hermetic-ast` verb it defined
+    // is subsumed by the testing-lib three-layer API per
+    // `docs/arc/2026/05/170-program-entry-points/TIERS.md` —
+    // `:wat::test::run-hermetic` (Layer 1, in `wat/test.wat`) gives
+    // the polished form; tests that need full surface drop to
+    // `(:wat::kernel::spawn-process fn)` (Layer 3, substrate). User-
+    // source callers of `run-sandboxed-hermetic-ast` are phase B
+    // sweep territory.
+    // Arc 170 slice 3 — wat/std/sandbox.wat retired. Its
+    // `:wat::kernel::run-sandboxed` / `:wat::kernel::run-sandboxed-ast`
+    // verbs were the legacy "spawn a fresh-world program from
+    // forms or source" surface; built on `spawn-program` /
+    // `spawn-program-ast` which slice 4 destructively retires.
+    // Per `docs/arc/2026/05/170-program-entry-points/TIERS.md`,
+    // tier-2 spawning post-arc-170 is `(:wat::kernel::spawn-process
+    // fn)` — a fn satisfies the `:user::process` contract;
+    // closure extraction packages the parent's world for the
+    // child; testing-lib's `:wat::test::run-hermetic` (Layer 1,
+    // in `wat/test.wat`) is the polished form.
     //
-    // Loads BEFORE test.wat so test.wat's `run` / `run-ast`
-    // wrappers resolve through these defines instead of substrate
-    // dispatch.
-    WatSource {
-        path: "wat/std/sandbox.wat",
-        source: include_str!("../wat/std/sandbox.wat"),
-    },
+    // The `forms`-input shape sandbox.wat exposed has no clean
+    // migration on the new substrate (the closure-extraction
+    // primitive consumes a fn, not raw forms). User-source
+    // callers of `run-sandboxed-ast` / `run-sandboxed` are phase B
+    // sweep territory — migrate to `:wat::test::run-hermetic`
+    // (Layer 1) for the typical "run this body and check for
+    // failure" case; drop to Layer 3
+    // (`:wat::kernel::spawn-process fn` directly) for full
+    // typed-channel I/O.
     WatSource {
         path: "wat/test.wat",
         source: include_str!("../wat/test.wat"),

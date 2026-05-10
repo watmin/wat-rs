@@ -810,6 +810,277 @@ fn t15_behavior_equivalence_across_shapes() {
     }
 }
 
+// ─── T16-T21. Slice 1d — match-arm + wildcard binder coverage ──────────
+//
+// Slice 1d extends `walk_free_symbols` so `(:wat::core::match scrut -> :T
+// (pattern body) ...)` introduces pattern bindings into the arm body's
+// scope. Pre-slice-1d, every name bound by a match-arm pattern surfaced
+// as a free symbol — the 162 deftest_* failures the brief tracks.
+//
+// Tests assert each pattern-binding category does NOT surface as a
+// free symbol; the package re-freezes; behavior matches.
+//
+// Helper that drives extraction expecting the entry to be a
+// keyword-path defn whose body uses match.
+fn extract_and_invoke(src: &str, entry: &str, args: Vec<Value>) -> (Value, Value) {
+    let parent = freeze(src);
+    let fn_value = lookup_fn(&parent, entry);
+    let package = extract(&parent, &fn_value, Some(entry));
+    let parent_result = invoke_in_parent(&parent, &fn_value, args.clone());
+    let fresh = re_freeze(package.prologue);
+    let fresh_result = invoke_via_entry_form(&fresh, &package.entry_form, args);
+    (parent_result, fresh_result)
+}
+
+// ─── T16. match arm with `(:wat::core::Some name)` pattern binding ─────
+
+#[test]
+fn t16_match_some_pattern_binds_name() {
+    // Body uses `(match opt -> :i64 ((Some n) n) (None 0))`. Pre-fix,
+    // `n` surfaced as a free symbol; post-fix, `n` is bound by the
+    // arm pattern and resolves locally.
+    let src = r#"
+        (:wat::core::define
+          (:my::option-or-zero (opt :wat::core::Option<wat::core::i64>) -> :wat::core::i64)
+          (:wat::core::match opt -> :wat::core::i64
+            ((:wat::core::Some n) n)
+            (:wat::core::None    0)))
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let parent = freeze(src);
+    let fn_value = lookup_fn(&parent, ":my::option-or-zero");
+    let package = extract(&parent, &fn_value, Some(":my::option-or-zero"));
+    let fresh = re_freeze(package.prologue);
+    // Some(7) → 7
+    let some_seven = Value::Option(Arc::new(Some(Value::i64(7))));
+    let r = invoke_via_entry_form(&fresh, &package.entry_form, vec![some_seven]);
+    assert_i64(&r, 7);
+    // None → 0
+    let none = Value::Option(Arc::new(None));
+    let r = invoke_via_entry_form(&fresh, &package.entry_form, vec![none]);
+    assert_i64(&r, 0);
+}
+
+// ─── T17. match arm with `_` wildcard does not surface as free ─────────
+
+#[test]
+fn t17_match_wildcard_does_not_surface_as_free() {
+    // The `_` wildcard binds nothing; pre-fix, `_` was pushed onto the
+    // free-symbol queue and triggered UnresolvedSymbol. Post-fix, `_`
+    // is filtered at the Symbol arm and ignored at pattern position.
+    let src = r#"
+        (:wat::core::define
+          (:my::is-some? (opt :wat::core::Option<wat::core::i64>) -> :wat::core::bool)
+          (:wat::core::match opt -> :wat::core::bool
+            ((:wat::core::Some _) true)
+            (:wat::core::None     false)))
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let (parent_v, fresh_v) = extract_and_invoke(
+        src,
+        ":my::is-some?",
+        vec![Value::Option(Arc::new(Some(Value::i64(42))))],
+    );
+    match (parent_v, fresh_v) {
+        (Value::bool(a), Value::bool(b)) => {
+            assert_eq!(a, true);
+            assert_eq!(b, true);
+        }
+        other => panic!("expected bool match; got {:?}", other),
+    }
+    // None case
+    let (parent_v, fresh_v) = extract_and_invoke(
+        src,
+        ":my::is-some?",
+        vec![Value::Option(Arc::new(None))],
+    );
+    match (parent_v, fresh_v) {
+        (Value::bool(a), Value::bool(b)) => {
+            assert_eq!(a, false);
+            assert_eq!(b, false);
+        }
+        other => panic!("expected bool match; got {:?}", other),
+    }
+}
+
+// ─── T18. match arm with `(:Ok b)` / `(:Err _)` Result patterns ────────
+
+#[test]
+fn t18_match_result_patterns_bind_arm_names() {
+    // Both Ok and Err patterns; Ok-arm binds `b`, Err-arm has wildcard.
+    // This is the dominant shape in the failing eval-coincident tests.
+    let src = r#"
+        (:wat::core::define
+          (:my::unwrap-or-false (r :wat::core::Result<wat::core::bool,wat::core::String>) -> :wat::core::bool)
+          (:wat::core::match r -> :wat::core::bool
+            ((:wat::core::Ok b)  b)
+            ((:wat::core::Err _) false)))
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let (p, f) = extract_and_invoke(
+        src,
+        ":my::unwrap-or-false",
+        vec![Value::Result(Arc::new(Ok(Value::bool(true))))],
+    );
+    match (p, f) {
+        (Value::bool(a), Value::bool(b)) => {
+            assert!(a && b, "Ok(true) → true");
+        }
+        other => panic!("non-bool: {:?}", other),
+    }
+    let (p, f) = extract_and_invoke(
+        src,
+        ":my::unwrap-or-false",
+        vec![Value::Result(Arc::new(Err(Value::String(Arc::new(
+            "boom".to_string(),
+        )))))],
+    );
+    match (p, f) {
+        (Value::bool(a), Value::bool(b)) => {
+            assert!(!a && !b, "Err(_) → false");
+        }
+        other => panic!("non-bool: {:?}", other),
+    }
+}
+
+// ─── T19. nested match: arm body uses an inner let referencing arm-bound name
+
+#[test]
+fn t19_match_arm_body_with_inner_let() {
+    // The arm body opens an inner let whose RHS uses the arm-bound
+    // name. Pre-fix, the inner let walked under the OUTER scope (no
+    // arm bindings) and `i` surfaced as free. The time.wat /
+    // iso8601 tests exercise exactly this shape.
+    let src = r#"
+        (:wat::core::define
+          (:my::inc-or-default (opt :wat::core::Option<wat::core::i64>) -> :wat::core::i64)
+          (:wat::core::match opt -> :wat::core::i64
+            ((:wat::core::Some i)
+             (:wat::core::let
+               [s (:wat::core::i64::+,2 i 1)]
+               s))
+            (:wat::core::None 0)))
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let (p, f) = extract_and_invoke(
+        src,
+        ":my::inc-or-default",
+        vec![Value::Option(Arc::new(Some(Value::i64(41))))],
+    );
+    match (p, f) {
+        (Value::i64(a), Value::i64(b)) => {
+            assert_eq!(a, 42);
+            assert_eq!(b, 42);
+        }
+        other => panic!("non-i64: {:?}", other),
+    }
+    let (p, f) =
+        extract_and_invoke(src, ":my::inc-or-default", vec![Value::Option(Arc::new(None))]);
+    match (p, f) {
+        (Value::i64(a), Value::i64(b)) => {
+            assert_eq!(a, 0);
+            assert_eq!(b, 0);
+        }
+        other => panic!("non-i64: {:?}", other),
+    }
+}
+
+// ─── T20. match arm with user-enum tagged variant pulls the enum into prologue
+
+#[test]
+fn t20_match_user_enum_variant_records_type_dep() {
+    // Pattern `(:my::Color::Red)` etc. is a unit-variant; pattern
+    // `(:my::Shape::Rect (w h))` is a tagged variant whose payload
+    // sub-patterns introduce two bindings. The user-enum's type defn
+    // must land in prologue (closure-extraction's existing
+    // unit-variants resolution stays); the bindings must NOT surface
+    // as free symbols.
+    let src = r#"
+        (:wat::core::enum :my::Shape
+          (Rect
+            (w :wat::core::i64)
+            (h :wat::core::i64))
+          (Circle
+            (r :wat::core::i64)))
+        (:wat::core::define
+          (:my::shape-area (s :my::Shape) -> :wat::core::i64)
+          (:wat::core::match s -> :wat::core::i64
+            ((:my::Shape::Rect w h) (:wat::core::i64::*,2 w h))
+            ((:my::Shape::Circle r) (:wat::core::i64::*,2 r r))))
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let parent = freeze(src);
+    let fn_value = lookup_fn(&parent, ":my::shape-area");
+    let package = extract(&parent, &fn_value, Some(":my::shape-area"));
+    // Type defn must be in prologue.
+    let type_names = collect_type_decl_names(&package.prologue);
+    assert!(
+        type_names.contains(&":my::Shape".to_string()),
+        "expected :my::Shape in prologue type defs; got {:?}",
+        type_names
+    );
+    // Re-freeze + invoke.
+    let fresh = re_freeze(package.prologue);
+    // Build an enum value Rect(3, 4) → 12. Use the parent's accessors
+    // to construct via apply_function.
+    let rect_ctor = parent.symbols().get(":my::Shape::Rect").expect("Rect ctor");
+    let rect = apply_function(
+        rect_ctor.clone(),
+        vec![Value::i64(3), Value::i64(4)],
+        parent.symbols(),
+        Span::unknown(),
+    )
+    .expect("Rect/new");
+    let res = invoke_via_entry_form(&fresh, &package.entry_form, vec![rect]);
+    assert_i64(&res, 12);
+}
+
+// ─── T21. Pattern bindings shadow outer let-scope names ────────────────
+
+#[test]
+fn t21_match_arm_binding_shadows_outer_let() {
+    // Outer let binds `n`; match arm's pattern introduces a fresh
+    // `n` that shadows. Body uses arm-bound `n`. Pre-fix the walker
+    // had `n` in outer locals so no false free-symbol fire — but
+    // post-fix we still need the shadowing to be a no-op (locals are
+    // BTreeSet so re-inserting an already-bound name is harmless).
+    let src = r#"
+        (:wat::core::define
+          (:my::shadow-test (opt :wat::core::Option<wat::core::i64>) -> :wat::core::i64)
+          (:wat::core::let
+            [n 100]
+            (:wat::core::match opt -> :wat::core::i64
+              ((:wat::core::Some n) n)
+              (:wat::core::None     n))))
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let (p, f) = extract_and_invoke(
+        src,
+        ":my::shadow-test",
+        vec![Value::Option(Arc::new(Some(Value::i64(7))))],
+    );
+    match (p, f) {
+        (Value::i64(a), Value::i64(b)) => {
+            assert_eq!(a, 7);
+            assert_eq!(b, 7);
+        }
+        other => panic!("non-i64: {:?}", other),
+    }
+    let (p, f) = extract_and_invoke(
+        src,
+        ":my::shadow-test",
+        vec![Value::Option(Arc::new(None))],
+    );
+    match (p, f) {
+        (Value::i64(a), Value::i64(b)) => {
+            // None arm: `n` resolves to outer let's `n` = 100.
+            assert_eq!(a, 100);
+            assert_eq!(b, 100);
+        }
+        other => panic!("non-i64: {:?}", other),
+    }
+}
+
 // ─── helpers for form inspection ────────────────────────────────────────
 
 /// Pull the canonical name out of a `(:wat::core::define <sig> body)`

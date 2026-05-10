@@ -342,12 +342,41 @@ fn spawn_process_child_branch(
     let rx_value = receiver_from_pipe(input_reader);
     let tx_value = sender_from_pipe(output_writer);
 
-    // Apply the entry fn. Per `:user::process` contract:
-    //   [rx <- :Receiver<I> tx <- :Sender<O>] -> :wat::core::nil
+    // Apply the entry fn. Two arity shapes supported:
+    //   - 2-arity `[rx :Receiver<I> tx :Sender<O>] -> :nil` — the
+    //     `:user::process` contract's typed-channel I/O case
+    //     (Layer 2 testing API + production code).
+    //   - 0-arity `[] -> :nil` — the `:wat::test::run-hermetic`
+    //     Layer 1 testing API. The channels exist as substrate
+    //     plumbing but the body never reads/writes them; spawn-
+    //     process drops the rx/tx Values rather than passing them.
+    //     Per arc 170 TIERS.md the Layer 1 macro generates
+    //     `(fn [] -> :nil body)`; this branch supports that shape
+    //     directly so test bodies don't need placeholder params.
+    let entry_arity = entry_func.params.len();
+    let entry_args: Vec<Value> = match entry_arity {
+        0 => {
+            // Drop the typed-channel Values — the body doesn't take
+            // them. The OwnedFds inside drop too, closing the child-
+            // side fds; the parent's writer/reader EOFs cleanly.
+            drop(rx_value);
+            drop(tx_value);
+            Vec::new()
+        }
+        2 => vec![rx_value, tx_value],
+        n => {
+            write_direct_to_stderr(&format!(
+                "entry_form fn has unsupported arity {} (expected 0 for run-hermetic Layer 1 \
+                 or 2 for :user::process / :user::thread typed-channel contract)\n",
+                n
+            ));
+            unsafe { libc::_exit(EXIT_ENTRY_FORM_FAILURE) };
+        }
+    };
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         apply_function(
             entry_func,
-            vec![rx_value, tx_value],
+            entry_args,
             world.symbols(),
             crate::rust_caller_span!(),
         )
