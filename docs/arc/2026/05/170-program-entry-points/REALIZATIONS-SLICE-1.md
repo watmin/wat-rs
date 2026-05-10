@@ -808,7 +808,7 @@ inscribed truth.
 **FM 22 (recovery doc § 6 future): When in design-mode, name
 the question; ask the user; don't pre-commit.**
 
-This conversation was 14 framing passes across two days. Many
+This conversation was 15 framing passes across two days. Many
 of them were the orchestrator's wrong-shape proposals
 corrected by user direction. The pattern: orchestrator drafts;
 user pushes back via the four questions or substrate-doctrine
@@ -1441,3 +1441,181 @@ doctrine preserved verbatim.
 - `feedback_absence_is_signal.md` — the universal rule SOUNDED
   cleaner but masked the `:rust::` conflict; the position-
   aware reading respects the actual structure of the problem
+
+### Pass 15 — Services are wat programs (not Rust singletons); runtime is the orchestrator; control-pipe is the optional dynamic-membership extension
+
+User direction (2026-05-10) after a workspace-wide deadlock
+surfaced during slice 1f-ii verification:
+
+> *"we hit a deadlock - its been a long time since that
+> happened... go study our docs - specifically zero mutex and
+> service programs - we failed one of our own rules"*
+
+**The violation, named:**
+
+Slices 1f-i (StdInService, shipped at `630f621`) and 1f-ii
+(StdOutService, working tree dirty pre-revert) implemented
+substrate services as Rust threads with `OnceLock<&'static
+ServiceHandle>` singletons. This violated TWO foundational
+doctrines:
+
+1. **ZERO-MUTEX.md tier-3 discipline** — services are
+   *Program-owned, message-addressed: state owned by a spawned
+   wat program, accessed by clients via bounded channels.* Not
+   Rust threads with custom registration APIs.
+
+2. **SERVICE-PROGRAMS.md "the lockstep"** — *outer scope holds
+   the `ProgramHandle`. Inner scope owns every Sender. Get the
+   nesting right and the program shuts down cleanly without any
+   explicit teardown code. Get it wrong and you deadlock.*
+   `OnceLock<&'static>` has no Drop; the singleton's worker
+   thread runs forever; cross-test concurrency on the global
+   handle is undefined; deadlock under workspace test
+   conditions.
+
+The deadlock IS the substrate-as-teacher diagnostic.
+Per `feedback_attack_foundation_cracks.md`: when a crack
+surfaces, the fix is also the diagnostic. Apply, use as compass,
+pivot forward into cracks the fix reveals.
+
+**The pass-9 framing was wrong.** Pass 9 said "Three substrate
+services boot before any user code" and named them as Rust
+runtime components. That invented a NEW Rust-thread-based
+service tier — bypassing the existing tier-3 (wat program +
+mailbox + lockstep) which the substrate already provides via
+`:wat::kernel::spawn`, `make-bounded-channel`, `select`, and
+`HandlePool`.
+
+**The corrective architecture (pass 15 lock-in):**
+
+The runtime IS the orchestrator. Services are wat programs.
+Helpers are thread-aware contexts that "just work."
+
+User direction continued:
+
+> *"every thread that's spawned get upserted into the file
+> handles and when they shutdown they are removed... we handle
+> registration in the runtime using the runtime?... the control
+> thread for the services to be able to something that like a
+> 'sighup' in tranditional services... users just call
+> (:wat::kernel::readln) to grab next stdin line,
+> (:wat::kernel::println ....) to write next stdout line... the
+> runtime is responsible for creating and draining"*
+
+The control-pipe protocol (sighup analog):
+
+```
+Runtime → service control-pipe:
+   :register thread-id (per-thread channels)  → service adds routing entry; acks
+   :reap     thread-id                        → service drops routing entry
+   :sighup                                     → service drains pending; exits
+```
+
+The active-handle ledger:
+
+The runtime tracks which threads are registered with which
+services. spawn-thread increments; thread reap decrements.
+When count → 0 AND runtime is in shutdown phase, runtime sends
+`:sighup` to each service → services drain → exit. Runtime
+joins drivers. wat-cli libc::exit(0).
+
+**Two canonical patterns now in the substrate library:**
+
+| Pattern | When | Worked example |
+|---|---|---|
+| **Static-membership** | Client set known at construction; clients live for the service's lifetime | `wat/console.wat` (pair-by-index ack), `crates/wat-lru/.../CacheService.wat` (Pattern B data-back), `crates/wat-telemetry/.../Service.wat` (Pattern A unit-ack) |
+| **Dynamic-membership** | Clients register/reap during program lifetime | `wat/kernel/services/stdin.wat` etc. (slice 1f's three substrate stdio services — NEW) |
+
+Both share the tier-3 base (driver loop + recv-loop + scope-drop
+cascade + mini-TCP ack). The dynamic pattern ADDS a control-pipe
+side-channel for register/reap/sighup messages.
+
+**The control-pipe is OPTIONAL.** Static-membership services
+(Console etc.) don't need it; senders dropping IS the
+shutdown signal. Dynamic-membership services need it because
+membership changes during program lifetime — the control-pipe
+is the lifecycle side-channel.
+
+User confirmation (2026-05-10):
+
+> *"we demonstrate how to do services by making thread aware
+> contexts that just work.. users can still provision their
+> crossbeam pipes to use for their own operations, but they
+> could provide a control pipe should they need to have it..
+> not all services need signaling.. but the option exists and
+> we show the option in our code so others can see the
+> canonical pattern"*
+
+**The cultural payoff (this is the load-bearing point):**
+
+The substrate's runtime + services become the canonical worked
+example for the entire ecosystem:
+
+1. wat-cli's run loop demonstrates the spawn → invoke → sighup → join lifecycle
+2. `wat/kernel/services/stdin.wat` etc. demonstrate the canonical service-template + control-pipe handler
+3. spawn-thread's contract demonstrates the register/reap protocol
+4. User's `(println v)` calls demonstrate the thread-aware helper
+
+Future user services can copy this pattern wholesale. Existing
+substrate services (Console, CacheService, Telemetry,
+HolonLRU) MAY migrate (opt-in, future arcs) when their use
+case warrants dynamic membership; their static-membership
+pattern remains valid otherwise.
+
+**The substrate practices what it preaches.** Tier-3
+discipline is not just documented; it's IMPLEMENTED at the
+most-foundational layer of the runtime. Every service in the
+ecosystem inherits a coherent doctrine, expressed via worked
+examples in the substrate's own source.
+
+**Slice plan implication (revised):**
+
+Slice 1f reshapes from the original Rust-thread α/β/γ to
+wat-program α/β/γ/δ:
+
+| Stone | Scope | Notes |
+|---|---|---|
+| 1f-α | Substrate primitives `:wat::kernel::println` + `:wat::kernel::readln` (look up thread-local routing populated by runtime register cycle) | small |
+| 1f-β | Wat-side service implementations: `wat/kernel/services/stdin.wat`, `stdout.wat`, `stderr.wat` (canonical service-template + control-pipe register/reap/sighup handler) | mostly mechanical from existing service-template.wat |
+| 1f-γ | Runtime orchestrator + spawn-thread integration: `:wat::kernel::spawn-thread` emits register/reap; active-handle ledger as Rust state in wat-cli/runtime | substantial; absorbs original slice 1g |
+| 1f-δ | wat-cli boot integration: full process-start to libc::exit cascade (spawn services → invoke main → reap main → sighup → join → exit) | small |
+
+Slice 1g (spawn-thread register-with-services) FOLDS into
+slice 1f-γ — they were always the same concern.
+
+**Cost of the corrective:**
+
+- `git revert 630f621` (slice 1f-i Rust singleton — wrong shape)
+- Working tree slice 1f-ii dirty → discarded
+- ~100 min of opus work reverts
+- Pass 15 (this section) records the lesson + the architecture
+
+The reverts are NOT regression — they're the substrate teaching
+the right pattern. Per `feedback_attack_foundation_cracks.md`:
+foundation supersedes ergonomics. The path of least resistance
+becomes the lockstep + control-pipe pattern, by demonstration.
+
+**Connects to memory:**
+
+- `feedback_never_deadlock.md` — "I am a user of wat too. Every
+  comm site lands deliberately in match-or-expect; the
+  SERVICE-PROGRAMS lockstep is mandatory; function-decompose
+  multi-driver shutdowns; no clever bind-then-decide." Slice
+  1f-i + 1f-ii reached for clever-bind-then-decide via
+  OnceLock; deadlock surfaced.
+- `feedback_attack_foundation_cracks.md` — fix is also
+  diagnostic; pivot forward into the cracks the fix reveals.
+- `feedback_assertion_demands_evidence.md` — the agents
+  reported "Mode A clean / 16/16 rows" against scorecards I
+  authored. The scorecards verified the BRIEF's contract; the
+  BRIEF was wrong shape. Future BRIEFs for service work must
+  cite ZERO-MUTEX.md + SERVICE-PROGRAMS.md as load-bearing
+  references and verify the implementation tier at slice 1f-W
+  pre-grep depth.
+- `project_signal_cascade.md` — the control-pipe pattern is
+  the wat-substrate analog of POSIX signals — side-channel for
+  service lifecycle distinct from data flow.
+- `feedback_pivot_not_defer.md` — the temptation to "fix the
+  deadlock and proceed" is exactly the FM-pivot-vs-defer trap.
+  The deadlock SIGNAL says reframe-needed. Reframing is the
+  forward move.
