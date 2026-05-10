@@ -82,6 +82,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/channel.wat",
         source: include_str!("../wat/kernel/channel.wat"),
     },
+    // Arc 170 slice 1f-β-i — `:wat::kernel::services::StdInService::*`
+    // (wat-side StdInService program; mirrors StdInServiceEvent from
+    // src/thread_io.rs; loaded after channel.wat which provides
+    // Sender / Receiver typealiases).
+    WatSource {
+        path: "wat/kernel/services/stdin.wat",
+        source: include_str!("../wat/kernel/services/stdin.wat"),
+    },
     // Arc 170 slice 1e — `:wat::kernel::ExitCode` retired (REALIZATIONS
     // pass 10 — `:wat::core::nil` IS the success exit code; `:user::main`
     // returns nil; substrate maps to libc::exit(0); panic-cascade maps
