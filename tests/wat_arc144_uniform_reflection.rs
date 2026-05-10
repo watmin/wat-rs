@@ -157,7 +157,7 @@ fn macro_lookup_define_smoke() {
     // pins the cross-test invariant: lookup-define on a registered macro
     // returns Some.
     let src = r##"
-        (:wat::core::defmacro (:my::id (x :AST) -> :AST) `,x)
+        (:wat::core::defmacro (:my::id (x :AST) -> :AST) `~x)
 
         (:wat::core::define
           (:user::main

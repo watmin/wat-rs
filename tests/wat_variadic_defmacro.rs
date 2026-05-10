@@ -45,7 +45,7 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
           (:my::vec-of
             & (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
-          `(:wat::core::Vector :wat::core::i64 ,@items))
+          `(:wat::core::Vector :wat::core::i64 ~@items))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match (:wat::core::first (:my::vec-of 10 20 30)) -> :wat::core::i64
@@ -65,7 +65,7 @@ fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
           (:my::empty-vec
             & (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
-          `(:wat::core::Vector :wat::core::i64 ,@items))
+          `(:wat::core::Vector :wat::core::i64 ~@items))
 
         (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:my::empty-vec))
@@ -94,8 +94,8 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
             & (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::foldl
-              (:wat::core::Vector :wat::core::i64 ,@items)
-              ,init
+              (:wat::core::Vector :wat::core::i64 ~@items)
+              ~init
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc x))))
 
@@ -120,8 +120,8 @@ fn variadic_macro_requires_at_least_fixed_arity() {
             & (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::foldl
-              (:wat::core::Vector :wat::core::i64 ,@items)
-              ,init
+              (:wat::core::Vector :wat::core::i64 ~@items)
+              ~init
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc x))))
 
@@ -147,7 +147,7 @@ fn double_rest_marker_refused_at_registration() {
             &
             (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
-          `(:wat::core::Vector :wat::core::i64 ,@items))
+          `(:wat::core::Vector :wat::core::i64 ~@items))
 
         (:wat::core::define (:user::main -> :wat::core::i64) 0)
     "#;
@@ -167,7 +167,7 @@ fn rest_marker_without_binder_refused_at_registration() {
             (x :AST<wat::core::i64>)
             &
             -> :AST<wat::holon::HolonAST>)
-          `(:wat::core::i64::+'2 ,x 0))
+          `(:wat::core::i64::+'2 ~x 0))
 
         (:wat::core::define (:user::main -> :wat::core::i64) 0)
     "#;

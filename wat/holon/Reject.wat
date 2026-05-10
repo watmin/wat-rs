@@ -20,9 +20,9 @@
     (y :AST<wat::holon::HolonAST>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::holon::Blend
-     ,x
-     ,y
+     ~x
+     ~y
      1.0
      (:wat::core::- 0.0
-       (:wat::core::/ (:wat::holon::dot ,x ,y)
-                           (:wat::holon::dot ,y ,y)))))
+       (:wat::core::/ (:wat::holon::dot ~x ~y)
+                           (:wat::holon::dot ~y ~y)))))

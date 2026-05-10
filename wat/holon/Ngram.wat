@@ -26,6 +26,6 @@
     -> :AST<wat::holon::BundleResult>)
   `(:wat::holon::Bundle
      (:wat::core::map
-       (:wat::std::list::window ,xs ,n)
+       (:wat::std::list::window ~xs ~n)
        (:wat::core::fn [window <- :wat::holon::Holons] -> :wat::holon::HolonAST
          (:wat::holon::Sequential window)))))

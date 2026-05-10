@@ -41,10 +41,12 @@
 //!   non-string token.
 //! - **Line comments** — `;` to end-of-line — skipped.
 //!
-//! - **Reader macros** — `` ` `` (quasiquote), `,` (unquote), `,@`
+//! - **Reader macros** — `` ` `` (quasiquote), `~` (unquote), `~@`
 //!   (unquote-splicing). The parser rewrites each to a list-form with
 //!   a `:wat::core::quasiquote` / `:wat::core::unquote` / `:wat::core::unquote-splicing`
 //!   head, so downstream passes see uniform `List` nodes.
+//!   Comma (`,`) is whitespace per EDN spec; it carries no token
+//!   at the main-lex-loop level (arc 172 slice 1).
 //!
 //! Future extensions (not in MVP): character literals `#\a`,
 //! block comments.
@@ -103,11 +105,13 @@ pub enum Token {
     /// Quasiquote `` ` `` reader macro. Parser rewrites to
     /// `(:wat::core::quasiquote X)` wrapping the following form.
     Quasiquote,
-    /// Unquote `,` reader macro. Parser rewrites to
-    /// `(:wat::core::unquote X)`.
+    /// Unquote `~` reader macro. Parser rewrites to
+    /// `(:wat::core::unquote X)`. Arc 172 slice 1: source character
+    /// changed from `,` to `~`; variant name unchanged.
     Unquote,
-    /// Unquote-splicing `,@` reader macro. Parser rewrites to
-    /// `(:wat::core::unquote-splicing X)`.
+    /// Unquote-splicing `~@` reader macro. Parser rewrites to
+    /// `(:wat::core::unquote-splicing X)`. Arc 172 slice 1: source
+    /// characters changed from `,@` to `~@`; variant name unchanged.
     UnquoteSplicing,
 }
 
@@ -243,14 +247,23 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             continue;
         }
 
-        // Quasiquote reader macros — `, ,, ,@`.
+        // Quasiquote reader macros — `` ` ``, `~`, `~@`.
+        // Arc 172 slice 1: comma (`,`) retired as Unquote/UnquoteSplicing
+        // token at the main-lex-loop level; it is now treated as EDN
+        // whitespace (see whitespace arm above). Tilde (`~`) and `~@`
+        // are the canonical Clojure-style unquote characters.
+        if c == ',' {
+            // Comma is whitespace per EDN spec — skip silently.
+            i += 1;
+            continue;
+        }
         if c == '`' {
             tokens.push(SpannedToken { token: Token::Quasiquote, span: span_at(i) });
             i += 1;
             continue;
         }
-        if c == ',' {
-            // `,@` or just `,`.
+        if c == '~' {
+            // `~@` or just `~`.
             let s = span_at(i);
             if i + 1 < bytes.len() && bytes[i + 1] as char == '@' {
                 tokens.push(SpannedToken { token: Token::UnquoteSplicing, span: s });
@@ -350,6 +363,8 @@ fn is_symbol_break(c: char) -> bool {
         || c == '}'
         || c == '"'
         || c == ';'
+        || c == ','  // Arc 172 slice 1: comma is EDN whitespace; it
+                     // terminates a symbol scan so `a,b` reads as `a` `,` `b`.
 }
 
 /// Lex a string literal starting at `start` (pointing at the opening `"`).
@@ -1002,6 +1017,77 @@ mod tests {
                 Token::Symbol("b".into()),
                 Token::Int(1),
                 Token::Int(-1),
+                Token::RParen,
+            ]
+        );
+    }
+
+    // ─── Arc 172 slice 1 — Clojure-style tilde unquote; comma as whitespace ──
+
+    #[test]
+    fn tilde_produces_unquote() {
+        // A — `~foo` → Unquote token followed by Symbol("foo").
+        // Source character changed from `,` to `~` (arc 172 slice 1);
+        // Token::Unquote variant name unchanged.
+        assert_eq!(
+            lex_tokens("~foo").unwrap(),
+            vec![Token::Unquote, Token::Symbol("foo".into())]
+        );
+    }
+
+    #[test]
+    fn tilde_at_produces_unquote_splicing() {
+        // B — `~@xs` → UnquoteSplicing token followed by Symbol("xs").
+        // Source characters changed from `,@` to `~@` (arc 172 slice 1);
+        // Token::UnquoteSplicing variant name unchanged.
+        assert_eq!(
+            lex_tokens("~@xs").unwrap(),
+            vec![Token::UnquoteSplicing, Token::Symbol("xs".into())]
+        );
+    }
+
+    #[test]
+    fn comma_is_whitespace_top_level() {
+        // C — `(a , b)` → same as `(a b)`: comma between elements is whitespace.
+        assert_eq!(
+            lex_tokens("(a , b)").unwrap(),
+            vec![
+                Token::LParen,
+                Token::Symbol("a".into()),
+                Token::Symbol("b".into()),
+                Token::RParen,
+            ]
+        );
+    }
+
+    #[test]
+    fn comma_is_whitespace_inside_list() {
+        // D — `(a, b, c)` → `(a b c)`: trailing comma after each element.
+        assert_eq!(
+            lex_tokens("(a, b, c)").unwrap(),
+            vec![
+                Token::LParen,
+                Token::Symbol("a".into()),
+                Token::Symbol("b".into()),
+                Token::Symbol("c".into()),
+                Token::RParen,
+            ]
+        );
+    }
+
+    #[test]
+    fn old_comma_unquote_no_longer_works() {
+        // E — `` `(a ,b c) `` parses as quasiquote-of-list with bare symbols.
+        // Comma is whitespace; `,b` is just `b`.
+        // This test verifies lexer-level token stream: backtick, lparen, a, b, c, rparen.
+        assert_eq!(
+            lex_tokens("`(a ,b c)").unwrap(),
+            vec![
+                Token::Quasiquote,
+                Token::LParen,
+                Token::Symbol("a".into()),
+                Token::Symbol("b".into()),
+                Token::Symbol("c".into()),
                 Token::RParen,
             ]
         );

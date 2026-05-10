@@ -203,7 +203,7 @@
     (name :AST<wat::core::nil>)
     & (rest :AST<wat::core::Vector<wat::WatAST>>)
     -> :AST<wat::core::nil>)
-  `(:wat::core::def ,name (:wat::core::fn ,@rest)))
+  `(:wat::core::def ~name (:wat::core::fn ~@rest)))
 
 ;; f64 same-type variadic — :+/:*/:- / :/
 

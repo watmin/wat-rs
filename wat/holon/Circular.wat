@@ -25,7 +25,7 @@
     -> :AST<wat::holon::HolonAST>)
   `(:wat::core::let
      [frac
-       (:wat::core::/ ,value ,period)
+       (:wat::core::/ ~value ~period)
       two-pi
        (:wat::core::* 2.0 (:wat::std::math::pi))
       theta

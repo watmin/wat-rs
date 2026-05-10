@@ -228,7 +228,7 @@
 (:wat::core::defmacro
   (:wat::test::program & (forms :AST<wat::core::Vector<wat::WatAST>>)
     -> :AST<wat::core::Vector<wat::WatAST>>)
-  `(:wat::core::forms ,@forms))
+  `(:wat::core::forms ~@forms))
 
 (:wat::core::define
   (:wat::test::run-ast
@@ -307,13 +307,13 @@
     (prelude :AST<wat::core::nil>)
     (body :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
-  `(:wat::core::define (,name -> :wat::test::TestResult)
+  `(:wat::core::define (~name -> :wat::test::TestResult)
      (:wat::kernel::run-sandboxed-ast
        (:wat::core::forms
-         ,@prelude
+         ~@prelude
          (:wat::core::define
            (:user::main -> :wat::core::nil)
-           ,body))
+           ~body))
        (:wat::core::Vector :wat::core::String)
        :wat::core::None)))
 
@@ -334,13 +334,13 @@
     (prelude :AST<wat::core::nil>)
     (body :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
-  `(:wat::core::define (,name -> :wat::test::TestResult)
+  `(:wat::core::define (~name -> :wat::test::TestResult)
      (:wat::kernel::run-sandboxed-hermetic-ast
        (:wat::core::forms
-         ,@prelude
+         ~@prelude
          (:wat::core::define
            (:user::main -> :wat::core::nil)
-           ,body))
+           ~body))
        (:wat::core::Vector :wat::core::String)
        :wat::core::None)))
 
@@ -382,11 +382,11 @@
     (default-prelude :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
   `(:wat::core::defmacro
-     (,name
+     (~name
        (test-name :AST<wat::core::nil>)
        (body :AST<wat::core::nil>)
        -> :AST<wat::core::nil>)
-     `(:wat::test::deftest ,test-name ,,default-prelude ,body)))
+     `(:wat::test::deftest ~test-name ~~default-prelude ~body)))
 
 ;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
 ;;
@@ -399,11 +399,11 @@
     (default-prelude :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
   `(:wat::core::defmacro
-     (,name
+     (~name
        (test-name :AST<wat::core::nil>)
        (body :AST<wat::core::nil>)
        -> :AST<wat::core::nil>)
-     `(:wat::test::deftest-hermetic ,test-name ,,default-prelude ,body)))
+     `(:wat::test::deftest-hermetic ~test-name ~~default-prelude ~body)))
 
 ;; ─── Per-test attributes (arc 122) — :ignore + :should-panic ──────────
 ;;

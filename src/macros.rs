@@ -1081,7 +1081,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<wat::holon::HolonAST>>) -> :AST<wat::holon::HolonAST>)
-              `(:wat::holon::Bundle ,xs))
+              `(:wat::holon::Bundle ~xs))
             (:my::vocab::Concurrent (:wat::core::Vector :wat::holon::HolonAST a b c))
             "#,
         )
@@ -1104,7 +1104,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::vocab::Subtract (x :AST<wat::holon::HolonAST>) (y :AST<wat::holon::HolonAST>) -> :AST<wat::holon::HolonAST>)
-              `(:wat::holon::Blend ,x ,y 1 -1))
+              `(:wat::holon::Blend ~x ~y 1 -1))
             (:my::vocab::Subtract foo bar)
             "#,
         )
@@ -1130,7 +1130,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::vocab::SumAll (xs :AST<List<wat::holon::HolonAST>>) -> :AST<wat::holon::HolonAST>)
-              `(:wat::holon::Bundle ,@xs))
+              `(:wat::holon::Bundle ~@xs))
             (:my::vocab::SumAll (a b c))
             "#,
         )
@@ -1155,9 +1155,9 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::outer (x :AST) -> :AST)
-              `(:my::inner ,x))
+              `(:my::inner ~x))
             (:wat::core::defmacro (:my::inner (x :AST) -> :AST)
-              `(:wat::holon::Atom ,x))
+              `(:wat::holon::Atom ~x))
             (:my::outer 42)
             "#,
         )
@@ -1180,7 +1180,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::vocab::WithTmp (body :AST) -> :AST)
-              `(:wat::core::let ((tmp 1)) ,body))
+              `(:wat::core::let ((tmp 1)) ~body))
             (:my::vocab::WithTmp tmp)
             "#,
         )
@@ -1234,7 +1234,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::wrap (v :AST) -> :AST)
-              `(:wat::holon::Atom ,v))
+              `(:wat::holon::Atom ~v))
             (:my::wrap some-var)
             "#,
         )
@@ -1262,7 +1262,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::twice (x :AST) -> :AST)
-              `(:wat::core::let (((t :i64) ,x)) t))
+              `(:wat::core::let (((t :i64) ~x)) t))
             (:my::twice 1)
             (:my::twice 2)
             "#,
@@ -1309,7 +1309,7 @@ mod tests {
     #[test]
     fn reserved_prefix_macro_rejected() {
         let err = expand(
-            r#"(:wat::core::defmacro (:wat::std::MyMacro (x :AST) -> :AST) `,x)"#,
+            r#"(:wat::core::defmacro (:wat::std::MyMacro (x :AST) -> :AST) `~x)"#,
         )
         .unwrap_err();
         assert!(matches!(err, MacroError::ReservedPrefix(_, _)));
@@ -1323,9 +1323,9 @@ mod tests {
         // distinct templates.
         let err = expand(
             r#"
-            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
+            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `~x)
             (:wat::core::defmacro (:my::m (x :AST) -> :AST)
-              `(:wat::core::Vector ,x))
+              `(:wat::core::Vector ~x))
             "#,
         )
         .unwrap_err();
@@ -1339,8 +1339,8 @@ mod tests {
         // expands normally afterward.
         let result = expand(
             r#"
-            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
-            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
+            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `~x)
+            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `~x)
             (:my::m 42)
             "#,
         );
@@ -1352,7 +1352,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::two (x :AST) (y :AST) -> :AST)
-              `(:wat::core::Vector ,x ,y))
+              `(:wat::core::Vector ~x ~y))
             (:my::two 1)
             "#,
         )
@@ -1380,7 +1380,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::s (xs :AST) -> :AST)
-              `(:wat::core::Vector ,@xs))
+              `(:wat::core::Vector ~@xs))
             (:my::s 42)
             "#,
         )
@@ -1445,8 +1445,8 @@ mod tests {
         let forms = expand_keeping_defmacros(
             r#"
             (:wat::core::defmacro (:my::mkmac (name :AST<()>) -> :AST<()>)
-              `(:wat::core::defmacro (,name (x :AST) -> :AST)
-                 `(:wat::holon::Atom ,x)))
+              `(:wat::core::defmacro (~name (x :AST) -> :AST)
+                 `(:wat::holon::Atom ~x)))
             (:my::mkmac :my::wrap)
             "#,
         )
@@ -1477,7 +1477,7 @@ mod tests {
             r#"
             (:wat::core::defmacro (:my::mkmac (v :AST<i64>) -> :AST<()>)
               `(:wat::core::defmacro (:my::configured -> :AST)
-                 `(:wat::holon::Atom ,,v)))
+                 `(:wat::holon::Atom ~~v)))
             (:my::mkmac 42)
             "#,
         )
@@ -1530,8 +1530,8 @@ mod tests {
         let forms = expand_keeping_defmacros(
             r#"
             (:wat::core::defmacro (:my::mkmac (name :AST<()>) -> :AST<()>)
-              `(:wat::core::defmacro (,name (xs :AST) -> :AST)
-                 `(:wat::holon::Bundle ,@xs)))
+              `(:wat::core::defmacro (~name (xs :AST) -> :AST)
+                 `(:wat::holon::Bundle ~@xs)))
             (:my::mkmac :my::wrap)
             "#,
         )
@@ -1583,16 +1583,16 @@ mod tests {
                 (extras :AST)
                 -> :AST<()>)
               `(:wat::core::defmacro
-                 (,name
+                 (~name
                    (test-name :AST<()>)
                    (body :AST<()>)
                    -> :AST<()>)
                  `(:wat::holon::configured
-                    ,test-name
-                    ,,dims
-                    ,,mode
-                    ,,extras
-                    ,body)))
+                    ~test-name
+                    ~~dims
+                    ~~mode
+                    ~~extras
+                    ~body)))
 
             (:my::make-mac :my::tdef 1024 :error ((load-a) (load-b)))
 
@@ -1640,7 +1640,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::two (x :AST) (y :AST) -> :AST)
-              `(:wat::core::Vector ,x ,y))
+              `(:wat::core::Vector ~x ~y))
             (:my::two 1)
             "#,
         )
@@ -1735,7 +1735,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::computed-test -> :AST)
-              `(:result ,(:wat::core::i64::+'2 10 32)))
+              `(:result ~(:wat::core::i64::+'2 10 32)))
             (:my::computed-test)
             "#,
         )
@@ -1760,7 +1760,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::succ (n :AST<i64>) -> :AST)
-              `(:result ,(:wat::core::i64::+'2 n 1)))
+              `(:result ~(:wat::core::i64::+'2 n 1)))
             (:my::succ 41)
             "#,
         )
@@ -1785,7 +1785,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::trio -> :AST)
-              `(:wrapper ,@(:wat::core::Vector :wat::core::i64 1 2 3)))
+              `(:wrapper ~@(:wat::core::Vector :wat::core::i64 1 2 3)))
             (:my::trio)
             "#,
         )
@@ -1816,8 +1816,8 @@ mod tests {
         let forms = expand_keeping_defmacros(
             r#"
             (:wat::core::defmacro (:my::make-inner (name :AST<()>) -> :AST<()>)
-              `(:wat::core::defmacro (,name -> :AST)
-                 `(:result ,(:wat::core::i64::+'2 1 2))))
+              `(:wat::core::defmacro (~name -> :AST)
+                 `(:result ~(:wat::core::i64::+'2 1 2))))
             (:my::make-inner :my::inner)
             "#,
         )

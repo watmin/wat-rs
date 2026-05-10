@@ -9,4 +9,4 @@
     (x :AST<wat::holon::HolonAST>)
     (y :AST<wat::holon::HolonAST>)
     -> :AST<wat::holon::HolonAST>)
-  `(:wat::holon::Blend ,x ,y 1.0 -1.0))
+  `(:wat::holon::Blend ~x ~y 1.0 -1.0))

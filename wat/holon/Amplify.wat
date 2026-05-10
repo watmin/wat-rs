@@ -12,4 +12,4 @@
     (y :AST<wat::holon::HolonAST>)
     (s :AST<wat::core::f64>)
     -> :AST<wat::holon::HolonAST>)
-  `(:wat::holon::Blend ,x ,y 1.0 ,s))
+  `(:wat::holon::Blend ~x ~y 1.0 ~s))

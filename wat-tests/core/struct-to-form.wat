@@ -43,7 +43,7 @@
     [x 42
      y "hello"
      form
-      (:wat::core::quasiquote (:my::Foo/new ,x ,y))]
+      (:wat::core::quasiquote (:my::Foo/new ~x ~y))]
     ;; Quasiquote at runtime: ,x evaluated to 42; ,y to "hello";
     ;; the resulting form is the WatAST `(:my::Foo/new 42 "hello")`.
     ;; Sentinel — successful evaluation is the proof.

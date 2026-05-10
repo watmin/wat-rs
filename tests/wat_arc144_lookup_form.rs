@@ -68,7 +68,7 @@ fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
     // readers can distinguish a macro-decl from a function-decl in the
     // returned AST.
     let src = r##"
-        (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `,x)
+        (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
         (:wat::core::define
           (:user::main
@@ -101,7 +101,7 @@ fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
 #[test]
 fn signature_of_macro_returns_some() {
     let src = r##"
-        (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `,x)
+        (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
         (:wat::core::define
           (:user::main
@@ -124,7 +124,7 @@ fn body_of_macro_returns_some_with_template() {
     // body field) — matches the FAQ "macros have bodies (their
     // template); primitives don't (Rust impl)".
     let src = r##"
-        (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `,x)
+        (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
         (:wat::core::define
           (:user::main

@@ -20,13 +20,13 @@
     (target-name :AST<wat::core::keyword>)
     -> :AST<wat::core::nil>)
   `(:wat::core::define
-     ,(:wat::runtime::rename-callable-name
+     ~(:wat::runtime::rename-callable-name
         (:wat::core::Option/expect -> :wat::holon::HolonAST
           (:wat::runtime::signature-of target-name)
           "define-alias: target name not found in environment")
         target-name
         alias-name)
-     (,target-name ,@(:wat::runtime::extract-arg-names
+     (~target-name ~@(:wat::runtime::extract-arg-names
                        (:wat::core::Option/expect -> :wat::holon::HolonAST
                          (:wat::runtime::signature-of target-name)
                          "define-alias: target name not found in environment")))))

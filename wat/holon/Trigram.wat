@@ -11,4 +11,4 @@
   (:wat::holon::Trigram
     (xs :AST<List<wat::holon::HolonAST>>)
     -> :AST<wat::holon::BundleResult>)
-  `(:wat::holon::Ngram 3 ,xs))
+  `(:wat::holon::Ngram 3 ~xs))

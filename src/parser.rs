@@ -242,10 +242,11 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// A reader macro (`` ` `` / `,` / `,@`) wraps the following form.
+    /// A reader macro (`` ` `` / `~` / `~@`) wraps the following form.
     /// `` `X `` → `(:wat::core::quasiquote X)`, etc. The synthesized
     /// head-keyword and list inherit the reader macro's span; the
-    /// inner form keeps its own.
+    /// inner form keeps its own. Arc 172 slice 1: unquote source
+    /// characters changed from `,`/`,@` to `~`/`~@`.
     fn parse_reader_macro(
         &mut self,
         head_keyword: &str,
@@ -634,16 +635,18 @@ mod tests {
 
     #[test]
     fn unquote_wraps_following_form() {
+        // Arc 172 slice 1: source character changed from `,x` to `~x`.
         assert_eq!(
-            crate::parse_one!(",x").unwrap(),
+            crate::parse_one!("~x").unwrap(),
             list(vec![kw(":wat::core::unquote"), sym("x")])
         );
     }
 
     #[test]
     fn unquote_splicing_wraps_following_form() {
+        // Arc 172 slice 1: source characters changed from `,@xs` to `~@xs`.
         assert_eq!(
-            crate::parse_one!(",@xs").unwrap(),
+            crate::parse_one!("~@xs").unwrap(),
             list(vec![kw(":wat::core::unquote-splicing"), sym("xs")])
         );
     }
@@ -659,8 +662,9 @@ mod tests {
                 list(vec![kw(":wat::core::unquote"), sym("y")]),
             ]),
         ]);
+        // Arc 172 slice 1: `,x ,y` → `~x ~y`.
         assert_eq!(
-            crate::parse_one!("`(:wat::holon::Bind ,x ,y)").unwrap(),
+            crate::parse_one!("`(:wat::holon::Bind ~x ~y)").unwrap(),
             expected
         );
     }
@@ -674,17 +678,20 @@ mod tests {
                 list(vec![kw(":wat::core::unquote-splicing"), sym("xs")]),
             ]),
         ]);
+        // Arc 172 slice 1: `,@xs` → `~@xs`.
         assert_eq!(
-            crate::parse_one!("`(:wat::holon::Bundle ,@xs)").unwrap(),
+            crate::parse_one!("`(:wat::holon::Bundle ~@xs)").unwrap(),
             expected
         );
     }
 
     #[test]
     fn reader_macro_without_following_form_errors() {
+        // Arc 172 slice 1: `,` is now whitespace (no longer a reader macro);
+        // `~` and `~@` are the canonical unquote characters.
         assert!(matches!(crate::parse_one!("`"), Err(ParseError::Empty)));
-        assert!(matches!(crate::parse_one!(","), Err(ParseError::Empty)));
-        assert!(matches!(crate::parse_one!(",@"), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!("~"), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!("~@"), Err(ParseError::Empty)));
     }
 
     #[test]

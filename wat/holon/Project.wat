@@ -14,4 +14,4 @@
     (x :AST<wat::holon::HolonAST>)
     (y :AST<wat::holon::HolonAST>)
     -> :AST<wat::holon::HolonAST>)
-  `(:wat::holon::Subtract ,x (:wat::holon::Reject ,x ,y)))
+  `(:wat::holon::Subtract ~x (:wat::holon::Reject ~x ~y)))
