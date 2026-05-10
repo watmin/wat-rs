@@ -12169,6 +12169,41 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 170 slice 1f-δ — Process IO accessors.
+    // (:wat::kernel::Process/stdin  proc) → :wat::io::IOWriter
+    // (:wat::kernel::Process/stdout proc) → :wat::io::IOReader
+    // (:wat::kernel::Process/stderr proc) → :wat::io::IOReader
+    //
+    // Mirrors the Process/join-result shape (arc 112). Field order
+    // per src/spawn_process.rs:221-223: 0=stdin, 1=stdout, 2=stderr.
+    // These are called by the restored wat/kernel/hermetic.wat wrapper.
+    env.register(
+        ":wat::kernel::Process/stdin".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_ty()],
+            ret: TypeExpr::Path(":wat::io::IOWriter".into()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::kernel::Process/stdout".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_ty()],
+            ret: TypeExpr::Path(":wat::io::IOReader".into()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::kernel::Process/stderr".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_ty()],
+            ret: TypeExpr::Path(":wat::io::IOReader".into()),
+            rest_param_type: None,
+        },
+    );
     // (:wat::kernel::spawn-thread body) →
     //   :wat::kernel::Thread<I,O>.
     //

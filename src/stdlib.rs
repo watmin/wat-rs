@@ -105,6 +105,15 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/services/stderr.wat",
         source: include_str!("../wat/kernel/services/stderr.wat"),
     },
+    // Arc 170 slice 1f-δ — restore :wat::kernel::run-sandboxed-hermetic-ast
+    // as wat-side wrapper around fork-program-ast (closes § Row K from
+    // slice 1f-β-i V2 SCORE). The TIERS.md migration to spawn-process
+    // remains a separate future arc. Also defines drain-lines-acc,
+    // drain-lines, and failure-from-process-died helpers.
+    WatSource {
+        path: "wat/kernel/hermetic.wat",
+        source: include_str!("../wat/kernel/hermetic.wat"),
+    },
     // Arc 170 slice 1e — `:wat::kernel::ExitCode` retired (REALIZATIONS
     // pass 10 — `:wat::core::nil` IS the success exit code; `:user::main`
     // returns nil; substrate maps to libc::exit(0); panic-cascade maps

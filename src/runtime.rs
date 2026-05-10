@@ -3636,6 +3636,24 @@ fn dispatch_keyword_head(
         ":wat::kernel::Process/join-result" => {
             eval_kernel_process_join_result(args, env, sym, list_span)
         }
+        // Arc 170 slice 1f-δ — Process IO accessors. Mirror of
+        // Process/join-result (arc 112). Field order in the Process
+        // struct (per src/spawn_process.rs:221-228):
+        //   0 → stdin  (IOWriter)
+        //   1 → stdout (IOReader)
+        //   2 → stderr (IOReader)
+        //   3 → ProgramHandle (join field)
+        //   4 → tx (channel Sender)
+        //   5 → rx (channel Receiver)
+        ":wat::kernel::Process/stdin" => {
+            eval_kernel_process_stdin(args, env, sym, list_span)
+        }
+        ":wat::kernel::Process/stdout" => {
+            eval_kernel_process_stdout(args, env, sym, list_span)
+        }
+        ":wat::kernel::Process/stderr" => {
+            eval_kernel_process_stderr(args, env, sym, list_span)
+        }
         ":wat::kernel::spawn-thread" => {
             eval_kernel_spawn_thread(args, env, sym, list_span)
         }
@@ -15584,6 +15602,135 @@ fn eval_kernel_process_join_result(
         }
     };
     Ok(value)
+}
+
+/// `(:wat::kernel::Process/stdin proc) -> :wat::io::IOWriter` —
+/// arc 170 slice 1f-δ. Extracts the stdin writer from a
+/// Process<I,O> struct. Field 0 per src/spawn_process.rs:221.
+/// Mirrors the Process/join-result shape (arc 112).
+fn eval_kernel_process_stdin(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Process/stdin";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let proc_value = eval(&args[0], env, sym)?;
+    let proc_struct = match proc_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::kernel::Process",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    // Field 0: stdin IOWriter.
+    match proc_struct.fields.get(0) {
+        Some(Value::io__IOWriter(w)) => Ok(Value::io__IOWriter(w.clone())),
+        _ => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Process.stdin (IOWriter)",
+            got: "missing or wrong-type field",
+            span: args[0].span().clone(),
+        }),
+    }
+}
+
+/// `(:wat::kernel::Process/stdout proc) -> :wat::io::IOReader` —
+/// arc 170 slice 1f-δ. Extracts the stdout reader from a
+/// Process<I,O> struct. Field 1 per src/spawn_process.rs:222.
+/// Mirrors the Process/join-result shape (arc 112).
+fn eval_kernel_process_stdout(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Process/stdout";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let proc_value = eval(&args[0], env, sym)?;
+    let proc_struct = match proc_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::kernel::Process",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    // Field 1: stdout IOReader.
+    match proc_struct.fields.get(1) {
+        Some(Value::io__IOReader(r)) => Ok(Value::io__IOReader(r.clone())),
+        _ => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Process.stdout (IOReader)",
+            got: "missing or wrong-type field",
+            span: args[0].span().clone(),
+        }),
+    }
+}
+
+/// `(:wat::kernel::Process/stderr proc) -> :wat::io::IOReader` —
+/// arc 170 slice 1f-δ. Extracts the stderr reader from a
+/// Process<I,O> struct. Field 2 per src/spawn_process.rs:223.
+/// Mirrors the Process/join-result shape (arc 112).
+fn eval_kernel_process_stderr(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Process/stderr";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let proc_value = eval(&args[0], env, sym)?;
+    let proc_struct = match proc_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::kernel::Process",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    // Field 2: stderr IOReader.
+    match proc_struct.fields.get(2) {
+        Some(Value::io__IOReader(r)) => Ok(Value::io__IOReader(r.clone())),
+        _ => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Process.stderr (IOReader)",
+            got: "missing or wrong-type field",
+            span: args[0].span().clone(),
+        }),
+    }
 }
 
 /// `(:wat::kernel::spawn-thread body) -> :wat::kernel::Thread<I,O>` —
