@@ -808,7 +808,7 @@ inscribed truth.
 **FM 22 (recovery doc § 6 future): When in design-mode, name
 the question; ask the user; don't pre-commit.**
 
-This conversation was 9 framing passes across two days. Many
+This conversation was 11 framing passes across two days. Many
 of them were the orchestrator's wrong-shape proposals
 corrected by user direction. The pattern: orchestrator drafts;
 user pushes back via the four questions or substrate-doctrine
@@ -841,4 +841,253 @@ this," save to memory IMMEDIATELY.**
 The auto-memory protocol's explicit-save trigger. User said
 "this form is incredible... we must not forget this" —
 canonical server form saved as `project_*` memory immediately.
+
+### Pass 10 — `:wat::core::nil` IS the exit code (drop ExitCode entirely)
+
+User direction (2026-05-10):
+
+> *"do we need -> :wat::kernel::ExitCode at all?... we shouldn't
+> even expose this.... you just run your program.. if you panic
+> it'll go stderr and we'll exit non-zero. we program for the
+> case that assumes we'll never panic.. that's how we demonstrate
+> our code.. these are our advertised patterns"*
+
+> *"i think the signature should be '[] -> :wat::core::nil' --
+> nil /is the exit code/"*
+
+The four-questions analysis (run on **drop ExitCode** vs **keep
+ExitCode**):
+
+| Question | Drop ExitCode (`-> :nil`) | Keep ExitCode |
+|---|---|---|
+| Obvious | YES — `:user::main [] -> :nil` reads as "entry point that does the work; nil is the success marker" | LESS — return type is theatrical when panic governs failure |
+| Simple | YES — no typealias, no constructor-from-typealias for primitive ints, no terminal-form-must-be-ExitCode rule | NO — adds a concept whose only purpose is OS-exit-code |
+| Honest | YES — panic IS the failure path; clean nil-return IS success. No theatrical gradation. Aligns with arc 114's `Program<I,O> -> :nil` contract | NO — lipstick over what StdErrService already handles |
+| Good UX | YES — `:user::main`, `:user::thread`, `:user::process` all share `[] -> :nil` (modulo channel params); one shape across tier 0/1/2/3 | NO — special-cases tier 0 |
+
+**The user's framing is precision: not "no return type" but
+"returns nil, which IS the success exit code."** Same precedent
+shape as arc 114's `Program<I,O> -> :nil`. The substrate maps
+nil-return to libc::exit(0); panic-cascade maps to libc::exit(N).
+User code never participates in exit-code arithmetic.
+
+This is the **absence-is-signal** memory pattern flipped: when a
+feature seems necessary but only pads signature, it's masking the
+real shape. Drop it; the canonical form reaches uniform tier-0/1/2
+signature. **Verbose-is-honest** doesn't apply here — ExitCode
+wasn't carrying information; it was duplicating panic's role.
+
+**The locked-in canonical form (post-pass-10):**
+
+```scheme
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [client (:wat::kernel::StdInService/connect)]
+    (:wat::kernel::server-loop client my-handler)))
+
+(:wat::core::defn :wat::kernel::server-loop<I,O>
+  [client    <- :wat::kernel::Client<I,O>
+   handler   <- :wat::core::fn(I)->O]
+  -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::Client/recv client)
+    -> :wat::core::nil
+    ((:wat::core::Some req)
+      (:wat::core::let [resp (handler req)]
+        (:wat::kernel::StdOutService/send resp)
+        (:wat::kernel::server-loop client handler)))
+    (:wat::core::None
+      :wat::core::nil)))
+```
+
+**Cascade (what changes from pass 8/9 lock-in):**
+
+- `:user::main` signature: `[] -> :wat::core::nil` (not `-> :ExitCode`)
+- `:wat::kernel::ExitCode` typealias **retires from arc 170 scope**
+  (was § 2 ship; was new substrate work in slice 1e). If a future
+  arc surfaces a CLI tool that genuinely needs `0/1/2` exit-code
+  distinction (grep-like), THAT arc mints the helper. Arc 170
+  scopes it out affirmatively.
+- Slice 1e **drops** the typealias-as-constructor work for
+  primitive-aliased values (`:wat::core::nil` already works at
+  both type and value positions per WAT-CHEATSHEET; no new
+  substrate work needed).
+- `:wat::kernel::main!` macro expansion: terminal `:wat::core::nil`,
+  not `(:wat::kernel::ExitCode 0)`.
+- `:wat::kernel::run!` macro: variadic `do`-wrap; user's last form's
+  return value flows through; if the last form returns nil,
+  signature satisfied; if it doesn't, freeze diagnostic catches it.
+  No magic ExitCode-coercion.
+- wat-cli `run`: clean `:user::main` return → `libc::exit(0)`;
+  panic-cascade emit → `libc::exit(N)` from StdErrService. wat-cli
+  has no plumbed exit-code value from main's return.
+- `validate_user_main_signature` enforces `[] -> :wat::core::nil`.
+- spawn-process child: returns nil cleanly; child process exit
+  status driven by panic-cascade vs clean-return. Parent reads
+  exit status without participating in a wat-level ExitCode value.
+- `:user::main`, `:user::thread`, `:user::process` ALL three
+  return `:wat::core::nil`. Modulo channel params, the entry
+  contracts unify across tier 0/1/2/3.
+
+**The advertised pattern is "we never panic."** Programs that
+follow it return nil; exit 0. Programs that fail panic; cascade
+fires; exit non-zero. The substrate handles the OS-level
+exit-code mapping; user code never participates.
+
+User confirmation (2026-05-10):
+
+> *"yeah - we found our shapes... just needed to add argv lol"*
+
+The arc-170 architecture starts as "add argv to :user::main" and
+ends at "the Program contract unifies across tiers; nil IS the
+exit code." Each refinement made the design simpler and more
+honest.
+
+**Connects to memory:**
+- `feedback_absence_is_signal.md` — when a feature looks
+  necessary but pads signature, ask what it MASKS. ExitCode
+  masked the truth that arc 114 already established (`Program<I,O>
+  -> :nil` is the entry contract).
+- `feedback_verbose_is_honest.md` — anti-pattern check. Verbose
+  is honest when verbosity carries info. ExitCode wasn't carrying
+  info beyond panic-cascade's role; not honest verbosity.
+- `project_arc_170_canonical_server_form.md` — canonical form
+  amended to nil-return shape.
+
+### Pass 11 — Drop explicit `client` binding; helpers + ambient + escape-hatch
+
+User direction (2026-05-10):
+
+> *"i think... client ... should come from
+> `(:wat::kernel::StdIoClient)` ?... or... what are we trying to
+> communicate there.. we could just have...
+> `(:wat::kernel::send-stdout! some-forms)` .. the helper writes
+> through the service... we can expose the client via function?...
+> this function when called uses the client for its thread?... we
+> can hide all of this from the user while not rejecting the
+> internals exist?..."*
+
+User confirmation (after orchestrator proposal):
+
+> *"outstanding - phenominal - we're back to ourselves again - the
+> good UX matters - but we cannot ignore the stepping stones to
+> deliver it.. we do the hard work to make the good work easy"*
+
+Probe: what is the explicit `client` binding telling the user?
+- It's a stranger they hold but never look inside
+- The pass-9 architecture has per-thread clients ALREADY managed
+  by the substrate (registered with services at spawn-thread per
+  pass 9)
+- The binding pads the canonical form with state-management the
+  substrate has already done
+
+The four-questions analysis (run on **drop client binding** vs
+**keep explicit client binding**):
+
+| Question | Drop (helpers + ambient) | Keep |
+|---|---|---|
+| Obvious | YES — `(server-loop my-handler)` reads as the loop-with-handler shape; `(StdIn/recv)` reads as "ask stdin for a value" | LESS — `client` is a stranger; what is it? a service? a state machine? a connection? |
+| Simple | YES — server-loop takes one param (handler); ambient does the rest | LESS — extra binding to thread through; loop signature carries client AND handler |
+| Honest | YES — Client TYPE still exists in the substrate (tier 1/2/3 unification); helpers route through it; escape-hatch exposes it for advanced cases. Internals exist; we don't reject them, we just don't surface them by default | YES — but at the cost of forcing every user through the surface |
+| Good UX | YES — typical user never sees Client; advanced user reaches `(StdIn/client)` | LESS — must learn Client even for the canonical case |
+
+**Locks in (the substrate-honest split):**
+
+| Surface | Audience | Shape |
+|---|---|---|
+| `(:wat::kernel::StdIn/recv)` → `Option<I>` | typical user | helper; uses thread-local stdin client |
+| `(:wat::kernel::StdOut/send v)` → `:nil` | typical user | helper; uses thread-local stdout client |
+| `(:wat::runtime::panic! ...)` | typical user | helper; uses thread-local stderr client; blocks; libc::exit |
+| `(:wat::kernel::StdIn/client)` → `Client<I,...>` | advanced (custom dispatch, monkey-patching) | escape hatch; returns thread-local Client |
+| `(:wat::kernel::StdOut/client)` → `Client<...,O>` | advanced | escape hatch |
+| `:wat::kernel::Server` / `Client` types | substrate-internal + tier 1/2/3 unification (Server/run, custom protocols) | exists; tested; documented; unsurfaced in canonical form |
+
+**Naming convention** — Type/verb shape per arc 109 § D'
+precedent (Option/some?, Result/ok?). `:wat::kernel::StdIn` and
+`:wat::kernel::StdOut` are entities (services per pass 9); the
+slash reads as "ask the StdIn entity to do recv."
+
+**The locked-in canonical form (post-pass-11):**
+
+```scheme
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::server-loop my-handler))
+
+(:wat::core::defn :wat::kernel::server-loop<I,O>
+  [handler <- :wat::core::fn(I)->O]
+  -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::StdIn/recv)
+    -> :wat::core::nil
+    ((:wat::core::Some req)
+      (:wat::core::let [resp (handler req)]
+        (:wat::kernel::StdOut/send resp)
+        (:wat::kernel::server-loop handler)))
+    (:wat::core::None
+      :wat::core::nil)))
+```
+
+The canonical form drops to **9 lines from 12**. The user's
+typical 3-line program through the macro reaches:
+
+```scheme
+(:wat::core::load! "some-lib.wat")
+(:wat::kernel::main! :my::handler)
+```
+
+— unchanged from pass 9 user-side (the macro expansion changes
+internally; user form unchanged).
+
+**`main!` macro expansion (post-pass-11):**
+
+```scheme
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [handler handler-expr]
+    (:wat::kernel::server-loop handler)))
+```
+
+**Cascade (what changes from pass 10 lock-in):**
+
+- Canonical form drops the `client` binding
+- `server-loop` signature: `[handler <- :fn(I)->O] -> :nil`
+  (drops `client` param)
+- Mint `:wat::kernel::StdIn/recv` and `:wat::kernel::StdOut/send`
+  helpers as user-facing surface
+- Mint `:wat::kernel::StdIn/client` and `:wat::kernel::StdOut/client`
+  escape-hatch accessors (return per-thread Client from
+  thread-locals)
+- spawn-thread (slice 1g) sets per-thread Client values into
+  thread-locals as part of register-with-services
+- `main!` macro expansion drops the `client` binding
+- Substrate slice 1h adds the helpers + escape hatches to its
+  scope (alongside Server/Client types)
+
+**Stepping-stones reinforcement:** the user's confirmation
+emphasizes the discipline. The good UX (3-line user program
+reaching `main! :my::handler`) is the reward; the substrate
+work is the cost:
+- StdIn/Out/Err services (slice 1f)
+- spawn-thread register-with-services + per-thread Client
+  thread-locals (slice 1g)
+- Server/Client substrate types + helpers + escape hatches +
+  macros (slice 1h)
+- structured-stderr-only + panic-cascade (slice 1i)
+
+Each substrate slice is non-negotiable; the helper surface
+DEPENDS on them. "we do the hard work to make the good work
+easy" — the canonical 9-line form is honest because the
+substrate carries every concern user code drops.
+
+**Connects to memory:**
+- `project_wat_llm_first_design.md` — "one canonical path per
+  task; reject synonym features." Helpers ARE the canonical
+  path; explicit Client is the escape hatch (not a synonym).
+- `feedback_absence_is_signal.md` — the explicit `client`
+  binding masked the per-thread ambient relationship the
+  substrate already manages. Drop the binding; the ambient
+  surface emerges.
+- `feedback_simple_is_uniform_composition.md` — N identical
+  helper calls (StdIn/recv, StdOut/send, etc.) IS simple.
+  Don't conflate change-count with complexity.
+- `project_arc_170_canonical_server_form.md` — canonical form
+  amended to drop client binding + use helpers.
 Then captured in REALIZATIONS as the pass-8 record.

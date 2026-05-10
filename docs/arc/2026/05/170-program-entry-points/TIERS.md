@@ -56,9 +56,15 @@ them directly:
 :wat::runtime::argv           — set-once at process start (ambient value)
 ```
 
-`:user::main` simplifies to `[] -> :wat::kernel::ExitCode`. No
-stdio params; no argv param. Programs reach for ambient runtime
-+ services as needed.
+`:user::main` simplifies to `[] -> :wat::core::nil` (per
+REALIZATIONS pass 10 — **nil IS the exit code**). No stdio
+params; no argv param. Programs reach for ambient runtime +
+services as needed. Substrate maps clean nil-return to
+`libc::exit(0)`; panic-cascade via StdErrService maps to
+`libc::exit(N)`. User code never participates in exit-code
+arithmetic. Same `[] -> :nil` shape as arc 114's
+`Program<I,O>` contract — the entry signature unifies across
+tier 0/1/2/3.
 
 The previous "OS-boundary exception" framing (passing IOReader/
 IOWriter/Vector\<String\> as `:user::main` params) was the
@@ -84,24 +90,29 @@ This is what arc 170 delivers — the polished shape the user
 direction (2026-05-10) recognized as "incredible":
 
 ```scheme
-(:wat::core::defn :user::main [] -> :wat::kernel::ExitCode
-  (:wat::core::let
-    [client (:wat::kernel::StdInService/connect)]
-    (:wat::kernel::server-loop client my-handler)))
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::server-loop my-handler))
 
 (:wat::core::defn :wat::kernel::server-loop<I,O>
-  [client    <- :wat::kernel::Client<I,O>
-   handler   <- :wat::core::fn(I)->O]
-  -> :wat::kernel::ExitCode
-  (:wat::core::match (:wat::kernel::Client/recv client)
-    -> :wat::kernel::ExitCode
+  [handler <- :wat::core::fn(I)->O]
+  -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::StdIn/recv)
+    -> :wat::core::nil
     ((:wat::core::Some req)
       (:wat::core::let [resp (handler req)]
-        (:wat::kernel::StdOutService/send resp)
-        (:wat::kernel::server-loop client handler)))
+        (:wat::kernel::StdOut/send resp)
+        (:wat::kernel::server-loop handler)))
     (:wat::core::None
-      (:wat::kernel::ExitCode 0))))
+      :wat::core::nil)))
 ```
+
+`(:wat::kernel::StdIn/recv)` and `(:wat::kernel::StdOut/send v)`
+are helpers that route through per-thread Client thread-locals
+(set by spawn-thread's register-with-services contract). Users
+typically never instantiate Client directly. Advanced cases
+reach for `(:wat::kernel::StdIn/client)` /
+`(:wat::kernel::StdOut/client)` escape hatches — substrate
+honest about the internals; canonical surface stays clean.
 
 The user's whole client/server program in 12 lines of wat. No
 fork ceremony, no pipe plumbing, no error-routing scaffolding.
@@ -145,20 +156,21 @@ inline fn-form, or factory call:
 For CLI utility programs (one-shot; doesn't run a service loop):
 
 ```scheme
-;; my-script.wat
+;; my-script.wat — last form returns nil; signature satisfied
 (:wat::kernel::run!
-  (:wat::kernel::StdOutService/send "hello world")
-  (:wat::kernel::ExitCode 0))
+  (:wat::kernel::StdOutService/send "hello world"))
 ```
 
 `(:wat::kernel::run! form1 form2 ...)` is variadic — wraps
-forms in an implicit-do; the last form is the ExitCode return.
-Expands to a one-shot `:user::main`.
+forms in an implicit-do; the last form's value flows through.
+If the last form returns nil, signature satisfied; if it
+returns non-nil, freeze diagnostic catches it. Expands to a
+one-shot `:user::main`.
 
 Per `project_wat_llm_first_design.md` ("one canonical path per
 task; reject synonym features"), the macros ARE the canonical
 path. The full form remains for transparency + custom
-deviation. Programs reach for `main!` / `script!` by default.
+deviation. Programs reach for `main!` / `run!` by default.
 
 Memory cross-reference: `project_arc_170_canonical_server_form.md`
 captures the form for compaction-survival per user direction
