@@ -808,7 +808,7 @@ inscribed truth.
 **FM 22 (recovery doc § 6 future): When in design-mode, name
 the question; ask the user; don't pre-commit.**
 
-This conversation was 13 framing passes across two days. Many
+This conversation was 14 framing passes across two days. Many
 of them were the orchestrator's wrong-shape proposals
 corrected by user direction. The pattern: orchestrator drafts;
 user pushes back via the four questions or substrate-doctrine
@@ -1341,3 +1341,103 @@ the lineage: arc 003 built the runway; arc 170 lands on it.
 - `feedback_no_speculation.md` — the orchestrator didn't
   speculate "this should be tail-recursive"; the obvious shape
   emerged. The user verified post-hoc; arc 003 supports it.
+
+### Pass 14 — Wire encoding lexical doctrine (position-aware)
+
+User direction (2026-05-10), surfaced mid-slice-1f-ii authoring:
+
+> *"if yes [transmit macros over the wire].. we need to remove
+> the comma...
+> we have scheme macros now.... we need to swap to clojure
+> macros...
+> we also need to impose our pending rules...
+> type declarations may only be keywords. keywords may not
+> containt underscores. underscores are reserved for swapping
+> from commas when transmitting EDN ...
+> :wat::core::HashMap<wat::core::String_wat::core::i64>
+> further... symbols may not contain commas, however they can
+> use underscores..."*
+
+The pivot surfaced four threads of foundation work that arc 170
+was about to TRANSMIT through the wire without the rules locked:
+
+1. **Lexical class redefinition** — keywords vs symbols allow
+   different chars
+2. **EDN wire encoding** — comma↔underscore swap for round-trip
+3. **Comma→apostrophe in fixed-arity dispatch forms** — swap
+   `:foo,2` to `:foo'2` (symbols/keywords no longer carry
+   comma in source)
+4. **Macro flavor swap (Scheme → Clojure)** — Clojure's
+   `'foo` quote, `` `foo `` syntax-quote with auto-namespace
+   + auto-gensym-on-`#`, `~foo` unquote, `~@foo`
+   unquote-splicing, `gensym`, `&form`/`&env`
+
+**Slicing analysis (per "delivery is the measurement" user
+direction):**
+
+| Thread | Coupling to arc 170 transmission | Disposition |
+|---|---|---|
+| (1)+(2) Lexical + wire | TIGHT — slices 1f-ii / 1f-iii / 1f-iv block | Inline arc 170 as new prerequisite slice 1f-W |
+| (3) Comma→apostrophe dispatch | ZERO direct coupling | Future arc 171 (orthogonal) |
+| (4) Macro flavor swap | LOOSE — arc 170 macros work either flavor | Future arc 172 (orthogonal) |
+
+**Four-questions analysis on the lexical rule (universal "no
+underscores in keywords" vs position-aware "no underscores
+inside `<>`"):**
+
+| Question | A — Universal | B — Position-aware |
+|---|---|---|
+| Obvious | LESS (breaks `:rust::*` Rust-mirror convention OR forces an exemption — two rules dressed as one) | YES (one position-conditioned rule; motivation reads in one sentence) |
+| Simple | LESS (composed of forbid + exemption + 7-keyword sweep + memory amendment) | YES (single condition: "am I inside `<>`?") |
+| Honest | LESS (exemption hides the lie; OR rename `:rust::crossbeam-channel::Sender` lies about Rust mirroring) | YES (no carve-outs; round-trip unambiguous because special chars only have meaning where used) |
+| Good UX | LESS (Rust devs jarred; substrate authors maintain special case) | YES (mirror convention preserved; bracket-syntax has its own char rules) |
+
+**B wins on all four foundational questions. Locked in.**
+
+The rule (locked in 2026-05-10):
+
+- **Inside `<...>` substrings within a keyword body:**
+  - Source: `_` is FORBIDDEN; `,` is the type-arg separator
+  - Wire: `,` ↔ `_` swap (one-to-one at depth ≥ 1)
+- **Outside `<...>`:**
+  - Source: `_` is allowed (keeps `:rust::crossbeam_channel::*`
+    Rust-mirror convention)
+  - Wire: no swap (chars stay verbatim)
+
+The 18 underscore-in-keyword forms in source are ALL outside
+brackets. Zero rename needed. `project_wat_rust_interop.md`
+doctrine preserved verbatim.
+
+**Slicing disposition (final):**
+
+- Arc 170 absorbs (1)+(2) as **new slice 1f-W** (Wire) —
+  prerequisite for slice 1f-ii. Lexer split + position-aware
+  wire encoding + tests. Pure substrate work in `wat-edn`
+  crate + lexer; no codebase sweep.
+- Arc 171 (NEW; future) — comma→apostrophe sweep across
+  fixed-arity dispatch forms. Arc 146 follow-up. Sized at arc
+  171 author time (most grep hits for `:foo,bar` are tuples
+  / parametric type args inside `<>`, NOT dispatch suffixes).
+- Arc 172 (NEW; future) — Scheme→Clojure macro flavor swap.
+  Substantial macro evaluator rewrite. Orthogonal to arc 170;
+  arc 170's `main!`/`run!` macros work in either flavor.
+
+**Cascade on arc 170 slice plan:**
+- Slice 1f-W inserts BEFORE 1f-ii
+- Slice 1f-i (shipped at `630f621`) needs no source revision —
+  it parses incoming EDN; the position-aware un-escape lands
+  in the parser's keyword-handling code which slice 1f-W
+  ships; slice 1f-i inherits unchanged
+- Slices 1f-ii / 1f-iii / 1f-iv proceed unchanged; they get
+  the wire encoding for free from slice 1f-W
+
+**Connects to memory:**
+- `feedback_four_questions.md` — Obvious + Simple + Honest
+  before Good UX; B passed all four; A failed on three
+- `project_wat_rust_interop.md` — `:rust::*` Rust-mirror
+  preserved by position-aware rule
+- `feedback_simple_is_uniform_composition.md` — single
+  position-conditioned rule IS simple
+- `feedback_absence_is_signal.md` — the universal rule SOUNDED
+  cleaner but masked the `:rust::` conflict; the position-
+  aware reading respects the actual structure of the problem

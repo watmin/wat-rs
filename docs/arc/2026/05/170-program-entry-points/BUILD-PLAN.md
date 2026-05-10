@@ -161,6 +161,56 @@ beside the commit.
 ExitCode references + 4-arg signature assumptions. Slice 3
 sweep fixes; slice 1e leaves them as substrate-as-teacher input.
 
+### Slice 1f-W — Wire encoding (lexical rule + EDN comma↔underscore swap) — NEW PREREQUISITE
+
+**Substrate; opus.** Inserted 2026-05-10 per REALIZATIONS pass 14
+(wire encoding lexical doctrine — position-aware) after slice
+1f-ii authoring surfaced that the EDN wire spec wasn't locked.
+
+**Scope:**
+- Lexer split: keyword bodies get a position-aware char rule —
+  inside `<...>` substrings, `_` is FORBIDDEN; outside `<...>`,
+  `_` is allowed (preserves `:rust::*` Rust-mirror convention)
+- Wire writer: `wat_edn::write_keyword` swaps `,` → `_` at
+  depth ≥ 1 (inside `<...>`); outside, chars pass verbatim
+- Wire parser: `wat_edn::lex_keyword` (or post-lex normalize)
+  swaps `_` → `,` at depth ≥ 1; outside, chars pass verbatim
+- Tests: round-trip cases (basic; with `<>`; with `:rust::*_*`
+  outside brackets); rejection case (`_` in source inside `<>`
+  fires lexer error with diagnostic)
+
+**Dependencies:** slice 1e shipped (current branch tip); slice
+1f-i shipped (parser will inherit the un-escape).
+
+**Ship criteria:**
+- Round-trip: `:wat::core::HashMap<wat::core::String,wat::core::i64>`
+  → wire `:wat::core::HashMap<wat::core::String_wat::core::i64>`
+  → parsed back to source form (keyword equality)
+- `:rust::crossbeam_channel::Sender<T>` round-trips verbatim
+  (underscore preserved outside brackets; `<T>` has no comma
+  to swap)
+- Source-position `_` inside `<>` rejected with diagnostic
+- All 18 existing underscore-in-keyword forms still parse
+  (none are inside `<>`)
+- Slice 1f-i tests still green (parser un-escape doesn't break
+  existing decode path)
+- Workspace cargo test fail count delta ~0 from post-slice-1f-i
+  baseline (parallel substrate change; existing test fixtures
+  don't use `<>` with commas in keyword positions)
+
+**Predicted runtime:** 60-90 min opus.
+
+**Expected workspace impact:** small — purely additive wire
+encoding + lexer split + tests. Existing workspace fail count
+unchanged (855 pre-1f-W; ±5 post-1f-W).
+
+**Why this exists:** slice 1f-ii would write EDN with commas in
+keyword bodies (parametric types like `HashMap<K,V>`). Without
+the wire encoding swap, the receiving side's EDN parser would
+treat commas as whitespace (per EDN spec), corrupting the
+keyword. Slice 1f-W locks the protocol BEFORE transmission
+slices send anything.
+
 ### Slice 1f — Three substrate services (StdIn / StdOut / StdErr) — SPLIT
 
 **Per BUILD-PLAN §5 R1:** the original combined slice was
@@ -173,7 +223,8 @@ proven in 1f-i propagates to 1f-ii + 1f-iii.
 **Atomic commit per stepping stone.** SCORE per stepping stone.
 
 **Dependencies:** slice 1e shipped (ambient runtime exists for
-services to boot against).
+services to boot against). **Slice 1f-W** must ship BEFORE 1f-ii
+(wire encoding locks the protocol; transmission slices presume it).
 
 #### Slice 1f-i — `:wat::kernel::StdInService` + per-thread registration API
 
@@ -466,6 +517,62 @@ opus orchestration for the testing-lib rebuild.
 
 **Predicted runtime:** 60-120 min opus destructive + 30-90 min
 sonnet sweep = ~90-210 min total.
+
+### Orthogonal future arcs (NOT arc 170 scope; tracked here for visibility)
+
+Per REALIZATIONS pass 14, two threads of substrate-foundation
+work surfaced during arc 170 but are orthogonal to arc 170's
+transmission services. They get their own arcs.
+
+#### Arc 171 — Comma → apostrophe in fixed-arity dispatch forms
+
+**Scope:** sweep `:foo,2` → `:foo'2`, `:foo,i64-i64` →
+`:foo'i64'i64` etc. across the substrate's dispatch registry
+(arc 146/148) + every callsite that uses fixed-arity
+discrimination.
+
+**Why orthogonal to arc 170:** arc 170 doesn't add fixed-arity
+dispatch entries. The lexical rule from slice 1f-W (forbids `_`
+inside `<>`) doesn't conflict with comma-suffix dispatch forms
+because the comma is OUTSIDE any `<>`. Arc 171 happens to
+share the "no commas in keyword bodies" theme but is a
+separate sweep.
+
+**Sizing:** TBD at arc 171 author time. Most grep hits for
+`:foo,bar` outside `<>` are tuple-args (`:(A,B,C)`) and
+parametric type args inside `<>` (`<K,V>`); the actual
+comma-suffix dispatch forms need careful counting.
+
+**Dependencies:** arc 170 slice 5 (arc 170 should close
+cleanly first; sweep arc 171 against the post-arc-170 state).
+
+#### Arc 172 — Macro flavor swap (Scheme → Clojure)
+
+**Scope:** replace defmacro + quasiquote/unquote infrastructure
+with Clojure semantics:
+- `'foo` quote (not `(quote foo)`)
+- `` `foo `` syntax-quote with auto-namespace-qualify and
+  auto-gensym-on-`#` suffix
+- `~foo` unquote
+- `~@foo` unquote-splicing
+- `gensym` for hygiene
+- Implicit `&form` and `&env` inside defmacro bodies
+- Migrate all existing wat-side macros (Console, harness,
+  defn, etc.) to Clojure flavor
+
+**Why orthogonal to arc 170:** arc 170's `main!` / `run!`
+helper macros work either flavor. Slice 1h (Server/Client +
+helpers + macros) ships them in whichever flavor is current
+when 1h spawns; arc 172 then migrates them along with all
+other macros.
+
+**Sizing:** LARGE. Macro evaluator rewrite + migration of all
+defmacro callsites. Multi-slice arc.
+
+**Dependencies:** arc 170 slice 5 (close arc 170 first); arc
+172 then sweeps + migrates against the closed arc-170 state.
+
+---
 
 ### Slice 5 — Closure paperwork (orchestrator)
 
