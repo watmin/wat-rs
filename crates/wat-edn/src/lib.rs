@@ -127,6 +127,30 @@ pub fn parse_owned(input: &str) -> Result<OwnedValue> {
     parse(input).map(Value::into_owned)
 }
 
+/// Parse a single top-level EDN form in **wire-decode mode**: keyword
+/// bodies have `_` at bracket depth ≥ 1 swapped to `,` BEFORE the
+/// source-validation rejection fires. Mirror of [`write`]'s `,` →
+/// `_` swap on the same depth condition.
+///
+/// Use this for protocol-level reads where the bytes were emitted by
+/// [`write`] (round-trip property: `parse_wire(write(k)) == k` for
+/// any keyword `k`, including parametric forms with commas at any
+/// depth).
+///
+/// In **source mode** (default [`parse`]), the same byte sequence
+/// `:Foo<a_b>` errors with `InvalidKeyword` because `_` at depth ≥ 1
+/// is reserved as the wire-escape; source authors write `:Foo<a,b>`
+/// directly. See arc 170 REALIZATIONS-SLICE-1.md pass 14.
+pub fn parse_wire(input: &str) -> Result<Value<'_>> {
+    Parser::new_wire(input).parse_top()
+}
+
+/// Parse in wire-decode mode + materialize to [`OwnedValue`]. Combines
+/// [`parse_wire`] with [`Value::into_owned`].
+pub fn parse_wire_owned(input: &str) -> Result<OwnedValue> {
+    parse_wire(input).map(Value::into_owned)
+}
+
 /// Parse all top-level EDN forms from a string. Whitespace and
 /// comments between forms are skipped.
 ///

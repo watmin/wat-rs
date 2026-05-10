@@ -38,6 +38,17 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Construct a wire-decode-mode parser. The underlying lexer
+    /// swaps `_` → `,` at bracket depth ≥ 1 inside keyword bodies
+    /// BEFORE the source-validation rejection fires. See arc 170
+    /// slice 1f-W and [`crate::parse_wire`].
+    pub fn new_wire(input: &'a str) -> Self {
+        Self {
+            lexer: Lexer::new_wire(input),
+            peeked: None,
+        }
+    }
+
     /// Parse exactly one top-level form, then expect EOF.
     pub fn parse_top(mut self) -> Result<Value<'a>> {
         let v = self.parse_value()?;
@@ -122,8 +133,14 @@ impl<'a> Parser<'a> {
             // here — Value::String just wraps the existing Cow.
             Token::String(c) => Ok(Value::String(c)),
             Token::Char(c) => Ok(Value::Char(c)),
-            Token::Keyword(s) => {
-                let (namespace, name) = parse_namespaced(s, BodyKind::Keyword)
+            Token::Keyword { body, body_start } => {
+                // body_start is captured by the lexer at lex time
+                // (the parser may have peeked past the token, so
+                // self.lexer.pos() is unreliable for span). Used for
+                // arc 170 slice 1f-W "underscore inside <...>"
+                // diagnostic span.
+                reject_underscore_in_brackets(&body, body_start)?;
+                let (namespace, name) = parse_namespaced(&body, BodyKind::Keyword)
                     .map_err(|kind| Error::at(pos, kind))?;
                 Ok(Value::Keyword(Keyword::from_parts_unchecked(namespace, name)))
             }
@@ -381,6 +398,44 @@ fn parse_namespaced(
         validate_first_char(body).map_err(|m| wrap(format!("{}: {}", body, m)))?;
         Ok((None, body))
     }
+}
+
+/// Source-validation: reject `_` inside `<...>` in a keyword body.
+///
+/// Per arc 170 slice 1f-W (REALIZATIONS-SLICE-1.md pass 14, locked
+/// 2026-05-10), the position-aware rule is:
+///
+/// - At bracket depth ≥ 1 within a keyword body, source `_` is
+///   FORBIDDEN — it's reserved as the wire-escape for `,` (the
+///   type-arg separator).
+/// - The wire reader (constructed via [`Lexer::new_wire`]) decodes
+///   `_` → `,` BEFORE this rejection check fires; in wire mode the
+///   lexer-emitted body has only `,` at depth ≥ 1, never `_`.
+/// - At depth 0, `_` remains a legal body char (preserves the
+///   `:rust::*` Rust-mirror naming convention).
+///
+/// Span points at the offending `_` byte: `body_start + offset`.
+fn reject_underscore_in_brackets(body: &str, body_start: usize) -> Result<()> {
+    let mut depth: u32 = 0;
+    for (i, b) in body.bytes().enumerate() {
+        if depth > 0 && b == b'_' {
+            return Err(Error::at(
+                body_start + i,
+                ErrorKind::InvalidKeyword(
+                    "underscore in keyword body inside `<...>` is reserved \
+                     for wire-escape of comma; use `,` as the type-arg \
+                     separator in source (arc 170 slice 1f-W)"
+                        .into(),
+                ),
+            ));
+        }
+        if b == b'<' {
+            depth = depth.saturating_add(1);
+        } else if b == b'>' {
+            depth = depth.saturating_sub(1);
+        }
+    }
+    Ok(())
 }
 
 /// Spec: "A UUID. The tagged element is a canonical UUID string

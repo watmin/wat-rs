@@ -1,5 +1,21 @@
 //! Single-pass EDN writer. `write_to` appends to an existing buffer
 //! (preferred for large outputs); `write` returns a fresh String.
+//!
+//! # Position-aware keyword body wire encoding (arc 170 slice 1f-W)
+//!
+//! When writing a keyword body, the writer tracks bracket depth (`<`
+//! increments, `>` decrements). At depth ≥ 1 (inside a parametric
+//! type-arg list like `:Foo<A,B>`), every `,` is emitted as `_` —
+//! the wire-escape rule from REALIZATIONS-SLICE-1.md pass 14
+//! (locked 2026-05-10).
+//!
+//! Mirror of [`super::lexer::Lexer::new_wire`]'s `_` → `,` decode.
+//! Round-trip property: `parse_wire(write(k)) == k` for any keyword
+//! `k`, including parametric forms with commas at any depth.
+//!
+//! Outside `<...>` (depth 0), keyword body chars pass verbatim:
+//! `_` stays `_` (preserves `:rust::*` Rust-mirror convention; no
+//! `,` is legal at depth 0 because EDN treats `,` as whitespace).
 
 use crate::escapes::{char_to_name, encode_string_escape};
 use crate::value::{Keyword, Symbol, Tag, Value};
@@ -144,10 +160,39 @@ fn write_symbol(s: &Symbol, out: &mut String) {
 fn write_keyword(k: &Keyword, out: &mut String) {
     out.push(':');
     if let Some(ns) = k.namespace() {
-        out.push_str(ns);
+        write_keyword_body(ns, out);
         out.push('/');
     }
-    out.push_str(k.name());
+    write_keyword_body(k.name(), out);
+}
+
+/// Write a keyword namespace or name segment with the position-aware
+/// `,` → `_` swap at bracket depth ≥ 1. See module rustdoc + arc 170
+/// REALIZATIONS-SLICE-1.md pass 14.
+///
+/// Walks chars once: `<` increments depth, `>` decrements, `,` at
+/// depth ≥ 1 emits `_`. Hot-path-friendly: no allocation, single
+/// pass over the segment bytes.
+#[inline]
+fn write_keyword_body(seg: &str, out: &mut String) {
+    let mut depth: u32 = 0;
+    for b in seg.bytes() {
+        if depth > 0 && b == b',' {
+            out.push('_');
+        } else {
+            // `seg` is &str (valid UTF-8); bytes < 0x80 are ASCII —
+            // and the only legal keyword body bytes are ASCII per
+            // is_symbol_continue + the depth-aware comma rule.
+            // Multi-byte UTF-8 is rejected by the lexer before
+            // construction, so push as ASCII char is safe.
+            out.push(b as char);
+        }
+        if b == b'<' {
+            depth = depth.saturating_add(1);
+        } else if b == b'>' {
+            depth = depth.saturating_sub(1);
+        }
+    }
 }
 
 #[inline]

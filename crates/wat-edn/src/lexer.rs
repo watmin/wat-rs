@@ -3,6 +3,34 @@
 //! Single-pass over the input. Tokens borrow string bodies from the
 //! input where possible; only escape sequences in strings force
 //! allocation. Comma is whitespace per spec.
+//!
+//! # Position-aware keyword body lexing (arc 170 slice 1f-W)
+//!
+//! Inside a keyword body, the substrate tracks bracket depth (`<`
+//! increments, `>` decrements). At depth ≥ 1 (i.e. inside a
+//! parametric type argument list like `:Foo<A,B>`), the lexer:
+//!
+//! - **accepts `,` as a body-continue char**, overriding the EDN-spec
+//!   "comma is whitespace" rule for this scope only — type-arg lists
+//!   need a separator that is part of the keyword token, not a token
+//!   terminator.
+//! - **rejects `_`** in source (via post-lex validation; see
+//!   [`super::parser`]) — the underscore is reserved as the wire
+//!   escape for `,` (see [`super::writer`]'s `write_keyword`).
+//!   Source authors write `,` as the type-arg separator.
+//!
+//! Outside `<...>` (depth 0), keyword bodies are unchanged: `_` is
+//! allowed (preserves the `:rust::*` Rust-mirror convention), and
+//! `,` is EDN whitespace as the spec requires.
+//!
+//! When the lexer is constructed in **wire-decode mode** (see
+//! [`Lexer::new_wire`]), the captured keyword body has every `_`
+//! at depth ≥ 1 swapped to `,` BEFORE the post-lex validation
+//! check fires. This is the parser side of the wire encoding —
+//! mirror of [`super::writer::write_keyword`].
+//!
+//! Cross-ref: arc 170 REALIZATIONS-SLICE-1.md pass 14 (full
+//! four-questions analysis locking the position-aware rule).
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::escapes::{
@@ -25,8 +53,19 @@ pub enum Token<'a> {
     BigDec(&'a str),
     String(Cow<'a, str>),
     Char(char),
-    /// Keyword body (no leading `:`).
-    Keyword(&'a str),
+    /// Keyword body (no leading `:`) plus its start-of-body byte
+    /// offset in the original input (the `:` is at `body_start - 1`).
+    ///
+    /// Borrowed `Cow<'a, str>` is the fast path (zero-copy slice into
+    /// `input`). Owned only when [`Lexer::new_wire`] mode swaps `_`
+    /// at bracket depth ≥ 1 to `,` per arc 170 slice 1f-W's
+    /// wire-decode rule (see module rustdoc).
+    ///
+    /// `body_start` lets the parser-layer rejection of `_` inside
+    /// `<...>` (arc 170 slice 1f-W) compute a span that points at
+    /// the offending byte even when the parser has already peeked
+    /// past the token.
+    Keyword { body: Cow<'a, str>, body_start: usize },
     /// Symbol body.
     Symbol(&'a str),
     /// Tag body (no leading `#`).
@@ -49,11 +88,34 @@ pub enum Token<'a> {
 pub struct Lexer<'a> {
     input: &'a [u8],
     pos: usize,
+    /// When true, keyword bodies are wire-decoded: `_` at bracket
+    /// depth ≥ 1 inside the body is swapped to `,` BEFORE post-lex
+    /// validation. Default `false` (source mode) — `_` at depth ≥ 1
+    /// surfaces to the parser as a rejectable invalid char per arc
+    /// 170 slice 1f-W. See module rustdoc.
+    wire_decode: bool,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
-        Self { input: input.as_bytes(), pos: 0 }
+        Self {
+            input: input.as_bytes(),
+            pos: 0,
+            wire_decode: false,
+        }
+    }
+
+    /// Construct a wire-decode-mode lexer. Identical to [`Self::new`]
+    /// except keyword bodies have `_` at bracket depth ≥ 1 swapped to
+    /// `,` BEFORE the source-validation rejection fires. Mirror of
+    /// [`super::writer::write_keyword`]'s `,` → `_` swap. See module
+    /// rustdoc + arc 170 REALIZATIONS-SLICE-1.md pass 14.
+    pub fn new_wire(input: &'a str) -> Self {
+        Self {
+            input: input.as_bytes(),
+            pos: 0,
+            wire_decode: true,
+        }
     }
 
     pub fn pos(&self) -> usize {
@@ -303,21 +365,59 @@ impl<'a> Lexer<'a> {
             ));
         }
 
+        // Track bracket depth. At depth ≥ 1 (inside a parametric
+        // type-arg list like `:Foo<A,B>`), `,` is a body-continue
+        // char (overrides EDN whitespace rule for this scope only)
+        // and `_` is captured raw — its rejection (source mode) or
+        // wire-decode swap (wire mode) happens after the loop.
+        // See module rustdoc + arc 170 slice 1f-W.
+        let mut depth: u32 = 0;
+        let mut owned: Option<String> = None;
         while let Some(b) = self.peek() {
-            if is_symbol_continue(b) {
-                self.pos += 1;
-            } else {
+            let in_brackets = depth > 0;
+            let body_continue = is_symbol_continue(b) || (in_brackets && b == b',');
+            if !body_continue {
                 break;
             }
+            // Wire-decode swap: at depth ≥ 1, `_` → `,`. We materialize
+            // an owned String the first time we hit the swap; before
+            // that, the body stays in the borrowed-slice fast path.
+            if self.wire_decode && in_brackets && b == b'_' {
+                if owned.is_none() {
+                    let prefix = std::str::from_utf8(&self.input[body_start..self.pos])
+                        .map_err(|e| Error::at(body_start, ErrorKind::Utf8(e.to_string())))?;
+                    owned = Some(String::from(prefix));
+                }
+                owned.as_mut().unwrap().push(',');
+            } else if let Some(buf) = owned.as_mut() {
+                buf.push(b as char);
+            }
+            // Track depth AFTER we've classified the byte so the
+            // bracket itself counts as depth-0 / depth-1 boundary,
+            // not depth-1 / depth-2: `:Foo<...>` opens at the `<`
+            // (depth becomes 1 for chars after it) and closes at
+            // the `>` (still in the body, but subsequent chars are
+            // depth 0). Matches the writer's symmetric tracking.
+            if b == b'<' {
+                depth = depth.saturating_add(1);
+            } else if b == b'>' {
+                depth = depth.saturating_sub(1);
+            }
+            self.pos += 1;
         }
 
         if self.pos == body_start {
             return Err(Error::at(start, ErrorKind::InvalidKeyword("empty".into())));
         }
 
-        let body = std::str::from_utf8(&self.input[body_start..self.pos])
-            .map_err(|e| Error::at(body_start, ErrorKind::Utf8(e.to_string())))?;
-        Ok(Token::Keyword(body))
+        match owned {
+            Some(s) => Ok(Token::Keyword { body: Cow::Owned(s), body_start }),
+            None => {
+                let body = std::str::from_utf8(&self.input[body_start..self.pos])
+                    .map_err(|e| Error::at(body_start, ErrorKind::Utf8(e.to_string())))?;
+                Ok(Token::Keyword { body: Cow::Borrowed(body), body_start })
+            }
+        }
     }
 
     // ─── Symbols ────────────────────────────────────────────────
@@ -593,8 +693,14 @@ mod tests {
 
     #[test]
     fn keywords_and_symbols() {
-        assert_eq!(lex_all(":foo"), vec![Token::Keyword("foo")]);
-        assert_eq!(lex_all(":ns/foo"), vec![Token::Keyword("ns/foo")]);
+        assert_eq!(
+            lex_all(":foo"),
+            vec![Token::Keyword { body: Cow::Borrowed("foo"), body_start: 1 }]
+        );
+        assert_eq!(
+            lex_all(":ns/foo"),
+            vec![Token::Keyword { body: Cow::Borrowed("ns/foo"), body_start: 1 }]
+        );
         assert_eq!(lex_all("foo"), vec![Token::Symbol("foo")]);
         assert_eq!(lex_all("ns/foo"), vec![Token::Symbol("ns/foo")]);
         assert_eq!(lex_all("foo.bar/baz"), vec![Token::Symbol("foo.bar/baz")]);
