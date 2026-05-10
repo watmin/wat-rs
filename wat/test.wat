@@ -312,11 +312,7 @@
        (:wat::core::forms
          ,@prelude
          (:wat::core::define
-           (:user::main
-             (stdin  :wat::io::IOReader)
-             (stdout :wat::io::IOWriter)
-             (stderr :wat::io::IOWriter)
-             -> :wat::core::nil)
+           (:user::main -> :wat::core::nil)
            ,body))
        (:wat::core::Vector :wat::core::String)
        :wat::core::None)))
@@ -343,11 +339,7 @@
        (:wat::core::forms
          ,@prelude
          (:wat::core::define
-           (:user::main
-             (stdin  :wat::io::IOReader)
-             (stdout :wat::io::IOWriter)
-             (stderr :wat::io::IOWriter)
-             -> :wat::core::nil)
+           (:user::main -> :wat::core::nil)
            ,body))
        (:wat::core::Vector :wat::core::String)
        :wat::core::None)))
