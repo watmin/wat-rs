@@ -12,10 +12,16 @@ Mint the substrate-as-teacher walkers that fire on legacy
 3-arg-main signature + legacy fork-program / spawn-program verb
 usage so slice 3 sweep can mechanically migrate consumers.
 
-This slice ships a workspace where `cargo test` is GREEN with the
-NEW contract enforced AND legacy shapes still freeze (for the
-sweep window) — substrate-as-teacher discipline per arcs 167 / 168
-/ 169 precedent.
+**This slice ships a RED workspace.** Per arc 168 precedent
+(`docs/arc/2026/05/168-let-flat-shape/BRIEF-SLICE-1.md` lines
+255-261), the substrate edits + walkers immediately break legacy
+user-source callsites; that broken-test stream is slice 3's input.
+The walker fires fatal at the `freeze.rs:599-607` user-source
+pre-pass (`validate_bare_legacy_primitives`); stdlib paths
+(`register_stdlib_*` — `wat/std/sandbox.wat`, `wat/std/hermetic.wat`)
+do NOT go through the user pre-pass, so they keep working through
+the existing legacy dispatch arms. Slice 4 retires walker bodies +
+legacy dispatch arms together.
 
 ## Slice 1 context (just shipped)
 
@@ -162,32 +168,32 @@ evaluates the closure-extracted entry directly. `invoke_user_main`
 stays for the CLI path; child-process invocation needs a sibling
 `invoke_program_entry(world, entry_name, args)` helper.
 
-### 4. Rename `eval_kernel_fork_program*` arms
+### 4. Add `:wat::kernel::spawn-process` dispatch arm (legacy arms unchanged)
 
-Pre-arc-170:
-- `:wat::kernel::fork-program` → `eval_kernel_fork_program`
-- `:wat::kernel::fork-program-ast` → `eval_kernel_fork_program_ast`
+Per arc 168 precedent: legacy dispatch arms stay AS-IS during the
+sweep window. The walker fires at user-source pre-pass; user code
+calling `(:wat::kernel::fork-program ...)` or `(:wat::kernel::spawn-program ...)`
+never reaches the dispatch arm because freeze fails first. Stdlib
+(`wat/std/sandbox.wat`, `wat/std/hermetic.wat`) continues to call
+the legacy verbs and the legacy arms continue to handle them.
 
-Post-arc-170:
-- `:wat::kernel::spawn-process` → `eval_kernel_spawn_process` (the
-  new one; takes fn)
+So slice 2's runtime work in `src/runtime.rs:3530-3540`:
 
-The old `fork-program*` verbs stay live during the sweep window
-(slice 3) but the dispatch arms route to a thin wrapper that fires
-the `BareLegacyForkProgram` walker, then falls through to the
-existing implementation. Same pattern as arcs 167/168/169.
+- ADD: `":wat::kernel::spawn-process" => crate::spawn_process::eval_kernel_spawn_process(...)`
+- KEEP UNCHANGED: existing arms for `fork-program`, `fork-program-ast`,
+  `spawn-program`, `spawn-program-ast`
+- Slice 4 deletes the four legacy arms together with the walker bodies.
 
-### 5. Delete `eval_kernel_spawn_program*` arms (Q1 settled)
+### 5. Walkers fire on legacy verbs (no dispatch-arm changes)
 
-`:wat::kernel::spawn-program` and `:wat::kernel::spawn-program-ast`
-get the deletion treatment. Walker `BareLegacySpawnProgram` fires
-with diagnostic naming a migration target (spawn-process for fork
-semantics; spawn-thread for parent's-world semantics — guide is a
-pointer, not a decision).
+`BareLegacyForkProgram` and `BareLegacySpawnProgram` walker variants
+fire on user-source callsites of `:wat::kernel::fork-program{,_ast}`
+and `:wat::kernel::spawn-program{,_ast}` respectively. Diagnostics
+name `:wat::kernel::spawn-process` as the replacement (for fork
+semantics) and surface `:wat::kernel::spawn-thread` (for parent's-
+world semantics) as the alternative idiom.
 
-`src/spawn.rs` may delete entirely; the mini-TCP discipline guidance
-in its module docstring relocates to wherever the surviving verbs
-live (probably DESIGN-doc-level).
+`src/spawn.rs` stays during the sweep window. Slice 4 retires it.
 
 ### 6. wat-cli argv passthrough
 
