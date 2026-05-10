@@ -1771,3 +1771,121 @@ verbatim at every decision point:
 - `project_signal_cascade.md` — the control-pipe is wat-substrate's
   POSIX-signal analog (side-channel for service lifecycle distinct
   from data flow)
+
+### Pass 17 — wat-cli is the OS boundary, not the orchestrator; hermetic is tier-2 by definition
+
+User direction (2026-05-10) corrected two responsibility
+ambiguities that surfaced AFTER pass 16 settled. Both are
+clarifications, not protocol changes — the architecture didn't
+shift; the layer attribution did.
+
+**Clarification 1: wat-cli's responsibility scope.**
+
+> *"i think we have identified that wat-cli is overstepping
+> responsibilities... i think the thread management is in the
+> vm - not the cli"*
+
+Pass 16's BUILD-PLAN slice 1f-δ assigned service spawning,
+ProgramHandle ownership, the active-thread ledger, and the
+scope-drop cascade to wat-cli. That conflated layers:
+
+- **wat-cli is the OS boundary** — fork the entry program (arc
+  104), proxy stdio between real fds and child pipes (arc 104),
+  waitpid + propagate exit code (arc 105), forward signals via
+  kill(2) (arc 104d). That's it.
+- **The VM (runtime) is the evaluator + thread manager** — owns
+  the symbol table + frozen world, evaluates user programs,
+  manages spawn-thread cycle, hosts the substrate primitives,
+  owns service spawning + active-thread ledger + scope-drop
+  cascade.
+
+wat-cli should know nothing about services. It just calls into
+the runtime to evaluate a program; the runtime handles
+everything in between. This matches arc 104's discipline
+("wat-cli is the containment surface; the runtime is the
+evaluator").
+
+**Implications for slice 1f:**
+- Slice 1f-γ's active-handle ledger lives in `src/runtime.rs`,
+  NOT "in src/runtime.rs or wat-cli" (BUILD-PLAN amended).
+- Slice 1f-δ reshapes from "wat-cli boot integration" to
+  "Runtime boot integration." Service spawning +
+  ProgramHandles + scope-drop cascade move into the runtime's
+  program-entry path. wat-cli changes are minimal (≤ 5 lines;
+  may be zero).
+
+This is what the hermetic-test inheritance requires anyway:
+every fork child (production wat-cli OR hermetic test)
+instantiates a runtime; the runtime's boot path is THE place
+service infrastructure lives.
+
+**Clarification 2: hermetic IS tier 2 — already and necessarily.**
+
+> *"hermetic /must/ be in its own process - that's entire part
+> of hermetic.. zero shared memory with the thing who requests
+> hermetic evaluation... when we expose more and more rust
+> interop, settings may exist in a global rust state that
+> pollutes our runtime - heremetic makes this impossible"*
+
+Per DESIGN.md TIERS framing: *"Hermeticness is the ambient
+property of tier ≥ 2 — what the OS-process boundary inherently
+provides (memory + signal + global-state + runtime-sealing
+isolation, all at once because they're all manifestations of
+the same boundary)."*
+
+Verified on disk:
+- `:wat::test::deftest-hermetic` macro expands to
+  `:wat::test::run-hermetic body`
+- `:wat::test::run-hermetic` (Layer 1 in `wat/test.wat`) routes
+  through `:wat::kernel::spawn-process` (per `src/check.rs:14171`
+  — *"run-hermetic routes through `(:wat::kernel::spawn-process
+  fn)`"*)
+- `:wat::kernel::spawn-process` is the substrate's tier-2 fork
+  primitive (arc 104b + 105)
+- Arc 124's INSCRIPTION confirms: *"Zero runner changes. The
+  wat-side macros encode hermetic vs in-process via the choice
+  of `run-sandboxed-ast` vs `run-sandboxed-hermetic-ast` in the
+  body's expansion."*
+
+Each hermetic deftest IS a separate OS process. Memory + rust
+globals + signals zero-shared with the parent. The fork happens
+before the child re-instantiates the runtime, so any rust
+statics live only in the parent + are absent (or freshly
+initialized) in the child.
+
+**This is what makes hermetic actually hermetic.** As
+`:rust::*` exposes more crates with statics / `OnceLock`
+registries / `lazy_static` / `thread_local!`, in-process
+isolation would be theatre. The fork is the only honest answer.
+
+**Implication for arc 170 wrap state:**
+
+| Layer | Hermetic guarantee |
+|---|---|
+| Production `wat run script.wat` | Tier 2 (own forked OS process per arc 104) |
+| `deftest-hermetic` cargo test | **Tier 2 (own forked OS process)** — verified via run-hermetic → spawn-process |
+| `deftest` cargo test (non-hermetic) | Tier 1 (shared cargo test process; explicit author choice — for tests that don't need isolation) |
+
+Hermetic tests inherit production parity in the fork child:
+own runtime, own services, own thread pool, full
+println/eprintln/readln. The runtime's boot path (slice
+1f-δ-revised) IS the wiring that delivers this — the fork
+child runs the same boot path; it gets the same services
+automatically.
+
+**Connects to memory:**
+
+- `feedback_zero_mutex.md` — the zero-Mutex architecture
+  this slice IS
+- `feedback_diagnose_before_spec.md` — both clarifications
+  followed the discipline of reading actual docs (DESIGN.md
+  TIERS framing; arc 124 INSCRIPTION; `src/check.rs:14171`)
+  before drafting; my earlier framing was reasoning from
+  scratch instead of doctrine
+- `feedback_substrate_already_typed.md` — the hermetic
+  infrastructure was already in place; my framing inverted
+  what the substrate already provides
+- `feedback_compaction_protocols.md` — the user invoked the
+  recovery doc twice this session because compaction-amnesia
+  was surfacing in this same shape (reasoning from scratch
+  instead of from doctrine)

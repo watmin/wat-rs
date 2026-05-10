@@ -386,9 +386,11 @@ test cases).
 **Substrate; opus.**
 
 **Scope:**
-- Active-handle ledger in Rust (`src/runtime.rs` or wat-cli) —
-  tracks per-thread `ThreadIO` channels (req-tx for
-  stdout/stderr, ack-rx pair, req-tx + reply-rx for stdin)
+- Active-handle ledger in Rust (`src/runtime.rs`) — tracks
+  per-thread `ThreadIO` channels (req-tx for stdout/stderr,
+  ack-rx pair, req-tx + reply-rx for stdin). The ledger lives
+  in the runtime; wat-cli is the OS boundary and knows
+  nothing about services (per pass 17 wat-cli/VM division).
 - `:wat::kernel::spawn-thread` substrate primitive:
   - Creates per-thread channel pairs (one set per service)
   - Emits `Signal::add` to each service's control-pipe; awaits
@@ -417,39 +419,74 @@ register-with-services).
 
 **Predicted runtime:** 120-180 min opus.
 
-#### Slice 1f-δ — wat-cli boot integration + scope-drop shutdown cascade
+#### Slice 1f-δ — Runtime boot integration + scope-drop shutdown cascade
 
-**Substrate; opus.**
+**Substrate; opus.** **Reshaped per pass 17 (wat-cli is the OS
+boundary; thread management is the VM's job).**
 
 **Scope:**
-- wat-cli's `run` function spawns the three services BEFORE
-  invoking `:user::main`; holds their ProgramHandles in outer
-  scope; holds the control-pipe txs + per-thread channels in
-  inner scope
-- main thread's spawn-thread cycle (registers main as thread-0
-  via Signal::add to all three services)
-- Invoke `:user::main`; user code uses println/eprintln/readln
+
+Move the boot orchestration into the runtime's program-entry
+path. The runtime owns service ownership entirely. wat-cli stays
+thin per arcs 104 + 105 — fork + stdio proxy + waitpid + signal
+forwarding. wat-cli does NOT know services exist.
+
+The runtime's program-entry function (likely
+`invoke_user_main` in `src/freeze.rs` or a successor):
+- Spawns the three services as part of startup; holds their
+  ProgramHandles in outer scope; holds control-pipe txs +
+  per-thread channels in inner scope (per SERVICE-PROGRAMS.md
+  "the lockstep")
+- Registers main as thread-0 via `Signal::add` to all three
+  services
+- Invokes `:user::main`; user code uses println/eprintln/readln
   freely
-- After main returns: runtime reaps main thread (Signal::remove
-  to each service); when all spawn-thread'd descendants reaped
-  → all per-thread Senders drop → control-pipe Senders drop →
-  services see Disconnected → exit cleanly
-- wat-cli joins each service's ProgramHandle
-- Substrate's epilogue (slice 1i): emits `:wat::core::nil` to
-  fd 1 + close + libc::exit(0)
-- Integration test: wat-cli runs a one-shot script
-  (`(println "hello")`); verifies hello on stdout, then exit 0
+- After main returns: runtime reaps main thread (`Signal::remove`
+  to each service); thread descendants spawned via spawn-thread
+  (slice 1f-γ) handle their own register/reap cycles
+- When all per-thread Senders drop → control-pipe Senders drop
+  → services see Disconnected → exit via scope-drop cleanly
+- Runtime joins each service's ProgramHandle
+- Returns the program's exit value (or substrate epilogue
+  `:wat::core::nil` per slice 1i if defined later)
+
+**Hermetic test inheritance** (free win): because the runtime
+is the orchestrator, every fork child (production wat-cli
+script OR `:wat::test::run-hermetic` deftest) instantiates a
+fresh runtime → the runtime's boot path spawns its own services
++ manages its own thread pool. Hermetic tests inherit
+production parity automatically. No special test-harness wiring
+required for hermetic deftests — they just work.
+
+**wat-cli changes:** minimal. wat-cli already invokes the
+runtime per arcs 104 + 105; the runtime now does more BEFORE
+and AFTER `:user::main`. wat-cli may need zero edits, or a
+one-line entry-point rename if the new runtime API supersedes
+the existing `invoke_user_main` shape.
+
+**Integration test:** wat-cli runs a one-shot script
+(`(println "hello")`); verifies hello on stdout, then exit 0.
+Same end-to-end as the prior framing; what moves is WHERE the
+service-spawn code lives, not what the integration test
+exercises.
 
 **Dependencies:** slices 1f-α + 1f-β + 1f-γ shipped.
 
 **Ship criteria:**
-- wat-cli boots services successfully
+- Runtime boot path spawns services successfully
 - User's main runs with helpers populated
 - Scope-drop shutdown cascade fires correctly on graceful exit
+- Hermetic-test fork children boot the same path; their
+  println/eprintln/readln work without test-harness setup
 - Panic path bypasses the cascade (libc::exit fires from
   StdErrService directly per pass 9 doctrine)
+- wat-cli changes are MINIMAL (≤ 5 lines); the substrate work
+  lives in the runtime
 
-**Predicted runtime:** 60-90 min opus.
+**Predicted runtime:** 60-90 min opus. The runtime-side work is
+substantial but mostly composes existing primitives
+(spawn-program, scope-drop, the ledger from 1f-γ); the
+wat-cli-side work is near-zero.
 
 #### Slice 1f-ε — Console retirement + consumer sweep
 
