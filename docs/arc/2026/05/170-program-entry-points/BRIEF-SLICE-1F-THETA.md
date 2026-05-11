@@ -1,5 +1,19 @@
 # Arc 170 slice 1f-θ — BRIEF (hermetic test-body deadlock triage)
 
+> ⚠️ **STALE — DO NOT EXECUTE THIS BRIEF AS-IS.**
+> The premise (fix deadlocks by tweaking flat-let bind order) was wrong.
+> Sonnet flailed and was killed by user. The correct fix is STRUCTURAL per
+> `/complectens` — layered named helpers, per-helper deftests, 3-7 line
+> final test bodies, top-down dependency graph in one file.
+>
+> **Supersedes:** `BRIEF-SLICE-1F-THETA-V2.md` (V2; reflects complectens
+> discipline + references canonical example).
+>
+> Original content below preserved as historical record per "what is
+> inscribed is inscribed."
+>
+> ---
+
 **Sonnet pattern-apply.** Fixes the test-body deadlocks introduced in slices 1f-β-i/ii/iii (the wat-side trio test files I authored). These deadlocks are the **root cause** of the test-binary orphan leak documented at `FOLLOWUPS-TEST-BINARY-LEAK.md` (HEAD `287c0f5`).
 
 **Direction context** (user 2026-05-10): *"do we attack these leaks or do we attack the failing tests? I think resolving the failing tests will resolve the leak."* Correct — Tier 4 of the followup framework is the root-cause fix; Tiers 1-3 are workarounds.
