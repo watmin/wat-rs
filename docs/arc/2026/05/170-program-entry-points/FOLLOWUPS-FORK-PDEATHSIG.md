@@ -4,13 +4,15 @@
 
 ## Reproduction (specific tests, not all forks)
 
-The leak is NOT a substrate-wide fork misuse. It's specific to **hermetic tests with body-level deadlocks** (e.g., `stdin-test::spawn-shape`, `stdout-test::spawn-shape`, `stderr-test::spawn-shape` from slice 1f-β-i/ii/iii — known structural scope-deadlocks).
+The leak is NOT a substrate-wide fork misuse. Direct test confirms:
+- `cargo test --release --test test stdin_test_spawn_shape` (one test, isolated) → **0 orphans**
+- `cargo test --release --workspace stdin_test_spawn_shape` (full workspace) → **9 orphans**
 
-Verified reproduction: `cargo test --release --workspace stdin_test_spawn_shape` leaves **9 orphans** that persist after cargo test exits.
+The leak comes from SOMEWHERE in the `--workspace` test run, not the explicitly-named test. **Source not yet identified** — needs further investigation.
 
-## Root cause — time-limit doesn't kill the inner thread
+## A candidate hypothesis (UNVERIFIED) — time-limit leaks inner thread
 
-`crates/wat-macros/src/lib.rs:707-715` documents the leak explicitly:
+`crates/wat-macros/src/lib.rs:707-715` documents a known-design leak:
 
 ```rust
 Err(::std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -23,17 +25,20 @@ Err(::std::sync::mpsc::RecvTimeoutError::Timeout) => {
 }
 ```
 
-The flow:
-1. `deftest-hermetic` macro spawns inner thread to run the test body
-2. Test body runs `run-sandboxed-hermetic-ast` → `fork-program-ast` → child process
-3. Test body deadlocks (scope-deadlock in stdin/stdout/stderr spawn-shape tests)
+The flow that WOULD leak children:
+1. `deftest` (any flavor) spawns inner thread to run the test body
+2. Test body runs something that forks (e.g., `run-sandboxed-hermetic-ast` → `fork-program-ast`)
+3. Test body deadlocks BEFORE returning
 4. 200ms time-limit fires (arc 132 default)
-5. OUTER thread panics with timeout message
-6. INNER thread (holding `Arc<ChildHandleInner>` for the forked child) **keeps running**
-7. Arc doesn't drop; `ChildHandleInner::drop` never fires; child stays alive
-8. Cargo test process eventually exits without running Rust Drops on the leaked inner thread → child reparents to init
+5. OUTER thread panics; INNER thread (holding `Arc<ChildHandleInner>`) keeps running
+6. Arc doesn't drop; `ChildHandleInner::drop` never fires
 
-**This is not a fork.rs lacuna. It's an upstream design decision in `wat-macros`.**
+**This is a plausible cause for some test class but has NOT been verified to be the source of the 9 orphans observed.** Earlier draft of this doc asserted spawn-shape tests as the cause; direct test (above) showed those tests fail fast at substrate ScopeDeadlock check (forked child exits code 3, reaped cleanly).
+
+To verify this hypothesis a future investigation needs to:
+- Find tests that actually hit the time-limit (200ms exceeded)
+- Confirm those tests fork something before the timeout
+- Confirm the orphans observed in `--workspace` runs come from those specific tests
 
 ## Symptom
 
