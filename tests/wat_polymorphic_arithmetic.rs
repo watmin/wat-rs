@@ -391,7 +391,7 @@ fn slice4_variadic_add_mixed_numerics_design_worked_example() {
           (:wat::core::let [sum (:wat::core::+ 0 40.0 2)]
             (:wat::kernel::println sum)))
     "##;
-    assert_eq!(run(src), vec!["42".to_string()]);
+    assert_eq!(run(src), vec!["42.0".to_string()]);
 }
 
 #[test]
@@ -502,7 +502,7 @@ fn slice4_same_type_variadic_f64_mul_works() {
           (:wat::core::let [p (:wat::core::f64::* 1.0 2.0 3.0)]
             (:wat::kernel::println p)))
     "##;
-    assert_eq!(run(src), vec!["6".to_string()]);
+    assert_eq!(run(src), vec!["6.0".to_string()]);
 }
 
 #[test]
@@ -514,7 +514,7 @@ fn slice4_mixed_type_leaf_directly_callable() {
           (:wat::core::let [s (:wat::core::+'i64'f64 1 2.0)]
             (:wat::kernel::println s)))
     "##;
-    assert_eq!(run(src), vec!["3".to_string()]);
+    assert_eq!(run(src), vec!["3.0".to_string()]);
 }
 
 #[test]
@@ -526,5 +526,5 @@ fn slice4_binary_dispatch_directly_callable() {
           (:wat::core::let [s (:wat::core::+'2 1 2.0)]
             (:wat::kernel::println s)))
     "##;
-    assert_eq!(run(src), vec!["3".to_string()]);
+    assert_eq!(run(src), vec!["3.0".to_string()]);
 }
