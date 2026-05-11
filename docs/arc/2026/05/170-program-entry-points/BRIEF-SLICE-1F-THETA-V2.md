@@ -1,5 +1,23 @@
 # Arc 170 slice 1f-θ V2 — BRIEF (hermetic test restructure per complectens)
 
+> ⚠️ **SUPERSEDED — DO NOT EXECUTE.**
+> V2 sonnet attempted to restructure the existing implementer-vantage tests
+> per /complectens. Sonnet fixated on preserving wire-protocol gymnastics
+> (spawn + Add + Remove events) — the V2 anchoring on existing test shape
+> was itself a vocare violation: tests at implementer vantage when consumer
+> vantage is the recommended pattern.
+>
+> User direction 2026-05-10: "sonnet is fixated on prior state that's
+> failing vs just testing what matters... remove the poison."
+>
+> **Supersedes:** `BRIEF-SLICE-1F-THETA-V3.md` — deletes the existing
+> tests entirely; writes fresh consumer-vantage tests against the ambient
+> stdio surface.
+>
+> Original V2 content below preserved as historical record.
+>
+> ---
+
 **Opus.** V1 of this BRIEF (committed at `8774eef`) was wrong-shaped — it told sonnet to fix deadlocks by tweaking flat-let bind order. The agent flailed and was killed. **The actual problem is structural**: the 3 hermetic test files are monolithic let bodies with anonymous bindings, violating `/complectens` (`/home/watmin/work/holon/wat-rs/.claude/skills/complectens/SKILL.md`). The deadlock is a SYMPTOM of the discipline violation. The fix is to restructure the tests as **layered named helpers + per-layer deftests + 3-7 line final test bodies**.
 
 **Supersedes** `BRIEF-SLICE-1F-THETA.md` (V1; preserved as historical record per "what is inscribed is inscribed").
