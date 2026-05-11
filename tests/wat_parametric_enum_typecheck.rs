@@ -17,37 +17,30 @@
 //! checker IS exercised. New parametric built-in enums must add a
 //! similar probe — that's the discipline arc 071 introduces to
 //! eliminate the harness-vs-substrate parity failure mode.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main/stdout-capture to
+//! eval_in_frozen with :my::compute returning values.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-fn run(src: &str) -> Vec<String> {
-    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+fn run(src: &str) -> Value {
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
-    }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
-    }
-    lines
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 /// `:wat::eval::WalkStep<A>` (the first parametric built-in enum).
@@ -55,29 +48,27 @@ fn run(src: &str) -> Vec<String> {
 /// <i64>)` must satisfy a `-> :wat::eval::WalkStep<wat::core::i64>` signature.
 /// Pre-arc-071 this failed type-check because the synthesized
 /// constructor's return type was bare `:wat::eval::WalkStep`.
+/// Arc 170 slice 1f-ζ: :my::compute calls :my::test::wrap and returns i64.
 #[test]
 fn walkstep_continue_parametric_inference_at_use_site() {
     let src = r#"
         (:wat::core::define
           (:my::test::wrap (n :wat::core::i64) -> :wat::eval::WalkStep<wat::core::i64>)
           (:wat::eval::WalkStep::Continue n))
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [wrapped (:my::test::wrap 7)]
-            (:wat::io::IOWriter/println stdout "ok")))
+            7))
     "#;
-    assert_eq!(run(src), vec!["ok".to_string()]);
+    assert!(matches!(run(src), Value::i64(7)), "expected i64(7)");
 }
 
 #[test]
 fn walkstep_skip_parametric_inference_at_use_site() {
     // `Skip` takes (terminal :HolonAST, acc :A). Same parametric
     // inference path but with a different field count.
+    // Arc 170 slice 1f-ζ: :my::compute calls :my::test::halt and returns i64.
     let src = r#"
         (:wat::core::define
           (:my::test::halt
@@ -86,17 +77,13 @@ fn walkstep_skip_parametric_inference_at_use_site() {
           (:wat::eval::WalkStep::Skip
             (:wat::holon::leaf 999)
             n))
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [halted (:my::test::halt 3)]
-            (:wat::io::IOWriter/println stdout "ok")))
+            3))
     "#;
-    assert_eq!(run(src), vec!["ok".to_string()]);
+    assert!(matches!(run(src), Value::i64(3)), "expected i64(3)");
 }
 
 /// The full walker pattern from arc 070's USER-GUIDE example,
@@ -104,6 +91,7 @@ fn walkstep_skip_parametric_inference_at_use_site() {
 /// `holon-lab-trading/wat-tests-integ/experiment/099-walkstep-probe`
 /// — pre-arc-071, both this test and that probe failed; post-fix,
 /// both pass.
+/// Arc 170 slice 1f-ζ: :my::compute runs the walk and returns the count.
 #[test]
 fn walk_visitor_signature_matches_at_use_site() {
     let src = r#"
@@ -114,12 +102,8 @@ fn walk_visitor_signature_matches_at_use_site() {
             (step :wat::eval::StepResult)
             -> :wat::eval::WalkStep<wat::core::i64>)
           (:wat::eval::WalkStep::Continue (:wat::core::i64::+'2 acc 1)))
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::match
             (:wat::eval::walk
               (:wat::core::quote
@@ -127,14 +111,13 @@ fn walk_visitor_signature_matches_at_use_site() {
                   (:wat::holon::Atom "k")
                   (:wat::holon::Atom "v")))
               0
-              :my::test::count-visit) -> :wat::core::nil
+              :my::test::count-visit) -> :wat::core::i64
             ((:wat::core::Ok pair)
-              (:wat::core::let
-                [count (:wat::core::second pair)]
-                (:wat::core::if (:wat::core::= count 1) -> :wat::core::nil
-                  (:wat::io::IOWriter/println stdout "ok")
-                  (:wat::io::IOWriter/println stdout "wrong-count"))))
-            ((:wat::core::Err _e) (:wat::io::IOWriter/println stdout "walk-err"))))
+              (:wat::core::second pair))
+            ((:wat::core::Err _e) -1)))
     "#;
-    assert_eq!(run(src), vec!["ok".to_string()]);
+    match run(src) {
+        Value::i64(n) => assert_eq!(n, 1, "expected count=1; got {}", n),
+        other => panic!("expected i64; got {:?}", other),
+    }
 }

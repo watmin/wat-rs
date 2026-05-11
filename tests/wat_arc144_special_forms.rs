@@ -23,101 +23,88 @@
 //! a wildcard catch-all.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-fn run(src: &str) -> Vec<String> {
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+fn eval_string(src: &str) -> String {
+    let src = with_nil_main(src);
     let world = startup_from_source(
-        src,
+        &src,
         Some(concat!(file!(), ":", line!())),
         Arc::new(InMemoryLoader::new()),
     )
     .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::String(s) => s.as_str().to_owned(),
+        other => panic!("expected String; got {:?}", other),
     }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
+}
+
+fn eval_bool(src: &str) -> bool {
+    let src = with_nil_main(src);
+    let world = startup_from_source(
+        &src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::bool(b) => b,
+        other => panic!("expected bool; got {:?}", other),
     }
-    lines
 }
 
 /// Drive the three reflection primitives at a special-form name and
-/// emit three lines:
-///   line 1: rendered EDN of `lookup-define <name>`
-///   line 2: rendered EDN of `signature-of <name>`
-///   line 3: "body-pass" iff `body-of <name>` returns :None,
-///           "body-fail" otherwise
-///
-/// `name_keyword` is the keyword form passed to the primitives
-/// (e.g., `:wat::core::if`).
-fn three_probes(name_keyword: &str) -> Vec<String> {
-    let src = format!(
+/// return (def_rendered, sig_rendered, body_is_none).
+fn three_probes(name_keyword: &str) -> (String, String, bool) {
+    let def_rendered = eval_string(&format!(
         r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define {name})
-             def-rendered
-              (:wat::edn::write def-opt)
-             sig-opt
-              (:wat::runtime::signature-of {name})
-             sig-rendered
-              (:wat::edn::write sig-opt)
-             body-opt
-              (:wat::runtime::body-of {name})]
-            (:wat::core::do
-              (:wat::io::IOWriter/println stdout def-rendered)
-              (:wat::io::IOWriter/println stdout sig-rendered)
-              (:wat::core::match body-opt
-                -> :wat::core::nil
-                ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "body-fail"))
-                (:wat::core::None    (:wat::io::IOWriter/println stdout "body-pass"))))))
-    "##,
+        (:wat::core::define (:user::compute -> :wat::core::String)
+          (:wat::edn::write (:wat::runtime::lookup-define {name})))
+        "##,
         name = name_keyword
-    );
-    run(&src)
+    ));
+    let sig_rendered = eval_string(&format!(
+        r##"
+        (:wat::core::define (:user::compute -> :wat::core::String)
+          (:wat::edn::write (:wat::runtime::signature-of {name})))
+        "##,
+        name = name_keyword
+    ));
+    let body_is_none = eval_bool(&format!(
+        r##"
+        (:wat::core::define (:user::compute -> :wat::core::bool)
+          (:wat::core::match
+            (:wat::runtime::body-of {name})
+            -> :wat::core::bool
+            ((:wat::core::Some _) false)
+            (:wat::core::None    true)))
+        "##,
+        name = name_keyword
+    ));
+    (def_rendered, sig_rendered, body_is_none)
 }
 
 /// Common assertions on the three-probe output:
-///   - 3 lines emitted
 ///   - lookup-define rendered AST contains the slice-1 sentinel head
 ///     `:wat::core::__internal/special-form` and the form's name
 ///   - signature-of rendered AST contains the form's name (its
 ///     bundle head)
-///   - body-of returned :None ("body-pass")
+///   - body-of returned :None
 fn assert_special_form(name_keyword: &str, name_no_colon_prefix: &str) {
-    let out = three_probes(name_keyword);
-    assert_eq!(
-        out.len(),
-        3,
-        "expected 3 lines (lookup-define / signature-of / body-of), got {:?}",
-        out
-    );
-    let define_line = &out[0];
-    let signature_line = &out[1];
-    let body_line = &out[2];
+    let (define_line, signature_line, body_is_none) = three_probes(name_keyword);
     assert!(
         define_line.contains(":wat::core::__internal/special-form"),
         "lookup-define for {} should emit the slice-1 special-form sentinel; got: {}",
@@ -137,10 +124,10 @@ fn assert_special_form(name_keyword: &str, name_no_colon_prefix: &str) {
         name_keyword,
         signature_line
     );
-    assert_eq!(
-        body_line, "body-pass",
-        "body-of for {} should be :None; got: {}",
-        name_keyword, body_line
+    assert!(
+        body_is_none,
+        "body-of for {} should be :None",
+        name_keyword
     );
 }
 
@@ -148,11 +135,7 @@ fn assert_special_form(name_keyword: &str, name_no_colon_prefix: &str) {
 
 #[test]
 fn lookup_form_if_returns_special_form() {
-    let out = three_probes(":wat::core::if");
-    assert_eq!(out.len(), 3);
-    let define_line = &out[0];
-    let signature_line = &out[1];
-    let body_line = &out[2];
+    let (define_line, signature_line, body_is_none) = three_probes(":wat::core::if");
     // lookup-define emits the SpecialForm sentinel
     // `(:wat::core::__internal/special-form :wat::core::if)`.
     assert!(
@@ -183,15 +166,12 @@ fn lookup_form_if_returns_special_form() {
         signature_line
     );
     // body-of returns :None.
-    assert_eq!(body_line, "body-pass", "body-of should be :None");
+    assert!(body_is_none, "body-of should be :None");
 }
 
 #[test]
 fn lookup_form_let_returns_special_form() {
-    let out = three_probes(":wat::core::let");
-    assert_eq!(out.len(), 3);
-    let define_line = &out[0];
-    let signature_line = &out[1];
+    let (define_line, signature_line, body_is_none) = three_probes(":wat::core::let");
     assert!(
         define_line.contains(":wat::core::__internal/special-form"),
         "expected sentinel head, got: {}",
@@ -209,7 +189,7 @@ fn lookup_form_let_returns_special_form() {
         "expected let signature with <bindings>/<body>+, got: {}",
         signature_line
     );
-    assert_eq!(out[2], "body-pass");
+    assert!(body_is_none, "body-of should be :None");
 }
 
 #[test]
@@ -219,57 +199,57 @@ fn lookup_form_fn_returns_special_form() {
     // the same shape: params + body.
     assert_special_form(":wat::core::fn", ":wat::core::fn");
     // Pin the load-bearing slot.
-    let out = three_probes(":wat::core::fn");
+    let (_, sig, _) = three_probes(":wat::core::fn");
     assert!(
-        out[1].contains("<params>") && out[1].contains("<body>+"),
+        sig.contains("<params>") && sig.contains("<body>+"),
         "expected <params>/<body>+ in fn signature, got: {}",
-        out[1]
+        sig
     );
 }
 
 #[test]
 fn lookup_form_define_returns_special_form() {
     assert_special_form(":wat::core::define", ":wat::core::define");
-    let out = three_probes(":wat::core::define");
+    let (_, sig, _) = three_probes(":wat::core::define");
     assert!(
-        out[1].contains("<head>") && out[1].contains("<body>"),
+        sig.contains("<head>") && sig.contains("<body>"),
         "expected <head>/<body> in define signature, got: {}",
-        out[1]
+        sig
     );
 }
 
 #[test]
 fn lookup_form_match_returns_special_form() {
     assert_special_form(":wat::core::match", ":wat::core::match");
-    let out = three_probes(":wat::core::match");
+    let (_, sig, _) = three_probes(":wat::core::match");
     // The `->` and `<T>` slots are part of the match grammar's
     // surface form — verify they made it into the sketch.
     assert!(
-        out[1].contains("<scrutinee>") && out[1].contains("<arm>+"),
+        sig.contains("<scrutinee>") && sig.contains("<arm>+"),
         "expected <scrutinee>/<arm>+ in match signature, got: {}",
-        out[1]
+        sig
     );
 }
 
 #[test]
 fn lookup_form_quasiquote_returns_special_form() {
     assert_special_form(":wat::core::quasiquote", ":wat::core::quasiquote");
-    let out = three_probes(":wat::core::quasiquote");
+    let (_, sig, _) = three_probes(":wat::core::quasiquote");
     assert!(
-        out[1].contains("<template>"),
+        sig.contains("<template>"),
         "expected <template> in quasiquote signature, got: {}",
-        out[1]
+        sig
     );
 }
 
 #[test]
 fn lookup_form_struct_returns_special_form() {
     assert_special_form(":wat::core::struct", ":wat::core::struct");
-    let out = three_probes(":wat::core::struct");
+    let (_, sig, _) = three_probes(":wat::core::struct");
     assert!(
-        out[1].contains("<name>") && out[1].contains("<field>+"),
+        sig.contains("<name>") && sig.contains("<field>+"),
         "expected <name>/<field>+ in struct signature, got: {}",
-        out[1]
+        sig
     );
 }
 
@@ -281,11 +261,11 @@ fn lookup_form_kernel_spawn_returns_special_form() {
     // "nothing is special, even retired forms" — so a future
     // `(help :wat::kernel::spawn)` can render the migration redirect.
     assert_special_form(":wat::kernel::spawn", ":wat::kernel::spawn");
-    let out = three_probes(":wat::kernel::spawn");
+    let (_, sig, _) = three_probes(":wat::kernel::spawn");
     assert!(
-        out[1].contains(":wat::kernel::spawn"),
+        sig.contains(":wat::kernel::spawn"),
         "expected spawn keyword as signature head, got: {}",
-        out[1]
+        sig
     );
 }
 
@@ -299,12 +279,7 @@ fn lookup_form_unknown_special_form_name_returns_none() {
     // primitives — same shape as slice 1's
     // `all_three_primitives_return_none_on_unknown_name` test.
     let src = r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [d-opt
               (:wat::runtime::lookup-define :wat::core::not-a-special-form)
@@ -313,17 +288,17 @@ fn lookup_form_unknown_special_form_name_returns_none() {
              b-opt
               (:wat::runtime::body-of    :wat::core::not-a-special-form)]
             (:wat::core::match d-opt
-              -> :wat::core::nil
-              ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-d"))
+              -> :wat::core::bool
+              ((:wat::core::Some _) false)
               (:wat::core::None
                 (:wat::core::match s-opt
-                  -> :wat::core::nil
-                  ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-s"))
+                  -> :wat::core::bool
+                  ((:wat::core::Some _) false)
                   (:wat::core::None
                     (:wat::core::match b-opt
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-b"))
-                      (:wat::core::None    (:wat::io::IOWriter/println stdout "pass")))))))))
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) false)
+                      (:wat::core::None    true))))))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(eval_bool(src), "unknown name should return None for all three primitives");
 }

@@ -37,39 +37,63 @@
 //! `wat_arc143_define_alias.rs::define_alias_length_to_user_size_*`).
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-fn run(src: &str) -> Vec<String> {
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+fn run_bool(src: &str) -> bool {
+    let src = with_nil_main(src);
     let world = startup_from_source(
-        src,
+        &src,
         Some(concat!(file!(), ":", line!())),
         Arc::new(InMemoryLoader::new()),
     )
     .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::bool(b) => b,
+        other => panic!("expected bool; got {:?}", other),
     }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
+}
+
+fn run_string(src: &str) -> String {
+    let src = with_nil_main(src);
+    let world = startup_from_source(
+        &src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::String(s) => s.as_str().to_owned(),
+        other => panic!("expected String; got {:?}", other),
     }
-    lines
+}
+
+fn run_i64(src: &str) -> i64 {
+    let src = with_nil_main(src);
+    let world = startup_from_source(
+        &src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::i64(n) => n,
+        other => panic!("expected i64; got {:?}", other),
+    }
 }
 
 // ─── Kind 1: UserFunction — full trio + head verification ──────────────────
@@ -86,22 +110,15 @@ fn user_function_lookup_define_emits_define_head() {
           (:user::greet (n :wat::core::String) -> :wat::core::String)
           n)
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :user::greet)
              rendered
               (:wat::edn::write def-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            rendered))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected one rendered line, got {:?}", out);
-    let line = &out[0];
+    let line = run_string(src);
     assert!(
         line.contains(":wat::core::define"),
         "expected ':wat::core::define' head in user-function lookup-define AST, got: {}",
@@ -124,27 +141,22 @@ fn user_function_signature_and_body_return_some() {
           (:user::add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
           (:wat::core::+ x y))
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [sig-opt
               (:wat::runtime::signature-of :user::add)
              body-opt
               (:wat::runtime::body-of :user::add)]
             (:wat::core::match sig-opt
-              -> :wat::core::nil
+              -> :wat::core::bool
               ((:wat::core::Some _)
                 (:wat::core::match body-opt
-                  -> :wat::core::nil
-                  ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-                  (:wat::core::None    (:wat::io::IOWriter/println stdout "fail-body"))))
-              (:wat::core::None (:wat::io::IOWriter/println stdout "fail-sig")))))
+                  -> :wat::core::bool
+                  ((:wat::core::Some _) true)
+                  (:wat::core::None    false)))
+              (:wat::core::None false))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "signature-of and body-of :user::add should both return Some");
 }
 
 // ─── Kind 2: Macro — smoke (full coverage at wat_arc144_lookup_form.rs) ────
@@ -159,19 +171,14 @@ fn macro_lookup_define_smoke() {
     let src = r##"
         (:wat::core::defmacro (:my::id (x :AST) -> :AST) `~x)
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
             (:wat::runtime::lookup-define :my::id)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            -> :wat::core::bool
+            ((:wat::core::Some _) true)
+            (:wat::core::None    false)))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "lookup-define :my::id should return Some");
 }
 
 // ─── Kind 3: Primitive — smoke (full coverage at slices 1+3) ───────────────
@@ -185,27 +192,22 @@ fn primitive_lookup_define_and_signature_smoke() {
     // (signature-of on foldl). This pins the slice 4 framing: a
     // TypeScheme primitive answers BOTH lookup-define + signature-of.
     let src = r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :wat::core::foldl)
              sig-opt
               (:wat::runtime::signature-of :wat::core::foldl)]
             (:wat::core::match def-opt
-              -> :wat::core::nil
+              -> :wat::core::bool
               ((:wat::core::Some _)
                 (:wat::core::match sig-opt
-                  -> :wat::core::nil
-                  ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-                  (:wat::core::None    (:wat::io::IOWriter/println stdout "fail-sig"))))
-              (:wat::core::None (:wat::io::IOWriter/println stdout "fail-def")))))
+                  -> :wat::core::bool
+                  ((:wat::core::Some _) true)
+                  (:wat::core::None    false)))
+              (:wat::core::None false))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "lookup-define and signature-of :wat::core::foldl should both return Some");
 }
 
 // ─── Kind 4: SpecialForm — smoke (full coverage at slice 2) ────────────────
@@ -218,22 +220,15 @@ fn special_form_lookup_define_smoke() {
     // representative special form and asserts the slice-1 sentinel
     // marker is preserved in the rendered AST.
     let src = r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :wat::core::if)
              rendered
               (:wat::edn::write def-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            rendered))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1);
-    let line = &out[0];
+    let line = run_string(src);
     assert!(
         line.contains(":wat::core::__internal/special-form"),
         "expected special-form sentinel head, got: {}",
@@ -259,22 +254,15 @@ fn type_lookup_define_smoke() {
           (a :wat::core::i64)
           (b :wat::core::i64))
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :my::Pair)
              rendered
               (:wat::edn::write def-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            rendered))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1);
-    let line = &out[0];
+    let line = run_string(src);
     assert!(
         line.contains(":wat::core::struct"),
         "expected ':wat::core::struct' head in struct lookup-define AST, got: {}",
@@ -298,22 +286,15 @@ fn type_lookup_define_smoke() {
 #[test]
 fn dispatch_length_lookup_define_emits_define_dispatch_head() {
     let src = r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :wat::core::length)
              rendered
               (:wat::edn::write def-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            rendered))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected one rendered line, got {:?}", out);
-    let line = &out[0];
+    let line = run_string(src);
     assert!(
         line.contains("define-dispatch"),
         "expected 'define-dispatch' head in :wat::core::length lookup-define, got: {}",
@@ -345,27 +326,22 @@ fn dispatch_length_signature_and_body_shape() {
     // body-of returns :None (dispatchs have no wat-side body — the arms
     // table IS the contract; per arc 146 slice 1 BRIEF).
     let src = r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [sig-opt
               (:wat::runtime::signature-of :wat::core::length)
              body-opt
               (:wat::runtime::body-of :wat::core::length)]
             (:wat::core::match sig-opt
-              -> :wat::core::nil
+              -> :wat::core::bool
               ((:wat::core::Some _)
                 (:wat::core::match body-opt
-                  -> :wat::core::nil
-                  ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-body-some"))
-                  (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
-              (:wat::core::None (:wat::io::IOWriter/println stdout "fail-sig-none")))))
+                  -> :wat::core::bool
+                  ((:wat::core::Some _) false)
+                  (:wat::core::None    true)))
+              (:wat::core::None false))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "signature-of should return Some and body-of should return None for dispatch");
 }
 
 // ─── Length canary regression — HashMap shape (brief request) ──────────────
@@ -383,23 +359,15 @@ fn length_canary_hashmap_via_define_alias() {
     let src = r##"
         (:wat::runtime::define-alias :user::size :wat::core::length)
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout
-            (:wat::edn::write
-              (:user::size
-                (:wat::core::HashMap :(wat::core::String,wat::core::i64)
-                  "a" 1 "b" 2 "c" 3)))))
+        (:wat::core::define (:user::compute -> :wat::core::i64)
+          (:user::size
+            (:wat::core::HashMap :(wat::core::String,wat::core::i64)
+              "a" 1 "b" 2 "c" 3)))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
+    let n = run_i64(src);
     assert_eq!(
-        out[0].trim(), "3",
+        n, 3,
         "expected alias of length to return 3 for HashMap of 3 entries, got: {}",
-        out[0]
+        n
     );
 }

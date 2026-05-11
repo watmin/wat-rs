@@ -20,16 +20,30 @@
 //! Slice 3 proves the same shape reaches the caller through kernel
 //! pipes (EDN-serialized). The user-visible Result<R,
 //! Vec<*DiedError>> is identical regardless.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Outer uses :my::compute; inner uses canonical nil main.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 #[test]
@@ -47,17 +61,15 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
     // stderr; parent's drive-hermetic reads it back via
     // extract-died-chain; failure-from-process-died walks the
     // head's structured payload; actual = "1", expected = "2".
+    //
+    // Arc 170 slice 1f-ζ: outer uses :my::compute; inner uses canonical nil main.
     let src = r##"
         (:wat::core::define
-          (:user::main -> :wat::core::Vector<wat::core::String>)
+          (:my::compute -> :wat::core::Vector<wat::core::String>)
           (:wat::core::let
             [forms
               (:wat::test::program
-                (:wat::core::define (:user::main
-                                     (stdin  :wat::io::IOReader)
-                                     (stdout :wat::io::IOWriter)
-                                     (stderr :wat::io::IOWriter)
-                                     -> :wat::core::nil)
+                (:wat::core::define (:user::main -> :wat::core::nil)
                   (:wat::test::assert-eq 1 2)))
              r
               (:wat::kernel::run-sandboxed-hermetic-ast

@@ -24,9 +24,9 @@
 //! 11. hyphenated_field_names_work
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
 const PROLOGUE: &str = r#"
 (:wat::core::struct :test::PaperResolved
@@ -34,16 +34,27 @@ const PROLOGUE: &str = r#"
   (grace-residue :wat::core::f64))
 "#;
 
-/// Asserts startup succeeds and `:user::main` returns the given value.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+/// Asserts startup succeeds and `:user::compute` returns the given value.
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute")
 }
 
 /// Asserts startup fails and returns `format!("{}\n---\n{:?}", e, e)`.
 fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+    let src = with_nil_main(src);
+    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
         Ok(_) => panic!("expected startup failure; got Ok"),
         Err(e) => format!("{}\n---\n{:?}", e, e),
     }
@@ -57,7 +68,7 @@ fn single_field() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 7.5)
              {{outcome}} p]
@@ -80,7 +91,7 @@ fn multi_field() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:user::compute -> :wat::core::f64)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 7.5)
              {{outcome grace-residue}} p]
@@ -104,7 +115,7 @@ fn mixed_with_regular_bindings() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:user::compute -> :wat::core::f64)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 3.5)
              whole p
@@ -129,7 +140,7 @@ fn nested_let() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:user::compute -> :wat::core::f64)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 4.0)
              {{outcome grace-residue}} p]
@@ -156,7 +167,7 @@ fn field_order_can_differ_from_declaration() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 5.5)
              {{grace-residue outcome}} p]
@@ -182,7 +193,7 @@ fn unknown_field_name_is_clean_malformed_form() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 5.5)
              {{nonexistent}} p]
@@ -212,7 +223,7 @@ fn non_struct_subject_is_clean_type_mismatch() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [{{outcome}} 42]
             outcome))
@@ -240,7 +251,7 @@ fn empty_brace_form_is_clean_malformed_form() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 5.5)
              {{}} p]
@@ -268,7 +279,7 @@ fn non_symbol_inside_brace_form_is_clean_malformed_form() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 5.5)
              {{42}} p]
@@ -297,7 +308,7 @@ fn multi_form_body_with_destructure() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:user::compute -> :wat::core::f64)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 1.0)
              {{outcome grace-residue}} p]
@@ -323,7 +334,7 @@ fn hyphenated_field_names_work() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:user::compute -> :wat::core::f64)
           (:wat::core::let
             [p (:test::PaperResolved/new "Grace" 9.25)
              {{grace-residue}} p]

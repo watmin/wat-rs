@@ -29,21 +29,32 @@
 //!  15. single_body_fn_regression — old single-form body unchanged
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-/// Asserts startup succeeds and `:user::main` returns the given value.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+/// Asserts startup succeeds and `:user::compute` returns the given value.
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute")
 }
 
 /// Asserts startup fails and returns `format!("{}\n---\n{:?}", e, e)`.
 /// Tests can match Display message text OR Debug variant name.
 fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+    let src = with_nil_main(src);
+    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
         Ok(_) => panic!("expected startup failure; got Ok"),
         Err(e) => format!("{}\n---\n{:?}", e, e),
     }
@@ -54,7 +65,7 @@ fn startup_err(src: &str) -> String {
 #[test]
 fn single_binding() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [x 1]
             (:wat::core::i64::+'2 x 1)))
     "#;
@@ -70,7 +81,7 @@ fn single_binding() {
 #[test]
 fn multiple_bindings() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [x 1 y 2]
             (:wat::core::i64::+'2 x y)))
     "#;
@@ -86,7 +97,7 @@ fn multiple_bindings() {
 #[test]
 fn sequential_references() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [x 1
                             y (:wat::core::i64::+'2 x 1)]
             y))
@@ -103,7 +114,7 @@ fn sequential_references() {
 #[test]
 fn empty_bindings() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let []
             (:wat::core::i64::+'2 1 1)))
     "#;
@@ -121,7 +132,7 @@ fn empty_bindings() {
 #[test]
 fn empty_body() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::nil)
           (:wat::core::let [x 1]))
     "#;
     let v = run(src);
@@ -138,7 +149,7 @@ fn empty_body() {
 #[test]
 fn destructure_binding() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [[a b] (:wat::core::Tuple 3 4)]
             (:wat::core::i64::+'2 a b)))
     "#;
@@ -163,7 +174,7 @@ fn destructure_binding() {
 #[test]
 fn odd_count_vector_errors() {
     let src_bare_one = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [x]
             1))
     "#;
@@ -175,7 +186,7 @@ fn odd_count_vector_errors() {
     );
 
     let src_three = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [x 1 y]
             x))
     "#;
@@ -194,7 +205,7 @@ fn odd_count_vector_errors() {
 #[test]
 fn multi_form_let_body() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [x 1]
             (:wat::core::i64::+'2 x 99)
             (:wat::core::i64::+'2 x 50)
@@ -215,7 +226,7 @@ fn multi_form_let_body() {
 #[test]
 fn multi_form_let_body_typecheck() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [x 1]
             (:wat::core::i64::+'2 x "not an int")
             (:wat::core::i64::+'2 x 41)))
@@ -238,7 +249,7 @@ fn multi_form_let_body_typecheck() {
 #[test]
 fn multi_form_fn_body() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           ((:wat::core::fn [x <- :wat::core::i64]
              -> :wat::core::i64
              (:wat::core::i64::+'2 x 99)
@@ -267,7 +278,7 @@ fn multi_form_defn_body() {
           (:wat::core::i64::+'2 x 50)
           (:wat::core::i64::+'2 x 41))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:user::triple-body 1))
     "#;
     let v = run(src);
@@ -284,7 +295,7 @@ fn multi_form_defn_body() {
 #[test]
 fn single_body_let_regression() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [x 10 y 20]
             (:wat::core::i64::+'2 x y)))
     "#;
@@ -302,7 +313,7 @@ fn single_body_let_regression() {
 #[test]
 fn single_body_fn_regression() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           ((:wat::core::fn [x <- :wat::core::i64 y <- :wat::core::i64]
              -> :wat::core::i64
              (:wat::core::i64::+'2 x y))

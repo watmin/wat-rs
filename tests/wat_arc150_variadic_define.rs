@@ -23,46 +23,27 @@
 //!   after `&` rest-binder.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
 }
 
 fn run(src: &str) -> Value {
     let world = startup(src).expect("startup should succeed");
-    invoke_user_main(&world, Vec::new()).expect("main should run")
-}
-
-/// Run a program whose `:user::main` takes the standard
-/// `(stdin stdout stderr -> :unit)` signature and writes to stdout via
-/// `IOWriter/println`. Returns the captured stdout split by `\n`.
-fn run_with_stdout(src: &str) -> Vec<String> {
-    let world = startup(src).expect("startup should succeed");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main should run");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
-    }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
-    }
-    lines
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 // ─── Zero rest-args ──────────────────────────────────────────────────
@@ -79,7 +60,7 @@ fn variadic_define_with_zero_rest_args_binds_empty_vec() {
             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::sum-of 100))
     "#;
     assert!(matches!(run(src), Value::i64(100)));
@@ -97,7 +78,7 @@ fn variadic_define_with_one_rest_arg() {
             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::sum-of 10 5))
     "#;
     assert!(matches!(run(src), Value::i64(15)));
@@ -115,7 +96,7 @@ fn variadic_define_with_many_rest_args() {
             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::sum-of 100 1 2 3 4 5))
     "#;
     assert!(matches!(run(src), Value::i64(115)));
@@ -135,7 +116,7 @@ fn variadic_define_with_no_fixed_params_only_rest() {
             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::sum 7 8 9 10))
     "#;
     assert!(matches!(run(src), Value::i64(34)));
@@ -151,7 +132,7 @@ fn variadic_define_with_no_fixed_params_zero_args_returns_seed() {
             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::sum))
     "#;
     assert!(matches!(run(src), Value::i64(0)));
@@ -169,7 +150,7 @@ fn variadic_define_rest_binding_is_a_vec_value() {
           (:my::count-rest (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::length xs))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::count-rest 999 10 20 30))
     "#;
     assert!(matches!(run(src), Value::i64(3)));
@@ -190,7 +171,7 @@ fn variadic_define_arity_error_below_fixed_arity() {
             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::sum-of))
     "#;
     match startup(src) {
@@ -214,7 +195,7 @@ fn variadic_define_type_error_on_mismatched_rest_arg() {
             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::sum-of 10 1 "two" 3))
     "#;
     match startup(src) {
@@ -243,34 +224,30 @@ fn signature_of_variadic_define_returns_rest_shape() {
             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [sig-opt
               (:wat::runtime::signature-of :my::sum-of)
              rendered
               (:wat::edn::write sig-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            rendered))
     "##;
-    let out = run_with_stdout(src);
-    assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
-    let line = &out[0];
+    let rendered = match run(src) {
+        Value::String(s) => s.as_str().to_owned(),
+        other => panic!("expected String; got {:?}", other),
+    };
     // Key substrings: the function name, the `&` rest-marker, the
     // rest-binder name `xs`, and the rest-binder type `Vec<i64>`
     // (the substrate canonicalises Vector to Vec at registration).
-    assert!(line.contains("sum-of"), "expected 'sum-of' in {}", line);
-    assert!(line.contains("\"&\""), "expected '&' rest-marker symbol in {}", line);
-    assert!(line.contains("\"xs\""), "expected 'xs' rest-binder name in {}", line);
+    assert!(rendered.contains("sum-of"), "expected 'sum-of' in {}", rendered);
+    assert!(rendered.contains("\"&\""), "expected '&' rest-marker symbol in {}", rendered);
+    assert!(rendered.contains("\"xs\""), "expected 'xs' rest-binder name in {}", rendered);
     assert!(
-        line.contains("Vec<i64>") || line.contains("Vector<i64>")
-            || line.contains("Vector<wat::core::i64>"),
-        "expected Vec/Vector<i64> in rest-binder type in {}", line
+        rendered.contains("Vec<i64>") || rendered.contains("Vector<i64>")
+            || rendered.contains("Vector<wat::core::i64>"),
+        "expected Vec/Vector<i64> in rest-binder type in {}", rendered
     );
-    assert!(line.contains("init"), "expected 'init' fixed-param name in {}", line);
+    assert!(rendered.contains("init"), "expected 'init' fixed-param name in {}", rendered);
 }
 
 // ─── Canonical pattern: variadic + reduce over rest (arc 148 slice 4 shape) ───
@@ -289,7 +266,7 @@ fn variadic_define_uses_foldl_over_rest_args() {
             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::add-all 0 1 2 3 4 5 6 7 8 9 10))
     "#;
     // 0 + 1 + 2 + ... + 10 = 55.
@@ -305,8 +282,6 @@ fn parse_error_double_ampersand_in_define_signature() {
         (:wat::core::define
           (:my::bogus & & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           0)
-
-        (:wat::core::define (:user::main -> :wat::core::i64) 0)
     "#;
     match startup(src) {
         Err(StartupError::Runtime(_)) => {}
@@ -322,8 +297,6 @@ fn parse_error_rest_marker_without_binder() {
         (:wat::core::define
           (:my::bogus (init :wat::core::i64) & -> :wat::core::i64)
           init)
-
-        (:wat::core::define (:user::main -> :wat::core::i64) 0)
     "#;
     match startup(src) {
         Err(StartupError::Runtime(_)) => {}
@@ -339,8 +312,6 @@ fn parse_error_fixed_param_after_rest_binder() {
         (:wat::core::define
           (:my::bogus (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) (extra :wat::core::i64) -> :wat::core::i64)
           init)
-
-        (:wat::core::define (:user::main -> :wat::core::i64) 0)
     "#;
     match startup(src) {
         Err(StartupError::Runtime(_)) => {}
@@ -358,8 +329,6 @@ fn parse_error_rest_binder_with_non_vector_type() {
         (:wat::core::define
           (:my::bogus & (xs :wat::core::i64) -> :wat::core::i64)
           xs)
-
-        (:wat::core::define (:user::main -> :wat::core::i64) 0)
     "#;
     match startup(src) {
         Err(StartupError::Runtime(_)) => {}
@@ -381,7 +350,7 @@ fn strict_arity_define_unchanged_by_arc150() {
           (:my::add (a :wat::core::i64) (b :wat::core::i64) -> :wat::core::i64)
           (:wat::core::i64::+'2 a b))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::add 40 2))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
@@ -397,7 +366,7 @@ fn strict_arity_define_arity_error_still_strict() {
           (:my::add (a :wat::core::i64) (b :wat::core::i64) -> :wat::core::i64)
           (:wat::core::i64::+'2 a b))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:my::add 40 2 99))
     "#;
     match startup(src) {

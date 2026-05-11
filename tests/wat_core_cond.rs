@@ -7,18 +7,30 @@
 //! unifies with :T; last arm must be (:else body).
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 fn run_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+    let src = with_nil_main(src);
+    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
         Ok(_) => panic!("expected startup failure; got Ok"),
         Err(e) => format!("{:?}", e),
     }
@@ -44,7 +56,7 @@ fn unwrap_i64(v: Value) -> i64 {
 fn cond_first_arm_matches() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 1) "first")
             ((:wat::core::= 2 2) "second")
@@ -57,7 +69,7 @@ fn cond_first_arm_matches() {
 fn cond_middle_arm_matches() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 2) "first")
             ((:wat::core::= 3 3) "middle")
@@ -71,7 +83,7 @@ fn cond_middle_arm_matches() {
 fn cond_falls_through_to_else() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 2) "first")
             ((:wat::core::= 3 4) "second")
@@ -85,7 +97,7 @@ fn cond_with_single_else_only() {
     // Minimal cond — just the else arm.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::cond -> :wat::core::i64
             (:else 42)))
     "#;
@@ -104,7 +116,7 @@ fn cond_dispatches_on_bound_value() {
             ((:wat::core::= code 3) "[startup error]")
             (:else "[nonzero exit]")))
 
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:my::compute -> :wat::core::String)
           (:my::label 3))
     "#;
     assert_eq!(unwrap_string(run(src)), "[startup error]");
@@ -116,7 +128,7 @@ fn cond_dispatches_on_bound_value() {
 fn cond_refuses_missing_else() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:my::probe -> :wat::core::String)
           (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 1) "first")
             ((:wat::core::= 2 2) "second")))
@@ -133,7 +145,7 @@ fn cond_refuses_missing_else() {
 fn cond_refuses_non_bool_test() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:my::probe -> :wat::core::String)
           (:wat::core::cond -> :wat::core::String
             (42 "first")
             (:else "none")))
@@ -150,7 +162,7 @@ fn cond_refuses_non_bool_test() {
 fn cond_refuses_mismatched_body_type() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:my::probe -> :wat::core::String)
           (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 1) 42)
             (:else "default")))
@@ -178,7 +190,7 @@ fn cond_preserves_tail_call() {
             ((:wat::core::< n 0) -1)
             (:else (:my::countdown (:wat::core::i64::-'2 n 1)))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:my::countdown 100000))
     "#;
     assert_eq!(unwrap_i64(run(src)), 0);
@@ -190,7 +202,7 @@ fn cond_preserves_tail_call() {
 fn cond_composes_with_other_cond() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 2) "outer-first")
             ((:wat::core::= 1 1)

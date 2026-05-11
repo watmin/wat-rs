@@ -29,17 +29,25 @@
 //!   behaves correctly on both.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
 }
 
 fn run(src: &str) -> Value {
-    let world = startup(src).expect("startup should succeed");
-    invoke_user_main(&world, Vec::new()).expect("main should run")
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup should succeed");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 // ─── Self-recursion via if ────────────────────────────────────────────
@@ -57,7 +65,7 @@ fn self_recursion_via_if_at_million_depth() {
             acc
             (:app::countdown (:wat::core::i64::-'2 n 1) (:wat::core::i64::+'2 acc 1))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:app::countdown 1000000 0))
     "#;
     assert!(matches!(run(src), Value::i64(1_000_000)));
@@ -85,7 +93,7 @@ fn self_recursion_via_match_at_high_depth() {
               (:app::drain (:wat::core::i64::-'2 v 1) (:wat::core::i64::+'2 acc 1)))
             (:wat::core::None acc)))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:app::drain 100000 0))
     "#;
     assert!(matches!(run(src), Value::i64(100_000)));
@@ -110,7 +118,7 @@ fn mutual_recursion_between_two_defines() {
             false
             (:app::is-even (:wat::core::i64::-'2 n 1))))
 
-        (:wat::core::define (:user::main -> :wat::core::bool)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:app::is-even 100000))
     "#;
     assert!(matches!(run(src), Value::bool(true)));
@@ -133,7 +141,7 @@ fn tail_call_inside_let_body_propagates() {
               0
               (:app::loop next))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:app::loop 100000))
     "#;
     assert!(matches!(run(src), Value::i64(0)));
@@ -158,7 +166,7 @@ fn non_tail_recursion_modest_depth_correct() {
             1
             (:wat::core::i64::*'2 2 (:app::pow2 (:wat::core::i64::-'2 n 1)))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:app::pow2 20))
     "#;
     assert!(matches!(run(src), Value::i64(1_048_576)));
@@ -190,7 +198,7 @@ fn try_inside_tail_recursive_function_short_circuits() {
               (:wat::core::Ok 0)
               (:app::loop (:wat::core::i64::-'2 valid 1)))))
 
-        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
+        (:wat::core::define (:user::compute -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:app::loop 50000))
     "#;
     match run(src) {
@@ -220,7 +228,7 @@ fn try_inside_tail_recursive_function_propagates_err() {
 
         ;; Start at -1 so `check` immediately returns Err and `try`
         ;; propagates.
-        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
+        (:wat::core::define (:user::compute -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:app::loop -1))
     "#;
     match run(src) {
@@ -245,7 +253,7 @@ fn fn_tail_call_via_let_bound_symbol() {
     // million-depth case comes via mutual alternation below.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [f
               (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
@@ -262,7 +270,7 @@ fn inline_fn_literal_tail_call() {
     // triggers a TailCall emission from the List head arm.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
              (:wat::core::i64::*'2 n 2))
            21))
@@ -284,7 +292,7 @@ fn named_define_tail_calls_fn_param() {
                              -> :wat::core::i64)
           (f n))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [double
               (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
@@ -320,7 +328,7 @@ fn inline_fn_named_alternation_at_high_depth() {
                (:app::go (:wat::core::i64::+'2 s 1) (:wat::core::i64::-'2 k 1)))
              state n)))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:app::go 0 100000))
     "#;
     assert!(matches!(run(src), Value::i64(100_000)));

@@ -20,9 +20,17 @@
 //!  10.  Reflection — `(:wat::runtime::lookup-define :user::add)` resolves
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 /// Asserts the given source starts up cleanly.
 fn startup_ok(src: &str) {
@@ -39,11 +47,16 @@ fn startup_err(src: &str) -> String {
     }
 }
 
-/// Start up and invoke `:user::main` with no IO args; return the result.
+/// Run `:my::compute` via eval_in_frozen (arc 170 slice 1f-ζ migration).
+/// Source must include a `(:my::compute -> :T)` definition.
+/// Nil main is appended automatically.
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 // ─── Test 1 — simple defn: add(2,3)=5 ────────────────────────────────────────
@@ -52,12 +65,13 @@ fn run(src: &str) -> Value {
 /// Exercises the basic macro expansion path end-to-end.
 #[test]
 fn defn_simple_compiles_and_runs() {
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute calls :user::add.
     let src = r#"
         (:wat::core::defn :user::add
           [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::i64::+'2 x y))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:user::add 2 3))
     "#;
     let v = run(src);
@@ -92,6 +106,7 @@ fn defn_simple_compiles_and_runs() {
 /// avoid self-recursive `defn`.
 #[test]
 fn defn_recursive_factorial_works() {
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute calls :user::fact.
     let src = r#"
         (:wat::core::defn :user::fact
           [n <- :wat::core::i64] -> :wat::core::i64
@@ -99,7 +114,7 @@ fn defn_recursive_factorial_works() {
             1
             (:wat::core::i64::*'2 n (:user::fact (:wat::core::i64::-'2 n 1)))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:user::fact 5))
     "#;
     let v = run(src);
@@ -131,6 +146,7 @@ fn defn_at_top_level_position() {
 /// satisfy the position rule.
 #[test]
 fn defn_inside_top_level_do_works() {
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute calls :user::inc/:user::dec.
     let src = r#"
         (:wat::core::do
           (:wat::core::defn :user::inc
@@ -140,7 +156,7 @@ fn defn_inside_top_level_do_works() {
             [x <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::i64::-'2 x 1)))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:user::inc (:user::dec 10)))
     "#;
     let v = run(src);
@@ -157,6 +173,7 @@ fn defn_inside_top_level_do_works() {
 /// rule. The fn body can capture the let-local `offset`.
 #[test]
 fn defn_inside_top_level_let_body_works() {
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute calls :user::add-offset.
     let src = r#"
         (:wat::core::let
           [offset 10]
@@ -164,7 +181,7 @@ fn defn_inside_top_level_let_body_works() {
             [x <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::i64::+'2 x offset)))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:user::add-offset 5))
     "#;
     let v = run(src);
@@ -207,12 +224,13 @@ fn defn_rejected_inside_if_branch() {
 /// to fn without modification.
 #[test]
 fn defn_zero_arg_function_works() {
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute calls :user::forty-two.
     let src = r#"
         (:wat::core::defn :user::forty-two
           [] -> :wat::core::i64
           42)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:user::forty-two))
     "#;
     let v = run(src);
@@ -302,12 +320,13 @@ fn defn_redef_same_name_forbidden_by_default() {
 /// `(:wat::runtime::lookup-define ...)`. This naming delta is also reported.
 #[test]
 fn defn_reflection_lookup_define_resolves() {
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute does the lookup.
     let src = r#"
         (:wat::core::defn :user::add
           [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::i64::+'2 x y))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::match
             (:wat::runtime::lookup-define :user::add)
             -> :wat::core::i64

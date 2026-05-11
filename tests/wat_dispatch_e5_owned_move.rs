@@ -3,11 +3,14 @@
 //! A one-shot handle. The first invocation consumes the payload;
 //! subsequent attempts error with "owned-move handle already consumed".
 //! Models prepared-statement bindings, one-time tokens, capabilities.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 use wat_macros::wat_dispatch;
 
 /// A ticket that can be redeemed exactly once.
@@ -37,21 +40,35 @@ fn install() {
     });
 }
 
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+fn run(src: &str) -> Value {
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
+}
+
 #[test]
 fn ticket_redeems_once_successfully() {
     install();
     let src = r#"
         (:wat::core::use! :rust::test::Ticket)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [t (:rust::test::Ticket::new 777)]
             (:rust::test::Ticket::redeem t)))
     "#;
-    let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
-    let result = invoke_user_main(&world, Vec::new()).expect("main");
-    assert!(matches!(result, Value::i64(777)), "got {:?}", result);
+    assert!(matches!(run(src), Value::i64(777)), "got {:?}", run(src));
 }
 
 #[test]
@@ -60,15 +77,18 @@ fn ticket_second_redemption_errors() {
     let src = r#"
         (:wat::core::use! :rust::test::Ticket)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [t (:rust::test::Ticket::new 42)
              first (:rust::test::Ticket::redeem t)]
             (:rust::test::Ticket::redeem t)))
     "#;
-    let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
-    let err = invoke_user_main(&world, Vec::new()).unwrap_err();
+    let src_with_nil = with_nil_main(src);
+    let world = startup_from_source(&src_with_nil, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    let err = eval_in_frozen(&ast, &world, &env).unwrap_err();
     // The second redeem attempts to consume the already-drained cell;
     // OwnedMoveCell::take returns MalformedForm.
     assert!(format!("{:?}", err).contains("already consumed"),

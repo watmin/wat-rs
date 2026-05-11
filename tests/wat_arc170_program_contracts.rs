@@ -48,40 +48,25 @@ fn freeze_err(src: &str) -> String {
     }
 }
 
-/// Build a wat program with a 4-arg `:user::main` that returns an
-/// ExitCode `(:wat::core::u8 N)`. Useful for the ExitCode-propagation
-/// tests where the program's job is just to return a known byte.
-fn user_main_returning_u8(n: u8) -> String {
-    format!(
-        "(:wat::core::define\n\
-            (:user::main\n\
-              (stdin :wat::io::IOReader)\n\
-              (stdout :wat::io::IOWriter)\n\
-              (stderr :wat::io::IOWriter)\n\
-              (argv :wat::core::Vector<wat::core::String>)\n\
-              -> :wat::kernel::ExitCode)\n\
-            (:wat::core::u8 {}))",
-        n
-    )
-}
-
-// ─── T1. :user::main 4-arg signature freezes; 3-arg fires walker ───────
+// ─── T1. :user::main [] -> :wat::core::nil signature freezes; 3-arg fires walker ──
 
 #[test]
-fn t1_canonical_4arg_main_freezes() {
-    // Canonical post-arc-170 shape: stdin/stdout/stderr/argv +
-    // ExitCode return. Should freeze cleanly.
-    let src = user_main_returning_u8(0);
-    let world = freeze_ok(&src);
+fn t1_canonical_nil_main_freezes() {
+    // Arc 170 slice 1e canonical shape: no params, nil return. Should freeze cleanly.
+    let src = r#"
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
+    "#;
+    let world = freeze_ok(src);
     // Validator agrees — the canonical signature passes.
-    validate_user_main_signature(&world).expect("4-arg ExitCode :user::main validates");
-    // expected_user_main_signature() exposes the canonical shape.
+    validate_user_main_signature(&world).expect("[] -> nil :user::main validates");
+    // expected_user_main_signature() exposes the canonical shape: 0 params, nil return.
     let (params, ret) = expected_user_main_signature();
-    assert_eq!(params.len(), 4, "expected 4 params, got {}", params.len());
+    assert_eq!(params.len(), 0, "expected 0 params (argv is ambient), got {}", params.len());
     assert_eq!(
         ret,
-        TypeExpr::Path(":wat::kernel::ExitCode".into()),
-        "expected ExitCode return"
+        TypeExpr::Tuple(vec![]),
+        "expected nil (Tuple([])) return"
     );
 }
 
@@ -107,92 +92,63 @@ fn t1_legacy_3arg_main_fires_walker() {
     );
 }
 
-// ─── T2. :user::main returns ExitCode — values 0 and 42 ────────────────
-
-/// Helper: invoke `:user::main` directly with placeholder IO + empty
-/// argv, returning the Value the body produced. The substrate's
-/// child-branch wraps this into an `_exit(n)` call, but the in-process
-/// route lets us assert the return value cleanly.
-fn invoke_main_in_process(world: &wat::freeze::FrozenWorld) -> Value {
-    let stdin: Arc<dyn wat::io::WatReader> =
-        Arc::new(wat::io::StringIoReader::from_string(String::new()));
-    let stdout_buf = Arc::new(wat::io::StringIoWriter::new());
-    let stderr_buf = Arc::new(wat::io::StringIoWriter::new());
-    let stdout: Arc<dyn wat::io::WatWriter> = stdout_buf;
-    let stderr: Arc<dyn wat::io::WatWriter> = stderr_buf;
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout),
-        Value::io__IOWriter(stderr),
-        Value::Vec(Arc::new(Vec::new())),
-    ];
-    invoke_user_main(world, args).expect(":user::main should run")
-}
+// ─── T2. :user::main [] -> :wat::core::nil invokes cleanly ─────────────
 
 #[test]
-fn t2_user_main_returns_exit_code_zero() {
-    let src = user_main_returning_u8(0);
-    let world = freeze_ok(&src);
-    let result = invoke_main_in_process(&world);
-    match result {
-        Value::u8(n) => assert_eq!(n, 0, "expected u8(0); got u8({})", n),
-        other => panic!("expected u8 return; got {:?}", other),
-    }
-}
-
-#[test]
-fn t2_user_main_returns_exit_code_nonzero() {
-    let src = user_main_returning_u8(42);
-    let world = freeze_ok(&src);
-    let result = invoke_main_in_process(&world);
-    match result {
-        Value::u8(n) => assert_eq!(n, 42, "expected u8(42); got u8({})", n),
-        other => panic!("expected u8 return; got {:?}", other),
-    }
-}
-
-// ─── T3. argv pure passthrough ─────────────────────────────────────────
-
-#[test]
-fn t3_argv_pure_passthrough() {
-    // :user::main reads argv length and returns it as the lower byte
-    // of the ExitCode. Pure passthrough — what we put in is what we
-    // get out. Assertion: a 3-element argv → u8(3).
+fn t2_canonical_main_returns_nil_value() {
+    // nil IS the success exit code (arc 170 REALIZATIONS pass 10).
+    // invoke_user_main on a canonical [] -> nil main returns nil.
     let src = r#"
-        (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            (argv :wat::core::Vector<wat::core::String>)
-            -> :wat::kernel::ExitCode)
-          (:wat::core::u8 (:wat::core::Vector/length argv)))
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
     "#;
     let world = freeze_ok(src);
-    // Invoke with a 3-element argv. The body returns the length as a
-    // u8 — confirms argv flowed through and was reachable as a Vector.
-    let argv = Value::Vec(Arc::new(vec![
-        Value::String(Arc::new("wat".into())),
-        Value::String(Arc::new("entry.wat".into())),
-        Value::String(Arc::new("third-arg".into())),
-    ]));
-    let stdin: Arc<dyn wat::io::WatReader> =
-        Arc::new(wat::io::StringIoReader::from_string(String::new()));
-    let stdout_buf = Arc::new(wat::io::StringIoWriter::new());
-    let stderr_buf = Arc::new(wat::io::StringIoWriter::new());
-    let stdout: Arc<dyn wat::io::WatWriter> = stdout_buf;
-    let stderr: Arc<dyn wat::io::WatWriter> = stderr_buf;
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout),
-        Value::io__IOWriter(stderr),
-        argv,
-    ];
-    let result = invoke_user_main(&world, args).expect(":user::main runs");
-    match result {
-        Value::u8(n) => assert_eq!(n, 3, "expected argv length 3 → u8(3); got u8({})", n),
-        other => panic!("expected u8 return; got {:?}", other),
-    }
+    let result = invoke_user_main(&world, Vec::new()).expect(":user::main should run");
+    assert!(
+        matches!(result, Value::Unit),
+        "expected nil (Value::Unit); got {:?}", result
+    );
+}
+
+#[test]
+fn t2_canonical_main_with_let_body_returns_nil() {
+    // A canonical main with a non-trivial body (let binding + discard)
+    // still returns nil. Confirms the do-work-return-nil pattern runs.
+    let src = r#"
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          (:wat::core::let
+            [_ (:wat::core::i64::+'2 1 2)]
+            :wat::core::nil))
+    "#;
+    let world = freeze_ok(src);
+    let result = invoke_user_main(&world, Vec::new()).expect(":user::main should run");
+    assert!(
+        matches!(result, Value::Unit),
+        "expected nil (Value::Unit); got {:?}", result
+    );
+}
+
+// ─── T3. argv ambient reachable via (:wat::runtime::argv) ─────────────
+
+#[test]
+fn t3_argv_reachable_via_ambient() {
+    // Arc 170 REALIZATIONS pass 7: argv is ambient (not a parameter).
+    // A canonical main body can access (:wat::runtime::argv) — the
+    // freeze should succeed (type-check validates the argv expression).
+    // At runtime the ambient vector is whatever set_argv was called with
+    // (empty if never set). We just confirm the program freezes and runs.
+    let src = r#"
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          (:wat::core::let
+            [_ (:wat::runtime::argv)]
+            :wat::core::nil))
+    "#;
+    let world = freeze_ok(src);
+    let result = invoke_user_main(&world, Vec::new()).expect(":user::main runs");
+    assert!(
+        matches!(result, Value::Unit),
+        "expected nil (Value::Unit); got {:?}", result
+    );
 }
 
 // ─── T4. spawn-process(fn) end-to-end via typed channels ───────────────

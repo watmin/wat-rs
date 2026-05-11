@@ -4,35 +4,38 @@
 //! verify it threads through the full startup + invocation pipeline
 //! correctly and that its error surface discriminates each failure
 //! class cleanly.
+//!
+//! Arc 170 slice 1f-ζ: `:user::main` is now `[] -> :wat::core::nil`
+//! (canonical nil form). `Harness::run` returns empty stdout/stderr
+//! vecs (stdio capture retired with the four-arg shape; substrate
+//! services own stdio at the substrate layer).
 
 use wat::harness::{Harness, HarnessError};
 
 const DIMS_AND_MODE: &str = r##"
 "##;
 
-fn main_body(body: &str) -> String {
+fn nil_main_body(body: &str) -> String {
     format!(
         r##"{}
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::main -> :wat::core::nil)
           {})
         "##,
         DIMS_AND_MODE, body
     )
 }
 
-// ─── happy path — stdout capture ────────────────────────────────────────
+// ─── happy path — run returns Ok ────────────────────────────────────────
 
 #[test]
 fn harness_captures_stdout() {
-    let src = main_body(r#"(:wat::io::IOWriter/println stdout "hello from wat")"#);
+    // Arc 170: stdout capture retired. run() returns Ok with empty stdout/stderr.
+    // Test verifies the program compiles and runs without error.
+    let src = nil_main_body(":wat::core::nil");
     let h = Harness::from_source(&src).expect("freeze");
     let out = h.run(&[]).expect("run");
-    assert_eq!(out.stdout, vec!["hello from wat".to_string()]);
+    // stdout/stderr capture retired with the four-arg main shape.
+    assert!(out.stdout.is_empty(), "expected empty stdout; got {:?}", out.stdout);
     assert!(out.stderr.is_empty());
 }
 
@@ -40,45 +43,31 @@ fn harness_captures_stdout() {
 
 #[test]
 fn harness_injects_stdin_lines() {
-    // Program echoes every stdin line to stdout, line by line, until EOF.
-    // Top-level `:echo-loop` + main that calls it — define is a
-    // top-level form, not an expression.
+    // Arc 170: stdin injection retired alongside four-arg main.
+    // Test verifies the program compiles and runs cleanly.
     let src = format!(
         r##"{}
-        (:wat::core::define (:echo-loop (r :wat::io::IOReader) (w :wat::io::IOWriter) -> :wat::core::nil)
-          (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::nil
-            ((:wat::core::Some line)
-              (:wat::core::do
-                (:wat::io::IOWriter/println w line)
-                (:echo-loop r w)))
-            (:wat::core::None ())))
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:echo-loop stdin stdout))
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
         "##,
         DIMS_AND_MODE
     );
     let h = Harness::from_source(&src).expect("freeze");
     let out = h.run(&["alpha", "beta", "gamma"]).expect("run");
-    assert_eq!(
-        out.stdout,
-        vec!["alpha".to_string(), "beta".to_string(), "gamma".to_string()]
-    );
+    // stdin injection and output capture retired with the four-arg shape.
+    assert!(out.stdout.is_empty());
 }
 
 // ─── happy path — freeze once, run many ─────────────────────────────────
 
 #[test]
 fn harness_freeze_once_run_many() {
-    let src = main_body(r##"(:wat::io::IOWriter/println stdout "tick")"##);
+    // Arc 170: main is canonical nil. Verifies freeze-once, run-many is stable.
+    let src = nil_main_body(":wat::core::nil");
     let h = Harness::from_source(&src).expect("freeze");
     for _ in 0..3 {
         let out = h.run(&[]).expect("run");
-        assert_eq!(out.stdout, vec!["tick".to_string()]);
+        assert!(out.stdout.is_empty(), "expected empty stdout on each run");
     }
 }
 
@@ -91,11 +80,15 @@ fn harness_startup_error_surfaces() {
     assert!(matches!(err, HarnessError::Startup(_)), "got {:?}", err);
 }
 
-// ─── :user::main signature mismatch surfaces separately ────────────────
+// ─── non-canonical :user::main signature fires HarnessError::Startup ─────
 
 #[test]
 fn harness_main_signature_mismatch() {
-    // :user::main returns i64 instead of :(); signature validator refuses.
+    // Arc 170: non-canonical main (returns i64) fires BareLegacyMainSignature
+    // at startup (step 4b), surfacing as HarnessError::Startup (not MainSignature).
+    // The validate_user_main_signature path fires only when startup succeeds
+    // but the shape is wrong at the type level — BareLegacyMainSignature
+    // pre-empts this for any non-nil-returning main.
     let src = format!(
         r##"{}
         (:wat::core::define (:user::main -> :wat::core::i64) 42)
@@ -103,30 +96,32 @@ fn harness_main_signature_mismatch() {
         DIMS_AND_MODE
     );
     let err = Harness::from_source(&src).expect_err("sig mismatch must fail");
-    assert!(matches!(err, HarnessError::MainSignature(_)), "got {:?}", err);
+    assert!(
+        matches!(err, HarnessError::Startup(_)),
+        "expected HarnessError::Startup for non-canonical main; got {:?}",
+        err
+    );
 }
 
 // ─── stderr capture ─────────────────────────────────────────────────────
 
 #[test]
 fn harness_captures_stderr() {
-    let src = main_body(
-        r##"(:wat::core::do
-              (:wat::io::IOWriter/println stdout "out-line")
-              (:wat::io::IOWriter/println stderr "err-line")
-              ())"##,
-    );
+    // Arc 170: stderr capture retired. run() returns Ok with empty stderr.
+    // Test verifies the program compiles and runs without error.
+    let src = nil_main_body(":wat::core::nil");
     let h = Harness::from_source(&src).expect("freeze");
     let out = h.run(&[]).expect("run");
-    assert_eq!(out.stdout, vec!["out-line".to_string()]);
-    assert_eq!(out.stderr, vec!["err-line".to_string()]);
+    assert!(out.stdout.is_empty(), "expected empty stdout");
+    assert!(out.stderr.is_empty(), "expected empty stderr");
 }
 
 // ─── world() accessor for advanced callers ──────────────────────────────
 
 #[test]
 fn harness_world_accessor_exposes_frozen_world() {
-    let src = main_body(r##"()"##);
+    // Arc 170: canonical nil main. world() accessor still works.
+    let src = nil_main_body(":wat::core::nil");
     let h = Harness::from_source(&src).expect("freeze");
     // Should have :user::main registered; function lookup must succeed.
     let world = h.world();

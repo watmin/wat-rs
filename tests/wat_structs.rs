@@ -14,20 +14,34 @@
 //! The auto-methods live in the symbol table like ordinary `define`
 //! entries; authors invoke them by full keyword path. Destructuring
 //! is not part of this slice — accessors + let bindings do the work.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
 use wat::check::CheckError;
-use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
+use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
 fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
     startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
 }
 
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
 fn run(src: &str) -> Value {
-    let world = startup(src).expect("startup should succeed");
-    invoke_user_main(&world, Vec::new()).expect("main should run")
+    let src = with_nil_main(src);
+    let world = startup(&src).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 fn check_errors(src: &str) -> Vec<CheckError> {
@@ -50,7 +64,7 @@ fn user_struct_constructor_and_accessor_round_trip() {
           (open  :wat::core::f64)
           (close :wat::core::f64))
 
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:my::compute -> :wat::core::f64)
           (:wat::core::let
             [b (:my::market::Bar/new 1.0 2.0)
              o             (:my::market::Bar/open b)
@@ -77,7 +91,7 @@ fn user_method_can_use_auto_accessors_in_body() {
         (:wat::core::define (:my::market::spread-of (b :my::market::Bar) -> :wat::core::f64)
           (:wat::core::f64::-'2 (:my::market::Bar/high b) (:my::market::Bar/low b)))
 
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:my::compute -> :wat::core::f64)
           (:wat::core::let
             [b (:my::market::Bar/new 10.0 3.0)]
             (:my::market::spread-of b)))
@@ -97,7 +111,7 @@ fn struct_can_hold_heterogeneous_fields() {
           (price  :wat::core::f64)
           (volume :wat::core::i64))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [t
               (:my::market::Tick/new "BTC" 50000.0 1000)
@@ -123,7 +137,7 @@ fn structs_are_values_that_survive_rebinding() {
         (:wat::core::define (:my::y-of (p :my::Point) -> :wat::core::i64)
           (:my::Point/y p))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [p (:my::Point/new 3 7)
              q p]
@@ -140,14 +154,17 @@ fn structs_are_values_that_survive_rebinding() {
 #[test]
 fn constructor_arity_mismatch_rejected_at_check() {
     // Bar/new expects 2 args (open, close); we pass 1.
+    // Bad code in :my::probe; canonical nil main appended.
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
           (open  :wat::core::f64)
           (close :wat::core::f64))
 
-        (:wat::core::define (:user::main -> :my::market::Bar)
+        (:wat::core::define (:my::probe -> :my::market::Bar)
           (:my::market::Bar/new 1.0))
+
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
     "#;
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
@@ -161,14 +178,17 @@ fn constructor_arity_mismatch_rejected_at_check() {
 #[test]
 fn constructor_field_type_mismatch_rejected_at_check() {
     // Bar/new expects f64 for `open`; we pass a :wat::core::String.
+    // Bad code in :my::probe; canonical nil main appended.
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
           (open  :wat::core::f64)
           (close :wat::core::f64))
 
-        (:wat::core::define (:user::main -> :my::market::Bar)
+        (:wat::core::define (:my::probe -> :my::market::Bar)
           (:my::market::Bar/new "not-a-float" 2.0))
+
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
     "#;
     let errs = check_errors(src);
     let saw_type = errs.iter().any(|e| matches!(
@@ -184,16 +204,19 @@ fn accessor_returns_correct_field_type() {
     // :Bar/volume is declared :wat::core::i64 in the struct; using it where
     // :wat::core::f64 is expected is a type error. Proves the accessor's
     // return type flows from the field declaration.
+    // Bad code in :my::probe; canonical nil main appended.
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
           (open  :wat::core::f64)
           (volume :wat::core::i64))
 
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:my::probe -> :wat::core::f64)
           (:wat::core::let
             [b (:my::market::Bar/new 1.0 100)]
             (:my::market::Bar/volume b)))
+
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
     "#;
     let errs = check_errors(src);
     let saw_ret = errs.iter().any(|e| matches!(
@@ -212,7 +235,7 @@ fn builtin_capacity_exceeded_struct_is_usable() {
     // available at startup without any user declaration.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [e
               (:wat::holon::CapacityExceeded/new 200 100)

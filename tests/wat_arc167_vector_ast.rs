@@ -124,9 +124,13 @@ fn vector_at_value_position_errors_clearly() {
     // body. A bare top-level `[1 2 3]` would also error at parse
     // / check time, but the define wrapper exercises the same
     // error path through the standard pipeline.
+    // Arc 170 slice 1f-ζ: bad body in probe fn + nil main.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::probe -> :wat::core::i64)
           [1 2 3])
+
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -147,9 +151,13 @@ fn vector_at_value_position_errors_clearly() {
 /// the discriminant).
 #[test]
 fn vector_at_value_position_in_define_body_errors() {
+    // Arc 170 slice 1f-ζ: bad body in probe fn + nil main.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::define (:my::probe -> :wat::core::Vector<wat::core::i64>)
           [1 2 3])
+
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
     "#;
     let err = startup_err(src);
     assert!(

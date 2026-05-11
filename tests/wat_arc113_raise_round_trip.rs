@@ -10,16 +10,30 @@
 //!
 //! No new field on Failure. No new field on AssertionPayload. The
 //! string IS the data, just rendered.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 #[test]
@@ -33,9 +47,11 @@ fn raise_data_round_trips_through_failure_message() {
     // structured data through a panic was to hand-render it as a
     // String. Post-closure: the verb does the render; recovery
     // is `:wat::edn::read`.
+    //
+    // Arc 170 slice 1f-ζ: outer uses :my::compute; inner uses canonical nil main.
     let src = r##"
         (:wat::core::define
-          (:user::main -> :wat::core::Option<wat::holon::HolonAST>)
+          (:my::compute -> :wat::core::Option<wat::holon::HolonAST>)
           (:wat::core::let
             [forms
               (:wat::test::program

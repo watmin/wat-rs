@@ -24,9 +24,17 @@
 //!   redef collision.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 /// Startup that MUST fail. Returns the `Debug`-formatted error bundle
 /// so tests can assert which variants appear in the output.
@@ -45,11 +53,16 @@ fn startup_ok(src: &str) {
     }
 }
 
-/// Run the program's `:user::main` with no arguments and return its value.
+/// Run `:my::compute` via eval_in_frozen (arc 170 slice 1f-ζ migration).
+/// Source must include a `(:my::compute -> :T)` definition.
+/// Nil main is appended automatically.
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 // ─── Basic binding — 4 tests ──────────────────────────────────────────────
@@ -89,11 +102,14 @@ fn def_type_mismatch_via_registered_type() {
     // `:pi` is registered as `:wat::core::f64`. Passing it to an `:wat::core::i64`-only
     // add form forces a TypeMismatch — the type-check sees `:pi`'s
     // type from `defined_values` and unifies it against the `:wat::core::i64`
-    // parameter. Expects startup to fail.
+    // parameter. Expects startup to fail. Bad code in probe fn + nil main
+    // (arc 170 slice 1f-ζ migration).
     let src = r#"
         (:wat::core::def :pi 3.14159)
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::probe -> :wat::core::i64)
           (:wat::core::i64::+'2 :pi 1))
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -258,13 +274,14 @@ fn def_redef_forbidden_strict_default() {
 /// and that a bare keyword reference resolves to `Value::F64(3.14159)`.
 #[test]
 fn def_runtime_pi_resolves_to_value() {
-    // `(:wat::core::def :pi 3.14159)` at top-level; `:user::main` returns
+    // `(:wat::core::def :pi 3.14159)` at top-level; `:my::compute` returns
     // `:pi` directly. The return type is `:wat::core::f64` — matches `:pi`'s inferred
     // type. This exercises the runtime keyword-arm lookup path that
     // checks `sym.runtime_def_values` after `unit_variants`.
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute is the probe.
     let src = r#"
         (:wat::core::def :pi 3.14159)
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:my::compute -> :wat::core::f64)
           :pi)
     "#;
     let v = run(src);
@@ -287,9 +304,10 @@ fn def_runtime_pi_resolves_to_value() {
 /// Asserts the result is 5.14159:wat::core::f64.
 #[test]
 fn def_runtime_pi_in_let_addition() {
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute is the probe.
     let src = r#"
         (:wat::core::def :pi 3.14159)
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:my::compute -> :wat::core::f64)
           (:wat::core::let
             [x 2.0]
             (:wat::core::f64::+'2 x :pi)))
@@ -320,13 +338,14 @@ fn def_runtime_pi_in_let_addition() {
 fn def_runtime_let_splice_closure_capture() {
     // Top-level `let` with `config = 42` in scope; the def's expr is a
     // fn that captures `config`. Calling `:get-config` must return 42.
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute calls :get-config.
     let src = r#"
         (:wat::core::let
           [config 42]
           (:wat::core::def :get-config
             (:wat::core::fn [] -> :wat::core::i64
               config)))
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:get-config))
     "#;
     let v = run(src);
@@ -364,11 +383,12 @@ fn def_redef_default_flag_off_strict_default() {
 /// must resolve to `2`.
 #[test]
 fn def_redef_set_redef_true_same_type_succeeds() {
+    // Arc 170 slice 1f-ζ: main is canonical nil; compute accesses :a.
     let src = r#"
         (:wat::config::set-redef! true)
         (:wat::core::def :a 1)
         (:wat::core::def :a 2)
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           :a)
     "#;
     let v = run(src);

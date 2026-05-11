@@ -1,10 +1,13 @@
 //! End-to-end validation of Vec<T> marshaling through `#[wat_dispatch]`.
 //! Fixture exposes associated fns that accept and return Vec<i64>.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 use wat_macros::wat_dispatch;
 
 pub struct VecUtils;
@@ -38,19 +41,33 @@ fn install() {
     });
 }
 
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+fn run(src: &str) -> Value {
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
+        .expect("startup");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
+}
+
 #[test]
 fn sum_vec_via_macro() {
     install();
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64 10 20 30)))
     "#;
-    let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
-    let result = invoke_user_main(&world, Vec::new()).expect("main");
-    assert!(matches!(result, Value::i64(60)), "got {:?}", result);
+    assert!(matches!(run(src), Value::i64(60)), "got {:?}", run(src));
 }
 
 #[test]
@@ -59,7 +76,7 @@ fn reverse_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::match
             (:wat::core::first
               (:rust::test::VecUtils::reverse (:wat::core::Vector :wat::core::i64 1 2 3)))
@@ -67,10 +84,7 @@ fn reverse_vec_via_macro() {
             ((:wat::core::Some n) n)
             (:wat::core::None -1)))
     "#;
-    let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
-    let result = invoke_user_main(&world, Vec::new()).expect("main");
-    assert!(matches!(result, Value::i64(3)), "got {:?}", result);
+    assert!(matches!(run(src), Value::i64(3)), "got {:?}", run(src));
 }
 
 #[test]
@@ -79,7 +93,7 @@ fn sort_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::match
             (:wat::core::first
               (:rust::test::VecUtils::sort (:wat::core::Vector :wat::core::i64 5 2 8 1)))
@@ -87,10 +101,7 @@ fn sort_vec_via_macro() {
             ((:wat::core::Some n) n)
             (:wat::core::None -1)))
     "#;
-    let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
-    let result = invoke_user_main(&world, Vec::new()).expect("main");
-    assert!(matches!(result, Value::i64(1)), "got {:?}", result);
+    assert!(matches!(run(src), Value::i64(1)), "got {:?}", run(src));
 }
 
 #[test]
@@ -99,11 +110,8 @@ fn empty_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64)))
     "#;
-    let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
-    let result = invoke_user_main(&world, Vec::new()).expect("main");
-    assert!(matches!(result, Value::i64(0)), "got {:?}", result);
+    assert!(matches!(run(src), Value::i64(0)), "got {:?}", run(src));
 }

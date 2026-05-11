@@ -63,9 +63,13 @@ fn tuple_pascal_canonical_works() {
     // `eval_tuple_ctor`, which stores `Value::Tuple` with
     // `type_name() == "wat::core::Tuple"`.
     // Return type uses the tuple-type-position syntax: :(T,U,V).
+    // Arc 170 slice 1f-ζ: main is canonical nil; computation in helper.
     let src = r#"
-        (:wat::core::define (:user::main -> :(wat::core::i64,wat::core::i64,wat::core::i64))
+        (:wat::core::define (:my::compute -> :(wat::core::i64,wat::core::i64,wat::core::i64))
           (:wat::core::Tuple 1 2 3))
+
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -80,9 +84,13 @@ fn legacy_tuple_lowercase_redirects_via_pattern2_poison() {
     // `infer_tuple_constructor`. The diagnostic must contain both
     // "TypeMismatch" (the variant name) and "wat::core::Tuple" (the
     // redirect target — which NOW matches storage, arc 165).
+    // Arc 170 slice 1f-ζ: legacy code in probe fn + nil main.
     let src = r#"
-        (:wat::core::define (:user::main -> :(wat::core::i64,wat::core::i64,wat::core::i64))
+        (:wat::core::define (:my::probe -> :(wat::core::i64,wat::core::i64,wat::core::i64))
           (:wat::core::tuple 1 2 3))
+
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -106,12 +114,16 @@ fn tuple_in_function_return_position() {
     // This exercises `infer_tuple_constructor` at check.rs with the
     // PascalCase head (arc 165 renamed the head in the MalformedForm
     // error at check.rs:8959 and the docstring at 8944).
+    // Arc 170 slice 1f-ζ: main is canonical nil; computation in helper.
     let src = r#"
         (:wat::core::define (:user::make-pair -> :(wat::core::i64,wat::core::String))
           (:wat::core::Tuple 42 "hello"))
 
-        (:wat::core::define (:user::main -> :(wat::core::i64,wat::core::String))
+        (:wat::core::define (:my::invoke -> :(wat::core::i64,wat::core::String))
           (:user::make-pair))
+
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -135,11 +147,15 @@ fn type_name_returns_fqdn_pascal() {
     // and returning it through a declared Tuple return type. The
     // eval-dispatch arm (`:wat::core::Tuple` post-arc-165) constructs
     // the value with the canonical type_name.
+    // Arc 170 slice 1f-ζ: main is canonical nil; computation in helper.
     let src = r#"
-        (:wat::core::define (:user::main -> :(wat::core::i64,wat::core::i64))
+        (:wat::core::define (:my::compute -> :(wat::core::i64,wat::core::i64))
           (:wat::core::let
             [t (:wat::core::Tuple 10 20)]
             t))
+
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
     "#;
     startup_ok(src);
 }

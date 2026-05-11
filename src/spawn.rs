@@ -180,23 +180,35 @@ fn spawn_with_world_into_result(
     // work without modification on Process.join.
     let (tx, rx) = crossbeam_channel::bounded::<SpawnOutcome>(1);
 
-    // Arc 170 slice 1e — keep child-side stdio Arcs alive across
-    // the worker thread for legacy `Process` field plumbing
-    // (BareLegacySpawnProgram walker fires on user-source callers;
-    // slice 4 retires the verb wholesale). The Arcs drop when the
-    // thread exits, closing the child-side fds so the parent's
-    // EOF cascade fires.
-    let _stdio_keepalive = (child_stdin, child_stdout, child_stderr);
+    // Arc 170 slice 1f-ζ — install the child-side pipes as the thread's
+    // ambient stdio so `invoke_user_main`'s orchestrator picks them up
+    // (instead of falling through to real fd 0/1/2). The orchestrator
+    // then wires stdin/stdout/stderr into the three substrate services;
+    // `:wat::kernel::println` / `readln` / `eprintln` route through the
+    // services, which write to these pipe ends — closing the loop
+    // between `drive-sandbox`'s drain and the child's write path.
+    //
+    // Arcs are cloned here for the ambient install; the originals move
+    // into the thread keepalive to ensure the fds remain open until the
+    // thread exits (EOF cascade for the parent's drain).
+    let ambient_stdin = child_stdin.clone();
+    let ambient_stdout = child_stdout.clone();
+    let ambient_stderr = child_stderr.clone();
 
     std::thread::Builder::new()
         .name(format!("wat-thread::{}", op))
         .spawn(move || {
-            // Move the keepalive into the worker thread so the Arcs
-            // outlive `invoke_user_main`. Slice 1f's services boot
-            // replaces this stdio path entirely; this in-thread fresh-
-            // world spawn retires in slice 4 alongside the legacy
-            // spawn-program walker.
-            let _stdio = _stdio_keepalive;
+            // Install the ambient stdio before the orchestrator runs so
+            // `invoke_user_main` routes through the pre-allocated pipes.
+            crate::thread_io::install_ambient_stdio(crate::thread_io::AmbientStdio {
+                stdin: ambient_stdin,
+                stdout: ambient_stdout,
+                stderr: ambient_stderr,
+            });
+
+            // Keep the original child-side pipe Arcs alive so the fds
+            // don't close before the orchestrator's service threads finish.
+            let _stdio = (child_stdin, child_stdout, child_stderr);
 
             // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
             // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is

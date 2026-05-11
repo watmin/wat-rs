@@ -17,19 +17,33 @@
 //! - Arity error: fewer than fixed_arity args.
 //! - Multiple `&` markers rejected at registration.
 //! - Rest-param without a following binder rejected.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
+use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
 fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
     startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
 }
 
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
 fn run(src: &str) -> Value {
-    let world = startup(src).expect("startup should succeed");
-    invoke_user_main(&world, Vec::new()).expect("main should run")
+    let src = with_nil_main(src);
+    let world = startup(&src).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 // ─── Canonical use: splice into a core form ───────────────────────────
@@ -47,7 +61,7 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::match (:wat::core::first (:my::vec-of 10 20 30)) -> :wat::core::i64
             ((:wat::core::Some n) n)
             (:wat::core::None -1)))
@@ -67,7 +81,7 @@ fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
-        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
           (:my::empty-vec))
     "#;
     match run(src) {
@@ -99,7 +113,7 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:my::sum-of 100 1 2 3))
     "#;
     assert!(matches!(run(src), Value::i64(106)));

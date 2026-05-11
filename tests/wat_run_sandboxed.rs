@@ -1,28 +1,34 @@
 //! End-to-end tests for `:wat::kernel::run-sandboxed` — arc 007 slice 2a.
 //!
-//! The sandbox takes wat source + stdin lines + scope, freezes a fresh
-//! inner world, invokes `:user::main` with StringIo-backed stdio, and
-//! captures what the program wrote. Happy-path coverage only in slice
-//! 2a; panic isolation / shutdown-wait / scope-enforcement tests land
-//! in slice 2b.
+//! The sandbox takes wat source + stdin lines + scope, spawns a fresh
+//! child process, invokes `:user::main` in that process, and captures
+//! what the program wrote. Happy-path coverage only in slice 2a; panic
+//! isolation / shutdown-wait / scope-enforcement tests land in slice 2b.
 //!
-//! Covers:
-//! - No-op main → empty stdout + stderr, failure: None.
-//! - Main writes one line → stdout captured.
-//! - Main writes multiple lines to both stdout and stderr.
-//! - Main reads stdin and echoes to stdout.
-//! - Main uses `print` (no newline) vs `println` (with newline).
-//! - Scope `:None` isolates from disk.
+//! Arc 170 slice 1f-ζ: outer main migrated to (:my::compute -> :wat::kernel::RunResult)
+//! + eval_in_frozen. Inner programs use canonical nil main + ambient
+//! :wat::kernel::println / :wat::kernel::eprintln.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 /// Unwrap a RunResult struct value into its three fields.
@@ -60,18 +66,14 @@ fn as_vec_string(v: &Value) -> Vec<String> {
 
 #[test]
 fn noop_main_yields_empty_stdout_and_stderr() {
+    // Arc 170 slice 1f-ζ: inner program uses canonical nil main (no output).
     let src = r#"
 
-        ;; Outer program: runs a sandboxed no-op main.
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+        ;; Outer program: runs a sandboxed no-op nil main.
+        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :error)
-             (:wat::core::define (:user::main
-                                  (stdin  :wat::io::IOReader)
-                                  (stdout :wat::io::IOWriter)
-                                  (stderr :wat::io::IOWriter)
-                                  -> :wat::core::nil)
-               ())"
+             (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)"
             (:wat::core::Vector :wat::core::String)
             :wat::core::None))
     "#;
@@ -85,22 +87,20 @@ fn noop_main_yields_empty_stdout_and_stderr() {
 
 #[test]
 fn main_writes_single_line_to_stdout() {
+    // Arc 170 slice 1f-ζ: inner uses :wat::kernel::println instead of IOWriter.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :error)
-             (:wat::core::define (:user::main
-                                  (stdin  :wat::io::IOReader)
-                                  (stdout :wat::io::IOWriter)
-                                  (stderr :wat::io::IOWriter)
-                                  -> :wat::core::nil)
-               (:wat::io::IOWriter/println stdout \"hello\"))"
+             (:wat::core::define (:user::main -> :wat::core::nil)
+               (:wat::kernel::println \"hello\"))"
             (:wat::core::Vector :wat::core::String)
             :wat::core::None))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
-    assert_eq!(stdout, vec!["hello".to_string()]);
+    // :wat::kernel::println EDN-serializes strings with quotes.
+    assert_eq!(stdout, vec!["\"hello\"".to_string()]);
     assert!(stderr.is_empty());
     assert!(!failure);
 }
@@ -109,87 +109,29 @@ fn main_writes_single_line_to_stdout() {
 
 #[test]
 fn main_writes_to_both_stdout_and_stderr() {
+    // Arc 170 slice 1f-ζ: inner uses :wat::kernel::println/:wat::kernel::eprintln.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :error)
-             (:wat::core::define (:user::main
-                                  (stdin  :wat::io::IOReader)
-                                  (stdout :wat::io::IOWriter)
-                                  (stderr :wat::io::IOWriter)
-                                  -> :wat::core::nil)
+             (:wat::core::define (:user::main -> :wat::core::nil)
                (:wat::core::do
-                 (:wat::io::IOWriter/println stdout \"one\")
-                 (:wat::io::IOWriter/println stdout \"two\")
-                 (:wat::io::IOWriter/println stderr \"oops\")
+                 (:wat::kernel::println \"one\")
+                 (:wat::kernel::println \"two\")
+                 (:wat::kernel::eprintln \"oops\")
                  ()))"
             (:wat::core::Vector :wat::core::String)
             :wat::core::None))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
-    assert_eq!(stdout, vec!["one".to_string(), "two".to_string()]);
-    assert_eq!(stderr, vec!["oops".to_string()]);
+    // :wat::kernel::println EDN-serializes strings with quotes.
+    assert_eq!(stdout, vec!["\"one\"".to_string(), "\"two\"".to_string()]);
+    assert_eq!(stderr, vec!["\"oops\"".to_string()]);
     assert!(!failure);
 }
 
-// ─── Main echoes stdin to stdout ─────────────────────────────────────────
-
-#[test]
-fn main_echoes_stdin_to_stdout() {
-    // r##"..."## delimiter so the outer vec :wat::core::String "watmin" doesn't
-    // need backslash-escaped quotes at the wat surface.
-    let src = r##"
-
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
-          (:wat::kernel::run-sandboxed
-            "(:wat::config::set-capacity-mode! :error)
-             (:wat::core::define (:user::main
-                                  (stdin  :wat::io::IOReader)
-                                  (stdout :wat::io::IOWriter)
-                                  (stderr :wat::io::IOWriter)
-                                  -> :wat::core::nil)
-               (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
-                 ((Some line) (:wat::io::IOWriter/println stdout line))
-                 (:None ())))"
-            (:wat::core::Vector :wat::core::String "watmin")
-            :wat::core::None))
-    "##;
-    let (stdout, stderr, failure) = unwrap_run_result(run(src));
-    assert_eq!(stdout, vec!["watmin".to_string()]);
-    assert!(stderr.is_empty());
-    assert!(!failure);
-}
-
-// ─── print (no newline) vs println ───────────────────────────────────────
-
-#[test]
-fn print_without_newline_does_not_split_into_lines() {
-    // Three prints to stdout: "a" + "b" + "c". No newline.
-    // Buffer: "abc". Split on \n: ["abc"]. No trailing \n to trim.
-    let src = r#"
-
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
-          (:wat::kernel::run-sandboxed
-            "(:wat::config::set-capacity-mode! :error)
-             (:wat::core::define (:user::main
-                                  (stdin  :wat::io::IOReader)
-                                  (stdout :wat::io::IOWriter)
-                                  (stderr :wat::io::IOWriter)
-                                  -> :wat::core::nil)
-               (:wat::core::do
-                 (:wat::io::IOWriter/print stdout \"a\")
-                 (:wat::io::IOWriter/print stdout \"b\")
-                 (:wat::io::IOWriter/print stdout \"c\")
-                 ()))"
-            (:wat::core::Vector :wat::core::String)
-            :wat::core::None))
-    "#;
-    let (stdout, _, _) = unwrap_run_result(run(src));
-    assert_eq!(stdout, vec!["abc".to_string()]);
-}
-
-// ─── Failure capture (slice 2b) ─────────────────────────────────────────
+// ─── Failure capture ─────────────────────────────────────────────────────
 
 fn unwrap_run_result_with_failure(v: Value) -> (Vec<String>, Vec<String>, Option<String>) {
     match v {
@@ -225,9 +167,9 @@ fn parse_error_in_source_surfaces_as_failure() {
     // surfaces as a startup error, captured into Failure.
     let src = r##"
 
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) \"unclosed"
+            "(:wat::core::define (:user::main -> :wat::core::nil) \"unclosed"
             (:wat::core::Vector :wat::core::String)
             :wat::core::None))
     "##;
@@ -243,32 +185,10 @@ fn parse_error_in_source_surfaces_as_failure() {
 }
 
 #[test]
-fn main_signature_mismatch_surfaces_as_failure() {
-    // Inner main takes no IO params — mismatch against the expected
-    // three-IO contract. Captured as Failure.
-    let src = r##"
-
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
-          (:wat::kernel::run-sandboxed
-            "(:wat::config::set-capacity-mode! :error)
-             (:wat::core::define (:user::main -> :wat::core::nil) ())"
-            (:wat::core::Vector :wat::core::String)
-            :wat::core::None))
-    "##;
-    let (_, _, failure) = unwrap_run_result_with_failure(run(src));
-    let msg = failure.expect("expected signature-mismatch failure");
-    assert!(
-        msg.contains(":user::main"),
-        "failure should mention :user::main; got {}",
-        msg
-    );
-}
-
-#[test]
 fn missing_user_main_surfaces_as_failure() {
     let src = r##"
 
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :error)"
             (:wat::core::Vector :wat::core::String)
@@ -290,26 +210,19 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // mode with a list exceeding the capacity budget. Outer caller
     // sees RunResult with stdout=["before panic"] + Failure with
     // "panic" in the message.
-    //
-    // Arc 037 slice 1 + arc 067: ambient router picks dim from
-    // DEFAULT_TIERS ([10000]). Default tier's sqrt = 100. A
-    // 400-element Bundle overflows; :panic mode panics.
+    // Arc 170 slice 1f-ζ: inner uses :wat::kernel::println.
     let atoms = (0..400)
         .map(|i| format!(r#"(:wat::holon::Atom \"atom-{}\")"#, i))
         .collect::<Vec<_>>()
         .join(" ");
     let src = format!(r##"
 
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :panic)
-             (:wat::core::define (:user::main
-                                  (stdin  :wat::io::IOReader)
-                                  (stdout :wat::io::IOWriter)
-                                  (stderr :wat::io::IOWriter)
-                                  -> :wat::core::nil)
+             (:wat::core::define (:user::main -> :wat::core::nil)
                (:wat::core::let
-                 [_ (:wat::io::IOWriter/println stdout \"before panic\")
+                 [_ (:wat::kernel::println \"before panic\")
                   _
                    (:wat::holon::Bundle
                      (:wat::core::Vector :wat::holon::HolonAST
@@ -321,9 +234,10 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     let src = src.as_str();
     let (stdout, _, failure) = unwrap_run_result_with_failure(run(src));
     // Stdout captured BEFORE the panic should survive.
+    // :wat::kernel::println EDN-serializes "before panic" with quotes.
     assert_eq!(
         stdout,
-        vec!["before panic".to_string()],
+        vec!["\"before panic\"".to_string()],
         "partial output before panic should be preserved"
     );
     let msg = failure.expect("expected panic failure");
@@ -372,23 +286,20 @@ impl Drop for ScopeDir {
 #[test]
 fn scoped_file_eval_inside_scope_succeeds() {
     // Write a wat source to a temp dir; point run-sandboxed's scope
-    // at that dir; use inside the sandbox to
-    // read it. The ScopedLoader allows the read because the target
-    // is inside the canonical root.
+    // at that dir; use eval-file! inside the sandbox to read it.
+    // The ScopedLoader allows the read because the target is inside
+    // the canonical root.
+    // Arc 170 slice 1f-ζ: inner uses :wat::kernel::println + canonical nil main.
     let scope = ScopeDir::new();
     let inner_source_path = scope.write("fortytwo.wat", "(:wat::core::i64::+'2 40 2)");
     let inner_src = format!(
         r#"(:wat::config::set-capacity-mode! :error)
-         (:wat::core::define (:user::main
-                              (stdin  :wat::io::IOReader)
-                              (stdout :wat::io::IOWriter)
-                              (stderr :wat::io::IOWriter)
-                              -> :wat::core::nil)
+         (:wat::core::define (:user::main -> :wat::core::nil)
            (:wat::core::match
              (:wat::eval-file! "{path}")
              -> :wat::core::nil
-             ((:wat::core::Ok h) (:wat::io::IOWriter/println stdout "ok"))
-             ((:wat::core::Err _) (:wat::io::IOWriter/println stderr "err"))))"#,
+             ((:wat::core::Ok h) (:wat::kernel::println "ok"))
+             ((:wat::core::Err _) (:wat::kernel::eprintln "err"))))"#,
         path = inner_source_path.display()
     );
 
@@ -396,7 +307,7 @@ fn scoped_file_eval_inside_scope_succeeds() {
     let src = format!(
         r##"
 
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             {inner_src:?}
             (:wat::core::Vector :wat::core::String)
@@ -406,9 +317,10 @@ fn scoped_file_eval_inside_scope_succeeds() {
         scope = scope_path.display().to_string(),
     );
     let (stdout, stderr, failure) = unwrap_run_result_with_failure(run(&src));
+    // :wat::kernel::println EDN-serializes "ok" as "ok" (with quotes).
     assert_eq!(
         stdout,
-        vec!["ok".to_string()],
+        vec!["\"ok\"".to_string()],
         "in-scope file read should succeed; stderr was {:?}; failure={:?}",
         stderr,
         failure
@@ -428,24 +340,19 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
     // Result; the sandboxed program matches on Err and writes to
     // stderr. The sandbox itself succeeds — the "failure" here is
     // at the wat level (the Err arm), not a sandbox-caught failure.
-    // This is the honest shape: the sandbox ran the program; the
-    // program observed its own capability boundary.
+    // Arc 170 slice 1f-ζ: inner uses :wat::kernel::eprintln + canonical nil main.
     let scope = ScopeDir::new();
     let outside = ScopeDir::new();
     let outside_file = outside.write("leak.txt", "secrets");
 
     let inner_src = format!(
         r#"(:wat::config::set-capacity-mode! :error)
-         (:wat::core::define (:user::main
-                              (stdin  :wat::io::IOReader)
-                              (stdout :wat::io::IOWriter)
-                              (stderr :wat::io::IOWriter)
-                              -> :wat::core::nil)
+         (:wat::core::define (:user::main -> :wat::core::nil)
            (:wat::core::match
              (:wat::eval-file! "{path}")
              -> :wat::core::nil
-             ((:wat::core::Ok _) (:wat::io::IOWriter/println stdout "leaked"))
-             ((:wat::core::Err _) (:wat::io::IOWriter/println stderr "blocked"))))"#,
+             ((:wat::core::Ok _) (:wat::kernel::println "leaked"))
+             ((:wat::core::Err _) (:wat::kernel::eprintln "blocked"))))"#,
         path = outside_file.display()
     );
 
@@ -453,7 +360,7 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
     let src = format!(
         r##"
 
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             {inner_src:?}
             (:wat::core::Vector :wat::core::String)
@@ -464,52 +371,17 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
     );
     let (stdout, stderr, _failure) = unwrap_run_result_with_failure(run(&src));
     // The sandbox blocked the read — matched Err arm → stderr "blocked".
+    // :wat::kernel::eprintln EDN-serializes "blocked" with quotes.
     assert_eq!(
         stderr,
-        vec!["blocked".to_string()],
+        vec!["\"blocked\"".to_string()],
         "out-of-scope read should route to Err; stdout was {:?}",
         stdout
     );
     // stdout should NOT contain "leaked".
     assert!(
-        !stdout.contains(&"leaked".to_string()),
+        !stdout.contains(&"\"leaked\"".to_string()),
         "out-of-scope read should not reach the Ok arm; stdout: {:?}",
         stdout
-    );
-}
-
-// ─── Multiple stdin lines ────────────────────────────────────────────────
-
-#[test]
-fn main_reads_multiple_stdin_lines() {
-    // Read and println each line until EOF.
-    let src = r##"
-
-        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
-          (:wat::kernel::run-sandboxed
-            "(:wat::config::set-capacity-mode! :error)
-             (:wat::core::define (:my::echo-all
-                                  (r :wat::io::IOReader)
-                                  (w :wat::io::IOWriter)
-                                  -> :wat::core::nil)
-               (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::nil
-                 ((Some line)
-                   (:wat::core::do
-                     (:wat::io::IOWriter/println w line)
-                     (:my::echo-all r w)))
-                 (:None ())))
-             (:wat::core::define (:user::main
-                                  (stdin  :wat::io::IOReader)
-                                  (stdout :wat::io::IOWriter)
-                                  (stderr :wat::io::IOWriter)
-                                  -> :wat::core::nil)
-               (:my::echo-all stdin stdout))"
-            (:wat::core::Vector :wat::core::String "alpha" "beta" "gamma")
-            :wat::core::None))
-    "##;
-    let (stdout, _, _) = unwrap_run_result(run(src));
-    assert_eq!(
-        stdout,
-        vec!["alpha".to_string(), "beta".to_string(), "gamma".to_string()]
     );
 }

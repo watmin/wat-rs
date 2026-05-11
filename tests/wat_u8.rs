@@ -5,23 +5,37 @@
 //! - Comparison (`:wat::core::=`) works on `:wat::core::u8` values.
 //! - `:wat::core::Vector<u8>` construction via `(:wat::core::Vector :wat::core::u8 ...)` round-trips.
 //! - Passing `:wat::core::u8` values through function parameters and return types.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 #[test]
 fn u8_cast_from_i64_in_range_succeeds() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::u8)
+        (:wat::core::define (:my::compute -> :wat::core::u8)
           (:wat::core::u8 42))
     "#;
     match run(src) {
@@ -35,14 +49,14 @@ fn u8_cast_boundary_values() {
     // 0 and 255 are the edges of :wat::core::u8's range.
     let src_zero = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::u8)
+        (:wat::core::define (:my::compute -> :wat::core::u8)
           (:wat::core::u8 0))
     "#;
     assert!(matches!(run(src_zero), Value::u8(0)));
 
     let src_max = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::u8)
+        (:wat::core::define (:my::compute -> :wat::core::u8)
           (:wat::core::u8 255))
     "#;
     assert!(matches!(run(src_max), Value::u8(255)));
@@ -53,12 +67,15 @@ fn u8_cast_out_of_range_errors_at_runtime() {
     // 256 is one past :wat::core::u8 max — runtime should reject.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::u8)
+        (:wat::core::define (:my::compute -> :wat::core::u8)
           (:wat::core::u8 256))
     "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src_with_nil = with_nil_main(src);
+    let world = startup_from_source(&src_with_nil, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    let err = invoke_user_main(&world, Vec::new()).expect_err("expected runtime error");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    let err = eval_in_frozen(&ast, &world, &env).expect_err("expected runtime error");
     let msg = format!("{:?}", err);
     assert!(
         msg.contains("u8") && msg.contains("256"),
@@ -71,12 +88,15 @@ fn u8_cast_out_of_range_errors_at_runtime() {
 fn u8_cast_negative_errors_at_runtime() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::u8)
+        (:wat::core::define (:my::compute -> :wat::core::u8)
           (:wat::core::u8 -1))
     "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src_with_nil = with_nil_main(src);
+    let world = startup_from_source(&src_with_nil, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    let err = invoke_user_main(&world, Vec::new()).expect_err("expected runtime error");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    let err = eval_in_frozen(&ast, &world, &env).expect_err("expected runtime error");
     let msg = format!("{:?}", err);
     assert!(
         msg.contains("u8") && msg.contains("-1"),
@@ -89,7 +109,7 @@ fn u8_cast_negative_errors_at_runtime() {
 fn u8_equality_works() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::bool)
+        (:wat::core::define (:my::compute -> :wat::core::bool)
           (:wat::core::= (:wat::core::u8 10) (:wat::core::u8 10)))
     "#;
     assert!(matches!(run(src), Value::bool(true)));
@@ -99,7 +119,7 @@ fn u8_equality_works() {
 fn u8_inequality_works() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::bool)
+        (:wat::core::define (:my::compute -> :wat::core::bool)
           (:wat::core::= (:wat::core::u8 10) (:wat::core::u8 11)))
     "#;
     assert!(matches!(run(src), Value::bool(false)));
@@ -110,7 +130,7 @@ fn vec_u8_construction_round_trips() {
     // (:wat::core::Vector :wat::core::u8 0 65 127 255) — cast each from i64 literal.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::u8>)
+        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::u8>)
           (:wat::core::Vector :wat::core::u8
             (:wat::core::u8 0)
             (:wat::core::u8 65)
@@ -140,8 +160,10 @@ fn u8_type_mismatch_rejected_at_check_time() {
 
         (:wat::core::define (:my::app::byte-taker (b :wat::core::u8) -> :wat::core::u8) b)
 
-        (:wat::core::define (:user::main -> :wat::core::u8)
+        (:wat::core::define (:my::probe -> :wat::core::u8)
           (:my::app::byte-taker 42))
+
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
     "#;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     assert!(
@@ -158,7 +180,7 @@ fn u8_parameter_and_return_roundtrip() {
 
         (:wat::core::define (:my::app::identity (b :wat::core::u8) -> :wat::core::u8) b)
 
-        (:wat::core::define (:user::main -> :wat::core::u8)
+        (:wat::core::define (:my::compute -> :wat::core::u8)
           (:my::app::identity (:wat::core::u8 100)))
     "#;
     assert!(matches!(run(src), Value::u8(100)));

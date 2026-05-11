@@ -12,13 +12,13 @@
 //! mirrors how a consumer crate would use `Harness::from_source_with_deps`
 //! at test time: one superset, many callers.
 //!
-//! Tests that were order-fragile under the old `dep_sources`-as-
-//! parameter shape (per-test different dep sets in one process)
-//! retired here — equivalent coverage now lives in
-//! `crates/wat-lru/tests/wat_suite.rs` where a real external wat
-//! crate owns its own test binary.
+//! Arc 170 slice 1f-ζ: migrated from 3-arg main + stdout-capture to
+//! canonical nil main + eval_in_frozen via h.world(). Dep presence
+//! verified through symbol lookup + eval.
 
-use wat::harness::{Harness, Outcome};
+use wat::freeze::eval_in_frozen;
+use wat::harness::Harness;
+use wat::runtime::{Environment, Value};
 use wat::WatSource;
 
 /// Two in-memory dep "files" — stand-ins for what an external wat
@@ -51,65 +51,70 @@ const DEP_B: &[WatSource] = &[WatSource {
 #[test]
 fn harness_composes_multiple_deps_into_user_source() {
     wat::fork::run_in_fork(|| {
+        // Arc 170 slice 1f-ζ: canonical nil main; dep functions verified
+        // via eval_in_frozen on the frozen world.
         let user = r#"
-
-            (:wat::core::define (:user::main
-                                 (stdin  :wat::io::IOReader)
-                                 (stdout :wat::io::IOWriter)
-                                 (stderr :wat::io::IOWriter)
-                                 -> :wat::core::nil)
-              (:wat::core::let
-                [_ (:wat::io::IOWriter/writeln stdout (:user::test::dep-a::label))
-                 _ (:wat::io::IOWriter/writeln stdout (:user::test::dep-b::label))]
-                ()))
+            (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
         "#;
         let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
         let out = h.run(&[]).expect("run");
-        assert_eq!(out.stdout, vec!["A".to_string(), "B".to_string()]);
+        // Arc 170: stdio capture retired — stdout/stderr are always empty.
+        assert!(out.stdout.is_empty());
+        assert!(out.stderr.is_empty());
+        // Verify both dep functions are registered in the frozen world.
+        let world = h.world();
+        assert!(world.symbols().get(":user::test::dep-a::label").is_some(),
+                "expected dep-a to be registered");
+        assert!(world.symbols().get(":user::test::dep-b::label").is_some(),
+                "expected dep-b to be registered");
+        // Verify dep-a returns "A" and dep-b returns "B" via eval.
+        let env = Environment::new();
+        let ast_a = wat::parse_one!("(:user::test::dep-a::label)").expect("parse a");
+        let ast_b = wat::parse_one!("(:user::test::dep-b::label)").expect("parse b");
+        let val_a = eval_in_frozen(&ast_a, &world, &env).expect("eval a");
+        let val_b = eval_in_frozen(&ast_b, &world, &env).expect("eval b");
+        assert!(matches!(val_a, Value::String(ref s) if &**s == "A"), "expected dep-a to return 'A'; got {:?}", val_a);
+        assert!(matches!(val_b, Value::String(ref s) if &**s == "B"), "expected dep-b to return 'B'; got {:?}", val_b);
     });
 }
 
 #[test]
 fn harness_same_deps_usable_from_different_entry_source() {
     wat::fork::run_in_fork(|| {
-        // Same two deps installed in this forked child; different entry
-        // program — proves deps survive across multiple Harness
-        // construction calls within one process (here, the forked one).
+        // Arc 170 slice 1f-ζ: canonical nil main; dep-a verified via eval.
         let user = r#"
-            (:wat::core::define (:user::main
-                                 (stdin  :wat::io::IOReader)
-                                 (stdout :wat::io::IOWriter)
-                                 (stderr :wat::io::IOWriter)
-                                 -> :wat::core::nil)
-              (:wat::io::IOWriter/println stdout (:user::test::dep-a::label)))
+            (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
         "#;
         let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
-        let Outcome { stdout, stderr } = h.run(&[]).expect("run");
-        assert_eq!(stdout, vec!["A".to_string()]);
-        assert!(stderr.is_empty(), "expected empty stderr; got {:?}", stderr);
+        let out = h.run(&[]).expect("run");
+        // Arc 170: stdio capture retired.
+        assert!(out.stdout.is_empty());
+        assert!(out.stderr.is_empty(), "expected empty stderr; got {:?}", out.stderr);
+        // Verify dep-a returns "A" via eval_in_frozen.
+        let world = h.world();
+        let env = Environment::new();
+        let ast = wat::parse_one!("(:user::test::dep-a::label)").expect("parse dep-a");
+        let val = eval_in_frozen(&ast, &world, &env).expect("eval dep-a");
+        assert!(matches!(val, Value::String(ref s) if &**s == "A"),
+                "expected dep-a to return 'A'; got {:?}", val);
     });
 }
 
 #[test]
 fn harness_with_zero_deps_matches_from_source() {
     wat::fork::run_in_fork(|| {
-        // Passing &[] uses no deps. In the forked child, this is the
-        // only install — fresh OnceLock state, no interaction with
-        // other tests' dep sets.
+        // Arc 170 slice 1f-ζ: canonical nil main. Passing &[] uses no deps.
+        // Verify both harness constructions succeed and run returns Ok.
         let src = r#"
-            (:wat::core::define (:user::main
-                                 (stdin  :wat::io::IOReader)
-                                 (stdout :wat::io::IOWriter)
-                                 (stderr :wat::io::IOWriter)
-                                 -> :wat::core::nil)
-              (:wat::io::IOWriter/println stdout "no deps"))
+            (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
         "#;
         let h_no_deps = Harness::from_source_with_deps(src, &[], &[]).expect("freeze-empty-deps");
         let h_ref = Harness::from_source(src).expect("freeze-from-source");
         let out_a = h_no_deps.run(&[]).expect("run-no-deps");
         let out_b = h_ref.run(&[]).expect("run-from-source");
-        assert_eq!(out_a, out_b);
-        assert_eq!(out_a.stdout, vec!["no deps".to_string()]);
+        // Arc 170: stdio capture retired — both return empty stdout/stderr.
+        assert_eq!(out_a.stdout, out_b.stdout);
+        assert!(out_a.stdout.is_empty());
     });
 }
 

@@ -24,39 +24,47 @@
 //!      unregistered name.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-fn run(src: &str) -> Vec<String> {
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+fn run_bool(src: &str) -> bool {
+    let src = with_nil_main(src);
     let world = startup_from_source(
-        src,
+        &src,
         Some(concat!(file!(), ":", line!())),
         Arc::new(InMemoryLoader::new()),
     )
     .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::bool(b) => b,
+        other => panic!("expected bool; got {:?}", other),
     }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
+}
+
+fn run_string(src: &str) -> String {
+    let src = with_nil_main(src);
+    let world = startup_from_source(
+        &src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::String(s) => s.as_str().to_owned(),
+        other => panic!("expected String; got {:?}", other),
     }
-    lines
 }
 
 // ─── Macro lookup (NEW kind for arc 144) ────────────────────────────────────
@@ -70,22 +78,15 @@ fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
     let src = r##"
         (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :my::ident)
              rendered
               (:wat::edn::write def-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            rendered))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected one rendered line, got {:?}", out);
-    let line = &out[0];
+    let line = run_string(src);
     assert!(
         line.contains("defmacro"),
         "expected 'defmacro' head in rendered macro define-ast, got: {}",
@@ -103,19 +104,14 @@ fn signature_of_macro_returns_some() {
     let src = r##"
         (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
             (:wat::runtime::signature-of :my::ident)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            -> :wat::core::bool
+            ((:wat::core::Some _) true)
+            (:wat::core::None    false)))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "signature-of :my::ident should return Some");
 }
 
 #[test]
@@ -126,19 +122,14 @@ fn body_of_macro_returns_some_with_template() {
     let src = r##"
         (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
             (:wat::runtime::body-of :my::ident)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            -> :wat::core::bool
+            ((:wat::core::Some _) true)
+            (:wat::core::None    false)))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "body-of :my::ident should return Some");
 }
 
 // ─── Type lookup (NEW kind for arc 144) ─────────────────────────────────────
@@ -154,22 +145,15 @@ fn lookup_define_struct_returns_some_and_emits_struct_head() {
           (open  :wat::core::f64)
           (close :wat::core::f64))
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :my::Bar)
              rendered
               (:wat::edn::write def-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            rendered))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected one rendered line, got {:?}", out);
-    let line = &out[0];
+    let line = run_string(src);
     assert!(
         line.contains("struct"),
         "expected 'struct' head in rendered type define-ast, got: {}",
@@ -189,19 +173,14 @@ fn signature_of_struct_returns_some() {
           (x :wat::core::f64)
           (y :wat::core::f64))
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
             (:wat::runtime::signature-of :my::Point)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            -> :wat::core::bool
+            ((:wat::core::Some _) true)
+            (:wat::core::None    false)))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "signature-of :my::Point should return Some");
 }
 
 #[test]
@@ -213,19 +192,14 @@ fn body_of_struct_returns_none() {
         (:wat::core::struct :my::Tick
           (price :wat::core::f64))
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
             (:wat::runtime::body-of :my::Tick)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
+            -> :wat::core::bool
+            ((:wat::core::Some _) false)
+            (:wat::core::None    true)))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "body-of :my::Tick should return None (types have no body)");
 }
 
 // ─── Regression guards: UserFunction + Primitive behavior preserved ─────────
@@ -240,19 +214,14 @@ fn lookup_define_user_function_still_returns_some_post_refactor() {
           (:user::my-add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
           (:wat::core::+ x y))
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
             (:wat::runtime::lookup-define :user::my-add)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            -> :wat::core::bool
+            ((:wat::core::Some _) true)
+            (:wat::core::None    false)))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "lookup-define :user::my-add should return Some");
 }
 
 #[test]
@@ -260,19 +229,14 @@ fn signature_of_substrate_primitive_still_returns_some_post_refactor() {
     // Regression guard: arc 143's Primitive emission behavior
     // (type_scheme_to_signature_ast) must be unchanged after refactor.
     let src = r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
             (:wat::runtime::signature-of :wat::core::foldl)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            -> :wat::core::bool
+            ((:wat::core::Some _) true)
+            (:wat::core::None    false)))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "signature-of :wat::core::foldl should return Some");
 }
 
 // ─── Unknown name returns None across all three primitives ──────────────────
@@ -284,12 +248,7 @@ fn all_three_primitives_return_none_on_unknown_name() {
     // currently a no-op (slice 2 territory); it does not produce
     // false-positive Some(...) for arbitrary names.
     let src = r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [d-opt
               (:wat::runtime::lookup-define :no::such::thing)
@@ -298,17 +257,17 @@ fn all_three_primitives_return_none_on_unknown_name() {
              b-opt
               (:wat::runtime::body-of    :no::such::thing)]
             (:wat::core::match d-opt
-              -> :wat::core::nil
-              ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-d"))
+              -> :wat::core::bool
+              ((:wat::core::Some _) false)
               (:wat::core::None
                 (:wat::core::match s-opt
-                  -> :wat::core::nil
-                  ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-s"))
+                  -> :wat::core::bool
+                  ((:wat::core::Some _) false)
                   (:wat::core::None
                     (:wat::core::match b-opt
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-b"))
-                      (:wat::core::None    (:wat::io::IOWriter/println stdout "pass")))))))))
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) false)
+                      (:wat::core::None    true))))))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "all three primitives should return None for unknown name");
 }

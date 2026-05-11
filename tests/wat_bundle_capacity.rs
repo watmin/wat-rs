@@ -17,16 +17,30 @@
 //!
 //! At `d=1024`, `budget = floor(sqrt(1024)) = 32`. The tests below
 //! pick list sizes deliberately on either side.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup should succeed");
-    invoke_user_main(&world, Vec::new()).expect("main should run")
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 /// Emit `n` distinct `(:wat::holon::Atom "i")` calls inside a
@@ -49,7 +63,7 @@ fn bundle_under_budget_returns_ok_under_error_mode() {
     let src = format!(
         r#"
 
-        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
+        (:wat::core::define (:my::compute -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(5)
@@ -69,7 +83,7 @@ fn bundle_under_budget_returns_ok_under_panic_mode() {
         r#"
         (:wat::config::set-capacity-mode! :panic)
 
-        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
+        (:wat::core::define (:my::compute -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(5)
@@ -95,7 +109,7 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
     let src = format!(
         r#"
 
-        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
+        (:wat::core::define (:my::compute -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(317)
@@ -126,7 +140,7 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
     let src = format!(
         r#"
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::match (:wat::holon::Bundle {}) -> :wat::core::i64
             ((:wat::core::Ok _) 0)
             ((:wat::core::Err e)
@@ -151,12 +165,19 @@ fn bundle_over_budget_under_panic_mode_panics() {
         r#"
         (:wat::config::set-capacity-mode! :panic)
 
-        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
+        (:wat::core::define (:my::compute -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(500)
     );
-    let caught = std::panic::catch_unwind(|| run(&src));
+    let src_with_nil = with_nil_main(&src);
+    let world = startup_from_source(&src_with_nil, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+        eval_in_frozen(&ast, &world, &env)
+    }));
     assert!(caught.is_err(), ":panic + over budget must panic");
 }
 
@@ -179,7 +200,7 @@ fn try_propagates_bundle_err_across_function_boundary() {
                             -> :wat::holon::BundleResult)
           (:wat::core::Ok (:wat::core::Result/try (:wat::holon::Bundle items))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::match (:app::build-composite {}) -> :wat::core::i64
             ((:wat::core::Ok _) 0)
             ((:wat::core::Err e) (:wat::holon::CapacityExceeded/cost e))))
@@ -196,14 +217,17 @@ fn try_propagates_bundle_err_across_function_boundary() {
 
 #[test]
 fn bundle_return_type_mismatch_rejected_at_check() {
-    // main's return type is :wat::holon::HolonAST but Bundle returns
+    // probe fn's return type is :wat::holon::HolonAST but Bundle returns
     // :Result<wat::holon::HolonAST, CapacityExceeded>. Must fail at check.
+    // Arc 170 slice 1f-ζ: bad code in :my::probe + canonical nil main.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::holon::HolonAST)
+        (:wat::core::define (:my::probe -> :wat::holon::HolonAST)
           (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST
             (:wat::holon::Atom "a")
             (:wat::holon::Atom "b"))))
+
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
     "#;
     match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Err(_) => {}

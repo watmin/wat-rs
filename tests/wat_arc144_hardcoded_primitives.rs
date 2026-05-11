@@ -12,62 +12,64 @@
 //! because the callable bypassed the TypeScheme registry.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-fn run(src: &str) -> Vec<String> {
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+fn run_bool(src: &str) -> bool {
+    let src = with_nil_main(src);
     let world = startup_from_source(
-        src,
+        &src,
         Some(concat!(file!(), ":", line!())),
         Arc::new(InMemoryLoader::new()),
     )
     .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::bool(b) => b,
+        other => panic!("expected bool; got {:?}", other),
     }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
+}
+
+fn run_string(src: &str) -> String {
+    let src = with_nil_main(src);
+    let world = startup_from_source(
+        &src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::String(s) => s.as_str().to_owned(),
+        other => panic!("expected String; got {:?}", other),
     }
-    lines
 }
 
 /// Helper: assert that `(:wat::runtime::signature-of name)` returns
-/// `:Some(_)` for the given name. Body prints "pass" on Some, "fail"
-/// on None.
-fn assert_signature_of_some(name: &str) -> Vec<String> {
+/// `:Some(_)` for the given name. Returns true on Some, false on None.
+fn assert_signature_of_some(name: &str) -> bool {
     let src = format!(
         r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
             (:wat::runtime::signature-of {name})
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            -> :wat::core::bool
+            ((:wat::core::Some _) true)
+            (:wat::core::None    false)))
         "##,
         name = name
     );
-    run(&src)
+    run_bool(&src)
 }
 
 // ─── Polymorphic predicates / accessors ────────────────────────────────────
@@ -79,7 +81,7 @@ fn signature_of_length_returns_some() {
     // registers it; signature-of must now return Some.
     assert_eq!(
         assert_signature_of_some(":wat::core::length"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -87,7 +89,7 @@ fn signature_of_length_returns_some() {
 fn signature_of_empty_q_returns_some() {
     assert_eq!(
         assert_signature_of_some(":wat::core::empty?"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -95,7 +97,7 @@ fn signature_of_empty_q_returns_some() {
 fn signature_of_contains_q_returns_some() {
     assert_eq!(
         assert_signature_of_some(":wat::core::contains?"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -105,7 +107,7 @@ fn signature_of_get_returns_some() {
     // models the HashMap-shaped variant since it carries both K and V.
     assert_eq!(
         assert_signature_of_some(":wat::core::get"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -113,7 +115,7 @@ fn signature_of_get_returns_some() {
 fn signature_of_conj_returns_some() {
     assert_eq!(
         assert_signature_of_some(":wat::core::conj"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -123,7 +125,7 @@ fn signature_of_conj_returns_some() {
 fn signature_of_assoc_returns_some() {
     assert_eq!(
         assert_signature_of_some(":wat::core::assoc"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -131,7 +133,7 @@ fn signature_of_assoc_returns_some() {
 fn signature_of_dissoc_returns_some() {
     assert_eq!(
         assert_signature_of_some(":wat::core::dissoc"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -139,7 +141,7 @@ fn signature_of_dissoc_returns_some() {
 fn signature_of_keys_returns_some() {
     assert_eq!(
         assert_signature_of_some(":wat::core::keys"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -147,7 +149,7 @@ fn signature_of_keys_returns_some() {
 fn signature_of_values_returns_some() {
     assert_eq!(
         assert_signature_of_some(":wat::core::values"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -159,7 +161,7 @@ fn signature_of_vector_returns_some() {
     // has no variadic shape today; the runtime accepts `:T x1 x2 ...`).
     assert_eq!(
         assert_signature_of_some(":wat::core::Vector"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -167,7 +169,7 @@ fn signature_of_vector_returns_some() {
 fn signature_of_tuple_returns_some() {
     assert_eq!(
         assert_signature_of_some(":wat::core::Tuple"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -177,7 +179,7 @@ fn signature_of_hashmap_returns_some() {
     // accepts `:(K,V) k1 v1 k2 v2 ...`.
     assert_eq!(
         assert_signature_of_some(":wat::core::HashMap"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -185,7 +187,7 @@ fn signature_of_hashmap_returns_some() {
 fn signature_of_hashset_returns_some() {
     assert_eq!(
         assert_signature_of_some(":wat::core::HashSet"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -194,7 +196,7 @@ fn signature_of_concat_returns_some() {
     // 2-arg fingerprint; runtime accepts 1+ Vec<T>.
     assert_eq!(
         assert_signature_of_some(":wat::core::concat"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -203,7 +205,7 @@ fn signature_of_string_concat_returns_some() {
     // 2-arg fingerprint; runtime accepts 0+ :wat::core::String.
     assert_eq!(
         assert_signature_of_some(":wat::core::string::concat"),
-        vec!["pass".to_string()]
+        true
     );
 }
 
@@ -216,19 +218,14 @@ fn body_of_length_returns_none() {
     // they are Rust-implemented). Confirm the new fingerprint
     // preserves this honest absence.
     let src = r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
             (:wat::runtime::body-of :wat::core::length)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
+            -> :wat::core::bool
+            ((:wat::core::Some _) false)
+            (:wat::core::None    true)))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert!(run_bool(src), "body-of :wat::core::length should return :None");
 }
 
 // ─── lookup-define renders the synthesised primitive form ──────────────────
@@ -245,22 +242,15 @@ fn lookup_define_length_renders_primitive_sentinel() {
     // verifying that the per-Type primitive's scheme is queryable via
     // reflection. Per arc 146 slice 2 BRIEF Q2 (Option A).
     let src = r##"
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :wat::core::Vector/length)
              rendered
               (:wat::edn::write def-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            rendered))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected one rendered line, got {:?}", out);
-    let line = &out[0];
+    let line = run_string(src);
     assert!(
         line.contains("__internal/primitive"),
         "expected primitive sentinel marker in rendered AST, got: {}",

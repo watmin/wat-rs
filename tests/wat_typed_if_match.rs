@@ -24,17 +24,33 @@
 
 use std::sync::Arc;
 use wat::check::CheckError;
-use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
+use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+/// Arc 170 slice 1f-ζ: append the canonical nil-returning `:user::main`
+/// so startup_from_source accepts the source. Tests define
+/// `:user::compute -> :T` for the expression under test.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
 }
 
+fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
+    startup_from_source(&with_nil_main(src), None, Arc::new(InMemoryLoader::new()))
+}
+
+/// Arc 170 slice 1f-ζ: `run` evaluates `:user::compute` via
+/// eval_in_frozen. Sources define `:user::compute -> :T` for the
+/// expression under test + `:user::main -> :nil` for the canonical
+/// entry point.
 fn run(src: &str) -> Value {
     let world = startup(src).expect("startup should succeed");
-    invoke_user_main(&world, Vec::new()).expect("main should run")
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 fn check_errors(src: &str) -> Vec<CheckError> {
@@ -78,7 +94,7 @@ fn assert_type_mismatch_on(errs: &[CheckError], callee: &str, param: &str) {
 #[test]
 fn typed_if_returns_then_branch_on_true() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::if true -> :wat::core::i64 11 22))
     "#;
     assert!(matches!(run(src), Value::i64(11)));
@@ -87,7 +103,7 @@ fn typed_if_returns_then_branch_on_true() {
 #[test]
 fn typed_if_returns_else_branch_on_false() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::if false -> :wat::core::i64 11 22))
     "#;
     assert!(matches!(run(src), Value::i64(22)));
@@ -96,7 +112,7 @@ fn typed_if_returns_else_branch_on_false() {
 #[test]
 fn typed_match_on_some_returns_some_arm() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::match (:wat::core::Some 7) -> :wat::core::i64
             ((:wat::core::Some v) v)
             (:wat::core::None 0)))
@@ -109,7 +125,7 @@ fn typed_match_on_none_returns_none_arm() {
     // Type-annotate the :None literal through a let-bound var so the
     // checker knows the scrutinee is Option<i64>.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [o :wat::core::None]
             (:wat::core::match o -> :wat::core::i64
@@ -124,7 +140,7 @@ fn typed_match_on_none_returns_none_arm() {
 #[test]
 fn untyped_if_gives_migration_hint() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::if true 1 2))
     "#;
     let errs = check_errors(src);
@@ -136,7 +152,7 @@ fn untyped_match_gives_migration_hint() {
     // Three args, where the second is NOT `->` — detected as the
     // old untyped shape.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::match (:wat::core::Some 1)
             ((:wat::core::Some v) v)
             (:wat::core::None 0)))
@@ -151,7 +167,7 @@ fn untyped_match_gives_migration_hint() {
 fn if_without_type_keyword_after_arrow_rejected() {
     // `-> :wat::core::i64 then` is correct; this uses `-> then else without ty`.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::if true -> 1 2 3))
     "#;
     let errs = check_errors(src);
@@ -161,7 +177,7 @@ fn if_without_type_keyword_after_arrow_rejected() {
 #[test]
 fn match_without_type_keyword_after_arrow_rejected() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::match (:wat::core::Some 1) -> oops ((:wat::core::Some v) v) (:wat::core::None 0)))
     "#;
     let errs = check_errors(src);
@@ -176,7 +192,7 @@ fn match_without_type_keyword_after_arrow_rejected() {
 fn if_wrong_arity_rejected_with_shape_guidance() {
     // Six args — one too many.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::if true -> :wat::core::i64 1 2 99))
     "#;
     let errs = check_errors(src);
@@ -187,7 +203,7 @@ fn if_wrong_arity_rejected_with_shape_guidance() {
 fn match_too_few_args_rejected_with_shape_guidance() {
     // Scrutinee + `->` + type but no arm at all.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::match (:wat::core::Some 1) -> :wat::core::i64))
     "#;
     let errs = check_errors(src);
@@ -199,7 +215,7 @@ fn match_too_few_args_rejected_with_shape_guidance() {
 #[test]
 fn if_then_branch_type_mismatch_named_by_branch() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::if true -> :wat::core::i64 "oops" 0))
     "#;
     let errs = check_errors(src);
@@ -209,7 +225,7 @@ fn if_then_branch_type_mismatch_named_by_branch() {
 #[test]
 fn if_else_branch_type_mismatch_named_by_branch() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::if true -> :wat::core::i64 1 "oops"))
     "#;
     let errs = check_errors(src);
@@ -220,7 +236,7 @@ fn if_else_branch_type_mismatch_named_by_branch() {
 fn match_arm_type_mismatch_named_by_arm_index() {
     // Arm #2 (the :None arm) produces a String instead of i64.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::match (:wat::core::Some 7) -> :wat::core::i64
             ((:wat::core::Some v) v)
             (:wat::core::None "oops")))
@@ -234,7 +250,7 @@ fn match_arm_type_mismatch_named_by_arm_index() {
 #[test]
 fn if_non_bool_cond_rejected_at_check() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::if 42 -> :wat::core::i64 1 2))
     "#;
     let errs = check_errors(src);
@@ -249,7 +265,7 @@ fn typed_if_result_flows_into_enclosing_let_bind() {
     // `:wat::core::i64` as the if-form's result type — proving the declared `:T`
     // flows out.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [x (:wat::core::if true -> :wat::core::i64 10 20)]
             x))
@@ -260,7 +276,7 @@ fn typed_if_result_flows_into_enclosing_let_bind() {
 #[test]
 fn typed_match_result_flows_into_enclosing_let_bind() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [s
               (:wat::core::match (:wat::core::Some 1) -> :wat::core::String
@@ -279,7 +295,7 @@ fn typed_match_result_flows_into_enclosing_let_bind() {
 #[test]
 fn typed_if_inside_typed_match_arm_composes() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::match (:wat::core::Some 3) -> :wat::core::i64
             ((:wat::core::Some v)
               (:wat::core::if (:wat::core::> v 0) -> :wat::core::i64 v 0))
@@ -307,7 +323,7 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
     // declare `Panic`; the keyword path resolves the namespace.
     let src = r#"
         (:wat::core::define
-          (:user::main -> :wat::core::String)
+          (:user::compute -> :wat::core::String)
           (:wat::core::let
             [handle
               (:wat::kernel::spawn-thread

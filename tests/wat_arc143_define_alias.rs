@@ -25,41 +25,34 @@
 //!   3. Error case — alias to a name that doesn't exist (not a substrate
 //!      primitive, not a user define) — Option/expect panics at expand-time.
 //!      Verifies the macro expands eagerly and the error message propagates.
+//!
+//! Arc 170 slice 1f-ζ: tests 1+2 use eval_in_frozen with :my::compute;
+//! test 3 unchanged (catch_unwind, panic-at-startup path).
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-fn run(src: &str) -> Vec<String> {
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+fn run(src: &str) -> Value {
+    let src = with_nil_main(src);
     let world = startup_from_source(
-        src,
+        &src,
         Some(concat!(file!(), ":", line!())),
         Arc::new(InMemoryLoader::new()),
     )
     .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
-    }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
-    }
-    lines
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 // ─── Test 1: alias :wat::core::foldl — expand-time substrate lookup works ────
@@ -70,32 +63,23 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
     // At expand-time, signature-of :wat::core::foldl resolves via
     // CheckEnv::with_builtins() — the substrate primitive IS visible.
     // Call (:user::my-fold (Vector :wat::core::i64 1 2 3 4) 0 +fn) → 10.
+    // Arc 170 slice 1f-ζ: result returned as i64 via :my::compute.
     let src = r##"
 
         (:wat::runtime::define-alias :user::my-fold :wat::core::foldl)
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout
-            (:wat::edn::write
-              (:user::my-fold
-                (:wat::core::Vector :wat::core::i64 1 2 3 4)
-                0
-                (:wat::core::fn
-                  [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::+ acc x))))))
+        (:wat::core::define (:my::compute -> :wat::core::i64)
+          (:user::my-fold
+            (:wat::core::Vector :wat::core::i64 1 2 3 4)
+            0
+            (:wat::core::fn
+              [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+              (:wat::core::+ acc x))))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
-    assert_eq!(
-        out[0].trim(), "10",
-        "expected alias of foldl to sum [1,2,3,4] from 0 → 10, got: {}",
-        out[0]
-    );
+    match run(src) {
+        Value::i64(n) => assert_eq!(n, 10, "expected alias of foldl to sum [1,2,3,4] from 0 → 10; got {}", n),
+        other => panic!("expected i64; got {:?}", other),
+    }
 }
 
 // ─── Test 2: alias :wat::core::length ────────────────────────────────────────
@@ -105,28 +89,19 @@ fn define_alias_length_to_user_size_delegates_correctly() {
     // Alias :wat::core::length as :user::my-size.
     // At expand-time, signature-of :wat::core::length resolves via substrate.
     // Call (:user::my-size (Vector :wat::core::i64 10 20 30)) → 3.
+    // Arc 170 slice 1f-ζ: result returned as i64 via :my::compute.
     let src = r##"
 
         (:wat::runtime::define-alias :user::my-size :wat::core::length)
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout
-            (:wat::edn::write
-              (:user::my-size
-                (:wat::core::Vector :wat::core::i64 10 20 30)))))
+        (:wat::core::define (:my::compute -> :wat::core::i64)
+          (:user::my-size
+            (:wat::core::Vector :wat::core::i64 10 20 30)))
     "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
-    assert_eq!(
-        out[0].trim(), "3",
-        "expected alias of length to return 3 for Vec of 3 elements, got: {}",
-        out[0]
-    );
+    match run(src) {
+        Value::i64(n) => assert_eq!(n, 3, "expected alias of length to return 3 for Vec of 3 elements; got {}", n),
+        other => panic!("expected i64; got {:?}", other),
+    }
 }
 
 // ─── Test 3: unknown target panics at expand-time ────────────────────────────
@@ -145,13 +120,8 @@ fn define_alias_unknown_target_panics_at_expand_time() {
 
         (:wat::runtime::define-alias :user::alias :user::name-that-does-not-exist)
 
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout "should not reach"))
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          :wat::core::nil)
     "##;
     let result = std::panic::catch_unwind(|| {
         startup_from_source(

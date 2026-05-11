@@ -20,19 +20,33 @@
 //! See `docs/arc/2026/04/114-spawn-as-thread/DESIGN.md` for the
 //! contract; `docs/ZERO-MUTEX.md` § "Mini-TCP via paired channels"
 //! for the principle.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
+use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
 fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
     startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
 }
 
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
 fn run(src: &str) -> Value {
-    let world = startup(src).expect("startup should succeed");
-    invoke_user_main(&world, Vec::new()).expect("main should run")
+    let src = with_nil_main(src);
+    let world = startup(&src).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 // ─── Named-define body — the keyword path ─────────────────────────────
@@ -41,6 +55,7 @@ fn run(src: &str) -> Value {
 fn spawn_thread_named_define_body() {
     // The body is a named define matching the channel-shaped contract.
     // Parent sends 41; worker recvs, increments, writes; parent recvs.
+    // Arc 170 slice 1f-ζ: computation in :my::compute.
     let src = r#"
 
         (:wat::core::define
@@ -64,7 +79,7 @@ fn spawn_thread_named_define_body() {
               ((:wat::core::Err _)
                (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [thr
               (:wat::kernel::spawn-thread :app::increment)
@@ -97,9 +112,10 @@ fn spawn_thread_named_define_body() {
 
 #[test]
 fn spawn_thread_inline_fn_body() {
+    // Arc 170 slice 1f-ζ: computation in :my::compute.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [thr
               (:wat::kernel::spawn-thread
@@ -157,9 +173,10 @@ fn spawn_thread_closure_capture() {
     // crosses the spawn boundary AND that the body uses its substrate
     // input/output pipes (not the captured `delta` as a substitute for
     // input).
+    // Arc 170 slice 1f-ζ: computation in :my::compute.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [delta 100
              body

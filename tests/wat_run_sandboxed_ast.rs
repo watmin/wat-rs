@@ -1,66 +1,63 @@
 //! Integration coverage for `:wat::kernel::run-sandboxed-ast`
 //! (arc 007 slice 3b — AST-entry sandbox).
 //!
-//! Pattern: outer `:user::main` constructs a `Vec<wat::WatAST>` via
-//! `(:wat::core::Vector :wat::WatAST (:wat::core::quote <form>) ...)` and
-//! hands it to run-sandboxed-ast. Outer reads the inner RunResult and
-//! writes an observation to stdout; Rust asserts on stdout.
+//! Arc 170 slice 1f-ζ: outer `:user::main` retired. Tests use
+//! `(:my::compute -> :T)` helper + `eval_in_frozen` for the outer
+//! layer. Inner programs use canonical nil main + `:wat::kernel::println`.
+//! Rust asserts on the Value returned by eval_in_frozen.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
-fn run(src: &str) -> Vec<String> {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
+fn run(src: &str) -> Value {
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("stdout snapshot");
-    let s = String::from_utf8(bytes).expect("utf8");
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
+}
+
+fn unwrap_string(v: Value) -> String {
+    match v {
+        Value::String(s) => (*s).clone(),
+        other => panic!("expected String; got {:?}", other),
     }
-    lines
+}
+
+fn unwrap_bool(v: Value) -> bool {
+    match v {
+        Value::bool(b) => b,
+        other => panic!("expected bool; got {:?}", other),
+    }
 }
 
 // ─── AST-entry sandbox — happy path ─────────────────────────────────────
 
 #[test]
 fn ast_entry_prints_hello() {
-    // Outer builds a 3-form program via quote + vec and hands it to
-    // run-sandboxed-ast. Inner writes "hello" to stdout; outer checks
-    // captured stdout.
+    // Outer builds a 1-form inner program via quote + vec and hands it to
+    // run-sandboxed-ast. Inner uses canonical nil main + :wat::kernel::println.
+    // Arc 170 slice 1f-ζ: outer is :my::compute returning captured stdout line.
     let src = r##"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::let
             [forms
               (:wat::core::Vector :wat::WatAST
-                (:wat::core::quote (:wat::config::set-capacity-mode! :error))
                 (:wat::core::quote
-                  (:wat::core::define (:user::main
-                                       (stdin  :wat::io::IOReader)
-                                       (stdout :wat::io::IOWriter)
-                                       (stderr :wat::io::IOWriter)
-                                       -> :wat::core::nil)
-                    (:wat::io::IOWriter/println stdout "hello"))))
+                  (:wat::core::define (:user::main -> :wat::core::nil)
+                    (:wat::kernel::println "hello"))))
              r
               (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None)
              lines (:wat::kernel::RunResult/stdout r)
@@ -68,9 +65,10 @@ fn ast_entry_prints_hello() {
               (:wat::core::match (:wat::core::first lines) -> :wat::core::String
                 ((:wat::core::Some s) s)
                 (:wat::core::None ""))]
-            (:wat::io::IOWriter/println stdout line)))
+            line))
     "##;
-    assert_eq!(run(src), vec!["hello"]);
+    // :wat::kernel::println EDN-serializes strings with quotes.
+    assert_eq!(unwrap_string(run(src)), "\"hello\"");
 }
 
 // ─── AST-entry sandbox — failure surfaces identically ───────────────────
@@ -81,34 +79,26 @@ fn ast_entry_captures_assertion_failure() {
     // catch_unwind surfaces Failure.message. Same mechanism as the
     // source-text path — proving the AST-entry sandbox shares the
     // full plumbing.
+    // Arc 170 slice 1f-ζ: outer is :my::compute returning bool (failure detected).
     let src = r##"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [forms
               (:wat::core::Vector :wat::WatAST
-                (:wat::core::quote (:wat::config::set-capacity-mode! :error))
                 (:wat::core::quote
-                  (:wat::core::define (:user::main
-                                       (stdin  :wat::io::IOReader)
-                                       (stdout :wat::io::IOWriter)
-                                       (stderr :wat::io::IOWriter)
-                                       -> :wat::core::nil)
+                  (:wat::core::define (:user::main -> :wat::core::nil)
                     (:wat::test::assert-eq 1 2))))
              r
               (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None)
              fail
               (:wat::kernel::RunResult/failure r)]
-            (:wat::core::match fail -> :wat::core::nil
-              ((:wat::core::Some f) (:wat::io::IOWriter/println stdout
-                          (:wat::kernel::Failure/message f)))
-              (:wat::core::None    (:wat::io::IOWriter/println stdout "NO-FAILURE")))))
+            (:wat::core::match fail -> :wat::core::i64
+              ((:wat::core::Some _) 1)
+              (:wat::core::None    0))))
     "##;
-    assert_eq!(run(src), vec!["assert-eq failed"]);
+    match run(src) {
+        Value::i64(n) => assert_eq!(n, 1, "expected failure to be detected (1); got {}", n),
+        other => panic!("expected i64; got {:?}", other),
+    }
 }
-

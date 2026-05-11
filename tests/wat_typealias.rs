@@ -3,20 +3,34 @@
 //! walks an alias to its definition (substituting declared type
 //! parameters) before the structural unify match — so `:MyAlias<K,V>`
 //! and its expansion are interchangeable in every signature.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
 use wat::check::CheckError;
-use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
+use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
 
 fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
     startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
 }
 
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
+
 fn run(src: &str) -> Value {
-    let world = startup(src).expect("startup should succeed");
-    invoke_user_main(&world, Vec::new()).expect("main should run")
+    let src = with_nil_main(src);
+    let world = startup(&src).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 fn check_errors(src: &str) -> Vec<CheckError> {
@@ -38,7 +52,7 @@ fn simple_alias_unifies_with_its_expansion() {
         (:wat::core::define (:app::double (x :my::Amount) -> :my::Amount)
           (:wat::core::f64::*'2 x 2.0))
 
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:my::compute -> :wat::core::f64)
           (:app::double 21.0))
     "#;
     match run(src) {
@@ -59,7 +73,7 @@ fn alias_of_alias_chain_expands_to_root() {
         (:wat::core::define (:app::inc (x :my::A) -> :my::A)
           (:wat::core::f64::+'2 x 1.0))
 
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:my::compute -> :wat::core::f64)
           (:app::inc 41.0))
     "#;
     match run(src) {
@@ -101,6 +115,7 @@ fn self_referential_alias_halts_at_startup() {
 
 #[test]
 fn alias_preserves_type_mismatches() {
+    // Bad code in :my::probe; canonical nil main appended.
     let src = r#"
 
         (:wat::core::typealias :my::Amount :wat::core::f64)
@@ -108,8 +123,10 @@ fn alias_preserves_type_mismatches() {
         (:wat::core::define (:app::double (x :my::Amount) -> :my::Amount)
           (:wat::core::f64::*'2 x 2.0))
 
-        (:wat::core::define (:user::main -> :my::Amount)
+        (:wat::core::define (:my::probe -> :my::Amount)
           (:app::double "not a number"))
+
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
     "#;
     let errs = check_errors(src);
     let hit = errs.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. }));
@@ -129,7 +146,7 @@ fn tuple_alias_works_at_hashmap_constructor_arg() {
     let src = r#"
         (:wat::core::typealias :my::KV :(wat::core::String,wat::core::i64))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [row
               (:wat::core::HashMap :my::KV "a" 1 "b" 2)
@@ -151,7 +168,7 @@ fn alias_over_hashmap_passes_through_std_get() {
 
         (:wat::core::typealias :my::Row :wat::core::HashMap<wat::core::String,wat::core::i64>)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [row (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 10 "b" 20)
              got (:wat::core::get row "a")]
@@ -173,7 +190,7 @@ fn alias_over_fn_type_works_at_spawn() {
           :my::Job
           :wat::core::Fn(rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::nil)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [job
               (:wat::core::fn [tx <- :rust::crossbeam_channel::Sender<wat::core::i64>] -> :wat::core::nil
@@ -212,7 +229,7 @@ fn alias_return_type_accepts_expanded_literal() {
         (:wat::core::define (:app::zero -> :my::Amount)
           0.0)
 
-        (:wat::core::define (:user::main -> :wat::core::f64)
+        (:wat::core::define (:my::compute -> :wat::core::f64)
           (:app::zero))
     "#;
     match run(src) {

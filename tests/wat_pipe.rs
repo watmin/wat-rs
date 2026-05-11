@@ -10,16 +10,30 @@
 //! `pipe_tests` Rust-level tests (which can `drop(w)` explicitly);
 //! at the wat level, writer lifetime is scope-bound and tests avoid
 //! read-all / EOF paths that would require killing the writer.
+//!
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
+//! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::runtime::{Environment, Value};
+
+/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
+fn with_nil_main(src: &str) -> String {
+    format!(
+        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        src
+    )
+}
 
 fn run(src: &str) -> Value {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
-    invoke_user_main(&world, Vec::new()).expect("main")
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run")
 }
 
 fn unwrap_some_string(v: Value) -> String {
@@ -55,7 +69,7 @@ fn pipe_returns_writer_reader_tuple() {
     // just proves the type shape lands through the checker + runtime.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [pair
               (:wat::kernel::pipe)
@@ -72,7 +86,7 @@ fn pipe_returns_writer_reader_tuple() {
 fn pipe_writeln_then_read_line_round_trips() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
+        (:wat::core::define (:my::compute -> :wat::core::Option<wat::core::String>)
           (:wat::core::let
             [pair
               (:wat::kernel::pipe)
@@ -88,7 +102,7 @@ fn pipe_writeln_then_read_line_round_trips() {
 fn pipe_multiple_writelns_read_line_by_line() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::String)
+        (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::let
             [pair
               (:wat::kernel::pipe)
@@ -114,7 +128,7 @@ fn pipe_write_string_then_read_exact_bytes() {
     // no newline involvement — just byte-level round-trip.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [pair
               (:wat::kernel::pipe)
@@ -135,7 +149,7 @@ fn pipe_write_string_then_read_exact_bytes() {
 fn pipe_preserves_utf8_lines() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
+        (:wat::core::define (:my::compute -> :wat::core::Option<wat::core::String>)
           (:wat::core::let
             [pair
               (:wat::kernel::pipe)
