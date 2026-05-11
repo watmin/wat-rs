@@ -44,18 +44,23 @@
 ;; ─── Event enum ───────────────────────────────────────────────────────────
 ;;
 ;; Mirrors StdInServiceEvent from src/thread_io.rs verbatim.
-;;   Read   -- thread requests next parsed EDN form from fd 0.
+;;   Read   -- thread requests next EDN line from fd 0.
 ;;   Add    -- runtime registers a new thread into routing table.
 ;;   Remove -- runtime removes a thread from routing table.
 ;;
-;; reply-tx carries the parsed HolonAST back to the requesting thread.
+;; reply-tx carries the RAW EDN LINE back to the requesting thread.
+;; Arc 170 slice 1f-iota — pre-1f-iota the service pre-parsed via
+;; (:wat::edn::read) and sent an Arc<HolonAST>; post-1f-iota the
+;; substrate-side `(:wat::kernel::readln -> :T)` parses + coerces to
+;; the caller's declared T (see src/edn_shim.rs::edn_to_typed_value).
+;; The wat-side StdInService now ships the raw line as String.
 
 (:wat::core::enum :wat::kernel::services::StdInService::Event
   (Read)
   (Add
     (thread-id :wat::kernel::ThreadId)
     (data-rx :wat::kernel::Receiver<wat::kernel::services::StdInService::Event>)
-    (reply-tx :wat::kernel::Sender<wat::holon::HolonAST>))
+    (reply-tx :wat::kernel::Sender<wat::core::String>))
   (Remove
     (thread-id :wat::kernel::ThreadId)))
 
@@ -74,12 +79,13 @@
 ;; Conceptual routing type per BRIEF.  Driver uses RoutingVec instead
 ;; because HashMap/values order is non-deterministic.
 ;; Inner tuple arg inside <> has no leading ':' per WAT-CHEATSHEET s.1.
+;; Reply-tx now carries the raw String line (arc 170 slice 1f-iota).
 (:wat::core::typealias :wat::kernel::services::StdInService::Routing
-  :wat::core::HashMap<wat::kernel::ThreadId,(wat::kernel::services::StdInService::EventRx,wat::kernel::Sender<wat::holon::HolonAST>)>)
+  :wat::core::HashMap<wat::kernel::ThreadId,(wat::kernel::services::StdInService::EventRx,wat::kernel::Sender<wat::core::String>)>)
 
 ;; One entry in the ordered routing vector: (thread-id, data-rx, reply-tx).
 (:wat::core::typealias :wat::kernel::services::StdInService::RoutingEntry
-  :(wat::kernel::ThreadId,wat::kernel::services::StdInService::EventRx,wat::kernel::Sender<wat::holon::HolonAST>))
+  :(wat::kernel::ThreadId,wat::kernel::services::StdInService::EventRx,wat::kernel::Sender<wat::core::String>))
 
 ;; Ordered vector of routing entries.  Index i in this vec maps to
 ;; index i in the select set built from the data-rxs.
@@ -117,7 +123,7 @@
     (routing-vec :wat::kernel::services::StdInService::RoutingVec)
     (thread-id :wat::kernel::ThreadId)
     (data-rx :wat::kernel::services::StdInService::EventRx)
-    (reply-tx :wat::kernel::Sender<wat::holon::HolonAST>)
+    (reply-tx :wat::kernel::Sender<wat::core::String>)
     -> :wat::kernel::services::StdInService::RoutingVec)
   (:wat::core::conj routing-vec
     (:wat::core::Tuple thread-id data-rx reply-tx)))
@@ -143,7 +149,11 @@
 ;;
 ;; Called when select fires at idx < len(routing-vec):
 ;;   1. Read next line from reader (blocking on fd 0).
-;;   2. On Some(line): parse via edn/read => send HolonAST via reply-tx.
+;;   2. On Some(line): send the RAW line via reply-tx.  The substrate-
+;;      side (:wat::kernel::readln -> :T) parses the line as EDN and
+;;      coerces to T (arc 170 slice 1f-iota; see
+;;      src/edn_shim.rs::edn_to_typed_value).  Pre-1f-iota this helper
+;;      ran (:wat::edn::read line) and sent the parsed HolonAST.
 ;;   3. On None (EOF): reply-tx disconnects when service shuts down;
 ;;      no special handling in this slice (slice 1f-gamma handles cascade).
 ;; Returns unit.
@@ -162,11 +172,9 @@
           (:wat::io::IOReader/read-line reader)]
         (:wat::core::match line-opt -> :wat::core::nil
           ((:wat::core::Some line)
-            (:wat::core::let
-              [ast (:wat::edn::read line)]
-              (:wat::core::Result/expect -> :wat::core::nil
-                (:wat::kernel::send reply-tx ast)
-                "StdInService/handle-read: reply-tx disconnected -- thread died?")))
+            (:wat::core::Result/expect -> :wat::core::nil
+              (:wat::kernel::send reply-tx line)
+              "StdInService/handle-read: reply-tx disconnected -- thread died?"))
           (:wat::core::None
             ;; EOF on fd 0: callers recv returns disconnected when service
             ;; scope drops.  No special action needed in this slice.

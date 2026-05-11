@@ -26,7 +26,6 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
 use crossbeam_channel::{Receiver, Sender};
-use holon::HolonAST;
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, EnumValue, Environment, RuntimeError, SymbolTable, Value};
@@ -72,17 +71,25 @@ pub enum StdErrServiceEvent {
 }
 
 /// Stdin's data variant is unit (the "give me next form"
-/// request); the parsed HolonAST comes back via the reply-tx.
+/// request); the raw line comes back via the reply-tx.
+///
+/// Arc 170 slice 1f-ι — the reply channel carries the RAW EDN line
+/// (a `String`), not a pre-parsed `Arc<HolonAST>`. The parse + coerce
+/// to the caller's requested `T` happens substrate-side in
+/// `eval_kernel_readln` (via `edn_to_typed_value`); the wat-side
+/// StdInService no longer pre-parses with `:wat::edn::read`. This
+/// locks the EDN-only stdio contract: `(:wat::kernel::readln -> :T)`
+/// returns a native `T` for any wat type with EDN encoding/decoding.
 #[derive(Debug, Clone)]
 pub enum StdInServiceEvent {
-    /// Caller's readln signals "next form please."
+    /// Caller's readln signals "next line please."
     Read,
     /// Runtime registers a thread; service stores
     /// `(thread_id → (data_rx, reply_tx))` in its routing table.
     Add {
         thread_id: ThreadId,
         data_rx: Receiver<StdInServiceEvent>,
-        reply_tx: Sender<Arc<HolonAST>>,
+        reply_tx: Sender<String>,
     },
     Remove { thread_id: ThreadId },
 }
@@ -108,8 +115,9 @@ pub struct ThreadIO {
     pub stderr_ack_rx: Receiver<()>,
     /// Send an Event (Read / Add / Remove) to the StdInService.
     pub stdin_tx: Sender<StdInServiceEvent>,
-    /// Receive the parsed HolonAST representing the next stdin form.
-    pub stdin_reply_rx: Receiver<Arc<HolonAST>>,
+    /// Receive the raw EDN line representing the next stdin form
+    /// (arc 170 slice 1f-ι — pre-1f-ι this was `Arc<HolonAST>`).
+    pub stdin_reply_rx: Receiver<String>,
 }
 
 thread_local! {
@@ -238,23 +246,83 @@ pub fn eval_kernel_eprintln(
     })
 }
 
-/// `(:wat::kernel::readln)` → `:wat::holon::HolonAST`. Signal the
-/// StdInService via the stdin req-tx; block on stdin reply-rx for
-/// the next parsed HolonAST; lift it into a `Value::holon__HolonAST`.
+/// `(:wat::kernel::readln -> :T)` → `:T`. Arc 170 slice 1f-ι.
+///
+/// Polymorphic in `T` via the call-site `-> :T` annotation (mirror
+/// pattern of `:wat::core::Option/expect` / `:wat::core::Result/expect`
+/// / `:wat::core::if`). Steps:
+///   1. Read the call-site's `-> :T` annotation (head-position
+///      arrow + type keyword; args = `[Symbol("->"), Keyword(":T")]`).
+///   2. Signal the StdInService via the stdin req-tx.
+///   3. Block on stdin reply-rx for the next RAW line.
+///   4. Parse the line via `wat_edn::parse_owned`.
+///   5. Coerce the parsed EDN to a wat `Value` of the declared `T`
+///      via [`crate::edn_shim::edn_to_typed_value`]. On mismatch,
+///      surfaces [`RuntimeError::EdnCoerceMismatch`].
+///
+/// The EDN-only stdio contract (locked 2026-05-10):
+/// ```text
+/// server: (:wat::kernel::println 42)                    → emits  42 (EDN i64)
+/// reader: (:wat::kernel::readln -> :wat::core::i64)     → returns 42 (i64)
+///
+/// server: (:wat::kernel::println "foo")                 → emits  "foo" (EDN String, quoted)
+/// reader: (:wat::kernel::readln -> :wat::core::String)  → returns "foo" (String)
+/// ```
+///
+/// `T` is any wat type with EDN encoding/decoding: primitives, tuples,
+/// Vector, Option, Result, user structs/enums, and
+/// `:wat::holon::HolonAST` (when the caller explicitly wants raw AST
+/// form). See the coercion table in
+/// [`crate::edn_shim::edn_to_typed_value`].
 pub fn eval_kernel_readln(
     args: &[WatAST],
     _env: &Environment,
-    _sym: &SymbolTable,
+    sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::readln";
-    if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 0,
-            got: args.len(),
+    // Annotation shape: `(readln -> :T)` → args = [Symbol("->"), Keyword(":T")].
+    if args.len() != 2 {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "expected (:wat::kernel::readln -> :T) — 2 args (arrow + type keyword); got {}",
+                args.len()
+            ),
             span: Span::unknown(),
         });
     }
+    match &args[0] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "expected `->` as the first argument; (:wat::kernel::readln -> :T); got {}",
+                    crate::runtime::ast_variant_name(other)
+                ),
+                span: other.span().clone(),
+            });
+        }
+    }
+    let target_ty = match &args[1] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                return Err(RuntimeError::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: args[1].span().clone(),
+                });
+            }
+        },
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: "expected type keyword after `->`".into(),
+                span: other.span().clone(),
+            });
+        }
+    };
     with_thread_io(OP, |io| {
         io.stdin_tx
             .send(StdInServiceEvent::Read)
@@ -262,14 +330,27 @@ pub fn eval_kernel_readln(
                 op: OP.into(),
                 span: Span::unknown(),
             })?;
-        let ast = io
+        let line = io
             .stdin_reply_rx
             .recv()
             .map_err(|_| RuntimeError::ChannelDisconnected {
                 op: OP.into(),
                 span: Span::unknown(),
             })?;
-        Ok(Value::holon__HolonAST(ast))
+        let edn = wat_edn::parse_owned(&line).map_err(|e| RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!("EDN parse error reading stdin line {:?}: {}", line, e),
+            span: Span::unknown(),
+        })?;
+        crate::edn_shim::edn_to_typed_value(&target_ty, &edn, sym).map_err(|e| {
+            RuntimeError::EdnCoerceMismatch {
+                op: OP.into(),
+                expected: e.expected,
+                got: e.got,
+                path: e.path,
+                span: Span::unknown(),
+            }
+        })
     })
 }
 
@@ -452,8 +533,10 @@ pub fn next_thread_id() -> ThreadId {
 ///      where the service sends `Value::Unit`); send `()` on
 ///      `rust_ack_tx` so the Rust-side caller of println/eprintln
 ///      unblocks.
-///      (stdin) Recv `Value::holon__HolonAST(ast)` on `wat_reply_rx`;
-///      send `ast` on `rust_reply_tx` so the readln caller unblocks.
+///      (stdin) Recv `Value::String(line)` on `wat_reply_rx` (the
+///      raw EDN line); send the unwrapped String on `rust_reply_tx`
+///      so the readln caller unblocks (1f-ι; pre-1f-ι this was a
+///      pre-parsed `Arc<HolonAST>`).
 ///   5. Repeat until `rust_data_rx` disconnects (orchestrator
 ///      dropped ThreadIO's `*_tx`), then exit.
 ///
@@ -472,10 +555,15 @@ pub fn register_thread_with_services(
     // Bridge holds (rust_stdin_rx, rust_stdin_reply_tx).
     // Wat-side:   service holds (wat_stdin_data_rx, wat_stdin_reply_tx).
     // Bridge:    holds (wat_stdin_data_tx, wat_stdin_reply_rx).
+    //
+    // Arc 170 slice 1f-ι — reply payload changed from `Arc<HolonAST>`
+    // (pre-1f-ι, the wat-side service pre-parsed via `:wat::edn::read`)
+    // to `String` (the raw EDN line). The substrate parses + coerces
+    // to the caller's requested `T` in `eval_kernel_readln`.
     let (rust_stdin_tx, rust_stdin_rx) =
         crossbeam_channel::bounded::<StdInServiceEvent>(1);
     let (rust_stdin_reply_tx, rust_stdin_reply_rx) =
-        crossbeam_channel::bounded::<Arc<HolonAST>>(1);
+        crossbeam_channel::bounded::<String>(1);
     let (wat_stdin_data_tx, wat_stdin_data_rx) =
         crossbeam_channel::bounded::<Value>(1);
     let (wat_stdin_reply_tx, wat_stdin_reply_rx) =
@@ -615,28 +703,15 @@ pub fn deregister_thread_from_services(thread_id: ThreadId, services: &RuntimeSe
     let _ = services.stderr_ctrl.send(stderr_remove);
 }
 
-/// Coerce a wat-side `Value` to `Arc<HolonAST>`. Mirrors
-/// `runtime::value_to_holon`'s primitive cases. Used by the stdin
-/// bridge to bridge over the wat-side service's use of
-/// `:wat::edn::read` (which returns a generic Value, not a
-/// `Value::holon__HolonAST`). Returns `None` for shapes we don't
-/// know how to coerce — caller closes the bridge so the reader
-/// surfaces a clean disconnect.
-fn value_to_holon_ast(v: &Value) -> Option<Arc<HolonAST>> {
-    match v {
-        Value::holon__HolonAST(h) => Some(Arc::clone(h)),
-        Value::i64(n) => Some(Arc::new(HolonAST::i64(*n))),
-        Value::f64(x) => Some(Arc::new(HolonAST::f64(*x))),
-        Value::bool(b) => Some(Arc::new(HolonAST::bool_(*b))),
-        Value::String(s) => Some(Arc::new(HolonAST::string(s.as_str()))),
-        Value::wat__core__keyword(k) => Some(Arc::new(HolonAST::symbol(k.as_str()))),
-        _ => None,
-    }
-}
-
 /// stdin bridge — Rust `StdInServiceEvent::Read` → wat
 /// `:wat::kernel::services::StdInService::Event::Read`; wat-side
-/// reply (`Value::holon__HolonAST(ast)`) → Rust `Arc<HolonAST>`.
+/// reply (`Value::String(line)`) → Rust `String`.
+///
+/// Arc 170 slice 1f-ι — the bridge now forwards the RAW EDN line
+/// (a `String`) instead of a pre-parsed `Arc<HolonAST>`. The
+/// wat-side StdInService sends the raw line read from fd 0; the
+/// substrate parses + coerces to the caller's requested `T` in
+/// `eval_kernel_readln`.
 ///
 /// Loop exits on any disconnect — the orchestrator's epilogue drops
 /// the ThreadIO end, which collapses `rust_rx`; subsequent drop of
@@ -644,7 +719,7 @@ fn value_to_holon_ast(v: &Value) -> Option<Arc<HolonAST>> {
 fn spawn_stdin_bridge(
     thread_id: ThreadId,
     rust_rx: Receiver<StdInServiceEvent>,
-    rust_reply_tx: Sender<Arc<HolonAST>>,
+    rust_reply_tx: Sender<String>,
     wat_data_tx: Sender<Value>,
     wat_reply_rx: Receiver<Value>,
 ) {
@@ -677,24 +752,22 @@ fn spawn_stdin_bridge(
             if wat_data_tx.send(wat_event).is_err() {
                 break; // service routing-table entry gone.
             }
-            // 4. Block for wat-side reply (parsed HolonAST).
+            // 4. Block for wat-side reply (raw line as Value::String).
             let reply = match wat_reply_rx.recv() {
                 Ok(v) => v,
                 Err(_) => break, // service stopped sending replies.
             };
-            // 5. Coerce to Arc<HolonAST> and forward to caller. The
-            //    wat-side service uses `:wat::edn::read` to parse the
-            //    line (returning a generic `Value`); the BRIEF
-            //    contract for `(:wat::kernel::readln)` returns
-            //    `:wat::holon::HolonAST`. The wat-side service does
-            //    not currently re-wrap via `:wat::holon::leaf`; we
-            //    coerce here defensively. Mirrors `value_to_holon`'s
-            //    primitive arm.
-            let ast = match value_to_holon_ast(&reply) {
-                Some(a) => a,
-                None => break,
+            // 5. Extract the raw line and forward to caller. Pre-1f-ι
+            //    the wat-side service ran `:wat::edn::read` over the
+            //    line and shipped the parsed Value; the bridge coerced
+            //    to `Arc<HolonAST>`. Post-1f-ι the wat-side ships the
+            //    raw line directly; the substrate parses + coerces to
+            //    the caller's declared `T` in `eval_kernel_readln`.
+            let line = match reply {
+                Value::String(s) => (*s).clone(),
+                _ => break, // Wat-side contract violated; close bridge.
             };
-            if rust_reply_tx.send(ast).is_err() {
+            if rust_reply_tx.send(line).is_err() {
                 break; // caller dropped; bridge exits.
             }
         })

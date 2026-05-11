@@ -103,11 +103,18 @@
    ;; ─── Layer 4 helper — readln round trip via stdin pre-seed ───────
    ;;
    ;; Test seeds stdin with one EDN line; inner main reads it via
-   ;; readln (returns HolonAST), then prints the form back. The trio
-   ;; stdin reader parses the line; the printed value EDN-encodes the
-   ;; HolonAST::Atom(String "echo me") back to "echo me" (with quotes).
-   ;; Proves both directions of the trio: input parsed in, output
-   ;; rendered out.
+   ;; (readln -> :String) which parses the EDN line "echo me" (with
+   ;; quotes on the wire) into a native :wat::core::String "echo me"
+   ;; (without quotes), then prints the form back. Println re-EDN-
+   ;; encodes the String to "\"echo me\"" (with quotes). Proves both
+   ;; directions of the trio: input parsed in, output rendered out.
+   ;;
+   ;; Arc 170 slice 1f-iota — readln is polymorphic via the call-site
+   ;; `-> :T` annotation. Pre-1f-iota readln returned :HolonAST and
+   ;; the stdout assertion expected a tagged HolonAST String render
+   ;; (`#wat-edn.holon/String "echo me"`); post-1f-iota readln returns
+   ;; the native :String and the stdout assertion sees the canonical
+   ;; EDN-quoted form (`"echo me"`).
    ;;
    ;; The stdin vec uses TWO elements so the substrate's
    ;; (:wat::core::string::join "\n" stdin) produces a trailing newline
@@ -121,7 +128,7 @@
          (:wat::core::define
            (:user::main -> :wat::core::nil)
            (:wat::core::let
-             [echoed (:wat::kernel::readln)]
+             [echoed (:wat::kernel::readln -> :wat::core::String)]
              (:wat::kernel::println echoed))))
        (:wat::core::Vector :wat::core::String "\"echo me\"" "")))
    ))
@@ -181,16 +188,16 @@
 ;; ─── Layer 4 — :test::run-readln-echo ───────────────────────────────
 ;;
 ;; Stdin pre-seed delivers "echo me" (EDN-quoted) to the trio reader;
-;; readln returns the parsed HolonAST::Atom(String); println re-EDN-
-;; encodes it on stdout. A HolonAST value renders with the
-;; #wat-edn.holon/String tag (holon_ast_to_edn in src/edn_shim.rs),
-;; not as a bare quoted string — that distinguishes the AST value
-;; from a primitive String at the EDN reader's vantage. The round
-;; trip proves the stdin half of the trio is wired into the
-;; orchestrator the same way as the stdout half.
+;; (readln -> :String) parses the EDN line into a native String "echo
+;; me" (without quotes); println re-EDN-encodes it on stdout. Per the
+;; arc 170 slice 1f-iota EDN-only contract, the round trip preserves
+;; the canonical EDN form: "\"echo me\"" goes in, "\"echo me\"" comes
+;; out (the inner String is the same, the outer EDN-quoting is
+;; symmetric). The round trip proves the stdin half of the trio is
+;; wired into the orchestrator the same way as the stdout half.
 
 (:wat::test::time-limit "15000ms")
 (:deftest-ambient :wat-rs::test::test-ambient-stdio-readln-echo
   (:wat::test::assert-stdout-is
     (:test::run-readln-echo)
-    (:wat::core::Vector :wat::core::String "#wat-edn.holon/String \"echo me\"")))
+    (:wat::core::Vector :wat::core::String "\"echo me\"")))

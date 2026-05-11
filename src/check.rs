@@ -4129,6 +4129,15 @@ fn infer_list(
                     head_span, args, env, locals, fresh, subst, errors,
                 );
             }
+            // Arc 170 slice 1f-ι — readln is polymorphic via the
+            // call-site `-> :T` annotation. Mirror of option::expect /
+            // result::expect's head-position arrow shape.
+            ":wat::kernel::readln" => {
+                return infer_kernel_readln(
+                    ":wat::kernel::readln",
+                    head_span, args, env, locals, fresh, subst, errors,
+                );
+            }
             ":wat::core::vec" => {
                 // Arc 109 slice 1f — :wat::core::vec retires; the
                 // canonical constructor is :wat::core::Vector
@@ -7480,6 +7489,86 @@ fn infer_result_expect(
         }
     }
     Some(apply_subst(&declared_ty, subst))
+}
+
+/// `(:wat::kernel::readln -> :T)` — polymorphic stdin read per arc 170
+/// slice 1f-ι. Mirrors the `-> :T` head-position annotation pattern
+/// established by `option::expect` / `result::expect`. The substrate
+/// reads a single EDN line from the calling thread's per-thread
+/// StdInService routing and coerces the parsed EDN to a runtime
+/// `Value` of type `T` via `edn_to_typed_value` (see
+/// `src/edn_shim.rs`).
+///
+/// Type rules:
+/// 1. Exactly two arguments (`->`, type). MalformedForm otherwise.
+/// 2. `args[0]` is the symbol `->`.
+/// 3. `args[1]` is the declared return type `:T` (parsed via
+///    `parse_type_expr`).
+///
+/// On success the call's type is `T`. `T` may be any wat type with an
+/// EDN encoding (primitives, tuples, Vector, Option, Result, user
+/// structs/enums, HolonAST); function types and unresolved variables
+/// surface as runtime `EdnCoerceMismatch` at the read site (not at
+/// type-check time — the substrate is permissive here, matching the
+/// trust-the-caller discipline of `:wat::edn::read` / `:wat::eval-ast!`).
+fn infer_kernel_readln(
+    callee: &str,
+    head_span: &Span,
+    args: &[WatAST],
+    _env: &CheckEnv,
+    _locals: &HashMap<String, TypeExpr>,
+    _fresh: &mut InferCtx,
+    _subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 2 {
+        errors.push(CheckError::MalformedForm {
+            head: callee.into(),
+            reason: format!(
+                "expected ({} -> :T) — 2 args (arrow + type keyword); got {}",
+                callee,
+                args.len()
+            ),
+            span: head_span.clone(),
+        });
+        return None;
+    }
+    match &args[0] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: callee.into(),
+                reason: format!(
+                    "expected `->` as the first argument; ({} -> :T)",
+                    callee
+                ),
+                span: args[0].span().clone(),
+            });
+            return None;
+        }
+    }
+    let declared_ty = match &args[1] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: callee.into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: args[1].span().clone(),
+                });
+                return None;
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: callee.into(),
+                reason: "expected type keyword after `->`".into(),
+                span: args[1].span().clone(),
+            });
+            return None;
+        }
+    };
+    Some(declared_ty)
 }
 
 /// Arc 133 — find the source span of the binding that introduces
@@ -12731,22 +12820,26 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 170 slice 1f-α — thread-aware stdio helpers. Each
-    // looks up the calling thread's per-service channel handles
+    // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
+    // Each looks up the calling thread's per-service channel handles
     // from a thread-local cell and runs the mini-TCP block-on-
     // completion lockstep against the substrate's three stdio
-    // services. Slice 1f's wat-side service implementations,
-    // orchestrator, and wat-cli boot integration ship in 1f-β/γ/δ.
+    // services. Slice 1f-α shipped the substrate side; 1f-β/γ/δ ship
+    // the wat-side service impls + orchestrator + cli boot. Slice
+    // 1f-ι locks the EDN-only contract for `readln`.
     //
     // Type schemes:
     //   :wat::kernel::println  : ∀T. T -> :wat::core::nil
     //   :wat::kernel::eprintln : ∀T. T -> :wat::core::nil
-    //   :wat::kernel::readln   : ()  -> :wat::holon::HolonAST
+    //   :wat::kernel::readln   : ∀T. () -> :T   (polymorphic via
+    //                                            call-site -> :T;
+    //                                            see infer_kernel_readln)
     //
     // The `T -> nil` shape mirrors `:wat::edn::write` (any-T input)
     // composed with the unit/nil return that the mini-TCP ack
-    // collapses to. `readln` takes no args; the substrate looks
-    // up routing from the thread-local.
+    // collapses to. `readln`'s scheme is a vestigial registration;
+    // the call-form dispatch (see infer_list / readln arm) overrides
+    // it by reading the call-site's `-> :T` annotation.
     for op in [":wat::kernel::println", ":wat::kernel::eprintln"] {
         env.register(
             op.into(),
@@ -12761,9 +12854,9 @@ fn register_builtins(env: &mut CheckEnv) {
     env.register(
         ":wat::kernel::readln".into(),
         TypeScheme {
-            type_params: vec![],
+            type_params: vec!["T".into()],
             params: vec![],
-            ret: holon_ty(),
+            ret: t_var(),
             rest_param_type: None,
         },
     );

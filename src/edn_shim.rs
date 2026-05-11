@@ -409,6 +409,528 @@ pub fn edn_to_value(
     }
 }
 
+// ─── EDN → typed-T coercion (arc 170 slice 1f-ι) ───────────────────
+
+/// Error returned by [`edn_to_typed_value`] when the parsed EDN tree
+/// doesn't match the caller's declared target type.
+///
+/// Mirrors the diagnostic shape of [`EdnReadError`] (the untyped
+/// counterpart) plus the load-bearing `expected` field carrying the
+/// declared `TypeExpr` (rendered via
+/// [`crate::check::format_type`]). `path` accumulates field /
+/// element indices as the coercion recurses, so the surfaced
+/// `RuntimeError::EdnCoerceMismatch` names the exact mismatch
+/// site (e.g., `".name"`, `".[2]"`, `".some.[0].field"`).
+#[derive(Debug)]
+pub struct EdnCoerceError {
+    pub expected: String,
+    pub got: String,
+    pub path: String,
+}
+
+impl EdnCoerceError {
+    fn at(mut self, segment: &str) -> Self {
+        // Prepend to build the path from the leaf back up.
+        self.path = format!("{}{}", segment, self.path);
+        self
+    }
+}
+
+/// Shape names for EDN values used in diagnostic surfaces.
+fn edn_shape_name(edn: &wat_edn::OwnedValue) -> &'static str {
+    use wat_edn::Value as Edn;
+    match edn {
+        Edn::Nil => "Nil",
+        Edn::Bool(_) => "Bool",
+        Edn::Integer(_) => "Integer",
+        Edn::Float(_) => "Float",
+        Edn::String(_) => "String",
+        Edn::Char(_) => "Char",
+        Edn::Keyword(_) => "Keyword",
+        Edn::Symbol(_) => "Symbol",
+        Edn::List(_) => "List",
+        Edn::Vector(_) => "Vector",
+        Edn::Map(_) => "Map",
+        Edn::Set(_) => "Set",
+        Edn::Tagged(_, _) => "Tagged",
+        Edn::Inst(_) => "Inst",
+        Edn::Uuid(_) => "Uuid",
+        Edn::BigInt(_) => "BigInt",
+        Edn::BigDec(_) => "BigDec",
+    }
+}
+
+fn mismatch(target: &crate::types::TypeExpr, edn: &wat_edn::OwnedValue) -> EdnCoerceError {
+    EdnCoerceError {
+        expected: crate::check::format_type(target),
+        got: edn_shape_name(edn).into(),
+        path: String::new(),
+    }
+}
+
+/// Coerce an already-parsed EDN tree to a runtime [`Value`] whose
+/// type matches the caller's declared `target` annotation.
+///
+/// Arc 170 slice 1f-ι — the load-bearing piece of the EDN-only
+/// `(:wat::kernel::readln -> :T)` contract.
+/// `(:wat::kernel::println v)` emits canonical EDN via
+/// [`value_to_edn_with`]; this function is its asymmetric inverse —
+/// asymmetric because the caller declares `T`, so the coercion can
+/// disambiguate shapes that EDN itself doesn't (`nil` → `:None` vs
+/// `Value::Unit`, vector → tuple vs `Vec`, map → struct, etc.).
+///
+/// Recursive coercion rules (table):
+///
+/// | Target | EDN form expected | Result |
+/// |---|---|---|
+/// | `:wat::core::i64` | `Integer` | `Value::i64(n)` |
+/// | `:wat::core::f64` | `Float` OR `Integer` (widening) | `Value::f64(f)` |
+/// | `:wat::core::String` | `String` | `Value::String(s.into())` |
+/// | `:wat::core::bool` | `Bool` | `Value::Bool(b)` |
+/// | `:wat::core::nil` / `:()` | `Nil` | `Value::Unit` |
+/// | `:wat::core::keyword` | `Keyword` | `Value::wat__core__keyword(...)` |
+/// | `:(A,B,...)` (tuple) | `Vector` of len N | recurse per element |
+/// | `:wat::core::Vector<T>` | `Vector` | recurse on each element |
+/// | `:wat::core::Option<T>` | `Nil` → `None`; else recurse to `Some(T)` | enum variant |
+/// | `:wat::core::Result<T,E>` | `Tagged #wat-edn.result/{ok|err}` | recurse on payload |
+/// | user `Struct` | `Tagged #ns/Name {map}` | recurse per field |
+/// | user `Enum` (Unit variant) | `Tagged #ns/Variant nil` | enum variant |
+/// | user `Enum` (Tagged variant) | `Tagged #ns/Variant [items]` | recurse per field |
+/// | `:wat::holon::HolonAST` | any | call [`edn_to_holon_ast_natural`] / tagged path |
+///
+/// On mismatch the returned [`EdnCoerceError`] carries the declared
+/// type's rendered form, the EDN shape that arrived, and the path
+/// to the offending sub-field. Callers wrap into
+/// `RuntimeError::EdnCoerceMismatch`.
+pub fn edn_to_typed_value(
+    target: &crate::types::TypeExpr,
+    edn: &wat_edn::OwnedValue,
+    sym: &crate::runtime::SymbolTable,
+) -> Result<Value, EdnCoerceError> {
+    let types = sym.types().map(|a| a.as_ref());
+    edn_to_typed_value_inner(target, edn, types)
+}
+
+fn edn_to_typed_value_inner(
+    target: &crate::types::TypeExpr,
+    edn: &wat_edn::OwnedValue,
+    types: Option<&crate::types::TypeEnv>,
+) -> Result<Value, EdnCoerceError> {
+    use crate::types::TypeExpr;
+    use wat_edn::Value as Edn;
+    // Resolve user-declared typealiases / newtypes to the underlying
+    // form so coercion logic operates against canonical types. Aliases
+    // collapse transparently; newtypes coerce against their inner
+    // declared shape (the wat-side wrapper is invisible at the EDN
+    // layer).
+    if let TypeExpr::Path(p) = target {
+        if let Some(env) = types {
+            if let Some(def) = env.get(p) {
+                match def {
+                    crate::types::TypeDef::Alias(a) => {
+                        return edn_to_typed_value_inner(&a.expr, edn, types);
+                    }
+                    crate::types::TypeDef::Newtype(n) => {
+                        return edn_to_typed_value_inner(&n.inner, edn, types);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    match target {
+        // ── Path-form: primitive scalars + user struct / enum (by name) ──
+        TypeExpr::Path(p) => match p.as_str() {
+            ":wat::core::i64" => match edn {
+                Edn::Integer(n) => Ok(Value::i64(*n)),
+                other => Err(mismatch(target, other)),
+            },
+            ":wat::core::f64" => match edn {
+                Edn::Float(x) => Ok(Value::f64(*x)),
+                // Widening: Integer fits a Float request.
+                Edn::Integer(n) => Ok(Value::f64(*n as f64)),
+                other => Err(mismatch(target, other)),
+            },
+            ":wat::core::String" => match edn {
+                Edn::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
+                other => Err(mismatch(target, other)),
+            },
+            ":wat::core::bool" => match edn {
+                Edn::Bool(b) => Ok(Value::bool(*b)),
+                other => Err(mismatch(target, other)),
+            },
+            ":wat::core::nil" => match edn {
+                Edn::Nil => Ok(Value::Unit),
+                other => Err(mismatch(target, other)),
+            },
+            ":wat::core::keyword" => match edn {
+                Edn::Keyword(k) => {
+                    let s = match k.namespace() {
+                        Some(ns) => format!(":{}::{}", ns.replace('.', "::"), k.name()),
+                        None => format!(":{}", k.name()),
+                    };
+                    Ok(Value::wat__core__keyword(Arc::new(s)))
+                }
+                other => Err(mismatch(target, other)),
+            },
+            ":wat::core::u8" => match edn {
+                Edn::Integer(n) => Ok(Value::u8(*n as u8)),
+                other => Err(mismatch(target, other)),
+            },
+            ":wat::holon::HolonAST" => {
+                // Tagged round-trip OR natural-form lift to a leaf —
+                // mirrors `edn_shim`'s two-mode reader.
+                let ast = match edn {
+                    Edn::Tagged(tag, _) if tag.namespace() == "wat-edn.holon" => {
+                        edn_to_holon_ast(edn).map_err(|e| EdnCoerceError {
+                            expected: ":wat::holon::HolonAST".into(),
+                            got: format!("HolonAST decode error: {e}"),
+                            path: String::new(),
+                        })?
+                    }
+                    _ => edn_to_holon_ast_natural(edn).map_err(|e| EdnCoerceError {
+                        expected: ":wat::holon::HolonAST".into(),
+                        got: format!("HolonAST decode error: {e}"),
+                        path: String::new(),
+                    })?,
+                };
+                Ok(Value::holon__HolonAST(ast))
+            }
+            // User-declared name (struct / enum) — look up in the registry.
+            _ => {
+                let env = types.ok_or_else(|| EdnCoerceError {
+                    expected: crate::check::format_type(target),
+                    got: edn_shape_name(edn).into(),
+                    path: String::new(),
+                })?;
+                match env.get(p) {
+                    Some(crate::types::TypeDef::Struct(def)) => {
+                        coerce_struct_path(p, def, edn, types)
+                    }
+                    Some(crate::types::TypeDef::Enum(def)) => {
+                        coerce_enum_path(p, def, edn, types)
+                    }
+                    _ => Err(mismatch(target, edn)),
+                }
+            }
+        },
+
+        // ── Parametric: Vector<T>, Option<T>, Result<T,E>, ... ──
+        TypeExpr::Parametric { head, args } => match head.as_str() {
+            "wat::core::Vector" => {
+                let elem_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
+                match edn {
+                    Edn::Vector(items) | Edn::List(items) => {
+                        let mut walked = Vec::with_capacity(items.len());
+                        for (i, item) in items.iter().enumerate() {
+                            let v = edn_to_typed_value_inner(elem_ty, item, types)
+                                .map_err(|e| e.at(&format!(".[{}]", i)))?;
+                            walked.push(v);
+                        }
+                        Ok(Value::Vec(Arc::new(walked)))
+                    }
+                    other => Err(mismatch(target, other)),
+                }
+            }
+            "wat::core::Option" => {
+                let inner_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
+                match edn {
+                    Edn::Nil => Ok(Value::Option(Arc::new(None))),
+                    other => {
+                        let inner = edn_to_typed_value_inner(inner_ty, other, types)
+                            .map_err(|e| e.at(".some"))?;
+                        Ok(Value::Option(Arc::new(Some(inner))))
+                    }
+                }
+            }
+            "wat::core::Result" => {
+                if args.len() != 2 {
+                    return Err(mismatch(target, edn));
+                }
+                let ok_ty = &args[0];
+                let err_ty = &args[1];
+                match edn {
+                    Edn::Tagged(tag, body) if tag.namespace() == "wat-edn.result" => {
+                        match tag.name() {
+                            "ok" => {
+                                let v = edn_to_typed_value_inner(ok_ty, body, types)
+                                    .map_err(|e| e.at(".ok"))?;
+                                Ok(Value::Result(Arc::new(Ok(v))))
+                            }
+                            "err" => {
+                                let v = edn_to_typed_value_inner(err_ty, body, types)
+                                    .map_err(|e| e.at(".err"))?;
+                                Ok(Value::Result(Arc::new(Err(v))))
+                            }
+                            _ => Err(mismatch(target, edn)),
+                        }
+                    }
+                    other => Err(mismatch(target, other)),
+                }
+            }
+            "wat::core::HashMap" | "wat::core::HashSet" => {
+                // Not currently supported as a readln target; the
+                // wire form has no typed-K coercion path yet.
+                Err(EdnCoerceError {
+                    expected: crate::check::format_type(target),
+                    got: "(coercion of HashMap/HashSet not yet supported)".into(),
+                    path: String::new(),
+                })
+            }
+            _ => {
+                // Parametric user type — strip `<...>` to look up the
+                // base declaration; coerce against the base shape.
+                let path = format!(":{}", head);
+                let env = types.ok_or_else(|| mismatch(target, edn))?;
+                match env.get(&path) {
+                    Some(crate::types::TypeDef::Struct(def)) => {
+                        coerce_struct_path(&path, def, edn, types)
+                    }
+                    Some(crate::types::TypeDef::Enum(def)) => {
+                        coerce_enum_path(&path, def, edn, types)
+                    }
+                    _ => Err(mismatch(target, edn)),
+                }
+            }
+        },
+
+        // ── Tuple: positional coercion against each element ──────
+        TypeExpr::Tuple(elements) => {
+            // `:()` (empty tuple = unit) accepts Nil.
+            if elements.is_empty() {
+                return match edn {
+                    Edn::Nil => Ok(Value::Unit),
+                    other => Err(mismatch(target, other)),
+                };
+            }
+            match edn {
+                Edn::Vector(items) | Edn::List(items) => {
+                    if items.len() != elements.len() {
+                        return Err(EdnCoerceError {
+                            expected: crate::check::format_type(target),
+                            got: format!("Vector(len={})", items.len()),
+                            path: String::new(),
+                        });
+                    }
+                    let mut walked = Vec::with_capacity(items.len());
+                    for (i, (elem_ty, item)) in elements.iter().zip(items.iter()).enumerate() {
+                        let v = edn_to_typed_value_inner(elem_ty, item, types)
+                            .map_err(|e| e.at(&format!(".[{}]", i)))?;
+                        walked.push(v);
+                    }
+                    Ok(Value::Tuple(Arc::new(walked)))
+                }
+                other => Err(mismatch(target, other)),
+            }
+        }
+
+        // ── Fn type: not EDN-coercible by design ─────────────────
+        TypeExpr::Fn { .. } => Err(EdnCoerceError {
+            expected: crate::check::format_type(target),
+            got: "(function types have no EDN encoding)".into(),
+            path: String::new(),
+        }),
+
+        // ── Var: fresh unification variable shouldn't reach
+        //   the coercion arm (the runtime always knows T concretely
+        //   from the call-site `-> :T` annotation). Defensive arm.
+        TypeExpr::Var(_) => Err(EdnCoerceError {
+            expected: crate::check::format_type(target),
+            got: "(unresolved type variable)".into(),
+            path: String::new(),
+        }),
+    }
+}
+
+fn coerce_struct_path(
+    type_path: &str,
+    def: &crate::types::StructDef,
+    edn: &wat_edn::OwnedValue,
+    types: Option<&crate::types::TypeEnv>,
+) -> Result<Value, EdnCoerceError> {
+    use wat_edn::Value as Edn;
+    // Tagged struct form — `#ns/Name {map}` matches the writer
+    // produced by `value_to_edn_with`. Tagless `{map}` is rejected
+    // (the writer never emits one for a struct target; tagless EDN
+    // is a writer-side option via `write-notag`, not a reader-side
+    // expectation).
+    let body = match edn {
+        Edn::Tagged(tag, body) => {
+            let expected_tag = struct_tag_for(type_path);
+            if tag.namespace() != expected_tag.0 || tag.name() != expected_tag.1 {
+                return Err(EdnCoerceError {
+                    expected: type_path.to_string(),
+                    got: format!("Tagged({}/{})", tag.namespace(), tag.name()),
+                    path: String::new(),
+                });
+            }
+            body.as_ref()
+        }
+        other => {
+            return Err(EdnCoerceError {
+                expected: type_path.to_string(),
+                got: edn_shape_name(other).into(),
+                path: String::new(),
+            });
+        }
+    };
+    let entries = match body {
+        Edn::Map(entries) => entries.as_slice(),
+        other => {
+            return Err(EdnCoerceError {
+                expected: type_path.to_string(),
+                got: format!("Tagged-body {}", edn_shape_name(other)),
+                path: String::new(),
+            });
+        }
+    };
+    // Build keyword-name → value lookup.
+    let mut by_key: std::collections::HashMap<String, &wat_edn::OwnedValue> =
+        std::collections::HashMap::with_capacity(entries.len());
+    for (k, v) in entries {
+        if let Edn::Keyword(kw) = k {
+            by_key.insert(kw.name().to_string(), v);
+        }
+    }
+    let mut fields: Vec<Value> = Vec::with_capacity(def.fields.len());
+    for (fname, fty) in &def.fields {
+        let fv = by_key.get(fname.as_str()).ok_or_else(|| EdnCoerceError {
+            expected: type_path.to_string(),
+            got: format!("missing field :{}", fname),
+            path: String::new(),
+        })?;
+        let v = edn_to_typed_value_inner(fty, fv, types)
+            .map_err(|e| e.at(&format!(".{}", fname)))?;
+        fields.push(v);
+    }
+    Ok(Value::Struct(Arc::new(crate::runtime::StructValue {
+        type_name: type_path.to_string(),
+        fields,
+    })))
+}
+
+fn coerce_enum_path(
+    type_path: &str,
+    def: &crate::types::EnumDef,
+    edn: &wat_edn::OwnedValue,
+    types: Option<&crate::types::TypeEnv>,
+) -> Result<Value, EdnCoerceError> {
+    use wat_edn::Value as Edn;
+    // User-enum tag is `<ns>/<Variant>` where `<ns>` derives from the
+    // enum's qualified path plus its name (mirroring
+    // `tag_from_type_path(format!("{}::{}", type_path, variant_name))`
+    // in `value_to_edn_with`'s Enum arm).
+    let (tag_ns, tag_name, body) = match edn {
+        Edn::Tagged(tag, body) => (tag.namespace().to_string(), tag.name().to_string(), body.as_ref()),
+        other => {
+            return Err(EdnCoerceError {
+                expected: type_path.to_string(),
+                got: edn_shape_name(other).into(),
+                path: String::new(),
+            });
+        }
+    };
+    // The expected enum-tag namespace mirrors the writer:
+    // `tag_from_type_path(<enum_path>::<Variant>)` → ns = the enum
+    // path's dotted form (typename included), name = variant name.
+    let expected_ns = enum_variant_ns(type_path);
+    if tag_ns != expected_ns {
+        return Err(EdnCoerceError {
+            expected: format!("{} (ns={})", type_path, expected_ns),
+            got: format!("Tagged ns={}/{}", tag_ns, tag_name),
+            path: String::new(),
+        });
+    }
+    let variant = def.variants.iter().find(|v| match v {
+        crate::types::EnumVariant::Unit(n) => n == &tag_name,
+        crate::types::EnumVariant::Tagged { name, .. } => name == &tag_name,
+    });
+    let variant = variant.ok_or_else(|| EdnCoerceError {
+        expected: type_path.to_string(),
+        got: format!("unknown variant {}", tag_name),
+        path: String::new(),
+    })?;
+    match variant {
+        crate::types::EnumVariant::Unit(_) => {
+            // Unit variant body must be Nil.
+            match body {
+                Edn::Nil => Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
+                    type_path: type_path.to_string(),
+                    variant_name: tag_name,
+                    fields: vec![],
+                }))),
+                other => Err(EdnCoerceError {
+                    expected: format!("{}::{} (unit)", type_path, tag_name),
+                    got: format!("Tagged-body {}", edn_shape_name(other)),
+                    path: String::new(),
+                }),
+            }
+        }
+        crate::types::EnumVariant::Tagged { fields, .. } => {
+            // Tagged variant body must be Vector matching arity.
+            let items = match body {
+                Edn::Vector(items) | Edn::List(items) => items.as_slice(),
+                other => {
+                    return Err(EdnCoerceError {
+                        expected: format!("{}::{} (tagged)", type_path, tag_name),
+                        got: format!("Tagged-body {}", edn_shape_name(other)),
+                        path: String::new(),
+                    });
+                }
+            };
+            if items.len() != fields.len() {
+                return Err(EdnCoerceError {
+                    expected: format!(
+                        "{}::{} (fields={})",
+                        type_path,
+                        tag_name,
+                        fields.len()
+                    ),
+                    got: format!("Vector(len={})", items.len()),
+                    path: String::new(),
+                });
+            }
+            let mut walked = Vec::with_capacity(items.len());
+            for (i, ((fname, fty), item)) in fields.iter().zip(items.iter()).enumerate() {
+                let v = edn_to_typed_value_inner(fty, item, types)
+                    .map_err(|e| e.at(&format!(".{}", fname)))?;
+                let _ = i; // path uses field name, index reserved for future
+                walked.push(v);
+            }
+            Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
+                type_path: type_path.to_string(),
+                variant_name: tag_name,
+                fields: walked,
+            })))
+        }
+    }
+}
+
+/// Compute the EDN tag namespace + name for a struct's wire form.
+/// Mirrors `tag_from_type_path` (file-local helper) but extracted
+/// for the coercion side.
+fn struct_tag_for(type_path: &str) -> (String, String) {
+    let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
+    if let Some(idx) = stripped.rfind("::") {
+        let ns = stripped[..idx].replace("::", ".");
+        let name = stripped[idx + 2..].to_string();
+        (ns, name)
+    } else {
+        ("wat-edn.local".into(), stripped.to_string())
+    }
+}
+
+/// EDN tag namespace for an enum variant. The writer emits
+/// `tag_from_type_path(format!("{type_path}::{variant_name}"))` →
+/// namespace derived from the enum's full path + variant-name as the
+/// tag's terminal segment. For the READ side, the namespace IS the
+/// enum's dotted path (including the type name), and the tag name IS
+/// the variant identifier.
+fn enum_variant_ns(type_path: &str) -> String {
+    let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
+    stripped.replace("::", ".")
+}
+
 // ─── Natural / tagless renderers ──────────────────────────────────
 
 /// Tagless EDN walker. Drops `#tag` wrappers from struct + enum
@@ -1507,6 +2029,8 @@ fn holon_ast_to_edn_notag(h: &holon::HolonAST) -> OwnedValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::SymbolTable;
+    use crate::types::TypeExpr;
 
     // ─── Arc 138 canary ─────────────────────────────────────────────────
 
@@ -1531,5 +2055,180 @@ mod tests {
             "expected NoTypeRegistry message; got: {}",
             rendered
         );
+    }
+
+    // ─── Arc 170 slice 1f-ι — edn_to_typed_value coercion ──────────────
+
+    fn coerce(target: &TypeExpr, edn_text: &str) -> Result<Value, EdnCoerceError> {
+        let edn = wat_edn::parse_owned(edn_text).expect("parse EDN test input");
+        let sym = SymbolTable::default();
+        edn_to_typed_value(target, &edn, &sym)
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_i64_from_integer() {
+        let t = TypeExpr::Path(":wat::core::i64".into());
+        let v = coerce(&t, "42").unwrap();
+        assert!(matches!(v, Value::i64(42)));
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_string_from_quoted() {
+        let t = TypeExpr::Path(":wat::core::String".into());
+        let v = coerce(&t, "\"hello\"").unwrap();
+        match v {
+            Value::String(s) => assert_eq!(&*s, "hello"),
+            other => panic!("expected Value::String; got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_bool() {
+        let t = TypeExpr::Path(":wat::core::bool".into());
+        let v = coerce(&t, "true").unwrap();
+        assert!(matches!(v, Value::bool(true)));
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_f64_widens_integer() {
+        let t = TypeExpr::Path(":wat::core::f64".into());
+        let v = coerce(&t, "3").unwrap();
+        match v {
+            Value::f64(x) => assert!((x - 3.0).abs() < 1e-12),
+            other => panic!("expected Value::f64; got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_nil_to_unit() {
+        let t = TypeExpr::Path(":wat::core::nil".into());
+        let v = coerce(&t, "nil").unwrap();
+        assert!(matches!(v, Value::Unit));
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_option_nil_to_none() {
+        let t = TypeExpr::Parametric {
+            head: "wat::core::Option".into(),
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+        };
+        let v = coerce(&t, "nil").unwrap();
+        match v {
+            Value::Option(o) => assert!(o.is_none()),
+            other => panic!("expected Value::Option(None); got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_option_some() {
+        let t = TypeExpr::Parametric {
+            head: "wat::core::Option".into(),
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+        };
+        let v = coerce(&t, "7").unwrap();
+        match v {
+            Value::Option(o) => match &*o {
+                Some(Value::i64(7)) => {}
+                other => panic!("expected Some(Value::i64(7)); got {:?}", other),
+            },
+            other => panic!("expected Value::Option(Some); got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_vector_of_i64() {
+        let t = TypeExpr::Parametric {
+            head: "wat::core::Vector".into(),
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+        };
+        let v = coerce(&t, "[1 2 3]").unwrap();
+        match v {
+            Value::Vec(xs) => {
+                assert_eq!(xs.len(), 3);
+                assert!(matches!(xs[0], Value::i64(1)));
+                assert!(matches!(xs[2], Value::i64(3)));
+            }
+            other => panic!("expected Value::Vec; got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_tuple_heterogeneous() {
+        let t = TypeExpr::Tuple(vec![
+            TypeExpr::Path(":wat::core::i64".into()),
+            TypeExpr::Path(":wat::core::String".into()),
+        ]);
+        let v = coerce(&t, "[1 \"x\"]").unwrap();
+        match v {
+            Value::Tuple(xs) => {
+                assert_eq!(xs.len(), 2);
+                assert!(matches!(xs[0], Value::i64(1)));
+                match &xs[1] {
+                    Value::String(s) => assert_eq!(&**s, "x"),
+                    other => panic!("expected Value::String; got {:?}", other),
+                }
+            }
+            other => panic!("expected Value::Tuple; got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_mismatch_surfaces_path() {
+        // Vector<i64> + first element is a String → mismatch at .[0].
+        let t = TypeExpr::Parametric {
+            head: "wat::core::Vector".into(),
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+        };
+        let err = coerce(&t, "[\"oops\" 2]").unwrap_err();
+        assert_eq!(err.expected, ":wat::core::i64");
+        assert_eq!(err.got, "String");
+        assert_eq!(err.path, ".[0]");
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_top_level_mismatch_no_path() {
+        let t = TypeExpr::Path(":wat::core::i64".into());
+        let err = coerce(&t, "\"not an int\"").unwrap_err();
+        assert_eq!(err.expected, ":wat::core::i64");
+        assert_eq!(err.got, "String");
+        assert_eq!(err.path, "");
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_result_ok() {
+        let t = TypeExpr::Parametric {
+            head: "wat::core::Result".into(),
+            args: vec![
+                TypeExpr::Path(":wat::core::i64".into()),
+                TypeExpr::Path(":wat::core::String".into()),
+            ],
+        };
+        let v = coerce(&t, "#wat-edn.result/ok 42").unwrap();
+        match v {
+            Value::Result(r) => match &*r {
+                Ok(Value::i64(42)) => {}
+                other => panic!("expected Ok(i64 42); got {:?}", other),
+            },
+            other => panic!("expected Value::Result; got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_result_err() {
+        let t = TypeExpr::Parametric {
+            head: "wat::core::Result".into(),
+            args: vec![
+                TypeExpr::Path(":wat::core::i64".into()),
+                TypeExpr::Path(":wat::core::String".into()),
+            ],
+        };
+        let v = coerce(&t, "#wat-edn.result/err \"boom\"").unwrap();
+        match v {
+            Value::Result(r) => match &*r {
+                Err(Value::String(s)) => assert_eq!(&**s, "boom"),
+                other => panic!("expected Err(String); got {:?}", other),
+            },
+            other => panic!("expected Value::Result; got {:?}", other),
+        }
     }
 }

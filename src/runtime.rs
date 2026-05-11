@@ -1242,6 +1242,26 @@ pub enum RuntimeError {
         op: String,
         span: Span,
     },
+    /// Arc 170 slice 1f-ι — `:wat::kernel::readln`'s
+    /// EDN→typed-`T` coercion (the `edn_to_typed_value` walker
+    /// in `crate::edn_shim`) found a shape mismatch between the
+    /// caller's declared `-> :T` annotation and the EDN form on
+    /// the wire. `expected` is the wat type the caller asked for;
+    /// `got` is the EDN shape that actually arrived; `path`
+    /// names the sub-field of the recursive coercion that
+    /// failed (`""` for a top-level mismatch; `".name"`,
+    /// `".[0]"`, etc. for nested cases).
+    ///
+    /// The diagnostic surface intentionally mirrors `EdnReadError`
+    /// (the inverse direction — `wat_edn::OwnedValue` → wat `Value`
+    /// without a target-T annotation); see `crate::edn_shim`.
+    EdnCoerceMismatch {
+        op: String,
+        expected: String,
+        got: String,
+        path: String,
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError,
@@ -1397,6 +1417,19 @@ impl fmt::Display for RuntimeError {
                 f,
                 "{}{}: called before stdio services running. The runtime spawns these services at process start (arc 170 slice 1f-δ); when called from a hand-spawned context (e.g., a test), the test must populate the per-thread routing via `wat::thread_io::install_thread_io` before invoking. See arc 170 REALIZATIONS pass 15 + pass 16 for the substrate's thread-aware-helper architecture.",
                 span_prefix(span), op
+            ),
+            RuntimeError::EdnCoerceMismatch { op, expected, got, path, span } => write!(
+                f,
+                "{}{}: edn coerce mismatch: expected {}, got {}{}",
+                span_prefix(span),
+                op,
+                expected,
+                got,
+                if path.is_empty() {
+                    String::new()
+                } else {
+                    format!(" at {}", path)
+                }
             ),
         }
     }
@@ -14435,7 +14468,7 @@ pub fn snapshot_call_stack() -> Vec<FrameInfo> {
     })
 }
 
-fn ast_variant_name(ast: &WatAST) -> &'static str {
+pub(crate) fn ast_variant_name(ast: &WatAST) -> &'static str {
     match ast {
         WatAST::IntLit(_, _) => "int literal",
         WatAST::FloatLit(_, _) => "float literal",
