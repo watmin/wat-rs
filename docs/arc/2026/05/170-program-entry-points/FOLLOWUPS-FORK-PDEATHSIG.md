@@ -2,6 +2,39 @@
 
 **Status:** investigated 2026-05-10 during slice 1f-ζ verification runs; queued for separate slice.
 
+## Reproduction (specific tests, not all forks)
+
+The leak is NOT a substrate-wide fork misuse. It's specific to **hermetic tests with body-level deadlocks** (e.g., `stdin-test::spawn-shape`, `stdout-test::spawn-shape`, `stderr-test::spawn-shape` from slice 1f-β-i/ii/iii — known structural scope-deadlocks).
+
+Verified reproduction: `cargo test --release --workspace stdin_test_spawn_shape` leaves **9 orphans** that persist after cargo test exits.
+
+## Root cause — time-limit doesn't kill the inner thread
+
+`crates/wat-macros/src/lib.rs:707-715` documents the leak explicitly:
+
+```rust
+Err(::std::sync::mpsc::RecvTimeoutError::Timeout) => {
+    // Real timeout: inner thread is still running.
+    // We can't safely kill a Rust thread from
+    // outside; the runaway worker leaks until
+    // process exit. Synthesized message preserves
+    // arc-123's existing UX.
+    panic!(#timeout_msg);
+}
+```
+
+The flow:
+1. `deftest-hermetic` macro spawns inner thread to run the test body
+2. Test body runs `run-sandboxed-hermetic-ast` → `fork-program-ast` → child process
+3. Test body deadlocks (scope-deadlock in stdin/stdout/stderr spawn-shape tests)
+4. 200ms time-limit fires (arc 132 default)
+5. OUTER thread panics with timeout message
+6. INNER thread (holding `Arc<ChildHandleInner>` for the forked child) **keeps running**
+7. Arc doesn't drop; `ChildHandleInner::drop` never fires; child stays alive
+8. Cargo test process eventually exits without running Rust Drops on the leaked inner thread → child reparents to init
+
+**This is not a fork.rs lacuna. It's an upstream design decision in `wat-macros`.**
+
 ## Symptom
 
 `ps faux | grep wat-rs` shows N orphan child processes parented to `?` (init) in state `Sl` (sleeping) during long-running test workloads. User killed manually multiple times. Example observed during slice 1f-ζ:
@@ -102,6 +135,22 @@ With the fix: orphans auto-die within ~1 sec of parent death (SIGKILL is unignor
 ## Predicted slice scope
 
 ~30 min sonnet. ~6 fork sites × 3-line edit each. Mechanical. Single-source-of-truth pattern.
+
+## Two complementary fixes
+
+Both are worth shipping; they address different layers:
+
+**Layer 1 (substrate) — PDEATHSIG** (this slice's primary target):
+- Catches catastrophic-parent-death cases (SIGKILL, abort, panic-abort).
+- Fixes the symptom for ALL fork callers.
+
+**Layer 2 (wat-macros) — kill inner-thread's children on timeout**:
+- Track `Arc<ChildHandleInner>` (or equivalent registry) per test thread.
+- On timeout: walk the registry, kill children, then panic the outer thread.
+- OR: run inner test in a process (not thread) so the timeout can SIGKILL the whole process group.
+- This is the upstream fix that prevents the leak even when the test PROCESS keeps running.
+
+For arc 170's immediate purposes — Layer 1 alone is sufficient. The leak is bounded by the test-process lifetime; PDEATHSIG handles the final cleanup. Layer 2 is its own foundation work (call it FOLLOWUPS-TIMELIMIT-LEAK.md when authored).
 
 ## Cross-references
 
