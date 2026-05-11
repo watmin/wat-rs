@@ -268,8 +268,9 @@ fn row_e_readln_roundtrip() {
     fresh_thread();
     let mut rig = build_rig();
     // Test thread writes an EDN form to the orchestrator's stdin
-    // BEFORE invoking main. The orchestrator's StdInService reads
-    // the line, parses it, hands the HolonAST back via readln.
+    // BEFORE invoking main. The orchestrator's StdInService passes
+    // the raw line; the substrate parses + coerces to T per
+    // readln's `-> :T` annotation (arc 170 slice 1f-ι contract).
     //
     // Test thread feeds the pipe BEFORE main runs, then runs main.
     // The pipe's kernel buffer is large enough to hold a small EDN
@@ -284,7 +285,7 @@ fn row_e_readln_roundtrip() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [_form (:wat::kernel::readln)]
+            [_s (:wat::kernel::readln -> :wat::core::String)]
             :wat::core::nil))
     "#;
     let world = freeze(src);
