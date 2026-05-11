@@ -705,21 +705,13 @@ fn sigterm_cascades_two_levels_via_process_group() {
 
 const ARC115_GOOD_PROGRAM: &str = r#"
 (:wat::core::define
-  (:user::main
-    (stdin :wat::io::IOReader)
-    (stdout :wat::io::IOWriter)
-    (stderr :wat::io::IOWriter)
-    -> :wat::core::nil)
+  (:user::main -> :wat::core::nil)
   ())
 "#;
 
 const ARC115_BAD_PROGRAM: &str = r#"
 (:wat::core::define
-  (:user::main
-    (stdin :wat::io::IOReader)
-    (stdout :wat::io::IOWriter)
-    (stderr :wat::io::IOWriter)
-    -> :wat::core::nil)
+  (:user::main -> :wat::core::nil)
   (:wat::kernel::send no-such-thing 42))
 "#;
 

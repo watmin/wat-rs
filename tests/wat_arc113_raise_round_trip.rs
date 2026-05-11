@@ -39,11 +39,7 @@ fn raise_data_round_trips_through_failure_message() {
           (:wat::core::let
             [forms
               (:wat::test::program
-                (:wat::core::define (:user::main
-                                     (stdin  :wat::io::IOReader)
-                                     (stdout :wat::io::IOWriter)
-                                     (stderr :wat::io::IOWriter)
-                                     -> :wat::core::nil)
+                (:wat::core::define (:user::main -> :wat::core::nil)
                   (:wat::kernel::raise!
                     (:wat::holon::leaf 42))))
              r

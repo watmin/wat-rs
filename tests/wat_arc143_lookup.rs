@@ -17,31 +17,28 @@
 //! the test suite. `edn::write` renders the HolonAST inside the Option
 //! (Option(Some(v)) is transparent in EDN) so we can inspect its shape.
 
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::thread_io::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
 
-fn run(src: &str) -> Vec<String> {
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
+fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
+    let mut fds = [0i32; 2];
+    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(r, 0, "pipe(2) succeeded");
+    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(read_fd));
+    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(write_fd));
+    (reader, writer)
+}
+
+fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
+    let bytes = reader
+        .read_all(wat::span::Span::unknown())
+        .expect("read-all");
     let s = String::from_utf8(bytes).expect("utf8");
     if s.is_empty() {
         return Vec::new();
@@ -51,6 +48,27 @@ fn run(src: &str) -> Vec<String> {
         lines.pop();
     }
     lines
+}
+
+fn run(src: &str) -> Vec<String> {
+    let _ = uninstall_ambient_stdio();
+    let world = startup_from_source(
+        src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup");
+    let (stdin_service, _stdin_inject) = pipe_pair();
+    let (stdout_capture, stdout_service) = pipe_pair();
+    let (_stderr_capture, stderr_service) = pipe_pair();
+    install_ambient_stdio(AmbientStdio {
+        stdin: stdin_service,
+        stdout: stdout_service,
+        stderr: stderr_service,
+    });
+    invoke_user_main(&world, Vec::new()).expect("main");
+    let _ = uninstall_ambient_stdio();
+    drain_lines(&stdout_capture)
 }
 
 // ─── :wat::runtime::lookup-define ───────────────────────────────────────────
@@ -65,18 +83,14 @@ fn lookup_define_user_define_returns_some() {
           (:wat::core::+ x y))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::lookup-define :user::my-add)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            ((:wat::core::Some _) (:wat::kernel::println "pass"))
+            (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
 #[test]
@@ -86,18 +100,14 @@ fn lookup_define_substrate_primitive_returns_some() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::lookup-define :wat::core::foldl)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            ((:wat::core::Some _) (:wat::kernel::println "pass"))
+            (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
 #[test]
@@ -106,18 +116,14 @@ fn lookup_define_unknown_name_returns_none() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::lookup-define :user::this-does-not-exist)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
+            ((:wat::core::Some _) (:wat::kernel::println "fail"))
+            (:wat::core::None    (:wat::kernel::println "pass"))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
 // ─── :wat::runtime::signature-of ────────────────────────────────────────────
@@ -132,18 +138,14 @@ fn signature_of_user_define_returns_some() {
           (:wat::core::* a b))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :user::my-mul)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            ((:wat::core::Some _) (:wat::kernel::println "pass"))
+            (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
 #[test]
@@ -152,18 +154,14 @@ fn signature_of_substrate_primitive_returns_some() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :wat::core::foldl)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            ((:wat::core::Some _) (:wat::kernel::println "pass"))
+            (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
 #[test]
@@ -171,18 +169,14 @@ fn signature_of_unknown_name_returns_none() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :no::such::function)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
+            ((:wat::core::Some _) (:wat::kernel::println "fail"))
+            (:wat::core::None    (:wat::kernel::println "pass"))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
 // ─── :wat::runtime::body-of ─────────────────────────────────────────────────
@@ -197,18 +191,14 @@ fn body_of_user_define_returns_some() {
           (:wat::core::- 0 n))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :user::my-neg)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            ((:wat::core::Some _) (:wat::kernel::println "pass"))
+            (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
 #[test]
@@ -218,18 +208,14 @@ fn body_of_substrate_primitive_returns_none() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :wat::core::foldl)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
+            ((:wat::core::Some _) (:wat::kernel::println "fail"))
+            (:wat::core::None    (:wat::kernel::println "pass"))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
 #[test]
@@ -237,18 +223,14 @@ fn body_of_unknown_name_returns_none() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :totally::unknown)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
+            ((:wat::core::Some _) (:wat::kernel::println "fail"))
+            (:wat::core::None    (:wat::kernel::println "pass"))))
     "##;
-    assert_eq!(run(src), vec!["pass".to_string()]);
+    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
 // ─── Shape verification via edn::write ───────────────────────────────────
@@ -262,17 +244,13 @@ fn signature_of_foldl_renders_synthesised_shape() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig-opt
               (:wat::runtime::signature-of :wat::core::foldl)
              rendered
               (:wat::edn::write sig-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -298,14 +276,6 @@ fn signature_of_foldl_renders_synthesised_shape() {
         "expected type-param names T/Acc and Vec in signature, got: {}",
         line
     );
-    // Verbatim EDN output of `(:wat::runtime::signature-of :wat::core::foldl)`:
-    //   #wat-edn.holon/Bundle [
-    //     #wat-edn.holon/Symbol ":wat::core::foldl<T,Acc>"
-    //     #wat-edn.holon/Bundle [#wat-edn.holon/Symbol ":_a0" #wat-edn.holon/Symbol ":Vec<T>"]
-    //     #wat-edn.holon/Bundle [#wat-edn.holon/Symbol ":_a1" #wat-edn.holon/Symbol ":Acc"]
-    //     #wat-edn.holon/Bundle [#wat-edn.holon/Symbol ":_a2" #wat-edn.holon/Symbol ":fn(Acc,T)->Acc"]
-    //     #wat-edn.holon/Symbol "->"
-    //     #wat-edn.holon/Symbol ":Acc"]
     let _ = line; // asserted above
 }
 
@@ -320,17 +290,13 @@ fn lookup_define_user_function_contains_define_keyword() {
           (:wat::core::* x x))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :user::my-square)
              rendered
               (:wat::edn::write def-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line");

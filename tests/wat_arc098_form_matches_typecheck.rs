@@ -63,11 +63,7 @@ const PROLOGUE_VALID: &str = r#"
   (outcome :wat::core::String)
   (grace-residue :wat::core::f64))
 (:wat::core::define
-  (:user::main
-    (stdin  :wat::io::IOReader)
-    (stdout :wat::io::IOWriter)
-    (stderr :wat::io::IOWriter)
-    -> :wat::core::nil)
+  (:user::main -> :wat::core::nil)
   (:wat::core::let
     [p
       (:test::PaperResolved/new "Grace" 7.5)
@@ -85,11 +81,7 @@ const PROLOGUE_INVALID: &str = r#"
   (outcome :wat::core::String)
   (grace-residue :wat::core::f64))
 (:wat::core::define
-  (:user::main
-    (stdin  :wat::io::IOReader)
-    (stdout :wat::io::IOWriter)
-    (stderr :wat::io::IOWriter)
-    -> :wat::core::nil)
+  (:user::main -> :wat::core::nil)
   (:wat::core::let
     [p
       (:test::PaperResolved/new "Grace" 7.5)
@@ -197,11 +189,7 @@ fn rejects_where_body_non_bool() {
 fn rejects_arity_zero() {
     let src = r#"
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [b (:wat::core::if true -> :wat::core::bool true (:wat::form::matches?))]
             (:wat::io::IOWriter/println stdout "ok")))

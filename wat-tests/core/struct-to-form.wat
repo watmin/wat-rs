@@ -20,11 +20,7 @@
             (a :wat::core::i64)
             (b :wat::core::i64))
           (:wat::core::define
-            (:user::main
-              (_stdin :wat::io::IOReader)
-              (_stdout :wat::io::IOWriter)
-              (_stderr :wat::io::IOWriter)
-              -> :wat::core::nil)
+            (:user::main -> :wat::core::nil)
             (:wat::core::let
               [p (:my::Pair/new 7 9)
                form (:wat::core::struct->form p)

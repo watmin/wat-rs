@@ -45,11 +45,7 @@
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
-            (:user::main
-              (stdin  :wat::io::IOReader)
-              (stdout :wat::io::IOWriter)
-              (stderr :wat::io::IOWriter)
-              -> :wat::core::nil)
+            (:user::main -> :wat::core::nil)
             (:wat::test::assert-eq 42 43)))
         (:wat::core::Vector :wat::core::String))
      fail (:wat::kernel::RunResult/failure r)]
@@ -75,11 +71,7 @@
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
-            (:user::main
-              (stdin  :wat::io::IOReader)
-              (stdout :wat::io::IOWriter)
-              (stderr :wat::io::IOWriter)
-              -> :wat::core::nil)
+            (:user::main -> :wat::core::nil)
             (:wat::test::assert-contains "hello" "xyz")))
         (:wat::core::Vector :wat::core::String))
      fail (:wat::kernel::RunResult/failure r)]
@@ -121,11 +113,7 @@
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
-            (:user::main
-              (stdin  :wat::io::IOReader)
-              (stdout :wat::io::IOWriter)
-              (stderr :wat::io::IOWriter)
-              -> :wat::core::nil)
+            (:user::main -> :wat::core::nil)
             (:wat::test::assert-coincident
               (:wat::holon::Atom "alice")
               (:wat::holon::Atom "charlie"))))
@@ -160,17 +148,13 @@
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
-            (:user::main
-              (stdin  :wat::io::IOReader)
-              (stdout :wat::io::IOWriter)
-              (stderr :wat::io::IOWriter)
-              -> :wat::core::nil)
+            (:user::main -> :wat::core::nil)
             (:wat::core::do
-              (:wat::io::IOWriter/println stdout "alpha")
-              (:wat::io::IOWriter/println stdout "beta")
+              (:wat::kernel::println "alpha")
+              (:wat::kernel::println "beta")
               ())))
         (:wat::core::Vector :wat::core::String))
-     expected (:wat::core::Vector :wat::core::String "alpha" "beta")]
+     expected (:wat::core::Vector :wat::core::String "\"alpha\"" "\"beta\"")]
     (:wat::test::assert-stdout-is inner expected)))
 
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
@@ -182,12 +166,8 @@
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
-            (:user::main
-              (stdin  :wat::io::IOReader)
-              (stdout :wat::io::IOWriter)
-              (stderr :wat::io::IOWriter)
-              -> :wat::core::nil)
-            (:wat::io::IOWriter/println stderr "error: code 42")))
+            (:user::main -> :wat::core::nil)
+            (:wat::kernel::eprintln "error: code 42")))
         (:wat::core::Vector :wat::core::String))]
     (:wat::test::assert-stderr-matches inner "code [0-9]+")))
 
@@ -202,21 +182,13 @@
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
-            (:user::main
-              (stdin  :wat::io::IOReader)
-              (stdout :wat::io::IOWriter)
-              (stderr :wat::io::IOWriter)
-              -> :wat::core::nil)
+            (:user::main -> :wat::core::nil)
             (:wat::core::let
               [silent
                 (:wat::test::run-ast
                   (:wat::test::program
                     (:wat::core::define
-                      (:user::main
-                        (stdin  :wat::io::IOReader)
-                        (stdout :wat::io::IOWriter)
-                        (stderr :wat::io::IOWriter)
-                        -> :wat::core::nil)
+                      (:user::main -> :wat::core::nil)
                       ()))
                   (:wat::core::Vector :wat::core::String))]
               (:wat::test::assert-stderr-matches silent "my-pattern"))))
@@ -245,14 +217,10 @@
     [r
       (:wat::test::run
         "(:wat::config::set-capacity-mode! :error)
-         (:wat::core::define (:user::main
-                              (stdin  :wat::io::IOReader)
-                              (stdout :wat::io::IOWriter)
-                              (stderr :wat::io::IOWriter)
-                              -> :wat::core::nil)
-           (:wat::io::IOWriter/println stdout \"from-string\"))"
+         (:wat::core::define (:user::main -> :wat::core::nil)
+           (:wat::kernel::println \"from-string\"))"
         (:wat::core::Vector :wat::core::String))
-     expected (:wat::core::Vector :wat::core::String "from-string")]
+     expected (:wat::core::Vector :wat::core::String "\"from-string\"")]
     (:wat::test::assert-stdout-is r expected)))
 
 ;; ─── :wat::test::run-ast — AST-entry path via :wat::test::program ────
@@ -264,14 +232,10 @@
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
-            (:user::main
-              (stdin  :wat::io::IOReader)
-              (stdout :wat::io::IOWriter)
-              (stderr :wat::io::IOWriter)
-              -> :wat::core::nil)
-            (:wat::io::IOWriter/println stdout "from-ast")))
+            (:user::main -> :wat::core::nil)
+            (:wat::kernel::println "from-ast")))
         (:wat::core::Vector :wat::core::String))
-     expected (:wat::core::Vector :wat::core::String "from-ast")]
+     expected (:wat::core::Vector :wat::core::String "\"from-ast\"")]
     (:wat::test::assert-stdout-is r expected)))
 
 ;; deftest's self-test is redundant here — every other passing deftest

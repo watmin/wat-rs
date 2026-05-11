@@ -4,28 +4,32 @@
 //! line-by-line to stdout; assertions compare the captured stdout.
 //! One test per primitive keeps failure messages pointed.
 
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::thread_io::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
 
-fn run(src: &str) -> Vec<String> {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("stdout snapshot");
+fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
+    let mut fds = [0i32; 2];
+    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(r, 0, "pipe(2) succeeded");
+    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(read_fd));
+    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(write_fd));
+    (reader, writer)
+}
+
+fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
+    let bytes = reader
+        .read_all(wat::span::Span::unknown())
+        .expect("read-all");
     let s = String::from_utf8(bytes).expect("utf8");
+    if s.is_empty() {
+        return Vec::new();
+    }
     let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
     if s.ends_with('\n') {
         lines.pop();
@@ -33,18 +37,49 @@ fn run(src: &str) -> Vec<String> {
     lines
 }
 
+fn run(src: &str) -> Vec<String> {
+    let _ = uninstall_ambient_stdio();
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup");
+    let (stdin_service, _stdin_inject) = pipe_pair();
+    let (stdout_capture, stdout_service) = pipe_pair();
+    let (_stderr_capture, stderr_service) = pipe_pair();
+    install_ambient_stdio(AmbientStdio {
+        stdin: stdin_service,
+        stdout: stdout_service,
+        stderr: stderr_service,
+    });
+    invoke_user_main(&world, Vec::new()).expect("main");
+    let _ = uninstall_ambient_stdio();
+    drain_lines(&stdout_capture)
+}
+
+fn run_expecting_runtime_err(src: &str) -> String {
+    let _ = uninstall_ambient_stdio();
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup");
+    let (stdin_service, _stdin_inject) = pipe_pair();
+    let (stdout_capture, stdout_service) = pipe_pair();
+    let (_stderr_capture, stderr_service) = pipe_pair();
+    install_ambient_stdio(AmbientStdio {
+        stdin: stdin_service,
+        stdout: stdout_service,
+        stderr: stderr_service,
+    });
+    let err = invoke_user_main(&world, Vec::new()).expect_err("expected runtime error");
+    let _ = uninstall_ambient_stdio();
+    drop(stdout_capture);
+    format!("{:?}", err)
+}
+
 fn bool_src(expr: &str) -> String {
     format!(
         r#"
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::if {expr} -> :wat::core::nil
-            (:wat::io::IOWriter/println stdout "true")
-            (:wat::io::IOWriter/println stdout "false")))
+            (:wat::kernel::println "true")
+            (:wat::kernel::println "false")))
         "#,
     )
 }
@@ -53,12 +88,8 @@ fn string_src(expr: &str) -> String {
     format!(
         r#"
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout {expr}))
+          (:user::main -> :wat::core::nil)
+          (:wat::kernel::println {expr}))
         "#,
     )
 }
@@ -69,7 +100,7 @@ fn string_src(expr: &str) -> String {
 fn contains_hit() {
     assert_eq!(
         run(&bool_src(r#"(:wat::core::string::contains? "hello world" "world")"#)),
-        vec!["true"]
+        vec!["\"true\""]
     );
 }
 
@@ -77,7 +108,7 @@ fn contains_hit() {
 fn contains_miss() {
     assert_eq!(
         run(&bool_src(r#"(:wat::core::string::contains? "hello" "xyz")"#)),
-        vec!["false"]
+        vec!["\"false\""]
     );
 }
 
@@ -85,11 +116,11 @@ fn contains_miss() {
 fn starts_with_hit_and_miss() {
     assert_eq!(
         run(&bool_src(r#"(:wat::core::string::starts-with? "foobar" "foo")"#)),
-        vec!["true"]
+        vec!["\"true\""]
     );
     assert_eq!(
         run(&bool_src(r#"(:wat::core::string::starts-with? "foobar" "bar")"#)),
-        vec!["false"]
+        vec!["\"false\""]
     );
 }
 
@@ -97,11 +128,11 @@ fn starts_with_hit_and_miss() {
 fn ends_with_hit_and_miss() {
     assert_eq!(
         run(&bool_src(r#"(:wat::core::string::ends-with? "foobar" "bar")"#)),
-        vec!["true"]
+        vec!["\"true\""]
     );
     assert_eq!(
         run(&bool_src(r#"(:wat::core::string::ends-with? "foobar" "foo")"#)),
-        vec!["false"]
+        vec!["\"false\""]
     );
 }
 
@@ -111,18 +142,14 @@ fn ends_with_hit_and_miss() {
 fn length_counts_chars_not_bytes() {
     let src = r#"
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [n (:wat::core::string::length "héllo")]
             (:wat::core::if (:wat::core::= n 5) -> :wat::core::nil
-              (:wat::io::IOWriter/println stdout "chars")
-              (:wat::io::IOWriter/println stdout "bytes"))))
+              (:wat::kernel::println "chars")
+              (:wat::kernel::println "bytes"))))
     "#;
-    assert_eq!(run(src), vec!["chars"]);
+    assert_eq!(run(src), vec!["\"chars\"".to_string()]);
 }
 
 // ─── :wat::core::string::trim ───────────────────────────────────────────
@@ -131,7 +158,7 @@ fn length_counts_chars_not_bytes() {
 fn trim_strips_whitespace() {
     assert_eq!(
         run(&string_src(r#"(:wat::core::string::trim "   hello   ")"#)),
-        vec!["hello"]
+        vec!["\"hello\""]
     );
 }
 
@@ -141,46 +168,27 @@ fn trim_strips_whitespace() {
 fn split_produces_vec() {
     let src = r#"
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [pieces
               (:wat::core::string::split "a,b,c" ",")]
-            (:wat::io::IOWriter/println stdout
+            (:wat::kernel::println
               (:wat::core::string::join "|" pieces))))
     "#;
-    assert_eq!(run(src), vec!["a|b|c"]);
+    assert_eq!(run(src), vec!["\"a|b|c\"".to_string()]);
 }
 
 #[test]
 fn split_empty_separator_rejected() {
     let src = r#"
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [_
               (:wat::core::string::split "abc" "")]
             ()))
     "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout: Arc<dyn WatWriter> = Arc::new(StringIoWriter::new());
-    let stderr: Arc<dyn WatWriter> = Arc::new(StringIoWriter::new());
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout),
-        Value::io__IOWriter(stderr),
-    ];
-    let err = invoke_user_main(&world, args).expect_err("empty sep should fail");
-    let msg = format!("{:?}", err);
+    let msg = run_expecting_runtime_err(src);
     assert!(
         msg.contains("separator must not be empty"),
         "expected empty-separator error; got {}",
@@ -196,7 +204,7 @@ fn regex_matches_unanchored() {
         run(&bool_src(
             r#"(:wat::core::regex::matches? "[0-9]+" "order #42 shipped")"#
         )),
-        vec!["true"]
+        vec!["\"true\""]
     );
 }
 
@@ -206,7 +214,7 @@ fn regex_matches_no_match() {
         run(&bool_src(
             r#"(:wat::core::regex::matches? "^foo$" "foobar")"#
         )),
-        vec!["false"]
+        vec!["\"false\""]
     );
 }
 
@@ -214,27 +222,12 @@ fn regex_matches_no_match() {
 fn regex_invalid_pattern_errors() {
     let src = r#"
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [_ (:wat::core::regex::matches? "[unclosed" "x")]
             ()))
     "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout: Arc<dyn WatWriter> = Arc::new(StringIoWriter::new());
-    let stderr: Arc<dyn WatWriter> = Arc::new(StringIoWriter::new());
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout),
-        Value::io__IOWriter(stderr),
-    ];
-    let err = invoke_user_main(&world, args).expect_err("bad regex should fail");
-    let msg = format!("{:?}", err);
+    let msg = run_expecting_runtime_err(src);
     assert!(
         msg.contains("invalid regex"),
         "expected invalid regex error; got {}",

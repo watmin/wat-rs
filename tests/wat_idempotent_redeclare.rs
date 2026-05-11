@@ -36,11 +36,7 @@ fn typealias_byte_equivalent_is_noop() {
         (:wat::core::typealias :my::Amount :wat::core::f64)
 
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout "ok"))
     "##;
     freeze_ok(src);
@@ -53,11 +49,7 @@ fn typealias_divergent_errors() {
         (:wat::core::typealias :my::Amount :wat::core::i64)
 
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout "ok"))
     "##;
     let err = freeze_err(src);
@@ -77,11 +69,7 @@ fn define_byte_equivalent_is_noop() {
         (:wat::core::define (:my::add-one (a :wat::core::i64) -> :wat::core::i64) (:wat::core::+ a 1))
 
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout "ok"))
     "##;
     freeze_ok(src);
@@ -94,11 +82,7 @@ fn define_divergent_body_errors() {
         (:wat::core::define (:my::add-one (a :wat::core::i64) -> :wat::core::i64) (:wat::core::+ a 2))
 
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout "ok"))
     "##;
     let err = freeze_err(src);
@@ -118,11 +102,7 @@ fn defmacro_byte_equivalent_is_noop() {
         (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout "ok"))
     "##;
     freeze_ok(src);
@@ -148,11 +128,7 @@ fn shim_double_register_pattern_works() {
         (:wat::core::typealias :lab::candles::Stream :wat::core::i64)
 
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout "ok"))
     "##;
     freeze_ok(src);

@@ -42,11 +42,7 @@
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::define
-            (:user::main
-              (stdin  :wat::io::IOReader)
-              (stdout :wat::io::IOWriter)
-              (stderr :wat::io::IOWriter)
-              -> :wat::core::nil)
+            (:user::main -> :wat::core::nil)
             (:wat::core::let
               [res (:wat::core::Err "rundb crashed")
                _v

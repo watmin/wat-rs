@@ -35,11 +35,7 @@ fn diag_make_deftest_with_prelude_expansion() {
   (:wat::core::macroexpand-1
     (:wat::core::quote (:my-deftest :my-test (:wat::test::assert-eq 1 1)))))
 
-(:wat::core::define (:user::main
-                     (stdin  :wat::io::IOReader)
-                     (stdout :wat::io::IOWriter)
-                     (stderr :wat::io::IOWriter)
-                     -> :wat::core::nil)
+(:wat::core::define (:user::main -> :wat::core::nil)
   ())
 "##;
 

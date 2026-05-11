@@ -25,36 +25,54 @@
 //! `:Result<i64, String>`). The arc fixes the diagnostic, not the
 //! rule.
 
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::thread_io::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
 
-fn run(src: &str) -> Result<Vec<String>, String> {
-    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup: {}", e))?;
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).map_err(|e| format!("runtime: {}", e))?;
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
+fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
+    let mut fds = [0i32; 2];
+    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(r, 0, "pipe(2) succeeded");
+    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(read_fd));
+    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(write_fd));
+    (reader, writer)
+}
+
+fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
+    let bytes = reader
+        .read_all(wat::span::Span::unknown())
+        .expect("read-all");
     let s = String::from_utf8(bytes).expect("utf8");
     if s.is_empty() {
-        return Ok(Vec::new());
+        return Vec::new();
     }
     let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
     if s.ends_with('\n') {
         lines.pop();
     }
-    Ok(lines)
+    lines
+}
+
+fn run(src: &str) -> Result<Vec<String>, String> {
+    let _ = uninstall_ambient_stdio();
+    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
+        .map_err(|e| format!("startup: {}", e))?;
+    let (stdin_service, _stdin_inject) = pipe_pair();
+    let (stdout_capture, stdout_service) = pipe_pair();
+    let (_stderr_capture, stderr_service) = pipe_pair();
+    install_ambient_stdio(AmbientStdio {
+        stdin: stdin_service,
+        stdout: stdout_service,
+        stderr: stderr_service,
+    });
+    invoke_user_main(&world, Vec::new()).map_err(|e| format!("runtime: {}", e))?;
+    let _ = uninstall_ambient_stdio();
+    Ok(drain_lines(&stdout_capture))
 }
 
 /// `:Result<i64,String>` (canonical, no whitespace) lexes, parses,
@@ -64,11 +82,7 @@ fn run(src: &str) -> Result<Vec<String>, String> {
 fn letstar_result_no_whitespace_simple_payload() {
     let src = r#"
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [wrapped
               (:wat::core::Ok 42)
@@ -76,11 +90,10 @@ fn letstar_result_no_whitespace_simple_payload() {
               (:wat::core::match wrapped -> :wat::core::i64
                 ((:wat::core::Ok n) (:wat::core::i64::+'2 n 1))
                 ((:wat::core::Err _) -1))]
-            (:wat::io::IOWriter/println stdout
-              (:wat::core::i64::to-string extracted))))
+            (:wat::kernel::println (:wat::core::i64::to-string extracted))))
     "#;
     match run(src) {
-        Ok(lines) => assert_eq!(lines, vec!["43".to_string()]),
+        Ok(lines) => assert_eq!(lines, vec!["\"43\"".to_string()]),
         Err(e) => panic!("{}", e),
     }
 }
@@ -97,22 +110,17 @@ fn letstar_result_no_whitespace_tuple_payload() {
           (:wat::core::Ok (:wat::core::Tuple 7 11)))
 
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [wrapped (:user::wrap-it)
              extracted
               (:wat::core::match wrapped -> :wat::core::i64
                 ((:wat::core::Ok pair) (:wat::core::second pair))
                 ((:wat::core::Err _) -1))]
-            (:wat::io::IOWriter/println stdout
-              (:wat::core::i64::to-string extracted))))
+            (:wat::kernel::println (:wat::core::i64::to-string extracted))))
     "#;
     match run(src) {
-        Ok(lines) => assert_eq!(lines, vec!["11".to_string()]),
+        Ok(lines) => assert_eq!(lines, vec!["\"11\"".to_string()]),
         Err(e) => panic!("{}", e),
     }
 }
@@ -125,15 +133,11 @@ fn letstar_result_no_whitespace_tuple_payload() {
 fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
     let src = r#"
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             (((m :HashMap<String, i64>)
               (:wat::core::HashMap :wat::core::String :wat::core::i64)))
-            (:wat::io::IOWriter/println stdout "ok")))
+            (:wat::kernel::println "ok")))
     "#;
     let err = run(src).expect_err("expected lex error on `:HashMap<String, i64>`");
     assert!(
@@ -150,19 +154,15 @@ fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
 fn operator_lt_gt_keywords_still_lex() {
     let src = r#"
         (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::if (:wat::core::< 1 2) -> :wat::core::nil
             (:wat::core::if (:wat::core::>= 5 5) -> :wat::core::nil
-              (:wat::io::IOWriter/println stdout "ok")
-              (:wat::io::IOWriter/println stdout "ge-fail"))
-            (:wat::io::IOWriter/println stdout "lt-fail")))
+              (:wat::kernel::println "ok")
+              (:wat::kernel::println "ge-fail"))
+            (:wat::kernel::println "lt-fail")))
     "#;
     match run(src) {
-        Ok(lines) => assert_eq!(lines, vec!["ok".to_string()]),
+        Ok(lines) => assert_eq!(lines, vec!["\"ok\"".to_string()]),
         Err(e) => panic!("{}", e),
     }
 }

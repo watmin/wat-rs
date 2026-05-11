@@ -27,31 +27,28 @@
 //!      (rename (signature-of :fn) :fn :alias) returns Some with the
 //!      renamed name in the head.
 
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::thread_io::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
 
-fn run(src: &str) -> Vec<String> {
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
+fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
+    let mut fds = [0i32; 2];
+    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(r, 0, "pipe(2) succeeded");
+    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(read_fd));
+    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(write_fd));
+    (reader, writer)
+}
+
+fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
+    let bytes = reader
+        .read_all(wat::span::Span::unknown())
+        .expect("read-all");
     let s = String::from_utf8(bytes).expect("utf8");
     if s.is_empty() {
         return Vec::new();
@@ -61,6 +58,48 @@ fn run(src: &str) -> Vec<String> {
         lines.pop();
     }
     lines
+}
+
+fn run(src: &str) -> Vec<String> {
+    let _ = uninstall_ambient_stdio();
+    let world = startup_from_source(
+        src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup");
+    let (stdin_service, _stdin_inject) = pipe_pair();
+    let (stdout_capture, stdout_service) = pipe_pair();
+    let (_stderr_capture, stderr_service) = pipe_pair();
+    install_ambient_stdio(AmbientStdio {
+        stdin: stdin_service,
+        stdout: stdout_service,
+        stderr: stderr_service,
+    });
+    invoke_user_main(&world, Vec::new()).expect("main");
+    let _ = uninstall_ambient_stdio();
+    drain_lines(&stdout_capture)
+}
+
+fn run_expecting_runtime_err(src: &str) -> bool {
+    let _ = uninstall_ambient_stdio();
+    let world = startup_from_source(
+        src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup");
+    let (stdin_service, _stdin_inject) = pipe_pair();
+    let (_stdout_capture, stdout_service) = pipe_pair();
+    let (_stderr_capture, stderr_service) = pipe_pair();
+    install_ambient_stdio(AmbientStdio {
+        stdin: stdin_service,
+        stdout: stdout_service,
+        stderr: stderr_service,
+    });
+    let result = invoke_user_main(&world, Vec::new());
+    let _ = uninstall_ambient_stdio();
+    result.is_err()
 }
 
 // ─── :wat::runtime::rename-callable-name ────────────────────────────────────
@@ -73,11 +112,7 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -90,7 +125,7 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
                 :wat::list::reduce)
              rendered
               (:wat::edn::write renamed)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -127,11 +162,7 @@ fn rename_callable_name_no_type_params() {
           (:wat::core::* x 2))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -144,7 +175,7 @@ fn rename_callable_name_no_type_params() {
                 :user::my-triple)
              rendered
               (:wat::edn::write renamed)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -185,11 +216,7 @@ fn rename_callable_name_error_from_mismatch() {
           (:wat::core::- 0 n))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -200,29 +227,11 @@ fn rename_callable_name_error_from_mismatch() {
                 sig
                 :user::wrong-name
                 :user::alias)]
-            (:wat::io::IOWriter/println stdout "should not reach here")))
+            (:wat::kernel::println "should not reach here")))
     "##;
-    // The program should error at runtime (from-mismatch). We verify this
-    // by asserting invoke_user_main returns Err (via panicking expect).
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    let result = invoke_user_main(&world, args);
+    // The program should error at runtime (from-mismatch).
     assert!(
-        result.is_err(),
+        run_expecting_runtime_err(src),
         "expected runtime error for from-name mismatch, got Ok"
     );
 }
@@ -237,11 +246,7 @@ fn extract_arg_names_foldl_returns_three_names() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -251,7 +256,7 @@ fn extract_arg_names_foldl_returns_three_names() {
               (:wat::runtime::extract-arg-names sig)
              rendered
               (:wat::edn::write names)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -278,10 +283,12 @@ fn extract_arg_names_foldl_returns_three_names() {
     // each as `#wat-edn.holon/Symbol "_aN"`. We count occurrences of
     // `Symbol "_a` to verify exactly 3 arg names; the return type would
     // render with a different name (e.g., `Symbol "Acc"`) and not match.
-    let count = line.matches("Symbol \"_a").count();
+    // kernel::println EDN-encodes the string, so inner quotes become \".
+    // Match the escaped form Symbol \"_a (appears as Symbol \\"_a in Rust literal).
+    let count = line.matches("Symbol \\\"_a").count();
     assert_eq!(
         count, 3,
-        "expected exactly 3 arg names (_a0/_a1/_a2), counted {} Symbol \"_a* occurrences in: {}",
+        "expected exactly 3 arg names (_a0/_a1/_a2), counted {} occurrences in: {}",
         count, line
     );
 }
@@ -296,11 +303,7 @@ fn extract_arg_names_zero_args_returns_empty() {
           42)
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -310,13 +313,13 @@ fn extract_arg_names_zero_args_returns_empty() {
               (:wat::runtime::extract-arg-names sig)
              len
               (:wat::core::length names)]
-            (:wat::io::IOWriter/println stdout (:wat::edn::write len))))
+            (:wat::kernel::println (:wat::edn::write len))))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
     let line = &out[0];
     assert_eq!(
-        line.trim(), "0",
+        line.trim(), "\"0\"",
         "expected empty Vec (length 0) for zero-arg function, got: {}",
         line
     );
@@ -333,11 +336,7 @@ fn extract_arg_names_stops_before_return_type() {
           (:wat::core::+ x y))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -349,7 +348,7 @@ fn extract_arg_names_stops_before_return_type() {
               (:wat::core::length names)
              rendered
               (:wat::edn::write names)]
-            (:wat::io::IOWriter/println stdout (:wat::core::string::concat
+            (:wat::kernel::println (:wat::core::string::concat
               (:wat::edn::write len)
               " "
               rendered))))
@@ -358,20 +357,18 @@ fn extract_arg_names_stops_before_return_type() {
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
     let line = &out[0];
     // Length should be 2.
+    // kernel::println EDN-encodes the string, so output is like "2 [...]".
     assert!(
-        line.starts_with("2 "),
-        "expected length 2 at start of output, got: {}",
+        line.contains("2 "),
+        "expected length 2 in output, got: {}",
         line
     );
-    // The return type "i64" should NOT appear as an extracted name.
-    // (It may appear in type annotations within the pairs, but NOT as
-    // an extracted Symbol from a pair[0] position.)
-    // Per arc 143 slice 5b, extract-arg-names returns bare
-    // HolonAST::Symbol items (variable references for splice positions).
-    // edn::write renders each as `#wat-edn.holon/Symbol "x"` etc.
+    // Per arc 143 slice 5b, extract-arg-names returns bare HolonAST::Symbol
+    // items; edn::write renders as Symbol "x" etc.
+    // kernel::println EDN-encodes the string, so inner quotes become \".
     assert!(
-        line.contains("Symbol \"x\"") && line.contains("Symbol \"y\""),
-        "expected arg-name Symbols \"x\" and \"y\" in output, got: {}",
+        line.contains("Symbol \\\"x\\\"") && line.contains("Symbol \\\"y\\\""),
+        "expected arg-name Symbols x and y in output, got: {}",
         line
     );
 }
@@ -383,37 +380,16 @@ fn extract_arg_names_error_non_bundle() {
     let src = r##"
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [leaf
               (:wat::holon::Atom :wat::core::foldl)
              names
               (:wat::runtime::extract-arg-names leaf)]
-            (:wat::io::IOWriter/println stdout "should not reach")))
+            (:wat::kernel::println "should not reach")))
     "##;
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    let result = invoke_user_main(&world, args);
     assert!(
-        result.is_err(),
+        run_expecting_runtime_err(src),
         "expected runtime error for non-Bundle input to extract-arg-names, got Ok"
     );
 }
@@ -435,11 +411,7 @@ fn rename_then_extract_preserves_arg_names() {
           (:wat::core::+ x y))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -456,7 +428,7 @@ fn rename_then_extract_preserves_arg_names() {
               (:wat::core::length names)
              rendered
               (:wat::edn::write names)]
-            (:wat::io::IOWriter/println stdout (:wat::core::string::concat
+            (:wat::kernel::println (:wat::core::string::concat
               (:wat::edn::write len)
               " "
               rendered))))
@@ -465,17 +437,18 @@ fn rename_then_extract_preserves_arg_names() {
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
     let line = &out[0];
     // Still 2 args after rename.
+    // kernel::println EDN-encodes the string, so output is like "2 [...]".
     assert!(
-        line.starts_with("2 "),
+        line.contains("2 "),
         "expected length 2 preserved after rename, got: {}",
         line
     );
     // Arg-name Symbols x and y still present after rename. Per arc
     // 143 slice 5b, extract-arg-names returns bare HolonAST::Symbol
-    // items; edn::write renders each as `#wat-edn.holon/Symbol "x"`.
+    // items; kernel::println EDN-encodes, so inner quotes become \".
     assert!(
-        line.contains("Symbol \"x\"") && line.contains("Symbol \"y\""),
-        "expected arg-name Symbols \"x\" and \"y\" preserved after rename, got: {}",
+        line.contains("Symbol \\\"x\\\"") && line.contains("Symbol \\\"y\\\""),
+        "expected arg-name Symbols x and y preserved after rename, got: {}",
         line
     );
 }

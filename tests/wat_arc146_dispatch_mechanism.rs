@@ -21,31 +21,28 @@
 //!      when an arm impl's arity disagrees with the dispatch's
 //!      surface arity.
 
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::thread_io::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
 
-fn run(src: &str) -> Vec<String> {
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
+fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
+    let mut fds = [0i32; 2];
+    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(r, 0, "pipe(2) succeeded");
+    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(read_fd));
+    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(write_fd));
+    (reader, writer)
+}
+
+fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
+    let bytes = reader
+        .read_all(wat::span::Span::unknown())
+        .expect("read-all");
     let s = String::from_utf8(bytes).expect("utf8");
     if s.is_empty() {
         return Vec::new();
@@ -55,6 +52,27 @@ fn run(src: &str) -> Vec<String> {
         lines.pop();
     }
     lines
+}
+
+fn run(src: &str) -> Vec<String> {
+    let _ = uninstall_ambient_stdio();
+    let world = startup_from_source(
+        src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup");
+    let (stdin_service, _stdin_inject) = pipe_pair();
+    let (stdout_capture, stdout_service) = pipe_pair();
+    let (_stderr_capture, stderr_service) = pipe_pair();
+    install_ambient_stdio(AmbientStdio {
+        stdin: stdin_service,
+        stdout: stdout_service,
+        stderr: stderr_service,
+    });
+    invoke_user_main(&world, Vec::new()).expect("main");
+    let _ = uninstall_ambient_stdio();
+    drain_lines(&stdout_capture)
 }
 
 fn try_startup(src: &str) -> Result<(), StartupError> {
@@ -92,16 +110,12 @@ fn dispatch_dispatches_to_i64_arm() {
         {preamble}
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout (:test::describe 42)))
+          (:user::main -> :wat::core::nil)
+          (:wat::kernel::println (:test::describe 42)))
         "##,
         preamble = PREAMBLE,
     );
-    assert_eq!(run(&src), vec!["i64-arm".to_string()]);
+    assert_eq!(run(&src), vec!["\"i64-arm\"".to_string()]);
 }
 
 #[test]
@@ -111,16 +125,12 @@ fn dispatch_dispatches_to_f64_arm() {
         {preamble}
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout (:test::describe 3.14)))
+          (:user::main -> :wat::core::nil)
+          (:wat::kernel::println (:test::describe 3.14)))
         "##,
         preamble = PREAMBLE,
     );
-    assert_eq!(run(&src), vec!["f64-arm".to_string()]);
+    assert_eq!(run(&src), vec!["\"f64-arm\"".to_string()]);
 }
 
 // ─── Check-time arm coverage ───────────────────────────────────────────────
@@ -136,12 +146,8 @@ fn dispatch_no_arm_match_check_time() {
         {preamble}
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout (:test::describe "not-a-number")))
+          (:user::main -> :wat::core::nil)
+          (:wat::kernel::println (:test::describe "not-a-number")))
         "##,
         preamble = PREAMBLE,
     );
@@ -171,17 +177,13 @@ fn lookup_form_returns_dispatch_binding() {
         {preamble}
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :test::describe)
              rendered
               (:wat::edn::write def-opt)]
-            (:wat::io::IOWriter/println stdout rendered)))
+            (:wat::kernel::println rendered)))
         "##,
         preamble = PREAMBLE,
     );
@@ -209,20 +211,16 @@ fn signature_of_dispatch_returns_declaration() {
         {preamble}
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :test::describe)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
+            ((:wat::core::Some _) (:wat::kernel::println "pass"))
+            (:wat::core::None    (:wat::kernel::println "fail"))))
         "##,
         preamble = PREAMBLE,
     );
-    assert_eq!(run(&src), vec!["pass".to_string()]);
+    assert_eq!(run(&src), vec!["\"pass\"".to_string()]);
 }
 
 #[test]
@@ -234,20 +232,16 @@ fn body_of_dispatch_returns_none() {
         {preamble}
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :test::describe)
             -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
-            (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
+            ((:wat::core::Some _) (:wat::kernel::println "fail"))
+            (:wat::core::None    (:wat::kernel::println "pass"))))
         "##,
         preamble = PREAMBLE,
     );
-    assert_eq!(run(&src), vec!["pass".to_string()]);
+    assert_eq!(run(&src), vec!["\"pass\"".to_string()]);
 }
 
 // ─── Bonus: arity validation surfaces deferred-to-call-time per Q1 ──────────
@@ -272,12 +266,8 @@ fn define_dispatch_arity_mismatch_errors() {
           ((:wat::core::i64) :test::two-arg-i64))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout (:test::arity-mismatched 7)))
+          (:user::main -> :wat::core::nil)
+          (:wat::kernel::println (:test::arity-mismatched 7)))
     "##;
     let err = try_startup(src).expect_err("expected check-time arity mismatch");
     let msg = format!("{}", err);

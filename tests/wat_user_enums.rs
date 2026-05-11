@@ -8,27 +8,28 @@
 //! - Arity errors for wrong binder counts
 //! - Cross-enum mismatch errors
 
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
+use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::runtime::Value;
+use wat::thread_io::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
 
-fn run(src: &str) -> Vec<String> {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let stdout = Arc::new(StringIoWriter::new());
-    let stderr = Arc::new(StringIoWriter::new());
-    let stdout_dyn: Arc<dyn WatWriter> = stdout.clone();
-    let stderr_dyn: Arc<dyn WatWriter> = stderr.clone();
-    let args = vec![
-        Value::io__IOReader(stdin),
-        Value::io__IOWriter(stdout_dyn),
-        Value::io__IOWriter(stderr_dyn),
-    ];
-    invoke_user_main(&world, args).expect("main");
-    let bytes = stdout.snapshot_bytes().expect("snapshot");
+fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
+    let mut fds = [0i32; 2];
+    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(r, 0, "pipe(2) succeeded");
+    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(read_fd));
+    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(write_fd));
+    (reader, writer)
+}
+
+fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
+    let bytes = reader
+        .read_all(wat::span::Span::unknown())
+        .expect("read-all");
     let s = String::from_utf8(bytes).expect("utf8");
     if s.is_empty() {
         return Vec::new();
@@ -38,6 +39,23 @@ fn run(src: &str) -> Vec<String> {
         lines.pop();
     }
     lines
+}
+
+fn run(src: &str) -> Vec<String> {
+    let _ = uninstall_ambient_stdio();
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup");
+    let (stdin_service, _stdin_inject) = pipe_pair();
+    let (stdout_capture, stdout_service) = pipe_pair();
+    let (_stderr_capture, stderr_service) = pipe_pair();
+    install_ambient_stdio(AmbientStdio {
+        stdin: stdin_service,
+        stdout: stdout_service,
+        stderr: stderr_service,
+    });
+    invoke_user_main(&world, Vec::new()).expect("main");
+    let _ = uninstall_ambient_stdio();
+    drain_lines(&stdout_capture)
 }
 
 fn run_expecting_check_error(src: &str) -> String {
@@ -57,17 +75,13 @@ fn unit_variant_evaluates_via_bare_keyword() {
           :my::Color::Green)
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match (:my::pick) -> :wat::core::nil
-            (:my::Color::Red   (:wat::io::IOWriter/println stdout "red"))
-            (:my::Color::Green (:wat::io::IOWriter/println stdout "green"))
-            (:my::Color::Blue  (:wat::io::IOWriter/println stdout "blue"))))
+            (:my::Color::Red   (:wat::kernel::println "red"))
+            (:my::Color::Green (:wat::kernel::println "green"))
+            (:my::Color::Blue  (:wat::kernel::println "blue"))))
     "##;
-    assert_eq!(run(src), vec!["green".to_string()]);
+    assert_eq!(run(src), vec!["\"green\"".to_string()]);
 }
 
 // ─── Tagged variant construction + match with binders ─────────────────
@@ -90,14 +104,10 @@ fn tagged_variant_constructs_and_match_binds_fields() {
             (:my::Event::Nothing       "nothing")))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          (:wat::io::IOWriter/println stdout (:my::summary (:my::a-candle))))
+          (:user::main -> :wat::core::nil)
+          (:wat::kernel::println (:my::summary (:my::a-candle))))
     "##;
-    assert_eq!(run(src), vec!["105".to_string()]);
+    assert_eq!(run(src), vec!["\"105\"".to_string()]);
 }
 
 // ─── Wildcard arm covers any remaining variants ───────────────────────
@@ -108,16 +118,12 @@ fn wildcard_arm_satisfies_exhaustiveness() {
         (:wat::core::enum :my::Color :Red :Green :Blue)
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::match :my::Color::Blue -> :wat::core::nil
-            (:my::Color::Red (:wat::io::IOWriter/println stdout "red"))
-            (_               (:wat::io::IOWriter/println stdout "other"))))
+            (:my::Color::Red (:wat::kernel::println "red"))
+            (_               (:wat::kernel::println "other"))))
     "##;
-    assert_eq!(run(src), vec!["other".to_string()]);
+    assert_eq!(run(src), vec!["\"other\"".to_string()]);
 }
 
 // ─── Mixed unit + tagged in one match ────────────────────────────────
@@ -135,19 +141,15 @@ fn match_mixes_unit_and_tagged_arms() {
             (:my::Event::Hold        "hold")))
 
         (:wat::core::define
-          (:user::main
-            (stdin  :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
+          (:user::main -> :wat::core::nil)
           (:wat::core::let
             [line1 (:my::act (:my::Event::Open 7.5))
              line2 (:my::act :my::Event::Hold)]
             (:wat::core::do
-              (:wat::io::IOWriter/println stdout line1)
-              (:wat::io::IOWriter/println stdout line2))))
+              (:wat::kernel::println line1)
+              (:wat::kernel::println line2))))
     "##;
-    assert_eq!(run(src), vec!["7.5".to_string(), "hold".to_string()]);
+    assert_eq!(run(src), vec!["\"7.5\"".to_string(), "\"hold\"".to_string()]);
 }
 
 // ─── Type errors — checker rejects bad patterns ───────────────────────
@@ -157,7 +159,7 @@ fn missing_variant_arm_reports_non_exhaustive() {
     let src = r##"
         (:wat::core::enum :my::Color :Red :Green :Blue)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::match :my::Color::Red -> :wat::core::i64
             (:my::Color::Red   1)
             (:my::Color::Green 2)))
@@ -176,7 +178,7 @@ fn cross_enum_variant_pattern_rejected() {
         (:wat::core::enum :my::Color :Red :Green)
         (:wat::core::enum :my::Side  :Buy :Sell)
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::match :my::Color::Red -> :wat::core::i64
             (:my::Side::Buy  1)
             (:my::Color::Red 2)
@@ -196,7 +198,7 @@ fn tagged_variant_arity_mismatch_reported() {
         (:wat::core::enum :my::Event
           (Pair (a :wat::core::i64) (b :wat::core::i64)))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
             ((:my::Event::Pair just-one) just-one)))
     "##;
@@ -214,7 +216,7 @@ fn unit_variant_pattern_on_tagged_variant_rejected() {
         (:wat::core::enum :my::Event
           (Pair (a :wat::core::i64) (b :wat::core::i64)))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
             (:my::Event::Pair 0)))
     "##;
