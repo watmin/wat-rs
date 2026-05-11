@@ -8,9 +8,6 @@
 //!
 //! - **Service<E,G>** — generic queue-fronted destination service
 //!   with paired-channel batch+ack discipline (arc 089 + arc 095).
-//! - **Console** — dispatcher factory wrapping the substrate's
-//!   `:wat::console` driver.
-//! - **ConsoleLogger** — typed logger struct on top of Console.
 //! - **WorkUnit + Event + scope HOF** — measurement-scope state +
 //!   the events it ships at scope-close. Folded in from the
 //!   retired wat-measure crate.
@@ -19,10 +16,17 @@
 //! - **Tag, Tags, SinkHandles** — the type aliases consumers
 //!   reference at every measurement scope.
 //!
+//! Arc 170 slice 1f-η retired the Console / ConsoleLogger wrappers
+//! that previously fronted the substrate's `:wat::console` driver.
+//! With the ambient stdio trio + runtime orchestrator in place,
+//! producers call `:wat::kernel::println` / `eprintln` directly;
+//! structured-format dispatch lives in user code (see
+//! `examples/console-demo` for the canonical ambient-stdio pattern).
+//!
 //! # Two-part contract
 //!
-//! - [`wat_sources`] — the baked `.wat` files (Service, Console,
-//!   ConsoleLogger, types, Event, uuid, WorkUnit).
+//! - [`wat_sources`] — the baked `.wat` files (Service, types,
+//!   Event, uuid, WorkUnit, WorkUnitLog).
 //! - [`register`] — wires the Rust shims (uuid::v4 free fn,
 //!   WorkUnit thread-owned cell) into the deps builder.
 
@@ -31,8 +35,13 @@ pub mod workunit;
 
 /// wat source files this crate contributes. Order matters —
 /// Service.wat declares the protocol typealiases (Handle<E>,
-/// DriverPair<E>, AckTx, AckRx, etc.) that types.wat,
-/// Console.wat, and the rest reference.
+/// DriverPair<E>, AckTx, AckRx, etc.) that types.wat and the rest
+/// reference.
+///
+/// Arc 170 slice 1f-η — Console.wat + ConsoleLogger.wat retired.
+/// Producers needing structured stdio call `:wat::kernel::println`
+/// / `eprintln` ambiently; structured-format dispatch is a wat-
+/// level concern living in user code (see `examples/console-demo`).
 pub fn wat_sources() -> &'static [wat::WatSource] {
     static FILES: &[wat::WatSource] = &[
         // Service.wat first — the protocol types every other file
@@ -72,18 +81,6 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
         wat::WatSource {
             path: "wat-telemetry/telemetry/WorkUnitLog.wat",
             source: include_str!("../wat/telemetry/WorkUnitLog.wat"),
-        },
-        // Console.wat — dispatcher factory. Wraps the substrate's
-        // `:wat::console::*` driver (paired-channel
-        // mini-TCP from arc 089 slice 5); the driver itself stays
-        // in the substrate as a generic service-pattern reference.
-        wat::WatSource {
-            path: "wat-telemetry/telemetry/Console.wat",
-            source: include_str!("../wat/telemetry/Console.wat"),
-        },
-        wat::WatSource {
-            path: "wat-telemetry/telemetry/ConsoleLogger.wat",
-            source: include_str!("../wat/telemetry/ConsoleLogger.wat"),
         },
     ];
     FILES

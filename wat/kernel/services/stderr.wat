@@ -65,7 +65,8 @@
 
 ;; ─── Channel typealiases ───────────────────────────────────────────────────
 ;;
-;; Follows the wat/console.wat:38 typealias-family naming convention.
+;; Pattern A typealias-family naming convention (Tx/Rx pair per
+;; channel, then a (Tx,Rx) tuple typealias for the channel itself).
 ;; No whitespace inside <> or :() per WAT-CHEATSHEET.md s.2.
 
 (:wat::core::typealias :wat::kernel::services::StdErrService::EventTx

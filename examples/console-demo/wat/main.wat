@@ -1,152 +1,62 @@
-;; examples/console-demo/wat/main.wat — ConsoleLogger walk-through.
+;; examples/console-demo/wat/main.wat — ambient-stdio walk-through.
 ;;
-;; Wires the substrate's stdout-attached structured logger:
-;;   - Console driver — N tagged-stdio writer threads (Console/spawn)
-;;   - ConsoleLogger — closure over (con-tx, caller, clock, format)
+;; Arc 170 slice 1f-η — Console driver retired. Previously this
+;; example wired a Console spawn-driver thread + a ConsoleLogger
+;; handle plumbed through producer scope. With the runtime
+;; orchestrator (slice 1f-γ) + ambient stdio trio (slices
+;; 1f-β-i/ii/iii) + the ambient `:wat::kernel::println` /
+;; `eprintln` ops (slice 1f-α), producers print directly. No
+;; spawn, no pool, no handle.
 ;;
-;; Producer calls `(ConsoleLogger/<level> logger entry)`. Per
-;; emission, the substrate stamps `:wat::time::now`, identifies the
-;; caller via the captured keyword, builds a 4-tuple, renders as EDN
-;; (or JSON or Pretty per the captured format), routes to stdout for
-;; :debug + :info or stderr for :warn + :error.
+;; Contract — ambient ops EDN-encode their argument and write one
+;; line per call. Nothing free-form crosses the boundary; every
+;; emission is `:wat::edn::read`-parseable. Format selection
+;; (the old Console-handle-mediated EDN/Json/Pretty/NoTagEdn/
+;; NoTagJson showcase) no longer applies — the ambient surface is
+;; deliberately EDN-only. Apps wanting alternate formats compose
+;; their own producer-side helper that bypasses the ambient ops
+;; (writing through a custom service driver in user code) — but
+;; the default path is the EDN one this demo walks.
 ;;
 ;; Run:
 ;;   cargo run -p console-demo                 # shows stdout
 ;;   cargo run -p console-demo 2>&1 >/dev/null # shows stderr
 ;;   cargo run -p console-demo 2>err.log       # split streams
 
-(:wat::config::set-capacity-mode! :error)
-
 
 ;; ─── Domain enum — what the trader emits as structured events ──
 
 (:wat::core::enum :demo::Event
   (Buy
-    (price :f64)
-    (qty :i64))
+    (price :wat::core::f64)
+    (qty :wat::core::i64))
   (Sell
-    (price :f64)
-    (qty :i64)
-    (reason :String))
+    (price :wat::core::f64)
+    (qty :wat::core::i64)
+    (reason :wat::core::String))
   (CircuitBreak
-    (reason :String)))
+    (reason :wat::core::String)))
 
 
-;; ─── Producer body — emits all four levels ───────────────────────
+;; ─── Wiring — five events, ambient println / eprintln routing.
 ;;
-;; The producer doesn't see con-tx, caller-id, or clock. They're all
-;; closed over inside the ConsoleLogger. Per emission: `(/info|/warn
-;; |/error|/debug logger entry)` — caller never self-identifies.
+;; :debug + :info shaped emissions go through stdout
+;; (`:wat::kernel::println`); :warn + :error go through stderr
+;; (`:wat::kernel::eprintln`). The ambient ops EDN-encode each
+;; value before writing, so the produced lines round-trip via
+;; `:wat::edn::read` cleanly. `:user::main` returns
+;; `:wat::core::nil` (arc 170 slice 1e canonical entry shape).
 
 (:wat::core::define
-  (:demo::run
-    (logger :wat::telemetry::ConsoleLogger)
-    -> :wat::core::nil)
+  (:user::main -> :wat::core::nil)
   (:wat::core::let
     [;; Routine flow → stdout
-     _a
-      (:wat::telemetry::ConsoleLogger/info logger
-        (:demo::Event::Buy 100.5 7))
-     _b
-      (:wat::telemetry::ConsoleLogger/info logger
-        (:demo::Event::Sell 102.25 3 "stop-loss"))
+     _a (:wat::kernel::println (:demo::Event::Buy 100.5 7))
+     _b (:wat::kernel::println (:demo::Event::Sell 102.25 3 "stop-loss"))
      ;; Diagnostic detail → stdout
-     _c
-      (:wat::telemetry::ConsoleLogger/debug logger
-        (:demo::Event::Buy 99.0 12))
+     _c (:wat::kernel::println (:demo::Event::Buy 99.0 12))
      ;; Concerning event → stderr
-     _d
-      (:wat::telemetry::ConsoleLogger/warn logger
-        (:demo::Event::CircuitBreak "spike-volume"))
+     _d (:wat::kernel::eprintln (:demo::Event::CircuitBreak "spike-volume"))
      ;; Failure → stderr
-     _e
-      (:wat::telemetry::ConsoleLogger/error logger
-        (:demo::Event::CircuitBreak "exchange-disconnected"))]
-    :wat::core::nil))
-
-
-;; ─── Helper — build a logger with a chosen format ───────────────
-;;
-;; The logger captures a Console::Handle = (Tx, AckRx) — every
-;; Console/out and Console/err call goes through the handle and
-;; blocks until the driver acks the write (arc 089 slice 5,
-;; mini-TCP via paired channels).
-
-(:wat::core::define
-  (:demo::make-logger
-    (handle :wat::console::Handle)
-    (caller :wat::core::keyword)
-    (format :wat::telemetry::Console::Format)
-    -> :wat::telemetry::ConsoleLogger)
-  (:wat::telemetry::ConsoleLogger/new
-    handle caller
-    (:wat::core::fn ((_u :wat::core::nil) -> :wat::time::Instant)
-      (:wat::time::now))
-    format))
-
-
-;; ─── Wiring — owns Console driver. Per CIRCUIT.md.
-;; Runs the producer body THREE times — once per format — so a single
-;; `cargo run` shows EDN / JSON / Pretty side by side.
-
-(:wat::core::define
-  (:user::main
-    (stdin  :wat::io::IOReader)
-    (stdout :wat::io::IOWriter)
-    (stderr :wat::io::IOWriter)
-    -> :wat::core::nil)
-  (:wat::core::let
-    [con-spawn
-      (:wat::console::spawn stdout stderr 1)
-     con-pool
-      (:wat::core::first con-spawn)
-     con-driver
-      (:wat::core::second con-spawn)
-     _inner
-      (:wat::core::let
-        [handle
-          (:wat::kernel::HandlePool::pop con-pool)
-         _finish (:wat::kernel::HandlePool::finish con-pool)
-         ;; ── EDN format (tagged, round-trip-safe) ──────────────
-         _banner-edn
-          (:wat::console::out handle
-            "\n=== :Edn (tagged, round-trip-safe) ===\n")
-         edn-logger
-          (:demo::make-logger handle :market.observer
-            :wat::telemetry::Console::Format::Edn)
-         _run-edn (:demo::run edn-logger)
-         ;; ── NoTagEdn (lossy, human-friendly) ──────────────────
-         _banner-notag-edn
-          (:wat::console::out handle
-            "\n=== :NoTagEdn (lossy, human-friendly) ===\n")
-         notag-edn-logger
-          (:demo::make-logger handle :market.observer
-            :wat::telemetry::Console::Format::NoTagEdn)
-         _run-notag-edn (:demo::run notag-edn-logger)
-         ;; ── JSON (round-trip-safe via sentinels) ──────────────
-         _banner-json
-          (:wat::console::out handle
-            "\n=== :Json (round-trip-safe sentinel-encoded) ===\n")
-         json-logger
-          (:demo::make-logger handle :market.observer
-            :wat::telemetry::Console::Format::Json)
-         _run-json (:demo::run json-logger)
-         ;; ── NoTagJson (natural JSON for ingestion tooling) ────
-         _banner-notag-json
-          (:wat::console::out handle
-            "\n=== :NoTagJson (natural JSON for ELK/DataDog) ===\n")
-         notag-json-logger
-          (:demo::make-logger handle :market.observer
-            :wat::telemetry::Console::Format::NoTagJson)
-         _run-notag-json (:demo::run notag-json-logger)
-         ;; ── Pretty (tagged, multi-line) ───────────────────────
-         _banner-pretty
-          (:wat::console::out handle
-            "\n=== :Pretty (tagged, multi-line) ===\n")
-         pretty-logger
-          (:demo::make-logger handle :market.observer
-            :wat::telemetry::Console::Format::Pretty)]
-        (:demo::run pretty-logger))
-     _join
-      (:wat::kernel::Thread/join-result con-driver)]
+     _e (:wat::kernel::eprintln (:demo::Event::CircuitBreak "exchange-disconnected"))]
     :wat::core::nil))

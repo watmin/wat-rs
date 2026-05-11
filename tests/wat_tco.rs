@@ -17,7 +17,7 @@
 //!
 //! - Self-recursion through `if` at high depth (would overflow without
 //!   TCO) returns the correct value.
-//! - Self-recursion through `match` (Console/loop-shape — Option arms)
+//! - Self-recursion through `match` (driver-loop-shape — Option arms)
 //!   at high depth succeeds.
 //! - Mutual recursion between two named defines at high depth.
 //! - Tail call nested inside a `let` body (let is tail-carrying).
@@ -63,11 +63,11 @@ fn self_recursion_via_if_at_million_depth() {
     assert!(matches!(run(src), Value::i64(1_000_000)));
 }
 
-// ─── Self-recursion via match (the Console/loop shape) ────────────────
+// ─── Self-recursion via match (driver-loop shape) ─────────────────────
 
 #[test]
 fn self_recursion_via_match_at_high_depth() {
-    // Models `:wat::console::loop`: match an Option, in
+    // Models a driver loop: match an Option, in
     // the Some arm do work and recurse tail; in the None arm exit. The
     // forcing-function case the user named. Uses :wat::std::list::take
     // to hand back Option<i64> values from a Vec.

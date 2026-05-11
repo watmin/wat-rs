@@ -167,17 +167,17 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/test.wat",
         source: include_str!("../wat/test.wat"),
     },
-    // Arc 096 — `:wat::console::*` (the paired-channel mini-TCP
-    // driver, arc 089 slice 5; flattened from
-    // `:wat::std::service::Console::*` in arc 109 slice K.console)
-    // STAYS in the substrate as a generic service-pattern reference.
-    // The telemetry-specific wrappers (Console-dispatcher,
-    // ConsoleLogger) and Service<E,G> moved to the wat-telemetry
-    // crate; consumers gain them via `deps: [wat_telemetry]`.
-    WatSource {
-        path: "wat/console.wat",
-        source: include_str!("../wat/console.wat"),
-    },
+    // Arc 170 slice 1f-η — `:wat::console::*` retired. The
+    // paired-channel mini-TCP Console driver (arc 089 slice 5,
+    // flattened from `:wat::std::service::Console::*` in arc 109
+    // slice K.console) was the pre-orchestrator stdio gateway. The
+    // trio of ambient stdio services (StdIn/StdOut/StdErr — slices
+    // 1f-β-i/ii/iii) + the runtime orchestrator (slice 1f-γ) +
+    // ambient `:wat::kernel::println`/`eprintln`/`readln` (slice
+    // 1f-α) now own that contract per TIERS.md doctrine. Console-
+    // mediated stdio access fully retired; consumers call the
+    // ambient operations directly.
+    //
     // Arc 091 slice 1 — :wat::edn::Tagged + :wat::edn::NoTag newtypes
     // around HolonAST. Used by wat-sqlite's auto-dispatch (arc 085) to
     // pick :wat::edn::write vs :wat::edn::write-notag at TEXT-bind time.
