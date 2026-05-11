@@ -2,13 +2,30 @@
 
 **Status:** investigated 2026-05-10 during slice 1f-ζ verification runs; queued for separate slice.
 
-## Reproduction (specific tests, not all forks)
+## Reproduction status — unreproducible under controlled conditions
 
-The leak is NOT a substrate-wide fork misuse. Direct test confirms:
-- `cargo test --release --test test stdin_test_spawn_shape` (one test, isolated) → **0 orphans**
-- `cargo test --release --workspace stdin_test_spawn_shape` (full workspace) → **9 orphans**
+Multiple investigation passes (2026-05-10) failed to reproduce the leak in isolation:
 
-The leak comes from SOMEWHERE in the `--workspace` test run, not the explicitly-named test. **Source not yet identified** — needs further investigation.
+- `cargo test --release --test test stdin_test_spawn_shape` (one test) → **0 orphans**
+- Per-test walk of all 89 workspace binaries → only `test-32fbbe6ae6c5f433` showed `delta=+9`, but per-test walk of all 184 tests in that binary showed only measurement-artifact deltas
+- `arithmetic_equivalence` (top apparent leaker, delta=+6) run 10× back-to-back in tight loop → **0 orphans every time**
+
+**The "leaks" observed earlier appear to be measurement artifacts**: the `ps faux | wc -l` count captures test binaries that haven't fully exited yet. Between rapid test runs, an exiting binary from run N can be counted as an orphan for run N+1.
+
+A real reproducible leak has not been confirmed under controlled conditions.
+
+## When the original observation occurred
+
+The 9 orphans observed during slice 1f-ζ verification runs and `cargo test --release --workspace stdin_test_spawn_shape` were real (the user killed them manually). But:
+- They appeared during parallel `--workspace` execution where multiple test binaries interleave
+- They did NOT appear when those same tests ran serialized
+- They did NOT accumulate when individual tests ran back-to-back
+
+This points to **either**:
+- (a) A race condition during parallel test-binary execution that doesn't surface in isolation, OR
+- (b) Original measurement was correct in real-world conditions but the leak only manifests under specific cargo-internal parallel-fork patterns
+
+Either way: the substrate fix (PDEATHSIG) remains a sound defense-in-depth even though the leak pathology isn't reproducibly demonstrated.
 
 ## A candidate hypothesis (UNVERIFIED) — time-limit leaks inner thread
 
