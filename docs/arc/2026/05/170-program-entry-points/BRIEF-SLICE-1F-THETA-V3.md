@@ -77,16 +77,24 @@ One file. Top-down dependency graph per complectens. Layered helpers + per-helpe
 
 Each layer has its own `(:deftest-ambient :test::test-N-name (:test::layer-N-helper))` deftest.
 
-### Edge case — running these tests
+### Edge case — running these tests: MUST be deftest-hermetic
 
-The ambient `:wat::kernel::println` requires the orchestrator (slice 1f-γ) to be running. There are two paths:
+**Use `deftest-hermetic`. NOT `deftest`. NOT `deftest-source`.**
 
-- **(A) `deftest-hermetic` + run-sandboxed-hermetic-ast**: forks a child that runs `invoke_user_main_orchestrated` (which spawns the trio + thread-0 registration). Child writes to its real fd 1; parent drains via pipe.
-- **(B) `deftest` (in-process)**: requires the in-process test to have an orchestrator + trio running. Existing wat-tests don't have this scaffold; the in-process orchestrator path is what slice 1f-ζ shipped via `src/spawn.rs:180-200`.
+The slice's mission is to **assert that hermetic continues to work after the arc 170 migration**. Using non-hermetic `deftest` would test only the in-process orchestrator path, which entirely SKIPS the forked-child path. That defeats the purpose of the slice — we'd ship "working tests" that don't exercise what we're verifying.
 
-**Recommended:** use `deftest-hermetic`. The child fork is the simplest mental model — each test is its own program with its own orchestrator + services. Parent drains stdout/stderr via the existing `run-sandboxed-hermetic-ast` plumbing.
+The forked-child orchestrator path under test:
+1. `deftest-hermetic` → `run-sandboxed-hermetic-ast` → `fork-program-ast` forks a child
+2. Child boots `invoke_user_main_orchestrated` (slice 1f-γ)
+3. Child's orchestrator spawns the trio services + registers thread-0
+4. Child's `:user::main` calls `(:wat::kernel::println v)` etc
+5. Routes through trio → child's fd 1
+6. Parent drains via OS pipe → returns `RunResult { stdout: Vector<String>, stderr: Vector<String> }`
+7. Assertions on the vectors
 
-The `:wat::test::run-hermetic-ast` Layer 1 wrapper from `wat/test.wat` returns a `RunResult` with `stdout : Vector<String>` and `stderr : Vector<String>`. Assertions check those vectors.
+**Every test in `ambient-stdio.wat` MUST use `deftest-hermetic`.** Earlier in this slice's iteration, an agent suggested switching to non-hermetic because "in-memory IOReader doesn't need real stdio isolation." That suggestion is REJECTED — the in-memory path doesn't exercise fork/orchestrator-boot/service-spawn/dup-fds/drain-pipe; those ARE what the slice exists to verify.
+
+The `:wat::test::run-hermetic-ast` Layer 1 wrapper from `wat/test.wat` returns the `RunResult`. Assertions consume `Vector<String>` fields.
 
 ### Out of scope
 
