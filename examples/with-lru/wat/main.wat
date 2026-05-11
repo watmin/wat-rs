@@ -22,11 +22,10 @@
 ;; of wrapped Rust types, is usually the wrapping crate, not the
 ;; consumer.
 
-(:wat::core::define (:user::main
-                     (stdin  :wat::io::IOReader)
-                     (stdout :wat::io::IOWriter)
-                     (stderr :wat::io::IOWriter)
-                     -> :wat::core::nil)
+;; Arc 170 migration: canonical [] -> :nil signature; IOWriter/println
+;; retired in favour of (:wat::kernel::println ...). println emits the
+;; EDN-encoded form of the String value (arc 170 slice 1f-ι contract).
+(:wat::core::define (:user::main -> :wat::core::nil)
   (:wat::core::let
     [cache
       (:wat::lru::LocalCache::new 16)
@@ -35,5 +34,5 @@
      got
       (:wat::lru::LocalCache::get cache "answer")]
     (:wat::core::match got -> :wat::core::nil
-      ((:wat::core::Some v) (:wat::io::IOWriter/println stdout "hit"))
-      (:wat::core::None    (:wat::io::IOWriter/println stdout "miss")))))
+      ((:wat::core::Some v) (:wat::kernel::println "hit"))
+      (:wat::core::None    (:wat::kernel::println "miss")))))

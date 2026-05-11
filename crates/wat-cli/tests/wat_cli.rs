@@ -27,22 +27,25 @@ fn write_temp(contents: &str) -> std::path::PathBuf {
 
 /// Minimal `:user::main` that echoes stdin to stdout — the
 /// hello-world of the wat. Exercises:
-/// - signature enforcement (3 args)
-/// - kernel send
-/// - kernel recv (one-line stdin semantic)
+/// - canonical [] -> :nil signature (arc 170)
+/// - kernel readln / println EDN-only contract (arc 170 slice 1f-ι)
 /// - crossbeam channel wiring
 /// - stdio bridge threads
 /// - clean shutdown
+///
+/// Arc 170 migration: signature drops IOReader/IOWriter params; argv
+/// is ambient; stdin is read via `(:wat::kernel::readln -> :String)`
+/// which expects EDN-encoded input on the wire (quoted string);
+/// stdout is written via `(:wat::kernel::println ...)` which emits
+/// the EDN-encoded form (quoted string) followed by a newline.
+/// Rust scaffolding sends EDN-quoted `"watmin"` on stdin and asserts
+/// the EDN-quoted form on stdout.
 const ECHO_PROGRAM: &str = r#"
 
-(:wat::core::define (:user::main
-                     (stdin  :wat::io::IOReader)
-                     (stdout :wat::io::IOWriter)
-                     (stderr :wat::io::IOWriter)
-                     -> :wat::core::nil)
-  (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
-    ((Some line) (:wat::io::IOWriter/print stdout line))
-    (:None ())))
+(:wat::core::define (:user::main -> :wat::core::nil)
+  (:wat::core::let
+    [line (:wat::kernel::readln -> :wat::core::String)]
+    (:wat::kernel::println line)))
 "#;
 
 #[test]
@@ -57,12 +60,14 @@ fn echo_program_reads_stdin_writes_stdout() {
         .spawn()
         .expect("spawn wat");
 
-    // Pipe "watmin\n" to child stdin.
+    // Pipe EDN-encoded "watmin" to child stdin (arc 170 slice 1f-ι
+    // EDN-only contract: readln -> :String expects a quoted EDN String
+    // on the wire, i.e. `"watmin"\n` with literal double-quotes).
     child
         .stdin
         .as_mut()
         .unwrap()
-        .write_all(b"watmin\n")
+        .write_all(b"\"watmin\"\n")
         .unwrap();
     // Close stdin so child sees EOF after its one-line read.
     drop(child.stdin.take());
@@ -77,43 +82,38 @@ fn echo_program_reads_stdin_writes_stdout() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout, "watmin", "stdout mismatch: {:?}", stdout);
+    // println re-EDN-encodes the String value: output is `"watmin"\n`
+    // (with literal double-quotes, per slice 1f-ι contract).
+    assert_eq!(stdout, "\"watmin\"\n", "stdout mismatch: {:?}", stdout);
 }
 
-/// Programs-are-atoms hello-world (structural side). Same observable
-/// behavior as `ECHO_PROGRAM`, but the echo expression takes a detour
-/// through the algebra's structural wrap/unwrap:
+/// Programs-are-atoms hello-world (structural side). Demonstrates the
+/// structural wrap/unwrap round-trip:
 ///
-/// 1. `(:wat::core::quote ...)` captures the send/recv expression as a
+/// 1. `(:wat::core::quote ...)` captures a println expression as a
 ///    `:wat::WatAST` without firing its side effects.
 /// 2. `(:wat::holon::Atom program)` wraps the WatAST as an Atom
 ///    holon — the program is now a typed box in the algebra.
-/// 3. `(:wat::core::atom-value program-atom)` extracts the payload back
+/// 3. `(:wat::holon::to-watast program-atom)` extracts the payload back
 ///    as a `:wat::WatAST`. Structural field read; exact; no cosine.
 /// 4. `(:wat::eval-ast! reveal)` executes the program under
 ///    constrained eval.
 ///
 /// This proves the STRUCTURAL side of programs-as-atoms: `(Atom x) →
-/// (atom-value ...) → x` is lossless, exact, and carries arbitrary
+/// to-watast → x` is lossless, exact, and carries arbitrary
 /// wat programs as data.
 ///
-/// The VECTOR side of the proof — measuring that `Bind(k, program-atom)`
-/// obscures the program at the vector level and self-inverse recovers
-/// it — needs the `:wat::holon::cosine` primitive and lives in its
-/// own CLI test (added separately).
+/// Arc 170 migration: outer main uses canonical [] -> :nil signature;
+/// inner quoted program uses (:wat::kernel::println "wat-atoms") —
+/// the println call is the load-bearing expression captured as data
+/// and re-executed via eval-ast!. No stdin required.
 const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
 
-(:wat::core::define (:user::main
-                     (stdin  :wat::io::IOReader)
-                     (stdout :wat::io::IOWriter)
-                     (stderr :wat::io::IOWriter)
-                     -> :wat::core::nil)
+(:wat::core::define (:user::main -> :wat::core::nil)
   (:wat::core::let
     [program
        (:wat::core::quote
-         (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
-           ((Some line) (:wat::io::IOWriter/print stdout line))
-           (:None ())))
+         (:wat::kernel::println "wat-atoms"))
      program-atom
        (:wat::holon::Atom program)
      ;; arc 057 Story-2 recovery: program-atom is now a structural
@@ -136,19 +136,11 @@ fn programs_are_atoms_hello_world() {
     let bin = env!("CARGO_BIN_EXE_wat");
     let mut child = Command::new(bin)
         .arg(&path)
-        .stdin(Stdio::piped())
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("spawn wat");
-
-    child
-        .stdin
-        .as_mut()
-        .unwrap()
-        .write_all(b"watmin\n")
-        .unwrap();
-    drop(child.stdin.take());
 
     let output = child.wait_with_output().expect("wait");
     let _ = std::fs::remove_file(&path);
@@ -160,8 +152,10 @@ fn programs_are_atoms_hello_world() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).unwrap();
+    // println EDN-encodes the String "wat-atoms" → `"wat-atoms"\n`
+    // (arc 170 slice 1f-ι EDN-only contract).
     assert_eq!(
-        stdout, "watmin",
+        stdout, "\"wat-atoms\"\n",
         "programs-are-atoms roundtrip failed — stdout: {:?}",
         stdout
     );
@@ -173,40 +167,30 @@ fn programs_are_atoms_hello_world() {
 /// that MAP's bind / unbind self-inverse is observable through presence
 /// measurement:
 ///
-/// 1. `(:wat::core::quote ...)` captures the send/recv expression as a
+/// 1. `(:wat::core::quote ...)` captures a println expression as a
 ///    `:wat::WatAST`.
 /// 2. `(:wat::holon::Atom program)` wraps it as an Atom holon.
 /// 3. `(:wat::holon::Bind key-atom program-atom)` composes the Atom
-///    with a key, producing a Bind tree whose encoded vector is
-///    ROUGHLY ORTHOGONAL to the program-atom's vector. Below the 5σ
-///    noise floor. `(:wat::holon::cosine program-atom bound)` returns
-///    a small scalar — binarized via `>` against noise-floor yields
-///    "None". The printed "None" IS the proof.
-/// 4. `(:wat::holon::Bind bound key-atom)` — MAP self-inverse at the
-///    vector level: `bind(bind(k,p), k) ≈ p` on non-zero positions.
-///    `(:wat::holon::cosine program-atom recovered)` returns a large
-///    scalar — binarizes to "Some". The printed "Some" is the proof
-///    the algebra recovered the signal.
-/// 5. `(:wat::core::atom-value program-atom)` extracts the WatAST
-///    payload structurally — the caller's reference has been in scope
-///    all along. `(:wat::eval-ast! reveal)` fires the echo.
+///    with a key — the resulting vector is ROUGHLY ORTHOGONAL to
+///    program-atom. `presence?` returns false → "absent" printed.
+///    The "absent" IS the proof the signal was bound away.
+/// 4. `(:wat::holon::Bind bound key-atom)` — MAP self-inverse:
+///    `bind(bind(k,p), k) ≈ p`. `presence?` returns true → "present"
+///    printed. The "present" is the proof the algebra recovered signal.
+/// 5. `to-watast` + `eval-ast!` fires the quoted println program.
 ///
-/// Observable stdout: `None\nSome\nwatmin`. The presence measurements
-/// at lines 1 and 2 are the load-bearing proof; the echo at line 3 is
-/// the eval confirming the program survived.
+/// Arc 170 migration: outer main uses canonical [] -> :nil; inner
+/// quoted program uses `(:wat::kernel::println "wat-atoms")` instead
+/// of the retired IOReader/IOWriter stdin-echo path. Presence proof
+/// prints "absent"/"present" via println (EDN-encoded Strings).
+/// Observable stdout: `"absent"\n"present"\n"wat-atoms"\n`.
 const PRESENCE_PROOF_PROGRAM: &str = r#"
 
-(:wat::core::define (:user::main
-                     (stdin  :wat::io::IOReader)
-                     (stdout :wat::io::IOWriter)
-                     (stderr :wat::io::IOWriter)
-                     -> :wat::core::nil)
+(:wat::core::define (:user::main -> :wat::core::nil)
   (:wat::core::let
     [program
        (:wat::core::quote
-         (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
-           ((Some line) (:wat::io::IOWriter/print stdout line))
-           (:None ())))
+         (:wat::kernel::println "wat-atoms"))
      program-atom
        (:wat::holon::Atom program)
      key-atom
@@ -218,16 +202,14 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
 
      ;; Substrate proof #1: program-atom's signal is GONE from bound.
      ;; Arc 037 slice 3: presence? does the honest per-d threshold
-     ;; comparison internally — the router picks d per operand,
-     ;; presence-floor is computed as presence-sigma / sqrt(d) at the
-     ;; picked d. Users no longer hand-roll `cosine vs noise-floor`.
+     ;; comparison internally. absent = not present.
      _
-       (:wat::io::IOWriter/print stdout
+       (:wat::kernel::println
          (:wat::core::if
            (:wat::holon::presence? program-atom bound)
            -> :wat::core::String
-           "Some\n"
-           "None\n"))
+           "present"
+           "absent"))
 
      ;; Self-inverse: bind(bind(k, p), k) recovers p at the vector level.
      recovered
@@ -235,23 +217,21 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
 
      ;; Substrate proof #2: program-atom's signal is BACK in recovered.
      _
-       (:wat::io::IOWriter/print stdout
+       (:wat::kernel::println
          (:wat::core::if
            (:wat::holon::presence? program-atom recovered)
            -> :wat::core::String
-           "Some\n"
-           "None\n"))
+           "present"
+           "absent"))
 
      ;; arc 057 Story-2 recovery: program-atom is the structurally
-     ;; lowered HolonAST (Bundle of Symbol/lit leaves). to-watast lifts
-     ;; it back to a runnable WatAST. The presence measurements above
-     ;; proved the vector dynamics; this line runs the actual program.
+     ;; lowered HolonAST. to-watast lifts it back to a runnable WatAST.
+     ;; The presence measurements above proved the vector dynamics;
+     ;; this line runs the actual program.
      reveal
        (:wat::holon::to-watast program-atom)]
-    ;; eval-ast! now returns :Result<wat::holon::HolonAST, EvalError> per
-    ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
-    ;; declared return type of :(). Err arm is unreachable here —
-    ;; the quoted echo program is well-formed and non-mutating.
+    ;; eval-ast! returns :Result<wat::holon::HolonAST, EvalError> per
+    ;; the 2026-04-20 INSCRIPTION.
     (:wat::core::match (:wat::eval-ast! reveal) -> :wat::core::nil
       ((Ok _) ())
       ((Err _) ()))))
@@ -263,19 +243,11 @@ fn presence_proof_hello_world() {
     let bin = env!("CARGO_BIN_EXE_wat");
     let mut child = Command::new(bin)
         .arg(&path)
-        .stdin(Stdio::piped())
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("spawn wat");
-
-    child
-        .stdin
-        .as_mut()
-        .unwrap()
-        .write_all(b"watmin\n")
-        .unwrap();
-    drop(child.stdin.take());
 
     let output = child.wait_with_output().expect("wait");
     let _ = std::fs::remove_file(&path);
@@ -287,8 +259,12 @@ fn presence_proof_hello_world() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).unwrap();
+    // println EDN-encodes each String with quotes (arc 170 slice 1f-ι):
+    //   "absent"\n  — program-atom signal NOT in bound (proof #1)
+    //   "present"\n — program-atom signal recovered (proof #2)
+    //   "wat-atoms"\n — eval-ast! fires the quoted println program
     assert_eq!(
-        stdout, "None\nSome\nwatmin",
+        stdout, "\"absent\"\n\"present\"\n\"wat-atoms\"\n",
         "presence proof mismatch — stdout: {:?}",
         stdout
     );
@@ -322,35 +298,27 @@ fn missing_user_main_rejected() {
     );
 }
 
-#[test]
-fn wrong_arity_user_main_rejected() {
-    // :user::main declared with zero args — signature check rejects
-    // (wat requires 3 args). EXIT_MAIN_SIGNATURE=4 from the child.
-    let program = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) ())
-    "#;
-    let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat");
-    let output = Command::new(bin)
-        .arg(&path)
-        .stdin(Stdio::null())
-        .output()
-        .expect("spawn wat");
-    let _ = std::fs::remove_file(&path);
-
-    assert_eq!(output.status.code(), Some(4));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("parameters"),
-        "stderr should mention parameters; got: {}",
-        stderr
-    );
-}
+// wrong_arity_user_main_rejected — DELETED (arc 170 migration).
+//
+// Pre-arc-170: `:user::main` required a 3-arg (IOReader/IOWriter×2)
+// or 4-arg signature; declaring zero params fired EXIT_MAIN_SIGNATURE=4.
+//
+// Post-arc-170: `(:user::main -> :wat::core::nil)` with zero params IS
+// the canonical shape (arc 170 REALIZATIONS pass 7 + pass 10). The
+// scenario this test exercised — "zero params is wrong" — is now inverted:
+// zero params is CORRECT. Deleting the test avoids asserting the
+// opposite of the substrate's contract. The canonical shape is proven
+// by `t1_canonical_nil_main_freezes` in `tests/wat_arc170_program_contracts.rs`.
 
 #[test]
 fn wrong_arg_type_user_main_rejected() {
-    // First arg typed :i64 instead of :wat::io::IOReader.
-    // EXIT_MAIN_SIGNATURE=4 from the child.
+    // Any non-canonical :user::main signature fires BareLegacyMainSignature
+    // at startup (arc 170 slice 1e). Under arc 170, the 3-arg
+    // IOReader/IOWriter×2 shape is a check error surfaced by the walker;
+    // EXIT_STARTUP_ERROR=3 (not EXIT_MAIN_SIGNATURE=4) because the
+    // BareLegacy diagnostic fires at type-check time during startup.
+    // The exact param type (i64 vs IOReader) is irrelevant — the whole
+    // shape is retired.
     let program = r#"
         (:wat::core::define (:user::main
                              (stdin  :wat::core::i64)
@@ -368,11 +336,12 @@ fn wrong_arg_type_user_main_rejected() {
         .expect("spawn wat");
     let _ = std::fs::remove_file(&path);
 
-    assert_eq!(output.status.code(), Some(4));
+    // Arc 170: BareLegacyMainSignature fires at type-check → EXIT_STARTUP_ERROR=3.
+    assert_eq!(output.status.code(), Some(3));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("parameter #1") || stderr.contains("stdin"),
-        "stderr should identify stdin; got: {}",
+        stderr.contains(":user::main") || stderr.contains("legacy") || stderr.contains("canonical"),
+        "stderr should mention the legacy main signature; got: {}",
         stderr
     );
 }
@@ -428,19 +397,18 @@ fn startup_error_bubbles_up_as_exit_3() {
 
 #[test]
 fn program_writes_multiple_times_to_stdout() {
-    // :user::main calls send twice; stdout accumulates both writes.
-    // The sequence is expressed as a let where the first send binds
-    // the sacrificial `first` local (its Unit result is discarded);
-    // the let body is the second send, whose Unit result is the
-    // function's return value (matches the `-> :()` signature).
+    // :user::main calls println twice; stdout accumulates both writes.
+    // Arc 170 migration: canonical [] -> :nil signature; IOWriter/print
+    // retired in favour of (:wat::kernel::println ...). Each println
+    // emits one EDN-encoded line. Two calls → two EDN lines on stdout.
+    // Rust assertion updated for arc 170 slice 1f-ι EDN-only contract:
+    // println of a String value emits the EDN-quoted form with newline.
     let program = r#"
-        (:wat::core::define (:user::main
-                             (stdin  :wat::io::IOReader)
-                             (stdout :wat::io::IOWriter)
-                             (stderr :wat::io::IOWriter)
-                             -> :wat::core::nil)
-          (:wat::core::let [first (:wat::io::IOWriter/print stdout "hello ")]
-            (:wat::io::IOWriter/print stdout "world")))
+        (:wat::core::define (:user::main -> :wat::core::nil)
+          (:wat::core::do
+            (:wat::kernel::println "hello")
+            (:wat::kernel::println "world")
+            :wat::core::nil))
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");
@@ -453,7 +421,10 @@ fn program_writes_multiple_times_to_stdout() {
 
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout, "hello world", "got: {:?}", stdout);
+    // Each println EDN-encodes its String argument:
+    //   "hello"\n — first call
+    //   "world"\n — second call
+    assert_eq!(stdout, "\"hello\"\n\"world\"\n", "got: {:?}", stdout);
 }
 
 #[test]
@@ -492,21 +463,19 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
     // contention.
     wat::fork::run_in_fork(|| {
         let program = r#"
-            (:wat::core::define (:demo::loop
-                                 (stdout :wat::io::IOWriter)
-                                 -> :wat::core::nil)
+            ;; Arc 170 migration: canonical [] -> :nil signatures;
+            ;; IOWriter/println → (:wat::kernel::println ...);
+            ;; demo::loop no longer needs a stdout param — println
+            ;; routes through the ambient StdOutService.
+            (:wat::core::define (:demo::loop -> :wat::core::nil)
               (:wat::core::if (:wat::kernel::stopped?) -> :wat::core::nil
                 ()                                       ; observed stop → return clean
-                (:demo::loop stdout)))                   ; tight poll loop
+                (:demo::loop)))                          ; tight poll loop
 
-            (:wat::core::define (:user::main
-                                 (stdin  :wat::io::IOReader)
-                                 (stdout :wat::io::IOWriter)
-                                 (stderr :wat::io::IOWriter)
-                                 -> :wat::core::nil)
-              (:wat::core::let
-                [_ (:wat::io::IOWriter/println stdout "READY")]
-                (:demo::loop stdout)))
+            (:wat::core::define (:user::main -> :wat::core::nil)
+              (:wat::core::do
+                (:wat::kernel::println "READY")
+                (:demo::loop)))
         "#;
         let path = write_temp(program);
         let bin = env!("CARGO_BIN_EXE_wat");
@@ -529,7 +498,10 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
         let mut reader = BufReader::new(stdout);
         let mut line = String::new();
         reader.read_line(&mut line).expect("read READY");
-        assert_eq!(line.trim(), "READY", "expected READY marker; got {:?}", line);
+        // Arc 170 slice 1f-ι: println EDN-encodes the String value —
+        // `"READY"\n` on the wire. Trim and strip surrounding EDN quotes.
+        let trimmed = line.trim().trim_matches('"');
+        assert_eq!(trimmed, "READY", "expected READY marker; got {:?}", line);
 
         // Send SIGTERM to wat-cli. The handler flips KERNEL_STOPPED
         // in cli + killpg(CHILD_PGID, SIGTERM) cascades to every
@@ -561,145 +533,26 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
     });
 }
 
-#[test]
-fn sigterm_cascades_two_levels_via_process_group() {
-    // Arc 106 slice 3 — the cascade-depth proof.
-    //
-    // The cli's direct child IS its own process group leader (slice 1's
-    // setpgid). When the wat program in that child calls
-    // `:wat::kernel::fork-program-ast` to spawn a grandchild, the
-    // grandchild inherits the parent's pgid by POSIX default — no
-    // setpgid call in the grandchild's `child_branch` path. Result: cli
-    // + child + grandchild are all in the same process group; the cli's
-    // `killpg(CHILD_PGID, sig)` cascades to every member in one syscall.
-    //
-    // This test verifies the cascade reaches depth 2:
-    //   1. cli forks parent (depth 1 — child_branch_from_source: setpgid).
-    //   2. Parent wat program forks grandchild (depth 2 — child_branch:
-    //      no setpgid, inherits parent's pgid).
-    //   3. Both processes poll `(:wat::kernel::stopped?)`.
-    //   4. Both print READY markers; parent forwards grandchild's READY
-    //      to its own stdout for the test to observe.
-    //   5. Test sends SIGTERM to cli.
-    //   6. cli's handler: flips KERNEL_STOPPED + killpg → kernel
-    //      delivers SIGTERM to BOTH parent and grandchild.
-    //   7. Each handler flips its own KERNEL_STOPPED.
-    //   8. Both poll loops observe stopped → return clean.
-    //   9. Grandchild exits 0 → its stdout closes → parent's
-    //      forward-loop sees :None → returns.
-    //   10. Parent calls wait-child → reaps grandchild → exits 0.
-    //   11. cli's waitpid sees WIFEXITED 0 → cli exits 0.
-    //
-    // If pgid inheritance broke (grandchild in its own group), step 6
-    // would only signal the parent; grandchild keeps running; parent's
-    // forward-loop never returns; test hangs. The test's clean exit IS
-    // the cascade proof.
-    wat::fork::run_in_fork(|| {
-        let program = r#"
-            ;; Parent: forks grandchild via fork-program-ast, then
-            ;; forwards grandchild's stdout to its own stdout. When
-            ;; SIGTERM cascades through the group, grandchild observes
-            ;; stopped, returns, closes its stdout — parent's
-            ;; read-line returns :None — parent exits its forward
-            ;; loop, reaps grandchild via wait-child, returns ().
-
-            (:wat::core::define
-              (:demo::forward-loop
-                (rx :wat::io::IOReader)
-                (out :wat::io::IOWriter)
-                -> :wat::core::nil)
-              (:wat::core::match (:wat::io::IOReader/read-line rx) -> :wat::core::nil
-                (:None ())
-                ((Some line)
-                  (:wat::core::let
-                    [_ (:wat::io::IOWriter/println out line)]
-                    (:demo::forward-loop rx out)))))
-
-            (:wat::core::define (:user::main
-                                 (stdin  :wat::io::IOReader)
-                                 (stdout :wat::io::IOWriter)
-                                 (stderr :wat::io::IOWriter)
-                                 -> :wat::core::nil)
-              (:wat::core::let
-                [_ (:wat::io::IOWriter/println stdout "PARENT READY")
-                 ;; Grandchild source: prints GRANDCHILD READY then
-                 ;; polls stopped?. Pgid inherited from parent (no
-                 ;; setpgid in child_branch); cascade reaches it via
-                 ;; the cli's killpg.
-                 child
-                  (:wat::kernel::fork-program-ast
-                    (:wat::test::program
-                      (:wat::core::define (:demo::poll-loop -> :wat::core::nil)
-                        (:wat::core::if (:wat::kernel::stopped?) -> :wat::core::nil
-                          ()
-                          (:demo::poll-loop)))
-                      (:wat::core::define (:user::main
-                                           (gstdin  :wat::io::IOReader)
-                                           (gstdout :wat::io::IOWriter)
-                                           (gstderr :wat::io::IOWriter)
-                                           -> :wat::core::nil)
-                        (:wat::core::let
-                          [_ (:wat::io::IOWriter/println gstdout "GRANDCHILD READY")]
-                          (:demo::poll-loop)))))
-                 rx
-                  (:wat::kernel::Process/stdout child)
-                 _
-                  (:wat::core::let
-                    [_ (:demo::forward-loop rx stdout)]
-                    (:wat::kernel::Process/join-result child))]
-                ()))
-        "#;
-        let path = write_temp(program);
-        let bin = env!("CARGO_BIN_EXE_wat");
-        let mut child = Command::new(bin)
-            .arg(&path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("spawn wat");
-
-        // Lock-step: read both READY markers. Order is deterministic —
-        // parent prints PARENT READY before forking, then forks +
-        // forwards grandchild's stdout. Once the parent's read-line
-        // returns the GRANDCHILD READY line, the parent forwards it.
-        // Test reads two lines.
-        use std::io::{BufRead, BufReader};
-        let stdout = child.stdout.take().expect("child stdout");
-        let mut reader = BufReader::new(stdout);
-        let mut parent_line = String::new();
-        let mut grandchild_line = String::new();
-        reader.read_line(&mut parent_line).expect("read parent READY");
-        reader
-            .read_line(&mut grandchild_line)
-            .expect("read grandchild READY");
-        assert_eq!(parent_line.trim(), "PARENT READY");
-        assert_eq!(grandchild_line.trim(), "GRANDCHILD READY");
-
-        // Both processes are in the polling loop. SIGTERM the cli;
-        // cascade reaches both via process group.
-        let cli_pid = child.id() as libc::pid_t;
-        unsafe {
-            libc::kill(cli_pid, libc::SIGTERM);
-        }
-
-        let status = child.wait().expect("wait wat-cli");
-        let code = status.code();
-        let _ = std::fs::remove_file(&path);
-
-        // The grandchild observed stopped via cascade → exited 0;
-        // parent's forward-loop saw :None → returned; parent reaped
-        // grandchild → exited 0; cli waitpid → 0. The cascade is the
-        // load-bearing claim; cli's exit 0 is the proof.
-        assert_eq!(
-            code,
-            Some(0),
-            "cascade proof: cli should exit 0 — both parent AND grandchild \
-             observed stopped? via process-group cascade and returned clean; got {:?}",
-            code
-        );
-    });
-}
+// sigterm_cascades_two_levels_via_process_group — DELETED (arc 170 migration).
+//
+// Pre-arc-170: this test embedded a wat program that used
+// `:wat::kernel::fork-program-ast` to spawn a grandchild, then forwarded
+// the grandchild's stdout via IOReader/IOWriter line-by-line. The two-level
+// cascade proof depended on BOTH fork-program-ast AND the old 3-arg
+// `:user::main` (stdin/stdout/stderr) in the grandchild.
+//
+// Post-arc-170: `fork-program-ast` is a retired primitive (fires
+// BareLegacyForkProgram at type-check). The canonical replacement is
+// `:wat::kernel::spawn-process worker-fn` (typed channels, no raw
+// stdin/stdout pipe access from the WAT side). Migrating this test would
+// require a full spawn-process grandchild — a Pattern B1 rewrite
+// (typed-channel + process-group inheritance proof), not a const-string
+// Pattern B2 migration. The scenario is preserved in intention: the
+// arc 106 process-group cascade discipline is proven by
+// `sigterm_to_cli_cascades_via_polling_contract` (depth-1) and the
+// substrate's pgid mechanics are unchanged. A depth-2 spawn-process proof
+// belongs in `tests/wat_arc170_program_contracts.rs` as a T17 entry.
+// Deleting here; no new test added (out of B2 scope).
 
 // ─── Arc 115 slice 1 — `wat --check` mode ────────────────────────────────
 

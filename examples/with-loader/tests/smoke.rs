@@ -22,9 +22,12 @@ fn with_loader_example_loads_helper_and_prints_greeting() {
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    // Arc 170 slice 1f-ι EDN-only contract: println EDN-encodes the
+    // String value → `"hello, wat-loaded"` (with literal double-quotes)
+    // followed by a newline.
     assert_eq!(
         stdout.as_ref(),
-        "hello, wat-loaded\n",
+        "\"hello, wat-loaded\"\n",
         "unexpected stdout (stderr: {:?})",
         String::from_utf8_lossy(&output.stderr),
     );

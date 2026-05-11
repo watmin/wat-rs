@@ -4,21 +4,13 @@
 ;; under arc 018's defaults.
 ;;
 ;; Run: `cargo run -p with-loader-example`. Expected stdout:
-;; `hello, wat-loaded`.
+;; `"hello, wat-loaded"` (EDN-encoded String, arc 170 slice 1f-ι).
 ;;
-;; This entry file is what the macro reads as `source:` —
-;; `wat::main! {}` defaults `source:` to `include_str!(<crate>/wat/
-;; main.wat)`. The `(:wat::load-file! "helper.wat")` below resolves
-;; through the ScopedLoader that the macro's default `loader: "wat"`
-;; constructs — rooted at the sibling `wat/` directory. So
-;; `"helper.wat"` means `./wat/helper.wat` on disk.
-
+;; Arc 170 migration: canonical [] -> :nil signature; IOWriter/println
+;; retired in favour of (:wat::kernel::println ...). argv is ambient
+;; (not a parameter). println emits the EDN-encoded form of the String.
 
 (:wat::load-file! "helper.wat")
 
-(:wat::core::define (:user::main
-                     (stdin  :wat::io::IOReader)
-                     (stdout :wat::io::IOWriter)
-                     (stderr :wat::io::IOWriter)
-                     -> :wat::core::nil)
-  (:wat::io::IOWriter/println stdout (:user::with_loader::helper::greeting)))
+(:wat::core::define (:user::main -> :wat::core::nil)
+  (:wat::kernel::println (:user::with_loader::helper::greeting)))

@@ -30,10 +30,13 @@ fn with_lru_example_prints_hit() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("stdout utf-8");
+    // Arc 170 slice 1f-ι EDN-only contract: println EDN-encodes the
+    // String value → `"hit"` (with literal double-quotes). trim() removes
+    // the trailing newline; remaining text is the EDN-quoted string.
     assert_eq!(
         stdout.trim(),
-        "hit",
-        "expected stdout `hit`; got {:?}; stderr: {}",
+        "\"hit\"",
+        "expected stdout `\"hit\"`; got {:?}; stderr: {}",
         stdout,
         String::from_utf8_lossy(&output.stderr)
     );
