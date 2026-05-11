@@ -684,3 +684,80 @@ fn t11_legacy_main_signature_fires_walker_diagnostic() {
         err
     );
 }
+
+// ─── T12. spawn-process(fn) — child emits without recv'ing first ──────
+//
+// Slice 1f-λ rebuild for the arc-104 fork_program_child_writes_stdout
+// scenario. Under arc 170 the child's "stdout" is a typed Sender<T>;
+// the child sends one value via tx without first reading rx. The rx
+// channel exists per the contract shape but goes unread.
+
+#[test]
+fn t12_spawn_process_child_emits_without_recv() {
+    let src = r#"
+        (:wat::core::defn :my::emit-hello
+          [rx <- :wat::kernel::Receiver<wat::core::nil>
+           tx <- :wat::kernel::Sender<wat::core::String>]
+          -> :wat::core::nil
+          (:wat::core::let
+            [_send
+              (:wat::core::Result/expect -> :wat::core::nil
+                (:wat::kernel::send tx "hello-from-fork")
+                "send failed")]
+            :wat::core::nil))
+    "#;
+    let world = freeze_ok(src);
+    let call = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
+            WatAST::Keyword(":my::emit-hello".into(), wat::span::Span::unknown()),
+        ],
+        wat::span::Span::unknown(),
+    );
+    let env = Environment::new();
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let types = world.symbols().types().map(|a| a.as_ref());
+    let response = drive_typed_recv(unwrap_receiver_inner(process_rx_field(&process)), types);
+    match response {
+        Value::String(s) => assert_eq!(&*s, "hello-from-fork", "expected hello-from-fork; got {:?}", s),
+        other => panic!("expected String; got {:?}", other),
+    }
+    wait_child_exit_ok(process_handle_field(&process));
+}
+
+// ─── T13. spawn-process(fn) — child exits clean on parent tx-drop ─────
+//
+// Slice 1f-λ rebuild for the arc-104 fork_program_clean_exit_code
+// scenario. Child waits on rx; parent drops the Process (which drops
+// its Sender side) → child's rx surfaces a disconnect; child returns
+// nil; wait_child_exit_ok confirms exit code 0.
+
+#[test]
+fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
+    let src = r#"
+        (:wat::core::defn :my::wait-for-disconnect
+          [rx <- :wat::kernel::Receiver<wat::core::nil>
+           tx <- :wat::kernel::Sender<wat::core::nil>]
+          -> :wat::core::nil
+          (:wat::core::match (:wat::kernel::recv rx)
+            -> :wat::core::nil
+            ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+            ((:wat::core::Ok (:wat::core::Some _)) :wat::core::nil)
+            ((:wat::core::Err _) :wat::core::nil)))
+    "#;
+    let world = freeze_ok(src);
+    let call = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
+            WatAST::Keyword(":my::wait-for-disconnect".into(), wat::span::Span::unknown()),
+        ],
+        wat::span::Span::unknown(),
+    );
+    let env = Environment::new();
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let handle = process_handle_field(&process);
+    // Parent does NOT send anything; drop process Struct → tx drops →
+    // child's rx surfaces Disconnected → child returns nil → exit 0.
+    drop(process);
+    wait_child_exit_ok(handle);
+}
