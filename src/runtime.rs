@@ -2259,6 +2259,17 @@ fn preregister_fn_defs_in_do(
             if !sym.functions.contains_key(&path) {
                 sym.functions.insert(path, func);
             }
+        } else if is_define_form(child) {
+            // Arc 170 slice 3 Gap E — also handle legacy `(:wat::core::define ...)` forms.
+            // `parse_define_form` takes ownership, so clone the child (it stays in `rest`).
+            let (path, func) = parse_define_form(child.clone())?;
+            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
+                let span = child.span().clone();
+                return Err(RuntimeError::ReservedPrefix(path, span));
+            }
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path, func);
+            }
         } else if let WatAST::List(nested_items, _) = child {
             // Recurse into nested do forms.
             if matches!(
@@ -2300,6 +2311,17 @@ fn preregister_fn_defs_in_let(
     // items[2..] = body forms (arc 168 multi-form body)
     for child in items.get(2..).unwrap_or(&[]) {
         if let Some((path, func)) = try_parse_fn_shape_def(child) {
+            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
+                let span = child.span().clone();
+                return Err(RuntimeError::ReservedPrefix(path, span));
+            }
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path, func);
+            }
+        } else if is_define_form(child) {
+            // Arc 170 slice 3 Gap E — also handle legacy `(:wat::core::define ...)` forms.
+            // `parse_define_form` takes ownership, so clone the child (it stays in `rest`).
+            let (path, func) = parse_define_form(child.clone())?;
             if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
                 let span = child.span().clone();
                 return Err(RuntimeError::ReservedPrefix(path, span));
