@@ -224,14 +224,40 @@ All 14 variants enumerated. Push counts verified active for every one:
 
 ## Priority queue
 
-1. **Phase G-console** (NEXT) — mint `BareLegacyConsolePath` walker + sweep ~20 doc hits. Highest acuteness (no walker = cold cliff). Estimated 60-90 min sonnet.
-2. **Phase G-stream** — sweep `:wat::std::stream::*` doc rot (5 hits). Walker fires, so less urgent than console. Estimated 30-45 min.
-3. **Phase G-lambda-docstrings** — sweep eval_fn/infer_fn docstring lies + 7 lambda doc references. Estimated 30-45 min.
-4. **Phase G-wat-std-paths** — sweep `wat/std/` phantom paths + `fork-with-forms` phantom verb (13 hits across README + 5 docs). Estimated 30-45 min.
-5. **Phase G-fork-program-walker-notes** — add walker-fires notes to fork-program/spawn-program doc references (6 hits). Estimated 20-30 min.
-6. **Slice 4 destructive reap** (already queued; folds in `eval_kernel_wait_child` removal + BareLegacy* fork/spawn-program walker retirement)
+**Two-phase sequencing** (user direction 2026-05-12):
 
-Phases G-* can ship sequentially or be bundled. After all retirement-theater is drained, return to arc 170 forward work: Phase E V3 deftest → Phase F retire run-sandboxed → Slice 4 → Slice 5 INSCRIPTION.
+### Phase 1 — Drain the lies (current focus)
+
+These are doc/text rot from claimed retirements; substrate is already correct. Pure Bucket B work. Sequence them, then resume 170 forward work.
+
+1. **Phase G-console** ✅ shipped (`b4ea6a4`) — minted `BareLegacyConsolePath` walker + swept 10 files. Cliff sealed.
+2. **Phase G-stream** (running) — sweep `:wat::std::stream::*` doc rot (~25 hits across 4 files). Walker already fires. Estimated 30-50 min.
+3. **Phase G-lambda-docstrings** — sweep eval_fn/infer_fn docstring lies + 7 lambda doc references (9 total hits). Walker already fires; this kills the docstring-level lies. Estimated 30-45 min.
+4. **Phase G-wat-std-paths** — sweep `wat/std/` phantom paths + `fork-with-forms` phantom verb (13 hits across README + 5 docs + substrate comments). Estimated 30-45 min.
+
+**Phase 1 closes when Phase G-wat-std-paths ships.** All 48 audit findings drained except the items deliberately deferred to Phase 2 (substrate dead code + fork-program walker-fires notes).
+
+### Phase 2 — Resume paused arc 170 forward work
+
+After Phase G drains. The paused queue from before the retirement-theater pivot:
+
+5. **Phase E V3** — deftest macro rewrite (now unblocked by Gap C V2 / Gap D `do`/`let` splice support from `daa973d` predecessors)
+6. **Phase F** — retire `:wat::kernel::run-sandboxed-*` substrate verbs
+7. **Slice 4** — destructive reap. Folds in:
+   - `eval_kernel_wait_child` orphan dead Rust fn (src/fork.rs:258-290; promised at runtime.rs:3898-3902 "removed in slice 5 closure" — pre-INSCRIPTION grep will catch if missed)
+   - BareLegacyForkProgram + BareLegacySpawnProgram retirement (stdlib calls retire here)
+   - BareLegacyLegacy* walker retirement per "we remove its raised exceptions when arc 109 is completed" (user direction 2026-05-11)
+   - Process<I,O> legacy field cleanup
+   - src/spawn.rs orphaned scaffolding
+8. **Phase G-fork-program-walker-notes** — sweep 6 doc hits adding walker-fires notes to fork-program/spawn-program doc references. **Deferred to AFTER Slice 4** because the notes describe "user code calls these → walker diagnostic" — fully accurate only once Slice 4 retires the stdlib runtime arms. Estimated 20-30 min.
+9. **Slice 5** — arc 170 INSCRIPTION
+
+### Rationale for the split
+
+- `eval_kernel_wait_child` is NOT a lie right now — the substrate comment honestly states "left for now... removed in slice 5 closure" with a specific deadline. Recovery-doc FM 11 pre-INSCRIPTION grep enforces the deadline at slice 4/5 close. Different shape from the 48 audit findings (which were *claims* that didn't hold).
+- Fork-program walker-fires notes are most accurate AFTER Slice 4 retires the stdlib runtime arms, since the notes describe full retirement state.
+- Phase G-* slices stay tight (pure doc work); substrate-level work clusters in Slice 4.
+- Phase G drains in ~2-3 hours of total sonnet work; Phase 2 (forward work) resumes from a textually-clean baseline.
 
 ---
 
