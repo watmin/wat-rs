@@ -92,13 +92,25 @@ Demonstrate the swap end-to-end. A REPL program that:
 
 Closure paperwork.
 
+## Update 2026-05-13 — companion arcs opened
+
+This stub captures Layer 1 (bare exec-program). Subsequent conversation surfaced three additional layers; each opened as its own arc:
+- **Arc 192** — state-preserving exec (`exec-program-with-state`) + SignalService (SIGEMT delivery). Layered on 191.
+- **Arc 193** — universe image dump/resume (Smalltalk-style image-based persistence). Orthogonal capability.
+- **Arc 194** — orchestrated `exec` primitive + wat-side worker/supervisor library. Layered on 192. The user-facing one — does signal cascade + state collection + exec all-in-one.
+
+The reload signal convention settled in conversation: **SIGEMT** ("emulator trap" — wat-cli is an emulator/interpreter for wat-land; SIGEMT is the host interrupting the guest, semantically aligned with what reload IS). Captured in arc 192's DESIGN.
+
+The live-thread design question (below) is partially superseded by arc 194's cooperative migration model. This stub retains the original framing for historical context; the recommended path for hot reload involves arc 194's `spawn-with-state` + loop-with-shutdown idiom.
+
 ## Open design questions (resolve before slice 3)
 
-1. **Live-thread handling at exec.** Three options:
-   - **(a) Refuse exec if any spawn-threads are alive.** Cleanest; user explicitly drains before exec. Compatible with the REPL conversational pattern (user can stop background threads before swap).
+1. **Live-thread handling at exec.** Four options (option (d) emerged in 2026-05-13 conversation, captured in arc 194):
+   - **(a) Refuse exec if any spawn-threads are alive.** Cleanest; user explicitly drains before exec. Compatible with the REPL conversational pattern (user can stop background threads before swap). DEFAULT for arc 191's bare primitive.
    - **(b) Wait for threads to complete.** Might never finish; turns exec into a blocking operation of unbounded duration.
    - **(c) Kill threads via the cascade mechanism** (memory `project_signal_cascade.md` — POSIX pgid + killpg).
-   - **Recommendation:** start with (a). Add (c) later if a use case demands it. (b) is probably never right.
+   - **(d) Cooperative migration** — compliant threads register a state-capture/resume-from interface; on reload signal they emit state and exit; substrate carries state over to new universe. Erlang/OTP supervisor pattern. Builds on arc 192's exec-program-with-state + arc 192a's SignalService. Captured fully in arc 194.
+   - **Recommendation for arc 191:** start with (a) for bare exec. Arc 194 layers (d) on top as the user-facing pattern.
 
 2. **Live-channel handling at exec.** Senders/Receivers owned by the current universe are part of the call stack being unwound. Receivers in OTHER processes (spawn-process'd children) see `Disconnected`. This is the same semantics as the universe exiting normally — children must already handle parent-disconnect. Probably no new policy needed; document as natural fall-out.
 
