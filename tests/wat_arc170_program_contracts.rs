@@ -975,6 +975,200 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     );
 }
 
+// ─── T18. run-hermetic-with-io — Layer 2 testing-lib API (arc 170 slice 3 phase D)
+//
+// Canonical Layer 2 test: typed-channel I/O round-trip via run-hermetic-with-io.
+// The macro takes full Receiver<I>/Sender<O> type keywords + inputs + body.
+// The child recvs 21, sends 21*2=42, returns nil. The parent sends [21] and
+// drains [42]. RunResultIO.outputs = [42]; RunResultIO.failure = None.
+//
+// Surface form exercised (D1 decision: full channel-type keywords):
+//   (:wat::test::run-hermetic-with-io
+//     :wat::kernel::Receiver<wat::core::i64>
+//     :wat::kernel::Sender<wat::core::i64>
+//     (:wat::core::Vector :wat::core::i64 21)
+//     <body that recvs n and sends n*2>)
+//
+// D3 ordering: send all inputs → drain all outputs → join → drain stderr.
+// Works for bounded single-send/single-recv scenario. Child exits after
+// processing, dropping its tx, which signals EOF to the parent's drain.
+
+#[test]
+fn t18_run_hermetic_with_io_layer2_echo_doubled() {
+    // Define a function that uses run-hermetic-with-io to send 21 to the
+    // child, have it double the value, and return the result.
+    // The child: recv n, send n*2, return nil.
+    // Parent assertion: outputs == [42], failure == None.
+    let src = r#"
+        (:wat::core::define (:my::test::echo-doubled -> :wat::test::RunResultIO<wat::core::i64>)
+          (:wat::test::run-hermetic-with-io
+            :wat::kernel::Receiver<wat::core::i64>
+            :wat::kernel::Sender<wat::core::i64>
+            (:wat::core::Vector :wat::core::i64 21)
+            (:wat::core::let
+              [n
+                (:wat::core::Option/expect -> :wat::core::i64
+                  (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
+                    (:wat::kernel::recv rx)
+                    "recv failed")
+                  "stream closed")
+               _
+                (:wat::core::Result/expect -> :wat::core::nil
+                  (:wat::kernel::send tx (:wat::core::i64::*'2 n 2))
+                  "send failed")]
+              :wat::core::nil)))
+    "#;
+    let world = freeze_ok(src);
+    let func = world
+        .symbols()
+        .get(":my::test::echo-doubled")
+        .expect(":my::test::echo-doubled defined");
+    let result = wat::runtime::apply_function(
+        func.clone(),
+        Vec::new(),
+        world.symbols(),
+        wat::span::Span::unknown(),
+    )
+    .expect("run-hermetic-with-io should succeed");
+
+    // result is a :wat::test::RunResultIO<i64> { outputs stderr failure }
+    let sv = match &result {
+        wat::runtime::Value::Struct(s) if s.type_name == ":wat::test::RunResultIO" => s,
+        other => panic!("expected RunResultIO Struct; got {:?}", other),
+    };
+
+    // field 0 = outputs :Vector<i64> — must contain exactly [42].
+    let outputs = match &sv.fields[0] {
+        wat::runtime::Value::Vec(v) => v.as_ref(),
+        other => panic!("expected Vec outputs field; got {:?}", other),
+    };
+    assert_eq!(
+        outputs.len(),
+        1,
+        "expected exactly one output value; got {}",
+        outputs.len()
+    );
+    match &outputs[0] {
+        wat::runtime::Value::i64(n) => assert_eq!(
+            *n, 42,
+            "expected output 42 (21 * 2); got {}",
+            n
+        ),
+        other => panic!("expected i64 output; got {:?}", other),
+    }
+
+    // field 2 = failure :Option<Failure> — must be None (child exited cleanly).
+    let failure_field = &sv.fields[2];
+    let is_none = match failure_field {
+        wat::runtime::Value::Option(opt) => opt.as_ref().is_none(),
+        other => panic!("expected Option failure field; got {:?}", other),
+    };
+    assert!(
+        is_none,
+        "expected passing round-trip to produce RunResultIO with failure=None; got {:?}",
+        result
+    );
+}
+
+#[test]
+fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
+    // Complementary to T18: a failing assertion inside the Layer 2 body.
+    // The child recvs 2 (from inputs), then assert-eq n 3 fails (2 != 3).
+    // The child panics before sending any output, so outputs is empty.
+    // The structured panic chain is emitted to stderr (spawn_process.rs
+    // emit_panics_to_stderr, phase C′). extract-panics rebuilds the chain;
+    // RunResultIO.failure is Some(Failure) with the assert-eq diagnostic.
+    //
+    // T18b also documents D3 honest delta: when the child panics before
+    // sending, outputs Vec is empty (the send never happened).
+    let src = r#"
+        (:wat::core::define (:my::test::recv-assert-fail -> :wat::test::RunResultIO<wat::core::i64>)
+          (:wat::test::run-hermetic-with-io
+            :wat::kernel::Receiver<wat::core::i64>
+            :wat::kernel::Sender<wat::core::i64>
+            (:wat::core::Vector :wat::core::i64 2)
+            (:wat::core::let
+              [n
+                (:wat::core::Option/expect -> :wat::core::i64
+                  (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
+                    (:wat::kernel::recv rx)
+                    "recv failed")
+                  "stream closed")
+               ;; assert-eq: n=2 vs expected=3 — this fails, child panics
+               _
+                (:wat::test::assert-eq n 3)
+               ;; send never reached:
+               _2
+                (:wat::core::Result/expect -> :wat::core::nil
+                  (:wat::kernel::send tx n)
+                  "send failed")]
+              :wat::core::nil)))
+    "#;
+    let world = freeze_ok(src);
+    let func = world
+        .symbols()
+        .get(":my::test::recv-assert-fail")
+        .expect(":my::test::recv-assert-fail defined");
+    let result = wat::runtime::apply_function(
+        func.clone(),
+        Vec::new(),
+        world.symbols(),
+        wat::span::Span::unknown(),
+    )
+    .expect("run-hermetic-with-io driver should not itself panic");
+
+    let sv = match &result {
+        wat::runtime::Value::Struct(s) if s.type_name == ":wat::test::RunResultIO" => s,
+        other => panic!("expected RunResultIO Struct; got {:?}", other),
+    };
+
+    // field 0 = outputs :Vector<i64> — child panicked before send, so empty.
+    let outputs = match &sv.fields[0] {
+        wat::runtime::Value::Vec(v) => v.as_ref(),
+        other => panic!("expected Vec outputs field; got {:?}", other),
+    };
+    assert_eq!(
+        outputs.len(),
+        0,
+        "expected no outputs (child panicked before send); got {} outputs",
+        outputs.len()
+    );
+
+    // field 2 = failure :Option<Failure> — must be Some (child panicked).
+    let failure_field = &sv.fields[2];
+    let failure_val = match failure_field {
+        wat::runtime::Value::Option(opt) => match opt.as_ref() {
+            Some(v) => v,
+            None => panic!("expected failing assertion to produce Some(Failure); got None"),
+        },
+        other => panic!("expected Option failure field; got {:?}", other),
+    };
+
+    // Failure struct must have the correct type_name.
+    let failure_struct = match failure_val {
+        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Failure" => s,
+        other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
+    };
+
+    // Failure.message (field 0) must carry the structured assert-eq diagnostic.
+    // Phase C′ emit_panics_to_stderr is active for spawn_process; Layer 2
+    // bodies surface the full assertion diagnostic (same as Layer 1 post-C′).
+    let message = match &failure_struct.fields[0] {
+        wat::runtime::Value::String(s) => s.to_string(),
+        other => panic!("expected Failure.message :String; got {:?}", other),
+    };
+    assert!(
+        !message.contains("forked program exited"),
+        "expected structured assert-eq message; got exit-code fallback: {}",
+        message
+    );
+    assert!(
+        message.contains("assert") || message.contains("AssertionFailed"),
+        "expected message to mention assert/AssertionFailed; got: {}",
+        message
+    );
+}
+
 // ─── T16. spawn-process(fn) — multiple sequential spawns, no fd/zombie leak
 //
 // Slice 1f-λ rebuild for the arc-012 multiple_sequential_forks_no_leak

@@ -567,3 +567,204 @@
           _tx <- :wat::kernel::Sender<wat::core::nil>]
          -> :wat::core::nil
          ~body))))
+
+;; ─── Layer 2 — run-hermetic-with-io ────────────────────────────────────
+;;
+;; Arc 170 slice 3 phase D: the 9% case macro. Builds on Phase C's
+;; Layer 1 foundation. Adds typed-channel I/O: the child body has
+;; rx :Receiver<I> and tx :Sender<O> in scope; the parent sends all
+;; inputs via the Process's tx channel and drains all outputs from
+;; the Process's rx channel.
+;;
+;; Decision D1 — macro type-param shape:
+;;   Option A.1 selected: the macro takes the FULL channel type keywords
+;;   for the fn signature (4 args: rx-type, tx-type, inputs, body). The
+;;   user passes:
+;;     rx-type — the full Receiver type keyword e.g. :Receiver<i64>
+;;     tx-type — the full Sender type keyword e.g. :Sender<i64>
+;;     inputs  — the input Vector<I> expression
+;;     body    — the child body AST (with rx and tx in scope)
+;;
+;;   The aspirational form `(run-hermetic-with-io :i64 :i64 inputs body)` with
+;;   inner type args ONLY would require constructing `Receiver<i64>` and
+;;   `Sender<i64>` keywords from the inner type at macro-expand time.
+;;   No `keyword::from-string` or string->keyword verb exists in the
+;;   substrate (honest delta D1). Full channel-type keywords are required.
+;;   No separate O type arg is needed — the driver infers O from the
+;;   process's typed channels (O flows from the Sender<O> in tx-type).
+;;
+;; Decision D2 — RunResultIO registration:
+;;   Rust-side StructDef in src/types.rs (same as RunResult). Chosen
+;;   because it auto-generates accessors via register_struct_methods and
+;;   gives the struct first-class status without a wat-side `:struct` form.
+;;
+;; Decision D3 — send/drain ordering:
+;;   Sequential: send all inputs → drain all outputs → join → drain stderr.
+;;   Safe for bounded I/O (T18: single send, single recv). The child exits
+;;   after processing, dropping its tx, which signals EOF to the parent's
+;;   drain. Join then returns immediately.
+;;
+;;   Honest delta: if the child reads rx to EOF (loop until Ok(None))
+;;   and the parent's tx is never closed, the child would deadlock.
+;;   Closing the parent's tx requires dropping the Sender Value, which
+;;   is not expressible in wat's function-scope bindings. This pattern
+;;   (child reads to EOF) is NOT the T18 case — T18's child reads exactly
+;;   one value and exits. Threaded drain (concurrent send + recv) is the
+;;   correct fix for the EOF-reading pattern; deferred to a future arc.
+
+;; ── run-hermetic-send-inputs ─────────────────────────────────────────────
+;;
+;; Tail-recursive helper that sends every element of `inputs` to `tx`.
+;; Panics on send failure (disconnected — child exited before receiving
+;; all inputs; this is a usage error in the caller's test scenario).
+;; Called exclusively from run-hermetic-with-io-driver.
+;;
+;; Note: (:wat::core::first vec) returns Option<I> (arc 047 honest
+;; absence design). We use Option/expect to unwrap since we only call
+;; first after confirming Vector/empty? is false.
+(:wat::core::define
+  (:wat::test::run-hermetic-send-inputs<I>
+    (tx :wat::kernel::Sender<I>)
+    (inputs :wat::core::Vector<I>)
+    -> :wat::core::nil)
+  (:wat::core::if (:wat::core::Vector/empty? inputs)
+    -> :wat::core::nil
+    :wat::core::nil
+    (:wat::core::let
+      [item
+        (:wat::core::Option/expect -> :I
+          (:wat::core::first inputs)
+          "run-hermetic-send-inputs: first of non-empty vector was None (substrate bug)")
+       rest (:wat::core::rest inputs)
+       _
+        (:wat::core::Result/expect -> :wat::core::nil
+          (:wat::kernel::send tx item)
+          "run-hermetic-send-inputs: send failed — child disconnected")]
+      (:wat::test::run-hermetic-send-inputs tx rest))))
+
+;; ── run-hermetic-drain-outputs ───────────────────────────────────────────
+;;
+;; Tail-recursive drain of a Receiver<O> into a Vector<O>. Mirrors
+;; :wat::stream::collect-drain<T> from stream.wat. Reads until the
+;; channel is disconnected (child exited; tx dropped) or signals Ok(None).
+;; Accumulates outputs into `acc` and returns when the stream is exhausted.
+;; Called exclusively from run-hermetic-with-io-driver.
+(:wat::core::define
+  (:wat::test::run-hermetic-drain-outputs<O>
+    (rx :wat::kernel::Receiver<O>)
+    (acc :wat::core::Vector<O>)
+    -> :wat::core::Vector<O>)
+  (:wat::core::match (:wat::kernel::recv rx)
+    -> :wat::core::Vector<O>
+    ((:wat::core::Ok (:wat::core::Some v))
+     (:wat::test::run-hermetic-drain-outputs rx (:wat::core::conj acc v)))
+    ((:wat::core::Ok :wat::core::None) acc)
+    ((:wat::core::Err _died) acc)))
+
+;; ── run-hermetic-with-io-driver ──────────────────────────────────────────
+;;
+;; Internal driver for Layer 2. Receives an already-spawned Process<I,O>
+;; and the inputs Vector<I>. Orchestrates the I/O round-trip:
+;;   1. Send each input to the child via Process/tx.
+;;   2. Drain outputs from Process/rx until disconnect (child exited).
+;;   3. Join via Process/join-result (child has already exited by step 2).
+;;   4. Drain stderr; rebuild panic chain via extract-panics.
+;;   5. Assemble :wat::test::RunResultIO with outputs + stderr + failure.
+;;
+;; D3 ordering — sequential (send → drain → join → drain-stderr):
+;;   Works for T18's bounded I/O (one send, one recv). The child exits
+;;   after processing all inputs, dropping its tx. The drain-outputs sees
+;;   Ok(None) (EOF) and returns. Join then finds the child already exited.
+;;
+;; Note: Process/stdout is the byte-pipe view of the output channel
+;; (legacy arc 170 slice 1c additive field). Layer 2 does NOT drain
+;; stdout-as-string-lines — it drains outputs via typed-channel recv.
+;; The RunResultIO carries outputs :Vector<O> instead of stdout :Vector<String>.
+(:wat::core::define
+  (:wat::test::run-hermetic-with-io-driver<I,O>
+    (proc :wat::kernel::Process<I,O>)
+    (inputs :wat::core::Vector<I>)
+    -> :wat::test::RunResultIO<O>)
+  (:wat::core::let
+    [tx             (:wat::kernel::Process/tx proc)
+     _              (:wat::test::run-hermetic-send-inputs tx inputs)
+     rx             (:wat::kernel::Process/rx proc)
+     outputs        (:wat::test::run-hermetic-drain-outputs rx (:wat::core::Vector :O))
+     joined-result  (:wat::kernel::Process/join-result proc)
+     stderr-r       (:wat::kernel::Process/stderr proc)
+     stderr-lines   (:wat::kernel::drain-lines stderr-r)
+     stderr-chain   (:wat::kernel::extract-panics stderr-lines)
+     failure
+      (:wat::core::match joined-result
+        -> :wat::core::Option<wat::kernel::Failure>
+        ((:wat::core::Ok _) :wat::core::None)
+        ((:wat::core::Err chain)
+         (:wat::core::Some
+           (:wat::kernel::failure-from-process-died
+             (:wat::core::match stderr-chain
+               -> :wat::core::Vector<wat::kernel::ProcessDiedError>
+               ((:wat::core::Some sc) sc)
+               (:wat::core::None      chain))))))]
+    (:wat::core::struct-new :wat::test::RunResultIO
+      outputs stderr-lines failure)))
+
+;; ── run-hermetic-with-io macro ───────────────────────────────────────────
+;;
+;; Layer 2 entry point (the 9% case). User writes the body with rx and tx
+;; in scope. The macro generates the fn-form wrapper, spawns a hermetic
+;; OS process, sends inputs, drains outputs, and returns RunResultIO<O>.
+;;
+;; Canonical call form (D1 decision: full channel type keywords, 4 args):
+;;
+;;   (:wat::test::run-hermetic-with-io
+;;     :wat::kernel::Receiver<wat::core::i64>   ;; rx param type
+;;     :wat::kernel::Sender<wat::core::i64>     ;; tx param type
+;;     (:wat::core::Vector :wat::core::i64 21)  ;; inputs Vector<I>
+;;     (:wat::core::let
+;;       [n (:wat::core::Option/expect -> :wat::core::i64
+;;             (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
+;;               (:wat::kernel::recv rx) "recv failed")
+;;             "stream closed")
+;;        _ (:wat::core::Result/expect -> :wat::core::nil
+;;             (:wat::kernel::send tx (:wat::core::i64::*'2 n 2)) "send failed")]
+;;       :wat::core::nil))
+;;
+;; Expands to:
+;;   (:wat::test::run-hermetic-with-io-driver
+;;     (:wat::kernel::spawn-process
+;;       (:wat::core::fn
+;;         [rx <- :wat::kernel::Receiver<wat::core::i64>
+;;          tx <- :wat::kernel::Sender<wat::core::i64>]
+;;         -> :wat::core::nil
+;;         <body>))
+;;     <inputs>)
+;;
+;; The rx-type and tx-type are spliced into the fn-form's parameter vector
+;; via quasiquote unquote (~rx-type, ~tx-type). The driver's return type
+;; :RunResultIO<O> is inferred by the type checker from the Process<I,O>
+;; argument (O flows from the Sender<O> in tx-type). No separate o-type
+;; arg is needed — the driver infers O from the process's typed channels.
+;;
+;; D1 honest delta: the aspirational form `(run-hermetic-with-io :i64 :i64 ...)`
+;; with INNER element types only requires constructing `Receiver<i64>` and
+;; `Sender<i64>` keywords from the inner type at macro-expand time. No
+;; `keyword::from-string` verb exists in the substrate, so inner-type-only
+;; form is a substrate gap. Full channel-type keywords are required instead.
+;;
+;; DO NOT MODIFY run-hermetic (Layer 1) above — this is an ADDITION.
+;; DO NOT touch deftest / deftest-hermetic macro definitions (phase E).
+(:wat::core::defmacro
+  (:wat::test::run-hermetic-with-io
+    (rx-type :AST<wat::core::nil>)
+    (tx-type :AST<wat::core::nil>)
+    (inputs  :AST<wat::core::nil>)
+    (body    :AST<wat::core::nil>)
+    -> :AST<wat::core::nil>)
+  `(:wat::test::run-hermetic-with-io-driver
+     (:wat::kernel::spawn-process
+       (:wat::core::fn
+         [rx <- ~rx-type
+          tx <- ~tx-type]
+         -> :wat::core::nil
+         ~body))
+     ~inputs))
