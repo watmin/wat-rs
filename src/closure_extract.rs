@@ -277,15 +277,52 @@ pub fn extract_closure(
     // entry_form is assembled so the rewritten body is what flows
     // into either the keyword-path entry-define (in prologue) or the
     // inline-lambda fn-form AST (entry_form).
+    //
+    // Capture rewrite runs on the FULL body (including any prelude
+    // forms) so that define/struct/enum forms referencing closed-env
+    // captures are rewritten BEFORE the Gap H prelude-lift extracts
+    // them from the body.
     let rewritten_body = rewrite_captures(&func.body, &state.captured_bindings, &body_locals);
+
+    // Arc 170 slice 3 Gap H — lift fn body prelude forms into prologue.
+    //
+    // If the fn body is a `(:wat::core::do ...)` form whose leading
+    // children are `define` / `struct` / `enum` declarations (the
+    // "prelude prefix"), those forms cannot be evaluated at child
+    // runtime: `eval_do_tail` returns `DefineInExpressionPosition`
+    // for any `(:wat::core::define ...)` at expression position.
+    //
+    // Fix: extract the leading prelude run from the rewritten body and
+    // place the forms into `body_prelude_forms` for later insertion
+    // into the prologue. The residual body (pure expressions after the
+    // prelude run) becomes the fn's actual body in the entry_form.
+    //
+    // Capture rewrite has ALREADY run above; lifted forms that
+    // reference closed-env captures already carry the rewritten
+    // synthetic keyword form (`:__captured_X`). Captured_binding
+    // defines are in the prologue BEFORE the lifted prelude forms
+    // (prologue assembly step 2 precedes step 5 below), so the
+    // `:__captured_X` keyword resolves correctly at child startup.
+    //
+    // Non-do bodies (single expression, let, etc.) are left unchanged:
+    // `split_body_prelude` returns (empty, body) for non-do shapes.
+    let (body_prelude_forms, final_body) = split_body_prelude(rewritten_body);
 
     // Assemble prologue in topological order:
     //   1. Type definitions (types in topological order)
     //   2. Captured-binding defines (`(def :__captured_X <encoded>)`)
     //   3. User dependency defines (in topological order)
-    //   4. (keyword-path input only) the entry fn's define form, with
-    //      rewritten body — appended after all deps. For inline-lambda,
-    //      the entry never appears in prologue.
+    //   4. (Arc 170 slice 3 Gap H) Lifted fn-body prelude forms —
+    //      define/struct/enum forms extracted from the fn body's
+    //      leading do-prefix. These register in the child's world
+    //      at startup_from_forms step 5 (types) + step 6 (defines)
+    //      before the body runs. Appended AFTER parent-types (step
+    //      1, F-3) and captured values (step 2) so that lifted
+    //      defines that reference closed-env captures resolve to
+    //      `:__captured_X` keywords that are already bound.
+    //   5. (keyword-path input only) the entry fn's define form,
+    //      with rewritten body — appended after all deps. For
+    //      inline-lambda, the entry never appears in prologue.
     let mut prologue: Vec<WatAST> = Vec::new();
 
     // 1. Types in deterministic topological order.
@@ -309,7 +346,12 @@ pub fn extract_closure(
         }
     }
 
-    // 4. Entry resolution: keyword-path mode appends the entry
+    // 4. (Gap H) Lifted fn-body prelude forms.
+    for prelude_form in body_prelude_forms {
+        prologue.push(prelude_form);
+    }
+
+    // 5. Entry resolution: keyword-path mode appends the entry
     //    define (with rewritten body) to prologue; inline-lambda
     //    mode emits the fn-form AST as `entry_form` directly.
     let entry_form = match &entry_path {
@@ -330,7 +372,7 @@ pub fn extract_closure(
             // Value" — is preserved; the surface is Keyword, not
             // Symbol, for substrate-fit.)
             let entry_define =
-                function_to_define_form_with_body(&func, path, rewritten_body);
+                function_to_define_form_with_body(&func, path, final_body);
             prologue.push(entry_define);
             WatAST::Keyword(path.clone(), Span::unknown())
         }
@@ -339,7 +381,7 @@ pub fn extract_closure(
             // evaluates to a fn Value at consumer time; no define
             // wrapping; no synthetic name.
             let _ = is_lambda; // documented above; kept for clarity
-            function_to_fn_form(&func, rewritten_body)
+            function_to_fn_form(&func, final_body)
         }
     };
 
@@ -540,6 +582,14 @@ fn walk_free_symbols(
             // (whose arm patterns introduce bindings into the arm body's
             // scope), and `:wat::core::define` (for completeness; entry-fn
             // bodies don't usually contain a top-level define).
+            //
+            // Arc 170 slice 3 Gap H addition: struct and enum forms also
+            // require special handling when they appear in a fn body's
+            // do-prefix (lifted to prologue by extract_closure). Their
+            // field/variant names are BINDING positions, not references —
+            // the plain-list recursive path would incorrectly treat them as
+            // free symbols, causing UnresolvedSymbol failures at extraction
+            // time. We walk only the type keyword children for type deps.
             if let Some((head, rest)) = items.split_first() {
                 if let WatAST::Keyword(k, _) = head {
                     match k.as_str() {
@@ -554,6 +604,12 @@ fn walk_free_symbols(
                         }
                         ":wat::core::match" => {
                             return walk_match_form(rest, locals, state);
+                        }
+                        ":wat::core::struct" => {
+                            return walk_struct_form(rest, state);
+                        }
+                        ":wat::core::enum" => {
+                            return walk_enum_form(rest, state);
                         }
                         _ => {}
                     }
@@ -716,6 +772,92 @@ fn walk_define_form(
         }
     }
     walk_free_symbols(body, &new_locals, state)?;
+    Ok(())
+}
+
+/// Walk a `(:wat::core::struct :TypeName (field1 :T1) (field2 :T2) ...)` form.
+///
+/// Arc 170 slice 3 Gap H. Struct forms appear in fn body do-prefixes when
+/// the user declares a local type inside a spawned fn. The form is a
+/// freeze-time declaration, not a runtime expression. When `walk_free_symbols`
+/// encounters a struct form in a do body, it must NOT recurse into it as a
+/// plain list because field names (`field1`, `field2`, ...) are binding
+/// positions (not free-symbol references) and would be misclassified as
+/// `UnresolvedSymbol`.
+///
+/// Correct walk:
+///   - `args[0]` = `:TypeName` keyword — walk for type-dep recording (it's
+///     a user type being DECLARED; it won't be in parent_types yet, so the
+///     walk does nothing harmful — the child registers it from the prologue).
+///   - `args[1..]` = field `(fieldName :TypeKeyword)` pairs. For each pair:
+///     skip the field-name Symbol (binding position); walk the type keyword
+///     for type-ref recording.
+///
+/// This walk records any referenced types (field types) into the captured
+/// type set. The struct's own name is a new type declaration — it need not
+/// be in the parent's TypeEnv and is NOT looked up there.
+fn walk_struct_form(
+    args: &[WatAST],
+    state: &mut ExtractState<'_>,
+) -> Result<(), ExtractionError> {
+    // args[0] is the struct name keyword (or absent on malformed input).
+    // args[1..] are field pairs: (fieldName :TypeKeyword).
+    // Skip args[0] (the type name being declared — no lookup needed).
+    for field_pair in args.iter().skip(1) {
+        if let WatAST::List(pair_items, _) = field_pair {
+            // pair_items[0] = field name (Symbol, binding position — skip)
+            // pair_items[1] = field type (Keyword — walk for type deps)
+            for type_kw in pair_items.iter().skip(1) {
+                // The field type keyword may reference a user type;
+                // walk_free_symbols records it correctly (keyword arm).
+                let empty_locals = std::collections::BTreeSet::new();
+                walk_free_symbols(type_kw, &empty_locals, state)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Walk a `(:wat::core::enum :TypeName :UnitVariant ... (TagName (f :T) ...) ...)` form.
+///
+/// Arc 170 slice 3 Gap H. Enum forms in fn body do-prefixes require the
+/// same protection as struct forms (see `walk_struct_form`). Variant names
+/// and field names are binding positions, not free-symbol references.
+///
+/// Correct walk:
+///   - Skip `args[0]` (the enum name keyword — new declaration).
+///   - For each variant:
+///     - Unit variant (Keyword `:VariantName`) — skip (binding position).
+///     - Tagged variant (List `(:VariantName (field :Type) ...)`) — skip
+///       variant name, walk field type keywords for type deps.
+fn walk_enum_form(
+    args: &[WatAST],
+    state: &mut ExtractState<'_>,
+) -> Result<(), ExtractionError> {
+    // args[0] is the enum name keyword (skip — new declaration).
+    // args[1..] are variant specs.
+    for variant in args.iter().skip(1) {
+        match variant {
+            // Unit variant keyword `:VariantName` — binding position, skip.
+            WatAST::Keyword(_, _) => {}
+            // Tagged variant list `(:VariantName (field :Type) ...)`.
+            WatAST::List(v_items, _) => {
+                // v_items[0] = variant name keyword (binding, skip)
+                // v_items[1..] = field pairs (fieldName :TypeKeyword)
+                for field_pair in v_items.iter().skip(1) {
+                    if let WatAST::List(pair_items, _) = field_pair {
+                        // pair_items[0] = field name Symbol (binding, skip)
+                        // pair_items[1] = field type keyword (walk for deps)
+                        for type_kw in pair_items.iter().skip(1) {
+                            let empty_locals = std::collections::BTreeSet::new();
+                            walk_free_symbols(type_kw, &empty_locals, state)?;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
     Ok(())
 }
 
@@ -1600,6 +1742,112 @@ fn value_static_type_keyword(
         // the value-level path.
         other => format!(":{}", other.type_name()),
     })
+}
+
+// ─── Arc 170 slice 3 Gap H — body prelude lift ──────────────────────────
+
+/// Classify whether an AST form is a "prelude form" eligible for lifting
+/// from a fn body's do-prefix into the closure's prologue.
+///
+/// A form is a prelude form if it is a list whose head keyword is one of:
+///   - `:wat::core::define`
+///   - `:wat::core::struct`
+///   - `:wat::core::enum`
+///
+/// These are the three forms that `startup_from_forms` processes at
+/// top-level (step 5 for types, step 6 for defines). They cannot be
+/// evaluated at expression position inside `eval_do_tail` (which returns
+/// `DefineInExpressionPosition` for `define`; `UnknownFunction` for
+/// `struct` / `enum` which are freeze-time forms, not runtime ones).
+fn is_prelude_form(node: &WatAST) -> bool {
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(k, _)) = items.first() {
+            matches!(
+                k.as_str(),
+                ":wat::core::define" | ":wat::core::struct" | ":wat::core::enum"
+            )
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
+/// Split a fn body's leading prelude forms from the residual expressions.
+///
+/// Returns `(prelude_forms, residual_body)`.
+///
+/// If `body` is a `(:wat::core::do ...)` form:
+///   - Scans children left-to-right collecting consecutive prelude forms
+///     (define/struct/enum). Stops at the FIRST non-prelude child.
+///   - Returns `(prelude_forms, reconstructed_residual_do_or_expr)`.
+///   - If `prelude_forms` is empty (no leading prelude), returns
+///     `(vec![], body)` unchanged — the caller applies no lift.
+///   - Residual shape:
+///       - 0 children remaining → `:wat::core::nil` keyword (the fn
+///         body had only prelude forms; expression is implicit nil)
+///       - 1 child remaining → that child directly (no do wrapper)
+///       - 2+ children remaining → `(:wat::core::do child1 child2 ...)`
+///
+/// If `body` is NOT a do form (single expression, let, etc.), returns
+/// `(vec![], body)` unchanged — no lift for non-do shapes.
+///
+/// **Prefix-termination rule**: the split stops at the FIRST non-prelude
+/// child. A define form AFTER an expression stays in the residual body.
+/// If the user places a define after an expression in a do body, it will
+/// still reach `eval_do_tail` and trigger `DefineInExpressionPosition` at
+/// runtime — this is the correct and documented behavior (Gap H lifts only
+/// the PREFIX run, not all defines throughout the body).
+fn split_body_prelude(body: WatAST) -> (Vec<WatAST>, WatAST) {
+    // Only do-forms are eligible for prelude splitting.
+    let (do_children, span) = match &body {
+        WatAST::List(items, span) => {
+            match items.first() {
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::do" => {
+                    // Children are items[1..] (skip the `:wat::core::do` head).
+                    (items[1..].to_vec(), span.clone())
+                }
+                _ => return (vec![], body),
+            }
+        }
+        _ => return (vec![], body),
+    };
+
+    // Scan for the leading prelude prefix.
+    let prefix_len = do_children
+        .iter()
+        .take_while(|child| is_prelude_form(child))
+        .count();
+
+    if prefix_len == 0 {
+        // No leading prelude — body unchanged.
+        return (vec![], body);
+    }
+
+    let prelude_forms: Vec<WatAST> = do_children[..prefix_len].to_vec();
+    let residual_children: Vec<WatAST> = do_children[prefix_len..].to_vec();
+
+    // Reconstruct the residual body based on how many children remain.
+    let residual_body = match residual_children.len() {
+        0 => {
+            // Only prelude forms in the do; body is implicitly nil.
+            WatAST::Keyword(":wat::core::nil".into(), span)
+        }
+        1 => {
+            // Single residual expression — no do wrapper needed.
+            residual_children.into_iter().next().unwrap()
+        }
+        _ => {
+            // Multiple residual expressions — wrap in a new do.
+            let mut do_items = Vec::with_capacity(residual_children.len() + 1);
+            do_items.push(WatAST::Keyword(":wat::core::do".into(), span.clone()));
+            do_items.extend(residual_children);
+            WatAST::List(do_items, span)
+        }
+    };
+
+    (prelude_forms, residual_body)
 }
 
 // ─── Body rewriting ─────────────────────────────────────────────────────
