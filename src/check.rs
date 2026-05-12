@@ -7092,23 +7092,15 @@ fn validate_def_position_with_wrapper(
     };
 
     match head_kw.as_str() {
-        ":wat::core::def" => {
-            if ctx == DefCtx::NonTopLevel {
-                errors.push(CheckError::DefNotTopLevel {
-                    wrapper: wrapper.to_string(),
-                    span: form.span().clone(),
-                });
-            }
-            // Recurse on the expr arg (always NonTopLevel).
-            if items.len() >= 3 {
-                validate_def_position_with_wrapper(
-                    &items[2],
-                    DefCtx::NonTopLevel,
-                    ":wat::core::def",
-                    errors,
-                );
-            }
-        }
+        // Arc 170 Gap I-B — `:wat::core::def` arm RETIRED.
+        // Def now falls through to the `_ =>` arm like the other 7 declaration
+        // forms. The check-time `DefNotTopLevel` emission for def is retired;
+        // position discipline for def-at-expression-position is now enforced
+        // at runtime by `dispatch_keyword_head`'s `DeclarationInExpressionPosition`
+        // arm (symmetric with the other 7 declaration forms).
+        // Top-level defs in fn-body do-prefixes are lifted by `split_body_prelude`
+        // (Gap I-A) before the child program is frozen; they are processed by
+        // `register_runtime_defs_form` at child-freeze time and never reach eval.
         ":wat::core::do" if ctx == DefCtx::TopLevel => {
             for child in &items[1..] {
                 validate_def_position_with_wrapper(

@@ -1058,11 +1058,16 @@ pub enum RuntimeError {
     DivisionByZero(Span),
     DuplicateDefine(String, Span),
     ReservedPrefix(String, Span),
-    /// `:wat::core::define` / `:wat::core::fn` found in expression
-    /// position at runtime. Define is a top-level registration form;
-    /// fn is fine in expression position. A caught-in-eval define
-    /// means the caller confused the two phases.
-    DefineInExpressionPosition(Span),
+    /// A declaration form (`:wat::core::def`, `:wat::core::define`, etc.)
+    /// found in expression position at runtime. Declaration forms are
+    /// top-level registration forms; calling one at expression position
+    /// means the caller confused the two phases. `head` names the
+    /// specific declaration form that was misplaced.
+    ///
+    /// Arc 170 Gap I-B — minted to replace `DefineInExpressionPosition`,
+    /// which only named `define`. Now covers all 8 declaration forms
+    /// with a single symmetric variant carrying the offending `head`.
+    DeclarationInExpressionPosition(String, Span),
     /// A constrained `eval` (`eval_in_frozen`) found a mutation-inducing
     /// form inside the AST it was asked to evaluate. Per FOUNDATION
     /// (§ constrained eval, line 663): "If the submitted AST contains a
@@ -1316,10 +1321,12 @@ impl fmt::Display for RuntimeError {
                 p,
                 crate::resolve::reserved_prefix_list()
             ),
-            RuntimeError::DefineInExpressionPosition(span) => write!(
+            RuntimeError::DeclarationInExpressionPosition(head, span) => write!(
                 f,
-                "{}:wat::core::define is a top-level registration form, not an expression",
-                span_prefix(span)
+                "{}{} is a declaration form, not an expression — declaration forms are \
+                 top-level registration forms and cannot appear in expression position",
+                span_prefix(span),
+                head
             ),
             RuntimeError::EvalForbidsMutationForm { head, span } => write!(
                 f,
@@ -3508,35 +3515,29 @@ fn dispatch_keyword_head(
         ":wat::config::set-redef!" | ":wat::config::set-eval-redef!" => {
             Ok(Value::Unit)
         }
-        // Arc 157 — `:wat::core::def` top-level value-binding form.
-        // Evaluates `<expr>` and returns Unit. The type-checker
-        // enforces position rules and redef discipline at startup.
-        // Slice 1a-i: eval arm evaluates the expr (for side-effects
-        // and to surface runtime errors in the expression) and
-        // returns Unit. Module-level value registration (so that
-        // `:name` resolves to the bound value in subsequent eval)
-        // is deferred to slice 1a-ii when the mutable module-env
-        // carrier is wired in. Position check already fired at
-        // check_program time; this arm is only reached for legal
-        // top-level defs.
-        ":wat::core::def" => {
-            if args.len() != 2 {
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::def".into(),
-                    reason: format!(
-                        "expected (:wat::core::def :name expr); got {} args",
-                        args.len()
-                    ),
-                    span: list_span.clone(),
-                });
-            }
-            // Evaluate the expression for side effects / error propagation.
-            // The resulting value is discarded in slice 1a-i (module-level
-            // value binding wires in 1a-ii).
-            let _value = crate::runtime::eval(&args[1], env, sym)?;
-            Ok(Value::Unit)
-        }
-        ":wat::core::define" => Err(RuntimeError::DefineInExpressionPosition(list_span.clone())),
+        // Arc 170 Gap I-B — `:wat::core::def` at expression position.
+        // The permissive arm (evaluate RHS, return Unit) that relied on
+        // `validate_def_position_with_wrapper` as the entry guard is
+        // retired here. Gap I-A's lift mechanism made that assumption
+        // unsound: after the lift, the check-time validator is no longer
+        // the sole guard. The runtime arm is now self-sufficient and
+        // symmetric with the other 7 declaration forms: any eval-time
+        // encounter of `def` is definitionally at expression position and
+        // must be rejected. Top-level defs are processed by
+        // `register_runtime_defs_form` (freeze-time), which never routes
+        // through `eval` / `dispatch_keyword_head`.
+        ":wat::core::def" => Err(RuntimeError::DeclarationInExpressionPosition(
+            ":wat::core::def".into(),
+            list_span.clone(),
+        )),
+        // Arc 170 Gap I-B — `:wat::core::define` at expression position.
+        // Routes through the same `DeclarationInExpressionPosition` variant
+        // as `:wat::core::def`, replacing the retired `DefineInExpressionPosition`
+        // variant for full symmetry across all 8 declaration forms.
+        ":wat::core::define" => Err(RuntimeError::DeclarationInExpressionPosition(
+            ":wat::core::define".into(),
+            list_span.clone(),
+        )),
         // Arc 155 — `:wat::core::fn` is the canonical operator for
         // function values (Clojure-faithful lowercase verb; mirrors
         // arc 154's let retirement recipe). Routes to `eval_fn`

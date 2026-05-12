@@ -193,14 +193,22 @@ fn defn_inside_top_level_let_body_works() {
 
 // ─── Test 6 — defn inside `if` branch is rejected ────────────────────────────
 
-/// Defn inside an `if` branch surfaces `DefNotTopLevel` from the expanded
-/// `def`'s position-rule walker. The macro expands to `def` before the
-/// position check runs (post-macro-expansion AST walk), so the rule
-/// propagates through the macro boundary for free.
+/// Defn inside an `if` branch — check-time silent after Gap I-B.
+/// Arc 170 Gap I-B retired the check-time `DefNotTopLevel` validator arm for `def`.
+/// `defn` is a macro that expands to `def + fn` before the position check runs;
+/// after Gap I-B, the expanded `def` no longer fires `DefNotTopLevel` at check time.
+/// Position discipline is now enforced at runtime via `DeclarationInExpressionPosition`
+/// when the `if` branch is evaluated. Startup now succeeds.
 #[test]
 fn defn_rejected_inside_if_branch() {
+    // After Gap I-B: startup passes (check-time validator arm retired for def,
+    // and defn expands to def). The runtime position error fires if the if-branch
+    // is evaluated. The runtime rejection probe lives in tests/probe_def_not_special.rs.
+    // Note: `if` requires `-> :T` return type annotation; defn-at-expression returns
+    // nil (def's inferred return type).
     let src = r#"
-        (:wat::core::if :wat::core::true
+        (:wat::core::if true
+          -> :wat::core::nil
           (:wat::core::defn :user::f
             [x <- :wat::core::i64] -> :wat::core::i64
             x)
@@ -208,12 +216,7 @@ fn defn_rejected_inside_if_branch() {
             [x <- :wat::core::i64] -> :wat::core::i64
             x))
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("DefNotTopLevel"),
-        "expected DefNotTopLevel when defn is inside if branch; got: {}",
-        err
-    );
+    startup_ok(src);
 }
 
 // ─── Test 7 — zero-arg defn ───────────────────────────────────────────────────

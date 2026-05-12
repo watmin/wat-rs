@@ -201,47 +201,52 @@ fn def_position_legal_recursive_let_do_nesting() {
 
 // ─── Position rule — illegal — 3 tests ───────────────────────────────────
 
-/// Test 9 — `def` inside `(:wat::core::if ...)` — illegal.
-/// Conditional positions are NOT splice-eligible (`if` may skip a branch
-/// at runtime; `def` would execute 0 or 1 times — violating the
-/// once-per-load-time rule). Expect `DefNotTopLevel` naming `:wat::core::if`.
+/// Test 9 — `def` inside `(:wat::core::if ...)` — check-time silent after Gap I-B.
+/// Arc 170 Gap I-B retired the check-time `DefNotTopLevel` validator arm for `def`.
+/// Position discipline for def-at-expression-position is now enforced at runtime
+/// (via `DeclarationInExpressionPosition`) like the other 7 declaration forms.
+/// At startup, a top-level `if` with `def` branches is treated as a non-splice form;
+/// `register_runtime_defs_form` does not descend into `if`-branches, so the nested
+/// defs are never registered. Startup succeeds; the position rule fires at runtime
+/// when/if the `if` branch is actually evaluated. This is symmetric with the other
+/// 7 declaration forms' behavior (no check-time validator; runtime-only rejection).
 #[test]
 fn def_position_illegal_inside_if() {
+    // After Gap I-B: startup passes (check-time validator arm retired).
+    // The runtime position error (DeclarationInExpressionPosition) fires only
+    // if the if-branch is evaluated at runtime — which is not tested here.
+    // The end-to-end runtime probe is in tests/probe_def_not_special.rs.
+    // Note: `if` requires `-> :T` return type annotation (per arc 157+ shape).
+    // Both branches evaluate to nil (def's inferred return type).
     let src = r#"
         (:wat::core::if
-          :wat::core::true
+          true
+          -> :wat::core::nil
           (:wat::core::def :a 1)
           (:wat::core::def :b 2))
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("DefNotTopLevel"),
-        "expected DefNotTopLevel when def is inside if; got: {}",
-        err
-    );
-    assert!(
-        err.contains(":wat::core::if"),
-        "DefNotTopLevel should name :wat::core::if as the wrapper; got: {}",
-        err
-    );
+    startup_ok(src);
 }
 
 /// Test 10 — `def` inside a `(:wat::core::define ...)` function body —
-/// illegal. Function bodies execute at call time (not load time); multiple
-/// invocations would fight the redef discipline. Expect `DefNotTopLevel`
-/// naming the define body.
+/// check-time silent after Gap I-B.
+/// Arc 170 Gap I-B retired the check-time `DefNotTopLevel` validator arm for `def`.
+/// Position discipline is now enforced at runtime via `DeclarationInExpressionPosition`
+/// when the function body is actually called. At startup, `def` inside a function
+/// body is no longer caught by the validator; startup succeeds. The runtime rejection
+/// fires when the function is invoked. This is symmetric with `define`'s behavior
+/// (define at expression position has always been caught at runtime, not check-time).
 #[test]
 fn def_position_illegal_inside_define_body() {
+    // After Gap I-B: startup passes (check-time validator arm retired).
+    // The runtime position error (DeclarationInExpressionPosition) fires when
+    // (:my::f) is called at runtime — not tested here.
+    // The end-to-end runtime probe is in tests/probe_def_not_special.rs.
     let src = r#"
         (:wat::core::define (:my::f -> :wat::core::nil)
           (:wat::core::def :a 1))
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("DefNotTopLevel"),
-        "expected DefNotTopLevel when def is inside define body; got: {}",
-        err
-    );
+    startup_ok(src);
 }
 
 /// Test 11 — strict-default redef collision.
