@@ -30,6 +30,16 @@
 
 **Lesson:** Reaching for a familiar Clojure name without verifying the substrate matches its semantics is a Level 1 finding. Always verify.
 
+### 6. Substrate-consistency assumption — `do` splicing in 2-of-3 passes
+
+**Where it surfaced:** Phase E V2. I read `src/check.rs:6848` (`collect_splice_defs_ctx` arm for top-level `do`) + the arc 157 error message documenting "(2) inside a top-level `(:wat::core::do ...)`" — and concluded top-level `do` splicing was uniform across the substrate. V2 sonnet's probe revealed: top-level `do` recurses for `def` forms (check.rs:6848) and at runtime eval (runtime.rs:2018), but `register_defines` (function-registration pass for `define` forms) does NOT recurse into `do`. Two of three passes recognize the splicing; the function-registration pass is the gap.
+
+**The Clojure analog:** In Clojure, top-level `do` splices uniformly across all phases (read → expand → compile → eval). The phases see-through `do` consistently. wat has the capability in 2 of 3 substrate passes — needs to be made uniform.
+
+**Lesson:** Cherry-picking ONE substrate location to verify a capability is insufficient. Multi-pass substrates need every pass to be checked. "The check pass recognizes top-level `do`" ≠ "top-level `do` splices uniformly."
+
+**Closure:** Gap C — extend `register_defines` + `register_stdlib_defines` to recurse into `(:wat::core::do ...)`, mirroring `register_runtime_defs`'s existing `do` arm at runtime.rs:2018-2023. ~10 lines.
+
 ### 5. Type-param syntax — sonnet aspired to `run-hermetic-with-io<:i64,:i64>` (turbofish)
 
 **Where it surfaced:** Phase D Decision 1. Sonnet wrote the macro accepting full channel-type keywords (`:Receiver<i64>` / `:Sender<i64>`) because no `keyword/from-string` constructor existed at macro-time. The aspired turbofish syntax (`<:i64,:i64>`) is Java/Rust convention, not Clojure.
