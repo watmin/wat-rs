@@ -188,12 +188,83 @@ fn check_form(
                     });
                 }
             }
+
+            // Arc 170 slice 3 Gap F-2 — quote-family boundary.
+            //
+            // Quote-family forms capture their arguments as AST data;
+            // the arguments are NOT live code and must not be walked for
+            // call-head resolution.
+            //
+            // :wat::core::forms — variadic data-capture; ALL arguments are
+            //   data. Do not recurse into any child.
+            //
+            // :wat::core::quote — single argument is data. Do not recurse.
+            //
+            // :wat::core::quasiquote — the template argument is data EXCEPT
+            //   inside :wat::core::unquote / :wat::core::unquote-splicing
+            //   escape forms. Use quasiquote-aware descent: recurse only
+            //   through the unquote/unquote-splicing children, treating the
+            //   rest of the template as opaque data.
+            //
+            // Nested quasiquote (depth > 1) is out of scope for F-2:
+            // a (:wat::core::quasiquote ...) encountered INSIDE a quasiquote
+            // template is treated as data (not descended into). This is
+            // conservative and correct for all current callers; if nested-
+            // quasiquote resolver semantics are needed, a dedicated arc
+            // should address them.
+            if head == ":wat::core::forms" || head == ":wat::core::quote" {
+                // Arguments are data — do not recurse into any child.
+                return;
+            }
+            if head == ":wat::core::quasiquote" {
+                // Template is data except inside unquote/unquote-splicing.
+                // items[1] is the template argument (if present).
+                if let Some(template) = items.get(1) {
+                    check_quasiquote_template(template, sym, macros, use_decls, unresolved);
+                }
+                return;
+            }
         }
         // Recurse into all children.
         for child in items {
             check_form(child, sym, macros, use_decls, unresolved);
         }
     }
+}
+
+/// Walk a quasiquote template, resolving call heads only inside
+/// `:wat::core::unquote` and `:wat::core::unquote-splicing` escape forms.
+///
+/// Everything else in the template is data and must not be descended into.
+/// Nested `(:wat::core::quasiquote ...)` inside the template is also treated
+/// as opaque data (out of scope for Gap F-2; see note in `check_form`).
+fn check_quasiquote_template(
+    node: &WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    use_decls: &crate::rust_deps::UseDeclarations,
+    unresolved: &mut Vec<UnresolvedReference>,
+) {
+    // Only list forms can be unquote/unquote-splicing escapes.
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
+            if head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing" {
+                // Escape: the argument is live code. Use normal check_form.
+                for arg in items.iter().skip(1) {
+                    check_form(arg, sym, macros, use_decls, unresolved);
+                }
+                return;
+            }
+            // Any other list form (including nested quasiquote) is template
+            // data — don't flag the call head, but DO recurse into children
+            // looking for unquote/unquote-splicing escapes deeper in the tree.
+        }
+        // Recurse into children to find nested unquote escapes.
+        for child in items {
+            check_quasiquote_template(child, sym, macros, use_decls, unresolved);
+        }
+    }
+    // Atoms (symbols, keywords, literals) in the template are always data.
 }
 
 /// True if `head` resolves as a call target.
