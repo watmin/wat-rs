@@ -425,8 +425,6 @@ the arity and side-effects from the suffix alone.
 ;; Type/spawn — factory that ALSO spawns a driver thread
 (:wat::lru::spawn capacity count reporter metrics-cadence)
    ; -> CacheService::Spawn<K,V>
-(:wat::console::spawn stdout stderr 4)
-   ; -> Console::Spawn
 (:wat::holon::lru::HologramCacheService/spawn count cap reporter metrics-cadence)
    ; -> HologramCacheService::Spawn
 ```
@@ -583,7 +581,7 @@ Substrate services obeying this convention:
 - `:wat::telemetry::sqlite::*` — rides `:wat::telemetry::Request<E>`
 - `:wat::lru::*` — adopts batch via arc 119
 - `:wat::holon::lru::*` — adopts batch via arc 119
-- `:wat::console::*` — exempt; single tag+msg per request
+- (the former Console service was retired in arc 109 § kill-std / arc 170 slice 1f-η; the ambient kernel trio `println` / `eprintln` / `readln` replaces it — no batch exemption needed)
 
 ### Composing services (the Reporter-closes-over-handles case)
 
@@ -642,7 +640,6 @@ If a function's return type contains **three or more** `<` characters, name it. 
 | `:wat::std::stream::Stream<T>` | `:(Receiver<T>,ProgramHandle<()>)` | `wat/std/stream.wat` |
 | `:wat::std::stream::ChunkStep<T>` | `:(Vec<T>,Vec<Vec<T>>)` | `wat/std/stream.wat` |
 | `:wat::std::stream::KeyedChunkStep<K,T>` | `:((Option<K>,Vec<T>),Vec<Vec<T>>)` | `wat/std/stream.wat` |
-| `:wat::console::Spawn` | factory return shape | `wat/std/service/Console.wat` |
 | `:wat::lru::Spawn<K,V>` | factory return shape | `crates/wat-lru/wat/lru/CacheService.wat` |
 | `:wat::lru::Step<K,V,G>` | one loop-step output | `crates/wat-lru/wat/lru/CacheService.wat` |
 | `:wat::lru::ReqChannel<K,V>` | `:(ReqTx<K,V>,ReqRx<K,V>)` | `crates/wat-lru/wat/lru/CacheService.wat` |

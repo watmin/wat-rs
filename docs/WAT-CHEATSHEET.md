@@ -90,7 +90,7 @@ Clojure-faithful — non-finals' types are unconstrained.
 ```wat
 ;; The print-then-return idiom, daily verb of any Lisp:
 (:wat::core::do
-  (:wat::console::log "computing...")
+  (:wat::kernel::println "computing...")
   (:wat::core::i64::+ 1 1))                ;; → :i64
 
 ;; Replaces the let-with-((_ :wat::core::unit) ...) crutch:

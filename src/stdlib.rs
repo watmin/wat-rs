@@ -167,9 +167,9 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/test.wat",
         source: include_str!("../wat/test.wat"),
     },
-    // Arc 170 slice 1f-η — `:wat::console::*` retired. The
+    // Arc 170 slice 1f-η — Console namespace retired. The
     // paired-channel mini-TCP Console driver (arc 089 slice 5,
-    // flattened from `:wat::std::service::Console::*` in arc 109
+    // flattened from the :wat::std::service::Console family in arc 109
     // slice K.console) was the pre-orchestrator stdio gateway. The
     // trio of ambient stdio services (StdIn/StdOut/StdErr — slices
     // 1f-β-i/ii/iii) + the runtime orchestrator (slice 1f-γ) +

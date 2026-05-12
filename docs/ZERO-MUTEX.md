@@ -185,19 +185,15 @@ proven concurrency pattern that is not a lock.
 
 **The substrate examples:**
 
-- **`:wat::console`** — owns the real `io::Stdout`
-  and `io::Stderr` handles. Every program that wants to print
-  pops a `Console::Handle = (Tx, AckRx)` from a HandlePool and
-  uses it through `Console/out` / `Console/err`. The Console
-  driver runs a select loop across all client request channels;
-  on a select fire it writes to stdout or stderr, then sends `()`
-  on the ack-tx paired with that request channel by index. The
-  producer's helper blocks on ack-rx until that ack lands. No
-  lock on stdout; no garbled output; concurrent writers serialize
-  through the driver's single-threaded body; AND each producer
-  unblocks only AFTER the bytes are durable. The "Console is the
-  lock, except there's no lock" case — see also "Mini-TCP via
-  paired channels" below.
+- **ambient stdio trio** (`println` / `eprintln` / `readln`) — the
+  substrate handles stdout / stderr serialization via the runtime
+  orchestrator (arc 170 slice 1f-γ). Producers call
+  `(:wat::kernel::println v)` directly; the orchestrator's
+  synchronization is invisible to user code. No pool, no handle,
+  no spawn — the ambient surface is the zero-mutex pattern at its
+  flattest. See `examples/console-demo/wat/main.wat` for the
+  canonical shape. (The former Console service-based gateway
+  retired in arc 109 § kill-std / arc 170 slice 1f-η.)
 - **`:wat::lru::*`** — the L2 caching program (spawn via
   `:wat::lru::spawn<K,V,G>`)
   (external workspace member `crates/wat-lru/`; namespace promoted
@@ -304,13 +300,13 @@ a lock.
 
 Two routing strategies, both substrate-supported:
 
-- **Pair-by-index** (`Console`, single-verb services). The
+- **Pair-by-index** (single-verb services). The
   driver's `Vec<(Rx, AckTx)>` holds request and ack ends paired
   by index. `select` returns the index that fired; the driver
   looks up the matching ack-tx at the same index and sends `()`.
   Ack address is implicit in the channel's identity. The
   cleanest shape when ALL replies are unit and the service has
-  one verb. Reference: `wat-rs/wat/std/service/Console.wat`.
+  one verb. Reference: `wat-rs/wat-tests/service-template.wat`.
 
 - **Embedded reply-tx in payload** (`Service<E,G>`,
   `CacheService<K,V>`, the canonical `service-template.wat`).

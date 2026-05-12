@@ -17,7 +17,7 @@
 //!   reference at every measurement scope.
 //!
 //! Arc 170 slice 1f-η retired the Console / ConsoleLogger wrappers
-//! that previously fronted the substrate's `:wat::console` driver.
+//! that previously fronted the former Console stdio service (retired).
 //! With the ambient stdio trio + runtime orchestrator in place,
 //! producers call `:wat::kernel::println` / `eprintln` directly;
 //! structured-format dispatch lives in user code (see

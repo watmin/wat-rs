@@ -550,6 +550,29 @@ pub enum CheckError {
         /// Source location of the offending callsite.
         span: Span,
     },
+    /// Arc 109 § kill-std / Arc 170 slice 1f-η — user-source call
+    /// into the fully-retired `:wat::console::*` namespace. The
+    /// Console driver (dispatch, handle plumbing, spawn factory,
+    /// ConsoleLogger) was annihilated in slice 1f-η. The replacement
+    /// is the ambient kernel-level stdio trio: `:wat::kernel::println`
+    /// (stdout), `:wat::kernel::eprintln` (stderr),
+    /// `:wat::kernel::readln` (stdin). All three are EDN-only — any
+    /// value EDN-encodes; no manual string formatting. Pattern 3
+    /// walker (`validate_bare_legacy_console_path`); prefix-match on
+    /// `:wat::console::` catches every verb in the namespace including
+    /// `:wat::console::spawn`, `:wat::console::out`,
+    /// `:wat::console::Console/out`, `:wat::console::log`, etc.
+    ///
+    /// **Walker is permanent** — no sweep window; the console
+    /// namespace is fully retired with no in-tree consumer code.
+    /// Variant + Display stay as orphaned scaffolding per arc 113
+    /// precedent, teaching migration at every cold hit.
+    BareLegacyConsolePath {
+        /// The `:wat::console::*` token exactly as written in user source.
+        path: String,
+        /// Source location of the offending token.
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 1 — render the file:line:col prefix for an error,
@@ -740,6 +763,11 @@ impl fmt::Display for CheckError {
                 f,
                 "{}`{}` is retired (arc 170 slice 2); canonical taxonomy is two-mode (spawn-thread for parent's world; spawn-process for forked OS process). Migrate:\n  ({} src scope) — for fork semantics → (:wat::kernel::spawn-process worker-fn)\n  ({} src scope) — for parent-world (services pattern) → (:wat::kernel::spawn-thread worker-fn)\nwhere `worker-fn` satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. The in-thread fresh-world `spawn-program` family retired entirely per arc 170 DESIGN Q1 — closures over let-scope make spawn-thread the honest in-thread surface; OS-process isolation gets spawn-process.",
                 span_prefix(span), verb, verb, verb
+            ),
+            CheckError::BareLegacyConsolePath { path, span } => write!(
+                f,
+                "{}`:wat::console::*` at {} is retired (arc 109 § kill-std / arc 170 slice 1f-η). The :wat::console::* namespace (Console driver, spawn factory, handle plumbing, ConsoleLogger) has been fully annihilated. User code uses the ambient kernel-level stdio ops directly:\n  - For output:  (:wat::kernel::println v)         — EDN-encodes v, emits to stdout\n  - For error:   (:wat::kernel::eprintln v)        — EDN-encodes v, emits to stderr\n  - For input:   (:wat::kernel::readln -> :T)       — reads one EDN-decoded value of type :T\nThese are EDN-only — any value EDN-encodes; no manual string formatting. See examples/console-demo/wat/main.wat for the canonical ambient-stdio shape. Offending token: '{}'.",
+                span_prefix(span), span, path
             ),
         }
     }
@@ -1055,6 +1083,15 @@ impl CheckError {
                     .field("retired", verb.as_str())
                     .field("canonical_fork_semantics", ":wat::kernel::spawn-process")
                     .field("canonical_thread_semantics", ":wat::kernel::spawn-thread")
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyConsolePath { path, span } => {
+                Diagnostic::new("BareLegacyConsolePath")
+                    .field("retired_namespace", ":wat::console::*")
+                    .field("offending_token", path.as_str())
+                    .field("canonical_stdout", ":wat::kernel::println")
+                    .field("canonical_stderr", ":wat::kernel::eprintln")
+                    .field("canonical_stdin", ":wat::kernel::readln")
                     .field("location", format!("{}", span))
             }
         }
@@ -1713,6 +1750,22 @@ pub fn check_program(
     }
     for form in forms {
         validate_legacy_kernel_queue_path(form, &mut errors);
+    }
+
+    // Arc 109 § kill-std / Arc 170 slice 1f-η — refuse ANY token in
+    // the fully-retired `:wat::console::*` namespace. The Console
+    // driver (dispatch arms, spawn factory, handle plumbing,
+    // ConsoleLogger) was annihilated in slice 1f-η. Any user source
+    // using `:wat::console::*` (`:wat::console::spawn`,
+    // `:wat::console::out`, `:wat::console::Console/out`,
+    // `:wat::console::log`, etc.) fires a friendly migration
+    // diagnostic teaching the ambient kernel trio. Walker is
+    // permanent — no sweep window; console is fully retired.
+    for func in sym.functions.values() {
+        validate_bare_legacy_console_path(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_bare_legacy_console_path(form, &mut errors);
     }
 
     // Arc 159 slice 3 — `validate_legacy_typed_let_binding` walker
@@ -2799,6 +2852,46 @@ fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
         WatAST::List(items, _) => {
             for item in items {
                 walk_for_legacy_kernel_queue(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Arc 109 § kill-std / Arc 170 slice 1f-η — refuse ANY token that
+/// starts with the fully-retired `:wat::console::` prefix. The
+/// Console driver + handle plumbing + ConsoleLogger were annihilated
+/// in slice 1f-η; no dispatch arms remain. Prefix-match catches
+/// every verb and type in the namespace (`:wat::console::spawn`,
+/// `:wat::console::out`, `:wat::console::Console/out`,
+/// `:wat::console::log`, etc.) without enumerating them individually.
+///
+/// Walker is permanent — no sweep window; no in-tree consumer code;
+/// the namespace is fully retired. Pattern 3 per SUBSTRATE-AS-TEACHER.md.
+fn validate_bare_legacy_console_path(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_bare_legacy_console(node, errors);
+}
+
+const LEGACY_CONSOLE_PREFIX: &str = ":wat::console::";
+
+fn walk_for_bare_legacy_console(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            if s.starts_with(LEGACY_CONSOLE_PREFIX) {
+                errors.push(CheckError::BareLegacyConsolePath {
+                    path: s.clone(),
+                    span: span.clone(),
+                });
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                walk_for_bare_legacy_console(item, errors);
+            }
+        }
+        WatAST::Vector(items, _) => {
+            for item in items {
+                walk_for_bare_legacy_console(item, errors);
             }
         }
         _ => {}

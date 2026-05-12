@@ -17,55 +17,46 @@ diagram.
 No computation in main. No I/O in main. No state in main. Just wiring.
 
 ```scheme
-(:wat::core::define
-  (:user::main
-    (stdin  :wat::io::IOReader)
-    (stdout :wat::io::IOWriter)
-    (stderr :wat::io::IOWriter)
-    -> :())
+(:wat::core::define (:user::main -> :wat::core::nil)
   (:wat::core::let
     ;; 1. Construct the consumers — each spawn returns a HandlePool
-    ;;    of senders + the driver's ProgramHandle.
-    (((con-spawn   :Console::Spawn)
-      (:wat::console::spawn stdout stderr 4))
-     ((con-pool    :HandlePool<Console::Tx>) (:wat::core::first con-spawn))
-     ((con-driver  :ProgramHandle<()>)        (:wat::core::second con-spawn))
-
-     ((tel-spawn   :Sqlite::Spawn)
+    ;;    of senders + the driver's Thread.
+    [((tel-spawn   :Sqlite::Spawn)
       (:trading::telemetry::Sqlite/spawn "runs/today.db" 8 cadence))
-     ((tel-pool    :HandlePool<Sqlite::ReqTx>) (:wat::core::first tel-spawn))
-     ((tel-driver  :ProgramHandle<()>)         (:wat::core::second tel-spawn))
+     (tel-pool    (:wat::core::first  tel-spawn))
+     (tel-driver  (:wat::core::second tel-spawn))
 
      ;; 2. Wire each consumer's senders to the producers that need them.
      ;;    (One let-binding per wire; each binding plugs a pop into a
      ;;    worker that's about to be spawned.)
-     ((_inner :())
+     (_inner
       (:wat::core::let
-        (((con-tx-trader :Console::Tx) (HandlePool::pop con-pool))
-         ((con-tx-broker :Console::Tx) (HandlePool::pop con-pool))
-         ((tel-tx-trader :Sqlite::ReqTx) (HandlePool::pop tel-pool))
-         ((_finish-con :()) (HandlePool::finish con-pool))
-         ((_finish-tel :()) (HandlePool::finish tel-pool))
+        [(tel-tx-trader (:wat::kernel::HandlePool::pop tel-pool))
+         (_finish-tel   (:wat::kernel::HandlePool::finish tel-pool))
 
          ;; 3. Spawn the producers, handing each the senders it needs.
          ;;    The producers ARE the machine; main just wires them.
-         ((trader-driver :ProgramHandle<()>)
-          (:wat::kernel::spawn :trading::trader/run
-            con-tx-trader tel-tx-trader stdin))
+         ;;    Producers use (:wat::kernel::println v) / eprintln
+         ;;    for ambient stdio — no Console service needed.
+         (trader-driver
+          (:wat::kernel::spawn-thread :trading::trader/run
+            tel-tx-trader stdin))
 
          ;; 4. Join the producers (their inner work powers the machine).
-         ((_ :()) (:wat::kernel::join trader-driver)))
+         (_ (:wat::kernel::Thread/join-result trader-driver))]
         ()))
 
      ;; 5. Inner exited → all client senders dropped → consumers
-     ;;    see disconnect → join their drivers in any order.
-     ((_ :()) (:wat::kernel::join tel-driver)))
-    (:wat::kernel::join con-driver)))
+     ;;    see disconnect → join their driver.
+     (_ (:wat::kernel::Thread/join-result tel-driver))]
+    :wat::core::nil))
 ```
 
 That's the whole shape. Read top-to-bottom: spawn consumers, wire
 senders to producers, run the producer (which has the input stream),
-join. Every wat program of any size has this skeleton.
+join. Every wat program of any size has this skeleton. Ambient stdio
+ops (`println` / `eprintln`) go directly from producer code — no
+serializing service needed.
 
 ## What lives where
 

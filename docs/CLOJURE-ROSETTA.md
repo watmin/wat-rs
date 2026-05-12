@@ -208,11 +208,8 @@ library" philosophy.
 
 ```scheme
 ;; wat
-(:wat::core::defn :user::main
-  [stdin <- :wat::stream::Stream<:String>
-   stdout <- :wat::console::Console]
-  -> :wat::core::nil
-  (:wat::console::println! stdout "hello, world"))
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "hello, world"))
 
 ;; Clojure
 (defn -main [& args]

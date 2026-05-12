@@ -564,8 +564,8 @@ fn startup_from_forms_post_config(
 
     // Expand BOTH stdlib non-defmacro residue and user forms against
     // the combined macro registry. Stdlib functions are authored
-    // against stdlib defmacros too — e.g., :wat::console's body
-    // uses :wat::holon::Subtract / list helpers / etc.
+    // against stdlib defmacros too — e.g., :wat::stream bodies
+    // use :wat::holon::Subtract / list helpers / etc.
     //
     // The ambient SymbolTable carries the stdlib dispatch registry so
     // reflection primitives invoked from macro bodies (signature-of,

@@ -583,7 +583,7 @@ Every wat program lives in a coordinate with two axes.
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
 3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `Thread<I,O>`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-channel`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
-4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
+4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel. (The former Console stdio service retired in arc 109 § kill-std / arc 170 slice 1f-η; see § 11 for the ambient kernel trio that replaces it.)
 
 ### Axis 2 — two namespaces
 
@@ -601,7 +601,7 @@ for the full reasoning):
 |---|---|---|
 | 1 — Immutable | `Arc<T>`, frozen at startup | Config, symbol table, registered functions |
 | 2 — Thread-owned | `ThreadOwnedCell<T>` | Per-thread hot state (LocalCache) |
-| 3 — Program-owned | A spawned wat program + channels | Shared-access state (Console, Cache) |
+| 3 — Program-owned | A spawned wat program + channels | Shared-access state (Cache, custom service drivers) |
 
 **There is no Mutex.** Zero. If you find yourself wanting one, you
 have a tier question to answer.
@@ -740,7 +740,7 @@ both positions:
 ;; Type position — "this function returns nothing meaningful":
 (:wat::core::define (:my::app::log-and-continue (msg :wat::core::String)
                                                  -> :wat::core::nil)
-  (:wat::console::log msg))
+  (:wat::kernel::println msg))
 
 ;; Value position — explicit nil literal:
 (:wat::core::define (:my::app::nothing -> :wat::core::nil)
@@ -893,7 +893,7 @@ substrate path stays simple.
 
 ```scheme
 (:wat::core::do
-  (:wat::console::log "computing...")
+  (:wat::kernel::println "computing...")
   (:wat::core::i64::+ 1 1))
 ```
 
@@ -905,8 +905,8 @@ The print-then-return idiom every Lisp programmer reaches for daily:
 
 ```scheme
 (:wat::core::do
-  (:wat::console::log "took the i64 path")
-  (:wat::console::log "with arg: ...")
+  (:wat::kernel::println "took the i64 path")
+  (:wat::kernel::println "with arg: ...")
   (:wat::core::i64::* x 2))    ;; → :i64
 ```
 
@@ -1646,7 +1646,7 @@ The kernel primitives are small. Four concepts cover everything.
 > **Building a service program?** This section is the primitive
 > reference. For wiring patterns — nested `let` shutdown,
 > `HandlePool` fan-in, select-prune loops, struct accumulators, and
-> the full Console / CacheService template — see
+> the full CacheService template — see
 > [`SERVICE-PROGRAMS.md`](SERVICE-PROGRAMS.md). It walks an
 > eight-step exploration that lifts directly into your own service.
 
@@ -1855,7 +1855,7 @@ exits, every `Sender` Arc bound there decrements; the worker's next
   (:wat::kernel::Thread/join-result thr))     ;; ← worker has exited cleanly
 ```
 
-The Console and CacheService stdlib programs follow this shape: the
+The CacheService stdlib program follows this shape: the
 caller holds the driver `Thread` in an outer scope, an inner `let`
 distributes Sender handles, does the work, and exits; the drop cascade
 then triggers the driver's clean shutdown. Arc 117 enforces the shape
@@ -1873,13 +1873,12 @@ structurally; see `WAT-CHEATSHEET.md § 10` for the rule and
 ```
 
 The caller owns the select loop — remove disconnected receivers from
-the list, exit when the list is empty. `:wat::console`'s
-driver is the canonical example.
+the list, exit when the list is empty. A service-driver loop is the
+canonical example (see `wat-tests/service-template.wat`).
 
 `:wat::kernel::Chosen<T>` is the fourth substrate alias from
-`wat/kernel/queue.wat`. The variable that binds the return value is
-universally named `chosen` (Console.wat does it; the docs do it; you
-will too). The alias makes the type echo the variable.
+`wat/kernel/channel.wat`. The variable that binds the return value is
+universally named `chosen`. The alias makes the type echo the variable.
 
 ### Spawning threads — `spawn-thread` (arc 114)
 
@@ -2026,7 +2025,7 @@ use `HandlePool` — it catches orphans at wiring time before shutdown
 would silently deadlock:
 
 ```scheme
-(:wat::kernel::HandlePool::new "console" senders-vec)
+(:wat::kernel::HandlePool::new "my-service" senders-vec)
 ;; → :HandlePool<T>
 
 (:wat::kernel::HandlePool::pop pool)
@@ -2037,7 +2036,7 @@ would silently deadlock:
 ```
 
 Use it whenever your program hands out N client handles. The
-Console and Cache stdlib programs do.
+Cache stdlib program does; custom service drivers do too.
 
 ---
 
@@ -2328,96 +2327,54 @@ cache-service driver serializes access without locks.
 
 ---
 
-## 11. Stdio — Console is the gateway
+## 11. Stdio — ambient kernel ops
 
-`:user::main` receives three real OS handles: `:wat::io::IOReader`,
-`:wat::io::IOWriter`, `:wat::io::IOWriter`. You CAN write
-directly to them:
+`:user::main` now has a zero-arg / nil-return signature (arc 170
+slice 1e). Stdio is ambient: three kernel-level ops EDN-encode any
+value and write one line per call.
 
 ```scheme
-(:wat::io::IOWriter/print stdout "hello\n")
+(:wat::kernel::println v)    ;; EDN-encode v, emit to stdout
+(:wat::kernel::eprintln v)   ;; EDN-encode v, emit to stderr
+(:wat::kernel::readln -> :T) ;; read one EDN-decoded value of type :T from stdin
 ```
 
-…but **the moment you spawn a second program that also writes**,
-concurrent writes can garble. Two writers, one stdout, no
-serialization = bad output.
+Every output line produced by these ops is `:wat::edn::read`-parseable —
+the ambient surface is deliberately EDN-only. Apps wanting alternate
+formats (JSON, custom rendering) compose a user-side service driver.
 
-**The discipline:** spawn a `Console` program that owns stdout AND
-stderr. Every program gets a `Sender<(i64,String)>` from Console's
-HandlePool. Tag 0 = stdout; tag 1 = stderr. Console's driver loops
-over `select`, decodes each message's tag, writes to the right
-stream. One writer, serialized, no garbled output.
+### Basic example
 
 ```scheme
-(:wat::core::define (:user::main
-                    (stdin :wat::io::IOReader)
-                    (stdout :wat::io::IOWriter)
-                    (stderr :wat::io::IOWriter)
-                    -> :())
+(:wat::core::define (:user::main -> :wat::core::nil)
   (:wat::core::let
-    ;; One Console for the whole program
-    (((pool console-driver) (:wat::console stdout stderr 4))
-     ((main-sender :Sender<(i64,String)>) (:wat::kernel::HandlePool::pop pool))
-     (... three more pops for three workers ...)
-     ((_ :()) (:wat::kernel::HandlePool::finish pool)))
-    ;; After this, ignore the raw stdout/stderr bindings —
-    ;; everything goes through Console.
-    (:wat::console::out main-sender "main started")
-    (... spawn workers with their handles ...)
-    (:wat::kernel::join console-driver)))
+    [_a (:wat::kernel::println "hello, world")           ;; → stdout
+     _b (:wat::kernel::eprintln "startup complete")]     ;; → stderr
+    :wat::core::nil))
 ```
 
-Every multi-threaded wat program routes output through Console.
-It's not a rule; it's what the substrate's discipline requires to
-stay honest.
+### Structured value emission
 
-### Structured logging — `ConsoleLogger` + ledger db (arcs 086 / 087)
-
-`Console/out` and `Console/err` take strings. For anything beyond
-ad-hoc diagnostic markers, the substrate ships a structured
-logger and a sqlite-backed ledger. Both are layered on top of
-Console; the typical long-running program wires both.
-
-**`:wat::telemetry::ConsoleLogger`** is a closure-over-state
-struct: `(con-tx, caller, now-fn, format)`. Built once per
-producer; passed by reference into hot paths. Each emission gets
-its time auto-stamped and its `:caller` identity injected — the
-producer never self-identifies.
+The ambient ops accept any value — scalars, structs, enums, vecs:
 
 ```scheme
-((logger :wat::telemetry::ConsoleLogger)
- (:wat::telemetry::ConsoleLogger/new
-   con-tx :market.observer
-   (:wat::core::lambda ((_u :()) -> :wat::time::Instant) (:wat::time::now))
-   :wat::telemetry::Console::Format::Edn))
+(:wat::core::enum :demo::Event
+  (Buy  (price :wat::core::f64) (qty :wat::core::i64))
+  (Sell (price :wat::core::f64) (qty :wat::core::i64) (reason :wat::core::String)))
 
-;; Per emission:
-(:wat::telemetry::ConsoleLogger/info  logger (:Event::Buy 100.5 7))
-(:wat::telemetry::ConsoleLogger/warn  logger (:Event::CircuitBreak "spike"))
-(:wat::telemetry::ConsoleLogger/error logger (:Event::CircuitBreak "down"))
+(:wat::core::define (:user::main -> :wat::core::nil)
+  (:wat::core::let
+    [_a (:wat::kernel::println  (:demo::Event::Buy  100.5 7))    ;; → stdout
+     _b (:wat::kernel::eprintln (:demo::Event::Sell 102.25 3 "stop-loss"))]  ;; → stderr
+    :wat::core::nil))
 ```
 
-Level routing: `:debug` and `:info` go to stdout via `Console/out`;
-`:warn` and `:error` go to stderr via `Console/err`. Custom keywords
-(e.g. `:trace`) fall through to stdout. The line shape is a
-`LogLine<E>` struct rendered as `[time level caller data]`.
+See `examples/console-demo/wat/main.wat` for the full runnable walk-through.
 
-Five render formats via `Console::Format`:
+### Structured logging — ledger db (arcs 086 / 087)
 
-| Format | Output | Use case |
-|---|---|---|
-| `:Edn` | `#wat.std.telemetry/LogLine {:time ... :level ...}` | Round-trip-safe via `:wat::edn::read` |
-| `:NoTagEdn` | `{:time ... :level ... :data {:_type :ns/Variant ...}}` | Lossy; human-readable EDN logs |
-| `:Json` | `{"#tag":"wat.std.telemetry/LogLine","body":{...}}` | Round-trip-safe via wat-edn JSON↔EDN bridge |
-| `:NoTagJson` | `{"time":"...","level":"info","caller":"...","data":{"_type":"ns/Variant",...}}` | Lossy; ELK / DataDog / CloudWatch ingestion |
-| `:Pretty` | Multi-line indented EDN | Dev-time debug |
-
-The `_type` value in tagless variants is fully-qualified
-(`demo.Event/Buy`, not bare `Buy`) — bare variant names collide
-across enums; the FQDN is honest identity.
-
-**`:wat::telemetry::Sqlite/auto-spawn`** is the ledger side.
-It walks a consumer-defined enum decl at startup, derives one
+For high-fidelity archiving, the substrate ships a sqlite-backed
+ledger. It walks a consumer-defined enum decl at startup, derives one
 `CREATE TABLE` per Tagged variant (variant PascalCase →
 table snake_case; field kebab → column snake; field type →
 SQLite affinity), derives the per-variant INSERT, and dispatches
@@ -2439,8 +2396,8 @@ seam:
   (:my::pre-install
     (db :wat::sqlite::Db) -> :())
   (:wat::core::let
-    (((_w :()) (:wat::sqlite::pragma db "journal_mode" "WAL"))
-     ((_s :()) (:wat::sqlite::pragma db "synchronous" "NORMAL")))
+    [(_w (:wat::sqlite::pragma db "journal_mode" "WAL"))
+     (_s (:wat::sqlite::pragma db "synchronous" "NORMAL"))]
     ()))
 
 ((sqlite-spawn :Service::Spawn<my::log::Entry>)
@@ -2452,65 +2409,6 @@ seam:
 
 For the explicit "I'm fine with sqlite's defaults" choice,
 pass `:wat::telemetry::Sqlite/null-pre-install`.
-
-### Per-run file management — `IOWriter/open-file` (arc 088)
-
-A long-running program that wants its own per-run files
-(`runs/<id>.out`, `runs/<id>.err`, `runs/<id>.db`) opens
-file-backed writers at `:user::main` startup and passes them to
-Console instead of using the parent process's stdio:
-
-```scheme
-((out-writer :wat::io::IOWriter)
- (:wat::io::IOWriter/open-file "runs/today.out"))
-((err-writer :wat::io::IOWriter)
- (:wat::io::IOWriter/open-file "runs/today.err"))
-
-((con-spawn :Console::Spawn)
- (:wat::console::spawn out-writer err-writer 1))
-```
-
-Open mode is `write+create+truncate` — fresh file each invocation.
-Drop closes the fd; clean shutdown cascade releases all three
-files together. The wat program owns its outputs; no shell
-redirect needed.
-
-### The double-write discipline
-
-A producer that wants both surfaces takes both handles wired in:
-
-```scheme
-(:wat::core::define
-  (:my::worker/run
-    (logger :wat::telemetry::ConsoleLogger)
-    (sqlite-tx :wat::telemetry::ReqTx<my::log::Entry>)
-    (ack-tx :wat::telemetry::AckTx)
-    (ack-rx :wat::telemetry::AckRx)
-    -> :())
-  (:wat::core::let
-    (((_say :())
-      (:wat::telemetry::ConsoleLogger/info logger
-        (:my::Event::Heartbeat 0)))                   ;; occasional, human-friendly
-     ((entries :Vec<my::log::Entry>)
-      (:wat::core::vec :my::log::Entry
-        (:my::log::Entry::Resolved ...)
-        (:my::log::Entry::Resolved ...)))
-     ((_log :())
-      (:wat::telemetry::batch-log         ;; high-fidelity archive
-        sqlite-tx ack-tx ack-rx entries)))
-    ()))
-```
-
-Console gets summary events ("this is happening"); sqlite gets the
-full record ("here's exactly what happened"). The same producer
-writes both. `:user::main` distributes the handles per CIRCUIT.md.
-
-For a runnable end-to-end example, see
-`holon-lab-trading/wat/programs/smoke.wat` — opens three files,
-spawns Console + Sqlite, runs a producer that double-writes, joins
-cascade. The post-run state is three files in `runs/`: `.out`,
-`.err`, `.db`. SQL queries for analysis; EDN-per-line for live
-tail.
 
 ---
 
@@ -2996,9 +2894,9 @@ tests, `run-ast + program` is the clean shape.
 ### When to use hermetic — services that spawn threads
 
 In-process `:wat::test::run-ast` uses `StringIo` stdio under
-`ThreadOwnedCell` — single-thread discipline. Services like Console
-and Cache spawn driver threads; writing from a driver thread would
-trip the thread-owner check.
+`ThreadOwnedCell` — single-thread discipline. Programs that spawn
+driver threads (e.g. cache services) write from driver threads; that
+trips the thread-owner check.
 
 For those tests, use `:wat::test::run-hermetic-ast` — the AST-entry
 hermetic sandbox. Same shape as `run-ast`, different substrate: a
@@ -3007,28 +2905,16 @@ fresh subprocess with real thread-safe stdio. Same surface as
 s-expressions:
 
 ```scheme
-(:wat::test::deftest :my::test-console-hello
+(:wat::test::deftest :my::test-println-hello
   (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
-          (:wat::core::define (:user::main
-                               (stdin :wat::io::IOReader)
-                               (stdout :wat::io::IOWriter)
-                               (stderr :wat::io::IOWriter)
-                               -> :())
-            (:wat::core::let
-              (((pool driver) (:wat::console stdout stderr 1))
-               ((_ :())
-                (:wat::core::let
-                  (((c :rust::crossbeam_channel::Sender<(i64,String)>)
-                    (:wat::kernel::HandlePool::pop pool))
-                   ((_2 :()) (:wat::kernel::HandlePool::finish pool)))
-                  (:wat::console::out c "hello via Console"))))
-              (:wat::kernel::join driver))))
+          (:wat::core::define (:user::main -> :wat::core::nil)
+            (:wat::kernel::println "hello via ambient stdio")))
         (:wat::core::vec :String)))
      ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
-    (:wat::test::assert-eq (:wat::core::first lines) "hello via Console")))
+    (:wat::test::assert-eq (:wat::core::first lines) "\"hello via ambient stdio\"")))
 ```
 
 Under the covers, `run-hermetic-ast` serializes the forms to source
@@ -3273,7 +3159,7 @@ substrate's diagnostic shows the pre/post shapes inline. See
 `WAT-CHEATSHEET.md § 10` and `SERVICE-PROGRAMS.md § "The lockstep"`.
 
 **Recursion without TCO.** Before arc 003 ships, a tail-recursive
-driver loop burns Rust stack frames linearly. A Console running
+driver loop burns Rust stack frames linearly. A service running
 for 10k messages + default 8MB stack ~= fine; indefinite driver
 loops ~= eventually crash. When arc 003 ships, the ceiling goes
 away.
@@ -3420,7 +3306,9 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::drop` | `handle` | `:()` |
 | `:wat::kernel::stopped?` / `sigusr1?` / ... | `()` | `:bool` |
 | `:wat::kernel::HandlePool::new` / `pop` / `finish` | various | pool ops |
-| `:wat::console` | `stdout stderr n` | `(HandlePool, Driver)` |
+| `:wat::kernel::println` | `v` | `:wat::core::nil` — EDN-encode `v`, emit to stdout (arc 170 slice 1f-α) |
+| `:wat::kernel::eprintln` | `v` | `:wat::core::nil` — EDN-encode `v`, emit to stderr |
+| `:wat::kernel::readln` | `(-> :T)` | `:T` — read one EDN-decoded value of type `:T` from stdin |
 | `:wat::lru::spawn` (wat-lru) | `capacity count reporter cadence` | `(HandlePool, Driver)` |
 | `:wat::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
 | `:wat::holon::Atom` | `<value>` | `:wat::holon::HolonAST` — polymorphic dispatcher (arc 057). Primitive → matching typed leaf; HolonAST → opaque-identity wrap; quoted wat form → structural lowering. New code: prefer the named siblings `:wat::holon::leaf` (primitives) and `:wat::holon::from-watast` (quoted forms) — one verb per move (arc 065). Polymorphism preserved for back-compat. |

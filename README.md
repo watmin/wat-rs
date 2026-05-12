@@ -545,9 +545,9 @@ Caches (external — `crates/wat-lru/`; arc 013 externalization):
   channel. Also in `wat-lru`.
 
 Services (long-running driver programs with client handles, baked):
-- `:wat::console` — the single gateway to stdout+stderr.
-  Hands out pooled `Sender<(i64,String)>` via `:wat::kernel::HandlePool`;
-  tag 0 = stdout, tag 1 = stderr.
+- `:wat::lru::*` is the canonical baked service. Stdio uses the ambient kernel trio:
+  `(:wat::kernel::println v)` / `(:wat::kernel::eprintln v)` / `(:wat::kernel::readln -> :T)`.
+  (The former Console service was retired in arc 109 § kill-std / arc 170 slice 1f-η.)
 
 ## Capacity guard — Bundle's Result return
 
