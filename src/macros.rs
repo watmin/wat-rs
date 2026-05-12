@@ -517,6 +517,29 @@ fn expand_form(
                 .collect();
             let expanded_children = expanded_children?;
 
+            // Arc 170 slice 3 Gap A — `:wat::core::keyword/of` macro special-form.
+            // Recognized AFTER child recursion (so unquote sites `~name` have
+            // already been substituted to their argument keywords) and BEFORE
+            // the generic macro dispatch so it fires for both bare keyword/of
+            // calls AND keyword/of calls produced inside quasiquote templates.
+            //
+            // Expansion order:
+            //   1. quasiquote walk_template fires, substituting ~input-type etc.
+            //   2. The quasiquote result (now containing a concrete keyword/of
+            //      list) is returned as WatAST.
+            //   3. expand_form is called on that result (fixpoint loop at
+            //      expand_macro_call line 531). Children are recursed (this
+            //      pass); keyword/of is recognised here.
+            //
+            // This means: at the point this arm fires, all unquote sites have
+            // already resolved to concrete WatAST::Keyword nodes. The children
+            // of the keyword/of form ARE the final keyword ASTs.
+            if let Some(WatAST::Keyword(head, _)) = expanded_children.first() {
+                if head == ":wat::core::keyword/of" {
+                    return construct_keyword_of(&expanded_children, list_span);
+                }
+            }
+
             // Is the (now-expanded) head a registered macro?
             if let Some(WatAST::Keyword(head, _)) = expanded_children.first() {
                 if let Some(def) = registry.get(head) {
@@ -549,6 +572,103 @@ fn expand_form(
         }
         other => Ok(other),
     }
+}
+
+// ─── Arc 170 slice 3 Gap A — keyword/of construction ────────────────────────
+//
+// `construct_keyword_of` is called from `expand_form` when the list head is
+// `:wat::core::keyword/of`. At this point child recursion has already fired,
+// so all `~unquote` sites in the enclosing quasiquote template have been
+// substituted with their argument keyword ASTs.
+//
+// Contract:
+//   children[0]  = keyword/of head (`:wat::core::keyword/of`) — consumed/skipped
+//   children[1]  = parametric head keyword (e.g. `:wat::kernel::Receiver`)
+//   children[2+] = argument keywords (e.g. `:wat::core::i64`)
+//
+// Produces a single `WatAST::Keyword` whose text is:
+//   `{head_text}<{arg1_text},{arg2_text},...>`
+// where head_text = head keyword text WITHOUT leading ':',
+// and   argN_text = argument keyword text WITHOUT leading ':'.
+//
+// Errors:
+//   - Arity < 2 (just `(keyword/of)` or `(keyword/of :Head)` with no args)
+//   - Any child is not a `WatAST::Keyword`
+fn construct_keyword_of(
+    children: &[WatAST],
+    span: Span,
+) -> Result<WatAST, MacroError> {
+    // children[0] is the ":wat::core::keyword/of" head itself.
+    // We need children[1] (parametric head) + children[2+] (args).
+    if children.len() < 3 {
+        // Need at least: keyword/of-head + parametric-head + 1 arg.
+        return Err(MacroError::MalformedTemplate {
+            reason: format!(
+                "keyword/of requires at least 2 arguments (head keyword + ≥1 arg keyword); \
+                 got {} argument(s)",
+                children.len().saturating_sub(1)
+            ),
+            span,
+        });
+    }
+
+    // Helper to name the AST variant for error messages.
+    fn ast_kind(node: &WatAST) -> &'static str {
+        match node {
+            WatAST::Keyword(_, _)     => "keyword",
+            WatAST::IntLit(_, _)      => "int-literal",
+            WatAST::FloatLit(_, _)    => "float-literal",
+            WatAST::BoolLit(_, _)     => "bool-literal",
+            WatAST::StringLit(_, _)   => "string-literal",
+            WatAST::Symbol(_, _)      => "symbol",
+            WatAST::List(_, _)        => "list",
+            WatAST::Vector(_, _)      => "vector",
+            WatAST::StructPattern(_, _) => "struct-pattern",
+        }
+    }
+
+    // Extract the parametric head keyword text (children[1]).
+    let head_text = match &children[1] {
+        WatAST::Keyword(k, _) => {
+            // Strip leading ':'.
+            k.strip_prefix(':').unwrap_or(k.as_str()).to_string()
+        }
+        other => {
+            return Err(MacroError::MalformedTemplate {
+                reason: format!(
+                    "keyword/of: head (arg 1) must be a keyword AST; got {}",
+                    ast_kind(other)
+                ),
+                span,
+            });
+        }
+    };
+
+    // Extract each argument keyword text (children[2+]).
+    let mut arg_texts = Vec::with_capacity(children.len() - 2);
+    for (i, child) in children[2..].iter().enumerate() {
+        match child {
+            WatAST::Keyword(k, _) => {
+                // Strip leading ':'.
+                let text = k.strip_prefix(':').unwrap_or(k.as_str()).to_string();
+                arg_texts.push(text);
+            }
+            other => {
+                return Err(MacroError::MalformedTemplate {
+                    reason: format!(
+                        "keyword/of: argument {} must be a keyword AST; got {}",
+                        i + 1,
+                        ast_kind(other)
+                    ),
+                    span,
+                });
+            }
+        }
+    }
+
+    // Construct the parametric keyword text: `head<arg1,arg2,...>`.
+    let constructed = format!(":{}<{}>", head_text, arg_texts.join(","));
+    Ok(WatAST::Keyword(constructed, span))
 }
 
 /// Expand a single macro call. Allocates a fresh [`ScopeId`], walks the
@@ -1840,6 +1960,87 @@ mod tests {
             matches!(inner, WatAST::List(_, _)),
             "expected the unquote arg to be the unevaluated List, not an IntLit; got {:?}",
             inner
+        );
+    }
+
+    // ─── Arc 170 slice 3 Gap A — keyword/of special-form ───────────────
+
+    /// `(keyword/of :Head :Arg)` produces `:Head<Arg>` keyword.
+    #[test]
+    fn keyword_of_single_arg() {
+        let forms = expand(
+            r#"(:wat::core::keyword/of :wat::kernel::Receiver :wat::core::i64)"#,
+        )
+        .unwrap();
+        assert_eq!(forms.len(), 1);
+        match &forms[0] {
+            WatAST::Keyword(k, _) => {
+                assert_eq!(k, ":wat::kernel::Receiver<wat::core::i64>");
+            }
+            other => panic!("expected Keyword; got {:?}", other),
+        }
+    }
+
+    /// `(keyword/of :Head :A1 :A2)` produces `:Head<A1,A2>` keyword (comma-separated).
+    #[test]
+    fn keyword_of_multi_arg_comma_separated() {
+        let forms = expand(
+            r#"(:wat::core::keyword/of :wat::core::Result :wat::core::i64 :wat::core::String)"#,
+        )
+        .unwrap();
+        assert_eq!(forms.len(), 1);
+        match &forms[0] {
+            WatAST::Keyword(k, _) => {
+                assert_eq!(k, ":wat::core::Result<wat::core::i64,wat::core::String>");
+            }
+            other => panic!("expected Keyword; got {:?}", other),
+        }
+    }
+
+    /// keyword/of used inside a macro template with unquote substitution.
+    /// The macro takes an inner element type and constructs the channel type.
+    #[test]
+    fn keyword_of_inside_macro_template_with_unquote() {
+        let forms = expand(
+            r#"
+            (:wat::core::defmacro
+              (:my::test::make-receiver (elem-type :AST<wat::core::nil>) -> :AST<wat::core::nil>)
+              `(:wat::core::keyword/of :wat::kernel::Receiver ~elem-type))
+            (:my::test::make-receiver :wat::core::i64)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(forms.len(), 1, "expected exactly one expanded form");
+        match &forms[0] {
+            WatAST::Keyword(k, _) => {
+                assert_eq!(k, ":wat::kernel::Receiver<wat::core::i64>",
+                    "keyword/of + unquote should produce parametric keyword");
+            }
+            other => panic!("expected Keyword after keyword/of expansion; got {:?}", other),
+        }
+    }
+
+    /// keyword/of with arity < 2 args (just head, no args) yields MalformedTemplate.
+    #[test]
+    fn keyword_of_arity_error_no_args() {
+        let err = expand(r#"(:wat::core::keyword/of :wat::kernel::Receiver)"#).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("keyword/of") && msg.contains("at least 2 arguments"),
+            "expected 'keyword/of' + 'at least 2 arguments' in error; got: {}",
+            msg
+        );
+    }
+
+    /// keyword/of with a non-keyword child yields MalformedTemplate.
+    #[test]
+    fn keyword_of_non_keyword_child_error() {
+        let err = expand(r#"(:wat::core::keyword/of :wat::kernel::Receiver 42)"#).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("keyword/of") && msg.contains("keyword AST"),
+            "expected 'keyword/of' + 'keyword AST' in error; got: {}",
+            msg
         );
     }
 }

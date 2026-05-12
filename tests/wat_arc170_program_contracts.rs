@@ -975,17 +975,19 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     );
 }
 
-// ─── T18. run-hermetic-with-io — Layer 2 testing-lib API (arc 170 slice 3 phase D)
+// ─── T18. run-hermetic-with-io — Layer 2 testing-lib API (arc 170 slice 3 Gap A)
 //
 // Canonical Layer 2 test: typed-channel I/O round-trip via run-hermetic-with-io.
-// The macro takes full Receiver<I>/Sender<O> type keywords + inputs + body.
+// Arc 170 slice 3 Gap A: macro now takes INNER element types (:wat::core::i64)
+// instead of full channel-type keywords (:wat::kernel::Receiver<wat::core::i64>).
+// keyword/of constructs the channel types at macro-expand time.
 // The child recvs 21, sends 21*2=42, returns nil. The parent sends [21] and
 // drains [42]. RunResultIO.outputs = [42]; RunResultIO.failure = None.
 //
-// Surface form exercised (D1 decision: full channel-type keywords):
+// Surface form exercised (Gap A: inner element types):
 //   (:wat::test::run-hermetic-with-io
-//     :wat::kernel::Receiver<wat::core::i64>
-//     :wat::kernel::Sender<wat::core::i64>
+//     :wat::core::i64
+//     :wat::core::i64
 //     (:wat::core::Vector :wat::core::i64 21)
 //     <body that recvs n and sends n*2>)
 //
@@ -1002,8 +1004,8 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
     let src = r#"
         (:wat::core::define (:my::test::echo-doubled -> :wat::test::RunResultIO<wat::core::i64>)
           (:wat::test::run-hermetic-with-io
-            :wat::kernel::Receiver<wat::core::i64>
-            :wat::kernel::Sender<wat::core::i64>
+            :wat::core::i64
+            :wat::core::i64
             (:wat::core::Vector :wat::core::i64 21)
             (:wat::core::let
               [n
@@ -1073,6 +1075,7 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
 #[test]
 fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
     // Complementary to T18: a failing assertion inside the Layer 2 body.
+    // Arc 170 slice 3 Gap A: macro now takes inner element types (:wat::core::i64).
     // The child recvs 2 (from inputs), then assert-eq n 3 fails (2 != 3).
     // The child panics before sending any output, so outputs is empty.
     // The structured panic chain is emitted to stderr (spawn_process.rs
@@ -1084,8 +1087,8 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
     let src = r#"
         (:wat::core::define (:my::test::recv-assert-fail -> :wat::test::RunResultIO<wat::core::i64>)
           (:wat::test::run-hermetic-with-io
-            :wat::kernel::Receiver<wat::core::i64>
-            :wat::kernel::Sender<wat::core::i64>
+            :wat::core::i64
+            :wat::core::i64
             (:wat::core::Vector :wat::core::i64 2)
             (:wat::core::let
               [n

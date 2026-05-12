@@ -11211,6 +11211,29 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Arc 170 slice 3 Gap A — keyword reflection primitives.
+    // keyword/to-string: keyword → String (colon-free text).
+    // keyword/from-string: String → keyword (inverse; rejects ':'-prefixed input).
+    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    env.register(
+        ":wat::core::keyword/to-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![keyword_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::core::keyword/from-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: keyword_ty(),
+            rest_param_type: None,
+        },
+    );
+
     // String basics — :wat::core::string::*. Per-type ops, char-
     // oriented (length counts unicode scalars, not bytes). See
     // src/string_ops.rs for the handlers.

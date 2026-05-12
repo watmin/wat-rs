@@ -3334,6 +3334,9 @@ fn dispatch_keyword_head(
         ":wat::core::string::to-f64" => eval_string_to_f64(args, list_span, env, sym),
         ":wat::core::bool::to-string" => eval_bool_to_string(args, list_span, env, sym),
         ":wat::core::string::to-bool" => eval_string_to_bool(args, list_span, env, sym),
+        // Arc 170 slice 3 Gap A — keyword reflection primitives.
+        ":wat::core::keyword/to-string" => eval_keyword_to_string(args, list_span, env, sym),
+        ":wat::core::keyword/from-string" => eval_keyword_from_string(args, list_span, env, sym),
 
         // Comparison — return :bool
         ":wat::core::=" => eval_eq(head, args, list_span, env, sym),
@@ -5512,6 +5515,85 @@ fn eval_string_to_bool(
         _ => None,
     };
     Ok(Value::Option(Arc::new(parsed)))
+}
+
+// ─── Arc 170 slice 3 Gap A — keyword reflection primitives ───────────────
+//
+// `:wat::core::keyword/to-string`  → extracts keyword text WITHOUT leading colon.
+// `:wat::core::keyword/from-string` → constructs a keyword Value from text;
+//     text MUST NOT start with ':' (diagnostic error if it does).
+//
+// These two primitives are the substrate that keyword/of (macro special-form)
+// is built on top of conceptually. They also stand as first-class runtime
+// verbs usable in user code.
+
+/// `(:wat::core::keyword/to-string k)` — extract the text of a keyword value,
+/// without the leading colon sigil.
+///
+/// Examples:
+///   `(keyword/to-string :foo)`            → `"foo"`
+///   `(keyword/to-string :wat::core::i64)` → `"wat::core::i64"`
+///   `(keyword/to-string :Vector<i64>)`    → `"Vector<i64>"`
+fn eval_keyword_to_string(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let k = eval_one_arg(
+        ":wat::core::keyword/to-string",
+        args,
+        list_span,
+        env,
+        sym,
+        "keyword",
+        |v| match v {
+            Value::wat__core__keyword(k) => Ok(k),
+            other => Err(other),
+        },
+    )?;
+    // The keyword string always starts with ':'; strip it.
+    let text = k.strip_prefix(':').unwrap_or(&k);
+    Ok(Value::String(Arc::new(text.to_string())))
+}
+
+/// `(:wat::core::keyword/from-string s)` — construct a keyword Value from
+/// a text string. The text MUST NOT start with ':' (the colon is the sigil,
+/// not part of the payload). Returns a MalformedForm error with a helpful
+/// diagnostic if the string starts with ':'.
+///
+/// Round-trip property: `(from-string (to-string k)) == k` for any keyword `k`.
+fn eval_keyword_from_string(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let s = eval_one_arg(
+        ":wat::core::keyword/from-string",
+        args,
+        list_span,
+        env,
+        sym,
+        "String",
+        |v| match v {
+            Value::String(s) => Ok(s),
+            other => Err(other),
+        },
+    )?;
+    if s.starts_with(':') {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::keyword/from-string".into(),
+            reason: format!(
+                "input string {:?} starts with ':' — keyword text must not include the leading colon sigil; \
+                 use keyword/to-string to produce a colon-free string, or strip the ':' before calling from-string",
+                s.as_str()
+            ),
+            span: list_span.clone(),
+        });
+    }
+    // Prepend ':' to form the canonical keyword string.
+    Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s.as_str()))))
 }
 
 /// `:wat::core::=` — structural equality. Composites (Vec, Tuple,
@@ -24702,5 +24784,79 @@ mod tests {
             Value::i64(11) => {}
             v => panic!("arc 159 mixed new+destructure: expected 11:i64 (5+6); got {:?}", v),
         }
+    }
+
+    // ─── Arc 170 slice 3 Gap A — keyword reflection primitives ─────────
+
+    #[test]
+    fn keyword_to_string_strips_leading_colon() {
+        assert_eq!(
+            expect_string(eval_expr("(:wat::core::keyword/to-string :foo)").unwrap()),
+            "foo"
+        );
+        assert_eq!(
+            expect_string(eval_expr("(:wat::core::keyword/to-string :wat::core::i64)").unwrap()),
+            "wat::core::i64"
+        );
+        assert_eq!(
+            expect_string(
+                eval_expr("(:wat::core::keyword/to-string :wat::core::Vector<wat::core::i64>)")
+                    .unwrap()
+            ),
+            "wat::core::Vector<wat::core::i64>"
+        );
+    }
+
+    #[test]
+    fn keyword_from_string_prepends_colon() {
+        let result = eval_expr(r#"(:wat::core::keyword/from-string "foo")"#).unwrap();
+        match result {
+            Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":foo"),
+            other => panic!("expected keyword; got {:?}", other),
+        }
+        let result2 = eval_expr(r#"(:wat::core::keyword/from-string "wat::core::i64")"#).unwrap();
+        match result2 {
+            Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":wat::core::i64"),
+            other => panic!("expected keyword; got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn keyword_reflection_round_trip() {
+        let cases = [
+            (":foo", "foo"),
+            (":wat::core::i64", "wat::core::i64"),
+            (":wat::kernel::Receiver<wat::core::i64>", "wat::kernel::Receiver<wat::core::i64>"),
+        ];
+        for (kw, expected_text) in &cases {
+            // to-string strips colon
+            let text = expect_string(
+                eval_expr(&format!("(:wat::core::keyword/to-string {})", kw)).unwrap(),
+            );
+            assert_eq!(&text, expected_text, "to-string({}) should strip ':'", kw);
+            // from-string(to-string(k)) == k
+            let roundtrip = eval_expr(&format!(
+                r#"(:wat::core::keyword/from-string (:wat::core::keyword/to-string {}))"#,
+                kw
+            ))
+            .unwrap();
+            match roundtrip {
+                Value::wat__core__keyword(k) => {
+                    assert_eq!(k.as_str(), *kw, "round-trip failed for {}", kw)
+                }
+                other => panic!("expected keyword for {}; got {:?}", kw, other),
+            }
+        }
+    }
+
+    #[test]
+    fn keyword_from_string_rejects_colon_prefix() {
+        let err = eval_expr(r#"(:wat::core::keyword/from-string ":foo")"#).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("starts with ':'"),
+            "expected 'starts with \":\"' in error; got: {}",
+            msg
+        );
     }
 }

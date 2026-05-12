@@ -714,11 +714,16 @@
 ;; in scope. The macro generates the fn-form wrapper, spawns a hermetic
 ;; OS process, sends inputs, drains outputs, and returns RunResultIO<O>.
 ;;
-;; Canonical call form (D1 decision: full channel type keywords, 4 args):
+;; Arc 170 slice 3 Gap A — updated to use keyword/of for channel type
+;; construction. The caller now passes INNER element types (:i64, not
+;; :Receiver<i64>); keyword/of constructs the full channel types at
+;; macro-expand time.
+;;
+;; Canonical call form (Gap A: inner element types, 4 args):
 ;;
 ;;   (:wat::test::run-hermetic-with-io
-;;     :wat::kernel::Receiver<wat::core::i64>   ;; rx param type
-;;     :wat::kernel::Sender<wat::core::i64>     ;; tx param type
+;;     :wat::core::i64                          ;; input element type
+;;     :wat::core::i64                          ;; output element type
 ;;     (:wat::core::Vector :wat::core::i64 21)  ;; inputs Vector<I>
 ;;     (:wat::core::let
 ;;       [n (:wat::core::Option/expect -> :wat::core::i64
@@ -739,32 +744,28 @@
 ;;         <body>))
 ;;     <inputs>)
 ;;
-;; The rx-type and tx-type are spliced into the fn-form's parameter vector
-;; via quasiquote unquote (~rx-type, ~tx-type). The driver's return type
-;; :RunResultIO<O> is inferred by the type checker from the Process<I,O>
-;; argument (O flows from the Sender<O> in tx-type). No separate o-type
-;; arg is needed — the driver infers O from the process's typed channels.
+;; keyword/of constructs the full channel-type keyword at expand time:
+;;   (:wat::core::keyword/of :wat::kernel::Receiver ~input-type)
+;;   → :wat::kernel::Receiver<wat::core::i64>  (after ~input-type substitution)
 ;;
-;; D1 honest delta: the aspirational form `(run-hermetic-with-io :i64 :i64 ...)`
-;; with INNER element types only requires constructing `Receiver<i64>` and
-;; `Sender<i64>` keywords from the inner type at macro-expand time. No
-;; `keyword::from-string` verb exists in the substrate, so inner-type-only
-;; form is a substrate gap. Full channel-type keywords are required instead.
+;; The driver's return type :RunResultIO<O> is inferred by the type checker
+;; from the Process<I,O> argument (O flows from the Sender<O> in tx channel).
+;; No separate o-type arg is needed — the driver infers O from typed channels.
 ;;
 ;; DO NOT MODIFY run-hermetic (Layer 1) above — this is an ADDITION.
 ;; DO NOT touch deftest / deftest-hermetic macro definitions (phase E).
 (:wat::core::defmacro
   (:wat::test::run-hermetic-with-io
-    (rx-type :AST<wat::core::nil>)
-    (tx-type :AST<wat::core::nil>)
-    (inputs  :AST<wat::core::nil>)
-    (body    :AST<wat::core::nil>)
+    (input-type  :AST<wat::core::nil>)
+    (output-type :AST<wat::core::nil>)
+    (inputs      :AST<wat::core::nil>)
+    (body        :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
   `(:wat::test::run-hermetic-with-io-driver
      (:wat::kernel::spawn-process
        (:wat::core::fn
-         [rx <- ~rx-type
-          tx <- ~tx-type]
+         [rx <- (:wat::core::keyword/of :wat::kernel::Receiver ~input-type)
+          tx <- (:wat::core::keyword/of :wat::kernel::Sender ~output-type)]
          -> :wat::core::nil
          ~body))
      ~inputs))
