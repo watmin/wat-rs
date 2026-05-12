@@ -2144,6 +2144,228 @@ fn is_define_form(form: &WatAST) -> bool {
     )
 }
 
+/// Arc 170 slice 3 Gap F-1 — detect `(:wat::core::struct :Name ...)` shape.
+fn is_struct_form(form: &WatAST) -> bool {
+    matches!(
+        form,
+        WatAST::List(items, _)
+            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::struct")
+    )
+}
+
+/// Arc 170 slice 3 Gap F-1 — detect `(:wat::core::enum :Name ...)` shape.
+fn is_enum_form(form: &WatAST) -> bool {
+    matches!(
+        form,
+        WatAST::List(items, _)
+            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::enum")
+    )
+}
+
+/// Arc 170 slice 3 Gap F-1 — pre-register accessor stubs for a struct form.
+///
+/// Called by `preregister_fn_defs_in_do` / `_in_let` when a
+/// `(:wat::core::struct :Name (field1 :T1) ...)` form is found in a `do`/`let`
+/// body. Extracts the type name and field names from the form and inserts
+/// minimal stub `Function` entries into `sym.functions` for:
+///   - `{name}/new` — the constructor
+///   - `{name}/{field}` for each field — the field accessors
+///
+/// The stubs have `closed_env: None` and unit return type — they exist only
+/// so `resolve_references` (step 7) can validate call heads referencing them.
+/// `register_struct_methods` (step 6a, after `register_defines` returns) will
+/// insert the fully-typed, real `Function` entries, overwriting these stubs.
+///
+/// Shape of struct form:
+///   items[0] = `:wat::core::struct` keyword
+///   items[1] = `:TypeName` keyword (the struct's type name)
+///   items[2..] = field declarations: `(field-name :FieldType)` lists
+///
+/// Malformed forms (missing name, non-keyword name) are silently skipped —
+/// the type checker will diagnose them later. No error is returned.
+fn preregister_struct_accessors_from_form(
+    form: &WatAST,
+    sym: &mut SymbolTable,
+    check_reserved_prefix: bool,
+) -> Result<(), RuntimeError> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return Ok(()),
+    };
+    // items[1] is the type name keyword.
+    let type_name = match items.get(1) {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => return Ok(()), // malformed; type checker will catch it
+    };
+    // Strip parametric suffix `<T,...>` to get the base type name for
+    // accessor paths — mirrors `parse_declared_name`'s base extraction.
+    let type_base = match type_name.find('<') {
+        None => type_name,
+        Some(lt) => &type_name[..lt],
+    };
+    // Stub Function — zero params, unit return type, unit body.
+    // The resolver only checks presence in `sym.functions`; the body/types
+    // are irrelevant at pre-registration time.
+    let stub_body = Arc::new(WatAST::List(vec![], Span::unknown()));
+    let unit_type = crate::types::TypeExpr::Path(":()".into());
+
+    // Constructor: `{type}/new`
+    let constructor_path = format!("{}/new", type_base);
+    if check_reserved_prefix && crate::resolve::is_reserved_prefix(&constructor_path) {
+        let span = form.span().clone();
+        return Err(RuntimeError::ReservedPrefix(constructor_path, span));
+    }
+    if !sym.functions.contains_key(&constructor_path) {
+        sym.functions.insert(
+            constructor_path,
+            Arc::new(Function {
+                name: None,
+                params: Vec::new(),
+                type_params: Vec::new(),
+                param_types: Vec::new(),
+                ret_type: unit_type.clone(),
+                rest_param: None,
+                rest_param_type: None,
+                body: stub_body.clone(),
+                closed_env: None,
+            }),
+        );
+    }
+
+    // Field accessors: `{type}/{field}` for each field declaration.
+    // Field declarations are in items[2..], each a List `(field-name :FieldType)`
+    // where `field-name` is a bare `WatAST::Symbol` (no leading colon) — per
+    // `parse_field` in types.rs.
+    for field_item in items.get(2..).unwrap_or(&[]) {
+        let field_name = match field_item {
+            WatAST::List(field_items, _) => match field_items.first() {
+                Some(WatAST::Symbol(ident, _)) => ident.name.as_str(),
+                _ => continue, // malformed field; type checker will catch it
+            },
+            _ => continue, // malformed field; type checker will catch it
+        };
+        let accessor_path = format!("{}/{}", type_base, field_name);
+        if check_reserved_prefix && crate::resolve::is_reserved_prefix(&accessor_path) {
+            let span = form.span().clone();
+            return Err(RuntimeError::ReservedPrefix(accessor_path, span));
+        }
+        if !sym.functions.contains_key(&accessor_path) {
+            sym.functions.insert(
+                accessor_path,
+                Arc::new(Function {
+                    name: None,
+                    params: Vec::new(),
+                    type_params: Vec::new(),
+                    param_types: Vec::new(),
+                    ret_type: unit_type.clone(),
+                    rest_param: None,
+                    rest_param_type: None,
+                    body: stub_body.clone(),
+                    closed_env: None,
+                }),
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Arc 170 slice 3 Gap F-1 — pre-register tagged-variant constructor stubs for an enum form.
+///
+/// Called by `preregister_fn_defs_in_do` / `_in_let` when a
+/// `(:wat::core::enum :Name Variant1 (Variant2 (f :T)) ...)` form is found in
+/// a `do`/`let` body. Extracts the type name and variant names and inserts
+/// minimal stub `Function` entries into `sym.functions` for every variant
+/// (both unit AND tagged) at path `{name}::{VariantName}`.
+///
+/// Unit variants are normally registered in `sym.unit_variants` by
+/// `register_enum_methods` (step 6.5). For the resolver's call-head check
+/// (`is_resolvable_call_head` in resolve.rs) they must appear in `sym.functions`
+/// when used as call heads — e.g. `(:my::E::None)`. Pre-registering all
+/// variants as stubs in `sym.functions` satisfies the resolver. The real
+/// registration (unit → `unit_variants`; tagged → `functions`) happens at
+/// step 6.5 and overwrites/complements these stubs.
+///
+/// Shape of enum form:
+///   items[0] = `:wat::core::enum` keyword
+///   items[1] = `:TypeName` keyword
+///   items[2..] = variant declarations:
+///     - bare keyword: `NoOp`  → unit variant
+///     - list: `(Push (value :T))` → tagged variant
+///
+/// Malformed forms are silently skipped — the type checker will catch them.
+fn preregister_enum_constructors_from_form(
+    form: &WatAST,
+    sym: &mut SymbolTable,
+    check_reserved_prefix: bool,
+) -> Result<(), RuntimeError> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return Ok(()),
+    };
+    // items[1] is the type name keyword.
+    let type_name = match items.get(1) {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => return Ok(()), // malformed; type checker will catch it
+    };
+    // Strip parametric suffix `<T,...>` for the base name — mirrors
+    // `parse_declared_name`'s base extraction.
+    let type_base = match type_name.find('<') {
+        None => type_name,
+        Some(lt) => &type_name[..lt],
+    };
+
+    let stub_body = Arc::new(WatAST::List(vec![], Span::unknown()));
+    let unit_type = crate::types::TypeExpr::Path(":()".into());
+
+    for variant_item in items.get(2..).unwrap_or(&[]) {
+        // Unit variant: `WatAST::Keyword(":NoOp", _)` — keyword with leading colon.
+        // Tagged variant: `WatAST::List` where first item is `WatAST::Symbol("Push", _)`
+        // (bare symbol, no colon) or `WatAST::Keyword(":Push", _)`.
+        // The constructor path is `{type_base}::{VariantName}` where VariantName
+        // has NO leading colon — mirrors `register_enum_methods`'s format!.
+        let variant_name: &str = match variant_item {
+            WatAST::Keyword(k, _) => {
+                // Unit variant keyword: strip the leading ':'.
+                match k.strip_prefix(':') {
+                    Some(name) => name,
+                    None => k.as_str(), // malformed; type checker will catch it
+                }
+            }
+            WatAST::List(v_items, _) => match v_items.first() {
+                Some(WatAST::Symbol(ident, _)) => ident.name.as_str(),
+                Some(WatAST::Keyword(k, _)) => match k.strip_prefix(':') {
+                    Some(name) => name,
+                    None => k.as_str(),
+                },
+                _ => continue, // malformed variant; type checker will catch it
+            },
+            _ => continue, // unexpected shape; type checker will catch it
+        };
+        let constructor_path = format!("{}::{}", type_base, variant_name);
+        if check_reserved_prefix && crate::resolve::is_reserved_prefix(&constructor_path) {
+            let span = form.span().clone();
+            return Err(RuntimeError::ReservedPrefix(constructor_path, span));
+        }
+        if !sym.functions.contains_key(&constructor_path) {
+            sym.functions.insert(
+                constructor_path,
+                Arc::new(Function {
+                    name: None,
+                    params: Vec::new(),
+                    type_params: Vec::new(),
+                    param_types: Vec::new(),
+                    ret_type: unit_type.clone(),
+                    rest_param: None,
+                    rest_param_type: None,
+                    body: stub_body.clone(),
+                    closed_env: None,
+                }),
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Arc 166 — detect `(:wat::core::def :name (:wat::core::fn sig body))` shape.
 /// Returns the parsed `(name, Function)` pair if the form is a def whose
 /// RHS is a fn-form, else `None`.
@@ -2270,6 +2492,18 @@ fn preregister_fn_defs_in_do(
             if !sym.functions.contains_key(&path) {
                 sym.functions.insert(path, func);
             }
+        } else if is_struct_form(child) {
+            // Arc 170 slice 3 Gap F-1 — pre-register struct accessor stubs.
+            // The form stays in `rest`; `register_struct_methods` (step 6a) will
+            // overwrite these stubs with fully-typed Function entries after
+            // `register_defines` returns.
+            preregister_struct_accessors_from_form(child, sym, check_reserved_prefix)?;
+        } else if is_enum_form(child) {
+            // Arc 170 slice 3 Gap F-1 — pre-register enum variant constructor stubs.
+            // The form stays in `rest`; `register_enum_methods` (step 6.5) will
+            // insert the real unit_variants and tagged Function entries after
+            // `register_defines` returns.
+            preregister_enum_constructors_from_form(child, sym, check_reserved_prefix)?;
         } else if let WatAST::List(nested_items, _) = child {
             // Recurse into nested do forms.
             if matches!(
@@ -2329,6 +2563,16 @@ fn preregister_fn_defs_in_let(
             if !sym.functions.contains_key(&path) {
                 sym.functions.insert(path, func);
             }
+        } else if is_struct_form(child) {
+            // Arc 170 slice 3 Gap F-1 — pre-register struct accessor stubs.
+            // Mirror of the `do` arm: the form stays in `rest`; `register_struct_methods`
+            // (step 6a) overwrites these stubs with fully-typed Function entries.
+            preregister_struct_accessors_from_form(child, sym, check_reserved_prefix)?;
+        } else if is_enum_form(child) {
+            // Arc 170 slice 3 Gap F-1 — pre-register enum variant constructor stubs.
+            // Mirror of the `do` arm: the form stays in `rest`; `register_enum_methods`
+            // (step 6.5) inserts real unit_variants and tagged Function entries.
+            preregister_enum_constructors_from_form(child, sym, check_reserved_prefix)?;
         } else if let WatAST::List(nested_items, _) = child {
             // Recurse into nested let forms in the body.
             if matches!(
