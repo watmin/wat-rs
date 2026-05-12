@@ -134,7 +134,7 @@ are optional; defaults are honest:
   tier list (post-arc-067): `[10000]` — single tier optimized for
   measurement S/N rather than per-encode perf at small arities.
   Override with `SizingRouter::with_tiers(vec![256, 4096, 10000,
-  100000])` for the pre-arc-067 hierarchy, or with a wat lambda
+  100000])` for the pre-arc-067 hierarchy, or with a wat fn
   for arbitrary policy.
 - **`(:wat::config::set-presence-sigma! sigma-fn)`** /
   **`set-coincident-sigma!`** — function-of-`d` knobs controlling
@@ -581,7 +581,7 @@ Every wat program lives in a coordinate with two axes.
 ### Axis 1 — four layers
 
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
-2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
+2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `fn`, `let`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
 3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `Thread<I,O>`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-channel`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
 4. **Stream stdlib** (`:wat::stream::*`) — composable concurrency combinators written in wat: `spawn-producer`, `map`, `filter`, `flat-map`, `chunks`, `take`, `with-state`, `for-each`, `collect`, `fold`. Graduated to its own top-level tier in arc 109 slice 9d (previously nested under `:wat::std::*`). Each combinator is a tail-recursive worker plus bounded(1)-queue plumbing. See § 8 for the full combinator surface.
 5. **Stdlib plumbing** (`:wat::std::*`) — the hermetic-test wrapper. Expressible in wat on top of core + kernel. (The former Console stdio service retired in arc 109 § kill-std / arc 170 slice 1f-η; see § 11 for the ambient kernel trio that replaces it.)
@@ -1885,7 +1885,7 @@ universally named `chosen`. The alias makes the type echo the variable.
 
 ```scheme
 (:wat::kernel::spawn-thread
-  (:wat::core::lambda
+  (:wat::core::fn
     ((in  :rust::crossbeam_channel::Receiver<I>)
      (out :rust::crossbeam_channel::Sender<O>)
      -> :())
@@ -1915,8 +1915,8 @@ join) retired; the type checker self-describes the migration to
 ;; per host transition the panic crossed.
 ```
 
-Each Thread is an OS thread running the body lambda; the body owns
-its state (moved in via the lambda's closure or read from `in`).
+Each Thread is an OS thread running the body fn; the body owns
+its state (moved in via the fn's closure or read from `in`).
 When the body returns or panics, the substrate surfaces the outcome
 on `Thread/join-result`.
 
@@ -2109,7 +2109,7 @@ coordination.
 **Named functions as stage arguments.** Arc 009 (names-are-values)
 lets you pass a registered define by bare keyword-path to any
 `:fn(...)`-typed slot. `(:wat::stream::map raw :my::app::enrich-candle)`
-works; no lambda wrapper needed.
+works; no fn wrapper needed.
 
 ### `with-state` — custom stateful stages
 
@@ -2713,7 +2713,7 @@ unnamed worker threads) all got resolved:
   `thread '<unnamed>' …`.
 - `:wat::kernel::spawn` workers run on threads named
   `wat-thread::<primitive>` (e.g., `wat-thread:::wat::kernel::spawn-program-ast`).
-- Anonymous lambdas render as `<lambda@<file>:<line>:<col>>` —
+- Anonymous fns render as `<fn@file:line:col>` —
   template name preserved, definition coordinates appended.
 - `parse_one(src)` / `parse_all(src)` convenience wrappers were
   retired; tests use the `parse_one!(src)` / `parse_all!(src)`
@@ -2833,7 +2833,7 @@ What's reflectable today:
   per arc 148's Dispatch entities + per-Type leaves; mixed-numeric
   types reachable via `:wat::core::+,i64-f64` etc.)
 - **Special forms** — `:wat::core::if`, `cond`, `match`, `let`,
-  `lambda`, `define`, `defmacro`, `try`, `option/expect`,
+  `fn`, `define`, `defmacro`, `try`, `option/expect`,
   `result/expect`, the spawn family, the quasiquote family, `forms`.
   Each carries a synthetic signature AST (slice 2's registry).
 - **Dispatch entities** — `:wat::core::define-dispatch` declarations
@@ -3233,7 +3233,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::config::dims` | `()` | `:i64` (compat shim — arc 037) |
 | `:wat::config::noise-floor` | `()` | `:f64` (compat shim — arc 037) |
 | `:wat::core::define` | `((name (p :T) ... -> :R) body)` | registers function |
-| `:wat::core::lambda` | `(((p :T) ... -> :R) body)` | `:fn(T,...)->R` |
+| `:wat::core::fn` | `([p <- :T ...] -> :R body...)` | `:wat::core::Fn(T,...)->R` (arc 155) |
 | `:wat::core::let` | `[n1 e1 n2 e2 ...] body+` | body's type |
 | `:wat::core::match` | `scrutinee -> :T arm1 arm2 ...` | arm result (type `T`) |
 | `:wat::core::if` | `cond -> :T then else` | branch result (type `T`) |
@@ -3295,7 +3295,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::i64::>` / `=` / `<` / `>=` / `<=` / `f64::*` | `a b` | typed strict comparison/equality (arc 050) — rejects cross-type at the checker; opt-in for type-guard discipline |
 | `:wat::io::IOReader/read-line` | `stdin` | `:Option<String>` |
 | `:wat::io::IOWriter/print` | `handle string` | `:()` |
-| `:wat::kernel::spawn-thread` | `body` | `:wat::kernel::Thread<I,O>` — body is a lambda `((in :Receiver<I>) (out :Sender<O>) -> :())` (arc 114) |
+| `:wat::kernel::spawn-thread` | `body` | `:wat::kernel::Thread<I,O>` — body is a fn `((in :Receiver<I>) (out :Sender<O>) -> :())` (arc 114) |
 | `:wat::kernel::Thread/input` | `thr` | `:rust::crossbeam_channel::Sender<I>` — parent → thread |
 | `:wat::kernel::Thread/output` | `thr` | `:rust::crossbeam_channel::Receiver<O>` — thread → parent |
 | `:wat::kernel::Thread/join-result` | `thr` | `:Result<:(), :Vec<wat::kernel::ThreadDiedError>>` — death-as-data; chain shape (arcs 060/113/114) |

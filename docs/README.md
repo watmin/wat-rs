@@ -119,7 +119,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   `:user::main`'s arguments.
 - **`arc/2026/04/009-names-are-values/`** — the fn-by-name lift.
   A registered define's keyword-path in value position now
-  evaluates to a callable `Value::wat__core__lambda`, and the
+  evaluates to a callable `Value::wat__core__fn`, and the
   type checker infers a `:fn(...)->Ret` scheme for the same
   position. Generalizes `:wat::kernel::spawn`'s long-standing
   accept-by-name convention to every `:fn(...)`-typed parameter

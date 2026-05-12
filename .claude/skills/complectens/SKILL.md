@@ -290,8 +290,8 @@ The corollary: do NOT factor a CALL SEQUENCE that uses both halves of a channel 
 Some deftest bodies contain LITERALS that are part of the test's data, not part of its composition logic. These literals are inherently irreducible:
 
 - `(:wat::test::run-hermetic-ast (:wat::test::program ...))` — the embedded program AST runs in a forked subprocess; it can't reference the outer prelude's helpers, so it must be self-contained.
-- `(:wat::lru::HologramCacheService::MetricsCadence/new gate (:wat::core::lambda ...))` — a cadence's tick lambda; the lambda is data passed to the factory, not composition.
-- `(:wat::core::lambda ((tx :Sender) ...) ...)` as a dispatcher / translator / reporter argument — the lambda is the test fixture, not the test logic.
+- `(:wat::lru::HologramCacheService::MetricsCadence/new gate (:wat::core::fn ...))` — a cadence's tick fn; the fn is data passed to the factory, not composition.
+- `(:wat::core::fn ((tx :Sender) ...) ...)` as a dispatcher / translator / reporter argument — the fn is the test fixture, not the test logic.
 
 The mechanical phase's `>30 lines = suspect` heuristic over-flags any deftest containing such literals. Phase-2 judgment counts the **OUTER LOGICAL BINDINGS** of the deftest's let, NOT the total visual line count. A test whose outer let has 5 bindings is well-shaped, even if visual line count is 80+.
 
@@ -300,9 +300,9 @@ When extracting helpers FOR an embedded-literal test, target the OUTER scaffoldi
 - Helpers that PROCESS the result (extract stdout/stderr, assert on contents).
 - Helpers that COMPOSE multiple invocations (call the scenario, drain the channel, assert).
 
-Helpers that try to share logic INSIDE an embedded program's body, or inside an embedded lambda, are not possible without arc-094-style AST quasiquote builders — out of scope for the discipline.
+Helpers that try to share logic INSIDE an embedded program's body, or inside an embedded fn, are not possible without arc-094-style AST quasiquote builders — out of scope for the discipline.
 
-The simpler rule: when one of the deftest's let bindings has an RHS that EVALUATES to data (an AST, a lambda, a closure, a struct literal), that RHS is the test's fixture and is exempt from the line-count metric. The OUTER let's binding count remains the proxy for composition complexity.
+The simpler rule: when one of the deftest's let bindings has an RHS that EVALUATES to data (an AST, a fn, a closure, a struct literal), that RHS is the test's fixture and is exempt from the line-count metric. The OUTER let's binding count remains the proxy for composition complexity.
 
 ## The rune
 
@@ -325,7 +325,7 @@ positional category in parens, em-dash separator, free-text reason after.
 **Categories:**
 
 - `embedded-program` — body's bulk is an AST literal running in a sandboxed subprocess; the literal cannot reference outer prelude helpers (sandbox isolation), so extraction is impossible.
-- `inline-fixtures` — outer-bindings count is high but the bindings are inline lambda/closure literals defining the test's own fixture (e.g., a Mealy step+flush pair). Extracting them to the prelude would lose the file's self-contained definition.
+- `inline-fixtures` — outer-bindings count is high but the bindings are inline fn/closure literals defining the test's own fixture (e.g., a Mealy step+flush pair). Extracting them to the prelude would lose the file's self-contained definition.
 - `proof-stepping-stones` — the body's bindings are deliberate stepping-stone assertions documenting a contract (most often in `wat-tests/proofs/` files). Collapsing them would destroy the proof structure the file exists to document.
 - `assertion-sequence` — tight sequence of related asserts on a single result; helper extraction would obscure the assertion-by-assertion narrative.
 - `match-on-state` — long match expression on enum state where each arm tests a different scenario; the match IS the test's structure.

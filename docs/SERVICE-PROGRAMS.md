@@ -262,19 +262,19 @@ the loop exits.
 ```scheme
 ((pairs :Vec<wat::kernel::Channel<i64>>)
  (:wat::core::map (:wat::core::range 0 N)
-   (:wat::core::lambda ((_i :i64) -> :wat::kernel::Channel<i64>)
+   (:wat::core::fn ((_i :i64) -> :wat::kernel::Channel<i64>)
      (:wat::kernel::make-bounded-channel :i64 1))))
 
 ((txs :Vec<wat::kernel::Sender<i64>>)
  (:wat::core::map pairs
-   (:wat::core::lambda ((p :wat::kernel::Channel<i64>)
-                        -> :wat::kernel::Sender<i64>)
+   (:wat::core::fn ((p :wat::kernel::Channel<i64>)
+                    -> :wat::kernel::Sender<i64>)
      (:wat::core::first p))))
 
 ((rxs :Vec<wat::kernel::Receiver<i64>>)
  (:wat::core::map pairs
-   (:wat::core::lambda ((p :wat::kernel::Channel<i64>)
-                        -> :wat::kernel::Receiver<i64>)
+   (:wat::core::fn ((p :wat::kernel::Channel<i64>)
+                    -> :wat::kernel::Receiver<i64>)
      (:wat::core::second p))))
 ```
 

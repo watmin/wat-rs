@@ -4228,11 +4228,13 @@ fn eval_dispatch_call(
 
 // ─── Language forms ─────────────────────────────────────────────────────
 
-/// Arc 155 — formerly `eval_lambda`; renamed to `eval_fn` per the
-/// `:wat::core::lambda` → `:wat::core::fn` operator rename. Body
-/// unchanged; only the function name updated. Dispatch arms for
-/// both `:wat::core::fn` (canonical) and `:wat::core::lambda`
-/// (retired fall-through) route here.
+/// Arc 155 retired `:wat::core::lambda`; arc 162 renamed this function
+/// from `eval_lambda` to `eval_fn` to mirror the user-facing rename.
+/// `:wat::core::lambda` has NO dispatch arm — walker `BareLegacyLambda`
+/// (src/check.rs) fires a fatal diagnostic at check time on any
+/// user-source `:wat::core::lambda` form. Nothing routes lambda here at
+/// runtime. This function is reached only via the `:wat::core::fn`
+/// dispatch arm (src/runtime.rs — the only active entry point).
 fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
     // Arc 167 — flat-shape fn-form consumer; arc 168 — implicit-do body.
     // Canonical form: (:wat::core::fn ARGS-VECTOR -> :RET-TYPE body...)

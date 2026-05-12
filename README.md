@@ -155,7 +155,7 @@ clippy warnings.** Rust side: library units in `src/lib.rs` plus
 `wat_{test_cli,cli}`, `wat_io`, `wat_fork`, `wat_pipe`,
 `wat_dim_router`, `wat_make_deftest`, `wat_eval_result`,
 `wat_typealias`, `wat_typed_if_match`, `wat_u8`, `wat_tco`,
-`wat_string_ops`, `wat_spawn_lambda`, `wat_variadic_defmacro`.
+`wat_string_ops`, `wat_spawn_fn`, `wat_variadic_defmacro`.
 The `wat-lru` workspace member ships its own suite at
 `crates/wat-lru/tests/test.rs`. Wat side: 11 `wat-tests/` files
 (Subtract, Circular, Reject/Project, Sequential, Trigram, eval-

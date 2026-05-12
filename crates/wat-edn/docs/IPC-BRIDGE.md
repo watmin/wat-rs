@@ -147,7 +147,7 @@ calls `read-stdin!` to pop one form.
                      (stderr :wat::io::IOWriter)
                      -> :())
   (:wat::edn::serve! stdin stdout
-    (:wat::core::lambda (req :MyReq) -> :MyResp
+    (:wat::core::fn (req :MyReq) -> :MyResp
       ; ... compute ...)))
 ```
 
@@ -338,7 +338,7 @@ differ.
                      (stderr :wat::io::IOWriter)
                      -> :())
   (:wat::edn::serve! stdin stdout
-    (:wat::core::lambda (req :myapp::Req) -> :myapp::Resp
+    (:wat::core::fn (req :myapp::Req) -> :myapp::Resp
       (:myapp::compute req))))
 ```
 

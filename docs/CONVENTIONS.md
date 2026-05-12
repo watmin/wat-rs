@@ -503,7 +503,7 @@ exists; the last five are the standard verbs):
   :my::reporter
   (:wat::holon::lru::HologramCacheService::MetricsCadence/new
     (:wat::time::now)
-    (:wat::core::lambda
+    (:wat::core::fn
       ((g :wat::time::Instant) (_s :Stats) -> :(wat::time::Instant,bool))
       (:trading::log::tick-gate g 5000))))
 
@@ -512,7 +512,7 @@ exists; the last five are the standard verbs):
   :my::reporter
   (:wat::holon::lru::HologramCacheService::MetricsCadence/new
     0
-    (:wat::core::lambda ((n :i64) (_s :Stats) -> :(i64,bool))
+    (:wat::core::fn ((n :i64) (_s :Stats) -> :(i64,bool))
       (:wat::core::if (:wat::core::i64::>= n 99) -> :(i64,bool)
         (:wat::core::Tuple 0 true)
         (:wat::core::Tuple (:wat::core::i64::+ n 1) false)))))

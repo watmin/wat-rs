@@ -9987,11 +9987,13 @@ fn infer_list_constructor(
     })
 }
 
-/// Arc 155 — formerly `infer_lambda`; renamed to `infer_fn` per the
-/// `:wat::core::lambda` → `:wat::core::fn` operator rename. Body
-/// unchanged; only the function name and this doc comment updated.
-/// Dispatch arms for both `:wat::core::fn` (canonical) and
-/// `:wat::core::lambda` (retired fall-through) route here.
+/// Arc 155 retired `:wat::core::lambda`; arc 162 renamed this function
+/// from `infer_lambda` to `infer_fn` to mirror the user-facing rename.
+/// `:wat::core::lambda` has NO check arm — walker `BareLegacyLambda`
+/// (src/check.rs) fires a fatal diagnostic at check time on any
+/// user-source `:wat::core::lambda` form. Nothing routes lambda here.
+/// This function is reached only via the `:wat::core::fn` check arm
+/// (src/check.rs — the only active entry point).
 ///
 /// A fn expression's type is `:wat::core::Fn(<param types>) -> <return type>`.
 /// The signature is mandatory per 058-029 — every param and the
