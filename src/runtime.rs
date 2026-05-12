@@ -1499,6 +1499,17 @@ pub fn register_defines(
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
             ) {
                 preregister_fn_defs_in_do(do_items, sym, true)?;
+            // Arc 170 Gap D — top-level `(:wat::core::let bindings body...)` splice.
+            // Mirror of Gap C for `let`. The body forms live at items[2..] (per
+            // arc 168 multi-form body). Peek into the body and pre-register any
+            // fn-shape defs so `resolve_references` can validate call heads.
+            // The let form itself stays in `rest` so `register_runtime_defs`
+            // can evaluate it later.
+            } else if matches!(
+                do_items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
+            ) {
+                preregister_fn_defs_in_let(do_items, sym, true)?;
             }
             rest.push(form);
         } else {
@@ -1539,6 +1550,14 @@ pub fn register_stdlib_defines(
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
             ) {
                 preregister_fn_defs_in_do(do_items, sym, false)?;
+            // Arc 170 Gap D — top-level `(:wat::core::let ...)` splice.
+            // Mirror of Gap C for `let`; bypasses the reserved-prefix check
+            // since stdlib source is privileged.
+            } else if matches!(
+                do_items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
+            ) {
+                preregister_fn_defs_in_let(do_items, sym, false)?;
             }
             rest.push(form);
         } else {
@@ -2037,6 +2056,18 @@ fn register_runtime_defs_form(
             // to runtime_def_values happens after.
             let sym_ref: &SymbolTable = sym;
             let value = eval(expr, env, sym_ref)?;
+            // Arc 170 Gap D — if the evaluated value is a fn (possibly with
+            // a `closed_env` captured from enclosing let-bindings), also
+            // update `sym.functions` with the properly-evaluated fn. This
+            // overwrites any pre-registered stub (from `preregister_fn_defs_in_let`)
+            // that carried `closed_env: None`. Without this update, `eval_tail`
+            // dispatches through `sym.functions` (the stub) and loses the closure.
+            // The overwrite is idempotent for fns not pre-registered (no-op on
+            // first insert) and safe for define-registered fns (defines don't
+            // go through `register_runtime_defs_form`'s def arm; no collision).
+            if let Value::wat__core__fn(ref func) = value {
+                sym.functions.insert(name.clone(), func.clone());
+            }
             sym.runtime_def_values.insert(name, value);
         }
         ":wat::core::do" => {
@@ -2235,6 +2266,54 @@ fn preregister_fn_defs_in_do(
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
             ) {
                 preregister_fn_defs_in_do(nested_items, sym, check_reserved_prefix)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Pre-registers fn-shape `def` forms found in the body of a top-level
+/// `(:wat::core::let bindings body...)` into `sym.functions`.
+///
+/// `register_defines` calls this when it encounters a `let` form at top
+/// level. The `let` form itself remains in `rest` (so `register_runtime_defs`
+/// can evaluate it later); this helper only *peeks* into the body (items[2..],
+/// per arc 168 multi-form body) to pre-register any
+/// `(:wat::core::def :name (:wat::core::fn ...))` children into `sym.functions`
+/// so `resolve_references` (which runs after `register_defines`) can validate
+/// call heads that reference those names.
+///
+/// Separate from `preregister_fn_defs_in_do` because `let` body starts at
+/// `items[2..]` (after the keyword and the bindings vector) whereas `do` body
+/// starts at `items[1..]` (after the keyword only).
+///
+/// `check_reserved_prefix`: pass `true` for user source (blocks `:wat::*`
+/// and `:rust::*` names); pass `false` for stdlib source which is permitted
+/// under those prefixes.
+fn preregister_fn_defs_in_let(
+    items: &[WatAST],
+    sym: &mut SymbolTable,
+    check_reserved_prefix: bool,
+) -> Result<(), RuntimeError> {
+    // items[0] = :wat::core::let keyword
+    // items[1] = bindings vector
+    // items[2..] = body forms (arc 168 multi-form body)
+    for child in items.get(2..).unwrap_or(&[]) {
+        if let Some((path, func)) = try_parse_fn_shape_def(child) {
+            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
+                let span = child.span().clone();
+                return Err(RuntimeError::ReservedPrefix(path, span));
+            }
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path, func);
+            }
+        } else if let WatAST::List(nested_items, _) = child {
+            // Recurse into nested let forms in the body.
+            if matches!(
+                nested_items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
+            ) {
+                preregister_fn_defs_in_let(nested_items, sym, check_reserved_prefix)?;
             }
         }
     }
