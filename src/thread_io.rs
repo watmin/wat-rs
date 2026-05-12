@@ -433,8 +433,8 @@ impl std::fmt::Debug for RuntimeServices {
 fn unwrap_value_sender(v: Value, label: &'static str) -> Result<Sender<Value>, RuntimeError> {
     match v {
         Value::wat__kernel__Sender(inner) => match inner.as_ref() {
-            SenderInner::Crossbeam(s) => Ok(s.clone()),
-            SenderInner::PipeFd(_) => Err(RuntimeError::TypeMismatch {
+            SenderInner::Crossbeam { sender: s, .. } => Ok(s.clone()),
+            SenderInner::PipeFd { .. } => Err(RuntimeError::TypeMismatch {
                 op: label.to_string(),
                 expected: "tier-1 (crossbeam) Sender",
                 got: "tier-2 (pipe-fd) Sender",

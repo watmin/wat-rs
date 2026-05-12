@@ -3646,6 +3646,11 @@ fn dispatch_keyword_head(
         ":wat::kernel::eprintln" => crate::thread_io::eval_kernel_eprintln(args, env, sym),
         ":wat::kernel::readln" => crate::thread_io::eval_kernel_readln(args, env, sym),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),
+        // Arc 170 slice 3 Gap B — explicit EOF on send side without
+        // dropping the Sender Value. Idempotent. Returns nil.
+        ":wat::kernel::Sender/close" => {
+            eval_kernel_sender_close(args, env, sym, list_span)
+        }
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym, list_span),
         ":wat::kernel::try-recv" => eval_kernel_try_recv(args, env, sym, list_span),
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
@@ -14961,6 +14966,44 @@ fn eval_kernel_send(
             )))))
         }
     }
+}
+
+/// `(:wat::kernel::Sender/close sender)` → `:()` (nil). Idempotent.
+///
+/// Arc 170 slice 3 Gap B — signals EOF on the send side without
+/// dropping the Sender Value. Flips the `closed` flag on the
+/// `SenderInner` so subsequent `(:wat::kernel::send s v)` calls
+/// return `Result.Err(ChannelDisconnected)`. For PipeFd transports
+/// also calls `PipeWriter::close` which releases the write-end fd
+/// so the peer reader sees EOF. Calling this twice is a no-op.
+fn eval_kernel_sender_close(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::kernel::Sender/close";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let sender = match eval(&args[0], env, sym)? {
+        Value::wat__kernel__Sender(s) => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "wat::kernel::Sender<T>",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    crate::typed_channel::sender_close(sender.as_ref(), list_span.clone())?;
+    Ok(Value::Unit)
 }
 
 /// `(:wat::kernel::recv receiver)` — blocks until the receiver

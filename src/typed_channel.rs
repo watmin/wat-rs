@@ -68,6 +68,7 @@
 
 use crate::io::{WatReader, WatWriter};
 use crate::span::Span;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 /// Transport-polymorphic Sender backing for
@@ -75,15 +76,35 @@ use std::sync::Arc;
 ///
 /// `Crossbeam` carries a tier-1 in-memory channel (no encoding).
 /// `PipeFd` wraps a writer fd with EDN encoding on send.
+///
+/// Arc 170 slice 3 Gap B — each variant carries a `closed` flag
+/// (`AtomicBool`) so `:wat::kernel::Sender/close` can signal EOF
+/// on the send side without dropping the Sender Value. Interior
+/// mutability via `AtomicBool` is permitted under zero-Mutex
+/// doctrine (ZERO-MUTEX.md § "Honest caveats"). The `Arc<SenderInner>`
+/// wrapping remains immutable from Rust's ownership perspective;
+/// only the flag's value changes.
 #[derive(Debug)]
 pub enum SenderInner {
     /// Tier 1 — crossbeam in-memory channel. Same Arc the legacy
     /// `Value::crossbeam_channel__Sender` carried.
-    Crossbeam(crossbeam_channel::Sender<crate::runtime::Value>),
+    Crossbeam {
+        sender: crossbeam_channel::Sender<crate::runtime::Value>,
+        /// Arc 170 slice 3 Gap B — set by `Sender/close`; checked
+        /// by `typed_send` before each send attempt.
+        closed: AtomicBool,
+    },
     /// Tier 2 — linux-fd pipe with EDN encoding on send. The
     /// inner `Arc<dyn WatWriter>` is the same shape `Process.stdin`
     /// has carried since arc 103 (PipeWriter from an OwnedFd).
-    PipeFd(Arc<dyn WatWriter>),
+    PipeFd {
+        writer: Arc<dyn WatWriter>,
+        /// Arc 170 slice 3 Gap B — set by `Sender/close`; checked
+        /// by `typed_send` before each send attempt. For PipeFd,
+        /// `Sender/close` also calls `writer.close()` which releases
+        /// the underlying fd so the peer reader sees EOF.
+        closed: AtomicBool,
+    },
 }
 
 /// Transport-polymorphic Receiver backing for
@@ -105,7 +126,10 @@ pub enum ReceiverInner {
 pub fn sender_from_crossbeam(
     tx: crossbeam_channel::Sender<crate::runtime::Value>,
 ) -> crate::runtime::Value {
-    crate::runtime::Value::wat__kernel__Sender(Arc::new(SenderInner::Crossbeam(tx)))
+    crate::runtime::Value::wat__kernel__Sender(Arc::new(SenderInner::Crossbeam {
+        sender: tx,
+        closed: AtomicBool::new(false),
+    }))
 }
 
 /// Ergonomic constructor for a tier-1 (crossbeam-backed) Receiver
@@ -120,7 +144,10 @@ pub fn receiver_from_crossbeam(
 /// The wrapped writer encodes typed `Value`s as line-delimited EDN
 /// on each send.
 pub fn sender_from_pipe(writer: Arc<dyn WatWriter>) -> crate::runtime::Value {
-    crate::runtime::Value::wat__kernel__Sender(Arc::new(SenderInner::PipeFd(writer)))
+    crate::runtime::Value::wat__kernel__Sender(Arc::new(SenderInner::PipeFd {
+        writer,
+        closed: AtomicBool::new(false),
+    }))
 }
 
 /// Ergonomic constructor for a tier-2 (pipe-fd) Receiver `Value`.
@@ -175,11 +202,24 @@ pub fn typed_send(
     span: Span,
 ) -> SendOutcome {
     match sender {
-        SenderInner::Crossbeam(tx) => match tx.send(value) {
-            Ok(()) => SendOutcome::Ok,
-            Err(_) => SendOutcome::Disconnected,
-        },
-        SenderInner::PipeFd(writer) => {
+        SenderInner::Crossbeam { sender: tx, closed } => {
+            // Arc 170 slice 3 Gap B — check closed flag before
+            // attempting transport send. Acquire ordering pairs with
+            // the SeqCst store in sender_close so this thread sees
+            // the flag update from any concurrent close call.
+            if closed.load(Ordering::Acquire) {
+                return SendOutcome::Disconnected;
+            }
+            match tx.send(value) {
+                Ok(()) => SendOutcome::Ok,
+                Err(_) => SendOutcome::Disconnected,
+            }
+        }
+        SenderInner::PipeFd { writer, closed } => {
+            // Arc 170 slice 3 Gap B — check closed flag before write.
+            if closed.load(Ordering::Acquire) {
+                return SendOutcome::Disconnected;
+            }
             let edn = crate::edn_shim::value_to_edn_with(&value, types);
             let mut payload = wat_edn::write(&edn);
             payload.push('\n');
@@ -191,6 +231,46 @@ pub fn typed_send(
                 // transports.
                 Err(_) => SendOutcome::Disconnected,
             }
+        }
+    }
+}
+
+/// Arc 170 slice 3 Gap B — signal end-of-stream on the send side
+/// without dropping the Sender Value.
+///
+/// Sets the `closed` flag to `true` (idempotent). For Crossbeam
+/// senders, the flag is sufficient — subsequent `typed_send` calls
+/// check it and return `SendOutcome::Disconnected`. For PipeFd
+/// senders, also calls `writer.close()` which releases the
+/// underlying fd via `libc::close(2)` so the peer reader sees EOF
+/// on its next read (the same `PipeWriter::close` that
+/// `IOWriter/close` calls, per `src/io.rs:665`).
+///
+/// Calling `sender_close` twice is safe (idempotent): the second
+/// call finds the flag already set; for PipeFd the `PipeWriter::close`
+/// impl atomically swaps fd to -1 and no-ops if already -1.
+///
+/// Returns `Ok(())` always — callers convert to `Value::Unit` (nil).
+pub fn sender_close(
+    sender: &SenderInner,
+    span: Span,
+) -> Result<(), crate::runtime::RuntimeError> {
+    match sender {
+        SenderInner::Crossbeam { closed, .. } => {
+            // SeqCst store ensures all threads see the flag; Acquire
+            // load in typed_send pairs with this.
+            closed.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+        SenderInner::PipeFd { writer, closed } => {
+            // Set the flag first so typed_send stops immediately.
+            closed.store(true, Ordering::SeqCst);
+            // Release the fd — the peer reader's next read sees EOF.
+            // PipeWriter::close is idempotent (atomically swaps fd
+            // to -1; no-op if already -1). Errors from close(2) are
+            // advisory; PipeWriter::close discards them — same policy
+            // as IOWriter/close.
+            writer.close(span)
         }
     }
 }

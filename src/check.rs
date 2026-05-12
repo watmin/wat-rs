@@ -3300,9 +3300,12 @@ fn walk_for_pair_deadlock(
     // Skip kernel comm primitives — those are governed by arc 117 /
     // arc 110, not arc 126. Their argument-shape is well-formed by
     // construction (one Sender or one Receiver per call).
+    // Arc 170 slice 3 Gap B — Sender/close is structurally a
+    // single-Sender call; exclude from pair-deadlock check.
     if matches!(
         head,
         ":wat::kernel::send"
+            | ":wat::kernel::Sender/close"
             | ":wat::kernel::recv"
             | ":wat::kernel::try-recv"
             | ":wat::kernel::select"
@@ -12490,6 +12493,23 @@ fn register_builtins(env: &mut CheckEnv) {
                 t_var(),
             ],
             ret: comm_send_ret(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 170 slice 3 Gap B — explicit EOF on send side.
+    // (:wat::kernel::Sender/close sender) — ∀T. Sender<T> -> :().
+    // Idempotent. After close, (:wat::kernel::send s v) returns
+    // Result.Err(ChannelDisconnected). No new Result wrapper —
+    // close itself always succeeds (nil return).
+    env.register(
+        ":wat::kernel::Sender/close".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "rust::crossbeam_channel::Sender".into(),
+                args: vec![t_var()],
+            }],
+            ret: TypeExpr::Tuple(vec![]),
             rest_param_type: None,
         },
     );

@@ -38,8 +38,8 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, RuntimeError, StructValue, Value};
 use wat::span::Span;
 use wat::typed_channel::{
-    make_pipe_channel_pair, receiver_from_pipe, sender_from_pipe, typed_recv, typed_send,
-    ReceiverInner, RecvOutcome, SendOutcome, SenderInner,
+    make_pipe_channel_pair, receiver_from_pipe, sender_close, sender_from_pipe, typed_recv,
+    typed_send, ReceiverInner, RecvOutcome, SendOutcome, SenderInner,
 };
 
 // ─── helpers ───────────────────────────────────────────────────────────
@@ -521,7 +521,7 @@ fn pipe_channel_invalid_edn_surfaces_as_decode_error() {
     // Reach into the writer side and push raw bytes that don't
     // parse as EDN. The receiver should surface a DecodeError.
     match unwrap_sender_inner(&tx) {
-        SenderInner::PipeFd(writer) => {
+        SenderInner::PipeFd { writer, .. } => {
             writer
                 .write_all(b"this is not edn(((\n", Span::unknown())
                 .expect("raw write should succeed");
@@ -728,5 +728,146 @@ fn wat_kernel_select_rejects_pipefd_receiver() {
             );
         }
         other => panic!("expected MalformedForm error, got {:?}", other),
+    }
+}
+
+// ─── Arc 170 slice 3 Gap B — Sender/close unit tests ────────────────────
+
+#[test]
+fn sender_close_crossbeam_close_then_send_returns_disconnected() {
+    // Crossbeam transport: close the Sender, then send → Disconnected.
+    use wat::typed_channel::sender_from_crossbeam;
+    let (tx, _rx) = crossbeam_channel::bounded::<Value>(4);
+    let sender_val = sender_from_crossbeam(tx);
+    let inner = unwrap_sender_inner(&sender_val);
+
+    // Initial send succeeds.
+    let first = typed_send(inner, Value::i64(1), None, Span::unknown());
+    assert!(matches!(first, SendOutcome::Ok), "pre-close send should succeed");
+
+    // Close the sender.
+    sender_close(inner, Span::unknown()).expect("close should succeed");
+
+    // Send-after-close returns Disconnected.
+    let after = typed_send(inner, Value::i64(2), None, Span::unknown());
+    assert!(
+        matches!(after, SendOutcome::Disconnected),
+        "post-close send should return Disconnected"
+    );
+}
+
+#[test]
+fn sender_close_crossbeam_idempotent() {
+    // Calling close twice on a Crossbeam Sender is a no-op.
+    use wat::typed_channel::sender_from_crossbeam;
+    let (tx, _rx) = crossbeam_channel::bounded::<Value>(4);
+    let sender_val = sender_from_crossbeam(tx);
+    let inner = unwrap_sender_inner(&sender_val);
+
+    sender_close(inner, Span::unknown()).expect("first close should succeed");
+    sender_close(inner, Span::unknown()).expect("second close (idempotent) should succeed");
+
+    // Still Disconnected after double close.
+    let after = typed_send(inner, Value::i64(3), None, Span::unknown());
+    assert!(matches!(after, SendOutcome::Disconnected));
+}
+
+#[test]
+fn sender_close_pipefd_close_then_send_returns_disconnected() {
+    // PipeFd transport: close the Sender, then send → Disconnected.
+    // After close the writer fd is released; write attempts return Err
+    // ("pipe write: writer is closed") which typed_send maps to Disconnected.
+    let world = empty_world();
+    let types = world.symbols().types().map(|a| a.as_ref());
+    let (tx, _rx) = make_pipe_channel_pair(":test").unwrap();
+    let inner = unwrap_sender_inner(&tx);
+
+    // Pre-close send succeeds.
+    let first = typed_send(inner, Value::i64(10), types, Span::unknown());
+    assert!(matches!(first, SendOutcome::Ok), "pre-close send should succeed");
+
+    // Close.
+    sender_close(inner, Span::unknown()).expect("close should succeed");
+
+    // Post-close send returns Disconnected (flag check fires before fd write).
+    let after = typed_send(inner, Value::i64(11), types, Span::unknown());
+    assert!(
+        matches!(after, SendOutcome::Disconnected),
+        "post-close send should return Disconnected"
+    );
+}
+
+#[test]
+fn sender_close_pipefd_idempotent() {
+    // Calling close twice on a PipeFd Sender is a no-op.
+    let (tx, _rx) = make_pipe_channel_pair(":test").unwrap();
+    let inner = unwrap_sender_inner(&tx);
+
+    sender_close(inner, Span::unknown()).expect("first close should succeed");
+    sender_close(inner, Span::unknown()).expect("second close (idempotent) should succeed");
+}
+
+#[test]
+fn sender_close_pipefd_triggers_reader_eof() {
+    // PipeFd transport: closing the Sender causes the Receiver's next
+    // typed_recv to return Disconnected (clean EOF — no buffered data).
+    let world = empty_world();
+    let types = world.symbols().types().map(|a| a.as_ref());
+    let (tx, rx) = make_pipe_channel_pair(":test").unwrap();
+    let sender_inner = unwrap_sender_inner(&tx);
+    let receiver_inner = unwrap_receiver_inner(&rx);
+
+    // Send one value; recv it; then close the sender.
+    assert!(matches!(
+        typed_send(sender_inner, Value::i64(42), types, Span::unknown()),
+        SendOutcome::Ok
+    ));
+    let got = assert_recv_value(typed_recv(receiver_inner, types, Span::unknown()));
+    assert!(matches!(got, Value::i64(42)));
+
+    // Now close the sender.
+    sender_close(sender_inner, Span::unknown()).expect("close should succeed");
+
+    // Receiver sees EOF (Disconnected = clean shutdown).
+    assert_recv_disconnected(typed_recv(receiver_inner, types, Span::unknown()));
+}
+
+#[test]
+fn wat_kernel_sender_close_dispatch_via_eval() {
+    // End-to-end wat-level test: bind a crossbeam Sender; call
+    // (:wat::kernel::Sender/close tx); then (:wat::kernel::send tx v)
+    // returns Result.Err(...) — the ChannelDisconnected shape.
+    use wat::typed_channel::sender_from_crossbeam;
+    let world = empty_world();
+
+    let (tx, _rx) = crossbeam_channel::bounded::<Value>(4);
+    let sender_val = sender_from_crossbeam(tx);
+
+    let env = Environment::new()
+        .child()
+        .bind("tx", sender_val)
+        .build();
+
+    // (:wat::kernel::Sender/close tx) → nil
+    let close_ast =
+        wat::parse_one!("(:wat::kernel::Sender/close tx)").expect("parse Sender/close");
+    let close_result =
+        eval(&close_ast, &env, world.symbols()).expect("Sender/close eval should succeed");
+    assert!(
+        matches!(close_result, Value::Unit),
+        "Sender/close should return nil, got {:?}",
+        close_result
+    );
+
+    // (:wat::kernel::send tx 99) → Result.Err(disconnected)
+    let send_ast = wat::parse_one!("(:wat::kernel::send tx 99)").expect("parse send");
+    let send_result =
+        eval(&send_ast, &env, world.symbols()).expect("send-after-close eval should not panic");
+    match send_result {
+        Value::Result(res) => match &*res {
+            Err(_) => {} // any Err is correct — ChannelDisconnected shape
+            Ok(v) => panic!("expected Err after close, got Ok({:?})", v),
+        },
+        other => panic!("expected Result, got {:?}", other),
     }
 }
