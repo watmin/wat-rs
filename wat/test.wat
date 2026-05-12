@@ -328,6 +328,19 @@
 ;; hermetic runs in a child with real thread-safe stdio (PipeReader /
 ;; PipeWriter; arc 012). The child inherits the caller's SymbolTable
 ;; (including loaded deps) + committed Config (arc 031) via COW.
+;;
+;; Arc 170 slice 3 Gap G — Path E migration BLOCKED by substrate gap:
+;; (:wat::core::define ...) forms inside a (:wat::core::fn ...) body's
+;; (:wat::core::do ...) cannot be evaluated at child runtime — the
+;; evaluator returns DefineInExpressionPosition. Existing callers
+;; (ambient-stdio.wat via make-deftest-hermetic) use define forms in
+;; their preludes. Path E requires either:
+;;   (a) a substrate capability to evaluate define at expression
+;;       position inside a do (runtime registration of fns), OR
+;;   (b) caller sweep: move all define-form preludes out of deftest-
+;;       hermetic's prelude and into the test body or separate files.
+;; See SCORE-SLICE-3-GAP-G-PATH-E-ISOLATION.md for full analysis.
+;; Staying on run-sandboxed-hermetic-ast until the substrate gap closes.
 (:wat::core::defmacro
   (:wat::test::deftest-hermetic
     (name :AST<wat::core::nil>)
