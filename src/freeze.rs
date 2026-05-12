@@ -1268,6 +1268,37 @@ fn is_mutation_form(head: &str) -> bool {
     ) || head.starts_with(":wat::config::set-")
 }
 
+/// Returns `true` for forms that **declare a name** into the module's type
+/// or value registry. This is the narrower subset of [`is_mutation_form`]
+/// that covers ONLY the 8 declaration forms — excluding loads
+/// (`load-file!` / `digest-load!` / `signed-load!`) and config setters
+/// (`config::set-*`), which mutate state but do not introduce new bindings.
+///
+/// `defn` is intentionally absent: it is a macro that expands to
+/// `(:wat::core::def ...)` BEFORE `extract_closure` runs. By the time the
+/// prelude-lift or position-validator consults this predicate, `defn` has
+/// already been rewritten to its `def` form; `def` is covered here.
+///
+/// Callers:
+/// - `closure_extract::split_body_prelude` — lifts these forms from a fn
+///   body's `do`-prefix into the closure's prologue so the child's
+///   `startup_from_forms` registers them before the body runs.
+/// - `check::validate_def_position_with_wrapper` (Gap I-B, future slice) —
+///   extends compile-time position discipline to all 8 declaration forms.
+pub fn is_declaration_form(head: &str) -> bool {
+    matches!(
+        head,
+        ":wat::core::def"
+            | ":wat::core::define"
+            | ":wat::core::defmacro"
+            | ":wat::core::define-dispatch"
+            | ":wat::core::struct"
+            | ":wat::core::enum"
+            | ":wat::core::newtype"
+            | ":wat::core::typealias"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

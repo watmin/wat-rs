@@ -611,6 +611,9 @@ fn walk_free_symbols(
                         ":wat::core::enum" => {
                             return walk_enum_form(rest, state);
                         }
+                        ":wat::core::defmacro" => {
+                            return walk_defmacro_form(rest);
+                        }
                         _ => {}
                     }
                 }
@@ -858,6 +861,28 @@ fn walk_enum_form(
             _ => {}
         }
     }
+    Ok(())
+}
+
+/// Walk a `(:wat::core::defmacro (:name (param :AST) ... -> :AST) body)` form.
+///
+/// Arc 170 slice 3 Gap I-A. Defmacro forms in fn body do-prefixes require
+/// the same protection as struct/enum forms (see `walk_struct_form`). Macro
+/// parameter names (bare Symbols like `x` in `(x :AST)`) are binding
+/// positions within the macro's template body — they are NOT free-symbol
+/// references to the parent scope.
+///
+/// Correct walk: skip the entire defmacro. The macro body is a template that
+/// uses parameter Symbols as binding sites (e.g., `~x` / `\`~x`). Walking
+/// the template as a plain list would misclassify those Symbols as unresolved
+/// free-variable references, causing `MalformedForm` at `extract_closure`
+/// time. The defmacro form itself introduces no free-variable dependencies on
+/// the parent's scope; its registration in the child's `MacroRegistry` at
+/// startup step 4 is self-contained.
+fn walk_defmacro_form(_args: &[WatAST]) -> Result<(), ExtractionError> {
+    // The defmacro body is a macro template, not an executable expression.
+    // Parameter names inside the template are binding positions; they must
+    // not be walked for free-symbol resolution against the parent scope.
     Ok(())
 }
 
@@ -1759,19 +1784,15 @@ fn value_static_type_keyword(
 /// evaluated at expression position inside `eval_do_tail` (which returns
 /// `DefineInExpressionPosition` for `define`; `UnknownFunction` for
 /// `struct` / `enum` which are freeze-time forms, not runtime ones).
-fn is_prelude_form(node: &WatAST) -> bool {
+/// Returns the head keyword string of a `WatAST::List` form, or `None`
+/// for non-list nodes or lists whose head is not a `Keyword`.
+fn head_keyword(node: &WatAST) -> Option<&str> {
     if let WatAST::List(items, _) = node {
         if let Some(WatAST::Keyword(k, _)) = items.first() {
-            matches!(
-                k.as_str(),
-                ":wat::core::define" | ":wat::core::struct" | ":wat::core::enum"
-            )
-        } else {
-            false
+            return Some(k.as_str());
         }
-    } else {
-        false
     }
+    None
 }
 
 /// Split a fn body's leading prelude forms from the residual expressions.
@@ -1779,26 +1800,28 @@ fn is_prelude_form(node: &WatAST) -> bool {
 /// Returns `(prelude_forms, residual_body)`.
 ///
 /// If `body` is a `(:wat::core::do ...)` form:
-///   - Scans children left-to-right collecting consecutive prelude forms
-///     (define/struct/enum). Stops at the FIRST non-prelude child.
+///   - Scans children left-to-right collecting consecutive declaration forms
+///     (per [`crate::freeze::is_declaration_form`]: def/define/defmacro/
+///     define-dispatch/struct/enum/newtype/typealias). Stops at the FIRST
+///     non-declaration child.
 ///   - Returns `(prelude_forms, reconstructed_residual_do_or_expr)`.
-///   - If `prelude_forms` is empty (no leading prelude), returns
+///   - If `prelude_forms` is empty (no leading declarations), returns
 ///     `(vec![], body)` unchanged — the caller applies no lift.
 ///   - Residual shape:
 ///       - 0 children remaining → `:wat::core::nil` keyword (the fn
-///         body had only prelude forms; expression is implicit nil)
+///         body had only declaration forms; expression is implicit nil)
 ///       - 1 child remaining → that child directly (no do wrapper)
 ///       - 2+ children remaining → `(:wat::core::do child1 child2 ...)`
 ///
 /// If `body` is NOT a do form (single expression, let, etc.), returns
 /// `(vec![], body)` unchanged — no lift for non-do shapes.
 ///
-/// **Prefix-termination rule**: the split stops at the FIRST non-prelude
-/// child. A define form AFTER an expression stays in the residual body.
+/// **Prefix-termination rule**: the split stops at the FIRST non-declaration
+/// child. A declaration form AFTER an expression stays in the residual body.
 /// If the user places a define after an expression in a do body, it will
 /// still reach `eval_do_tail` and trigger `DefineInExpressionPosition` at
-/// runtime — this is the correct and documented behavior (Gap H lifts only
-/// the PREFIX run, not all defines throughout the body).
+/// runtime — this is the correct and documented behavior (Gap H/I-A lift only
+/// the PREFIX run, not all declaration forms throughout the body).
 fn split_body_prelude(body: WatAST) -> (Vec<WatAST>, WatAST) {
     // Only do-forms are eligible for prelude splitting.
     let (do_children, span) = match &body {
@@ -1817,7 +1840,11 @@ fn split_body_prelude(body: WatAST) -> (Vec<WatAST>, WatAST) {
     // Scan for the leading prelude prefix.
     let prefix_len = do_children
         .iter()
-        .take_while(|child| is_prelude_form(child))
+        .take_while(|child| {
+            head_keyword(child)
+                .map(crate::freeze::is_declaration_form)
+                .unwrap_or(false)
+        })
         .count();
 
     if prefix_len == 0 {
