@@ -1,9 +1,21 @@
 # Arc 170 — Program entry-point contracts + `:user::main` argv
 
-**Status:** DESIGN settled 2026-05-09 across the conversation thread.
-Ready for slice 1 authorship.
+**Status:** IN FLIGHT. DESIGN settled 2026-05-09. Slice 1 + 2 closed.
+Slice 3 in flight with substantial sub-slice work.
+
+**Current state (2026-05-13):**
+- Slice 1 (closure extraction) + Slice 2 (substrate consumer) ✅ shipped
+- Slice 3 phases C (Layer 1 `run-hermetic`) + D (Layer 2 `run-hermetic-with-io`) ✅ shipped
+- Slice 3 Gap A (keyword reflection) + Gap B (Sender/close) ✅ shipped
+- Slice 3 Gap C V2 (`do` splice for def/defn) + Gap D (`let` splice) + Gap E (`define` form recognition) ✅ shipped
+- Slice 3 Phase G retirement-theater purge (4 slices: console, stream, lambda-docstrings, wat-std-paths) ✅ shipped
+- Slice 3 Phase E V1/V2/V3/V4 all attempted; V4 blocked at Gap F (substrate semantic mismatch — commit `f2de549` SCORE)
+- **CURRENT BLOCKER:** Gap F (3 substrate sub-gaps F-1/F-3/F-2) + Gap G (Path E macro shape for strict isolation) must close before Phase E V5
+- See [`RETIREMENT-THEATER-INVENTORY.md`](./RETIREMENT-THEATER-INVENTORY.md) for the full priority queue + sequencing
 
 **Blocker for:** arc 109 v1 milestone closure.
+
+**Arc 170 originally started as "add argv to `:user::main`."** Substrate-as-teacher cascade revealed full program-contract architecture, closure-extraction substrate, typed-channel Process<I,O>, three substrate services, Layer 1/2/3 hermetic testing, and the four Phase 1 + four Phase 2a gap slices that surfaced as foundation work the original ask required.
 
 ---
 
