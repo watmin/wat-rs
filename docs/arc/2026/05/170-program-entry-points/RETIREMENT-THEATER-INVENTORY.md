@@ -224,40 +224,53 @@ All 14 variants enumerated. Push counts verified active for every one:
 
 ## Priority queue
 
-**Two-phase sequencing** (user direction 2026-05-12):
+**Three-phase sequencing** (user direction 2026-05-12, updated post-V4):
 
-### Phase 1 — Drain the lies (current focus)
+### Phase 1 — Drain the lies ✅ COMPLETE
 
-These are doc/text rot from claimed retirements; substrate is already correct. Pure Bucket B work. Sequence them, then resume 170 forward work.
+All four retirement-theater purge slices shipped. 48 audit findings drained from user-facing surfaces; substrate scaffolding intact per arc 113 precedent.
 
-1. **Phase G-console** ✅ shipped (`b4ea6a4`) — minted `BareLegacyConsolePath` walker + swept 10 files. Cliff sealed.
-2. **Phase G-stream** (running) — sweep `:wat::std::stream::*` doc rot (~25 hits across 4 files). Walker already fires. Estimated 30-50 min.
-3. **Phase G-lambda-docstrings** — sweep eval_fn/infer_fn docstring lies + 7 lambda doc references (9 total hits). Walker already fires; this kills the docstring-level lies. Estimated 30-45 min.
-4. **Phase G-wat-std-paths** — sweep `wat/std/` phantom paths + `fork-with-forms` phantom verb (13 hits across README + 5 docs + substrate comments). Estimated 30-45 min.
+1. **Phase G-console** ✅ shipped (`b4ea6a4`) — minted `BareLegacyConsolePath` walker + swept 10 files
+2. **Phase G-stream** ✅ shipped (`2b8c253`) — sweep `:wat::std::stream::*` doc rot
+3. **Phase G-lambda-docstrings** ✅ shipped (`b174bfc`) — fixed `eval_fn` / `infer_fn` substrate docstring lies + 9 doc files
+4. **Phase G-wat-std-paths** ✅ shipped (`8a424a2`) — drained `wat/std/` phantom paths + `fork-with-forms` phantom verb
 
-**Phase 1 closes when Phase G-wat-std-paths ships.** All 48 audit findings drained except the items deliberately deferred to Phase 2 (substrate dead code + fork-program walker-fires notes).
+### Phase 2a — Gap-closure prerequisites (current focus)
 
-### Phase 2 — Resume paused arc 170 forward work
+**Arc 170 does NOT resume forward work until all 4 gap slices close** (user direction 2026-05-13). Path A substrate-correctness + Path E isolation-contract both required.
 
-After Phase G drains. The paused queue from before the retirement-theater pivot:
+5. **Gap F-1** (running, `c6f8d2e`) — struct/enum accessor pregen in top-level `do`/`let` splice. Mirror of Gap C V2 / D / E pattern. Substrate enabler for V4-shape's failure pattern 1.
+6. **Gap F-3** — closure type-registry inheritance to spawn-process child. Substrate enabler for V4-shape's failure pattern 3.
+7. **Gap F-2** — resolver quote-awareness (forms-quoted data opacity). Substrate enabler for V4-shape's failure pattern 2.
+8. **Gap G** — Path E macro shape: `deftest-hermetic` puts prelude INSIDE the closure (strict isolation contract; nothing modifies parent's frozen world; substrate-enforced via spawn-process boundary). Enforcement probes prove no cross-test prelude leakage.
 
-5. **Phase E V3** — deftest macro rewrite (now unblocked by Gap C V2 / Gap D `do`/`let` splice support from `daa973d` predecessors)
-6. **Phase F** — retire `:wat::kernel::run-sandboxed-*` substrate verbs
-7. **Slice 4** — destructive reap. Folds in:
-   - `eval_kernel_wait_child` orphan dead Rust fn (src/fork.rs:258-290; promised at runtime.rs:3898-3902 "removed in slice 5 closure" — pre-INSCRIPTION grep will catch if missed)
-   - BareLegacyForkProgram + BareLegacySpawnProgram retirement (stdlib calls retire here)
-   - BareLegacyLegacy* walker retirement per "we remove its raised exceptions when arc 109 is completed" (user direction 2026-05-11)
-   - Process<I,O> legacy field cleanup
-   - src/spawn.rs orphaned scaffolding
-8. **Phase G-fork-program-walker-notes** — sweep 6 doc hits adding walker-fires notes to fork-program/spawn-program doc references. **Deferred to AFTER Slice 4** because the notes describe "user code calls these → walker diagnostic" — fully accurate only once Slice 4 retires the stdlib runtime arms. Estimated 20-30 min.
-9. **Slice 5** — arc 170 INSCRIPTION
+**The four gaps surface from Phase E V4's blocked attempt** (commit `f2de549` SCORE). V4 attempted single-shape (Path A) deftest rewrite; 16 failures revealed:
+- 3 substrate gaps (F-1, F-2, F-3) — Path A enablers
+- 1 architectural gap (G) — Path E enables strict isolation as a distinct user-choice contract
+
+After Phase 2a closes (all 4 gaps), arc 170 resumes Phase 2b.
+
+### Phase 2b — Resume arc 170 forward work
+
+9. **Phase E V5** — deftest macro Path A shape rewrite. After Gap F substrate closes, V4's target shape works.
+10. **Phase F** — retire `:wat::kernel::run-sandboxed-*` substrate verbs (deftest + deftest-hermetic now off the verb; `run-ast` + `run-hermetic-ast` wrappers + wat/kernel/hermetic.wat audit)
+11. **Slice 4** — destructive reap. Folds in:
+   - `eval_kernel_wait_child` orphan dead Rust fn (src/fork.rs:258-290)
+   - `BareLegacyForkProgram` + `BareLegacySpawnProgram` retirement
+   - Process<I,O> legacy field cleanup; src/spawn.rs orphaned scaffolding
+12. **G-fork-program-walker-notes** — sweep 6 doc hits adding walker-fires notes; deferred to AFTER Slice 4 for accuracy
+13. **Slice 5** — arc 170 INSCRIPTION
+
+### Phase 3 — Out-of-arc-170 doc cleanup (queued)
+
+After arc 170 closes, separate Phase G-arc-191-purge cleans the arc 191 retirement residue (try / option::expect / result::expect doc rot in USER-GUIDE etc., ~70 hits). Tracked in commit message at `f2de549` SCORE delta.
 
 ### Rationale for the split
 
-- `eval_kernel_wait_child` is NOT a lie right now — the substrate comment honestly states "left for now... removed in slice 5 closure" with a specific deadline. Recovery-doc FM 11 pre-INSCRIPTION grep enforces the deadline at slice 4/5 close. Different shape from the 48 audit findings (which were *claims* that didn't hold).
-- Fork-program walker-fires notes are most accurate AFTER Slice 4 retires the stdlib runtime arms, since the notes describe full retirement state.
-- Phase G-* slices stay tight (pure doc work); substrate-level work clusters in Slice 4.
-- Phase G drains in ~2-3 hours of total sonnet work; Phase 2 (forward work) resumes from a textually-clean baseline.
+- **Phase 1 first** (4 Phase G slices) cleaned the prior retirement-theater lies before Phase 2 substrate work, giving clean ground for V3/V4 attempts.
+- **Phase 2a (4 gap slices) blocks Phase 2b** per user direction "we do not attempt proper resumption of 170 until all gaps are closed."
+- **Gap ordering within Phase 2a** — F-1 first because it mirrors known pattern (4th iteration of preregister-fn-defs); F-3 second (closure-extraction substrate adjacent); F-2 third (resolver quote-awareness, design-heavy); G fourth (macro shape + enforcement tests).
+- **`eval_kernel_wait_child`** is NOT a lie right now — substrate comment honestly states "removed in slice 5 closure" with a specific deadline. FM 11 pre-INSCRIPTION grep enforces at slice 4/5 close.
 
 ---
 
