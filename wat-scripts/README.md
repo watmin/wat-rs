@@ -9,7 +9,7 @@ ship. Each script is a standalone wat program with a
    `:wat::io::IOReader/read-line`).
 2. Opens the path with `:wat::sqlite::open-readonly`.
 3. Runs queries via `:wat::telemetry::sqlite/stream-{logs,metrics}`
-   + `:wat::std::stream::*` combinators.
+   + `:wat::stream::*` combinators.
 4. Prints results to stdout.
 
 The scripts run against the bundled batteries-included `wat`

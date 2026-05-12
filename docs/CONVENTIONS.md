@@ -637,9 +637,9 @@ If a function's return type contains **three or more** `<` characters, name it. 
 | `:wat::kernel::Channel<T>` | `:(Sender<T>,Receiver<T>)` | `wat/kernel/channel.wat` |
 | `:wat::kernel::Sent` | `:Option<()>` | `wat/kernel/channel.wat` |
 | `:wat::kernel::Chosen<T>` | `:(i64,Option<T>)` | `wat/kernel/channel.wat` |
-| `:wat::std::stream::Stream<T>` | `:(Receiver<T>,ProgramHandle<()>)` | `wat/std/stream.wat` |
-| `:wat::std::stream::ChunkStep<T>` | `:(Vec<T>,Vec<Vec<T>>)` | `wat/std/stream.wat` |
-| `:wat::std::stream::KeyedChunkStep<K,T>` | `:((Option<K>,Vec<T>),Vec<Vec<T>>)` | `wat/std/stream.wat` |
+| `:wat::stream::Stream<T>` | `:(wat::kernel::Receiver<T>,wat::kernel::Thread<wat::core::nil,wat::core::nil>)` | `wat/stream.wat` |
+| `:wat::stream::ChunkStep<T>` | `:(wat::core::Vector<T>,wat::core::Vector<wat::core::Vector<T>>)` | `wat/stream.wat` |
+| `:wat::stream::KeyedChunkStep<K,T>` | `:((wat::core::Option<K>,wat::core::Vector<T>),wat::core::Vector<wat::core::Vector<T>>)` | `wat/stream.wat` |
 | `:wat::lru::Spawn<K,V>` | factory return shape | `crates/wat-lru/wat/lru/CacheService.wat` |
 | `:wat::lru::Step<K,V,G>` | one loop-step output | `crates/wat-lru/wat/lru/CacheService.wat` |
 | `:wat::lru::ReqChannel<K,V>` | `:(ReqTx<K,V>,ReqRx<K,V>)` | `crates/wat-lru/wat/lru/CacheService.wat` |

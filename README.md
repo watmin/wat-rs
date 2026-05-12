@@ -519,7 +519,7 @@ consolidation; files live in `wat/holon/`):
   Bundle's Result return).
 
 Streams (arcs 003 + 004 + 006):
-- `:wat::std::stream::Stream<T>` typealias, `spawn-producer`,
+- `:wat::stream::Stream<T>` typealias, `spawn-producer`,
   `from-receiver`, `map`, `filter`, `inspect`, `chunks` (rewritten on
   `with-state`), `flat-map`, `take`, `for-each`, `collect`, `fold`,
   `with-state` (the Mealy-machine substrate — every stateful stage

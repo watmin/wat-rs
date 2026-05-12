@@ -583,7 +583,8 @@ Every wat program lives in a coordinate with two axes.
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
 3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `Thread<I,O>`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-channel`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
-4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel. (The former Console stdio service retired in arc 109 § kill-std / arc 170 slice 1f-η; see § 11 for the ambient kernel trio that replaces it.)
+4. **Stream stdlib** (`:wat::stream::*`) — composable concurrency combinators written in wat: `spawn-producer`, `map`, `filter`, `flat-map`, `chunks`, `take`, `with-state`, `for-each`, `collect`, `fold`. Graduated to its own top-level tier in arc 109 slice 9d (previously nested under `:wat::std::*`). Each combinator is a tail-recursive worker plus bounded(1)-queue plumbing. See § 8 for the full combinator surface.
+5. **Stdlib plumbing** (`:wat::std::*`) — the hermetic-test wrapper. Expressible in wat on top of core + kernel. (The former Console stdio service retired in arc 109 § kill-std / arc 170 slice 1f-η; see § 11 for the ambient kernel trio that replaces it.)
 
 ### Axis 2 — two namespaces
 
@@ -2047,7 +2048,7 @@ its upstream and writing to its downstream. Edges are `bounded(1)`
 channels. Each stage's state is local; channels are the only coupling;
 backpressure is automatic.
 
-`:wat::std::stream::*` wraps the raw spawn-and-wire pattern into
+`:wat::stream::*` wraps the raw spawn-and-wire pattern into
 composable combinators. Every stage is a tail-recursive worker (arc
 003's TCO is what makes that run indefinitely); the stdlib handles
 the spawn + queue + drop-cascade plumbing.
@@ -2087,14 +2088,14 @@ fold            stream init f    → :Acc          -- terminal: aggregate
                      (stderr :wat::io::IOWriter)
                      -> :())
   (:wat::core::let
-    (((raw :wat::std::stream::Stream<RawCandle>)
-      (:wat::std::stream::spawn-producer :my::app::candle-source))
-     ((enriched :wat::std::stream::Stream<EnrichedCandle>)
-      (:wat::std::stream::map raw :my::app::enrich-candle))
-     ((batched :wat::std::stream::Stream<Vec<EnrichedCandle>>)
-      (:wat::std::stream::chunks enriched 100))
+    (((raw :wat::stream::Stream<RawCandle>)
+      (:wat::stream::spawn-producer :my::app::candle-source))
+     ((enriched :wat::stream::Stream<EnrichedCandle>)
+      (:wat::stream::map raw :my::app::enrich-candle))
+     ((batched :wat::stream::Stream<Vec<EnrichedCandle>>)
+      (:wat::stream::chunks enriched 100))
      ((collected :Vec<Vec<EnrichedCandle>>)
-      (:wat::std::stream::collect batched)))
+      (:wat::stream::collect batched)))
     ()))
 ```
 
@@ -2107,7 +2108,7 @@ coordination.
 
 **Named functions as stage arguments.** Arc 009 (names-are-values)
 lets you pass a registered define by bare keyword-path to any
-`:fn(...)`-typed slot. `(:wat::std::stream::map raw :my::app::enrich-candle)`
+`:fn(...)`-typed slot. `(:wat::stream::map raw :my::app::enrich-candle)`
 works; no lambda wrapper needed.
 
 ### `with-state` — custom stateful stages
@@ -2137,7 +2138,7 @@ Example — **dedupe-adjacent** (collapse runs of equal items):
   (:wat::core::vec :i64))   ;; nothing to emit at EOS
 
 ;; in :user::main
-(:wat::std::stream::with-state stream :None
+(:wat::stream::with-state stream :None
   :my::dedupe-step
   :my::dedupe-flush)
 ```
@@ -2150,7 +2151,7 @@ for the decomposition story.
 
 ### What the stdlib wraps
 
-If you want to see the machinery, `wat/std/stream.wat` is the source.
+If you want to see the machinery, `wat/stream.wat` is the source.
 Each combinator is a named tail-recursive worker plus a thin wrapper
 that spawns it with a bounded(1) queue. The manual pattern is still
 honest — if your use case needs something bespoke, write it directly.
@@ -3371,15 +3372,15 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::ProcessDiedError/message` | `err` | `:String` — sibling of ThreadDiedError/message for Process subjects; arc 112 |
 | `:wat::kernel::ProcessDiedError/to-failure` | `err` | `:wat::kernel::Failure` — sibling of ThreadDiedError/to-failure; arc 112 |
 | `:wat::kernel::assertion-failed!` | `message actual expected` | `:()` — panics with AssertionPayload |
-| `:wat::std::stream::spawn-producer` | `producer-fn` | `:Stream<T>` |
-| `:wat::std::stream::from-receiver` | `rx handle` | `:Stream<T>` |
-| `:wat::std::stream::map` / `filter` / `inspect` | `stream f` | `:Stream<U>` / `:Stream<T>` / `:Stream<T>` |
-| `:wat::std::stream::flat-map` | `stream f` | `:Stream<U>` |
-| `:wat::std::stream::chunks` | `stream size` | `:Stream<Vec<T>>` |
-| `:wat::std::stream::take` | `stream n` | `:Stream<T>` |
-| `:wat::std::stream::with-state` | `stream init step flush` | `:Stream<U>` |
-| `:wat::std::stream::for-each` | `stream handler` | `:()` — terminal |
-| `:wat::std::stream::collect` / `fold` | `stream` / `stream init f` | `:Vec<T>` / `:Acc` |
+| `:wat::stream::spawn-producer` | `producer-fn` | `:Stream<T>` |
+| `:wat::stream::from-receiver` | `rx handle` | `:Stream<T>` |
+| `:wat::stream::map` / `filter` / `inspect` | `stream f` | `:Stream<U>` / `:Stream<T>` / `:Stream<T>` |
+| `:wat::stream::flat-map` | `stream f` | `:Stream<U>` |
+| `:wat::stream::chunks` | `stream size` | `:Stream<Vec<T>>` |
+| `:wat::stream::take` | `stream n` | `:Stream<T>` |
+| `:wat::stream::with-state` | `stream init step flush` | `:Stream<U>` |
+| `:wat::stream::for-each` | `stream handler` | `:()` — terminal |
+| `:wat::stream::collect` / `fold` | `stream` / `stream init f` | `:Vec<T>` / `:Acc` |
 | `:wat::test::deftest` | `name body` | registers named zero-arg RunResult fn (arc 031 — inherits config) |
 | `:wat::test::make-deftest` | `name (forms ...)` | registers a deftest-shaped macro with default-prelude forms (arc 029) |
 | `:wat::test::assert-eq<T>` | `actual expected` | `:()` — panics on mismatch |
