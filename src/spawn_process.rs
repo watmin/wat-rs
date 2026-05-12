@@ -393,16 +393,44 @@ fn spawn_process_child_branch(
             write_direct_to_stderr(&format!("runtime: {:?}\n", runtime_err));
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
-        Err(_panic_payload) => {
-            // Arc 113 slice 3 cascade — for now, the spawn-process
-            // child surfaces panic via the legacy stderr marker
-            // shape; full chain emit is `fork-program-ast`'s
-            // territory. The panic byte still propagates; the
-            // marker is honest enough for slice 2's contract.
+        Err(panic_payload) => {
+            // Arc 170 slice 3 phase C′ — when the panic carried an
+            // AssertionPayload (the assert-eq / raise! / option::expect
+            // path), emit the structured cascade chain as a tagged
+            // EDN line on stderr so the parent's wat-side
+            // `extract-panics` (wat/kernel/hermetic.wat) can rebuild
+            // it. Mirrors `fork.rs::emit_panics_to_stderr`. Plain
+            // panics (bare String / &str payload) skip the emit;
+            // the parent observes the singleton "exited N" path.
+            if let Some(payload) =
+                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
+            {
+                emit_panics_to_stderr(&world, payload);
+            }
             write_direct_to_stderr("panic: spawn-process body panicked\n");
             unsafe { libc::_exit(EXIT_PANIC) };
         }
     }
+}
+
+/// Mirrors `fork.rs::emit_panics_to_stderr`. Emits the structured
+/// `#wat.kernel/ProcessPanics {…}` tagged EDN line on stderr so the
+/// parent's `extract-panics` can rebuild the cascade chain.
+/// Duplicated locally (same pattern as `write_direct_to_stderr`
+/// below) to avoid a `pub(crate)` dance for a six-line helper.
+fn emit_panics_to_stderr(
+    world: &crate::freeze::FrozenWorld,
+    payload: &crate::assertion::AssertionPayload,
+) {
+    let fresh = crate::runtime::process_died_error_panic_value(
+        payload.message.clone(),
+        Some(payload.clone()),
+    );
+    let upstream = payload.upstream_chain.clone();
+    let chain = crate::runtime::conj_died_chain_value(fresh, upstream);
+    let edn = crate::edn_shim::value_to_edn_with(&chain, Some(world.types()));
+    let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
+    write_direct_to_stderr(&line);
 }
 
 /// Direct write to fd 2, bypassing `eprintln` and friends. Mirrors

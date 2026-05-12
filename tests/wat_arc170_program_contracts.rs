@@ -909,19 +909,17 @@ fn t17_run_hermetic_layer1_passing_assertion() {
 #[test]
 fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     // Complementary to T17: a failing assertion (1 != 2) should produce
-    // RunResult { failure: Some(Failure) } — the child exits non-zero and
-    // run-hermetic-driver assembles a Failure from the ProcessDiedError.
+    // RunResult { failure: Some(Failure) } — the child exits non-zero,
+    // spawn-process emits the structured `#wat.kernel/ProcessPanics`
+    // EDN line on stderr, extract-panics rebuilds the cascade, and
+    // run-hermetic-driver surfaces the structured Failure with the
+    // assert-eq diagnostic in Failure.message.
     //
-    // Honest-delta note (arc 170 slice 3 phase C SCORE): spawn-process
-    // does NOT emit the structured EDN panic chain that fork-program-ast
-    // does (see spawn_process.rs line 396-403 comment "for now...").
-    // extract-panics finds nothing on stderr; driver falls back to the
-    // joined-result singleton ("forked program exited 2"). The structured
-    // assert-eq message is NOT present in the Failure — only the exit-code
-    // message. This delta is surfaced in the SCORE; Phase D (Layer 2) or
-    // slice 4 closes it when spawn_process.rs emits the full chain.
-    // For this test we verify: failure IS Some (child panicked) and the
-    // Failure struct shape is correct. We do NOT assert the message text.
+    // Arc 170 slice 3 phase C′ closed the substrate gap that previously
+    // forced this test to skip message-text assertion. spawn_process.rs
+    // now mirrors fork.rs::emit_panics_to_stderr — AssertionPayload
+    // panics emit the structured chain; plain panics fall through to
+    // the singleton "exited N" path.
     let src = r#"
         (:wat::core::define (:my::test::one-neq-two -> :wat::kernel::RunResult)
           (:wat::test::run-hermetic
@@ -953,10 +951,27 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
         other => panic!("expected Option failure field; got {:?}", other),
     };
     // Failure struct must have the correct type_name.
+    let failure_struct = match failure_val {
+        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Failure" => s,
+        other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
+    };
+    // Failure.message (field 0) must carry the structured assert-eq diagnostic,
+    // NOT the singleton exit-code fallback ("forked program exited N"). This
+    // proves the spawn_process.rs panic-chain emit (phase C′) is wired up
+    // and extract-panics rebuilt the cascade.
+    let message = match &failure_struct.fields[0] {
+        wat::runtime::Value::String(s) => s.to_string(),
+        other => panic!("expected Failure.message :String; got {:?}", other),
+    };
     assert!(
-        matches!(failure_val, wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Failure"),
-        "expected :wat::kernel::Failure struct; got {:?}",
-        failure_val
+        !message.contains("forked program exited"),
+        "expected structured assert-eq message; got exit-code fallback: {}",
+        message
+    );
+    assert!(
+        message.contains("assert") || message.contains("AssertionFailed"),
+        "expected message to mention assert/AssertionFailed; got: {}",
+        message
     );
 }
 
