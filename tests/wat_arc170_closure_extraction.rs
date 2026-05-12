@@ -338,10 +338,19 @@ fn t3_toplevel_defn_uses_user_types() {
     let type_decls = collect_type_decl_names(&package.prologue);
     assert!(type_decls.contains(&":my::Point".to_string()),
             "Point struct must be extracted; got {:?}", type_decls);
-    // PriceUsd, Side, Coord are not referenced — should NOT be extracted.
-    assert!(!type_decls.contains(&":my::PriceUsd".to_string()));
-    assert!(!type_decls.contains(&":my::Side".to_string()));
-    assert!(!type_decls.contains(&":my::Coord".to_string()));
+    // Arc 170 slice 3 Gap F-3: extract_closure now sweeps the WHOLE parent
+    // user type registry into the prologue, not just types statically
+    // referenced by the fn signature / body. PriceUsd, Side, and Coord are
+    // not referenced by :my::compute, but they ARE in the parent's TypeEnv
+    // and therefore appear in the prologue after the Gap F-3 fix. This
+    // ensures the child subprocess's TypeEnv matches the parent's for any
+    // dynamic type lookup (e.g., edn::read on tagged EDN forms).
+    assert!(type_decls.contains(&":my::PriceUsd".to_string()),
+            "PriceUsd must be in prologue (whole-registry sweep); got {:?}", type_decls);
+    assert!(type_decls.contains(&":my::Side".to_string()),
+            "Side must be in prologue (whole-registry sweep); got {:?}", type_decls);
+    assert!(type_decls.contains(&":my::Coord".to_string()),
+            "Coord must be in prologue (whole-registry sweep); got {:?}", type_decls);
     let fresh = re_freeze(package.prologue);
     // Build a Point in the fresh world directly via the constructor.
     let new_func = fresh.symbols().get(":my::Point/new").expect("Point/new").clone();

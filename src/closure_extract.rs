@@ -227,6 +227,49 @@ pub fn extract_closure(
     extract_user_deps_to_fixpoint(&mut state)?;
     extract_user_types_to_fixpoint(&mut state)?;
 
+    // Arc 170 slice 3 Gap F-3 — propagate parent's full user type registry.
+    //
+    // The reference-walking path above captures only types that are
+    // STATICALLY referenced in the fn signature or body AST (via
+    // `record_type_refs_in_typeexpr` / `walk_free_symbols`). Types used
+    // DYNAMICALLY — e.g. `:wat::edn::read` deserializing a tagged EDN
+    // string whose type tag names a parent-declared struct or enum — are
+    // not reachable by static analysis. The child subprocess's TypeEnv
+    // would therefore be missing them, causing `EdnReadError::UnknownTag`
+    // at runtime.
+    //
+    // Fix: sweep ALL non-reserved user types from the parent's TypeEnv
+    // into `state.captured_types`. Since `record_type_dependency` is
+    // idempotent (no-op if already present), types already captured via
+    // the reference-walking path are skipped without duplication.
+    //
+    // Inclusion strategy: WHOLE registry (not filtered by body
+    // references). Rationale (four questions):
+    //   Obvious: whole-registry is the only strategy that handles
+    //     dynamic type dispatch (edn::read, reflection). Filtered-by-
+    //     body-references leaves the gap open for any indirect use.
+    //   Simple: one loop over parent_types.iter(); no body-walking
+    //     changes; no new walker infrastructure.
+    //   Honest: the cost is proportional to the parent world's user
+    //     type count — typically O(tens) for real programs. Types are
+    //     immutable data; sharing them with the child is correct per
+    //     BRIEF §"Hermetic semantics preserved".
+    //   Good UX: child always has the full type picture the parent
+    //     had; edn::read / reflection / future dynamic dispatch all
+    //     work without the caller needing to annotate "exported types".
+    //
+    // Reserved-prefix filter: types under `:wat::*` / `:rust::*` are
+    // built-in stdlib types always re-registered in the child's world
+    // via `TypeEnv::with_builtins()` + `register_stdlib_types` during
+    // `startup_from_forms`. Sweeping them would trigger the reserved-
+    // prefix gate in `TypeEnv::register` and fail. Only user-namespace
+    // types (no reserved prefix) belong in the prologue.
+    for (name, def) in parent_types.iter() {
+        if !crate::resolve::is_reserved_prefix(name) {
+            record_type_dependency(&mut state, name, def);
+        }
+    }
+
     // Body rewrite: rewrite captured-local references in the entry
     // body from `X` to the synthetic capture name (a bare Symbol with
     // the substituted name). This avoids collision with extracted
