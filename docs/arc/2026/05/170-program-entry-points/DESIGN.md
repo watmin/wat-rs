@@ -10,7 +10,8 @@ Slice 3 in flight with substantial sub-slice work.
 - Slice 3 Gap C V2 (`do` splice for def/defn) + Gap D (`let` splice) + Gap E (`define` form recognition) ✅ shipped
 - Slice 3 Phase G retirement-theater purge (4 slices: console, stream, lambda-docstrings, wat-std-paths) ✅ shipped
 - Slice 3 Phase E V1/V2/V3/V4 all attempted; V4 blocked at Gap F (substrate semantic mismatch — commit `f2de549` SCORE)
-- **CURRENT BLOCKER:** Gap F (3 substrate sub-gaps F-1/F-3/F-2) + Gap G (Path E macro shape for strict isolation) must close before Phase E V5
+- Slice 3 Gap F-1 + F-3 + F-2 + G (probes) + H ✅ shipped; closes the Phase E V4 substrate diagnostic cascade
+- **CURRENT BLOCKER:** Gap I-A (mint `is_declaration_form` + route Gap H's `is_prelude_form` through it; covers the 5 forms Gap H left uncovered: def/defmacro/define-dispatch/newtype/typealias) + Gap I-B (extend `validate_def_position_with_wrapper` via the same predicate for early position-catch on all 8 declaration forms) + deftest-hermetic Path E macro shape rewrite (small wat/test.wat edit). Architectural framing: `is_mutation_form` is the source-of-truth union over three semantic categories (declarations / loads / config setters); Gap H's `is_prelude_form` was a narrow 3-of-8-declarations duplicate. Gap I unifies through a properly-scoped subset predicate (declarations only — loads + config setters honestly out-of-scope, not deferred). Name `is_declaration_form` settled by /gaze 2026-05-13.
 - **CLOSURE PRECONDITION (user direction 2026-05-13):** Phase H clippy + rustc warning sweep is MANDATORY before Slice 5 INSCRIPTION ships. `cargo build --release` + `cargo clippy --release --workspace --all-targets` must both be clean. Dead-code / unused-imports / clippy lints accumulated through renaming + refactoring get resolved before closure.
 - See [`RETIREMENT-THEATER-INVENTORY.md`](./RETIREMENT-THEATER-INVENTORY.md) for the full priority queue + sequencing
 
