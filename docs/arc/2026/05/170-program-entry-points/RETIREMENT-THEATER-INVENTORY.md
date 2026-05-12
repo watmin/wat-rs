@@ -237,18 +237,15 @@ All four retirement-theater purge slices shipped. 48 audit findings drained from
 
 ### Phase 2a — Gap-closure prerequisites (current focus)
 
-**Arc 170 does NOT resume forward work until all 4 gap slices close** (user direction 2026-05-13). Path A substrate-correctness + Path E isolation-contract both required.
+**Arc 170 does NOT resume forward work until all gap slices close** (user direction 2026-05-13). Path A substrate-correctness + Path E isolation-contract both required.
 
-5. **Gap F-1** (running, `c6f8d2e`) — struct/enum accessor pregen in top-level `do`/`let` splice. Mirror of Gap C V2 / D / E pattern. Substrate enabler for V4-shape's failure pattern 1.
-6. **Gap F-3** — closure type-registry inheritance to spawn-process child. Substrate enabler for V4-shape's failure pattern 3.
-7. **Gap F-2** — resolver quote-awareness (forms-quoted data opacity). Substrate enabler for V4-shape's failure pattern 2.
-8. **Gap G** — Path E macro shape: `deftest-hermetic` puts prelude INSIDE the closure (strict isolation contract; nothing modifies parent's frozen world; substrate-enforced via spawn-process boundary). Enforcement probes prove no cross-test prelude leakage.
+5. **Gap F-1** ✅ shipped (`f9c8aef`) — struct/enum accessor pregen in top-level `do`/`let` splice. Mirror of Gap C V2 / D / E pattern. Substrate enabler for V4-shape's failure pattern 1.
+6. **Gap F-3** ✅ shipped (`fe06bb1`) — closure type-registry inheritance to spawn-process child. Substrate enabler for V4-shape's failure pattern 3.
+7. **Gap F-2** ✅ shipped (`662f5bc`) — resolver quote-awareness (forms-quoted data opacity). Substrate enabler for V4-shape's failure pattern 2.
+8. **Gap G** ✅ probes shipped, macro shape blocked (`021884a`) — Path E enforcement probes pass (strict isolation contract already delivered by run-sandboxed-hermetic-ast + forms mechanism). Macro rewrite blocked by `DefineInExpressionPosition` substrate rule; revealed Gap H.
+9. **Gap H** — closure-extraction lifts fn-body prelude forms (define/struct/enum at do's prefix) into closure's prologue. A-wide path per user 2026-05-13: "closure-extraction lifts prelude defines into prologue — preserves the single mental model 'define = top-level registration'... reuses startup_from_forms." After Gap H, deftest-hermetic Path E macro shape becomes a small wat/test.wat edit.
 
-**The four gaps surface from Phase E V4's blocked attempt** (commit `f2de549` SCORE). V4 attempted single-shape (Path A) deftest rewrite; 16 failures revealed:
-- 3 substrate gaps (F-1, F-2, F-3) — Path A enablers
-- 1 architectural gap (G) — Path E enables strict isolation as a distinct user-choice contract
-
-After Phase 2a closes (all 4 gaps), arc 170 resumes Phase 2b.
+After Phase 2a closes (all 5 gaps + deftest-hermetic Path E macro shape ships), arc 170 resumes Phase 2b.
 
 ### Phase 2b — Resume arc 170 forward work
 
