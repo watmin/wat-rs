@@ -21,19 +21,19 @@ when you're writing your own.
 
 The single most important rule: **a channel-end disconnects only when
 every Sender (or every Receiver) clone has dropped.** Clones drop when
-their `let*` binding exits scope. There is no force-close primitive —
+their `let` binding exits scope. There is no force-close primitive —
 `:wat::kernel::drop` is a no-op marker, not a `mem::drop`.
 
-This means the *shape of your `let*` nests is the shape of your
+This means the *shape of your `let` nests is the shape of your
 shutdown sequence.* Get the nesting right and the program shuts down
 cleanly without any explicit teardown code. Get it wrong and you
 deadlock — your `join` call blocks forever because some sender Arc is
-still alive in the same `let*`.
+still alive in the same `let`.
 
 The proven shape:
 
 > **Outer scope holds the `ProgramHandle`. Inner scope owns every Sender.**
-> The inner `let*` body yields the handle so the outer can join it.
+> The inner `let` body yields the handle so the outer can join it.
 > When inner exits, every Sender in this thread drops; the worker's
 > next `recv` returns `:None`; the worker exits; the outer `join`
 > unblocks.
@@ -51,7 +51,7 @@ for its return value.
 (:wat::core::define
   (:my::app::return-42 -> :i64) 42)
 
-(:wat::core::let*
+(:wat::core::let
   (((handle :wat::kernel::ProgramHandle<i64>)
     (:wat::kernel::spawn :my::app::return-42)))
   (:wat::core::match (:wat::kernel::join-result handle) -> :()
@@ -78,7 +78,7 @@ Spawn a function that panics. `join-result` returns
   (:my::app::boom -> :())
   (:wat::kernel::assertion-failed! "intentional panic" :None :None))
 
-(:wat::core::let*
+(:wat::core::let
   (((handle :wat::kernel::ProgramHandle<()>)
     (:wat::kernel::spawn :my::app::boom)))
   (:wat::core::match (:wat::kernel::join-result handle) -> :()
@@ -120,10 +120,10 @@ returns its count.
     (rx :wat::kernel::Receiver<i64>) -> :i64)
   (:my::app::count-recv rx 0))
 
-;; Client — nested let*. Outer holds the handle; inner owns tx.
-(:wat::core::let*
+;; Client — nested let. Outer holds the handle; inner owns tx.
+(:wat::core::let
   (((handle :wat::kernel::ProgramHandle<i64>)
-    (:wat::core::let*
+    (:wat::core::let
       (((pair :wat::kernel::Channel<i64>)
         (:wat::kernel::make-bounded-channel :i64 1))
        ((tx :wat::kernel::Sender<i64>) (:wat::core::first pair))
@@ -140,7 +140,7 @@ returns its count.
     ((Err _) (:wat::test::assert-eq "worker-died" ""))))
 ```
 
-**What it proves**: the nested-`let*` shutdown shape. The inner let\*
+**What it proves**: the nested-`let` shutdown shape. The inner let
 body returns `h`; when it returns, *everything else bound in the inner
 scope drops*. With every local Sender clone gone, the worker's next
 `recv` returns `:None` and the loop exits.
@@ -155,7 +155,7 @@ scope drops*. With every local Sender clone gone, the worker's next
 **Anti-pattern that deadlocks**:
 
 ```scheme
-(:wat::core::let*                    ;; ← ONE flat let*
+(:wat::core::let                    ;; ← ONE flat let
   (((pair ...) (:wat::kernel::make-bounded-channel :i64 1))
    ((tx ...) (:wat::core::first pair))
    ((rx ...) (:wat::core::second pair))
@@ -165,7 +165,7 @@ scope drops*. With every local Sender clone gone, the worker's next
   (:wat::kernel::join-result handle))         ;; ← worker recv-loops forever
 ```
 
-`tx` is bound in the same `let*` whose body calls `join-result`.
+`tx` is bound in the same `let` whose body calls `join-result`.
 `join-result` blocks before `tx` falls out of scope, so the worker's
 `recv` never returns `:None`.
 
@@ -189,15 +189,15 @@ Client sends a request, recvs the response, exits.
     -> :())
   (:wat::core::match (:wat::kernel::recv req-rx) -> :()
     ((Some n)
-      (:wat::core::let*
+      (:wat::core::let
         (((_ack :())
           (:wat::core::option::expect -> :() (:wat::kernel::send resp-tx (:wat::core::* n 2)) "_ack: peer disconnected")))
         (:my::app::doubler-loop req-rx resp-tx)))
     (:None ())))
 
-(:wat::core::let*
+(:wat::core::let
   (((handle :wat::kernel::ProgramHandle<()>)
-    (:wat::core::let*
+    (:wat::core::let
       (((req-pair  :wat::kernel::Channel<i64>)
         (:wat::kernel::make-bounded-channel :i64 1))
        ((req-tx  :wat::kernel::Sender<i64>)   (:wat::core::first req-pair))
@@ -241,7 +241,7 @@ gave* (`Some v` or `:None` on disconnect).
     -> :i64)
   (:wat::core::if (:wat::core::empty? rxs) -> :i64
     acc
-    (:wat::core::let*
+    (:wat::core::let
       (((chosen :wat::kernel::Chosen<i64>) (:wat::kernel::select rxs))
        ((idx :i64)              (:wat::core::first chosen))
        ((maybe :Option<i64>)    (:wat::core::second chosen)))
@@ -298,7 +298,7 @@ handler.
     -> :())
   (:wat::core::match (:wat::kernel::recv req-rx) -> :()
     ((Some n)
-      (:wat::core::let*
+      (:wat::core::let
         (((_r :())
           (:wat::core::option::expect -> :() (:wat::kernel::send resp-tx (:wat::core::* n 2)) "_r: peer disconnected"))
          ((_t :())
@@ -329,9 +329,9 @@ at `finish()` time means a wiring mistake; you'd rather panic at
 construction than deadlock at shutdown.
 
 ```scheme
-(:wat::core::let*
+(:wat::core::let
   (((handle :wat::kernel::ProgramHandle<i64>)
-    (:wat::core::let*
+    (:wat::core::let
       (((pairs :Vec<wat::kernel::Channel<i64>>) ...)
        ((txs :Vec<wat::kernel::Sender<i64>>) ...)
        ((rxs :Vec<wat::kernel::Receiver<i64>>) ...)
@@ -387,7 +387,7 @@ disconnect.
     -> :my::app::Tally)
   (:wat::core::match (:wat::kernel::recv rx) -> :my::app::Tally
     ((Some v)
-      (:wat::core::let*
+      (:wat::core::let
         (((next :my::app::Tally)
           (:my::app::Tally/new
             (:wat::core::+ (:my::app::Tally/count tally) 1)
@@ -426,21 +426,21 @@ Steps 1–8 cover one service. Step 9 covers what happens when one
 service's Reporter (per arc 078's contract) closes over ANOTHER
 service's handles — the case where two drivers must shut down in
 order, and the lockstep from Step 3 has to apply twice without
-collapsing into a single inline `let*`.
+collapsing into a single inline `let`.
 
 The trap: the obvious "just nest harder" reading produces a
-three-deep `let*` that puts every driver, every popped handle, and
+three-deep `let` that puts every driver, every popped handle, and
 every Sender clone in scope at the same time. The lockstep from
 Step 3 said "outer holds the handle; inner owns the Senders." With
 two services, "outer" and "inner" need TWO levels each — and trying
-to write all four levels inline in one `let*` body is how I (the
+to write all four levels inline in one `let` body is how I (the
 author of the surrounding documentation) deadlocked the first
 attempt at a two-service composition.
 
 The fix is **function decomposition.** Each scope-level becomes a
 small named function that owns its driver and joins it before
 returning. The deftest body composes the functions. Each function's
-two-level `let*` is local and obeys Step 3 verbatim.
+two-level `let` is local and obeys Step 3 verbatim.
 
 ### The shape
 
@@ -455,7 +455,7 @@ two-level `let*` is local and obeys Step 3 verbatim.
     -> :())
   ...)
 
-;; Middle — owns CacheService driver. Two-level let*: outer holds
+;; Middle — owns CacheService driver. Two-level let: outer holds
 ;; cache-driver (joined after inner exits); inner pops cache-req-tx,
 ;; calls drive-requests, drops senders.
 (:wat::core::define
@@ -464,7 +464,7 @@ two-level `let*` is local and obeys Step 3 verbatim.
     (ack-tx :RunDbService::AckTx)
     (ack-rx :RunDbService::AckRx)
     -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (;; Cache reporter — closes over rundb handles (function args).
      ((reporter ...) (:my::reporter/make rundb-req-tx ack-tx ack-rx))
      ((cache-spawn ...) (CacheService/spawn ... reporter))
@@ -472,7 +472,7 @@ two-level `let*` is local and obeys Step 3 verbatim.
      ((cache-driver :ProgramHandle<()>) ...)
      ;; Inner — pop cache-req-tx, drive, drop.
      ((_inner :())
-      (:wat::core::let*
+      (:wat::core::let
         (((cache-req-tx ...) (HandlePool::pop cache-pool))
          ((_finish ...) (HandlePool::finish cache-pool))
          ((reply-pair ...) ...)
@@ -486,13 +486,13 @@ two-level `let*` is local and obeys Step 3 verbatim.
 
 ;; Top — deftest body. Owns RunDbService driver.
 (:deftest :my::test::full-pipeline
-  (:wat::core::let*
+  (:wat::core::let
     (((rundb-spawn ...) (RunDbService path 1 (null-cadence)))
      ((rundb-pool ...) ...)
      ((rundb-driver ...) ...)
      ;; Inner — pop rundb req-tx, build ack pair, run cache.
      ((_inner :())
-      (:wat::core::let*
+      (:wat::core::let
         (((rundb-req-tx ...) (HandlePool::pop rundb-pool))
          ((_finish ...) (HandlePool::finish rundb-pool))
          ((ack-channel ...) ...)
@@ -516,10 +516,10 @@ encapsulates one driver's lifecycle in two scope levels.
 
 ```scheme
 ;; Inline triple-nest — collapses both drivers' lockstep into one
-;; let*. cache-req-tx and cache-driver are SAME-SCOPE bindings;
+;; let. cache-req-tx and cache-driver are SAME-SCOPE bindings;
 ;; joining cache-driver from this scope blocks because cache-req-tx
 ;; is still alive.
-(:wat::core::let*
+(:wat::core::let
   (((rundb-spawn ...) ...)
    ((rundb-driver ...) ...)
    ((rundb-req-tx ...) ...)         ; rundb sender lives same scope
@@ -534,10 +534,10 @@ encapsulates one driver's lifecycle in two scope levels.
   (:wat::test::assert-eq true true))
 ```
 
-The bug is structural: `_cache-join` is bound in the same `let*`
+The bug is structural: `_cache-join` is bound in the same `let`
 whose body still has cache-req-tx alive. Step 3's "outer holds the
 handle; inner owns every Sender" rule still applies — but the
-inline mega-`let*` collapses outer and inner into one scope. The
+inline mega-`let` collapses outer and inner into one scope. The
 function-decomposition above puts each driver back in its own
 outer scope: `run-cache-with-rundb-tx`'s outer scope holds
 cache-driver; its inner scope owns cache-req-tx; the function joins
@@ -555,7 +555,7 @@ means the inner service must have FULLY shut down. A small named
 function that joins-before-returning gives you that guarantee for
 free.
 
-The "two-level `let*`" rule from Step 3 still holds. Step 9 just
+The "two-level `let`" rule from Step 3 still holds. Step 9 just
 adds: when handles cascade across services, decompose into
 functions so each cascade level has its own outer/inner pair.
 
@@ -703,7 +703,7 @@ The substrate aliases that make all of this readable
 The shutdown rules in one paragraph:
 
 > Channel-ends disconnect when every clone has dropped. Clones drop
-> when their `let*` binding exits scope. `:wat::kernel::drop` is a
+> when their `let` binding exits scope. `:wat::kernel::drop` is a
 > no-op marker, not a force-close. Therefore: hold the `ProgramHandle`
 > in an outer scope and the Senders in an inner scope; when the inner
 > scope exits, the Senders drop, the worker's `recv` returns `:None`,

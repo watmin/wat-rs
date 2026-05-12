@@ -93,7 +93,7 @@ Clojure-faithful — non-finals' types are unconstrained.
   (:wat::console::log "computing...")
   (:wat::core::i64::+ 1 1))                ;; → :i64
 
-;; Replaces the let*-with-((_ :wat::core::unit) ...) crutch:
+;; Replaces the let-with-((_ :wat::core::unit) ...) crutch:
 (:wat::core::do
   (:wat::test::assert-eq v1 e1)
   (:wat::test::assert-eq v2 e2)
@@ -113,7 +113,7 @@ recipient unification verifies.
 - the value-position of `:wat::core::result::expect`, OR
 - the value-position of `:wat::core::option::expect`.
 
-Bare let* RHS, function-call argument positions, etc. are
+Bare let RHS, function-call argument positions, etc. are
 illegal. Arc 110 enforces this — silent disconnect must be
 handled at every comm site.
 
@@ -217,12 +217,12 @@ See USER-GUIDE.md § 13 "Testing".
 Outer scope holds the Thread; inner scope owns every Sender
 clone. The compiler refuses programs where a `Channel` /
 `Sender` lives at sibling scope to a Thread whose
-`Thread/join-result` runs in the same `let*`.
+`Thread/join-result` runs in the same `let`.
 
 ```wat
 ;; Illegal — pair sibling to thr; pair's Sender outlives thr;
 ;; the worker's recv never sees EOF.
-(:wat::core::let*
+(:wat::core::let
   (((pair :wat::kernel::Channel<i64>) (:wat::kernel::make-bounded-channel :wat::core::i64 1))
    ((thr  :wat::kernel::Thread<(),i64>) (:wat::kernel::spawn-thread ...))
    ...)
@@ -230,9 +230,9 @@ clone. The compiler refuses programs where a `Channel` /
 
 ;; Canonical — outer holds thr; inner owns pair + Sender;
 ;; inner returns thr; pair drops at inner-scope exit.
-(:wat::core::let*
+(:wat::core::let
   (((thr :wat::kernel::Thread<(),i64>)
-    (:wat::core::let*
+    (:wat::core::let
       (((pair :wat::kernel::Channel<i64>) (:wat::kernel::make-bounded-channel :wat::core::i64 1))
        ((h    :wat::kernel::Thread<(),i64>) (:wat::kernel::spawn-thread ...))
        ...)
@@ -286,7 +286,7 @@ the channel alive even when the receiving thread dies.
 ;; the helper-verb call passes both. Recv inside the helper
 ;; never sees EOF if the worker dies; caller's tx clone
 ;; keeps the channel open.
-(:wat::core::let*
+(:wat::core::let
   (((pair :wat::kernel::Channel<wat::core::nil>)
     (:wat::kernel::make-bounded-channel :wat::core::nil 1))
    ((tx :wat::kernel::Sender<wat::core::nil>)   (:wat::core::first  pair))
@@ -299,7 +299,7 @@ the channel alive even when the receiving thread dies.
 ;; pops one Handle holding ONE end of EACH of two distinct
 ;; channels. The driver gets the corresponding (Rx, AckTx).
 ;; Distinct pair-anchors → distinct channels → no deadlock.
-(:wat::core::let*
+(:wat::core::let
   (((handle :svc::Handle)                (:wat::kernel::HandlePool::pop pool))
    ((req-tx :svc::ReqTx<...>)            (:wat::core::first  handle))
    ((ack-rx :svc::AckRx<wat::core::nil>) (:wat::core::second handle))

@@ -28,17 +28,16 @@
 //!
 //! `(:wat::core::fn ...)` is the canonical operator for function
 //! values. `:wat::core::lambda` fires the `BareLegacyLambda` walker
-//! (same Pattern 3 recipe; mirrors arc 154's let* → let rename
-//! exactly). Runtime dispatch arms for `:wat::core::lambda` keep
-//! functional fall-through to `eval_fn` during the migration window.
+//! (same Pattern 3 recipe; mirrors arc 154's let retirement recipe).
+//! Arc 163 re-armed the walker; arc 155 slice 2 retired the runtime
+//! dispatch arm. Source-level `:wat::core::lambda` fires
+//! BareLegacyLambda fatal at check time (no runtime fall-through).
 //!
 //! ## Test shapes
 //!
-//! Post slice-2 substrate retirement, the legacy spellings silently
-//! alias to canonical (no walker fires; runtime fall-through to
-//! `eval_fn`). All tests assert `startup_from_source` returns Ok
-//! via `startup_ok`. (No `startup_err` helper — the substrate
-//! retirement made every legacy site pass cleanly.)
+//! Post arc-155-slice-2 + arc-163, bare `:wat::core::lambda` fires
+//! BareLegacyLambda fatal. Tests that previously expected silent
+//! alias now assert the fatal diagnostic via `startup_err`.
 
 use std::sync::Arc;
 use wat::freeze::startup_from_source;
@@ -72,13 +71,12 @@ fn startup_err(src: &str) -> String {
 fn lambda_post_retirement_silently_aliases_to_fn() {
     // Arc 155 slice 2: `validate_legacy_lambda` walker body retired
     // per substrate-as-teacher § "Retire the hint when its window
-    // closes." Runtime dispatch arms for `:wat::core::lambda` keep
-    // functional fall-through to `:wat::core::fn` (transitional
-    // runtime scaffolding; mirrors arc 154's let* fall-through).
+    // closes." Runtime dispatch arm for `:wat::core::lambda` also
+    // retired in arc 155 slice 2 (no fall-through; source-level use
+    // fires BareLegacyLambda fatal at check time via arc-163 re-arm).
     //
     // User-facing discipline: `:wat::core::fn` is the canonical
-    // operator; `:wat::core::lambda` works but is undocumented and
-    // discouraged.
+    // operator; `:wat::core::lambda` fires a fatal diagnostic.
     // Arc 163 follow-up — walker re-armed; bare :wat::core::lambda
     // fires BareLegacyLambda fatal (replaces the soft fall-through).
     let src = r#"
@@ -242,11 +240,10 @@ fn fqdn_fn_type_does_not_fire_lowercase_fn_walker() {
 
 #[test]
 fn multiple_lambda_sites_post_retirement_silently_alias() {
-    // Post-arc-155-slice-2: walker retired; runtime dispatch arms
-    // for `:wat::core::lambda` fall through to `eval_fn`. Multiple
-    // legacy-spelling forms in one program all silently work
-    // (arc 113 scaffolding pattern; mirrors arc 154's let* sites
-    // post-retirement test).
+    // Post-arc-155-slice-2 + arc-163: walker re-armed; runtime dispatch
+    // arm for `:wat::core::lambda` retired. Multiple legacy-spelling
+    // forms in one program all fire BareLegacyLambda fatal.
+    // (arc 113 scaffolding pattern; arc 163 re-armed the walker.)
     // Arc 163 follow-up — walker re-armed; bare :wat::core::lambda
     // fires BareLegacyLambda fatal.
     let src = r#"

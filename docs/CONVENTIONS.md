@@ -20,7 +20,7 @@ Every other prefix is user territory.
 
 | Prefix | What lives here |
 |---|---|
-| `:wat::core::*` | Evaluator primitives — forms (`define`, `lambda`, `let*`, `if`, `match`), primitive types (`i64`, `bool`, `String`, ...), macros, eval-family, primitive-type operations (`i64::+`, `bool::and`), core collections (`vec`, `list`, `cons`, `conj`, `HashMap`, `HashSet`, `get`, `contains?`, `assoc`). Cannot be written in wat. |
+| `:wat::core::*` | Evaluator primitives — forms (`define`, `lambda`, `let`, `if`, `match`), primitive types (`i64`, `bool`, `String`, ...), macros, eval-family, primitive-type operations (`i64::+`, `bool::and`), core collections (`vec`, `list`, `cons`, `conj`, `HashMap`, `HashSet`, `get`, `contains?`, `assoc`). Cannot be written in wat. |
 | `:wat::config::*` | Runtime-committed configuration: `capacity-mode` (`:error` / `:panic` — arc 045 renamed `:abort` → `:panic`), `dim-router` function (multi-tier dim selection per AST surface — arc 037), `presence-sigma` / `coincident-sigma` functions of `d` (arc 024), `global-seed`. Compat shim accessors `dims` / `noise-floor` return `DEFAULT_TIERS[0]` defaults. Read-only after config pass. |
 | `:wat::holon::*` | Holon algebra — the `HolonAST` type, the six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), the four measurements (`cosine`, `dot`, `presence?`, `coincident?`), the `eval-coincident?` family (arc 026), the `CapacityExceeded` error type, and typealiases `Holons` / `BundleResult` (arcs 032, 033). One namespace for the whole holon surface. |
 | `:wat::kernel::*` | CSP primitives — `spawn`, `send`, `recv`, `select`, `drop`, `join`, `make-bounded-channel`, `HandlePool`, signal handlers. |
@@ -592,12 +592,12 @@ When one service's Reporter closes over ANOTHER service's handles
 drivers to shut down in order. The lockstep from
 `SERVICE-PROGRAMS.md` Step 3 still applies, but TWICE — once per
 driver. **Do not express both drivers' lockstep in one inline
-`let*`.** The resulting three-deep nest collapses outer/inner for
+`let`.** The resulting three-deep nest collapses outer/inner for
 both drivers into one scope; trying to join either driver from
 that scope deadlocks (the senders are still bound).
 
 The fix is **function decomposition.** Each scope-level becomes a
-small named function with the canonical two-level `let*`. See
+small named function with the canonical two-level `let`. See
 `SERVICE-PROGRAMS.md` Step 9 for the worked pattern + anti-pattern.
 The real-world citation lives at
 `holon-lab-trading/wat-tests-integ/proof/004-cache-telemetry/`.

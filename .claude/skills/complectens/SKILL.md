@@ -29,14 +29,14 @@ The four questions MUST run in order. Obvious + Simple + Honest must all hold be
 
 ### Monolithic deftests — the load-bearing violation
 
-A deftest body with > ~10 let* bindings is making a structural claim it cannot support. When such a test fails, the panic message gives you NO narrowing surface. "expected X, actual Y" — the bug could be in any of 30 anonymous bindings.
+A deftest body with > ~10 let bindings is making a structural claim it cannot support. When such a test fails, the panic message gives you NO narrowing surface. "expected X, actual Y" — the bug could be in any of 30 anonymous bindings.
 
 Empirical bound: a deftest body with more than ~10 sequential bindings is a Level 1 lie. It claims to test a scenario but cannot diagnose which unit of work failed.
 
 ```scheme
 ;; ❌ Level 1 lie — monolithic. When it fails, what broke?
 (:deftest :test-cache-round-trip
-  (:wat::core::let*
+  (:wat::core::let
     (((spawn ...) (...))
      ((pool ...) (...))
      ((driver ...) (...))
@@ -53,7 +53,7 @@ Empirical bound: a deftest body with more than ~10 sequential bindings is a Leve
     (:wat::test::assert-eq ...)))
 ```
 
-Anonymous sequential bindings are the lie. Every binding is a name that pretends something exists when actually nothing named does. The let* has erased the diagnostic surface.
+Anonymous sequential bindings are the lie. Every binding is a name that pretends something exists when actually nothing named does. The let has erased the diagnostic surface.
 
 ### Helpers without their own deftests — a Level 2 mumble
 
@@ -107,7 +107,7 @@ The fix: extract the composed sequence into a NAMED helper, with a NAMED deftest
 
 **Level 2 — Mumbles.** Helpers without their own deftests. Stepping stones split across files. Anonymous accidental complexity in shorter deftests (5-10 bindings) that could be split into 2 layers. Comments that explain WHAT a binding does instead of just naming the helper that does it. Report them.
 
-**Level 3 — Taste.** Could the helper's body shrink one more let* binding? Should `:test::lru-spawn-then-put` be `:test::lru-put-once`? Stylistic preferences where reasonable people would choose differently. NOT findings. Note them if useful but do not count.
+**Level 3 — Taste.** Could the helper's body shrink one more let binding? Should `:test::lru-spawn-then-put` be `:test::lru-put-once`? Stylistic preferences where reasonable people would choose differently. NOT findings. Note them if useful but do not count.
 
 The complectēns converges when Level 1 and Level 2 are zero. Level 3 will always exist; the complectēns does not chase taste.
 
@@ -124,14 +124,14 @@ The mechanical pass DOES NOT judge; it only finds candidates.
 What to count:
 
 1. **deftest body line count** — paren-balanced extraction from each `(:wat::test::deftest ...)` / `(:wat::test::deftest-hermetic ...)` / `(:<alias> ...)` from a `make-deftest` factory. The line count of the body is the proxy for binding count. Empirical thresholds: > 30 lines = suspect; > 50 lines = likely Level 1; > 100 lines = definite Level 1. Sort findings by body line-count descending.
-2. **let\* binding-count per body** — sharper than line count. Count the entries in each top-level `(:wat::core::let* ((...) ...) body)` form within a deftest body. > 10 entries → Level 1.
+2. **let binding-count per body** — sharper than line count. Count the entries in each top-level `(:wat::core::let ((...) ...) body)` form within a deftest body. > 10 entries → Level 1.
 3. **forward references** — for each `:wat::core::define` of a helper, grep for references to helpers / aliases NOT yet defined above it in the same file. Any forward reference → Level 1.
 4. **file count for stepping-stone families** — `find` for groups of `step-*.wat` / `proof_*.wat` files in the same directory. Multi-file stepping stones → Level 2 candidate (the discipline says ONE file).
 5. **helpers without deftests** — for each `:wat::core::define` in a `make-deftest` prelude or at file top-level, search for a sibling `(:deftest ...)` referencing it. Missing → Level 2 candidate.
 
 Output of phase 1 is a structured findings list: `(file, line, deftest-name OR helper-name, body-line-count, severity-candidate)`.
 
-For Rust integration test files (`tests/wat_*.rs`) that embed wat source as strings, the same rules apply to the embedded scenarios: short string + named helpers in surrounding wat-test files, NOT a 200-line embedded let*.
+For Rust integration test files (`tests/wat_*.rs`) that embed wat source as strings, the same rules apply to the embedded scenarios: short string + named helpers in surrounding wat-test files, NOT a 200-line embedded let.
 
 ### Phase 2 — judgment
 
@@ -195,7 +195,7 @@ Arc 126's `channel-pair-deadlock` walker traces Sender / Receiver arguments back
 ;; if a deadlock pattern existed inline, it's hidden now.
 (:wat::core::define
   (:test::make-ack-channel -> :(wat::lru::PutAckTx,wat::lru::PutAckRx))
-  (:wat::core::let*
+  (:wat::core::let
     (((pair :wat::lru::PutAckChannel) (:wat::kernel::make-bounded-channel :wat::core::unit 1)))
     (:wat::core::Tuple (:wat::core::first pair) (:wat::core::second pair))))
 
@@ -203,7 +203,7 @@ Arc 126's `channel-pair-deadlock` walker traces Sender / Receiver arguments back
 ;; helper that uses both halves. Arc 126's trace can follow the chain.
 (:wat::core::define
   (:test::send-put-with-ack (req-tx :ReqTx) (k :K) (v :V) -> :wat::core::unit)
-  (:wat::core::let*
+  (:wat::core::let
     (((ack-pair :wat::lru::PutAckChannel) (:wat::kernel::make-bounded-channel :wat::core::unit 1))
      ((ack-tx :wat::lru::PutAckTx) (:wat::core::first ack-pair))
      ((ack-rx :wat::lru::PutAckRx) (:wat::core::second ack-pair))
@@ -220,9 +220,9 @@ A `make-deftest` lifecycle helper that demonstrates spawn-and-shutdown without d
 ```scheme
 (:wat::core::define
   (:test::lifecycle-spawn-and-shutdown -> :wat::core::unit)
-  (:wat::core::let*
+  (:wat::core::let
     (((driver ...)
-      (:wat::core::let*
+      (:wat::core::let
         (((spawn ...) (:wat::lru::spawn 1 ...))
          ((pool ...) (:wat::core::first spawn))
          ((d ...) (:wat::core::second spawn))
@@ -242,9 +242,9 @@ For services with `Thread<I, O>` output where O is NON-UNIT (the driver loop cal
 ```scheme
 (:wat::core::define
   (:test::svc-spawn-and-shutdown -> :wat::core::unit)
-  (:wat::core::let*
+  (:wat::core::let
     (((driver-and-final ...)
-      (:wat::core::let*
+      (:wat::core::let
         (((spawn ...) (:svc::Service 1))
          ((pool ...) (:wat::core::first spawn))
          ((d :wat::kernel::Thread<wat::core::unit,svc::State>) (:wat::core::second spawn))
@@ -293,7 +293,7 @@ Some deftest bodies contain LITERALS that are part of the test's data, not part 
 - `(:wat::lru::HologramCacheService::MetricsCadence/new gate (:wat::core::lambda ...))` — a cadence's tick lambda; the lambda is data passed to the factory, not composition.
 - `(:wat::core::lambda ((tx :Sender) ...) ...)` as a dispatcher / translator / reporter argument — the lambda is the test fixture, not the test logic.
 
-The mechanical phase's `>30 lines = suspect` heuristic over-flags any deftest containing such literals. Phase-2 judgment counts the **OUTER LOGICAL BINDINGS** of the deftest's let*, NOT the total visual line count. A test whose outer let* has 5 bindings is well-shaped, even if visual line count is 80+.
+The mechanical phase's `>30 lines = suspect` heuristic over-flags any deftest containing such literals. Phase-2 judgment counts the **OUTER LOGICAL BINDINGS** of the deftest's let, NOT the total visual line count. A test whose outer let has 5 bindings is well-shaped, even if visual line count is 80+.
 
 When extracting helpers FOR an embedded-literal test, target the OUTER scaffolding:
 - Helpers that SETUP the literal (build it from primitive parts; e.g., a `make-null-cadence` helper).
@@ -302,7 +302,7 @@ When extracting helpers FOR an embedded-literal test, target the OUTER scaffoldi
 
 Helpers that try to share logic INSIDE an embedded program's body, or inside an embedded lambda, are not possible without arc-094-style AST quasiquote builders — out of scope for the discipline.
 
-The simpler rule: when one of the deftest's let* bindings has an RHS that EVALUATES to data (an AST, a lambda, a closure, a struct literal), that RHS is the test's fixture and is exempt from the line-count metric. The OUTER let*'s binding count remains the proxy for composition complexity.
+The simpler rule: when one of the deftest's let bindings has an RHS that EVALUATES to data (an AST, a lambda, a closure, a struct literal), that RHS is the test's fixture and is exempt from the line-count metric. The OUTER let's binding count remains the proxy for composition complexity.
 
 ## The rune
 
@@ -313,8 +313,8 @@ the deftest exempt with a justified reason:
 
 ```scheme
 (:wat::test::deftest :my::test-with-fixture
-  ;; rune:complectens(embedded-program) — outer let* has 2 bindings; bulk is embedded-program AST literal (sandboxed subprocess fixture)
-  (:wat::core::let* (...) ...))
+  ;; rune:complectens(embedded-program) — outer let has 2 bindings; bulk is embedded-program AST literal (sandboxed subprocess fixture)
+  (:wat::core::let (...) ...))
 ```
 
 Format: `;; rune:complectens(<category>) — <reason>`
@@ -331,7 +331,7 @@ positional category in parens, em-dash separator, free-text reason after.
 - `match-on-state` — long match expression on enum state where each arm tests a different scenario; the match IS the test's structure.
 
 Placement: on the line immediately above the deftest body
-(typically inside the deftest form, before the let*).
+(typically inside the deftest form, before the let).
 
 The reason field is required. A rune with an empty reason fails
 the spell — the rune's job is to capture the WHY so the next

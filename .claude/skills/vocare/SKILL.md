@@ -92,7 +92,7 @@ declares the vantage exempt with a justified reason:
 ```scheme
 (:wat::test::deftest :wat::kernel::test-spawn-program-stdout-piping
   ;; rune:vocare(substrate-primitive-reference) — this test documents the spawn-program substrate primitive's stdout-piping contract; the implementer's vantage IS the canonical vantage here
-  (:wat::core::let* (...) ...))
+  (:wat::core::let (...) ...))
 ```
 
 Format: `;; rune:vocare(<category>) — <reason>`
@@ -108,7 +108,7 @@ positional category in parens, em-dash separator, free-text reason after.
 - `defect-exposure-fixture` — test sets up a state the caller can produce; the setup intricacy is the bug surface being demonstrated, not a wrong vantage.
 
 Placement: on the line immediately above the deftest body
-(typically inside the deftest form, before the let*).
+(typically inside the deftest form, before the let).
 
 The reason field is required. A rune with an empty reason fails
 the spell — the rune's job is to capture the WHY so the next

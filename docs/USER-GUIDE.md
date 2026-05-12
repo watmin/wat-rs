@@ -581,7 +581,7 @@ Every wat program lives in a coordinate with two axes.
 ### Axis 1 — four layers
 
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
-2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
+2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
 3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `Thread<I,O>`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-channel`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
 4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
 
@@ -877,10 +877,9 @@ type at parse time:
 - `Vector` of Symbols binder → tuple destructure
 - `StructPattern` of Symbols binder → struct destructure (arc 169)
 
-Single-letform vocabulary. Pre-arc-154 wat had both
-`:wat::core::let` (parallel) and `:wat::core::let*` (sequential);
-arc 154 collapsed them: `:wat::core::let` is sequential; the
-`let*` spelling retired.
+Single-letform vocabulary. Pre-arc-154 wat had two letforms;
+arc 154 collapsed them: `:wat::core::let` is sequential
+(Clojure-faithful). The old `let*` spelling is retired.
 
 The legacy typed shape `((name :T) expr)` retired in arc 159; the
 legacy nested-pair-list outer shape `((name expr) (name expr) ...)`
@@ -920,12 +919,12 @@ inferred type).
 **Non-finals' types are unconstrained** — Clojure-faithful semantics.
 The form's contract is *"evaluate sequence, return last"*; non-finals
 don't owe a type to that contract. This is more permissive than the
-let*-with-`((_ :wat::core::unit) ...)` crutch arc 136 retires:
+let-with-`((_ :wat::core::unit) ...)` crutch arc 136 retires:
 
 ```scheme
 ;; ❌ The crutch (arc 135 / pre-arc-136). The `_` LIES about being
 ;; a binding; five lines of ceremony for what should be three:
-(:wat::core::let*
+(:wat::core::let
   (((_ :wat::core::unit) (:wat::test::assert-eq v1 e1))
    ((_ :wat::core::unit) (:wat::test::assert-eq v2 e2)))
   (:wat::test::assert-eq v3 e3))
@@ -942,7 +941,7 @@ value (degenerate but accepted; matches Clojure's `(do x) ≡ x`).
 Empty `(:wat::core::do)` is a parse error — the form needs at
 least one body.
 
-History: the let*-with-anonymous-unit-bindings crutch was named
+History: the let-with-anonymous-unit-bindings crutch was named
 2026-05-03 mid arc 135 slice 1; arc 136 minted `do` and swept
 ~45 transforms across 14 files. The DESIGN went through four
 amendments (Option A pure macro; Option A-revised with REQUIRED
@@ -1013,7 +1012,7 @@ are partial; add a fallback `_` arm.)
 ```scheme
 (:wat::core::define (:my::app::pipeline (items :wat::holon::Holons)
                     -> :wat::holon::BundleResult)
-  (:wat::core::let*
+  (:wat::core::let
     (((bundled :wat::holon::HolonAST) (:wat::core::try (:wat::holon::Bundle items))))
     (Ok bundled)))
 ```
@@ -1274,7 +1273,7 @@ unified the surface; arc 035 added `length`):
 | `values`     | `Vec<V>` (arc 058)      | **illegal**                 | **illegal** |
 
 ```scheme
-(:wat::core::let*
+(:wat::core::let
   (((m :HashMap<String,i64>) (:wat::core::HashMap :(String,i64)))
    ((m1 :HashMap<String,i64>) (:wat::core::assoc m "rsi" 42))
    ((v :Option<i64>) (:wat::core::get m1 "rsi")))         ;; → (Some 42)
@@ -1285,14 +1284,14 @@ unified the surface; arc 035 added `length`):
 ;; resolves structurally at the constructor site (same rule that
 ;; lets `:wat::core::Bytes` stand in for `:Vec<u8>` everywhere).
 
-(:wat::core::let*
+(:wat::core::let
   (((s :HashSet<String>) (:wat::core::HashSet :String))
    ((s1 :HashSet<String>) (:wat::core::conj s "alpha"))
    ((found? :bool) (:wat::core::contains? s1 "alpha"))    ;; → true
    ((n :i64) (:wat::core::length s1)))                    ;; → 1
   ...)
 
-(:wat::core::let*
+(:wat::core::let
   (((v :Vec<i64>) (:wat::core::vec :i64 10 20 30))
    ((v1 :Vec<i64>) (:wat::core::conj v 40))               ;; → [10,20,30,40]
    ((x :Option<i64>) (:wat::core::get v1 1)))             ;; → (Some 20)
@@ -1348,7 +1347,7 @@ Declare, construct with `/new`, access with `/<field>`.
 
 **Canonical idiom:** name positional values via `let` at the
 construction site so the order is self-documenting even though the
-constructor itself takes positions. Extraction mirrors: `let*`-bind
+constructor itself takes positions. Extraction mirrors: `let`-bind
 each accessor's result to a local name.
 
 The struct's type path (`:my::market::Candle`) is NOT callable — it
@@ -1494,7 +1493,7 @@ current-form, step-result)`. The visitor returns a `WalkStep<A>`:
     (form-w :wat::WatAST)
     (step   :wat::eval::StepResult)
     -> :wat::eval::WalkStep<my::cache::Tier>)
-  (:wat::core::let*
+  (:wat::core::let
     (((form-h :wat::holon::HolonAST) (:wat::holon::from-watast form-w)))
     (:wat::core::match (:my::cache::lookup-terminal tier form-h)
                        -> :wat::eval::WalkStep<my::cache::Tier>
@@ -1645,7 +1644,7 @@ all callers migrate to the per-encoded-d pattern.
 The kernel primitives are small. Four concepts cover everything.
 
 > **Building a service program?** This section is the primitive
-> reference. For wiring patterns — nested `let*` shutdown,
+> reference. For wiring patterns — nested `let` shutdown,
 > `HandlePool` fan-in, select-prune loops, struct accumulators, and
 > the full Console / CacheService template — see
 > [`SERVICE-PROGRAMS.md`](SERVICE-PROGRAMS.md). It walks an
@@ -1682,7 +1681,7 @@ spell the channel surface in short form:
 | `:wat::kernel::CommResult<T>` | `:Result<:Option<T>, :wat::kernel::ThreadDiedError>` — what `recv` / `try-recv` return (arc 111). Three states: `Ok(Some v)` value flowed; `Ok(:None)` clean shutdown (every sender dropped via scope); `Err(...)` sender thread died |
 | `:wat::kernel::Chosen<T>` | `:(i64, :wat::kernel::CommResult<T>)` — what `select` returns (which receiver fired, and the recv outcome) |
 
-Reach for them in let* bindings, function signatures, and Vec carriers
+Reach for them in let bindings, function signatures, and Vec carriers
 wherever you'd otherwise type the long `rust::crossbeam_channel::*`
 path. Aliases and their expansion are interchangeable at unification.
 
@@ -1806,14 +1805,14 @@ sharing means threading the endpoint through spawn args.
 
 A `Sender<T>` / `Receiver<T>` is reference-counted. The corresponding
 channel-end disconnects only when **every** clone has dropped — and
-clones drop when their `let*` binding goes out of scope. There is no
+clones drop when their `let` binding goes out of scope. There is no
 force-close primitive: `:wat::kernel::drop` evaluates its argument
 (causing one *temporary* Arc to fall) but does NOT consume the named
 binding, so the binding still holds a clone until its enclosing scope
 exits. Use `:wat::kernel::drop` only as a readability hint; real
 shutdown happens at scope-end.
 
-**Anti-pattern (deadlocks)** — `pair` is bound in the same `let*` whose
+**Anti-pattern (deadlocks)** — `pair` is bound in the same `let` whose
 body calls `Thread/join-result`; the join blocks before `pair` falls out
 of scope, so the worker's `recv` never returns `:None`. **Arc 117 makes
 this a compile error**: the substrate detects a Sender-bearing sibling
@@ -1821,7 +1820,7 @@ to a Thread at the same scope and refuses with a self-describing
 canonical-fix block.
 
 ```scheme
-(:wat::core::let*
+(:wat::core::let
   (((pair :wat::kernel::Channel<i64>)
     (:wat::kernel::make-bounded-channel :wat::core::i64 1))
    ((rx :wat::kernel::Receiver<i64>) (:wat::core::second pair))
@@ -1831,17 +1830,17 @@ canonical-fix block.
   (:wat::kernel::Thread/join-result thr))   ;; ← arc 117: ScopeDeadlock
 ```
 
-**Canonical pattern (nested `let*`)** — outer scope holds the
+**Canonical pattern (nested `let`)** — outer scope holds the
 `Thread`; inner scope owns the `Channel` and every `Sender`. The
-inner `let*` body yields `h` so the outer can join it. When inner
+inner `let` body yields `h` so the outer can join it. When inner
 exits, every `Sender` Arc bound there decrements; the worker's next
 `recv` returns `:None`; the worker exits; the outer
 `Thread/join-result` unblocks:
 
 ```scheme
-(:wat::core::let*
+(:wat::core::let
   (((thr :wat::kernel::Thread<(),i64>)
-    (:wat::core::let*
+    (:wat::core::let
       (((pair :wat::kernel::Channel<i64>)
         (:wat::kernel::make-bounded-channel :wat::core::i64 1))
        ((tx :wat::kernel::Sender<i64>) (:wat::core::first pair))
@@ -1857,7 +1856,7 @@ exits, every `Sender` Arc bound there decrements; the worker's next
 ```
 
 The Console and CacheService stdlib programs follow this shape: the
-caller holds the driver `Thread` in an outer scope, an inner `let*`
+caller holds the driver `Thread` in an outer scope, an inner `let`
 distributes Sender handles, does the work, and exits; the drop cascade
 then triggers the driver's clean shutdown. Arc 117 enforces the shape
 structurally; see `WAT-CHEATSHEET.md § 10` for the rule and
@@ -1973,7 +1972,7 @@ reads + parses; both return `Result<…, ProcessDiedError>` with
 the arc-111 three-state shape (`Ok(Some)`/`Ok(:None)`/`Err(died)`).
 
 ```scheme
-(:wat::core::let*
+(:wat::core::let
   (((proc :wat::kernel::Process<MyRequest,MyResponse>)
     (:wat::core::result::expect -> :wat::kernel::Process<MyRequest,MyResponse>
       (:wat::kernel::spawn-program inner-src :None)
@@ -2088,7 +2087,7 @@ fold            stream init f    → :Acc          -- terminal: aggregate
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
                      -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((raw :wat::std::stream::Stream<RawCandle>)
       (:wat::std::stream::spawn-producer :my::app::candle-source))
      ((enriched :wat::std::stream::Stream<EnrichedCandle>)
@@ -2230,7 +2229,7 @@ Your wat source uses it:
 (:wat::core::use! :rust::rusqlite::Connection)
 
 (:wat::core::define (:user::main -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((conn :rust::rusqlite::Connection)
       (:rust::rusqlite::Connection::open "./db.sqlite"))
      ((count :i64)
@@ -2295,7 +2294,7 @@ Lives in that program's thread; no channel overhead.
 (:wat::core::use! :rust::lru::LruCache)
 
 (:wat::core::define (:my::app::worker -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((cache :wat::lru::LocalCache<String,i64>)
       (:wat::lru::LocalCache::new 128)))
     (... use cache via :wat::lru::LocalCache::put / ::get ...)))
@@ -2310,7 +2309,7 @@ The program owns the cache on its own thread; clients send requests
 through channels.
 
 ```scheme
-(:wat::core::let*
+(:wat::core::let
   (((state :(wat::kernel::HandlePool<wat::lru::ReqTx<String,i64>>,
              wat::kernel::ProgramHandle<()>))
     (:wat::lru::spawn 1024 8 reporter cadence))  ;; capacity 1024, 8 client handles
@@ -2355,7 +2354,7 @@ stream. One writer, serialized, no garbled output.
                     (stdout :wat::io::IOWriter)
                     (stderr :wat::io::IOWriter)
                     -> :())
-  (:wat::core::let*
+  (:wat::core::let
     ;; One Console for the whole program
     (((pool console-driver) (:wat::console stdout stderr 4))
      ((main-sender :Sender<(i64,String)>) (:wat::kernel::HandlePool::pop pool))
@@ -2439,7 +2438,7 @@ seam:
 (:wat::core::define
   (:my::pre-install
     (db :wat::sqlite::Db) -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((_w :()) (:wat::sqlite::pragma db "journal_mode" "WAL"))
      ((_s :()) (:wat::sqlite::pragma db "synchronous" "NORMAL")))
     ()))
@@ -2488,7 +2487,7 @@ A producer that wants both surfaces takes both handles wired in:
     (ack-tx :wat::telemetry::AckTx)
     (ack-rx :wat::telemetry::AckRx)
     -> :())
-  (:wat::core::let*
+  (:wat::core::let
     (((_say :())
       (:wat::telemetry::ConsoleLogger/info logger
         (:my::Event::Heartbeat 0)))                   ;; occasional, human-friendly
@@ -2934,7 +2933,7 @@ What's reflectable today:
   `:not=`, `:<`, `:>`, `:<=`, `:>=` over i64/f64 — first-class
   per arc 148's Dispatch entities + per-Type leaves; mixed-numeric
   types reachable via `:wat::core::+,i64-f64` etc.)
-- **Special forms** — `:wat::core::if`, `cond`, `match`, `let*`,
+- **Special forms** — `:wat::core::if`, `cond`, `match`, `let`,
   `lambda`, `define`, `defmacro`, `try`, `option/expect`,
   `result/expect`, the spawn family, the quasiquote family, `forms`.
   Each carries a synthetic signature AST (slice 2's registry).
@@ -2964,7 +2963,7 @@ stdout, its stderr, its assertion-failure payload. Pair
 
 ```scheme
 (:wat::test::deftest :my::test-captures-inner-output
-  (:wat::core::let*
+  (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
@@ -3009,7 +3008,7 @@ s-expressions:
 
 ```scheme
 (:wat::test::deftest :my::test-console-hello
-  (:wat::core::let*
+  (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
@@ -3018,10 +3017,10 @@ s-expressions:
                                (stdout :wat::io::IOWriter)
                                (stderr :wat::io::IOWriter)
                                -> :())
-            (:wat::core::let*
+            (:wat::core::let
               (((pool driver) (:wat::console stdout stderr 1))
                ((_ :())
-                (:wat::core::let*
+                (:wat::core::let
                   (((c :rust::crossbeam_channel::Sender<(i64,String)>)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_2 :()) (:wat::kernel::HandlePool::finish pool)))
@@ -3137,7 +3136,7 @@ The Vec IS the chain. Head = the immediate peer that died; tail
   ;; died-chain :wat::kernel::ThreadPanics
   ;; head: this thread's recv saw its peer thread die
   ;; tail (if any): what killed THAT peer, transitively
-  (:wat::core::let*
+  (:wat::core::let
     (((immediate :Option<wat::kernel::ThreadDiedError>)
       (:wat::core::first died-chain)))
     (handle-immediate immediate)))
@@ -3264,11 +3263,11 @@ has a logic bug that skips sending. Fix: every `Some` branch of
 every stage must send to output before recursing.
 
 **Scope-deadlock at `Thread/join-result`.** A `Channel` /
-`Sender` bound at the same `let*` scope as a Thread keeps a
+`Sender` bound at the same `let` scope as a Thread keeps a
 Sender clone alive past the join; the worker's `recv` never sees
 EOF; the join blocks forever. Arc 117 turns this into a compile
 error with a self-describing canonical-fix block. Fix: nest the
-channel allocation + Sender bindings in an inner `let*` whose body
+channel allocation + Sender bindings in an inner `let` whose body
 returns the Thread; outer scope holds only the Thread. The
 substrate's diagnostic shows the pre/post shapes inline. See
 `WAT-CHEATSHEET.md § 10` and `SERVICE-PROGRAMS.md § "The lockstep"`.
@@ -3348,7 +3347,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::config::noise-floor` | `()` | `:f64` (compat shim — arc 037) |
 | `:wat::core::define` | `((name (p :T) ... -> :R) body)` | registers function |
 | `:wat::core::lambda` | `(((p :T) ... -> :R) body)` | `:fn(T,...)->R` |
-| `:wat::core::let*` | `(((b :T) rhs) ...) body` | body's type |
+| `:wat::core::let` | `[n1 e1 n2 e2 ...] body+` | body's type |
 | `:wat::core::match` | `scrutinee -> :T arm1 arm2 ...` | arm result (type `T`) |
 | `:wat::core::if` | `cond -> :T then else` | branch result (type `T`) |
 | `:wat::core::cond` | `-> :T ((test) body) ... (:else body)` | arm result (type `T`) |

@@ -2722,7 +2722,7 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), Runtime
 /// tail-aware helpers (`eval_if_tail`, `eval_match_tail`,
 /// `eval_let_tail`) that reuse the same validation as their non-tail
 /// twins but dispatch the body through `eval_tail` rather than `eval`.
-/// Arc 154 collapsed `let*` into `let` (single-letform vocabulary).
+/// Arc 154 retired `let*`; `let` is the single-letform vocabulary (Clojure-faithful).
 ///
 /// Three tail-call shapes are detected (Stage 2 covers all three):
 ///
@@ -2885,8 +2885,8 @@ fn eval_if_tail(
 /// Arc 154 — sequential semantics moved under the `:wat::core::let`
 /// keyword (single-letform vocabulary; Clojure-faithful). Pre-arc-154
 /// this body lived under `eval_let_star_tail` and dispatched on
-/// `:wat::core::let*`. Arc 168 — flat-vector bindings + implicit-do
-/// body (mirrors [`eval_let`]).
+/// `:wat::core::let*` (historical; that dispatch arm is gone).
+/// Arc 168 — flat-vector bindings + implicit-do body (mirrors [`eval_let`]).
 fn eval_let_tail(
     args: &[WatAST],
     list_span: &Span,
@@ -3273,7 +3273,7 @@ fn dispatch_keyword_head(
         ":wat::core::define" => Err(RuntimeError::DefineInExpressionPosition(list_span.clone())),
         // Arc 155 — `:wat::core::fn` is the canonical operator for
         // function values (Clojure-faithful lowercase verb; mirrors
-        // arc 154's let* → let recipe). Routes to `eval_fn`
+        // arc 154's let retirement recipe). Routes to `eval_fn`
         // (formerly `eval_lambda`).
         ":wat::core::fn" => eval_fn(args, env),
         // Arc 155 slice 2 — `:wat::core::lambda` dispatch arm retired.
@@ -4436,8 +4436,8 @@ fn parse_fn_signature(
 
 /// `(:wat::core::let [n1 e1 n2 e2 ...] body1 body2 ... bodyN)` —
 /// sequential let with flat-vector bindings + implicit-do body
-/// (arc 168). Arc 154 collapsed `let*` into `let` (single-letform
-/// vocabulary; Clojure-faithful: Clojure's user-facing `let` IS the
+/// (arc 168). Arc 154 retired `let*`; `let` is the single-letform
+/// vocabulary (Clojure-faithful: Clojure's user-facing `let` IS the
 /// sequential primitive). Arc 168 reshapes the binding form to a
 /// `WatAST::Vector` of alternating `(binder, expr)` pairs and adds
 /// implicit-do body semantics.
@@ -18072,9 +18072,8 @@ fn step_if(
 /// Empty bindings + body → see `synthesize_let_body` for the
 /// implicit-do collapse rule.
 ///
-/// Pre-arc-168 step_let renamed (was `step_let_star`) to canonical
-/// `step_let` after `let*` retired into `let` (single-letform
-/// vocabulary; arc 154).
+/// Pre-arc-168 `step_let_star` renamed to canonical `step_let` after
+/// arc 154 retired `let*` into `let` (single-letform vocabulary).
 fn step_let(
     args: &[WatAST],
     list_span: &Span,

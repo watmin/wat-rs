@@ -184,7 +184,7 @@
 ;;   (Ok None) at ctrl idx          => control-rx gone => exit
 ;;   (Err _) at any idx             => prune / exit same as None
 ;;
-;; Extracted from the loop body per one-let*-per-function rule.
+;; Extracted from the loop body per one-let-per-function rule.
 (:wat::core::define
   (:wat::kernel::services::StdErrService/dispatch
     (routing-vec :wat::kernel::services::StdErrService::RoutingVec)
@@ -271,7 +271,7 @@
 ;; dispatch exits the recursion => return unit => Thread<nil,nil>
 ;; delivers unit on its output Sender.
 ;;
-;; One let* per function per feedback_simple_forms_per_func.
+;; One let per function per feedback_simple_forms_per_func.
 (:wat::core::define
   (:wat::kernel::services::StdErrService/loop
     (routing-vec :wat::kernel::services::StdErrService::RoutingVec)

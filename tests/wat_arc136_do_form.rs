@@ -146,9 +146,9 @@ fn do_recipient_mismatch_fires_type_mismatch() {
 
 #[test]
 fn do_non_final_type_is_unconstrained() {
-    // The non-final form is a String literal (NOT :unit) — under
-    // let*-with-unit-bindings this would have been rejected because
-    // each `((_ :unit) form)` slot REQUIRED form to be :unit. The do
+    // The non-final form is a String literal (NOT :unit) — under the
+    // old let-with-unit-bindings pattern this would have been rejected
+    // because each `((_ :unit) form)` slot REQUIRED form to be :unit. The do
     // form is MORE permissive: non-final's value is intentionally
     // discarded; its type is unconstrained. Final form's i64 is the do's type.
     let src = r#"

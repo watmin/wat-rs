@@ -137,16 +137,11 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // `:wat::core::let*` retired into `let`).
     insert(&mut m, ":wat::core::let", &["<bindings>", "<body>+"]);
     // Arc 154 — `:wat::core::let*` retired (single-letform vocabulary).
-    // The `validate_legacy_let_star` walker fires `BareLegacyLetStar`
-    // on every source-level appearance. Registry entry retained per
-    // the spawn-family precedent (arc 114 Pattern 2 poison): keeps
-    // `(help :wat::core::let*)` reflection-discoverable so the
-    // migration hint surfaces uniformly.
-    insert(
-        &mut m,
-        ":wat::core::let*",
-        &["<retired-use-let>"],
-    );
+    // Registry entry removed in arc 170 slice 3 (lambda precedent
+    // symmetry: arc 155 slice 2 removed lambda's entry; let*'s entry
+    // was the only asymmetry). Source-level use fires BareLegacyLetStar
+    // fatally at check time; `(help :wat::core::let*)` now returns
+    // "no such form" — matches lambda's behavior post-arc-155-slice-2.
     // Arc 136 slice 1a — Clojure-faithful sequential side-effect chain.
     // `(:wat::core::do f1 f2 ... fN)` — variadic; one or more forms.
     // Non-finals' types are unconstrained (results discarded); the
@@ -164,8 +159,8 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
 
     // ─── Functions ────────────────────────────────────────────────────
     // Arc 155 — `:wat::core::fn` is the canonical operator for function
-    // values (Clojure-faithful lowercase verb; mirrors arc 154's let* →
-    // let recipe). The legacy `:wat::core::lambda` keyword retired in
+    // values (Clojure-faithful lowercase verb; mirrors arc 154's let
+    // retirement recipe). The legacy `:wat::core::lambda` keyword retired in
     // arc 155 slice 2 (Path B full retirement; registry entry +
     // dispatch arms gone; source-level use surfaces standard "unknown
     // form" error). BareLegacyLambda variant + Display retained as

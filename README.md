@@ -449,7 +449,7 @@ stderr, or failure) compose two stdlib forms:
 ```scheme
 (:wat::test::deftest :my::test-captures-inner-output
   ()
-  (:wat::core::let*
+  (:wat::core::let
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program

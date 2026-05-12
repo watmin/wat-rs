@@ -291,10 +291,10 @@ pub enum CheckError {
     /// **Slice 2 retirement.** Walker body retires after sweep 1b
     /// clears all in-tree `:wat::core::lambda` consumer sites. The
     /// variant + Display remain as orphaned scaffolding per arc 113
-    /// precedent. Runtime dispatch arms for `:wat::core::lambda`
-    /// keep functional fall-through to `eval_fn` as transitional
-    /// runtime scaffolding (mirrors arc 154's let* dispatch
-    /// retention pattern).
+    /// precedent. Runtime dispatch arm for `:wat::core::lambda`
+    /// retired in arc 155 slice 2; source-level use surfaces
+    /// BareLegacyLambda fatal at check time (same shape as
+    /// `:wat::core::let*` post-arc-163).
     BareLegacyLambda {
         /// Source location of the keyword carrying the retired
         /// `:wat::core::lambda` token.
@@ -1639,13 +1639,15 @@ pub fn check_program(
     // for `:wat::core::let*` → `:wat::core::let`; sweep 1b migrated
     // every in-tree consumer (~806 sites); closure retires the
     // firing body. `BareLegacyLetStar` variant + Display stay as
-    // orphaned scaffolding (arc 113 precedent). Runtime dispatch
-    // arms for `:wat::core::let*` keep functional fall-through to
-    // `:wat::core::let` (sequential) — the keyword remains as
-    // transitional runtime scaffolding mirroring arc 113's pattern
-    // (variant stays; firing retires). User-facing discipline:
-    // `:wat::core::let` is the single-letform spelling; `:wat::core::let*`
-    // works but is undocumented and discouraged.
+    // orphaned scaffolding (arc 113 precedent).
+    //
+    // Arc 163 re-armed the walker at check.rs check-site (see below,
+    // ~line 2376). Arc 168 renamed step_let_star → step_let and
+    // eliminated all runtime dispatch arms for `:wat::core::let*`.
+    // There is NO runtime fall-through: the walker fires fatal at
+    // check time; no runtime ever sees the token. User-facing state
+    // post-arc-163+168: `:wat::core::let` is the ONLY letform;
+    // `:wat::core::let*` is dead at check time.
 
     // Arc 155 slice 1a — refuse the legacy `:wat::core::lambda`
     // keyword anywhere in the program. The canonical FQDN operator
@@ -1657,10 +1659,10 @@ pub fn check_program(
     // closure retires the firing bodies. `BareLegacyLambda` +
     // `BareLegacyLowercaseFn` variants + Display retained as
     // orphaned scaffolding (arc 113 precedent — testing/teaching/
-    // reintroduction surface preserved). Runtime dispatch arms for
-    // `:wat::core::lambda` keep functional fall-through to
-    // `:wat::core::fn` (transitional runtime scaffolding mirroring
-    // arc 154's let* fall-through pattern).
+    // reintroduction surface preserved). Runtime dispatch arm for
+    // `:wat::core::lambda` retired in arc 155 slice 2; source-level
+    // use surfaces BareLegacyLambda fatal at check time (same shape
+    // as `:wat::core::let*` post-arc-163).
 
     // Arc 109 slice 9d — refuse the legacy `:wat::std::stream::*`
     // namespace prefix anywhere in the program. The stream stdlib
@@ -2466,7 +2468,7 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 // `BareLegacyLambda` per `:wat::core::lambda` keyword in the AST.
 // Pattern 3 (substrate-as-teacher § "Three migration patterns"):
 // dedicated CheckError variant + walker; sweep 1b uses the
-// diagnostic stream as the work list. Mirror of arc 154's let*
+// diagnostic stream as the work list. Mirror of arc 154's let
 // walker recipe (single-token keyword retirement at operator
 // position).
 //
@@ -2476,9 +2478,9 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 // sweep 1b cleared all in-tree `:wat::core::lambda` consumers;
 // closure retires the firing body. `BareLegacyLambda` variant +
 // Display preserved as orphaned scaffolding (arc 113 precedent).
-// Runtime dispatch arms for `:wat::core::lambda` keep functional
-// fall-through to `eval_fn` (transitional runtime scaffolding;
-// mirrors arc 154's let* fall-through).
+// Runtime dispatch arm for `:wat::core::lambda` retired in arc 155
+// slice 2; source-level use surfaces BareLegacyLambda fatal at check
+// time (arc 163 re-armed that walker for let* as well).
 //
 // Reintroduction recipe: see arc 153/154 walker shapes; mirror
 // `WatAST::Keyword(s)` match for the retired FQDN, recurse
@@ -4556,7 +4558,7 @@ fn infer_list(
             }
             // Arc 155 — `:wat::core::fn` is the canonical operator for
             // function values (Clojure-faithful lowercase verb; mirrors
-            // arc 154's let* → let recipe). Routes to `infer_fn`
+            // arc 154's let retirement recipe). Routes to `infer_fn`
             // (formerly `infer_lambda`).
             ":wat::core::fn" => return infer_fn(args, head_span, env, locals, fresh, subst, errors),
             // Arc 155 slice 2 — `:wat::core::lambda` dispatch arm retired.

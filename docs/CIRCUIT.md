@@ -23,7 +23,7 @@ No computation in main. No I/O in main. No state in main. Just wiring.
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :())
-  (:wat::core::let*
+  (:wat::core::let
     ;; 1. Construct the consumers — each spawn returns a HandlePool
     ;;    of senders + the driver's ProgramHandle.
     (((con-spawn   :Console::Spawn)
@@ -37,10 +37,10 @@ No computation in main. No I/O in main. No state in main. Just wiring.
      ((tel-driver  :ProgramHandle<()>)         (:wat::core::second tel-spawn))
 
      ;; 2. Wire each consumer's senders to the producers that need them.
-     ;;    (One let*-binding per wire; each binding plugs a pop into a
+     ;;    (One let-binding per wire; each binding plugs a pop into a
      ;;    worker that's about to be spawned.)
      ((_inner :())
-      (:wat::core::let*
+      (:wat::core::let
         (((con-tx-trader :Console::Tx) (HandlePool::pop con-pool))
          ((con-tx-broker :Console::Tx) (HandlePool::pop con-pool))
          ((tel-tx-trader :Sqlite::ReqTx) (HandlePool::pop tel-pool))
