@@ -532,8 +532,8 @@ fn startup_from_forms_post_config(
     //     `(:wat::holon::Subtract …)` / `(:wat::holon::Amplify …)` call
     //     in user source resolves during step 4's macro expansion
     //     without an explicit `load!`. Per FOUNDATION § "Where Each
-    //     Lives" (line 2088), `wat/std/*.wat` files ship one form
-    //     each whose keyword path matches the file path.
+    //     Lives" (line 2088), each `wat/**/*.wat` file ships one form
+    //     whose keyword path matches the file path.
     let stdlib = stdlib_forms()?;
 
     // 4. Macro registration + expansion. Stdlib defmacros register

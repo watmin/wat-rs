@@ -8,7 +8,7 @@
 //! pattern is REJECTED at startup with the expected diagnostic.
 //!
 //! Slice 2 swaps the runtime stub for the real walker and adds
-//! end-to-end `wat-tests/std/form/matches.wat` coverage.
+//! end-to-end `wat-tests/form/matches.wat` coverage.
 //!
 //! ──────────────────────────────────────────────────────────────────
 //!

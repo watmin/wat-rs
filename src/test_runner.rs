@@ -116,7 +116,7 @@ pub struct TestSummary {
 ///
 /// `path` may be a single `.wat` file or a directory. Directory
 /// traversal is recursive and deterministic (sorted by filesystem
-/// path) — subdirectories like `wat-tests/std/*.wat` get picked up
+/// path) — subdirectories like `wat-tests/holon/*.wat` get picked up
 /// by one invocation on the parent.
 ///
 /// # Errors as data

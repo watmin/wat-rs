@@ -4,7 +4,7 @@
 //! The substrate-side machinery for "consumer declares an enum,
 //! substrate ships a sqlite-backed sink for it." The user-facing
 //! factory is the wat-side `Sqlite/auto-spawn` (in
-//! `wat/std/telemetry/Sqlite.wat`); this module ships three
+//! `wat/telemetry/Sqlite.wat` in the `wat-telemetry-sqlite` crate); this module ships three
 //! manually-registered Rust shim primitives that the wat factory
 //! composes:
 //!

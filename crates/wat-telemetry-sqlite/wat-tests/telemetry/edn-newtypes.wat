@@ -1,4 +1,4 @@
-;; wat-tests/std/telemetry/edn-newtypes.wat — arc 091 slice 1 smoke
+;; wat-tests/telemetry/edn-newtypes.wat — arc 091 slice 1 smoke
 ;; test for the Tagged/NoTag newtype TEXT-bind path.
 ;;
 ;; Declares a tiny enum with one `:wat::edn::Tagged` field and one

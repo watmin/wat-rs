@@ -2477,8 +2477,8 @@ the language verifies itself through the primitives it defines.
 Tests live in `wat-tests/` alongside your `wat/` source. Each file
 under `wat/<ns>/X.wat` has a matching test file at
 `wat-tests/<ns>/X.wat` — wat-rs ships `wat-tests/holon/*.wat` for
-the algebra idioms, `wat-tests/std/*.wat` for stream + services +
-the test harness itself.
+the algebra idioms, `wat-tests/stream.wat` + `wat-tests/test.wat` +
+`wat-tests/kernel/services/` for stream + services + the test harness itself.
 
 Each test file uses `:wat::test::deftest` to register named test
 functions. The runner discovers them by signature alone — any
@@ -3062,7 +3062,7 @@ before being yielded to the joiner. Causality order preserved:
 `chain[0]` is the thread you joined; `chain[1]` is what killed it;
 `chain[N]` is the originating cause.
 
-**Cross-fork.** `wat/std/sandbox.wat`'s drive-sandbox + hermetic
+**Cross-fork.** `wat/kernel/sandbox.wat`'s drive-sandbox + hermetic
 drain stderr post-waitpid and call `:wat::kernel::extract-panics`
 to recover the structured chain from the marker line. When
 present, the parsed chain replaces the singleton "exited N"
@@ -3356,9 +3356,9 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::string::trim` | `s` | `:String` |
 | `:wat::core::string::split` / `join` | `hay sep` / `sep pieces` | `:Vec<String>` / `:String` |
 | `:wat::core::regex::matches?` | `pattern haystack` | `:bool` — unanchored |
-| `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` — wat stdlib define in `wat/std/sandbox.wat` (arc 105c), atop spawn-program |
+| `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` — wat stdlib define in `wat/kernel/sandbox.wat` (arc 105c), atop spawn-program |
 | `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — same file, atop spawn-program-ast |
-| `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — forks a child via `:wat::kernel::fork-program-ast`; wat stdlib define in `wat/std/hermetic.wat` |
+| `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — forks a child via `:wat::kernel::fork-program-ast`; wat stdlib define in `wat/kernel/hermetic.wat` |
 | `:wat::kernel::pipe` | — | `:(IOWriter, IOReader)` — libc::pipe(2), PipeWriter first |
 | `:wat::kernel::spawn-program` | `src scope` | `:Result<:wat::kernel::Process<I,O>, :wat::kernel::StartupError>` — in-thread; arc 103a / 105a / 112 |
 | `:wat::kernel::spawn-program-ast` | `forms scope` | `:Result<:wat::kernel::Process<I,O>, :wat::kernel::StartupError>` — in-thread; arc 103a / 105a / 112 |

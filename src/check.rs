@@ -441,7 +441,7 @@ pub enum CheckError {
     /// but NOT in the sub-program's own forms (prelude + auto-
     /// generated `:user::main`). Sandboxes do NOT capture outer
     /// scope by design (per `wat/test.wat`'s deftest macro and
-    /// `wat/std/sandbox.wat`'s `run-sandboxed-ast`); the user
+    /// `wat/kernel/sandbox.wat`'s `run-sandboxed-ast`); the user
     /// either typed a name they thought would be visible or
     /// forgot to put the helper into the deftest's prelude.
     ///
@@ -1996,7 +1996,7 @@ fn validate_comm_positions(
 // forms-block argument (prelude + auto-generated `:user::main`) plus
 // stdlib. Outer-file user defines are NOT captured — sandbox isolation
 // is intentional (per `wat/test.wat`'s deftest macro and
-// `wat/std/sandbox.wat`'s `run-sandboxed-ast` shape).
+// `wat/kernel/sandbox.wat`'s `run-sandboxed-ast` shape).
 //
 // The failure mode that has burned the project repeatedly: user puts a
 // helper at the top level of a test file, references it from a deftest
@@ -10967,7 +10967,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // :wat::kernel::run-sandboxed (string entry) and
     // :wat::kernel::run-sandboxed-ast (forms entry) — arc 007.
     // RETIRED at the substrate level by arc 105c. Both now live as
-    // wat-level defines in `wat/std/sandbox.wat`, atop:
+    // wat-level defines in `wat/kernel/sandbox.wat`, atop:
     //   - arc 105a's :wat::kernel::spawn-program (Result-returning)
     //   - arc 105b's :wat::kernel::ThreadDiedError/message accessor
     // Their schemes register from the wat-level (define ...) forms
@@ -10975,12 +10975,12 @@ fn register_builtins(env: &mut CheckEnv) {
     // grave marker so future readers can find the relocation.
     //
     // The string-entry hermetic primitive was retired in arc 012
-    // slice 3; its AST-entry sibling lives in wat/std/hermetic.wat
+    // slice 3; its AST-entry sibling lives in wat/kernel/hermetic.wat
     // atop fork-program-ast.
 
     // :wat::kernel::run-sandboxed-hermetic-ast — retired as a Rust
     // primitive in arc 012 slice 3. Shipped as wat stdlib in
-    // wat/std/hermetic.wat on top of fork-program-ast + wait-child
+    // wat/kernel/hermetic.wat on top of fork-program-ast
     // + struct-new. The keyword path + signature + return type are
     // identical; only the implementation layer moved. See
     // docs/arc/2026/04/012-fork-and-pipes/ for the arc's record.
@@ -12682,7 +12682,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Extracts the carried message from any ThreadDiedError variant;
     // returns "channel disconnected" for the unit variant. Routes
     // around the wat-side enum-pattern type-checker gap that arc 103b
-    // surfaced. Wat callers (wat/std/sandbox.wat) use this to build
+    // surfaced. Wat callers (wat/kernel/sandbox.wat) use this to build
     // RunResult.failure.message without variant discrimination.
     env.register(
         ":wat::kernel::ThreadDiedError/message".into(),
@@ -12697,7 +12697,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // — arc 105c. Always returns a structured Failure, preserving
     // arc 064's actual/expected/location/frames through run-sandboxed
     // when the panic carried an AssertionPayload. Plain panics and
-    // non-panic variants get a message-only Failure. wat/std/
+    // non-panic variants get a message-only Failure. wat/kernel/
     // sandbox.wat's failure-from-thread-died routes through this.
     env.register(
         ":wat::kernel::ThreadDiedError/to-failure".into(),

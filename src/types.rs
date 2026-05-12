@@ -781,14 +781,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Arc 170 slice 1c: ADDITIVE reshape. Existing fields (stdin /
     // stdout / stderr / join) preserved for back-compat with the
-    // bundled stdlib (`wat/std/sandbox.wat` and
-    // `wat/std/hermetic.wat`); two new fields appended (`tx` / `rx`)
+    // bundled stdlib (`wat/kernel/sandbox.wat` and
+    // `wat/kernel/hermetic.wat`); two new fields appended (`tx` / `rx`)
     // expose the typed-channel surface the DESIGN settled on.
     // Slice 3 retires the byte-pipe accessors when the testing
     // tooling rebuilds against the new surface.
     //
     // Decision honest delta vs. BRIEF-SLICE-1C.md row D ("drop"):
-    // a destructive reshape would brick `wat/std/sandbox.wat` (a
+    // a destructive reshape would brick `wat/kernel/sandbox.wat` (a
     // bundled stdlib used by every `:wat::test::deftest` expansion)
     // because its `Process/stdin` / `/stdout` / `/stderr` calls
     // would fail type-check at substrate startup, blocking every

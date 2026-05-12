@@ -95,7 +95,7 @@ isolation) and `:wat::kernel::run-sandboxed-ast` (AST-entry path for
 macro-generated programs). Arc 011 added the AST-entry hermetic
 (`run-sandboxed-hermetic-ast`) for services that spawn threads.
 Arc 012 moved hermetic to wat stdlib on top of `:wat::kernel::
-fork-with-forms` + `wait-child` — no binary-path coupling, no
+fork-program-ast` — no binary-path coupling, no
 tempfile. The stdlib wraps them as `:wat::test::run`,
 `:wat::test::run-ast`, `:wat::test::run-hermetic-ast`,
 `:wat::test::deftest` (Clojure-style ergonomic shell), and six
@@ -233,9 +233,9 @@ test --release` from `wat-rs/`.
   (`AssertionPayload` → structured; string panic → message; runtime
   error → message). Arc 012 retired the hermetic Rust primitives
   (string- and AST-entry); hermetic is now wat stdlib in
-  `wat/std/hermetic.wat` on top of `:wat::kernel::fork-with-forms`.
+  `wat/kernel/hermetic.wat` on top of `:wat::kernel::fork-program-ast`.
 - [`fork`] — the fork substrate (arc 012): `:wat::kernel::pipe`,
-  `fork-with-forms`, `wait-child`. `PipeReader` / `PipeWriter`
+  `fork-program-ast`, `Process/join-result`. `PipeReader` / `PipeWriter`
   live in `io.rs` (same trait surface as `RealStdin` etc.).
 - [`harness`] — `wat::Harness` thin embedding wrapper for Rust programs
   that host wat as a sub-language. Sugar over `startup_from_source` +
@@ -498,9 +498,10 @@ code.
 
 ## Stdlib
 
-Every file under `wat/std/` is baked into the binary at compile time via
-`include_str!` and registered during startup before user code parses.
-Consumers reference them by path — no explicit `load!` needed.
+Every stdlib file under `wat/` (including `wat/kernel/` and `wat/holon/`) is
+baked into the binary at compile time via `include_str!` and registered during
+startup before user code parses. Consumers reference them by path — no explicit
+`load!` needed.
 
 Algebra conveniences (under `:wat::holon::*`, arc 022 namespace
 consolidation; files live in `wat/holon/`):
@@ -655,10 +656,12 @@ wat-rs/
 │   ├── Reject.wat Project.wat Sequential.wat
 │   ├── Ngram.wat Bigram.wat Trigram.wat
 │   └── ReciprocalLog.wat   # arc 034
-├── wat/std/                # other baked-in wat sources
-│   ├── stream.wat hermetic.wat test.wat
-│   └── service/
-│       └── Console.wat     # Cache moved to wat-lru (arc 013)
+├── wat/kernel/             # kernel-namespace wat sources (arc 109 K-doctrine)
+│   ├── channel.wat hermetic.wat sandbox.wat
+│   └── services/
+│       └── stderr.wat stdin.wat stdout.wat
+├── wat/                    # remaining baked-in wat sources (root-level)
+│   └── core.wat edn.wat holon.wat list.wat runtime.wat stream.wat test.wat
 ├── crates/wat-lru/         # external wat crate — LRU surface (arc 013)
 │   ├── Cargo.toml          # depends on wat + wat-macros + lru
 │   ├── src/{lib.rs,shim.rs}  # wat_sources(), register(), #[wat_dispatch] impl
@@ -671,9 +674,12 @@ wat-rs/
 │   └── tests/smoke.rs      # spawns the binary, asserts "hit"
 ├── wat-tests/              # wat-rs's own baked-stdlib tests
 │   ├── README.md
-│   └── std/
-│       ├── {Subtract,Circular,Reject,Sequential,Trigram,test,stream}.wat
-│       └── service/Console.wat
+│   ├── service-template.wat stream.wat test.wat time.wat
+│   ├── core/{option-expect,result-expect,struct-to-form}.wat
+│   ├── edn/{render,roundtrip}.wat
+│   ├── holon/{Circular,Filter,Hologram,ReciprocalLog,Reject,Sequential,
+│   │          Subtract,Trigram,coincident,eval-coincident,term}.wat
+│   └── kernel/services/ambient-stdio.wat
 ├── tests/                  # Rust integration suites
 │   ├── mvp_end_to_end.rs
 │   ├── wat_dispatch_{193a,193b,e1_vec,e2_tuple,

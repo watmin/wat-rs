@@ -1,6 +1,6 @@
 //! Integration tests for `:wat::core::cond` — multi-way conditional
 //! factoring the nested-if ceremony caught in
-//! `wat/std/hermetic.wat`'s exit-code-prefix.
+//! `wat/kernel/hermetic.wat`'s exit-code-prefix.
 //!
 //! Shape: `(:wat::core::cond -> :T ((test) body) ... (:else body))`.
 //! Typed once at the head; each test unifies with :wat::core::bool; each body

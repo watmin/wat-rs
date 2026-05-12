@@ -130,7 +130,7 @@ pub fn eval_kernel_spawn_program_ast(
 
 // No `spawn-program-hermetic-ast` substrate primitive. The hermetic
 // distinction in wat-rs has always meant "separate OS process,
-// fresh frozen world" (today's `wat/std/hermetic.wat` is a wat-level
+// fresh frozen world" (today's `wat/kernel/hermetic.wat` is a wat-level
 // wrapper over `fork-program-ast`). For an in-thread spawn, "hermetic"
 // would only mean "skip Config inheritance" — which a caller
 // expresses by writing the inner forms with explicit

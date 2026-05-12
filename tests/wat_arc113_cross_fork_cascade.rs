@@ -8,7 +8,7 @@
 //! runs in a forked OS process; the substrate's catch_unwind
 //! captures the panic; `emit_cascade_chain_to_stderr` renders the
 //! ProcessDiedError chain to stderr as `#wat.died/chain {...}`. The
-//! parent's `drive-hermetic` (in `wat/std/hermetic.wat`) calls
+//! parent's `drive-hermetic` (in `wat/kernel/hermetic.wat`) calls
 //! `extract-died-chain` on stderr-lines; recovery yields the typed
 //! Vec<ProcessDiedError>; `failure-from-process-died` walks the
 //! head and produces a Failure carrying the original assertion's

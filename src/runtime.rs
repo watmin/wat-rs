@@ -3861,7 +3861,7 @@ fn dispatch_keyword_head(
         ":wat::kernel::HandlePool::finish" => eval_handle_pool_finish(args, env, sym, list_span),
         // Arc 105c — substrate `:wat::kernel::run-sandboxed` /
         // `-ast` dispatch arms are GONE. The wat-level defines in
-        // `wat/std/sandbox.wat` (bundled in `src/stdlib.rs`) atop
+        // `wat/kernel/sandbox.wat` (bundled in `src/stdlib.rs`) atop
         // arc 105a's Result-returning spawn-program +
         // arc 105b's ThreadDiedError/message accessor are now
         // canonical. Vec<String> exits the substrate boundary; the
@@ -16819,7 +16819,7 @@ fn eval_died_error_message(
 /// - `ChannelDisconnected`: build a Failure with the constant
 ///   `"channel disconnected"` message.
 ///
-/// `wat/std/sandbox.wat` calls this once in `failure-from-thread-
+/// `wat/kernel/sandbox.wat` calls this once in `failure-from-thread-
 /// died` — no per-variant pattern matching needed.
 pub fn eval_thread_died_error_to_failure(
     args: &[WatAST],

@@ -39,7 +39,7 @@
 //! `:wat::kernel::spawn-thread`, `:wat::kernel::send`) do NOT appear
 //! here — they are reachable through `lookup_form`'s Primitive branch
 //! (slice 3 territory) instead. User-defined wat helpers like
-//! `:wat::kernel::run-sandboxed-ast` (defined in `wat/std/sandbox.wat`)
+//! `:wat::kernel::run-sandboxed-ast` (defined in `wat/kernel/sandbox.wat`)
 //! reach through the UserFunction branch.
 
 use holon::HolonAST;

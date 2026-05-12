@@ -22,9 +22,9 @@ wat/holon/Reject.wat           ↔ wat-tests/holon/Reject.wat
 wat/holon/Project.wat            (tested alongside Reject)
 wat/holon/Sequential.wat       ↔ wat-tests/holon/Sequential.wat
 wat/holon/Trigram.wat          ↔ wat-tests/holon/Trigram.wat
-wat/test.wat                 ↔ wat-tests/test.wat
-wat/std/service/Console.wat  ↔ wat-tests/std/service/Console.wat
-wat/stream.wat               ↔ wat-tests/stream.wat
+wat/test.wat                     ↔ wat-tests/test.wat
+wat/kernel/services/stdout.wat   ↔ wat-tests/kernel/services/ambient-stdio.wat
+wat/stream.wat                   ↔ wat-tests/stream.wat
 ```
 
 The stdlib module under test dictates the path. A future addition to
@@ -81,7 +81,7 @@ The substrate primitives the macros expand to:
   runs the inner program with fd-backed thread-safe stdio
   (`PipeReader` / `PipeWriter`). Used for programs that spawn
   threads and write from them (Console, Cache). See
-  `wat/std/hermetic.wat` for the implementation.
+  `wat/kernel/hermetic.wat` for the implementation.
 
 Default to the macros; drop down to the primitives when a
 sandbox needs custom wiring.

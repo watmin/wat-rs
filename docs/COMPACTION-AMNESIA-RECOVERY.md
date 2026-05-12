@@ -519,18 +519,24 @@ orchestrator had run the baseline check pre-spawn.
 
 ### Failure mode 8 — Adding to a namespace that's being killed
 
-**Signature:** creating a new file under `wat/std/` or adding new
-symbols to `:wat::std::*` namespace.
+**Signature:** adding new symbols to `:wat::std::*` namespace or
+claiming a file lives under `wat/std/` (that directory no longer
+exists on disk — arc 109 eliminated it).
 
-**Reality check:** Arc 109 is killing `:wat::std::*`. We are ~90%
-through the migration. NEVER add to `wat/std/` — it gets cleaned up.
-New wat-defined macros + helpers go in their semantic namespace
-(e.g., `wat/runtime.wat`, `wat/list.wat`).
+**Reality check:** Arc 109 killed `:wat::std::*`. The `wat/std/`
+directory is GONE. Files that lived there moved: `wat/std/stream.wat`
+→ `wat/stream.wat`; `wat/std/hermetic.wat` → `wat/kernel/hermetic.wat`;
+`wat/std/sandbox.wat` → `wat/kernel/sandbox.wat`; `wat/std/test.wat`
+→ `wat/test.wat`; `wat/std/service/Console.wat` DELETED (arc 170
+slice 1f-η). NEVER add to a `wat/std/*` location. New wat-defined
+macros + helpers go in their semantic namespace (e.g.,
+`wat/runtime.wat`, `wat/list.wat`, `wat/kernel/`).
 
 **Real incident, 2026-05-02:** Sonnet created `wat/std/ast.wat` with
 the manual reduce define. User: *"remove wat/std/ast.wat — we are
 actively killing the std namespace — 109's purpose is to eliminate
-it."*
+it."* (Note: as of arc 170 the directory is fully eliminated; any
+reference claiming a file lives at `wat/std/…` is stale.)
 
 ### Failure mode 11 — Inscribing deferrals as DONE
 

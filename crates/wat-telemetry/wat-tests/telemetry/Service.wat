@@ -1,4 +1,4 @@
-;; wat-tests/std/telemetry/Service.wat — arc 080 + arc 089 + arc 095
+;; wat-tests/telemetry/Service.wat — arc 080 + arc 089 + arc 095
 ;; smoke tests for the Service<E,G> shell.
 ;;
 ;; Arc 130 — complectēns rewrite. Top-down dependency graph in ONE file.

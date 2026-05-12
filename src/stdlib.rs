@@ -9,10 +9,11 @@
 //! explicit `load!`.
 //!
 //! Files live in the repo under `wat/holon/` (algebra idioms over
-//! `:wat::holon::*` primitives) and `wat/std/` (everything else —
-//! stream, test harness, services), and are compiled into the binary
-//! at build time. The runtime has no filesystem dependency for the
-//! stdlib — every deployment of `wat` carries the same stdlib bits.
+//! `:wat::holon::*` primitives), `wat/kernel/` (kernel services —
+//! hermetic, sandbox, channel, stdio services), and `wat/` root
+//! (stream, test harness, and other stdlib). All compiled into the
+//! binary at build time. The runtime has no filesystem dependency for
+//! the stdlib — every deployment of `wat` carries the same stdlib bits.
 
 use crate::ast::WatAST;
 use crate::parser::parse_all_with_file;

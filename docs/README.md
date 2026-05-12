@@ -148,7 +148,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   returning a `ForkedChild` struct + `ChildHandle` opaque type +
   `wait-child` idempotent via OnceLock-cached exit. Hermetic
   moved from a Rust primitive to wat stdlib
-  (`wat/std/hermetic.wat`) on top. Both hermetic Rust primitives
+  (`wat/kernel/hermetic.wat`) on top. Both hermetic Rust primitives
   + the arc 011 AST-to-source serializer retired; side quest
   retired `in_signal_subprocess`'s `Command::spawn` via
   `libc::fork`. Zero `Command::spawn` remain in `src/`. The

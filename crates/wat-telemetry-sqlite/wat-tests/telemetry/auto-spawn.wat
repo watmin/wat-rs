@@ -1,4 +1,4 @@
-;; wat-tests/std/telemetry/auto-spawn.wat — arc 085 smoke test.
+;; wat-tests/telemetry/auto-spawn.wat — arc 085 smoke test.
 ;;
 ;; Declares a tiny throwaway enum, spawns the substrate's auto-
 ;; derived sqlite sink, sends one entry of each variant, drops,
