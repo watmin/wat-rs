@@ -848,6 +848,118 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     assert_ne!(code, 0, "expected non-zero exit on child panic; got 0");
 }
 
+// ─── T17. run-hermetic macro — Layer 1 testing-lib API (arc 170 slice 3 phase C)
+//
+// Canonical Layer 1 test: a simple assertion body wrapped by the
+// run-hermetic macro. The macro generates the fn-form, calls
+// spawn-process, drains via run-hermetic-driver, and returns RunResult.
+// A passing assertion produces RunResult { failure: None }; the test
+// verifies the failure slot is empty.
+//
+// Surface form exercised:
+//   (:wat::test::run-hermetic
+//     (:wat::test::assert-eq (:wat::core::i64::+'2 2 2) 4))
+//
+// The function is defined at :my::test::two-plus-two; invoked with
+// apply_function (zero args); RunResult.failure must be None.
+
+#[test]
+fn t17_run_hermetic_layer1_passing_assertion() {
+    // Define a function that calls run-hermetic with a simple assertion.
+    // run-hermetic is a macro; it expands the body into a fn, spawns
+    // an OS process, drains stdout/stderr, joins, and returns RunResult.
+    // A passing assertion (2+2=4) means the child exits 0 and failure
+    // is :None.
+    let src = r#"
+        (:wat::core::define (:my::test::two-plus-two -> :wat::kernel::RunResult)
+          (:wat::test::run-hermetic
+            (:wat::test::assert-eq (:wat::core::i64::+'2 2 2) 4)))
+    "#;
+    let world = freeze_ok(src);
+    let func = world
+        .symbols()
+        .get(":my::test::two-plus-two")
+        .expect(":my::test::two-plus-two defined");
+    let result = wat::runtime::apply_function(
+        func.clone(),
+        Vec::new(),
+        world.symbols(),
+        wat::span::Span::unknown(),
+    )
+    .expect("run-hermetic should succeed");
+    // result is a :wat::kernel::RunResult { stdout stderr failure }
+    // failure must be :None (the assertion passed).
+    let sv = match &result {
+        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::RunResult" => s,
+        other => panic!("expected RunResult Struct; got {:?}", other),
+    };
+    // RunResult field 2 is failure :Option<Failure>
+    let failure_field = &sv.fields[2];
+    let is_none = match failure_field {
+        wat::runtime::Value::Option(opt) => opt.as_ref().is_none(),
+        other => panic!("expected Option failure field; got {:?}", other),
+    };
+    assert!(
+        is_none,
+        "expected passing assertion to produce RunResult with failure=None; got {:?}",
+        result
+    );
+}
+
+#[test]
+fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
+    // Complementary to T17: a failing assertion (1 != 2) should produce
+    // RunResult { failure: Some(Failure) } — the child exits non-zero and
+    // run-hermetic-driver assembles a Failure from the ProcessDiedError.
+    //
+    // Honest-delta note (arc 170 slice 3 phase C SCORE): spawn-process
+    // does NOT emit the structured EDN panic chain that fork-program-ast
+    // does (see spawn_process.rs line 396-403 comment "for now...").
+    // extract-panics finds nothing on stderr; driver falls back to the
+    // joined-result singleton ("forked program exited 2"). The structured
+    // assert-eq message is NOT present in the Failure — only the exit-code
+    // message. This delta is surfaced in the SCORE; Phase D (Layer 2) or
+    // slice 4 closes it when spawn_process.rs emits the full chain.
+    // For this test we verify: failure IS Some (child panicked) and the
+    // Failure struct shape is correct. We do NOT assert the message text.
+    let src = r#"
+        (:wat::core::define (:my::test::one-neq-two -> :wat::kernel::RunResult)
+          (:wat::test::run-hermetic
+            (:wat::test::assert-eq (:wat::core::i64::+'2 1 0) 2)))
+    "#;
+    let world = freeze_ok(src);
+    let func = world
+        .symbols()
+        .get(":my::test::one-neq-two")
+        .expect(":my::test::one-neq-two defined");
+    let result = wat::runtime::apply_function(
+        func.clone(),
+        Vec::new(),
+        world.symbols(),
+        wat::span::Span::unknown(),
+    )
+    .expect("run-hermetic driver should not itself panic");
+    let sv = match &result {
+        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::RunResult" => s,
+        other => panic!("expected RunResult Struct; got {:?}", other),
+    };
+    // RunResult field 2 is failure :Option<Failure>; must be Some (child panicked).
+    let failure_field = &sv.fields[2];
+    let failure_val = match failure_field {
+        wat::runtime::Value::Option(opt) => match opt.as_ref() {
+            Some(v) => v,
+            None => panic!("expected failing assertion to produce Some(Failure); got None"),
+        },
+        other => panic!("expected Option failure field; got {:?}", other),
+    };
+    // Failure struct must have the correct type_name.
+    assert!(
+        matches!(failure_val, wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Failure"),
+        "expected :wat::kernel::Failure struct; got {:?}",
+        failure_val
+    );
+}
+
 // ─── T16. spawn-process(fn) — multiple sequential spawns, no fd/zombie leak
 //
 // Slice 1f-λ rebuild for the arc-012 multiple_sequential_forks_no_leak
