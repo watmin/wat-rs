@@ -1488,6 +1488,19 @@ pub fn register_defines(
                 sym.functions.insert(path, func);
             }
             rest.push(form);
+        } else if let WatAST::List(ref do_items, _) = form {
+            // Arc 170 Gap C — top-level `(:wat::core::do ...)` splice.
+            // Peek into the do body and pre-register any fn-shape defs so
+            // `resolve_references` (step 7) can validate call heads that
+            // reference those names. The do form itself stays in `rest`
+            // so `register_runtime_defs` can evaluate it later.
+            if matches!(
+                do_items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
+            ) {
+                preregister_fn_defs_in_do(do_items, sym, true)?;
+            }
+            rest.push(form);
         } else {
             rest.push(form);
         }
@@ -1517,6 +1530,17 @@ pub fn register_stdlib_defines(
                 return Err(RuntimeError::DuplicateDefine(path, form_span));
             }
             sym.functions.insert(path, func);
+        } else if let WatAST::List(ref do_items, _) = form {
+            // Arc 170 Gap C — top-level `(:wat::core::do ...)` splice.
+            // Mirror of the arm in `register_defines`; bypasses the
+            // reserved-prefix check since stdlib source is privileged.
+            if matches!(
+                do_items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
+            ) {
+                preregister_fn_defs_in_do(do_items, sym, false)?;
+            }
+            rest.push(form);
         } else {
             rest.push(form);
         }
@@ -2170,6 +2194,51 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
             closed_env: None,
         }),
     ))
+}
+
+/// Arc 170 Gap C — pre-register fn-shape defs found inside a top-level
+/// `(:wat::core::do ...)` into `sym.functions`.
+///
+/// `register_defines` calls this when it encounters a `do` form at top
+/// level. The `do` form itself remains in `rest` (so `register_runtime_defs`
+/// can evaluate it later); this helper only *peeks* inside to pre-register
+/// any `(:wat::core::def :name (:wat::core::fn ...))` children into
+/// `sym.functions` so `resolve_references` (which runs after
+/// `register_defines`) can validate call heads that reference those names.
+///
+/// Recursion: nested `do` forms inside the outer `do` are also scanned
+/// (e.g., a macro that emits `(do (do defn-a) defn-b)`).
+///
+/// `check_reserved_prefix`: pass `true` for user source (blocks `:wat::*`
+/// and `:rust::*` names); pass `false` for stdlib source which is permitted
+/// under those prefixes.
+fn preregister_fn_defs_in_do(
+    items: &[WatAST],
+    sym: &mut SymbolTable,
+    check_reserved_prefix: bool,
+) -> Result<(), RuntimeError> {
+    // items is the children of a do form — i.e. items[0] is the :wat::core::do
+    // keyword; items[1..] are the body children.
+    for child in &items[1..] {
+        if let Some((path, func)) = try_parse_fn_shape_def(child) {
+            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
+                let span = child.span().clone();
+                return Err(RuntimeError::ReservedPrefix(path, span));
+            }
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path, func);
+            }
+        } else if let WatAST::List(nested_items, _) = child {
+            // Recurse into nested do forms.
+            if matches!(
+                nested_items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
+            ) {
+                preregister_fn_defs_in_do(nested_items, sym, check_reserved_prefix)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Parsed pieces of a define signature.
