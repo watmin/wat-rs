@@ -11,6 +11,7 @@ Slice 3 in flight with substantial sub-slice work.
 - Slice 3 Phase G retirement-theater purge (4 slices: console, stream, lambda-docstrings, wat-std-paths) ✅ shipped
 - Slice 3 Phase E V1/V2/V3/V4 all attempted; V4 blocked at Gap F (substrate semantic mismatch — commit `f2de549` SCORE)
 - **CURRENT BLOCKER:** Gap F (3 substrate sub-gaps F-1/F-3/F-2) + Gap G (Path E macro shape for strict isolation) must close before Phase E V5
+- **CLOSURE PRECONDITION (user direction 2026-05-13):** Phase H clippy + rustc warning sweep is MANDATORY before Slice 5 INSCRIPTION ships. `cargo build --release` + `cargo clippy --release --workspace --all-targets` must both be clean. Dead-code / unused-imports / clippy lints accumulated through renaming + refactoring get resolved before closure.
 - See [`RETIREMENT-THEATER-INVENTORY.md`](./RETIREMENT-THEATER-INVENTORY.md) for the full priority queue + sequencing
 
 **Blocker for:** arc 109 v1 milestone closure.

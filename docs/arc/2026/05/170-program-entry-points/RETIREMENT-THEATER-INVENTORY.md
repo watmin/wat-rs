@@ -259,7 +259,8 @@ After Phase 2a closes (all 4 gaps), arc 170 resumes Phase 2b.
    - `BareLegacyForkProgram` + `BareLegacySpawnProgram` retirement
    - Process<I,O> legacy field cleanup; src/spawn.rs orphaned scaffolding
 12. **G-fork-program-walker-notes** — sweep 6 doc hits adding walker-fires notes; deferred to AFTER Slice 4 for accuracy
-13. **Slice 5** — arc 170 INSCRIPTION
+13. **Phase H — clippy + rustc warning sweep** — MANDATORY pre-INSCRIPTION gate per user direction 2026-05-13: *"we do not close this arc without resolving all the clippy and rustc warnings -- i think we have some dead code other noise we've been ignoring on the renaming/refactoring"*. After Slice 4's destructive reap, every dead-code marker / unused import / clippy lint must be resolved before Slice 5 INSCRIBES. `cargo build --release` AND `cargo clippy --release --workspace --all-targets` both clean. Run BEFORE drafting Slice 5 INSCRIPTION; FM 11 pre-INSCRIPTION grep also runs.
+14. **Slice 5** — arc 170 INSCRIPTION (cannot ship until Phase H is clean)
 
 ### Phase 3 — Out-of-arc-170 doc cleanup (queued)
 
