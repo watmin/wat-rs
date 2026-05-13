@@ -1,6 +1,18 @@
 # Arc 197 — Signal-events bus
 
-**Status:** STUB. Captured 2026-05-13 from user direction. Not yet designed.
+**Status:** STUB. Captured 2026-05-13 from user direction. Revised same day from per-signal-channel framing to value-bearing-enum framing.
+
+## Correction (added 2026-05-13)
+
+The initial sketch in this stub used per-signal Receivers (`:wat::runtime::sigusr1-rx`, `sigusr2-rx`, `sighup-rx` — one channel per signal kind). User correction:
+
+> *"i don't think `sigusr1-rx) ;; observable signal events` this is a good idea... that's muddying the water - the select should be value bearing, some enum who communiates a signal - i think we should extend shutdown to 'signal' delivery and users write their own panic handlers or responders to HUP, USR1, USR2 and whatever else"*
+
+**The corrected architecture: ONE channel, value-bearing `SignalEvent` enum.** Every signal arrives as a typed value on the same channel. User code matches on the enum variant and writes its own handler/responder. The substrate delivers; the user decides.
+
+The existing arc 170 Slice B "shutdown" channel is the seed of this — it should generalize to deliver ALL signal events, not just terminal ones. Shutdown isn't a special architectural concept; it's a particular `SignalEvent::Sigterm` value that users typically panic on by default.
+
+The rejected per-signal-receiver framing is preserved below per `feedback_inscription_immutable` as historical record. The value-bearing-enum framing is the design target.
 
 ## Origin
 
@@ -50,26 +62,84 @@ Non-terminal = observable event, fire-once per signal, data-class.
 
 Both share the same wake-pipe + worker. Both ride the substrate's `recv` discipline (per arc 170's shadow-channel architecture). Same `select!` machinery.
 
-## Proposed API surface (sketch)
+## Proposed API surface (revised again 2026-05-13 — `Stopped` meta-variant)
+
+User correction in same conversation:
+
+> *"'shutdown' is a signal who wraps both sigint and sigterm - they are identical to me - it arrives as a meta (Stopped :SIGINT) or (Stopped :SIGTERM) users can grab the signal if they want, but they are a shutdown"*
+
+The framing: SIGINT and SIGTERM are NOT distinct kinds at the wat-user level. They're both the same META event — *"stop the program"* — with the specific kind as sub-data the user can drill into if they care. Same model as `ThreadDiedError::Panicked(payload)` — what kind of panic is sub-data.
 
 ```scheme
-;; Get the per-signal observation receiver
-(:wat::runtime::sigusr1-rx)  -> :wat::kernel::Receiver<wat::core::nil>
-(:wat::runtime::sigusr2-rx)  -> :wat::kernel::Receiver<wat::core::nil>
-(:wat::runtime::sighup-rx)   -> :wat::kernel::Receiver<wat::core::nil>
+;; ONE channel exposed by the substrate; delivers SignalEvent values
+;; for any signal observed by the process.
+(:wat::runtime::signal-events) -> :wat::kernel::Receiver<wat::runtime::SignalEvent>
 
-;; User code reacts to SIGUSR1 alongside data:
+;; SignalEvent enum (substrate-provided)
+(:wat::core::enum :wat::runtime::SignalEvent
+  ;; META: "the kernel told us to stop." Wraps both SIGINT and SIGTERM
+  ;; because they are semantically identical at the user level. Users
+  ;; can match on the inner kind if they care to distinguish.
+  (Stopped :wat::runtime::StopKind)
+  ;; Non-terminal signals — each its own variant because they have
+  ;; behaviorally distinct conventional meanings.
+  :Sigusr1    ;; user-defined; user decides
+  :Sigusr2    ;; user-defined; user decides
+  :Sighup     ;; conventionally "reload config"; user decides
+  ;; future: SignalEvent grows with new variants as needed
+)
+
+;; The inner kind for Stopped — substrate-provided enum
+(:wat::core::enum :wat::runtime::StopKind
+  :SIGINT
+  :SIGTERM)
+
+;; User code multiplexes data + signals via standard recv discipline.
+;; Common case: match (Stopped _) without drilling into SIGINT/SIGTERM
+;; distinction — they both mean "stop."
 (:wat::core::let
-  [data-rx (... open some data channel ...)
-   sigusr1-rx (:wat::runtime::sigusr1-rx)
+  [data-rx (... data channel ...)
+   signal-rx (:wat::runtime::signal-events)
    result (:wat::kernel::select
-            data-rx     :on-data
-            sigusr1-rx  :on-reload)]
+            data-rx    :on-data
+            signal-rx  :on-signal)]
   (:wat::core::match result -> :wat::core::nil
-    ((:wat::core::Ok :on-data)    (handle-data ...))
-    ((:wat::core::Ok :on-reload)  (handle-reload-config))
-    ((:wat::core::Err _)          (panic-shutdown))))
+    ((:wat::core::Ok :on-data ((:wat::core::Some msg)))
+      (handle-data msg))
+    ((:wat::core::Ok :on-signal ((:wat::core::Some sig)))
+      (:wat::core::match sig -> :wat::core::nil
+        ;; Common case: don't care about INT vs TERM — both stop
+        ((:wat::runtime::SignalEvent::Stopped _)  (panic-shutdown))
+        ;; Behaviorally distinct variants
+        (:wat::runtime::SignalEvent::Sighup   (reload-config))
+        (:wat::runtime::SignalEvent::Sigusr1  (handle-usr1))
+        (:wat::runtime::SignalEvent::Sigusr2  (handle-usr2))))
+    ;; ... existing data/signal disconnect/None handling ...
+    ))
+
+;; Power-user case: drill into specific stop kind if needed
+;; (e.g., logging "user pressed Ctrl-C" vs "supervisor sent SIGTERM")
+((:wat::runtime::SignalEvent::Stopped :wat::runtime::StopKind::SIGINT)
+  (log "user interrupted") (panic-shutdown))
+((:wat::runtime::SignalEvent::Stopped :wat::runtime::StopKind::SIGTERM)
+  (log "supervisor requested stop") (panic-shutdown))
 ```
+
+**Substrate doctrine:** signals are delivered as data. Users write their own
+handlers. The substrate does NOT impose "SIGTERM means panic" — it just
+delivers SignalEvent::Sigterm. Convention: most user code matches SIGTERM/SIGINT
+and panics via assertion-failed!; non-terminal signals dispatch to handlers.
+
+**The shutdown cascade evolves:** arc 170 Slice B's substrate-imposed
+shutdown-on-disconnect (Result/expect panics on Err(Shutdown)) becomes a
+specific case of "user wrote a handler that panics on SignalEvent::Sigterm."
+The substrate stays out of the policy decision; it delivers the event.
+
+This is consistent with the broader doctrine: substrate provides primitives
+(here: signal event delivery), users compose discipline (here: panic
+handlers for terminal signals, responders for non-terminal). Per
+`feedback_substrate_owns_not_callers_match`: the substrate owns DELIVERY;
+users own POLICY.
 
 ## Open questions (for DESIGN phase)
 
