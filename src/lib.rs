@@ -125,9 +125,9 @@ pub use config::{
 pub use sigma::{DefaultCoincidentSigma, DefaultPresenceSigma, SigmaFn, WatFnSigmaFn};
 pub use vm_registry::{Encoders, EncoderRegistry};
 pub use freeze::{
-    eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen, invoke_user_main,
-    startup_from_forms, startup_from_forms_with_inherit, startup_from_source, FrozenWorld,
-    StartupError, USER_MAIN_PATH,
+    bootstrap_wat_vm_process, eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen,
+    invoke_user_main, startup_from_forms, startup_from_forms_with_inherit, startup_from_source,
+    BootstrapArgs, FrozenWorld, ProcessRuntime, StartupError, USER_MAIN_PATH,
 };
 pub use harness::{Harness, HarnessError, Outcome};
 pub use hash::{canonical_edn_wat, hash_canonical_ast, hex_encode, verify_source_hash, HashError};
