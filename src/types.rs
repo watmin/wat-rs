@@ -1179,6 +1179,12 @@ impl std::error::Error for TypeError {}
 
 /// Walk `forms`, register every type declaration, return the remaining
 /// forms in order.
+///
+/// Arc 170 slice 3 Gap J — extends the top-level walk to recurse into
+/// `(:wat::core::do ...)` and `(:wat::core::let ...)` body forms so type
+/// declarations nested inside those spliced do/let blocks are registered in
+/// the TypeEnv. Mirrors the splice-recursion pattern already used by
+/// `preregister_fn_defs_in_do`/`_in_let` in `src/runtime.rs`.
 pub fn register_types(
     forms: Vec<WatAST>,
     env: &mut TypeEnv,
@@ -1194,7 +1200,15 @@ pub fn register_types(
                 let def = parse_type_decl(head, form, decl_span.clone())?;
                 env.register_with_span(def, decl_span)?;
             }
-            None => rest.push(form),
+            None => {
+                // Arc 170 slice 3 Gap J — splice-awareness: recurse into
+                // top-level do/let forms so nested type declarations land
+                // in TypeEnv (same fix as preregister_fn_defs_in_do for
+                // function stubs). The form is pushed back (possibly with
+                // type-decl children stripped) for downstream pipeline steps.
+                let spliced = splice_type_decls_user(form, env)?;
+                rest.push(spliced);
+            }
         }
     }
     Ok(rest)
@@ -1206,6 +1220,9 @@ pub fn register_types(
 /// (typealiases, structs, enums, newtypes) under `:wat::std::*`.
 /// Mirrors [`crate::macros::register_stdlib_defmacros`]'s privileged
 /// path.
+///
+/// Arc 170 slice 3 Gap J — extended to recurse into top-level do/let
+/// body forms, mirroring the user-source variant.
 pub fn register_stdlib_types(
     forms: Vec<WatAST>,
     env: &mut TypeEnv,
@@ -1218,10 +1235,144 @@ pub fn register_stdlib_types(
                 let def = parse_type_decl(head, form, decl_span.clone())?;
                 env.register_stdlib_with_span(def, decl_span)?;
             }
-            None => rest.push(form),
+            None => {
+                // Arc 170 slice 3 Gap J — splice-awareness for stdlib forms.
+                let spliced = splice_type_decls_stdlib(form, env)?;
+                rest.push(spliced);
+            }
         }
     }
     Ok(rest)
+}
+
+/// Arc 170 slice 3 Gap J — recurse into a top-level `do` or `let` form
+/// (user source variant), registering any type declarations found in the body
+/// and returning the reconstructed form with type decls stripped.
+///
+/// Non-do/non-let forms are returned unchanged. For do/let forms, the
+/// keyword (and for let, the bindings vector) is preserved; type-decl body
+/// children are registered and stripped; remaining body children are kept.
+/// Nested do/let forms are handled recursively (do-within-do nesting works
+/// naturally via the recursive call).
+///
+/// Mirrors the splice-recursion pattern in `preregister_fn_defs_in_do`
+/// (runtime.rs).
+fn splice_type_decls_user(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, TypeError> {
+    let (items, span) = match form {
+        WatAST::List(items, span) => (items, span),
+        other => return Ok(other),
+    };
+    let head_kw = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => {
+            return Ok(WatAST::List(items, span));
+        }
+    };
+    match head_kw {
+        ":wat::core::do" => {
+            // items[0] = :wat::core::do; items[1..] = body forms
+            let mut new_children = Vec::with_capacity(items.len());
+            let mut iter = items.into_iter();
+            new_children.push(iter.next().expect("do has keyword"));
+            for child in iter {
+                match classify_type_decl(&child) {
+                    Some(head) => {
+                        // Strip from body; register in TypeEnv.
+                        let decl_span = child.span().clone();
+                        let def = parse_type_decl(head, child, decl_span.clone())?;
+                        env.register_with_span(def, decl_span)?;
+                    }
+                    None => {
+                        // Recurse into nested do/let; keep everything else.
+                        new_children.push(splice_type_decls_user(child, env)?);
+                    }
+                }
+            }
+            Ok(WatAST::List(new_children, span))
+        }
+        ":wat::core::let" => {
+            // items[0] = :wat::core::let; items[1] = bindings; items[2..] = body
+            let mut new_children = Vec::with_capacity(items.len());
+            let mut iter = items.into_iter();
+            new_children.push(iter.next().expect("let has keyword"));
+            // Preserve bindings vector unchanged.
+            if let Some(bindings) = iter.next() {
+                new_children.push(bindings);
+            }
+            // Splice type decls from body (items[2..]).
+            for child in iter {
+                match classify_type_decl(&child) {
+                    Some(head) => {
+                        let decl_span = child.span().clone();
+                        let def = parse_type_decl(head, child, decl_span.clone())?;
+                        env.register_with_span(def, decl_span)?;
+                    }
+                    None => {
+                        new_children.push(splice_type_decls_user(child, env)?);
+                    }
+                }
+            }
+            Ok(WatAST::List(new_children, span))
+        }
+        _ => Ok(WatAST::List(items, span)),
+    }
+}
+
+/// Arc 170 slice 3 Gap J — stdlib variant of [`splice_type_decls_user`].
+/// Uses `register_stdlib_with_span` instead of `register_with_span`.
+fn splice_type_decls_stdlib(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, TypeError> {
+    let (items, span) = match form {
+        WatAST::List(items, span) => (items, span),
+        other => return Ok(other),
+    };
+    let head_kw = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => {
+            return Ok(WatAST::List(items, span));
+        }
+    };
+    match head_kw {
+        ":wat::core::do" => {
+            let mut new_children = Vec::with_capacity(items.len());
+            let mut iter = items.into_iter();
+            new_children.push(iter.next().expect("do has keyword"));
+            for child in iter {
+                match classify_type_decl(&child) {
+                    Some(head) => {
+                        let decl_span = child.span().clone();
+                        let def = parse_type_decl(head, child, decl_span.clone())?;
+                        env.register_stdlib_with_span(def, decl_span)?;
+                    }
+                    None => {
+                        new_children.push(splice_type_decls_stdlib(child, env)?);
+                    }
+                }
+            }
+            Ok(WatAST::List(new_children, span))
+        }
+        ":wat::core::let" => {
+            let mut new_children = Vec::with_capacity(items.len());
+            let mut iter = items.into_iter();
+            new_children.push(iter.next().expect("let has keyword"));
+            if let Some(bindings) = iter.next() {
+                new_children.push(bindings);
+            }
+            for child in iter {
+                match classify_type_decl(&child) {
+                    Some(head) => {
+                        let decl_span = child.span().clone();
+                        let def = parse_type_decl(head, child, decl_span.clone())?;
+                        env.register_stdlib_with_span(def, decl_span)?;
+                    }
+                    None => {
+                        new_children.push(splice_type_decls_stdlib(child, env)?);
+                    }
+                }
+            }
+            Ok(WatAST::List(new_children, span))
+        }
+        _ => Ok(WatAST::List(items, span)),
+    }
 }
 
 fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
