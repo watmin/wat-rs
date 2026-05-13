@@ -249,9 +249,14 @@ All four retirement-theater purge slices shipped. 48 audit findings drained from
 
 After Phase 2a closes (all 7 gaps + deftest-hermetic Path E macro shape ships), arc 170 resumes Phase 2b.
 
+deftest-hermetic Path E macro shape ✅ shipped (`5d82e92`). PHASE 2a FULLY COMPLETE.
+
 ### Phase 2b — Resume arc 170 forward work
 
-9. **Phase E V5** — deftest macro Path A shape rewrite. After Gap F substrate closes, V4's target shape works.
+8b. **Phase E V5** ❌ ATTEMPTED + REVERTED (2026-05-14). 13 failures across 3 patterns; baseline preserved at 2243/0. The substrate gear (F-1/F-3/F-2/H/I-A/I-B) addressed V4's patterns but V5 surfaced a NEW gap. Diagnose narrowed to: **`register_types` (`src/types.rs:1182`) is not splice-aware** — type declarations nested inside a top-level `(:wat::core::do ...)` form are NOT registered in TypeEnv. The CONSUMERS of struct/enum/newtype work anyway via backup paths (accessor pregen for struct/enum from Gap F-1; nominal opacity for newtype). Typealias has NO backup — it requires `expand_alias(types, path)` which queries TypeEnv directly; without registration, alias unification fails. Match-pattern inference and Gap F-3's child propagation also depend on TypeEnv completeness. Single fix addresses all 3 V5 patterns. Direct TypeEnv probes proved the gap: all 4 type-decl kinds (struct/enum/newtype/typealias) absent from TypeEnv when nested in do. User direction 2026-05-14: *"is the path is clear - we step forward"* — Path 1 (foundational priority).
+8c. **Gap J — `register_types` splice-awareness (NEW; in-flight)** — extend `register_types` to recurse into top-level `do` and `let` forms, registering type declarations nested inside into TypeEnv. ~20-40 line addition. Closes the V5 gap; enables V5 retry.
+8d. **Phase E V5 retry** — apply the V4 BRIEF target shape to deftest macro after Gap J ships. Verification: all 13 previously-failing tests pass; baseline returns to clean.
+9. **Phase F** — retire `:wat::kernel::run-sandboxed-*` substrate verbs (deftest + deftest-hermetic now off the verb; `run-ast` + `run-hermetic-ast` wrappers + wat/kernel/hermetic.wat audit). Gates on V5 retry success.
 10. **Phase F** — retire `:wat::kernel::run-sandboxed-*` substrate verbs (deftest + deftest-hermetic now off the verb; `run-ast` + `run-hermetic-ast` wrappers + wat/kernel/hermetic.wat audit)
 11. **Slice 4** — destructive reap. Folds in:
    - `eval_kernel_wait_child` orphan dead Rust fn (src/fork.rs:258-290)
