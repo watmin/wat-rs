@@ -128,22 +128,20 @@
             joined
              (:wat::core::string::join "\n" stdin)]
            (:wat::io::IOWriter/write-string stdin-wr joined))
-        ;; Inner scope: output Receivers + drained lines.
-        ;; SERVICE-PROGRAMS.md § "The lockstep": stdout-r and stderr-r
-        ;; drop when this inner let exits; drain threads see EOF; child
-        ;; can exit; outer join-result unblocks cleanly.
-        drain-pair
-         (:wat::core::let
-           [stdout-r      (:wat::kernel::Process/stdout proc)
-            stderr-r      (:wat::kernel::Process/stderr proc)
-            stdout-lines  (:wat::kernel::drain-lines stdout-r)
-            stderr-lines  (:wat::kernel::drain-lines stderr-r)]
-           (:wat::core::Tuple stdout-lines stderr-lines))
-        stdout-lines  (:wat::core::first drain-pair)
-        stderr-lines  (:wat::core::second drain-pair)
-        ;; Inner scope has exited; Receivers dropped; child can exit.
+        ;; Wait for the program to exit first. With small outputs
+        ;; (< pipe buffer), the child's writes complete without
+        ;; the parent needing to drain. This keeps the drain
+        ;; code single-threaded — no spawn + join ceremony.
         joined-result
          (:wat::kernel::Process/join-result proc)
+        stdout-r
+         (:wat::kernel::Process/stdout proc)
+        stderr-r
+         (:wat::kernel::Process/stderr proc)
+        stdout-lines
+         (:wat::kernel::drain-lines stdout-r)
+        stderr-lines
+         (:wat::kernel::drain-lines stderr-r)
         ;; Arc 113 slice 3 — same stderr-EDN preference as
         ;; drive-sandbox. The forked child renders the cascade
         ;; chain to stderr on AssertionPayload panic; we recover

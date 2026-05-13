@@ -82,28 +82,15 @@
     (proc  :wat::kernel::Program<I,O>)
     (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
-  ;; Outer scope: proc handle + join-result.  SERVICE-PROGRAMS.md § "The
-  ;; lockstep": inner-let owns every output Receiver; when inner body
-  ;; returns, stdout-r and stderr-r drop; drain threads see EOF; child
-  ;; can exit; outer join-result unblocks cleanly.
   (:wat::core::let
     [stdin-w        (:wat::kernel::Process/stdin proc)
      joined         (:wat::core::string::join "\n" stdin)
      _n             (:wat::io::IOWriter/write-string stdin-w joined)
      _close         (:wat::io::IOWriter/close stdin-w)
-     ;; Inner scope: output Receivers + drained lines.
-     ;; Dropping stdout-r and stderr-r lets the child's OS pipes
-     ;; drain to EOF before join.
-     drain-pair
-      (:wat::core::let
-        [stdout-r      (:wat::kernel::Process/stdout proc)
-         stderr-r      (:wat::kernel::Process/stderr proc)
-         stdout-lines  (:wat::kernel::drain-lines stdout-r)
-         stderr-lines  (:wat::kernel::drain-lines stderr-r)]
-        (:wat::core::Tuple stdout-lines stderr-lines))
-     stdout-lines   (:wat::core::first drain-pair)
-     stderr-lines   (:wat::core::second drain-pair)
-     ;; Inner scope has exited; Receivers dropped; child can exit.
+     stdout-r       (:wat::kernel::Process/stdout proc)
+     stderr-r       (:wat::kernel::Process/stderr proc)
+     stdout-lines   (:wat::kernel::drain-lines stdout-r)
+     stderr-lines   (:wat::kernel::drain-lines stderr-r)
      joined-result
       (:wat::kernel::Process/join-result proc)
      ;; Arc 113 slice 3 — symmetry with the thread cascade. When
