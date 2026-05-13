@@ -1057,6 +1057,39 @@ fn child_branch_from_source(
         unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
     }
 
+    // Arc 170 Slice C — PR_SET_PDEATHSIG.
+    // Tells the kernel: when my parent process dies (for ANY reason —
+    // clean exit, panic, segfault, OOM-kill), deliver SIGTERM to me.
+    // Mirrors the same call in spawn_process_child_branch. The flag
+    // resets across fork and exec; each child sets it in its branch.
+    if unsafe {
+        libc::prctl(
+            libc::PR_SET_PDEATHSIG,
+            libc::SIGTERM as libc::c_ulong,
+            0,
+            0,
+            0,
+        )
+    } < 0
+    {
+        let err = std::io::Error::last_os_error();
+        emit_structured_exit(
+            None,
+            crate::runtime::process_died_error_startup_value(
+                format!("prctl(PR_SET_PDEATHSIG, SIGTERM) failed: {}", err),
+            ),
+        );
+        unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
+    }
+
+    // Arc 170 Slice C — initialize the shutdown infrastructure BEFORE
+    // installing signal handlers. This ensures SHUTDOWN_WAKE_WRITE_FD
+    // is set before any SIGTERM can arrive (including via PDEATHSIG).
+    // bootstrap_wat_vm_process calls init_shutdown_signal() again below;
+    // the call is idempotent (OnceLock guard) — this early call closes
+    // the race between PDEATHSIG delivery and infrastructure setup.
+    crate::runtime::init_shutdown_signal();
+
     // Install wat signal handlers (arc 106 — replaces the arc 104d
     // SIG_DFL reset). The handlers flip the same KERNEL_STOPPED /
     // KERNEL_SIGUSR1 / etc. flags wat programs poll via

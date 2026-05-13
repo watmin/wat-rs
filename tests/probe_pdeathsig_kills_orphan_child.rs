@@ -1,0 +1,305 @@
+//! Arc 170 Slice C probe — PR_SET_PDEATHSIG delivers SIGTERM to orphaned child.
+//!
+//! Verifies the kernel claim: when a child's parent process dies, the kernel
+//! delivers SIGTERM to the child because `spawn_process_child_branch` calls
+//! `prctl(PR_SET_PDEATHSIG, SIGTERM)` immediately after `setpgid`.
+//!
+//! # Design
+//!
+//! ```text
+//! test process (parent-of-supervisor)
+//!   │  forks
+//!   ├─ supervisor (pid: supervisor_pid)
+//!   │    │  calls substrate spawn-process
+//!   │    └─ grandchild (pid: grandchild_pid) — set PR_SET_PDEATHSIG
+//!   │         │  blocks on typed_recv (Slice B cascade wires)
+//!   │         └─ holds done_pipe write-end (FD inherited from supervisor)
+//!   │
+//!   └─ test: waitpid(supervisor) → supervisor exits immediately →
+//!            kernel delivers SIGTERM to grandchild (PR_SET_PDEATHSIG) →
+//!            Slice B cascade wakes grandchild's blocked recv →
+//!            grandchild exits → done_pipe write-end closes →
+//!            poll(done_pipe_read_fd, 1000ms) fires →
+//!            PASS: grandchild died within 1s
+//! ```
+//!
+//! # Rendezvous discipline (no wall-clock sleep)
+//!
+//! - `pid_pipe` (supervisor → test): supervisor writes grandchild pid; test reads it.
+//! - `done_pipe` (grandchild hold → test): grandchild inherits write-end. When
+//!   grandchild exits for any reason, OS closes all its FDs including done_pipe
+//!   write-end. Test does `poll(done_r, POLLHUP, 1000ms)` — fires on EOF.
+//! - No `thread::sleep`, `recv_timeout`, or `std::time::Instant` as a timer.
+//!   `std::time::Instant` is used ONLY to measure elapsed time after poll
+//!   returns (measurement, not timeout mechanism).
+//!
+//! # Grandchild program
+//!
+//! The grandchild runs a wat function that:
+//! 1. Creates an unbounded channel (sender + receiver).
+//! 2. Keeps the sender alive in a `let` binding (channel stays open).
+//! 3. Calls `recv` on the receiver (blocks).
+//! 4. When PDEATHSIG-delivered SIGTERM fires Slice B cascade, recv returns
+//!    `RecvOutcome::Shutdown`, which propagates as a RuntimeError, and
+//!    `spawn_process_child_branch` exits with `EXIT_RUNTIME_ERROR`.
+//!
+//! # ZERO-MUTEX compliance
+//!
+//! No `Mutex`, `RwLock`, or `CondVar` in this file. Synchronisation via
+//! OS pipes (rendezvous) + `libc::poll(2)` with 1000ms timeout.
+
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::sync::Arc;
+use std::time::Instant;
+use wat::ast::WatAST;
+use wat::freeze::startup_from_source;
+use wat::load::InMemoryLoader;
+use wat::runtime::{eval, Environment, ProgramHandleInner, Value};
+use wat::span::Span;
+
+/// Source for the grandchild's blocking wat program.
+///
+/// Creates an unbounded channel, keeps sender alive, blocks on recv.
+/// On Slice B cascade (SIGTERM → shutdown worker drops SHUTDOWN_TX →
+/// SHUTDOWN_RX disconnects → typed_recv select! fires Shutdown arm),
+/// recv returns RecvOutcome::Shutdown → RuntimeError propagates up →
+/// spawn_process_child_branch calls libc::_exit.
+const BLOCKING_CHILD_SRC: &str = r#"
+    (:wat::core::defn :test::block-until-shutdown
+      []
+      -> :wat::core::nil
+      (:wat::core::let
+        [[tx rx] (:wat::kernel::make-unbounded-channel :wat::core::nil)
+         _       (:wat::kernel::recv rx)]
+        :wat::core::nil))
+"#;
+
+fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
+    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+        Ok(w) => w,
+        Err(e) => panic!("freeze should succeed; got: {}", e),
+    }
+}
+
+/// Extract the forked child's PID from a Process Value.
+///
+/// The ProgramHandle at fields[3] must be a Forked variant — spawn-process
+/// always returns Forked (arc 170 Stone C).
+fn grandchild_pid(process: &Value) -> libc::pid_t {
+    match process {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => {
+            match &s.fields[3] {
+                Value::wat__kernel__ProgramHandle(h) => match h.as_ref() {
+                    ProgramHandleInner::Forked(child) => child.pid,
+                    other => panic!("expected Forked ProgramHandle; got {:?}", other),
+                },
+                other => panic!("expected ProgramHandle at fields[3]; got {:?}", other),
+            }
+        }
+        other => panic!("expected Process Struct; got {:?}", other),
+    }
+}
+
+/// Make a raw OS pipe. Returns (read_fd, write_fd) as OwnedFds.
+fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
+    let mut fds = [0i32; 2];
+    let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(ret, 0, "pipe(2) failed: {}", std::io::Error::last_os_error());
+    let r = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+    let w = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    (r, w)
+}
+
+/// Row H — orphaned grandchild receives SIGTERM via PR_SET_PDEATHSIG and exits
+/// within 1s. Verifies that `spawn_process_child_branch` correctly calls
+/// `prctl(PR_SET_PDEATHSIG, SIGTERM)` after `setpgid`.
+///
+/// # Shape
+///
+/// 1. Build a blocking wat world (done before any fork — supervisor inherits it).
+/// 2. Create `pid_pipe` (supervisor → test) and `done_pipe` (grandchild → test).
+/// 3. Fork supervisor.
+/// 4. Supervisor: eval(spawn-process), extract grandchild pid, write to pid_pipe,
+///    drop done_w (supervisor's copy of done_pipe write-end), `_exit(0)`.
+/// 5. Test: waitpid(supervisor), read grandchild pid from pid_pipe, drop done_w
+///    (test's copy — grandchild is the only remaining holder).
+/// 6. Test: poll(done_r, POLLHUP|POLLIN, 1000ms) — fires when grandchild exits.
+/// 7. Verify grandchild process is gone via `kill(grandchild_pid, 0)` → ESRCH.
+#[test]
+fn probe_pdeathsig_kills_orphan_child() {
+    // Step 1: Build the world before forking. Supervisor inherits it via
+    // fork's copy-on-write semantics. InMemoryLoader has no disk state.
+    let world = freeze_ok(BLOCKING_CHILD_SRC);
+
+    // Step 2: Create coordination pipes.
+    //
+    // pid_pipe: supervisor writes grandchild pid (4 bytes, i32 LE); test reads.
+    // done_pipe: grandchild inherits write-end (via spawn-process FD inheritance).
+    //   When grandchild exits for any reason, OS closes done_pipe write-end.
+    //   Test polls done_pipe read-end for POLLHUP — fires on EOF.
+    let (pid_r, pid_w) = make_raw_pipe();
+    let (done_r, done_w) = make_raw_pipe();
+
+    // Step 3: Fork supervisor.
+    let supervisor_pid = unsafe { libc::fork() };
+    assert!(
+        supervisor_pid >= 0,
+        "fork(supervisor) failed: {}",
+        std::io::Error::last_os_error()
+    );
+
+    if supervisor_pid == 0 {
+        // ── Supervisor child branch ───────────────────────────────────────
+        // Close the test's pipe ends (supervisor only uses pid_w and done_w).
+        drop(pid_r);
+        // done_r stays open briefly — drop before _exit so only grandchild holds done_w.
+        drop(done_r);
+
+        // Spawn grandchild via substrate spawn-process.
+        // spawn_process_child_branch (after Slice C edit) calls:
+        //   setpgid(0, 0) → prctl(PR_SET_PDEATHSIG, SIGTERM) → bootstrap → eval.
+        // The grandchild INHERITS done_w because spawn_process_child_branch
+        // does not call close_inherited_fds_above_stdio.
+        let call = WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::kernel::spawn-process".into(), Span::unknown()),
+                WatAST::Keyword(":test::block-until-shutdown".into(), Span::unknown()),
+            ],
+            Span::unknown(),
+        );
+        let env = Environment::new();
+        let process = match eval(&call, &env, world.symbols()) {
+            Ok(p) => p,
+            Err(e) => {
+                // Write sentinel pid=0 so test doesn't hang on read.
+                let bytes = 0i32.to_le_bytes();
+                unsafe {
+                    libc::write(
+                        pid_w.as_raw_fd(),
+                        bytes.as_ptr() as *const _,
+                        4,
+                    )
+                };
+                drop(pid_w);
+                drop(done_w);
+                panic!("spawn-process failed: {}", e);
+            }
+        };
+
+        // Extract grandchild pid and write to pid_pipe.
+        let gchild_pid = grandchild_pid(&process);
+        let pid_bytes = gchild_pid.to_le_bytes();
+        let written = unsafe {
+            libc::write(
+                pid_w.as_raw_fd(),
+                pid_bytes.as_ptr() as *const _,
+                4,
+            )
+        };
+        assert_eq!(written, 4, "pid_pipe write failed");
+
+        // Drop pid_w and done_w (supervisor's copies) so grandchild is
+        // the only remaining holder of done_pipe write-end. Drop the
+        // Process struct WITHOUT calling wait — we're about to _exit,
+        // which orphans the grandchild intentionally. Arc's Drop on
+        // ChildHandleInner would SIGKILL it — prevent that by leaking.
+        //
+        // Leak strategy: forget the process value so ChildHandleInner::drop
+        // (which sends SIGKILL + waitpid) does NOT run.
+        std::mem::forget(process);
+        drop(pid_w);
+        drop(done_w);
+
+        // Exit WITHOUT waiting for grandchild. This orphans the grandchild
+        // whose PPID becomes 1 (init/subreaper). The kernel detects parent
+        // death and delivers SIGTERM to the grandchild via PR_SET_PDEATHSIG.
+        unsafe { libc::_exit(0) };
+    }
+
+    // ── Test (parent of supervisor) ───────────────────────────────────────
+    // Close supervisor's ends of the coordination pipes.
+    drop(pid_w);
+    // Note: test holds done_r (for poll) and done_w. We must drop done_w
+    // AFTER we have read grandchild_pid so the grandchild is the only
+    // remaining holder. Drop it below after the pid_pipe read.
+
+    // Step 4: Wait for supervisor to exit. Supervisor exits as soon as it
+    // spawns grandchild and writes pid — this returns immediately.
+    let mut status: libc::c_int = 0;
+    let waited = unsafe { libc::waitpid(supervisor_pid, &mut status, 0) };
+    assert!(
+        waited >= 0,
+        "waitpid(supervisor) failed: {}",
+        std::io::Error::last_os_error()
+    );
+
+    // Step 5: Read grandchild pid from pid_pipe.
+    let mut pid_bytes = [0u8; 4];
+    let nread = unsafe {
+        libc::read(
+            pid_r.as_raw_fd(),
+            pid_bytes.as_mut_ptr() as *mut _,
+            4,
+        )
+    };
+    assert_eq!(nread, 4, "pid_pipe read returned {} (expected 4)", nread);
+    let grandchild = i32::from_le_bytes(pid_bytes);
+    assert!(grandchild > 0, "grandchild pid must be positive; got {}", grandchild);
+    drop(pid_r);
+
+    // Drop test's copy of done_pipe write-end. After this, the grandchild
+    // is the ONLY holder of done_w. When the grandchild exits (due to
+    // PDEATHSIG cascade), its done_w closes → EOF on done_r.
+    drop(done_w);
+
+    // Step 6: Poll done_pipe read-end for EOF (POLLHUP) with 1000ms timeout.
+    // No wall-clock sleep — poll(2) is the bounded rendezvous mechanism.
+    // Fires when grandchild exits and closes its done_w.
+    let t0 = Instant::now();
+    let mut pollfd = libc::pollfd {
+        fd: done_r.as_raw_fd(),
+        events: libc::POLLHUP | libc::POLLIN,
+        revents: 0,
+    };
+    let poll_ret = unsafe { libc::poll(&mut pollfd as *mut _, 1, 1000) };
+    let elapsed = t0.elapsed();
+
+    drop(done_r);
+
+    assert!(
+        poll_ret > 0,
+        "grandchild (pid {}) did not exit within 1s — PR_SET_PDEATHSIG cascade broken \
+         (poll_ret={}, elapsed={:?})",
+        grandchild,
+        poll_ret,
+        elapsed
+    );
+
+    // Step 7: Verify grandchild process is no longer running.
+    // done_pipe EOF (step 6) is the definitive signal: the grandchild
+    // called _exit (or equivalent), which closes all FDs including done_w.
+    // A zombie in the process table is acceptable — it means the process
+    // exited and is awaiting reaping by init (since supervisor already
+    // exited). We check /proc/<pid>/stat for the zombie state rather than
+    // using kill(pid, 0) which returns 0 for both live AND zombie processes.
+    //
+    // Z = zombie (process exited, waiting to be reaped) — PASS.
+    // R/S/D = still running (should not happen after done_pipe EOF) — FAIL.
+    let proc_stat = std::fs::read_to_string(format!("/proc/{}/stat", grandchild))
+        .unwrap_or_default();
+    // /proc/pid/stat field 3 is the state character (between the last ')' and next space).
+    let state = proc_stat
+        .rsplit_once(')')
+        .and_then(|(_, rest)| rest.trim_start().chars().next())
+        .unwrap_or('?');
+    assert!(
+        // 'Z' = zombie (exited, awaiting reap) — PASS.
+        // '?' = no such process (already reaped by init) — PASS.
+        state == 'Z' || state == '?',
+        "grandchild pid {} in unexpected state '{}' after PDEATHSIG cascade \
+         (poll fired at elapsed={:?}; expected zombie or gone)",
+        grandchild,
+        state,
+        elapsed
+    );
+}

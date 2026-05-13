@@ -329,6 +329,45 @@ fn spawn_process_child_branch(
         unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
     }
 
+    // Arc 170 Slice C — PR_SET_PDEATHSIG.
+    // Tells the kernel: when my parent process dies (for ANY reason —
+    // clean exit, panic, segfault, OOM-kill), deliver SIGTERM to me.
+    // This is the substrate's way to ensure orphaned children don't
+    // outlive their parents indefinitely. The SIGTERM triggers the
+    // Slice B cascade (signal handler → wake pipe → worker → drop
+    // SHUTDOWN_TX → all blocked recvs wake with Shutdown).
+    //
+    // MUST be called after setpgid (already above) and while we are
+    // still in the child (post-fork). The flag resets across fork and
+    // exec; each child sets it once in its own branch. We don't exec.
+    if unsafe {
+        libc::prctl(
+            libc::PR_SET_PDEATHSIG,
+            libc::SIGTERM as libc::c_ulong,
+            0,
+            0,
+            0,
+        )
+    } < 0
+    {
+        let err = std::io::Error::last_os_error();
+        emit_structured_exit(
+            None,
+            crate::runtime::process_died_error_startup_value(
+                format!("prctl(PR_SET_PDEATHSIG, SIGTERM) failed: {}", err),
+            ),
+        );
+        unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
+    }
+
+    // Arc 170 Slice C — initialize the shutdown infrastructure BEFORE
+    // installing signal handlers. This ensures SHUTDOWN_WAKE_WRITE_FD
+    // is set before any SIGTERM can arrive (including via PDEATHSIG).
+    // bootstrap_wat_vm_process calls init_shutdown_signal() again below;
+    // the call is idempotent (OnceLock guard) — this early call is the
+    // race-closing action.
+    crate::runtime::init_shutdown_signal();
+
     // Install substrate-level signal handlers so the spawned wat
     // program observes SIGTERM / SIGINT / SIGUSR1/2 / SIGHUP through
     // the (:wat::kernel::stopped?) polling contract.
