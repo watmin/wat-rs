@@ -80,19 +80,45 @@ timeout -k 5 90 cargo test --release -p wat --test test 2>&1 | grep -cE "process
 # Expected after fix: 0  (currently: 30+)
 ```
 
-Plus a positive probe — write `tests/probe_run_hermetic_drains_before_join.rs` that constructs a child program emitting stdout + stderr, calls `run-hermetic`, asserts the lines are captured AND the RunResult.failure is `:None` for clean child exits.
+### Path-honesty discipline (new — landed 2026-05-15)
+
+The prior Gap K attempt (`66641d8`, reverted at `63cb747`) shipped a single probe file whose body silently switched paths to verify stdout capture: the file claimed to verify `run-hermetic` (the spawn-process Layer 1 path) but its stdout-capture test actually exercised `run-hermetic-ast` (the fork-program-ast path with working ambient stdio). The detection went to 0; the probe passed; the bandaid shipped. User caught it.
+
+**The discipline:** every probe body MUST exercise the SAME surface its file NAME + BRIEF CLAIM identifies. No path-switching. If a property can't be verified on the named path (e.g., stdout-capture-on-spawn-process today, because the spawn-process child has no ThreadIO install + no ambient stdio install — see arc 170 slice 1F services pending), it goes in OUT-OF-SCOPE, NOT a probe with a misleading name. Row G of EXPECTATIONS audits this explicitly.
+
+### Two positive probes, split by path
+
+**Probe 1 — `tests/probe_run_hermetic_no_deadlock.rs`** (spawn-process lockstep verification)
+
+Builds two minimal cases on `run-hermetic` (Layer 1, spawn-process path):
+- Empty body returning `:wat::core::nil` — clean child exit; verify `RunResult.failure = :None` and the test completes without hanging (proves lockstep allows clean shutdown)
+- Body that calls `(:wat::kernel::assertion-failed! ...)` — panicking child; verify `RunResult.failure = :Some(...)` and the test completes without hanging (proves lockstep drains panic-stderr before join even on failure path)
+
+**These probes verify the lockstep rule — drain-before-join — prevents the deadlock category on spawn-process. They do NOT verify stdout capture (which is impossible on spawn-process today).**
+
+**Probe 2 — `tests/probe_run_hermetic_ast_stdout_capture.rs`** (fork-program-ast stdout-capture verification)
+
+Builds a case on `run-hermetic-ast` (Layer 2, fork-program-ast path with full ambient stdio):
+- Child program defines a `:user::main` that calls `(:wat::kernel::println "...")` — child writes to fd 1
+- Parent captures via `Process/stdout` Receiver — verify the line is in `RunResult.stdout`
+- Verify `RunResult.failure = :None`
+
+**This probe verifies the drain-before-join shape works on the fork-program-ast path (which DOES have ambient stdio). The file name + BRIEF openly identify the path.**
 
 ```bash
-timeout -k 5 30 cargo test --release --test probe_run_hermetic_drains_before_join
-# Expected: PASS
+timeout -k 5 30 cargo test --release --test probe_run_hermetic_no_deadlock
+timeout -k 5 30 cargo test --release --test probe_run_hermetic_ast_stdout_capture
+# Expected: PASS PASS
 ```
 
 ## Scope (what's IN)
 
-- Restructure `:wat::test::run-hermetic-driver` defmacro body in `wat/test.wat`
-- Optionally update its documentation comment (lines 553+ for run-hermetic too if needed) to reflect the new shape
-- New probe `tests/probe_run_hermetic_drains_before_join.rs`
-- Verify `ProcessJoinBeforeOutputDrain` no longer fires anywhere from this driver
+- Restructure `:wat::test::run-hermetic-driver` defmacro body in `wat/test.wat` (+ the 3 sibling drivers if detection fires on them: `run-hermetic-with-io-driver`, `wat/kernel/hermetic.wat::run-sandboxed-hermetic-ast`, `wat/kernel/sandbox.wat::drive-sandbox`)
+- Optionally update documentation comments to reflect the new shape
+- Two probes (split by path per path-honesty discipline above):
+  - `tests/probe_run_hermetic_no_deadlock.rs` — verifies lockstep on spawn-process
+  - `tests/probe_run_hermetic_ast_stdout_capture.rs` — verifies stdout capture on fork-program-ast
+- Verify `ProcessJoinBeforeOutputDrain` no longer fires anywhere
 
 ## Scope (what's OUT)
 
@@ -101,20 +127,24 @@ timeout -k 5 30 cargo test --release --test probe_run_hermetic_drains_before_joi
 - Any change to `Process/join-result` / `Process/stdout` / `Process/stderr` substrate primitives — the issue is the user-side ordering, not the primitives
 - Wall-clock timeouts ANYWHERE — explicitly forbidden by the rule + the user direction. If you reach for a timeout, you're solving the wrong problem.
 - The deftest macro shape (`wat/test.wat:295-318`) — V5 retry shape stays; out of scope
+- **Stdout-capture-on-spawn-process — OUT OF SCOPE.** The spawn-process child has no ThreadIO install + no ambient stdio install (the gap user surfaced 2026-05-15; depends on 1F services landing on spawn-process; tracked in SPAWN-MIGRATION-BACKLOG.md). No probe attempts to verify this. SCORE explicitly states this scope cut. The lockstep restructure shape is SHIPPED here; stdout capture on spawn-process waits for 1F.
 - Anything under `docs/arc/` (FM 11)
 
-## Ship criteria (6 rows)
+## Ship criteria (9 rows — see EXPECTATIONS for full scorecard)
 
 | Row | What | Pass criterion |
 |-----|------|----------------|
-| A | `:wat::test::run-hermetic-driver` body restructured to inner-let-owns-Receivers + outer-let-joins | grep + read |
-| B | `ProcessJoinBeforeOutputDrain` does NOT fire on `wat/test.wat` anywhere after the fix | grep on cargo test output |
-| C | New positive probe `tests/probe_run_hermetic_drains_before_join.rs` exists and PASSES | cargo test |
+| A | `run-hermetic-driver` body restructured to inner-let-owns-Receivers + outer-let-joins (+ 3 sibling drivers if detection fires) | grep + read |
+| B | `ProcessJoinBeforeOutputDrain` does NOT fire anywhere after the fix | grep on cargo test output |
+| C1 | spawn-process lockstep probe (`probe_run_hermetic_no_deadlock`) PASSES — verifies deadlock category gone on spawn-process | cargo test |
+| C2 | fork-program-ast stdout-capture probe (`probe_run_hermetic_ast_stdout_capture`) PASSES — file NAME + body match | cargo test |
+| C3 | stdout-capture-on-spawn-process declared OUT OF SCOPE in SCORE doc (waits for 1F services) — NO probe attempts it | grep + read SCORE |
 | D | No wall-clock timeouts introduced; no `set_*_timeout` / sleep / arbitrary numbers | grep + read |
-| E | Workspace runs to completion within `timeout -k 5 90` (no orphaned wat-test processes; failures, if any, are CLEAN failures with diagnostics, not hangs) | full test run |
-| F | If other tests fail (Pattern A typealias / Pattern C exit-3 etc.), they fail FAST with diagnostics — the deadlock category is gone | full test run + grep |
+| E | Workspace runs to completion within `timeout -k 5 90`; no orphans; failures are CLEAN | full test run |
+| F | Other tests (Pattern A typealias / Pattern C exit-3) fail FAST with diagnostics — deadlock category gone | full test run + grep |
+| G | **Path-honesty audit** — every probe body exercises the SAME surface its file name + BRIEF claim identify. No silent path-switching. | manual review |
 
-**6 rows. All must PASS.**
+**9 rows. All must PASS.**
 
 ## Hard constraints
 
