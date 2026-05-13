@@ -268,6 +268,27 @@ the user's next-leg work requires.
 
 The slow path is the right path.
 
+## Related class — typed-Value Rust-side construction (queued 2026-05-15)
+
+Same compulsion class as primitive/scheme registration: the substrate has a wat-side registry (TypeEnv enum / struct definitions); Rust constructs typed Values that the registry must match; **no compile-time check that Rust's constructors stay in sync with the registry.**
+
+**Concrete incident, arc 170 slice 1i:** Rust minted `Value::Enum { type_path: ":wat::kernel::ProcessDiedError", variant_name: "StartupError", … }` (and `EntryFormFailure`, `MainSignature`, `BadReturn`) in `spawn_process.rs` + `fork.rs` exit paths. The wat-side `:wat::kernel::ProcessDiedError` enum was NOT extended with those variants. Result: child emitted structured `#wat.kernel/ProcessPanics` EDN; parent's `extract-panics` → `edn_to_value` → `reconstruct_enum_tagged` → `types.get(":wat::kernel::ProcessDiedError")` → variant not in `def.variants` → `EnumVariantNotFound` → returned `None` → harness `(None chain)` fallback fired (now `assertion-failed!` per slice 1i) → parent panicked with a useless "contract violation" message. Rust-side construction succeeded silently; wat-side deserialization failed unrecoverably.
+
+**The class:** Rust can mint `Value::Enum::variant_name: String` (and `Value::Struct::type_name: String`) with arbitrary strings. The wat-side registry has no awareness. Any drift between Rust constructor sites and the wat-side enum/struct registry produces values that round-trip-fail.
+
+**Discipline shape (arc 147 territory):** the same macro that registers a typed primitive should also generate the Rust-side constructor helpers, OR a Pattern 3 CheckError ensures every `Value::Enum::new(type_path, variant_name, …)` site is paired with a TypeEnv lookup. Two routes:
+
+1. **Codegen route (preferred per § Q4 + arc 146):** a macro mints both the wat-side enum definition AND the Rust-side `Value::Enum` constructor helpers. Adding a variant is ONE declaration; forgetting to update either side becomes structurally impossible.
+2. **Detection route (Pattern 3, weaker but additive):** a debug-build `Value::Enum::new` checks the variant against TypeEnv at construction; panics with `EnumVariantNotInRegistry` if missing. Doesn't prevent at compile time but surfaces at the first construction call rather than at deserialization across a fork.
+3. **Hybrid:** macro for new types (closes the class at registration time); debug-build check as defense-in-depth for hand-written constructors arc 147 doesn't subsume.
+
+**Why this lives in arc 147:** the umbrella is "no registries to forget — substrate macros enforce single-source-of-truth across Rust + wat-side." Primitive registration is one face; typed-Value construction is another. Same compulsion class. Could be its own slice (`arc 147 slice N+M — typed-Value constructor enforcement`) or fold into the macro that handles enum/struct minting.
+
+**User direction 2026-05-15:**
+> *"we have a macro arc queued up for having a registry of things so we can't forget, i think this is related or at least adjacent to it"*
+
+Captured here so the design space stays connected. Slice plan amendment when arc 147 reaches typed-Value territory.
+
 ## Cross-references
 
 - `docs/COMPACTION-AMNESIA-RECOVERY.md` § FM 9 + § 10 + § 12 —

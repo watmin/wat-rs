@@ -1277,11 +1277,19 @@ Cross-references:
 - Arc 169 DESIGN.md — settled four-questions evaluation,
   out-of-scope items, slice plan stub
 
-## I. Pending kernel verb renames
+## I. Pending kernel + String family renames
 
 | Current | Target | Reason | Status |
 |---|---|---|---|
 | `:wat::kernel::raise!` | `:wat::kernel::panic!` | The kernel's message-based terminator is canonically a panic; `raise!` reads as a generic exception verb (the substrate has no exceptions — only structured terminal exits). User direction 2026-05-15: *"i think we have a kernel panic func too - but eprintln is a 'we are crashing, here's what i know' and exits"* — the kernel's three terminating forms are `eprintln` (value), `panic!` (message), `assertion-failed!` (assertion shape); the message form should carry the canonical name. | pending — separate slice; coordinate with [[feedback_eprintln_is_terminal]] doctrine. |
+| `:wat::core::string::concat` | `:wat::core::String/concat` | Same rename class as Section D' (Option/Result method forms shipped slice 1j). String methods today are `lowercase-module::verb`; Section D' established `Type/verb` as canonical for type-attached methods. Section H's existing note (line 429) ALREADY claims `Type/method` is the target shape but the example writes `String::concat` (`::` form) — internally inconsistent + stale. This row makes the rename explicit. | pending |
+| `:wat::core::string::join` | `:wat::core::String/join` | Same family. | pending |
+| `:wat::core::string::split` | `:wat::core::String/split` | Same family. | pending |
+| `:wat::core::string::trim` | `:wat::core::String/trim` | Same family. | pending |
+| `:wat::core::string::length` | `:wat::core::String/length` | Same family. Note: arc 146 dispatch may already polymorphize `length` over String + Vec + HashMap; verify before slice. | pending |
+| `:wat::core::string::to-bool` | `:wat::core::String/to-bool` | Same family. (Sibling: `:wat::core::bool::to-string` → `:wat::core::Bool/to-string` if `bool` becomes `Bool` per Section A's `unit` → `Unit` follow-up.) | pending |
+
+**Note on Section H (line 357 + 429):** the existing claim *"`String::*` stays"* is about NAMESPACE (they don't move out of `:wat::core::*`), not verb-shape. The verb-shape rename above is consistent with that — symbols stay in `:wat::core::*`, just with `String/verb` shape instead of `string::verb`. Section H needs an update to remove the now-stale `String::concat` example writing in `::` form.
 
 ## Cross-references
 
