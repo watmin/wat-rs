@@ -224,6 +224,14 @@ impl Drop for ProcessRuntime {
 pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntime, RuntimeError> {
     let frozen = args.frozen;
 
+    // Initialize the process-wide shutdown infrastructure. Idempotent
+    // across multiple bootstraps; the worker thread + wake pipe are
+    // per-process and survive subsequent bootstraps within the same OS
+    // process. Slice B+C+D+E wire the cascade to actually do something.
+    // Must be called BEFORE the trio service spawning so SHUTDOWN_RX is
+    // available when services start (arc 170 Slice A).
+    crate::runtime::init_shutdown_signal();
+
     // Step 1 — Source the IOReader / IOWriter handles.
     let stdio = match crate::thread_io::take_ambient_stdio() {
         Some(s) => s,

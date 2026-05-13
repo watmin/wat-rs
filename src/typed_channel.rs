@@ -184,6 +184,11 @@ pub enum RecvOutcome {
     /// only — crossbeam can't surface this. Carries the parse
     /// diagnostic for the caller to surface as a wat-level error.
     DecodeError(String),
+    /// arc 170 Slice A: process-wide shutdown signal fired.
+    /// Distinguishable from Disconnected: the channel didn't lose its
+    /// partner — the process is shutting down. Slice B wires recv to
+    /// surface this; Slice A only adds the variant.
+    Shutdown,
 }
 
 /// Send a typed `Value` through a transport-polymorphic Sender.

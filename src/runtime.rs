@@ -165,6 +165,123 @@ pub fn argv() -> Arc<Vec<String>> {
 // the correct shape for production (wat-cli sets once at process
 // start); test cooperation handles the rest.
 
+// ── Arc 170 Slice A — process-wide shutdown signal infrastructure ──────────
+//
+// Three statics form the lock-free shutdown cascade.  All follow the
+// ZERO-MUTEX doctrine (docs/ZERO-MUTEX.md): AtomicPtr + OnceLock + Box,
+// NO Mutex / RwLock / CondVar.
+
+/// Receiver clone of the process-wide shutdown signal channel. Every
+/// `typed_recv` Crossbeam-arm select multiplexes on this (Slice B wires
+/// the select). Initialized once via [`init_shutdown_signal`]; cleared
+/// by [`trigger_shutdown`] dropping the corresponding Sender.
+pub static SHUTDOWN_RX: OnceLock<crossbeam_channel::Receiver<()>> = OnceLock::new();
+
+/// Heap-boxed Sender for the shutdown signal. AtomicPtr swap-to-null
+/// + Box::from_raw drop is the ZERO-MUTEX way to atomically drop the
+/// Sender (waking all SHUTDOWN_RX clones with Disconnected). Initialized
+/// via [`init_shutdown_signal`]; consumed by [`trigger_shutdown`].
+static SHUTDOWN_TX_PTR: std::sync::atomic::AtomicPtr<crossbeam_channel::Sender<()>> =
+    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+
+/// Write-end of the wake pipe. The SIGTERM/SIGINT signal handler writes
+/// a byte here (async-signal-safe per signal-safety(7)). The shutdown
+/// worker thread reads from the corresponding read-end and calls
+/// [`trigger_shutdown`] in normal context (where Sender drop is safe).
+/// -1 means uninitialized; signal handler no-ops if so.
+pub static SHUTDOWN_WAKE_WRITE_FD: std::sync::atomic::AtomicI32 =
+    std::sync::atomic::AtomicI32::new(-1);
+
+/// Initialize the shutdown signal infrastructure. Idempotent — safe to
+/// call from every bootstrap path. Creates:
+///   1. A crossbeam unbounded channel pair (rx → SHUTDOWN_RX, tx → SHUTDOWN_TX_PTR)
+///   2. A wake pipe (write-end → SHUTDOWN_WAKE_WRITE_FD, read-end → worker)
+///   3. A worker thread that blocks on the wake pipe read; on wake,
+///      calls trigger_shutdown
+pub fn init_shutdown_signal() {
+    if SHUTDOWN_RX.get().is_some() {
+        return; // already initialized
+    }
+    let (tx, rx) = crossbeam_channel::unbounded::<()>();
+    // First-set wins — race-safe; the OnceLock-set Err path means another
+    // thread initialized concurrently. Both paths leave the substrate
+    // correctly initialized; we just discard our local Sender if so.
+    if SHUTDOWN_RX.set(rx).is_err() {
+        return;
+    }
+    let boxed = Box::into_raw(Box::new(tx));
+    SHUTDOWN_TX_PTR.store(boxed, Ordering::SeqCst);
+
+    // Create wake pipe (async-signal-safe write-end; blocking read-end).
+    let mut fds = [0_i32; 2];
+    let pipe_result = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    if pipe_result != 0 {
+        // pipe(2) failed — substrate cannot safely operate. Structured
+        // stderr diagnostic + exit. Should never happen in practice on Linux.
+        // (Using write(2) directly avoids stdio locking in this early context.)
+        let msg = b"substrate: pipe(2) failed during shutdown init\n";
+        unsafe { libc::write(2, msg.as_ptr() as *const _, msg.len()) };
+        std::process::exit(1);
+    }
+    let read_fd = fds[0];
+    let write_fd = fds[1];
+    SHUTDOWN_WAKE_WRITE_FD.store(write_fd, Ordering::SeqCst);
+
+    // Spawn the shutdown-worker thread. It blocks on the wake pipe read;
+    // on wake (signal handler wrote a byte), calls trigger_shutdown in
+    // normal context (Sender drop is safe; not in signal handler).
+    std::thread::Builder::new()
+        .name("wat-shutdown-worker".to_string())
+        .spawn(move || {
+            let mut buf = [0u8; 1];
+            // Block until the signal handler writes a byte. EINTR is treated
+            // as a wake — if the read was interrupted by a signal that wrote
+            // the byte, we call trigger_shutdown; if interrupted spuriously,
+            // we exit (the subsequent trigger_shutdown is idempotent).
+            let _ = unsafe { libc::read(read_fd, buf.as_mut_ptr() as *mut libc::c_void, 1) };
+            // Wake received. Trigger shutdown in normal context.
+            trigger_shutdown();
+            // Worker exits — its job is done; subsequent attempts are no-ops.
+        })
+        .expect("wat-shutdown-worker thread spawn failed");
+}
+
+/// Drop the global SHUTDOWN_TX_PTR. All SHUTDOWN_RX recvs wake with
+/// crossbeam Disconnected (which typed_recv Slice B maps to
+/// RecvOutcome::Shutdown). Idempotent — second call sees null pointer
+/// and no-ops.
+///
+/// MUST be called from normal context (deallocator can run). The signal
+/// handler MUST NOT call this directly — it writes to the wake pipe;
+/// the worker thread calls trigger_shutdown.
+pub fn trigger_shutdown() {
+    let ptr = SHUTDOWN_TX_PTR.swap(std::ptr::null_mut(), Ordering::SeqCst);
+    if !ptr.is_null() {
+        // SAFETY: ptr was Box::into_raw'd in init_shutdown_signal and
+        // is never accessed except via this swap. The swap to null
+        // means no other thread can race us into Box::from_raw on the
+        // same pointer.
+        unsafe { drop(Box::from_raw(ptr)) };
+    }
+}
+
+/// Test-only reset for the shutdown infrastructure. Production code
+/// runs init exactly once per process; tests that exercise the
+/// cascade re-init between runs.
+#[cfg(test)]
+pub fn reset_shutdown_signal() {
+    // Drop existing Sender (if any) so any blocked recvs disconnect.
+    trigger_shutdown();
+    // NOTE: SHUTDOWN_RX (OnceLock) cannot be reset; tests should be
+    // structured to tolerate the once-set semantics — the same Rx
+    // value is reused across resets, and a fresh Sender cloned via
+    // init_shutdown_signal would not produce messages on the
+    // already-disconnected Rx. Slice B will refine this if tests
+    // require it.
+}
+
+// ── End arc 170 Slice A shutdown infrastructure ────────────────────────────
+
 /// Runtime value.
 ///
 /// **Variant names encode their Rust or conceptual origin path via
@@ -15505,6 +15622,15 @@ fn eval_kernel_recv(
                 span: list_span.clone(),
             })
         }
+        // arc 170 Slice A — variant added; Slice B wires typed_recv to
+        // produce it. In Slice A this arm is unreachable at runtime.
+        // Mapped to Err(Shutdown) per Slice B's contract so the shape
+        // is correct once wired.
+        crate::typed_channel::RecvOutcome::Shutdown => {
+            Ok(Value::Result(Arc::new(Err(
+                single_died_chain(thread_died_error_shutdown()),
+            ))))
+        }
     }
 }
 
@@ -15563,6 +15689,14 @@ fn eval_kernel_try_recv(
                 reason: format!("EDN decode on pipe-channel try-recv: {}", msg),
                 span: list_span.clone(),
             })
+        }
+        // arc 170 Slice A — variant added; try-recv is non-blocking so
+        // Shutdown maps to Disconnected collapse (FOUNDATION's empty /
+        // disconnected collapse contract for try-recv). Slice B refines
+        // if a real consumer surfaces need for try-recv to distinguish
+        // shutdown from empty.
+        crate::typed_channel::RecvOutcome::Shutdown => {
+            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
         }
     }
 }
@@ -16991,6 +17125,20 @@ fn thread_died_error_channel_disconnected() -> Value {
     }))
 }
 
+/// Build a `:wat::kernel::ThreadDiedError::Shutdown`
+/// (unit variant) enum value (arc 170 Slice A).
+/// Produced when the process-wide shutdown signal fires during recv.
+/// Distinguishable from ChannelDisconnected: the channel partner did
+/// NOT drop — the process is terminating.
+#[allow(dead_code)] // Slice B wires this; unreachable in Slice A.
+fn thread_died_error_shutdown() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::ThreadDiedError".into(),
+        variant_name: "Shutdown".into(),
+        fields: vec![],
+    }))
+}
+
 /// Arc 113 slice 1 — wrap a single DiedError Value in a
 /// `Vec<DiedError>` chain.
 ///
@@ -17226,6 +17374,10 @@ fn eval_died_error_message(
                 "ChannelDisconnected" => {
                     Ok(Value::String(Arc::new("channel disconnected".to_string())))
                 }
+                // arc 170 Slice A — process-wide shutdown fired during recv.
+                "Shutdown" => {
+                    Ok(Value::String(Arc::new("process shutdown".to_string())))
+                }
                 _ => Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: "*DiedError variant",
@@ -17426,6 +17578,10 @@ fn eval_died_error_to_failure(
                 },
                 "ChannelDisconnected" => {
                     Ok(message_only_failure("channel disconnected".to_string()))
+                }
+                // arc 170 Slice A — process-wide shutdown fired during recv.
+                "Shutdown" => {
+                    Ok(message_only_failure("process shutdown".to_string()))
                 }
                 _ => Err(RuntimeError::TypeMismatch {
                     op: op.into(),

@@ -583,6 +583,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
             },
             EnumVariant::Unit("ChannelDisconnected".into()),
+            // arc 170 Slice A — process-wide shutdown signal fired during recv.
+            // The channel partner did NOT drop — the process is terminating.
+            // Distinguishable from ChannelDisconnected for shutdown-specific cleanup.
+            // Slice B wires recv to surface this; Slice A only registers the variant.
+            EnumVariant::Unit("Shutdown".into()),
         ],
     }));
 
