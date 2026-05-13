@@ -176,9 +176,20 @@
               (:wat::kernel::send reply-tx line)
               "StdInService/handle-read: reply-tx disconnected -- thread died?"))
           (:wat::core::None
-            ;; EOF on fd 0: callers recv returns disconnected when service
-            ;; scope drops.  No special action needed in this slice.
-            ()))))
+            ;; EOF on fd 0: client (parent process / pipe writer) disconnected.
+            ;; Per lock-step doctrine + feedback_silent_disconnect_hang, this
+            ;; is a contract violation and MUST surface as a panic — not be
+            ;; silently swallowed (the old `()` no-op spun the service
+            ;; thread forever on EOF, leaving callers' recv blocked).
+            ;; assertion-failed! invokes std::panic::panic_any: the service
+            ;; thread dies, reply-txs in the routing-vec drop, main thread's
+            ;; readln returns Disconnected, arc 110's Result/expect chain
+            ;; panics with the full diagnostic. Cascades cleanly down forked
+            ;; child trees (each child's StdInService panics the same way
+            ;; when its parent's pipe closes).
+            (:wat::kernel::assertion-failed!
+              "StdInService: EOF on fd 0 — client (parent process or pipe writer) disconnected. Lock-step contract violation; process must die."
+              :wat::core::None :wat::core::None)))))
     (:wat::core::None
       ;; idx out of range -- degenerate; cannot happen in practice.
       ())))

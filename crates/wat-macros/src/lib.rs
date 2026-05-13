@@ -663,10 +663,21 @@ pub fn test(input: TokenStream) -> TokenStream {
             // computationally-heavy tests (holon VSA at 4096 dims +
             // spawn/program tests). 200ms was tight under realistic
             // parallel-test execution; 1000ms gives clear headroom
-            // while preserving the safety-net role. Tests that
-            // genuinely need >1s still annotate explicitly via
-            // `:wat::test::time-limit`.
-            const DEFAULT_TIME_LIMIT_MS: u64 = 1000;
+            // while preserving the safety-net role.
+            //
+            // Default raised from 1000ms to 5000ms 2026-05-13 (arc 170
+            // Stone C audit). Stone C added substantial per-test work
+            // (bootstrap_wat_vm_process spawns 3 trio service threads
+            // per child; spawn-process child does dup2 + 3 OS pipes +
+            // full bootstrap). Under 8-way parallel cargo execution
+            // the per-test wall-clock work grew enough that 1000ms
+            // produced 0-4 random `exceeded time-limit` flakes per
+            // run. 5000ms preserves the deadlock-guard role (a test
+            // taking 5s is genuinely stuck and worth investigating)
+            // while eliminating the parallel-load false positives.
+            // Tests that genuinely need >5s still annotate explicitly
+            // via `:wat::test::time-limit`.
+            const DEFAULT_TIME_LIMIT_MS: u64 = 5000;
             let ms = site.time_limit_ms.unwrap_or(DEFAULT_TIME_LIMIT_MS);
             // Arc 138 F-NAMES-1f: include the deftest's .wat
             // file:line:col and FQDN keyword so the panic body
