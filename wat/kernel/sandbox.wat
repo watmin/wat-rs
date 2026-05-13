@@ -123,6 +123,12 @@
         ((:wat::core::Ok _)    :wat::core::None)
         ((:wat::core::Err err)
          (:wat::core::Some (:wat::kernel::failure-from-process-died
+                 ;; spawn-program / spawn-program-ast use in-process thread
+                 ;; spawns, not forked processes. The thread panic chain comes
+                 ;; through the crossbeam channel (join-result Err arm), not
+                 ;; through a subprocess stderr pipe. extract-panics returns
+                 ;; None for thread-based spawns; fall through to the
+                 ;; join-result chain (err) which carries the full ProcessDiedError.
                  (:wat::core::match stderr-chain
                    -> :wat::core::Vector<wat::kernel::ProcessDiedError>
                    ((:wat::core::Some chain) chain)

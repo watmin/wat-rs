@@ -16972,6 +16972,12 @@ fn process_died_error_runtime(message: String) -> Value {
     }))
 }
 
+/// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs
+/// (arc 170 slice 1i — structured runtime-error exit path).
+pub(crate) fn process_died_error_runtime_value(message: String) -> Value {
+    process_died_error_runtime(message)
+}
+
 /// Build a `:wat::kernel::ProcessDiedError::ChannelDisconnected`
 /// (unit variant) enum value (arc 112).
 fn process_died_error_channel_disconnected() -> Value {
@@ -16980,6 +16986,70 @@ fn process_died_error_channel_disconnected() -> Value {
         variant_name: "ChannelDisconnected".into(),
         fields: vec![],
     }))
+}
+
+/// Build a `:wat::kernel::ProcessDiedError::StartupError(message)`
+/// enum value (arc 170 slice 1i). Emitted by child branches when
+/// `startup_from_forms` / `startup_from_source` returns `Err`.
+fn process_died_error_startup(message: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::ProcessDiedError".into(),
+        variant_name: "StartupError".into(),
+        fields: vec![Value::String(Arc::new(message))],
+    }))
+}
+
+/// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs.
+pub(crate) fn process_died_error_startup_value(message: String) -> Value {
+    process_died_error_startup(message)
+}
+
+/// Build a `:wat::kernel::ProcessDiedError::EntryFormFailure(message)`
+/// enum value (arc 170 slice 1i). Emitted by spawn-process child branch
+/// when `entry_form eval` fails or the fn arity is unsupported.
+fn process_died_error_entry_form_failure(message: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::ProcessDiedError".into(),
+        variant_name: "EntryFormFailure".into(),
+        fields: vec![Value::String(Arc::new(message))],
+    }))
+}
+
+/// Cross-module pub(crate) accessor.
+pub(crate) fn process_died_error_entry_form_failure_value(message: String) -> Value {
+    process_died_error_entry_form_failure(message)
+}
+
+/// Build a `:wat::kernel::ProcessDiedError::MainSignature(message)`
+/// enum value (arc 170 slice 1i). Emitted by fork child branches when
+/// `validate_user_main_signature` returns `Err`.
+fn process_died_error_main_signature(message: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::ProcessDiedError".into(),
+        variant_name: "MainSignature".into(),
+        fields: vec![Value::String(Arc::new(message))],
+    }))
+}
+
+/// Cross-module pub(crate) accessor.
+pub(crate) fn process_died_error_main_signature_value(message: String) -> Value {
+    process_died_error_main_signature(message)
+}
+
+/// Build a `:wat::kernel::ProcessDiedError::BadReturn(message)`
+/// enum value (arc 170 slice 1i). Emitted by fork / spawn-process child
+/// branches when `:user::main` returns a non-nil value at runtime.
+fn process_died_error_bad_return(message: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::ProcessDiedError".into(),
+        variant_name: "BadReturn".into(),
+        fields: vec![Value::String(Arc::new(message))],
+    }))
+}
+
+/// Cross-module pub(crate) accessor.
+pub(crate) fn process_died_error_bad_return_value(message: String) -> Value {
+    process_died_error_bad_return(message)
 }
 
 /// `(:wat::kernel::ThreadDiedError/message err) -> :String`.
@@ -17040,7 +17110,10 @@ fn eval_died_error_message(
     match val {
         Value::Enum(ev) if ev.type_path == expected_type_path => {
             match ev.variant_name.as_str() {
-                "Panic" | "RuntimeError" => match ev.fields.first() {
+                // Arc 170 slice 1i — StartupError / EntryFormFailure / MainSignature /
+                // BadReturn all carry a String at field 0, same as RuntimeError.
+                "Panic" | "RuntimeError" | "StartupError" | "EntryFormFailure"
+                | "MainSignature" | "BadReturn" => match ev.fields.first() {
                     Some(Value::String(s)) => Ok(Value::String(s.clone())),
                     _ => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
@@ -17238,11 +17311,14 @@ fn eval_died_error_to_failure(
                     }
                     Ok(message_only_failure(msg))
                 }
-                "RuntimeError" => match ev.fields.first() {
+                // Arc 170 slice 1i — StartupError / EntryFormFailure / MainSignature /
+                // BadReturn all carry one String field; map to message-only Failure.
+                "RuntimeError" | "StartupError" | "EntryFormFailure"
+                | "MainSignature" | "BadReturn" => match ev.fields.first() {
                     Some(Value::String(s)) => Ok(message_only_failure((**s).clone())),
                     _ => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
-                        expected: "String at RuntimeError.message",
+                        expected: "String at *DiedError.message",
                         got: "non-String at field 0",
                         // arc 138: no span — matching on Value::Enum fields; no AST element
                         span: args[0].span().clone(),

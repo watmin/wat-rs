@@ -400,11 +400,6 @@ fn write_direct_to_stderr(s: &str) {
 /// plus any inherited upstream — round-trips cleanly through
 /// `value_to_edn_with` + `wat_edn::write` ↔ `wat_edn::parse_owned`
 /// + `edn_to_value`.
-///
-/// Best-effort: if the write fails or the EDN render shape is
-/// somehow malformed, the parent falls back to the singleton
-/// "exited N" path (current pre-arc-113-slice-3 behavior). This
-/// is enrichment, not a contract.
 fn emit_panics_to_stderr(
     world: &crate::freeze::FrozenWorld,
     payload: &crate::assertion::AssertionPayload,
@@ -416,6 +411,41 @@ fn emit_panics_to_stderr(
     let upstream = payload.upstream_chain.clone();
     let chain = crate::runtime::conj_died_chain_value(fresh, upstream);
     let edn = crate::edn_shim::value_to_edn_with(&chain, Some(world.types()));
+    let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
+    write_direct_to_stderr(&line);
+}
+
+/// Arc 170 slice 1i — install a no-op Rust panic hook in fork child
+/// branches so Rust's default "thread '...' panicked at" / "note: run
+/// with RUST_BACKTRACE=1" lines never reach fd 2. The substrate's
+/// `emit_structured_exit` is the SOLE source of stderr content per panic.
+///
+/// Must be called after dup2 (so fd 2 is the subprocess stderr pipe)
+/// and before any Rust code that might panic. setpgid(2) and dup2(2)
+/// are C syscalls — they do not panic in Rust — so the hook covers
+/// everything that follows.
+fn install_silent_panic_hook() {
+    std::panic::set_hook(Box::new(|_info| {
+        // Suppressed: substrate's catch_unwind + emit_structured_exit
+        // handles panic propagation to stderr. Rust's default handler
+        // must not leak plain text on fd 2 in wat-process children.
+    }));
+}
+
+/// Arc 170 slice 1i — unified structured exit helper for ALL fork child
+/// exit paths. Wraps `value` in the `#wat.kernel/ProcessPanics [...]`
+/// envelope and writes the EDN line to stderr before the caller
+/// calls `libc::_exit`.
+///
+/// `world` is `None` for pre-world startup failures — those values only
+/// carry primitive Strings so TypeEnv-less EDN rendering is sufficient.
+fn emit_structured_exit(
+    world: Option<&crate::freeze::FrozenWorld>,
+    value: crate::runtime::Value,
+) {
+    let chain = crate::runtime::conj_died_chain_value(value, None);
+    let types = world.map(|w| w.types());
+    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
     let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
     write_direct_to_stderr(&line);
 }
@@ -602,6 +632,11 @@ fn child_branch(
     drop(stdout_pair.1);
     drop(stderr_pair.1);
 
+    // Arc 170 slice 1i — install the silent panic hook AFTER dup2 (so
+    // fd 2 is already the subprocess stderr pipe) and BEFORE any Rust
+    // code that might panic. setpgid(2)/dup2(2) are C syscalls; safe.
+    install_silent_panic_hook();
+
     // Hygiene: close any other inherited fd above 2.
     close_inherited_fds_above_stdio();
 
@@ -630,13 +665,20 @@ fn child_branch(
     let world = match startup_result {
         Ok(w) => w,
         Err(e) => {
-            write_direct_to_stderr(&format!("startup: {}\n", e));
+            // Arc 170 slice 1i — structured StartupError (no world yet).
+            emit_structured_exit(
+                None,
+                crate::runtime::process_died_error_startup_value(format!("{}", e)),
+            );
             unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
         }
     };
 
     if let Err(msg) = validate_user_main_signature(&world) {
-        write_direct_to_stderr(&format!(":user::main: {}\n", msg));
+        emit_structured_exit(
+            Some(&world),
+            crate::runtime::process_died_error_main_signature_value(format!("{}", msg)),
+        );
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }
 
@@ -667,30 +709,45 @@ fn child_branch(
         // in exit-code arithmetic.
         Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Ok(other)) => {
-            write_direct_to_stderr(&format!(
-                "runtime: :user::main returned non-nil value: {:?}\n",
-                other
-            ));
+            // Arc 170 slice 1i — structured BadReturn.
+            emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_bad_return_value(format!(
+                    ":user::main returned non-nil value: {}",
+                    other.type_name()
+                )),
+            );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Ok(Err(runtime_err)) => {
-            write_direct_to_stderr(&format!("runtime: {:?}\n", runtime_err));
+            // Arc 170 slice 1i — structured RuntimeError.
+            emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_runtime_value(format!("{}", runtime_err)),
+            );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Err(panic_payload) => {
-            // Arc 113 slice 3 — when the panic carried an
-            // AssertionPayload (the only path with an
-            // `upstream_chain`), emit the cascade chain as a
-            // tagged EDN line on stderr so the parent's wat-side
-            // `extract-panics` can rebuild it. Plain panics
-            // (a bare String / &str payload) skip the emit; the
-            // parent observes the singleton "exited N" path.
+            // Arc 170 slice 1i — all panic paths emit structured EDN.
+            // AssertionPayload carries the full cascade chain + Failure;
+            // plain panics (bare String / &str) emit a message-only Panic.
             if let Some(payload) =
                 panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
             {
                 emit_panics_to_stderr(&world, payload);
+            } else {
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else {
+                    "<unknown panic payload>".to_string()
+                };
+                emit_structured_exit(
+                    Some(&world),
+                    crate::runtime::process_died_error_panic_value(msg, None),
+                );
             }
-            write_direct_to_stderr("panic: sandboxed :user::main panicked\n");
             unsafe { libc::_exit(EXIT_PANIC) };
         }
     }
@@ -966,12 +1023,20 @@ fn child_branch_from_source(
     // a child registry. Failure here is non-recoverable — the cascade
     // contract is broken — so we _exit. EPERM should not happen
     // (child is not a session leader; cli does not call setsid).
+    //
+    // Arc 170 slice 1i — install the silent panic hook AFTER dup2 (so
+    // fd 2 is already the subprocess stderr pipe) but BEFORE any Rust
+    // code that might panic. setpgid(2) is a C syscall; does not panic.
+    install_silent_panic_hook();
+
     if unsafe { libc::setpgid(0, 0) } < 0 {
         let err = std::io::Error::last_os_error();
-        let msg = format!("setpgid(0, 0) failed: {}\n", err);
-        unsafe {
-            libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
-        }
+        emit_structured_exit(
+            None,
+            crate::runtime::process_died_error_startup_value(
+                format!("setpgid(0, 0) failed: {}", err),
+            ),
+        );
         unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
     }
 
@@ -1004,13 +1069,20 @@ fn child_branch_from_source(
     let world = match startup_from_source(&source, canonical.as_deref(), loader) {
         Ok(w) => w,
         Err(e) => {
-            write_direct_to_stderr(&format!("startup: {}\n", e));
+            // Arc 170 slice 1i — structured StartupError (no world yet).
+            emit_structured_exit(
+                None,
+                crate::runtime::process_died_error_startup_value(format!("{}", e)),
+            );
             unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
         }
     };
 
     if let Err(msg) = validate_user_main_signature(&world) {
-        write_direct_to_stderr(&format!(":user::main: {}\n", msg));
+        emit_structured_exit(
+            Some(&world),
+            crate::runtime::process_died_error_main_signature_value(format!("{}", msg)),
+        );
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }
 
@@ -1052,24 +1124,43 @@ fn child_branch_from_source(
         // in exit-code arithmetic.
         Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Ok(other)) => {
-            write_direct_to_stderr(&format!(
-                "runtime: :user::main returned non-nil value: {:?}\n",
-                other
-            ));
+            // Arc 170 slice 1i — structured BadReturn.
+            emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_bad_return_value(format!(
+                    ":user::main returned non-nil value: {}",
+                    other.type_name()
+                )),
+            );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Ok(Err(runtime_err)) => {
-            write_direct_to_stderr(&format!("runtime: {:?}\n", runtime_err));
+            // Arc 170 slice 1i — structured RuntimeError.
+            emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_runtime_value(format!("{}", runtime_err)),
+            );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Err(panic_payload) => {
-            // Arc 113 slice 3 — same chain emit as `child_branch`.
+            // Arc 170 slice 1i — all panic paths emit structured EDN.
             if let Some(payload) =
                 panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
             {
                 emit_panics_to_stderr(&world, payload);
+            } else {
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else {
+                    "<unknown panic payload>".to_string()
+                };
+                emit_structured_exit(
+                    Some(&world),
+                    crate::runtime::process_died_error_panic_value(msg, None),
+                );
             }
-            write_direct_to_stderr("panic: forked :user::main panicked\n");
             unsafe { libc::_exit(EXIT_PANIC) };
         }
     }

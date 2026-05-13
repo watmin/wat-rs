@@ -244,6 +244,38 @@ pub fn eval_kernel_spawn_process(
 /// 6. Apply the fn with `[rx, tx]`. The fn returns
 ///    `:wat::core::nil` (per `:user::process` contract); child
 ///    `_exit`s 0.
+/// Arc 170 slice 1i — install a no-op Rust panic hook in the child branch
+/// so Rust's default "thread '...' panicked at" / "note: run with
+/// RUST_BACKTRACE=1" lines never reach fd 2. The substrate's
+/// `emit_structured_exit` is the SOLE source of stderr content per panic.
+///
+/// MUST be called BEFORE the `catch_unwind` block (and after dup2 so
+/// the hook's suppression covers the right fd). setpgid(2) and dup2(2)
+/// are C syscalls — they do not panic in Rust — so installing after them
+/// is safe and covers all Rust-layer code that follows.
+fn install_silent_panic_hook() {
+    std::panic::set_hook(Box::new(|_info| {
+        // Suppressed: substrate's catch_unwind + emit_structured_exit
+        // handles panic propagation to stderr. Rust's default handler
+        // must not leak plain text on fd 2 in wat-process children.
+    }));
+}
+
+/// Arc 170 slice 1i — unified structured exit helper for ALL child exit
+/// paths. Wraps `value` in the `#wat.kernel/ProcessPanics [...]` envelope
+/// and writes the EDN line to stderr (fd 2 via `write_direct_to_stderr`)
+/// before the caller calls `libc::_exit`.
+///
+/// `world` is `None` for pre-world startup failures — those values only
+/// carry primitive Strings so TypeEnv-less EDN rendering is sufficient.
+fn emit_structured_exit(world: Option<&crate::freeze::FrozenWorld>, value: crate::runtime::Value) {
+    let chain = crate::runtime::conj_died_chain_value(value, None);
+    let types = world.map(|w| w.types());
+    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
+    let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
+    write_direct_to_stderr(&line);
+}
+
 fn spawn_process_child_branch(
     package: ClosurePackage,
     input_r_raw: i32,
@@ -270,11 +302,23 @@ fn spawn_process_child_branch(
     // Drop the originals — dup2 made copies at fd 2.
     drop(stderr_pair.1);
 
+    // Arc 170 slice 1i — install the silent panic hook AFTER dup2 (so
+    // fd 2 is already the subprocess stderr pipe) but BEFORE any Rust
+    // code that might panic. setpgid(2) is a C syscall — it does not
+    // panic in Rust — so the hook installed here covers every Rust path
+    // that follows (startup_from_forms, eval, apply_function).
+    install_silent_panic_hook();
+
     // Make the child the leader of its own process group (cascades
     // signals; same arc 106 discipline as child_branch_from_source).
     if unsafe { libc::setpgid(0, 0) } < 0 {
         let err = std::io::Error::last_os_error();
-        write_direct_to_stderr(&format!("setpgid(0, 0) failed: {}\n", err));
+        emit_structured_exit(
+            None,
+            crate::runtime::process_died_error_startup_value(
+                format!("setpgid(0, 0) failed: {}", err),
+            ),
+        );
         unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
     }
 
@@ -301,7 +345,12 @@ fn spawn_process_child_branch(
     let world = match startup_from_forms(package.prologue, None, loader) {
         Ok(w) => w,
         Err(e) => {
-            write_direct_to_stderr(&format!("startup: {}\n", e));
+            // Arc 170 slice 1i — structured StartupError (no world yet;
+            // primitive String round-trips without TypeEnv context).
+            emit_structured_exit(
+                None,
+                crate::runtime::process_died_error_startup_value(format!("{}", e)),
+            );
             unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
         }
     };
@@ -317,17 +366,23 @@ fn spawn_process_child_branch(
     let entry_value = match eval(&package.entry_form, &env, world.symbols()) {
         Ok(v) => v,
         Err(e) => {
-            write_direct_to_stderr(&format!("entry_form eval: {}\n", e));
+            emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_entry_form_failure_value(format!("{}", e)),
+            );
             unsafe { libc::_exit(EXIT_ENTRY_FORM_FAILURE) };
         }
     };
     let entry_func = match entry_value {
         Value::wat__core__fn(f) => f,
         other => {
-            write_direct_to_stderr(&format!(
-                "entry_form did not evaluate to a fn Value (got {})\n",
-                other.type_name()
-            ));
+            emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_entry_form_failure_value(format!(
+                    "entry_form did not evaluate to a fn Value (got {})",
+                    other.type_name()
+                )),
+            );
             unsafe { libc::_exit(EXIT_ENTRY_FORM_FAILURE) };
         }
     };
@@ -365,11 +420,14 @@ fn spawn_process_child_branch(
         }
         2 => vec![rx_value, tx_value],
         n => {
-            write_direct_to_stderr(&format!(
-                "entry_form fn has unsupported arity {} (expected 0 for run-hermetic Layer 1 \
-                 or 2 for :user::process / :user::thread typed-channel contract)\n",
-                n
-            ));
+            emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_entry_form_failure_value(format!(
+                    "entry_form fn has unsupported arity {} (expected 0 for run-hermetic Layer 1 \
+                     or 2 for :user::process / :user::thread typed-channel contract)",
+                    n
+                )),
+            );
             unsafe { libc::_exit(EXIT_ENTRY_FORM_FAILURE) };
         }
     };
@@ -390,24 +448,35 @@ fn spawn_process_child_branch(
         // already side-effected through the channels.
         Ok(Ok(_)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Err(runtime_err)) => {
-            write_direct_to_stderr(&format!("runtime: {:?}\n", runtime_err));
+            // Arc 170 slice 1i — structured RuntimeError replaces plain text.
+            emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_runtime_value(format!("{}", runtime_err)),
+            );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Err(panic_payload) => {
-            // Arc 170 slice 3 phase C′ — when the panic carried an
-            // AssertionPayload (the assert-eq / raise! / option::expect
-            // path), emit the structured cascade chain as a tagged
-            // EDN line on stderr so the parent's wat-side
-            // `extract-panics` (wat/kernel/hermetic.wat) can rebuild
-            // it. Mirrors `fork.rs::emit_panics_to_stderr`. Plain
-            // panics (bare String / &str payload) skip the emit;
-            // the parent observes the singleton "exited N" path.
+            // Arc 170 slice 1i — all panic paths emit structured EDN.
+            // AssertionPayload carries the full cascade chain + Failure;
+            // plain panics (bare String / &str) emit a message-only Panic.
             if let Some(payload) =
                 panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
             {
                 emit_panics_to_stderr(&world, payload);
+            } else {
+                // Plain panic payload — extract message via downcast.
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else {
+                    "<unknown panic payload>".to_string()
+                };
+                emit_structured_exit(
+                    Some(&world),
+                    crate::runtime::process_died_error_panic_value(msg, None),
+                );
             }
-            write_direct_to_stderr("panic: spawn-process body panicked\n");
             unsafe { libc::_exit(EXIT_PANIC) };
         }
     }

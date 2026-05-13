@@ -621,6 +621,26 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
             },
             EnumVariant::Unit("ChannelDisconnected".into()),
+            // Arc 170 slice 1i — new structured exit variants for all child
+            // exit paths (spawn-process + fork). extract-panics uses the
+            // TypeEnv to reconstruct these variants from EDN on round-trip;
+            // they must be registered here so edn_to_value can find them.
+            EnumVariant::Tagged {
+                name: "StartupError".into(),
+                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "EntryFormFailure".into(),
+                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "MainSignature".into(),
+                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "BadReturn".into(),
+                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
+            },
         ],
     }));
 

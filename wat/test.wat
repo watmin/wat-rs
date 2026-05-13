@@ -537,7 +537,20 @@
              (:wat::core::match stderr-chain
                -> :wat::core::Vector<wat::kernel::ProcessDiedError>
                ((:wat::core::Some sc) sc)
-               (:wat::core::None      chain))))))]
+               ;; Arc 170 slice 1i — substrate contract: every child error
+               ;; MUST emit a structured #wat.kernel/ProcessPanics line.
+               ;; None here means the substrate violated the contract —
+               ;; surface it as a substrate bug, not a silent fallback.
+               ;; Concat actual stderr-lines into the panic message so the
+               ;; substrate's contract violation is self-diagnosing — the
+               ;; reader sees what fd 2 carried (plain text or unparseable
+               ;; EDN) without having to inspect RunResult.stderr separately.
+               (:wat::core::None
+                (:wat::kernel::assertion-failed!
+                  (:wat::core::string::concat
+                    "structured-stderr-only contract violation: child error but no parseable ProcessPanics found on stderr.\nActual stderr content:\n"
+                    (:wat::core::string::join "\n" stderr-lines))
+                  :wat::core::None :wat::core::None)))))))]
     (:wat::core::struct-new :wat::kernel::RunResult
       stdout-lines stderr-lines failure)))
 
@@ -718,7 +731,18 @@
              (:wat::core::match stderr-chain
                -> :wat::core::Vector<wat::kernel::ProcessDiedError>
                ((:wat::core::Some sc) sc)
-               (:wat::core::None      chain))))))]
+               ;; Arc 170 slice 1i — substrate contract: every child error
+               ;; MUST emit structured #wat.kernel/ProcessPanics EDN.
+               ;; Concat actual stderr-lines into the panic message so the
+               ;; substrate's contract violation is self-diagnosing — the
+               ;; reader sees what fd 2 carried (plain text or unparseable
+               ;; EDN) without having to inspect RunResult.stderr separately.
+               (:wat::core::None
+                (:wat::kernel::assertion-failed!
+                  (:wat::core::string::concat
+                    "structured-stderr-only contract violation: child error but no parseable ProcessPanics found on stderr.\nActual stderr content:\n"
+                    (:wat::core::string::join "\n" stderr-lines))
+                  :wat::core::None :wat::core::None)))))))]
     (:wat::core::struct-new :wat::test::RunResultIO
       outputs stderr-lines failure)))
 

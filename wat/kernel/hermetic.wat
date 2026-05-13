@@ -162,7 +162,17 @@
                     (:wat::core::match stderr-chain
                       -> :wat::core::Vector<wat::kernel::ProcessDiedError>
                       ((:wat::core::Some sc) sc)
-                      (:wat::core::None     chain))))))]
+                      ;; Arc 170 slice 1i — substrate contract: every child error
+                      ;; MUST emit structured #wat.kernel/ProcessPanics EDN.
+                      ;; Concat actual stderr-lines into the panic message so
+                      ;; the substrate's contract violation is self-diagnosing
+                      ;; (mirrors wat/test.wat run-hermetic-driver).
+                      (:wat::core::None
+                       (:wat::kernel::assertion-failed!
+                         (:wat::core::string::concat
+                           "structured-stderr-only contract violation: child error but no parseable ProcessPanics found on stderr.\nActual stderr content:\n"
+                           (:wat::core::string::join "\n" stderr-lines))
+                         :wat::core::None :wat::core::None)))))))]
        (:wat::core::struct-new :wat::kernel::RunResult
          stdout-lines
          stderr-lines
