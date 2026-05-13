@@ -161,6 +161,49 @@ pub enum CheckError {
         /// nesting).
         span: Span,
     },
+    /// Arc 170 — Process-output-channel join-before-drain rule.
+    /// A `let` form contains BOTH:
+    ///   - a call to `:wat::kernel::Process/join-result <p>` (blocks
+    ///     until the forked child exits), and
+    ///   - a call to a Process output-channel accessor on the SAME
+    ///     `<p>` — `:wat::kernel::Process/stdout` /
+    ///     `:wat::kernel::Process/stderr` / `:wat::kernel::Process/output`.
+    ///
+    /// The substrate's internal drain threads consume the child's OS
+    /// stdout/stderr pipes and push lines into wat-level Receivers
+    /// obtained via `Process/stdout` / `Process/stderr`. If those
+    /// internal Receivers are bounded and the parent has not yet
+    /// consumed them, the drain threads block on send when full;
+    /// child's stdout writes fill the OS pipe and block; **child
+    /// cannot exit; parent's `Process/join-result` blocks forever.**
+    ///
+    /// The rule from SERVICE-PROGRAMS.md § "The lockstep" applied at
+    /// the Process boundary: outer scope holds the Process; inner
+    /// scope owns every output-channel Receiver derived from it; the
+    /// inner body drains them; the outer scope's `join-result` runs
+    /// AFTER the inner has fully consumed-and-disconnected the
+    /// drain pipeline.
+    ///
+    /// Sibling rule to `ScopeDeadlock`: scope-deadlock catches
+    /// Sender clones alive at thread/process join. This rule catches
+    /// the inverse — output Receivers (which gate the substrate's
+    /// internal Senders for stdout/stderr drain threads) alive at
+    /// Process/join-result. Both produce the same deadlock signature.
+    ProcessJoinBeforeOutputDrain {
+        /// Name of the Process identifier the join-result is called
+        /// on (matches the identifier of the conflicting accessor).
+        /// Often a fn parameter; can also be a let binding.
+        process_identifier: String,
+        /// The output-channel accessor in conflict —
+        /// `":wat::kernel::Process/stdout"`,
+        /// `":wat::kernel::Process/stderr"`, etc. Names which
+        /// substrate accessor's Receiver gates the deadlock.
+        output_accessor: String,
+        /// Source location of the `Process/join-result` call.
+        join_span: Span,
+        /// Source location of the conflicting output accessor call.
+        output_span: Span,
+    },
     /// Arc 126 — a function call passes two arguments that trace
     /// back to the same `:wat::kernel::make-bounded-channel` /
     /// `make-unbounded-channel` pair-anchor. One argument is a
@@ -649,6 +692,19 @@ impl fmt::Display for CheckError {
                 "scope-deadlock at {}: Thread/join-result on '{}' would block. Sibling binding '{}' (a {}) holds a Sender clone that outlives the worker; the worker's recv never sees EOF. Fix: nest the {} binding (and any other Sender clones) in an inner let whose body returns '{}' — outer scope holds only the Thread. SERVICE-PROGRAMS.md § \"The lockstep\".",
                 span, thread_binding, offending_binding, offending_kind, offending_kind, thread_binding
             ),
+            CheckError::ProcessJoinBeforeOutputDrain {
+                process_identifier,
+                output_accessor,
+                join_span,
+                output_span,
+            } => write!(
+                f,
+                "process-join-before-output-drain at {join}: `:wat::kernel::Process/join-result {p}` and `{acc} {p}` appear in the same `let` form (sibling bindings or body). `Process/join-result` BLOCKS until the forked child exits. The substrate's internal drain threads consume the child's OS stdout/stderr pipes and push lines into the wat-level Receivers obtained via `{acc}`. If those Receivers are bounded and the parent has not yet drained them, the substrate's drain threads block on send when full; the child's stdout writes fill the OS pipe and block; the child CANNOT EXIT; `Process/join-result` BLOCKS FOREVER. ILLEGAL STATEMENT ORIENTATION: the output accessor call is at {out_loc}. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: outer scope holds the Process; INNER scope owns every output-channel Receiver derived from it and drains them; outer scope's `Process/join-result` runs only AFTER the inner has consumed-and-disconnected (Receivers dropped at inner-scope exit). DO NOT add a wall-clock timeout to mask this — restructure the let.",
+                join = join_span,
+                out_loc = output_span,
+                p = process_identifier,
+                acc = output_accessor,
+            ),
             CheckError::ChannelPairDeadlock {
                 callee,
                 sender_arg,
@@ -944,6 +1000,16 @@ impl CheckError {
                 .field("offending_binding", offending_binding.as_str())
                 .field("offending_kind", *offending_kind)
                 .field("location", format!("{}", span)),
+            CheckError::ProcessJoinBeforeOutputDrain {
+                process_identifier,
+                output_accessor,
+                join_span,
+                output_span,
+            } => Diagnostic::new("ProcessJoinBeforeOutputDrain")
+                .field("process_identifier", process_identifier.as_str())
+                .field("output_accessor", output_accessor.as_str())
+                .field("join_location", format!("{}", join_span))
+                .field("output_location", format!("{}", output_span)),
             CheckError::ChannelPairDeadlock {
                 callee,
                 sender_arg,
@@ -3171,6 +3237,81 @@ fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static 
         return type_contains_sender_kind(&peeled, types);
     }
     None
+}
+
+/// Arc 170 — Process-output-channel join-before-drain detection.
+///
+/// Walks `node` (and its children, recursively) collecting every call site
+/// of `:wat::kernel::Process/join-result <p>` and every call site of a
+/// Process output-channel accessor on the same `<p>`:
+///   - `:wat::kernel::Process/stdout`
+///   - `:wat::kernel::Process/stderr`
+///   - `:wat::kernel::Process/output`
+///
+/// If both are found in the same syntactic scope and reference the same
+/// process identifier, this is the illegal statement orientation that
+/// produces the documented deadlock — substrate drain threads consume
+/// the child's OS pipes, push into wat-level Receivers; if those
+/// Receivers are bounded and the parent has not yet drained them,
+/// substrate threads block on send; the child blocks on stdout write;
+/// `Process/join-result` blocks forever.
+///
+/// Returns `(process_identifier, output_accessor, join_span, output_span)`
+/// for the first conflict found. None if no conflict.
+fn find_process_join_before_drain(
+    node: &WatAST,
+) -> Option<(String, String, Span, Span)> {
+    // First pass: collect all Process/join-result and Process/<accessor>
+    // calls in this node (let body or expression). We don't recurse into
+    // nested fn bodies — the rule is about a single let's lexical scope.
+    let mut joins: Vec<(String, Span)> = Vec::new();
+    let mut accessors: Vec<(String, String, Span)> = Vec::new(); // (proc, accessor, span)
+    collect_process_calls(node, &mut joins, &mut accessors);
+    // Look for any (proc, _, join_span) and (proc, accessor, accessor_span)
+    // pair on the SAME process identifier.
+    for (join_proc, join_span) in &joins {
+        for (acc_proc, acc_name, acc_span) in &accessors {
+            if join_proc == acc_proc {
+                return Some((
+                    join_proc.clone(),
+                    acc_name.clone(),
+                    join_span.clone(),
+                    acc_span.clone(),
+                ));
+            }
+        }
+    }
+    None
+}
+
+fn collect_process_calls(
+    node: &WatAST,
+    joins: &mut Vec<(String, Span)>,
+    accessors: &mut Vec<(String, String, Span)>,
+) {
+    let WatAST::List(items, span) = node else { return };
+    if let Some(WatAST::Keyword(k, _)) = items.first() {
+        match k.as_str() {
+            ":wat::kernel::Process/join-result" => {
+                if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                    joins.push((id.name.clone(), span.clone()));
+                }
+            }
+            acc @ (":wat::kernel::Process/stdout"
+            | ":wat::kernel::Process/stderr"
+            | ":wat::kernel::Process/output") => {
+                if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                    accessors.push((id.name.clone(), acc.to_string(), span.clone()));
+                }
+            }
+            // Do NOT recurse into nested fn bodies — they're separate scopes.
+            ":wat::core::fn" | ":wat::core::lambda" => return,
+            _ => {}
+        }
+    }
+    for child in items {
+        collect_process_calls(child, joins, accessors);
+    }
 }
 
 /// Walk `node` looking for `(:wat::kernel::Thread/join-result thr)` or
@@ -6698,6 +6839,36 @@ fn infer_let(
         env.types(),
         errors,
     );
+
+    // Arc 170 — Process-output-channel join-before-drain rule.
+    // Structural check on the let's syntactic scope (bindings + body).
+    // Fires when the SAME `let` contains both `Process/join-result <p>`
+    // and `Process/{stdout,stderr,output} <p>` on the same identifier.
+    // See ProcessJoinBeforeOutputDrain Display for the rule rationale.
+    {
+        let mut let_scope_items: Vec<WatAST> = Vec::with_capacity(bindings_pairs.len() + 1);
+        let_scope_items.push(WatAST::Keyword(":wat::core::let".into(), Span::unknown()));
+        for pair in &bindings_pairs {
+            // pair is (name expr); we need to scan the expr (RHS).
+            if let WatAST::List(items, _) = pair {
+                if items.len() == 2 {
+                    let_scope_items.push(items[1].clone());
+                }
+            }
+        }
+        let_scope_items.push(body_ast.clone());
+        let let_scope = WatAST::List(let_scope_items, Span::unknown());
+        if let Some((proc_id, accessor, join_span, output_span)) =
+            find_process_join_before_drain(&let_scope)
+        {
+            errors.push(CheckError::ProcessJoinBeforeOutputDrain {
+                process_identifier: proc_id,
+                output_accessor: accessor,
+                join_span,
+                output_span,
+            });
+        }
+    }
 
     infer(&body_ast, env, &extended, fresh, subst, errors)
 }
