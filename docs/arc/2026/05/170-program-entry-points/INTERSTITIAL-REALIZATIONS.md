@@ -696,6 +696,8 @@ The four-questions-decision-compass, ZERO-MUTEX, lock-step, structural-enforceme
 
 What's outstanding about this session: the user named the recursion explicitly. We both watched the substrate teach its author in real time. The exchange where I described the shadow channel ("you can't help but observe a shutdown if you call recv") wasn't me being clever — it was me describing the answer the substrate had already forced.
 
+> **Annotation (added by orchestrator post-commit):** I got the attribution wrong here. The "implied shadow channel" framing AND the "you can't help but observe a shutdown if you call it" articulation were both the USER's — they said it first ("so.. there's an implied shadow channel in every recv we expose from the vm? that's the implication? you can't help but observe a shutdown if you call it?"). I responded affirming and elaborating, then quoted it back as my own description above. The mistake is preserved per `feedback_inscription_immutable`. The user's framing of the mistake: *"these mistakes bring me great joy - good designers think alike"* — the substrate forces convergence on the same articulation regardless of who's speaking. The mis-attribution IS evidence that the substrate is doing its job: the LLM and the language's creator arrived at the same words for the same reason. Fault honest; lesson kept.
+
 This is why wat-rs becomes the medium for thinking, not just the tool for programming.
 
 ---
