@@ -284,7 +284,11 @@ pub fn sender_close(
 ///
 /// Blocks until a value flows or the peer disconnects.
 ///
-/// - Tier 1 (Crossbeam): blocks on the crossbeam recv.
+/// - Tier 1 (Crossbeam): blocks on the crossbeam recv, multiplexed
+///   against `SHUTDOWN_RX` so a process-wide shutdown signal wakes
+///   blocked recvs (arc 170 Slice B). If `SHUTDOWN_RX` is not yet
+///   initialized (bootstrap pre-init or test bypass), falls back to
+///   bare recv — should not happen in production paths.
 /// - Tier 2 (PipeFd): reads one line from the fd, parses as EDN
 ///   via `read_edn`. The `types` registry interprets `#ns/Name`
 ///   tags as tagged structs / enums.
@@ -294,10 +298,29 @@ pub fn typed_recv(
     span: Span,
 ) -> RecvOutcome {
     match receiver {
-        ReceiverInner::Crossbeam(rx) => match rx.recv() {
-            Ok(v) => RecvOutcome::Value(v),
-            Err(_) => RecvOutcome::Disconnected,
-        },
+        ReceiverInner::Crossbeam(rx) => {
+            let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
+            match shutdown_rx {
+                Some(srx) => {
+                    crossbeam_channel::select! {
+                        recv(rx) -> msg => match msg {
+                            Ok(v) => RecvOutcome::Value(v),
+                            Err(_) => RecvOutcome::Disconnected,
+                        },
+                        recv(srx) -> _ => RecvOutcome::Shutdown,
+                    }
+                }
+                None => {
+                    // Bootstrap pre-init or test bypass — fall back to bare recv.
+                    // Should not happen in production paths; init_shutdown_signal()
+                    // runs before any wat code can execute (freeze.rs:233).
+                    match rx.recv() {
+                        Ok(v) => RecvOutcome::Value(v),
+                        Err(_) => RecvOutcome::Disconnected,
+                    }
+                }
+            }
+        }
         ReceiverInner::PipeFd(reader) => match reader.read_line(span) {
             Ok(Some(line)) => {
                 let trimmed = line.trim_end_matches('\n');
@@ -319,9 +342,13 @@ pub fn typed_recv(
 
 /// Non-blocking variant of [`typed_recv`].
 ///
-/// - Tier 1 (Crossbeam): `try_recv`; immediate `Disconnected` on
-///   empty-or-disconnected (per the existing FOUNDATION contract
-///   of `:wat::kernel::try-recv`).
+/// - Tier 1 (Crossbeam): checks `SHUTDOWN_RX` first (fast path on
+///   shutdown active), then `try_recv` on the data channel (arc 170
+///   Slice B). On shutdown active → `RecvOutcome::Shutdown`. On data
+///   ready → `RecvOutcome::Value`. On empty-or-disconnected →
+///   `RecvOutcome::Disconnected`. The order matters: shutdown checked
+///   first so it overrides any pending Value (the process is going
+///   down; honest reporting).
 /// - Tier 2 (PipeFd): NOT YET IMPLEMENTED — pipe fds are
 ///   blocking by default, and the substrate doesn't currently
 ///   set O_NONBLOCK on Process pipes. Callers that reach for
@@ -335,10 +362,24 @@ pub fn typed_try_recv(
     _span: Span,
 ) -> RecvOutcome {
     match receiver {
-        ReceiverInner::Crossbeam(rx) => match rx.try_recv() {
-            Ok(v) => RecvOutcome::Value(v),
-            Err(_) => RecvOutcome::Disconnected,
-        },
+        ReceiverInner::Crossbeam(rx) => {
+            let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
+            if let Some(srx) = shutdown_rx {
+                // Non-blocking: check shutdown first (fast path on shutdown active).
+                // Treat Disconnected on SHUTDOWN_RX the same as a shutdown signal —
+                // the sender was dropped, which means trigger_shutdown() ran.
+                match srx.try_recv() {
+                    Ok(_) | Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                        return RecvOutcome::Shutdown;
+                    }
+                    Err(crossbeam_channel::TryRecvError::Empty) => {}
+                }
+            }
+            match rx.try_recv() {
+                Ok(v) => RecvOutcome::Value(v),
+                Err(_) => RecvOutcome::Disconnected,
+            }
+        }
         ReceiverInner::PipeFd(_) => RecvOutcome::Disconnected,
     }
 }

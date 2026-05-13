@@ -79,7 +79,24 @@ pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 // children.
 
 extern "C" fn substrate_on_stop_signal(_sig: libc::c_int) {
+    // Arc 106 — flip the kernel stop flag (existing, async-signal-safe:
+    // AtomicBool::store uses a single atomic instruction).
     crate::runtime::request_kernel_stop();
+    // Arc 170 Slice B — wake the shutdown worker via the wake pipe so
+    // blocked crossbeam recvs are unblocked (via SHUTDOWN_RX Disconnected).
+    // ONLY libc::write is called here — it is on the POSIX async-signal-safe
+    // list per signal-safety(7). crossbeam::Sender::send is NOT async-signal-safe
+    // and must NOT be called from a signal handler. The worker thread reads the
+    // byte and calls trigger_shutdown() in normal (non-signal) context.
+    let fd = crate::runtime::SHUTDOWN_WAKE_WRITE_FD.load(Ordering::SeqCst);
+    if fd >= 0 {
+        let byte: u8 = b'!';
+        // Safety: libc::write is async-signal-safe per signal-safety(7).
+        // `fd` is a valid write end of the wake pipe, set before the first
+        // signal handler can fire (init_shutdown_signal() is called at
+        // bootstrap, before any user code runs).
+        unsafe { libc::write(fd, &byte as *const u8 as *const libc::c_void, 1) };
+    }
 }
 
 extern "C" fn substrate_on_sigusr1(_sig: libc::c_int) {

@@ -15690,13 +15690,14 @@ fn eval_kernel_try_recv(
                 span: list_span.clone(),
             })
         }
-        // arc 170 Slice A — variant added; try-recv is non-blocking so
-        // Shutdown maps to Disconnected collapse (FOUNDATION's empty /
-        // disconnected collapse contract for try-recv). Slice B refines
-        // if a real consumer surfaces need for try-recv to distinguish
-        // shutdown from empty.
+        // arc 170 Slice B — try-recv maps Shutdown to Err(Shutdown)
+        // (same as recv's contract). Consistent: callers can distinguish
+        // shutdown from empty/disconnected via Result/Err vs Ok/None.
+        // This overrides Slice A's placeholder (Ok(None) collapse).
         crate::typed_channel::RecvOutcome::Shutdown => {
-            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
+            Ok(Value::Result(Arc::new(Err(
+                single_died_chain(thread_died_error_shutdown()),
+            ))))
         }
     }
 }
