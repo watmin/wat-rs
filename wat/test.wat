@@ -257,22 +257,20 @@
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :wat::core::None))
 
-;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031) ───
+;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031; arc 170 slice 3 phase E V5) ───
 ;;
-;; Registers a named zero-arg test function that returns RunResult.
-;; The body runs inside a sandboxed world that INHERITS the outer
-;; test file's committed dims + capacity-mode (arc 031). The
-;; `prelude` list splices startup forms (loads, type declarations,
-;; defmacros) BEFORE the auto-generated `:user::main`. Empty `()`
-;; prelude = no startup forms, the minimal shape.
-;;
-;; The test file's top-level preamble is the single declaration
-;; site for config — needed only when overriding defaults (e.g.
-;; switching capacity-mode from :error to :panic, or installing
-;; a custom set-dim-router! / sigma-fn). Every deftest below
-;; inherits whatever the preamble committed (and the substrate
-;; defaults for whatever the preamble omits) through the
-;; sandbox's Config-inheritance path. No per-test re-declaration.
+;; Registers a named zero-arg test function that returns TestResult (= RunResult).
+;; The body runs in a hermetic subprocess via :wat::test::run-hermetic
+;; (arc 170 slice 3 phase C). Subprocess isolation is the default —
+;; every deftest is hermetic. The `prelude` list splices top-level
+;; forms (loads, type declarations, defmacros, struct/enum definitions)
+;; at the deftest's EXPANSION SITE under (:wat::core::do ...), registering
+;; them in the outer symbol table and TypeEnv at freeze time.
+;; Gap J (arc 170 slice 3) ensures type declarations (struct/enum/newtype/
+;; typealias) nested in the outer do are registered in the TypeEnv.
+;; Gap F-1 ensures struct/enum accessor stubs are pre-registered.
+;; Gap F-3 propagates the outer TypeEnv into the spawned child so the
+;; child's hermetic subprocess sees the same types.
 ;;
 ;; Shape — empty prelude:
 ;;
@@ -280,42 +278,29 @@
 ;;     ()
 ;;     (:wat::test::assert-eq (:wat::core::i64::+'2 2 2) 4))
 ;;
-;; Shape — loads in prelude (arc 027 slice 4):
+;; Shape — type declarations in prelude:
 ;;
-;;   (:wat::test::deftest :my::test::with-loads
-;;     ((:wat::load-file! "wat/types/candle.wat")
-;;      (:wat::load-file! "wat/vocab/shared/time.wat"))
+;;   (:wat::test::deftest :my::test::with-types
+;;     ((:wat::core::struct :svc::State (counter :wat::core::i64))
+;;      (:wat::core::typealias :svc::Alias :wat::core::i64))
 ;;     (:wat::test::assert-eq ...))
 ;;
 ;; Expansion:
 ;;
-;;   (:wat::core::define (:my::test::two-plus-two -> :wat::kernel::RunResult)
-;;     (:wat::kernel::run-sandboxed-ast
-;;       (:wat::core::forms
-;;         <prelude spliced here>
-;;         (:wat::core::define (:user::main
-;;                              (stdin  :wat::io::IOReader)
-;;                              (stdout :wat::io::IOWriter)
-;;                              (stderr :wat::io::IOWriter)
-;;                              -> :())
-;;           <body>))
-;;       (:wat::core::Vector :wat::core::String)
-;;       :None))
+;;   (:wat::core::do
+;;     <prelude spliced here — top-level forms registered at freeze time>
+;;     (:wat::core::define (:my::test::two-plus-two -> :wat::test::TestResult)
+;;       (:wat::test::run-hermetic <body>)))
 (:wat::core::defmacro
   (:wat::test::deftest
     (name :AST<wat::core::nil>)
     (prelude :AST<wat::core::nil>)
     (body :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
-  `(:wat::core::define (~name -> :wat::test::TestResult)
-     (:wat::kernel::run-sandboxed-ast
-       (:wat::core::forms
-         ~@prelude
-         (:wat::core::define
-           (:user::main -> :wat::core::nil)
-           ~body))
-       (:wat::core::Vector :wat::core::String)
-       :wat::core::None)))
+  `(:wat::core::do
+     ~@prelude
+     (:wat::core::define (~name -> :wat::test::TestResult)
+       (:wat::test::run-hermetic ~body))))
 
 ;; ─── deftest-hermetic — same shape, forked child for isolation ────────
 ;;
