@@ -121,8 +121,7 @@ fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::define (:h::helper -> :wat::core::i64) 42)
@@ -152,8 +151,7 @@ fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::struct :h::LocalPoint
@@ -185,8 +183,7 @@ fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::enum :h::LocalDir
@@ -218,8 +215,7 @@ fn probe_mixed_prelude_lift() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::struct :h::LocalItem
@@ -278,8 +274,7 @@ fn probe_prelude_prefix_terminates_at_first_expression() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::define (:h::counted-helper -> :wat::core::i64) 7)

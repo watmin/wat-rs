@@ -16,8 +16,41 @@ the runtime shares with the spawning context:
 |---|---|---|---|---|---|
 | **0** — runtime env | call stack | direct call `(f x y)` | call stack | (the eval loop itself) | NO |
 | **1** — threads | memory (same wat world) | `Sender<T>` / `Receiver<T>` | crossbeam channels (in-memory typed Values) | `(:wat::kernel::spawn-thread fn)` | NO |
-| **2** — processes | host (filesystem, OS kernel) | `Sender<T>` / `Receiver<T>` | EDN-over-pipes (substrate encodes/decodes) | `(:wat::kernel::spawn-process fn)` | YES |
+| **2** — processes | host (filesystem, OS kernel) | `Sender<T>` / `Receiver<T>` (**wat-level wrapper** over OS pipes — see amendment below) | EDN-over-pipes (substrate encodes/decodes) | `(:wat::kernel::spawn-process fn)` | YES |
 | **3** — remote programs *(future)* | network | `Sender<T>` / `Receiver<T>` (Q-channel multiplex) | EDN-over-sockets | `(:wat::kernel::spawn-remote-program fn)` | YES |
+
+### Arc 170 Stone C amendment — tier-2 Sender/Receiver implementation
+
+At tier 1, `Sender<T>` / `Receiver<T>` are substrate-built-in crossbeam-backed types.
+At tier 2, the uniformity claim holds for the USER: they write the same `Sender<T>` /
+`Receiver<T>` shape. But the implementation differs:
+
+- **Tier 2 canonical I/O:** child fn is `[] -> :wat::core::nil`. Child reads via
+  `(:wat::kernel::readln -> :T)` and writes via `(:wat::kernel::println v)` — ambient
+  stdio wired by `bootstrap_wat_vm_process` (Stone A's helper) at child startup.
+  `readln`/`println` route through the StdInService / StdOutService / StdErrService trio
+  that own fd 0/1/2 inside the child process.
+
+- **Tier 2 typed-channel wrapper (parent side):** the parent accesses the child's stdio
+  via `Process/stdin` (IOWriter) and `Process/stdout` (IOReader). To get typed
+  `Sender<T>` / `Receiver<T>` semantics over the OS pipes, the parent wraps:
+  `(:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))` →
+  `Sender<T>` (EDN-encodes + writes a line per send).
+  `(:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))` →
+  `Receiver<T>` (reads a line + EDN-decodes per recv).
+
+- **Uniformity verdict:** the user-API surface IS uniform across tiers (same
+  `Sender<T>` / `Receiver<T>` mental model). The IMPLEMENTATION is not: tier 1 uses
+  crossbeam (in-process memory); tier 2 uses `from-pipe` wrappers (OS pipes + EDN
+  encoding). The substrate's secret at tier 2 is EDN serialization. The testing lib's
+  `run-hermetic-with-io` macro hides the `from-pipe` wrapping from test authors — they
+  see only `rx` / `tx` bindings and typed values, as at tier 1.
+
+- **`:user::process` contract change (Stone C):** from `[rx <- Receiver<I> tx <- Sender<O>] -> :wat::core::nil`
+  (slice 1c wrong turn) to `[] -> :wat::core::nil` (Stone C canonical). Children reach
+  for ambient stdio rather than receiving pipe handles as fn parameters. The slice 1c
+  shape tried to wire typed channels INTO the child as params — this raced with the
+  bootstrap services that own the same fds.
 
 Each tier "shares less" than the previous. The tier number is
 the depth of isolation — tier 0 shares everything (same eval
@@ -200,14 +233,14 @@ captures the form for compaction-survival per user direction
 
 ### What disappears from the user's view
 
-| Where | Before | After |
+| Where | Before (pre-arc-170) | After (arc 170 Stone C) |
 |---|---|---|
-| `:user::process` contract | `[stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil` | `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil` |
+| `:user::process` contract | `[stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil` (then slice 1c wrong turn: `[rx <- Receiver<I> tx <- Sender<O>] -> nil`) | `[] -> :wat::core::nil` — child uses `readln`/`println` via ambient stdio |
 | Layer 1 fn ceremony (`run-hermetic`) | user writes `(:wat::core::fn [stdin <- ... stdout <- ...] -> :wat::core::nil body)` | user writes just the body; macro generates `(fn [] -> :wat::core::nil body)` wrapper |
-| Layer 2 fn ceremony (`run-hermetic-with-io`) | user writes the full fn-form with typed channels | user writes just the body; macro introduces `rx` and `tx` as bindings + generates the fn-form wrapper |
-| `:wat::kernel::Process<I,O>` struct | `{ stdin :IOWriter, stdout :IOReader, stderr :IOReader, handle }` | `{ tx :Sender<I>, rx :Receiver<O>, handle }` |
+| Layer 2 fn ceremony (`run-hermetic-with-io`) | user writes the full fn-form with typed channels | user writes just the body; macro introduces `rx` and `tx` as bindings; child uses `readln`/`println`; parent uses `from-pipe` wrappers |
+| `:wat::kernel::Process<I,O>` struct | `{ tx :Sender<I>, rx :Receiver<O>, handle }` (slice 1c) | `{ stdin :IOWriter, stdout :IOReader, stderr :IOReader, handle }` (Stone C canonical — 4 fields) |
 | Testing lib `RunResult` | `{ stdout :Vec<String>, stderr :Vec<String>, failure }` | `{ outputs :Vec<O>, failure }` (parsed Values) |
-| Testing lib stdin input | `Vec<String>` (joined to bytes) | `Vec<I>` (typed Values) |
+| Testing lib stdin input | `Vec<String>` (joined to bytes) | `Vec<I>` (typed Values via `Sender/from-pipe`) |
 
 The tier-2 substrate transport (linux fds + EDN encoding) is
 substrate-internal plumbing. Users at tier 2 work in `Sender<T>` /
@@ -328,15 +361,17 @@ want one thing: "run this code; tell me if it broke."
 ;; user sees typed Values both directions
 
 ;; LAYER 3 — the 1% case: full substrate, no testing-lib wrapper
-;; The substrate primitive expects an explicit fn — production code
-;; opts into the full surface.
+;; Stone C contract: child fn is [] -> :wat::core::nil.
+;; Child uses readln/println; parent wraps Process/stdin + Process/stdout
+;; with Sender/from-pipe / Receiver/from-pipe for typed semantics.
 (:wat::kernel::spawn-process
   (:wat::core::fn
-    [rx <- :wat::kernel::Receiver<I>
-     tx <- :wat::kernel::Sender<O>]
+    []
     -> :wat::core::nil
-    ...))
+    ...  ;; body uses (:wat::kernel::readln -> :T) + (:wat::kernel::println v)
+    ))
 ;; this is the production form; not for tests
+;; (arc 170 Stone C amended: old [rx tx] shape was the slice-1c wrong turn)
 ```
 
 ### What disappears from the testing surface

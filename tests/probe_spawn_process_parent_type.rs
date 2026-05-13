@@ -122,8 +122,7 @@ fn probe_spawn_process_inherits_parent_struct() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::let
                 [s "#test.proto/Point {:x 3 :y 4}"
@@ -168,8 +167,7 @@ fn probe_spawn_process_inherits_parent_enum() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::let
                 [s "#test.proto.Color/Red nil"
@@ -227,8 +225,7 @@ fn probe_spawn_process_inherits_parametric_type() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::let
                 [s "#test.proto/Wrapper {:label :empty :value 42}"

@@ -182,16 +182,22 @@ fn unwrap_receiver_inner(v: &Value) -> &wat::typed_channel::ReceiverInner {
     }
 }
 
-fn process_tx_field(process: &Value) -> &Value {
+fn process_stdin_field(process: &Value) -> Arc<dyn wat::io::WatWriter> {
     match process {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => &s.fields[4],
+        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => match &s.fields[0] {
+            Value::io__IOWriter(w) => w.clone(),
+            other => panic!("expected IOWriter at fields[0]; got {:?}", other),
+        },
         other => panic!("expected Process Struct; got {:?}", other),
     }
 }
 
-fn process_rx_field(process: &Value) -> &Value {
+fn process_stdout_field(process: &Value) -> Arc<dyn wat::io::WatReader> {
     match process {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => &s.fields[5],
+        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => match &s.fields[1] {
+            Value::io__IOReader(r) => r.clone(),
+            other => panic!("expected IOReader at fields[1]; got {:?}", other),
+        },
         other => panic!("expected Process Struct; got {:?}", other),
     }
 }
@@ -220,33 +226,19 @@ fn wait_child_exit_ok(handle: Arc<wat::runtime::ProgramHandleInner>) {
 
 #[test]
 fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
-    // Top-level defn satisfying `:user::process` shape — read one
-    // i64 from rx, send back rx + 1 on tx, return nil. spawn-process
-    // forks an OS process; parent sends 41; child responds 42; parent
-    // recv'd 42; child exits 0.
-    // Note: closure_extract slice 1's free-symbol walker does NOT
-    // track match-arm pattern bindings — names introduced by
-    // (:wat::core::Some n) inside a match pattern surface as "free"
-    // in the arm body. Honest delta from slice 2 testing: we use
-    // nested `expect`s to extract the recv'd value, avoiding match
-    // patterns. Result/expect / Option/expect are valid scrutinee
-    // positions for kernel::recv per arc 110 § CommCallOutOfPosition.
+    // Stone C contract: child is [] -> nil; uses readln/println through
+    // bootstrap services. Top-level defn reads one i64 via readln,
+    // sends back n+1 via println, returns nil. spawn-process forks an
+    // OS process; parent sends 41 via Sender/from-pipe over Process/stdin;
+    // child responds 42 via println (stdout pipe); parent reads 42 via
+    // Receiver/from-pipe over Process/stdout; child exits 0.
     let src = r#"
         (:wat::core::defn :my::echo-plus-one
-          [rx <- :wat::kernel::Receiver<wat::core::i64>
-           tx <- :wat::kernel::Sender<wat::core::i64>]
+          []
           -> :wat::core::nil
           (:wat::core::let
-            [n
-              (:wat::core::Option/expect -> :wat::core::i64
-                (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
-                  (:wat::kernel::recv rx)
-                  "recv failed")
-                "stream closed")
-             _send
-              (:wat::core::Result/expect -> :wat::core::nil
-                (:wat::kernel::send tx (:wat::core::i64::+'2 n 1))
-                "send failed")]
+            [n    (:wat::kernel::readln -> :wat::core::i64)
+             _out (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
             :wat::core::nil))
     "#;
     let world = freeze_ok(src);
@@ -261,9 +253,12 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
     let types = world.symbols().types().map(|a| a.as_ref());
-    // Parent sends 41 to child via tx.
+    // Parent sends 41 to child via Sender/from-pipe wrapping Process/stdin (IOWriter).
+    let stdin_writer = process_stdin_field(&process);
+    let sender_val = wat::typed_channel::sender_from_pipe(stdin_writer);
+    let sender_inner = unwrap_sender_inner(&sender_val);
     let outcome = wat::typed_channel::typed_send(
-        unwrap_sender_inner(process_tx_field(&process)),
+        sender_inner,
         Value::i64(41),
         types,
         wat::span::Span::unknown(),
@@ -272,10 +267,16 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
         matches!(outcome, wat::typed_channel::SendOutcome::Ok),
         "send should succeed"
     );
+    // Drop sender so child's readln sees EOF after the first read (not needed
+    // for single-value round-trip, but avoids child blocking on a second readln).
+    drop(sender_val);
     // Parent recvs response — should be 42. On unexpected close, drain
     // stderr so we surface the child's diagnostic in the panic message.
+    let stdout_reader = process_stdout_field(&process);
+    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_inner = unwrap_receiver_inner(&receiver_val);
     let recv_outcome = wat::typed_channel::typed_recv(
-        unwrap_receiver_inner(process_rx_field(&process)),
+        receiver_inner,
         types,
         wat::span::Span::unknown(),
     );
@@ -315,31 +316,20 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
 
 #[test]
 fn t5_spawn_process_inline_lambda_round_trips() {
-    // No top-level defn — pass an inline (:wat::core::fn ...) directly
-    // as the spawn-process arg. Slice 1b's inline-lambda entry_form
-    // path: extract_closure produces a fn-form AST as entry_form.
-    // The child evaluates the fn-form to get a fresh fn Value and
-    // applies it.
+    // Stone C: No top-level defn — pass an inline (:wat::core::fn ...) directly
+    // as the spawn-process arg. Slice 1b's inline-lambda entry_form path.
+    // Child is [] -> nil; uses readln/println through bootstrap services.
     let src = r#"
         (:wat::core::define
           (:my::launch
             -> :wat::kernel::Process<wat::core::i64,wat::core::i64>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [rx <- :wat::kernel::Receiver<wat::core::i64>
-               tx <- :wat::kernel::Sender<wat::core::i64>]
+              []
               -> :wat::core::nil
               (:wat::core::let
-                [n
-                  (:wat::core::Option/expect -> :wat::core::i64
-                    (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
-                      (:wat::kernel::recv rx)
-                      "recv failed")
-                    "stream closed")
-                 _send
-                  (:wat::core::Result/expect -> :wat::core::nil
-                    (:wat::kernel::send tx (:wat::core::i64::*'2 n 2))
-                    "send failed")]
+                [n    (:wat::kernel::readln -> :wat::core::i64)
+                 _out (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
                 :wat::core::nil))))
     "#;
     let world = freeze_ok(src);
@@ -353,14 +343,23 @@ fn t5_spawn_process_inline_lambda_round_trips() {
     )
     .expect(":my::launch runs");
     let types = world.symbols().types().map(|a| a.as_ref());
+    // Parent sends 21 via Sender/from-pipe wrapping Process/stdin.
+    let stdin_writer = process_stdin_field(&process);
+    let sender_val = wat::typed_channel::sender_from_pipe(stdin_writer);
+    let sender_inner = unwrap_sender_inner(&sender_val);
     let outcome = wat::typed_channel::typed_send(
-        unwrap_sender_inner(process_tx_field(&process)),
+        sender_inner,
         Value::i64(21),
         types,
         wat::span::Span::unknown(),
     );
     assert!(matches!(outcome, wat::typed_channel::SendOutcome::Ok));
-    let response = drive_typed_recv(unwrap_receiver_inner(process_rx_field(&process)), types);
+    drop(sender_val);
+    // Parent recvs 42 via Receiver/from-pipe wrapping Process/stdout.
+    let stdout_reader = process_stdout_field(&process);
+    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_inner = unwrap_receiver_inner(&receiver_val);
+    let response = drive_typed_recv(receiver_inner, types);
     match response {
         Value::i64(n) => assert_eq!(n, 42, "expected 42; got {}", n),
         other => panic!("expected i64; got {:?}", other),
@@ -372,11 +371,11 @@ fn t5_spawn_process_inline_lambda_round_trips() {
 
 #[test]
 fn t6_spawn_process_factory_with_capture_round_trips() {
-    // A factory builds a closure capturing a config value, then
+    // Stone C: A factory builds a closure capturing a config value, then
     // spawn-process forks against the captured fn. Slice 1b's
     // closure-extraction encodes the captured value into prologue
     // (`(def :__captured_offset N)`); the child re-freezes; the
-    // captured offset survives.
+    // captured offset survives. Child is [] -> nil; uses readln/println.
     let src = r#"
         (:wat::core::define
           (:my::launch
@@ -384,20 +383,11 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
             -> :wat::kernel::Process<wat::core::i64,wat::core::i64>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [rx <- :wat::kernel::Receiver<wat::core::i64>
-               tx <- :wat::kernel::Sender<wat::core::i64>]
+              []
               -> :wat::core::nil
               (:wat::core::let
-                [n
-                  (:wat::core::Option/expect -> :wat::core::i64
-                    (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
-                      (:wat::kernel::recv rx)
-                      "recv failed")
-                    "stream closed")
-                 _send
-                  (:wat::core::Result/expect -> :wat::core::nil
-                    (:wat::kernel::send tx (:wat::core::i64::+'2 n offset))
-                    "send failed")]
+                [n    (:wat::kernel::readln -> :wat::core::i64)
+                 _out (:wat::kernel::println (:wat::core::i64::+'2 n offset))]
                 :wat::core::nil))))
     "#;
     let world = freeze_ok(src);
@@ -410,14 +400,23 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     )
     .expect(":my::launch runs");
     let types = world.symbols().types().map(|a| a.as_ref());
+    // Parent sends 7 via Sender/from-pipe wrapping Process/stdin.
+    let stdin_writer = process_stdin_field(&process);
+    let sender_val = wat::typed_channel::sender_from_pipe(stdin_writer);
+    let sender_inner = unwrap_sender_inner(&sender_val);
     let outcome = wat::typed_channel::typed_send(
-        unwrap_sender_inner(process_tx_field(&process)),
+        sender_inner,
         Value::i64(7),
         types,
         wat::span::Span::unknown(),
     );
     assert!(matches!(outcome, wat::typed_channel::SendOutcome::Ok));
-    let response = drive_typed_recv(unwrap_receiver_inner(process_rx_field(&process)), types);
+    drop(sender_val);
+    // Parent recvs 107 (100+7) via Receiver/from-pipe wrapping Process/stdout.
+    let stdout_reader = process_stdout_field(&process);
+    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_inner = unwrap_receiver_inner(&receiver_val);
+    let response = drive_typed_recv(receiver_inner, types);
     match response {
         Value::i64(n) => assert_eq!(n, 107, "expected 100+7=107; got {}", n),
         other => panic!("expected i64; got {:?}", other),
@@ -694,17 +693,13 @@ fn t11_legacy_main_signature_fires_walker_diagnostic() {
 
 #[test]
 fn t12_spawn_process_child_emits_without_recv() {
+    // Stone C: child is [] -> nil; emits via println (no recv).
+    // Parent reads the emitted value from Process/stdout via Receiver/from-pipe.
     let src = r#"
         (:wat::core::defn :my::emit-hello
-          [rx <- :wat::kernel::Receiver<wat::core::nil>
-           tx <- :wat::kernel::Sender<wat::core::String>]
+          []
           -> :wat::core::nil
-          (:wat::core::let
-            [_send
-              (:wat::core::Result/expect -> :wat::core::nil
-                (:wat::kernel::send tx "hello-from-fork")
-                "send failed")]
-            :wat::core::nil))
+          (:wat::kernel::println "hello-from-fork"))
     "#;
     let world = freeze_ok(src);
     let call = WatAST::List(
@@ -717,7 +712,11 @@ fn t12_spawn_process_child_emits_without_recv() {
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
     let types = world.symbols().types().map(|a| a.as_ref());
-    let response = drive_typed_recv(unwrap_receiver_inner(process_rx_field(&process)), types);
+    // Parent reads from Process/stdout via Receiver/from-pipe.
+    let stdout_reader = process_stdout_field(&process);
+    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_inner = unwrap_receiver_inner(&receiver_val);
+    let response = drive_typed_recv(receiver_inner, types);
     match response {
         Value::String(s) => assert_eq!(&*s, "hello-from-fork", "expected hello-from-fork; got {:?}", s),
         other => panic!("expected String; got {:?}", other),
@@ -734,30 +733,27 @@ fn t12_spawn_process_child_emits_without_recv() {
 
 #[test]
 fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
+    // Stone C: child is [] -> nil; returns immediately. Parent drops
+    // the Process (which closes stdin/stdout pipes) → child exits 0.
+    // Tests that drop + wait_child_exit_ok works under Stone C's 0-arity shape.
     let src = r#"
-        (:wat::core::defn :my::wait-for-disconnect
-          [rx <- :wat::kernel::Receiver<wat::core::nil>
-           tx <- :wat::kernel::Sender<wat::core::nil>]
+        (:wat::core::defn :my::immediate-exit
+          []
           -> :wat::core::nil
-          (:wat::core::match (:wat::kernel::recv rx)
-            -> :wat::core::nil
-            ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-            ((:wat::core::Ok (:wat::core::Some _)) :wat::core::nil)
-            ((:wat::core::Err _) :wat::core::nil)))
+          :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let call = WatAST::List(
         vec![
             WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
-            WatAST::Keyword(":my::wait-for-disconnect".into(), wat::span::Span::unknown()),
+            WatAST::Keyword(":my::immediate-exit".into(), wat::span::Span::unknown()),
         ],
         wat::span::Span::unknown(),
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
     let handle = process_handle_field(&process);
-    // Parent does NOT send anything; drop process Struct → tx drops →
-    // child's rx surfaces Disconnected → child returns nil → exit 0.
+    // Drop process Struct → stdin/stdout/stderr pipes close; child exits 0.
     drop(process);
     wait_child_exit_ok(handle);
 }
@@ -771,10 +767,10 @@ fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
 
 #[test]
 fn t14_spawn_process_wait_handle_is_idempotent() {
+    // Stone C: child is [] -> nil.
     let src = r#"
         (:wat::core::defn :my::idle-worker
-          [rx <- :wat::kernel::Receiver<wat::core::nil>
-           tx <- :wat::kernel::Sender<wat::core::nil>]
+          []
           -> :wat::core::nil
           :wat::core::nil)
     "#;
@@ -807,10 +803,13 @@ fn t14_spawn_process_wait_handle_is_idempotent() {
 
 #[test]
 fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
+    // Stone C: child is [] -> nil; panics intentionally before printing.
+    // Parent reads from Process/stdout via Receiver/from-pipe — should
+    // get Disconnected (child panicked before println). Handle exit
+    // code is non-zero (EXIT_PANIC=2).
     let src = r#"
         (:wat::core::defn :my::panic-worker
-          [rx <- :wat::kernel::Receiver<wat::core::nil>
-           tx <- :wat::kernel::Sender<wat::core::nil>]
+          []
           -> :wat::core::nil
           (:wat::core::Option/expect -> :wat::core::nil
             :wat::core::None
@@ -828,15 +827,19 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
     let types = world.symbols().types().map(|a| a.as_ref());
     let handle = process_handle_field(&process);
-    // Parent recvs — child panics before sending anything → Disconnected.
+    // Parent reads from Process/stdout via Receiver/from-pipe.
+    // Child panics before println → stdout pipe closes → Disconnected.
+    let stdout_reader = process_stdout_field(&process);
+    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_inner = unwrap_receiver_inner(&receiver_val);
     let recv_outcome = wat::typed_channel::typed_recv(
-        unwrap_receiver_inner(process_rx_field(&process)),
+        receiver_inner,
         types,
         wat::span::Span::unknown(),
     );
     assert!(
         matches!(recv_outcome, wat::typed_channel::RecvOutcome::Disconnected),
-        "expected Disconnected (child panicked before sending); got {:?}",
+        "expected Disconnected (child panicked before printing); got {:?}",
         recv_outcome,
     );
     // Handle exit code must be non-zero (EXIT_PANIC=2).
@@ -1001,6 +1004,9 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
     // child, have it double the value, and return the result.
     // The child: recv n, send n*2, return nil.
     // Parent assertion: outputs == [42], failure == None.
+    // Stone C: child fn is [] -> nil; uses readln/println through bootstrap services.
+    // run-hermetic-with-io macro expands to [] fn; driver sends via Sender/from-pipe
+    // over Process/stdin; child reads via readln and writes via println.
     let src = r#"
         (:wat::core::define (:my::test::echo-doubled -> :wat::test::RunResultIO<wat::core::i64>)
           (:wat::test::run-hermetic-with-io
@@ -1008,16 +1014,8 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
             :wat::core::i64
             (:wat::core::Vector :wat::core::i64 21)
             (:wat::core::let
-              [n
-                (:wat::core::Option/expect -> :wat::core::i64
-                  (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
-                    (:wat::kernel::recv rx)
-                    "recv failed")
-                  "stream closed")
-               _
-                (:wat::core::Result/expect -> :wat::core::nil
-                  (:wat::kernel::send tx (:wat::core::i64::*'2 n 2))
-                  "send failed")]
+              [n (:wat::kernel::readln -> :wat::core::i64)
+               _ (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
               :wat::core::nil)))
     "#;
     let world = freeze_ok(src);
@@ -1084,6 +1082,8 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
     //
     // T18b also documents D3 honest delta: when the child panics before
     // sending, outputs Vec is empty (the send never happened).
+    // Stone C: child fn is [] -> nil; uses readln/println through bootstrap services.
+    // Child reads n=2 via readln, assert-eq n 3 fails (child panics before println).
     let src = r#"
         (:wat::core::define (:my::test::recv-assert-fail -> :wat::test::RunResultIO<wat::core::i64>)
           (:wat::test::run-hermetic-with-io
@@ -1091,20 +1091,11 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
             :wat::core::i64
             (:wat::core::Vector :wat::core::i64 2)
             (:wat::core::let
-              [n
-                (:wat::core::Option/expect -> :wat::core::i64
-                  (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
-                    (:wat::kernel::recv rx)
-                    "recv failed")
-                  "stream closed")
+              [n (:wat::kernel::readln -> :wat::core::i64)
                ;; assert-eq: n=2 vs expected=3 — this fails, child panics
-               _
-                (:wat::test::assert-eq n 3)
-               ;; send never reached:
-               _2
-                (:wat::core::Result/expect -> :wat::core::nil
-                  (:wat::kernel::send tx n)
-                  "send failed")]
+               _ (:wat::test::assert-eq n 3)
+               ;; println never reached:
+               _2 (:wat::kernel::println n)]
               :wat::core::nil)))
     "#;
     let world = freeze_ok(src);
@@ -1181,10 +1172,10 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
 
 #[test]
 fn t16_spawn_process_sequential_spawns_no_fd_zombie_leak() {
+    // Stone C: child is [] -> nil.
     let src = r#"
         (:wat::core::defn :my::idle-worker-seq
-          [rx <- :wat::kernel::Receiver<wat::core::nil>
-           tx <- :wat::kernel::Sender<wat::core::nil>]
+          []
           -> :wat::core::nil
           :wat::core::nil)
     "#;

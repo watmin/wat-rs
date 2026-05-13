@@ -1380,6 +1380,35 @@ fn arc_109_result_expect_migration_hint(
     )
 }
 
+fn arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(
+    callee: &str,
+    _expected: &str,
+    got: &str,
+) -> Option<String> {
+    let is_retired_verb = matches!(
+        callee,
+        ":wat::kernel::process-send" | ":wat::kernel::process-recv"
+    );
+    let is_retired_got = got.contains("retired verb — arc 170 Stone C");
+    if !is_retired_verb && !is_retired_got {
+        return None;
+    }
+    Some(
+        "arc 170 Stone C — `:wat::kernel::Process` typed-channel API retired. \
+         Real stdio is canonical at OS boundary. \
+         PARENT-SIDE: read outputs via `(:wat::kernel::Process/stdout proc)` → IOReader; \
+         write inputs via `(:wat::kernel::Process/stdin proc)` → IOWriter. \
+         For typed semantics wrap with \
+         `(:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))` \
+         or `(:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))`. \
+         CHILD-SIDE: `:user::process` contract is `[] -> :wat::core::nil`; \
+         use `(:wat::kernel::println v)` to write outputs and \
+         `(:wat::kernel::readln -> :T)` to read inputs (routes through \
+         per-thread services installed by bootstrap — no rx/tx params)."
+            .into(),
+    )
+}
+
 fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     let hints: Vec<String> = [
         arc_114_migration_hint(callee, expected, got),
@@ -1393,6 +1422,7 @@ fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
         arc_109_try_verb_migration_hint(callee, expected, got),
         arc_109_option_expect_migration_hint(callee, expected, got),
         arc_109_result_expect_migration_hint(callee, expected, got),
+        arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(callee, expected, got),
     ]
     .into_iter()
     .flatten()
@@ -12558,31 +12588,20 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // (:wat::kernel::spawn-process body) → :wat::kernel::Process<I,O>.
     //
-    // Arc 170 slice 2. Fn-input sibling of `:wat::kernel::spawn-thread`.
-    // Body is a function whose signature MUST be
-    //   :Fn(:wat::kernel::Receiver<I>, :wat::kernel::Sender<O>)
-    //     -> :wat::core::nil
-    // (the body reads from the input half, writes to the output half;
-    // values flow only through channels — never via a return).
+    // Arc 170 Stone C. The `:user::process` contract is `[] -> :wat::core::nil`.
+    // The child uses `(:wat::kernel::readln -> :T)` and `(:wat::kernel::println v)`
+    // through ambient stdio (fd 0/1/2 wired by `bootstrap_wat_vm_process`).
+    // No rx/tx parameters — that was the slice-1c wrong turn. Real OS stdio
+    // is canonical at the process boundary; users wrap with
+    // `:wat::kernel::Sender/from-pipe` / `:wat::kernel::Receiver/from-pipe`
+    // at the parent side for typed semantics over the OS pipes.
     //
-    // Substrate uses slice 1b's closure extraction to package the fn
-    // for cross-OS-process portability and slice 1c's PipeFd transport
-    // to carry typed Values across the OS-process boundary via EDN-
-    // encoded pipes. Same user-visible interface as spawn-thread; the
-    // hermetic ambient property of tier 2 (per
-    // `docs/arc/2026/05/170-program-entry-points/TIERS.md`) follows
-    // from the OS-process boundary.
+    // The type params I and O are preserved so `Process<I,O>` unifies with
+    // caller-side annotations (e.g. `-> :wat::kernel::Process<i64,i64>`).
+    // Without the fn carrying Receiver<I>/Sender<O>, I and O are inferred
+    // from context (return-type annotation on the outer function).
     let process_body_fn_ty = || TypeExpr::Fn {
-        args: vec![
-            TypeExpr::Parametric {
-                head: "wat::kernel::Receiver".into(),
-                args: vec![TypeExpr::Path(":I".into())],
-            },
-            TypeExpr::Parametric {
-                head: "wat::kernel::Sender".into(),
-                args: vec![TypeExpr::Path(":O".into())],
-            },
-        ],
+        args: vec![],
         ret: Box::new(TypeExpr::Path(":wat::core::nil".into())),
     };
     env.register(

@@ -4092,15 +4092,13 @@ fn dispatch_keyword_head(
         ":wat::kernel::Process/join-result" => {
             eval_kernel_process_join_result(args, env, sym, list_span)
         }
-        // Arc 170 slice 1f-δ — Process IO accessors. Mirror of
-        // Process/join-result (arc 112). Field order in the Process
-        // struct (per src/spawn_process.rs:221-228):
-        //   0 → stdin  (IOWriter)
-        //   1 → stdout (IOReader)
-        //   2 → stderr (IOReader)
+        // Arc 170 Stone C — Process IO accessors. Field order in the
+        // Process struct (per src/spawn_process.rs; 4-field shape):
+        //   0 → stdin  (IOWriter)  — parent writes → child fd 0
+        //   1 → stdout (IOReader)  — child fd 1 → parent reads
+        //   2 → stderr (IOReader)  — child fd 2 → parent reads
         //   3 → ProgramHandle (join field)
-        //   4 → tx (channel Sender)
-        //   5 → rx (channel Receiver)
+        // NO tx/rx fields — slice-1c typed-channel fields retired by Stone C.
         ":wat::kernel::Process/stdin" => {
             eval_kernel_process_stdin(args, env, sym, list_span)
         }
@@ -4110,17 +4108,46 @@ fn dispatch_keyword_head(
         ":wat::kernel::Process/stderr" => {
             eval_kernel_process_stderr(args, env, sym, list_span)
         }
+        // Arc 170 Stone C — Sender/from-pipe + Receiver/from-pipe.
+        // Wrap an IOWriter / IOReader as a PipeFd-backed Sender<T> /
+        // Receiver<T>. The existing (:wat::kernel::send) /
+        // (:wat::kernel::recv) dispatch already handles PipeFd transport
+        // (arc 170 slice 1c's typed_channel::SenderInner::PipeFd);
+        // these constructors are the wat-level bridge to that path.
+        ":wat::kernel::Sender/from-pipe" => {
+            eval_kernel_sender_from_pipe(args, env, sym, list_span)
+        }
+        ":wat::kernel::Receiver/from-pipe" => {
+            eval_kernel_receiver_from_pipe(args, env, sym, list_span)
+        }
         ":wat::kernel::spawn-thread" => {
             eval_kernel_spawn_thread(args, env, sym, list_span)
         }
         ":wat::kernel::Thread/join-result" => {
             eval_kernel_thread_join_result(args, env, sym, list_span)
         }
+        // Arc 170 Stone C — Pattern 2 verb retirement.
+        // process-send / process-recv are RETIRED. Real stdio is canonical
+        // at the OS boundary. Use Process/stdin (IOWriter) + Process/stdout
+        // (IOReader) directly, or wrap with Sender/from-pipe /
+        // Receiver/from-pipe for typed semantics.
+        // Infer-time: arc_170_stone_c_typed_channel_at_process_boundary_retire_hint
+        // emits the migration hint through collect_hints.
         ":wat::kernel::process-send" => {
-            eval_kernel_process_send(args, env, sym, list_span)
+            Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::process-send".into(),
+                expected: "Process/stdin (IOWriter) + Sender/from-pipe for typed sends",
+                got: "(retired verb — arc 170 Stone C)",
+                span: list_span.clone(),
+            })
         }
         ":wat::kernel::process-recv" => {
-            eval_kernel_process_recv(args, env, sym, list_span)
+            Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::process-recv".into(),
+                expected: "Process/stdout (IOReader) + Receiver/from-pipe for typed recvs",
+                got: "(retired verb — arc 170 Stone C)",
+                span: list_span.clone(),
+            })
         }
         ":wat::kernel::select" => eval_kernel_select(args, env, sym, list_span),
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym, list_span),
@@ -16557,6 +16584,79 @@ fn eval_kernel_thread_join_result(
     Ok(value)
 }
 
+/// `(:wat::kernel::Sender/from-pipe writer) -> :wat::kernel::Sender<T>` —
+/// Arc 170 Stone C. Wraps an `IOWriter` as a PipeFd-backed `Sender<T>`.
+/// Sending a value EDN-encodes it and writes the line to the writer;
+/// recipients decode via a matching `Receiver/from-pipe`.
+///
+/// The returned Sender is the same `Value::wat__kernel__Sender` variant
+/// as crossbeam-backed Senders; `(:wat::kernel::send s v)` and
+/// `(:wat::kernel::Sender/close s)` work identically on both.
+fn eval_kernel_sender_from_pipe(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Sender/from-pipe";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let writer = match eval(&args[0], env, sym)? {
+        Value::io__IOWriter(w) => w,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::io::IOWriter",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    Ok(crate::typed_channel::sender_from_pipe(writer))
+}
+
+/// `(:wat::kernel::Receiver/from-pipe reader) -> :wat::kernel::Receiver<T>` —
+/// Arc 170 Stone C. Wraps an `IOReader` as a PipeFd-backed `Receiver<T>`.
+/// Each recv reads one line from the reader and EDN-decodes it to a typed Value.
+///
+/// The returned Receiver is the same `Value::wat__kernel__Receiver` variant
+/// as crossbeam-backed Receivers; `(:wat::kernel::recv r)` works identically
+/// on both (PipeFd dispatch in `typed_channel::typed_recv`).
+fn eval_kernel_receiver_from_pipe(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Receiver/from-pipe";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let reader = match eval(&args[0], env, sym)? {
+        Value::io__IOReader(r) => r,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::io::IOReader",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    Ok(crate::typed_channel::receiver_from_pipe(reader))
+}
+
 /// `(:wat::kernel::process-send proc value) -> :Result<(),
 /// :ProcessDiedError>` — arc 112 slice 2b. Renders the value as
 /// EDN (arc 092 v4), appends a newline, writes to the Process's
@@ -16564,8 +16664,8 @@ fn eval_kernel_thread_join_result(
 /// Err(ProcessDiedError::ChannelDisconnected) if the pipe is
 /// closed (peer Program exited / panicked before reading).
 ///
-/// Pre-§J spelling. Post-arc-109 § J slice 10f this fn is reached
-/// via `:wat::kernel::Process/send` (typed-method renaming).
+/// Arc 170 Stone C — RETIRED. Dispatch arm emits TypeMismatch with
+/// migration hint. This fn body is preserved for reference only.
 fn eval_kernel_process_send(
     args: &[WatAST],
     env: &Environment,

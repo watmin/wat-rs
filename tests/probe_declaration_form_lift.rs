@@ -179,8 +179,7 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::defmacro (:h::id-macro (x :AST) -> :AST) `~x)
@@ -213,8 +212,7 @@ fn probe_define_dispatch_in_fn_body_do_prefix_lifts_to_prologue() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::define
@@ -249,8 +247,7 @@ fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::newtype :h::LocalAmount :wat::core::i64)
@@ -280,8 +277,7 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::typealias :h::LocalCount :wat::core::i64)
@@ -330,8 +326,7 @@ fn probe_mixed_declaration_prelude_all_lift() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::struct :h::MixPoint

@@ -109,8 +109,7 @@ fn probe_def_at_fn_body_do_prefix_lifts_to_prologue_end_to_end() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::def :h::local-answer 42)
@@ -270,8 +269,7 @@ fn probe_mixed_declaration_prelude_now_includes_def() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::fn
-              [_rx <- :wat::kernel::Receiver<wat::core::nil>
-               _tx <- :wat::kernel::Sender<wat::core::nil>]
+              []
               -> :wat::core::nil
               (:wat::core::do
                 (:wat::core::def :h::def-answer 99)

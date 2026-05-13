@@ -1,75 +1,60 @@
-//! Arc 170 slice 2 — `:wat::kernel::spawn-process` substrate verb.
+//! Arc 170 Stone C — `:wat::kernel::spawn-process` substrate verb.
 //!
 //! "The fn IS the program." The wat-level surface is one verb that
 //! takes a fn satisfying the `:user::process` contract:
 //!
 //! ```text
-//! [rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>]
-//!   -> :wat::core::nil
+//! [] -> :wat::core::nil
 //! ```
 //!
-//! and returns a `:wat::kernel::Process<I,O>` whose typed-channel
-//! handles bridge parent ↔ child via EDN-encoded pipes (slice 1c
-//! substrate). No discovery, no Program wrapper type, no entry
-//! keyword — the substrate uses the fn's own definition + its
-//! captured environment as the program description.
+//! and returns a `:wat::kernel::Process` (4 fields: stdin IOWriter,
+//! stdout IOReader, stderr IOReader, ProgramHandle). No typed-channel
+//! tx/rx fields — those were the slice-1c wrong turn. Real OS stdio
+//! is canonical at the process boundary; users wrap with
+//! `:wat::kernel::Sender/from-pipe` / `:wat::kernel::Receiver/from-pipe`
+//! for typed semantics (wat-level wrappers over EDN-over-pipes).
 //!
-//! ## Pipeline
+//! ## Pipeline (Stone C)
 //!
-//! 1. Caller passes a fn (Keyword path resolving to a top-level
-//!    defn, or any expression evaluating to a fn Value).
-//! 2. Substrate calls slice 1b's [`extract_closure`] with the fn,
-//!    parent's `SymbolTable` + `TypeEnv` → `ClosurePackage` carrying
-//!    a `prologue` (the captured environment) and an `entry_form`
-//!    (the expression evaluating to the fn Value in the child).
-//! 3. Substrate allocates three OS pipes (input + output + stderr)
-//!    via `make_pipe`. Same shape `fork-program-ast` uses.
-//! 4. Substrate forks. Child branch receives the prologue, the
-//!    entry_form, and the child-side fds; parent branch closes its
-//!    child-side fds and constructs the parent-facing
-//!    `:wat::kernel::Process` value.
-//! 5. **Child** freezes the prologue (`startup_from_forms`),
-//!    evaluates `entry_form` to obtain the fn Value, builds typed-
-//!    channel handles wrapping the child-side fds (rx wraps the
-//!    input pipe's read end; tx wraps the output pipe's write end),
-//!    and `apply_function`s the fn with `[rx, tx]`. The fn returns
-//!    `:wat::core::nil`; the child `_exit`s 0.
-//! 6. **Parent** wraps its parent-side fds the same way fork-
-//!    program-ast does — byte-pipe handles populate the legacy
-//!    stdin/stdout/stderr fields of `Process<I,O>` (per slice 1c
-//!    additive shape; slice 4 retires); typed-channel handles
-//!    populate the new `tx` / `rx` fields.
+//! 1. Caller passes a fn (Keyword path or fn Value-producing expression).
+//! 2. Substrate calls [`extract_closure`] → `ClosurePackage`.
+//! 3. Three OS pipes allocated: stdin (parent→child), stdout (child→parent),
+//!    stderr (child→parent).
+//! 4. Substrate forks.
+//!    **Child**: dup2 pipes onto fd 0/1/2 → `startup_from_forms` →
+//!    `bootstrap_wat_vm_process` (spawns trio services, installs ThreadIO)
+//!    → `apply_function(entry_func, [], runtime.symbols())` → `_exit`.
+//!    **Parent**: closes child-side fds, constructs 4-field Process struct.
+//! 5. Child body uses `(:wat::kernel::println v)` / `(:wat::kernel::readln)`
+//!    for typed I/O (routes through per-thread services installed by
+//!    bootstrap). Parent reads via `Process/stdout` IOReader; writes via
+//!    `Process/stdin` IOWriter.
 //!
 //! ## Why fork(2) instead of clone() / vfork() / posix_spawn()
 //!
 //! Mirrors `fork-program-ast`'s discipline (see fork.rs § "Fork
-//! safety"). The child never touches parent heap (COW snapshot is
-//! read-only modulo write-faults that the substrate avoids); child
-//! restricts itself to syscalls + fresh-world wat eval; child uses
-//! `_exit(2)` to skip parent atexit handlers.
+//! safety"). The child never touches parent heap; child restricts
+//! itself to syscalls + fresh-world wat eval; child uses `_exit(2)`
+//! to skip parent atexit handlers.
 //!
-//! ## Bandaid scope (slice 1c additive Process)
+//! ## Stone C — the fatal flaw fix
 //!
-//! Slice 1c shipped Process<I,O> with six fields: legacy
-//! stdin/stdout/stderr/handle plus typed-channel tx/rx. spawn-process
-//! fills both: byte-pipe view for legacy callers (none today; slice
-//! 4 retires), typed-channel view for the new contract. The legacy
-//! fields are NOT useful for a typed-channel program — they share
-//! the underlying fds with tx/rx, so reading them after typed-channel
-//! activity races for bytes. They exist solely to satisfy the
-//! six-field shape until slice 4 trims to three fields.
+//! Pre-Stone-C (slice 1c): child's fd 0/1 inherited from parent terminal;
+//! child had no bootstrap → no ThreadIO → `println` surfaced
+//! `ServiceNotRunning`. Stone C dup2s fd 0/1 to real pipes and calls
+//! `bootstrap_wat_vm_process`, giving every spawn-process child a full
+//! ambient runtime. `(:wat::kernel::println v)` now works in every child.
 
 use crate::ast::WatAST;
 use crate::closure_extract::{extract_closure, ClosurePackage};
 use crate::fork::{install_substrate_signal_handlers, make_pipe, ChildHandleInner};
-use crate::freeze::startup_from_forms;
+use crate::freeze::{startup_from_forms, bootstrap_wat_vm_process, BootstrapArgs};
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::load::InMemoryLoader;
 use crate::runtime::{
     apply_function, eval, Environment, ProgramHandleInner, RuntimeError, StructValue, SymbolTable,
     Value,
 };
-use crate::typed_channel::{receiver_from_pipe, sender_from_pipe};
 
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::sync::Arc;
@@ -202,19 +187,18 @@ pub fn eval_kernel_spawn_process(
 
     let handle = Arc::new(ChildHandleInner::new(pid));
 
-    // Build parent-side handles. Same shape fork-program-ast
-    // uses for its Process construction:
-    //   stdin field  = byte-pipe writer over input_w (parent writes)
-    //   stdout field = byte-pipe reader over output_r (parent reads)
-    //   stderr field = byte-pipe reader over stderr_r (parent reads)
-    //   tx field     = typed-channel sender wrapping the same writer
-    //   rx field     = typed-channel receiver wrapping the same reader
+    // Build parent-side handles (Stone C — 4-field Process).
+    //   stdin field  = IOWriter over input_w  (parent writes → child fd 0)
+    //   stdout field = IOReader over output_r (child fd 1 → parent reads)
+    //   stderr field = IOReader over stderr_r (child fd 2 → parent reads)
+    //   join field   = ProgramHandle (wait for child exit)
+    // NO tx/rx typed-channel fields — those were the slice-1c wrong turn.
+    // Use (:wat::kernel::Sender/from-pipe stdin-writer) /
+    //     (:wat::kernel::Receiver/from-pipe stdout-reader)
+    // at the wat level for typed semantics over these pipes.
     let stdin_writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(input_w));
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(output_r));
     let stderr_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stderr_r));
-
-    let tx = sender_from_pipe(stdin_writer.clone());
-    let rx = receiver_from_pipe(stdout_reader.clone());
 
     Ok(Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Process".into(),
@@ -223,8 +207,6 @@ pub fn eval_kernel_spawn_process(
             Value::io__IOReader(stdout_reader),
             Value::io__IOReader(stderr_reader),
             Value::wat__kernel__ProgramHandle(Arc::new(ProgramHandleInner::Forked(handle))),
-            tx,
-            rx,
         ],
     })))
 }
@@ -276,6 +258,18 @@ fn emit_structured_exit(world: Option<&crate::freeze::FrozenWorld>, value: crate
     write_direct_to_stderr(&line);
 }
 
+/// Stone C — child's post-fork pipeline for spawn-process.
+///
+/// Changes from slice 1c:
+/// - dup2s fd 0 (stdin) + fd 1 (stdout) from the pipe ends (in
+///   addition to existing fd 2 / stderr).
+/// - calls `bootstrap_wat_vm_process` after `startup_from_forms` so
+///   the child gets full ambient runtime (trio services + ThreadIO).
+/// - entry fn is called with NO ARGS (`[] -> :nil`). Children use
+///   `(:wat::kernel::println v)` / `(:wat::kernel::readln -> :T)` for
+///   typed I/O (routes through per-thread services installed by
+///   bootstrap). Typed-channel args (rx/tx) are GONE — the slice-1c
+///   wrong turn, removed by Stone C's consumer sweep.
 fn spawn_process_child_branch(
     package: ClosurePackage,
     input_r_raw: i32,
@@ -288,25 +282,38 @@ fn spawn_process_child_branch(
     // Drop parent-side pipe ends — close our inherited copies so
     // the parent's read-end EOFs cleanly when the child's last
     // writer closes (and vice-versa).
-    drop(input_pair.1); // parent writes input
+    drop(input_pair.1);  // parent writes input
     drop(output_pair.0); // parent reads output
     drop(stderr_pair.0); // parent reads stderr
 
-    // Redirect stderr onto child-side stderr pipe so panic-payload
-    // markers reach the parent.
+    // Stone C — dup2 all three fds:
+    //   fd 0 ← stdin pipe read end  (child reads from parent)
+    //   fd 1 ← stdout pipe write end (child writes to parent)
+    //   fd 2 ← stderr pipe write end (panic-payload markers)
+    // After dup2, the OwnedFds in the pairs are closed (their Drop
+    // runs after this block). The dup'd copies at fd 0/1/2 are now
+    // owned by the OS and will be inherited by bootstrap's
+    // synthesize_real_fd_stdio (which dups them again into the
+    // services).
     unsafe {
+        if libc::dup2(input_r_raw, 0) < 0 {
+            libc::_exit(EXIT_STARTUP_ERROR);
+        }
+        if libc::dup2(output_w_raw, 1) < 0 {
+            libc::_exit(EXIT_STARTUP_ERROR);
+        }
         if libc::dup2(stderr_w_raw, 2) < 0 {
             libc::_exit(EXIT_STARTUP_ERROR);
         }
     }
-    // Drop the originals — dup2 made copies at fd 2.
+    // Drop the originals — dup2 made copies at fd 0/1/2.
+    drop(input_pair.0);
+    drop(output_pair.1);
     drop(stderr_pair.1);
 
     // Arc 170 slice 1i — install the silent panic hook AFTER dup2 (so
     // fd 2 is already the subprocess stderr pipe) but BEFORE any Rust
-    // code that might panic. setpgid(2) is a C syscall — it does not
-    // panic in Rust — so the hook installed here covers every Rust path
-    // that follows (startup_from_forms, eval, apply_function).
+    // code that might panic.
     install_silent_panic_hook();
 
     // Make the child the leader of its own process group (cascades
@@ -327,26 +334,11 @@ fn spawn_process_child_branch(
     // the (:wat::kernel::stopped?) polling contract.
     install_substrate_signal_handlers();
 
-    // Take ownership of the child-side input/output fds. These are
-    // wrapped via PipeReader/PipeWriter inside the typed-channel
-    // constructors below; their OwnedFd Drop closes the fds when the
-    // typed-channel handles drop at child exit.
-    let input_owned = input_pair.0; // child reads input
-    let output_owned = output_pair.1; // child writes output
-    let _ = input_r_raw; // dup2 NOT performed; fn gets typed Receiver, not stdin
-    let _ = output_w_raw; // dup2 NOT performed; fn gets typed Sender, not stdout
-
-    // Build a fresh wat world from the prologue. Per arc 170 slice
-    // 1c TIERS.md, tier-2 spawn is hermetic by ambient property of
-    // the OS-process boundary; the child has its own substrate
-    // instance freezing only the captured environment the closure
-    // extraction package carries.
+    // Build a fresh wat world from the prologue.
     let loader: Arc<dyn crate::load::SourceLoader> = Arc::new(InMemoryLoader::new());
     let world = match startup_from_forms(package.prologue, None, loader) {
         Ok(w) => w,
         Err(e) => {
-            // Arc 170 slice 1i — structured StartupError (no world yet;
-            // primitive String round-trips without TypeEnv context).
             emit_structured_exit(
                 None,
                 crate::runtime::process_died_error_startup_value(format!("{}", e)),
@@ -355,15 +347,28 @@ fn spawn_process_child_branch(
         }
     };
 
-    // Evaluate entry_form in the frozen world to obtain the fn
-    // Value. For keyword-path inputs (slice 1b honest delta A) the
-    // entry_form is a `WatAST::Keyword` whose path was registered
-    // into prologue as a regular defn; eval's keyword arm resolves
-    // it via `sym.get`. For inline-lambda inputs the entry_form is
-    // a fn-form AST that eval evaluates to a fresh fn Value
-    // directly. Both shapes unify here.
+    // Stone C — bootstrap full runtime context (trio services + ThreadIO).
+    // bootstrap_wat_vm_process calls synthesize_real_fd_stdio which dups
+    // fd 0/1/2 (the pipes we dup2'd above) into PipeReader/PipeWriter
+    // wrappers for the StdInService / StdOutService / StdErrService.
+    // After this call the child has a fully-functional ambient runtime:
+    // (:wat::kernel::println v) and (:wat::kernel::readln -> :T) work.
+    let runtime = match bootstrap_wat_vm_process(BootstrapArgs { frozen: &world }) {
+        Ok(r) => r,
+        Err(e) => {
+            emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_startup_value(format!(
+                    "bootstrap_wat_vm_process failed: {}", e
+                )),
+            );
+            unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
+        }
+    };
+
+    // Evaluate entry_form in the frozen world to obtain the fn Value.
     let env = Environment::new();
-    let entry_value = match eval(&package.entry_form, &env, world.symbols()) {
+    let entry_value = match eval(&package.entry_form, &env, runtime.symbols()) {
         Ok(v) => v,
         Err(e) => {
             emit_structured_exit(
@@ -387,68 +392,41 @@ fn spawn_process_child_branch(
         }
     };
 
-    // Build typed-channel handles. Child-side rx wraps the input
-    // pipe's read end; child-side tx wraps the output pipe's write
-    // end. Slice 1c's PipeFd Sender/Receiver substrate transport
-    // EDN-encodes typed Values at each send.
-    let input_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(input_owned));
-    let output_writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(output_owned));
+    // Stone C — entry fn is ALWAYS called with zero args.
+    // `:user::process` contract: `[] -> :wat::core::nil`.
+    // Children use (:wat::kernel::println v) / (:wat::kernel::readln -> :T)
+    // for I/O (routes through services installed by bootstrap above).
+    // 0-arity enforcement: any other arity surfaces a startup error
+    // (prevents silently calling a 2-arity slice-1c fn and hanging).
+    if entry_func.params.len() != 0 {
+        emit_structured_exit(
+            Some(&world),
+            crate::runtime::process_died_error_entry_form_failure_value(format!(
+                "entry_form fn has arity {} (Stone C contract: :user::process is [] -> :nil; \
+                 child uses readln/println for I/O — no rx/tx params)",
+                entry_func.params.len()
+            )),
+        );
+        unsafe { libc::_exit(EXIT_ENTRY_FORM_FAILURE) };
+    }
 
-    let rx_value = receiver_from_pipe(input_reader);
-    let tx_value = sender_from_pipe(output_writer);
-
-    // Apply the entry fn. Two arity shapes supported:
-    //   - 2-arity `[rx :Receiver<I> tx :Sender<O>] -> :nil` — the
-    //     `:user::process` contract's typed-channel I/O case
-    //     (Layer 2 testing API + production code).
-    //   - 0-arity `[] -> :nil` — the `:wat::test::run-hermetic`
-    //     Layer 1 testing API. The channels exist as substrate
-    //     plumbing but the body never reads/writes them; spawn-
-    //     process drops the rx/tx Values rather than passing them.
-    //     Per arc 170 TIERS.md the Layer 1 macro generates
-    //     `(fn [] -> :nil body)`; this branch supports that shape
-    //     directly so test bodies don't need placeholder params.
-    let entry_arity = entry_func.params.len();
-    let entry_args: Vec<Value> = match entry_arity {
-        0 => {
-            // Drop the typed-channel Values — the body doesn't take
-            // them. The OwnedFds inside drop too, closing the child-
-            // side fds; the parent's writer/reader EOFs cleanly.
-            drop(rx_value);
-            drop(tx_value);
-            Vec::new()
-        }
-        2 => vec![rx_value, tx_value],
-        n => {
-            emit_structured_exit(
-                Some(&world),
-                crate::runtime::process_died_error_entry_form_failure_value(format!(
-                    "entry_form fn has unsupported arity {} (expected 0 for run-hermetic Layer 1 \
-                     or 2 for :user::process / :user::thread typed-channel contract)",
-                    n
-                )),
-            );
-            unsafe { libc::_exit(EXIT_ENTRY_FORM_FAILURE) };
-        }
-    };
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         apply_function(
             entry_func,
-            entry_args,
-            world.symbols(),
+            Vec::new(),
+            runtime.symbols(),
             crate::rust_caller_span!(),
         )
     }));
 
+    // runtime drops here — cleanup in correct order (deregister →
+    // uninstall ThreadIO → drop sym → drop services → join service
+    // threads). ProcessRuntime::drop handles this via its Drop impl.
+    drop(runtime);
+
     match outcome {
-        // Per Program contract the body returns nil. We accept any
-        // Ok value here — the substrate enforces the return-type
-        // contract at type-check; runtime corruption (returning
-        // non-nil) is treated as a clean exit because the body
-        // already side-effected through the channels.
         Ok(Ok(_)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Err(runtime_err)) => {
-            // Arc 170 slice 1i — structured RuntimeError replaces plain text.
             emit_structured_exit(
                 Some(&world),
                 crate::runtime::process_died_error_runtime_value(format!("{}", runtime_err)),
@@ -456,15 +434,11 @@ fn spawn_process_child_branch(
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Err(panic_payload) => {
-            // Arc 170 slice 1i — all panic paths emit structured EDN.
-            // AssertionPayload carries the full cascade chain + Failure;
-            // plain panics (bare String / &str) emit a message-only Panic.
             if let Some(payload) =
                 panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
             {
                 emit_panics_to_stderr(&world, payload);
             } else {
-                // Plain panic payload — extract message via downcast.
                 let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
                     s.clone()
                 } else if let Some(s) = panic_payload.downcast_ref::<&str>() {

@@ -817,9 +817,16 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `tx :Sender<I>` and `rx :Receiver<O>` are typed-channel handles
     // wrapped over the same kernel pipes that back `stdin` / `stdout`.
     // The substrate populates both views: byte-pipe view (legacy
-    // accessor path) and typed-channel view (the new path). EDN
-    // encoding at the typed-channel boundary is substrate-internal
-    // per `project_pipe_protocol.md` ("line-delimited EDN").
+    // Stone C — Process is 4 fields: real OS stdio pipes + join handle.
+    // The slice-1c typed-channel tx/rx fields are REMOVED. Real stdio
+    // is canonical at the OS boundary. Users wanting typed semantics
+    // wrap Process/stdin / Process/stdout with
+    // (:wat::kernel::Sender/from-pipe writer) /
+    // (:wat::kernel::Receiver/from-pipe reader).
+    //
+    // Type params I/O are KEPT for TIERS.md uniformity and backwards
+    // compatibility with Program<I,O> alias (Program<I,O> = Process<I,O>).
+    // The params are annotation-only — no field uses them after Stone C.
     //
     // Auto-generated `Process/new` + per-field accessors land in the
     // symbol table at freeze time via register_struct_methods.
@@ -844,21 +851,6 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 TypeExpr::Parametric {
                     head: "wat::kernel::ProgramHandle".into(),
                     args: vec![TypeExpr::Tuple(vec![])],
-                },
-            ),
-            // Arc 170 slice 1c — appended typed-channel handles.
-            (
-                "tx".into(),
-                TypeExpr::Parametric {
-                    head: "wat::kernel::Sender".into(),
-                    args: vec![TypeExpr::Path(":I".into())],
-                },
-            ),
-            (
-                "rx".into(),
-                TypeExpr::Parametric {
-                    head: "wat::kernel::Receiver".into(),
-                    args: vec![TypeExpr::Path(":O".into())],
                 },
             ),
         ],

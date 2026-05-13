@@ -560,15 +560,13 @@
 ;;   (:wat::test::run-hermetic-driver
 ;;     (:wat::kernel::spawn-process
 ;;       (:wat::core::fn
-;;         [_rx <- :wat::kernel::Receiver<wat::core::nil>
-;;          _tx <- :wat::kernel::Sender<wat::core::nil>]
+;;         []
 ;;         -> :wat::core::nil
 ;;         <body>)))
 ;;
-;; The fn channels are Receiver<nil>/Sender<nil> — Layer 1 bodies
-;; do not communicate via channels; they run assertions that panic on
-;; failure. The _rx/_tx names (underscore prefix) signal intentional
-;; non-use; the child ignores them.
+;; Stone C contract: child is [] -> nil (no rx/tx params). Layer 1 bodies
+;; run assertions that panic on failure; I/O is ambient via readln/println
+;; (routed through bootstrap services on fd 0/1/2).
 ;;
 ;; DO NOT MODIFY deftest or deftest-hermetic above — this is a new
 ;; entry point running in PARALLEL to the existing macros. Consumer
@@ -580,8 +578,7 @@
   `(:wat::test::run-hermetic-driver
      (:wat::kernel::spawn-process
        (:wat::core::fn
-         [_rx <- :wat::kernel::Receiver<wat::core::nil>
-          _tx <- :wat::kernel::Sender<wat::core::nil>]
+         []
          -> :wat::core::nil
          ~body))))
 
@@ -682,43 +679,53 @@
 ;;
 ;; Internal driver for Layer 2. Receives an already-spawned Process<I,O>
 ;; and the inputs Vector<I>. Orchestrates the I/O round-trip:
-;;   1. Send each input to the child via Process/tx.
-;;   2. Drain outputs from Process/rx until disconnect (child exited).
-;;   3. Join via Process/join-result (child has already exited by step 2).
-;;   4. Drain stderr; rebuild panic chain via extract-panics.
-;;   5. Assemble :wat::test::RunResultIO with outputs + stderr + failure.
+;;   1. Wrap Process/stdin (IOWriter) via Sender/from-pipe → typed Sender<I>.
+;;   2. Send each input to the child via the typed Sender<I>.
+;;   3. Wrap Process/stdout (IOReader) via Receiver/from-pipe → typed Receiver<O>.
+;;   4. Drain outputs from the typed Receiver<O> until disconnect (child exited).
+;;   5. Join via Process/join-result (child has already exited by step 4).
+;;   6. Drain stderr; rebuild panic chain via extract-panics.
+;;   7. Assemble :wat::test::RunResultIO with outputs + stderr + failure.
+;;
+;; Stone C shape: Process has 4 fields (stdin IOWriter, stdout IOReader,
+;; stderr IOReader, join ProgramHandle). No tx/rx typed-channel fields.
+;; Sender/from-pipe and Receiver/from-pipe wrap the OS pipe ends for
+;; typed EDN-over-pipe semantics at the wat level.
 ;;
 ;; D3 ordering — sequential (send → drain → join → drain-stderr):
 ;;   Works for T18's bounded I/O (one send, one recv). The child exits
-;;   after processing all inputs, dropping its tx. The drain-outputs sees
-;;   Ok(None) (EOF) and returns. Join then finds the child already exited.
-;;
-;; Note: Process/stdout is the byte-pipe view of the output channel
-;; (legacy arc 170 slice 1c additive field). Layer 2 does NOT drain
-;; stdout-as-string-lines — it drains outputs via typed-channel recv.
-;; The RunResultIO carries outputs :Vector<O> instead of stdout :Vector<String>.
+;;   after processing all inputs, dropping its stdout pipe end (fd 1 closes
+;;   when bootstrap services shut down). The drain-outputs sees disconnect
+;;   (EOF) and returns. Join then finds the child already exited.
 (:wat::core::define
   (:wat::test::run-hermetic-with-io-driver<I,O>
     (proc :wat::kernel::Process<I,O>)
     (inputs :wat::core::Vector<I>)
     -> :wat::test::RunResultIO<O>)
-  ;; Outer scope: proc handle + join-result.  SERVICE-PROGRAMS.md § "The
-  ;; lockstep": inner-let owns every output Receiver; when inner body
-  ;; returns, stderr-r drops; drain threads see EOF; child can exit;
-  ;; outer join-result unblocks cleanly.
+  ;; Outer scope: proc handle + send inputs + join-result.
+  ;; SERVICE-PROGRAMS.md § "The lockstep" at the Process boundary:
+  ;;   1. Outer scope wraps Process/stdin as tx; sends all inputs.
+  ;;   2. Inner scope wraps Process/stdout as rx; drains all outputs +
+  ;;      stderr. When inner body returns, rx and stderr-r drop;
+  ;;      bootstrap drain threads see EOF; child can exit.
+  ;;   3. Outer join-result runs after inner exits — child already done.
   (:wat::core::let
-    [tx             (:wat::kernel::Process/tx proc)
-     _              (:wat::test::run-hermetic-send-inputs tx inputs)
-     rx             (:wat::kernel::Process/rx proc)
-     outputs        (:wat::test::run-hermetic-drain-outputs rx (:wat::core::Vector :O))
-     ;; Inner scope: stderr Receiver + drained lines.
-     ;; Dropping stderr-r lets the child's stderr pipe drain to EOF.
-     stderr-lines
+    [;; Stone C: wrap Process/stdin (IOWriter) for typed sends.
+     tx           (:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))
+     _            (:wat::test::run-hermetic-send-inputs tx inputs)
+     ;; Inner scope: stdout Receiver + stderr Receiver + drained data.
+     ;; Dropping these bindings lets bootstrap's drain threads drain
+     ;; the child's OS pipes to EOF so the child can exit cleanly.
+     drain-triple
       (:wat::core::let
-        [stderr-r     (:wat::kernel::Process/stderr proc)
-         lines        (:wat::kernel::drain-lines stderr-r)]
-        lines)
-     ;; Inner scope has exited; Receivers dropped; child can exit.
+        [rx           (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
+         outputs      (:wat::test::run-hermetic-drain-outputs rx (:wat::core::Vector :O))
+         stderr-r     (:wat::kernel::Process/stderr proc)
+         stderr-lines (:wat::kernel::drain-lines stderr-r)]
+        (:wat::core::Tuple outputs stderr-lines))
+     outputs      (:wat::core::first drain-triple)
+     stderr-lines (:wat::core::second drain-triple)
+     ;; Inner scope has exited; rx and stderr-r dropped; child can exit.
      joined-result  (:wat::kernel::Process/join-result proc)
      stderr-chain   (:wat::kernel::extract-panics stderr-lines)
      failure
@@ -748,47 +755,38 @@
 
 ;; ── run-hermetic-with-io macro ───────────────────────────────────────────
 ;;
-;; Layer 2 entry point (the 9% case). User writes the body with rx and tx
-;; in scope. The macro generates the fn-form wrapper, spawns a hermetic
-;; OS process, sends inputs, drains outputs, and returns RunResultIO<O>.
+;; Layer 2 entry point (the 9% case). User writes the body using
+;; (:wat::kernel::readln -> :I) and (:wat::kernel::println v) for I/O.
+;; Stone C contract: child fn is [] -> nil; ambient stdio (fd 0/1/2) is
+;; wired through bootstrap services; readln/println route through them.
 ;;
-;; Arc 170 slice 3 Gap A — updated to use keyword/of for channel type
-;; construction. The caller now passes INNER element types (:i64, not
-;; :Receiver<i64>); keyword/of constructs the full channel types at
-;; macro-expand time.
+;; The macro generates the fn-form wrapper, spawns a hermetic OS process,
+;; sends inputs via Sender/from-pipe over Process/stdin, drains outputs via
+;; Receiver/from-pipe over Process/stdout, and returns RunResultIO<O>.
 ;;
-;; Canonical call form (Gap A: inner element types, 4 args):
+;; Canonical call form (Stone C: body uses readln/println, 4 args):
 ;;
 ;;   (:wat::test::run-hermetic-with-io
-;;     :wat::core::i64                          ;; input element type
-;;     :wat::core::i64                          ;; output element type
+;;     :wat::core::i64                          ;; input element type (for driver)
+;;     :wat::core::i64                          ;; output element type (for driver)
 ;;     (:wat::core::Vector :wat::core::i64 21)  ;; inputs Vector<I>
 ;;     (:wat::core::let
-;;       [n (:wat::core::Option/expect -> :wat::core::i64
-;;             (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
-;;               (:wat::kernel::recv rx) "recv failed")
-;;             "stream closed")
-;;        _ (:wat::core::Result/expect -> :wat::core::nil
-;;             (:wat::kernel::send tx (:wat::core::i64::*'2 n 2)) "send failed")]
+;;       [n (:wat::kernel::readln -> :wat::core::i64)
+;;        _ (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
 ;;       :wat::core::nil))
 ;;
 ;; Expands to:
 ;;   (:wat::test::run-hermetic-with-io-driver
 ;;     (:wat::kernel::spawn-process
 ;;       (:wat::core::fn
-;;         [rx <- :wat::kernel::Receiver<wat::core::i64>
-;;          tx <- :wat::kernel::Sender<wat::core::i64>]
+;;         []
 ;;         -> :wat::core::nil
 ;;         <body>))
 ;;     <inputs>)
 ;;
-;; keyword/of constructs the full channel-type keyword at expand time:
-;;   (:wat::core::keyword/of :wat::kernel::Receiver ~input-type)
-;;   → :wat::kernel::Receiver<wat::core::i64>  (after ~input-type substitution)
-;;
-;; The driver's return type :RunResultIO<O> is inferred by the type checker
-;; from the Process<I,O> argument (O flows from the Sender<O> in tx channel).
-;; No separate o-type arg is needed — the driver infers O from typed channels.
+;; The driver wraps Process/stdin (IOWriter) via Sender/from-pipe for typed
+;; sends and Process/stdout (IOReader) via Receiver/from-pipe for typed
+;; draining. input-type and output-type are passed for RunResultIO<O> typing.
 ;;
 ;; DO NOT MODIFY run-hermetic (Layer 1) above — this is an ADDITION.
 ;; DO NOT touch deftest / deftest-hermetic macro definitions (phase E).
@@ -802,8 +800,7 @@
   `(:wat::test::run-hermetic-with-io-driver
      (:wat::kernel::spawn-process
        (:wat::core::fn
-         [rx <- (:wat::core::keyword/of :wat::kernel::Receiver ~input-type)
-          tx <- (:wat::core::keyword/of :wat::kernel::Sender ~output-type)]
+         []
          -> :wat::core::nil
          ~body))
      ~inputs))
