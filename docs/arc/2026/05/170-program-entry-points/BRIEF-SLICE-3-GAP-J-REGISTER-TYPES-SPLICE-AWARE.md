@@ -2,6 +2,20 @@
 
 **Sonnet.** Substrate fix that closes the gap surfaced by Phase E V5's failed attempt (`5d82e92`-baseline test → 13 failures, reverted). Extend `register_types` (`src/types.rs:1182`) to recurse into top-level `(:wat::core::do ...)` and `(:wat::core::let ...)` forms, registering type declarations (struct/enum/newtype/typealias) nested inside.
 
+## ⚠ Latent substrate defects may exist
+
+**Orchestrator + user direction 2026-05-14 (after a prior attempt of this BRIEF was killed mid-run):**
+
+The substrate may have **latent defects we haven't named**. The diagnose round that produced this BRIEF was strong evidence for the typealias-in-do gap — but V5's failures may trace to MORE than one substrate gap. The previous Gap J attempt got the splice-awareness fix correct AND closed 3 of 10 V5 retry failures, but **7 remained**, and those remaining failures may indicate further latent substrate defects (turbofish generics in spawn-process child, closure-extraction prologue for complex transitive deps, sandboxed-ast vs run-hermetic semantic differences, etc.).
+
+**Your mission has TWO acceptable success modes:**
+
+**Mode A — Forge through cleanly:** apply the Gap J fix + V5 retry + all 13 previously-failing tests pass. Workspace at 2243 + N / 0 failed. The single-fix hypothesis holds.
+
+**Mode B — Pinpoint latent defects:** apply the Gap J fix (which is solid based on the diagnose). If V5 retry STILL has failures, **STOP** and produce a detailed audit. For each remaining failure: minimum-repro probe, code-trace, root-cause hypothesis, and certainty rating. Do NOT work around substrate issues. Do NOT paper over. Do NOT ship a "partial fix that passes some tests but masks others." The user's foundation-priority bar means pinpointing substrate defects IS a valid mission outcome.
+
+**Either outcome closes this task.** Mode B's findings drive the next slices (Gap K, Gap L, etc.). The substrate-as-teacher cascade depends on honest naming of what's broken, not on forcing the V5 retry to look like it passes.
+
 Diagnose (full reasoning in `INTERSTITIAL-REALIZATIONS.md` § "V5 boss-fight + Gap J diagnosis"):
 
 - Direct TypeEnv probe proved: ALL FOUR type-decl kinds are ABSENT from TypeEnv when nested in top-level `do`.
@@ -208,7 +222,9 @@ cargo test --release --workspace --no-fail-fast 2>&1 | grep "^test result"
 - DO NOT operate outside `/home/watmin/work/holon/wat-rs/`
 - DO NOT touch `~/.claude/` memory system
 - DO NOT use --no-verify or skip hooks
-- If V5 retry still fails after fix + probes pass, STOP and report — diagnose may have missed something; the fix shouldn't ship without V5 retry passing because V5 retry IS the load-bearing test for "the fix actually closes the V5 patterns"
+- **DO NOT work around substrate defects.** If a test hangs, fails, or behaves unexpectedly and your diagnose points at a substrate-level issue (not just your fix being wrong), STOP and pinpoint. The recovery doc § FM 5 — "volunteering a workaround instead of stopping" — applies aggressively here.
+- **USE TIMEOUTS on every cargo test invocation.** Wrap workspace test runs in `timeout 600 cargo test ...` (10 min cap). The previous attempt produced orphaned wat-test processes (PPID 1, hung for >1h) when tests deadlocked without timeout. If a test hangs even with timeout, that's substrate evidence; report it.
+- If V5 retry still fails after fix + probes pass, do NOT keep trying. Report Mode B (substrate defects pinpointed). The mission is honest closure, not forced V5 passes.
 
 ## Honest delta categories (anticipated)
 

@@ -1,6 +1,10 @@
 # Arc 170 slice 3 Gap J EXPECTATIONS (sonnet scorecard)
 
-**One spawn.** Extend `register_types` to recurse into top-level `do`/`let` body, registering nested type declarations. Then apply the V4 BRIEF target shape to deftest. Verification: all 13 V5-previously-failing tests pass.
+**One spawn. TWO acceptable success modes (Mode A = forge clean; Mode B = pinpoint substrate defects).**
+
+Extend `register_types` to recurse into top-level `do`/`let` body, registering nested type declarations. Then apply the V4 BRIEF target shape to deftest. **EITHER** all 13 V5-previously-failing tests pass (Mode A clean win) **OR** the remaining failures are pinpointed with empirical justification as latent substrate defects (Mode B honest finding). Either closes the task.
+
+**The user has lost trust in our prior diagnoses.** A previous attempt of this BRIEF was killed mid-run with hung processes. The hypothesis (single substrate fix addresses all 3 V5 patterns) may be incomplete. **Sonnet's job is to either confirm the hypothesis cleanly OR pinpoint what was missed.**
 
 ## Independent prediction
 
@@ -16,10 +20,24 @@
 | B | `register_types` recurses into top-level `let` body (items[2..] per arc 168); nested type decls register | grep + read |
 | C | `register_stdlib_types` mirrors the same splice-recursion for substrate-baked stdlib forms | grep + read |
 | D | 7+ probes in `tests/probe_register_types_splice_aware.rs` pass (do_typealias/struct/newtype/enum + let_body_typealias + nested_do_typealias + do_typealias_usage_typechecks) | cargo test |
-| E | Phase E V5 deftest macro rewrite applied (target shape from V4 BRIEF); all 13 previously-failing tests now pass | cargo test |
-| F | Workspace at 2243 + N (new probes) / 0 failed; no regression for ANY existing test | full test run |
+| E | **Mode A:** Phase E V5 deftest macro rewrite applied; all 13 previously-failing tests pass. **OR Mode B:** V5 retry has remaining failures, EACH pinpointed in SCORE with: minimum-repro probe + code-trace + root-cause hypothesis + certainty rating | cargo test + SCORE evidence |
+| F | **Mode A:** Workspace at 2243 + N (new probes) / 0 failed; no regression. **OR Mode B:** honest workspace state documented; no substrate-edit-induced regressions; reverted-on-Mode-B if substrate edits beyond Gap J fix were made | full test run |
 
-**6 rows.** All must PASS.
+**6 rows.** Rows A-D MUST PASS regardless (the Gap J fix is solid foundation work). Rows E-F have dual-mode pass criteria.
+
+## Mode B output requirements (if Mode A doesn't land cleanly)
+
+If V5 retry has remaining failures, the SCORE must contain a "Pinpointed substrate defects" section. For each remaining failure:
+
+1. **Test name + file** (e.g., `deftest_svc_test_template_end_to_end` at `wat-tests/service-template.wat`)
+2. **Minimum-repro probe** — a probe file `tests/probe_diagnose_<name>.rs` that demonstrates the defect in isolation (smaller than the failing test)
+3. **Code trace** — substrate code path that produces the bug, with file:line citations
+4. **Root-cause hypothesis** — what's broken at the substrate level (not "the test is wrong"; not "the macro is wrong")
+5. **Certainty rating** — HIGH (probe directly confirms) / MEDIUM (consistent with evidence but other explanations possible) / LOW (suspicion, needs more probes)
+
+The diagnostic probes COMMIT alongside Gap J's regression probes. They become the next slice's BRIEF source material.
+
+**Critical**: do NOT skip this if Mode B happens. The user has stated foundation-priority; surfaced defects ARE the win. Workarounds, swept-under-rug failures, or "this test was always weird anyway" hand-waving are NOT acceptable.
 
 ## Implementation approach (sonnet's path)
 
@@ -60,13 +78,16 @@
 
 ## Verification commands
 
+**ALWAYS wrap cargo test in `timeout 600` (10 min cap).** The previous attempt produced orphaned wat-test processes (PPID 1, hung > 1 hour) when tests deadlocked without a timeout. If timeout fires, that's substrate evidence — report it; do NOT retry blindly.
+
 ```bash
 # New Gap J probes
-cargo test --release --test probe_register_types_splice_aware 2>&1 | tail -10
+timeout 300 cargo test --release --test probe_register_types_splice_aware 2>&1 | tail -10
 
 # V5 retry — the load-bearing test
-cargo test --release --workspace --no-fail-fast 2>&1 | grep "^test result" | awk -F'[: ;]' '{p+=$5;f+=$8} END {print "passed:" p " failed:" f}'
-# Expected: 2243 + N / 0 failed (N = new probes; expect ≥ 7)
+timeout 600 cargo test --release --workspace --no-fail-fast 2>&1 | grep "^test result" | awk -F'[: ;]' '{p+=$5;f+=$8} END {print "passed:" p " failed:" f}'
+# Mode A expected: 2243 + N / 0 failed (N = new probes; expect ≥ 7)
+# Mode B observed: <whatever the count is>; SCORE explains why
 
 # Regression checks
 cargo test --release --test probe_deftest_hermetic_isolation 2>&1 | tail -5  # Gap G probes
