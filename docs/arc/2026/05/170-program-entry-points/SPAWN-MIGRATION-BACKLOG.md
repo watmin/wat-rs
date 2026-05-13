@@ -2,6 +2,7 @@
 
 **Created:** 2026-05-15 (post-V5-deadlock-recognition session)
 **Status:** ACTIVE — all other arc 170 work paused until this closes
+**BLOCKED at Step 4+ on:** [`RUNTIME-BOOTSTRAP-BACKLOG.md`](./RUNTIME-BOOTSTRAP-BACKLOG.md) stones A-D (substrate-owned bootstrap; the original "spawn-process can't println" fatal-flaw fix). Steps 1-3 shipped; Step 4 onward needs `spawn-process` + `spawn-thread` to actually have runtime services before consumers migrate onto them. See that backlog for the 7 stones (A-G).
 **End state:** Exactly ONE primitive for in-process threads (`:wat::kernel::spawn-thread`) and exactly ONE for OS-fork processes (`:wat::kernel::spawn-process`). All older primitives (`fork-program`, `fork-program-ast`, `spawn-program`, `spawn-program-ast`) retired. All teaching diagnostics for retired primitives reaped after their sweep windows close.
 
 ## Why this backlog exists
