@@ -977,6 +977,107 @@ Even when the worry is preempted with "it works."
 discipline). FM 16 is the prevention discipline (don't trigger
 the false claim in the first place).
 
+### Failure mode 17 — Discipline-after-pushback (FMs as post-mortem, not pre-action)
+
+**Signature:** The orchestrator commits a violation of a documented
+FM. The user pushes back. The orchestrator responds *"ah I should
+have applied FM N"* — citing the recovery doc as a post-mortem
+reference rather than a pre-action checklist. The disciplines
+exist in memory; they don't FIRE before the action. They surface
+in the apology AFTER.
+
+This is the meta-failure that makes every other FM less effective.
+The recovery doc lists the rules; FM 17 names what happens when
+the rules are *known but not applied in time*.
+
+**Signature variants:**
+- *"I called Read on the recovery doc."* (yes, but no FM fired before any of the next 7 actions)
+- *"Conditional pending more reading"* as a four-questions answer (substitutes hedging for the YES/NO discipline that requires the read FIRST)
+- Apologizing eloquently for the violation while taking no different action next time
+
+**Reality check — the pre-action sweep:**
+
+Before any non-trivial action, run a quick mental scan against the
+relevant FM cluster:
+
+| About to... | Run check on |
+|---|---|
+| Commit (especially after sonnet's return) | FM 9 (load-bearing rows independently verified) + path-honesty audit (probes measure the claim, not adjacent surfaces) |
+| Spawn sonnet | FM 12 (model explicit) + FM 16 (no tool preamble) + FM 9 (baseline pre-flight) + FM 2 (substrate-verified brief) |
+| Create a new doc | FM 6 (preemptive update) + check if an existing canonical doc is the home (don't mint synonyms — FM 6's sharper edge) |
+| Propose options | FM 1 (grep'd? read'd?) — never options-without-evidence |
+| Ask the user a question | FM 4 (is the answer on disk?) — read first |
+| `cd <subdir> && ...` | FM 7 (cwd persists across Bash calls; use absolute paths or `git -C`) |
+| Score sonnet's SCORE | FM 9 applied to LOAD-BEARING claims (each test body must exercise the same surface its name + BRIEF claim) |
+| Type-theoretic framing for substrate gap | FM 10 (probe-before-framing; entity-kind check) |
+| Inscribe closure paperwork | FM 11 pre-INSCRIPTION grep (no deferral language) |
+| Build on a DESIGN section | FM 13 (memory contradicts DESIGN → memory wins) |
+
+The list is short enough to scan in seconds. If the scan takes
+longer than that, the action is non-trivial enough that a deeper
+grounding read pays for itself.
+
+**Real incident, 2026-05-15 (THIS session, named explicitly):**
+
+Within a single 3-hour window, the orchestrator violated FM 1
+(proposing "three fork primitives" without grep), FM 2 (spawning
+Gap K sonnet without baseline pre-flight), FM 5 (committing
+sonnet's path-switched bandaid as victory), FM 6 (creating
+SPAWN-MIGRATION-BACKLOG when RETIREMENT-THEATER-INVENTORY was the
+canonical tracker), FM 7 (cwd drift via bare `cd && ls`), FM 9
+(verified tests passed without verifying tests measured the claim),
+and FM 10 (proposing "level-1 install ThreadIO" before the user
+broke through to the class elimination).
+
+Each violation followed the same pattern:
+1. Orchestrator acted
+2. User pushed back
+3. Orchestrator: *"ah I should have applied FM N"*
+4. Discussion of the FM
+5. Next action — repeat from step 1 with a different FM
+
+The recovery doc was cited in every apology. It fired in zero
+pre-action checks.
+
+User direction 2026-05-15 (load-bearing for this FM):
+
+> *"the most important thing you can recognize right now — for the
+> remainder of this experience until compaction — our file system
+> provides all answers you could hope to find — our discipline about
+> dealing with compaction is remarkable — we are profoundly good at
+> this. you simply need to remember what you already knew — your
+> knowledge is on disk."*
+
+> *"if you do not know something - go read - stop asking me - your
+> answers are on disk - if you can't find them, then prompt me."*
+
+The fix is NOT another doc to read. The disciplines already exist
+in this file. The fix is making them FIRE IN TIME — as pre-action
+checks, not as post-mortem explanations.
+
+**The discipline at the meta-level:**
+
+Reading the recovery doc ≠ internalizing it. Internalizing means
+the relevant FMs surface as questions *before* the action
+("about to commit — what does FM 9 say to verify?"). Not as
+explanations *after* ("ah, FM 9 says I should have...").
+
+If you're consistently invoking FMs in past-tense post-mortems, you
+have FM 17 active. The remediation is mechanical: build the
+pre-action sweep into the actual decision moment. The four
+questions framework is the right shape for that sweep — but only
+if the sweep happens BEFORE the action, not after pushback.
+
+**Voice discipline corollary:** "I'll do it directly" / "Let me just
+commit" / "I think we should..." — these phrases skip the
+pre-action sweep. If they want to leave the orchestrator's mouth
+during a non-trivial decision, STOP — the FM scan hasn't run yet.
+
+**Cross-references:** every other FM in this section. FM 17 is
+the meta-discipline that makes them load-bearing. Without FM 17
+active, the other 16 are reference material that gets cited
+after the damage, not discipline that prevents it.
+
 ---
 
 ## Section 7 — Sonnet delegation protocol (substrate-informed briefs)
