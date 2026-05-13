@@ -506,12 +506,26 @@
   (:wat::test::run-hermetic-driver
     (proc :wat::kernel::Process<wat::core::nil,wat::core::nil>)
     -> :wat::kernel::RunResult)
+  ;; Outer scope: proc handle lives here; Process/join-result runs AFTER
+  ;; inner scope has dropped both output Receivers.  SERVICE-PROGRAMS.md
+  ;; § "The lockstep" — inner-let owns every output Receiver; when the
+  ;; inner body returns, stdout-r and stderr-r drop; substrate drain
+  ;; threads see EOF; child can exit; outer join-result unblocks cleanly.
   (:wat::core::let
-    [joined-result  (:wat::kernel::Process/join-result proc)
-     stdout-r       (:wat::kernel::Process/stdout proc)
-     stderr-r       (:wat::kernel::Process/stderr proc)
-     stdout-lines   (:wat::kernel::drain-lines stdout-r)
-     stderr-lines   (:wat::kernel::drain-lines stderr-r)
+    [drain-pair
+      (:wat::core::let
+        ;; Inner scope: Receivers + drained lines only.
+        ;; Dropping these bindings lets the child's OS pipes drain to EOF.
+        [stdout-r       (:wat::kernel::Process/stdout proc)
+         stderr-r       (:wat::kernel::Process/stderr proc)
+         stdout-lines   (:wat::kernel::drain-lines stdout-r)
+         stderr-lines   (:wat::kernel::drain-lines stderr-r)]
+        (:wat::core::Tuple stdout-lines stderr-lines))
+     stdout-lines   (:wat::core::first drain-pair)
+     stderr-lines   (:wat::core::second drain-pair)
+     ;; Inner scope has exited; Receivers dropped; child can exit.
+     ;; join-result runs in the outer scope and returns immediately.
+     joined-result  (:wat::kernel::Process/join-result proc)
      stderr-chain   (:wat::kernel::extract-panics stderr-lines)
      failure
       (:wat::core::match joined-result
@@ -675,14 +689,24 @@
     (proc :wat::kernel::Process<I,O>)
     (inputs :wat::core::Vector<I>)
     -> :wat::test::RunResultIO<O>)
+  ;; Outer scope: proc handle + join-result.  SERVICE-PROGRAMS.md § "The
+  ;; lockstep": inner-let owns every output Receiver; when inner body
+  ;; returns, stderr-r drops; drain threads see EOF; child can exit;
+  ;; outer join-result unblocks cleanly.
   (:wat::core::let
     [tx             (:wat::kernel::Process/tx proc)
      _              (:wat::test::run-hermetic-send-inputs tx inputs)
      rx             (:wat::kernel::Process/rx proc)
      outputs        (:wat::test::run-hermetic-drain-outputs rx (:wat::core::Vector :O))
+     ;; Inner scope: stderr Receiver + drained lines.
+     ;; Dropping stderr-r lets the child's stderr pipe drain to EOF.
+     stderr-lines
+      (:wat::core::let
+        [stderr-r     (:wat::kernel::Process/stderr proc)
+         lines        (:wat::kernel::drain-lines stderr-r)]
+        lines)
+     ;; Inner scope has exited; Receivers dropped; child can exit.
      joined-result  (:wat::kernel::Process/join-result proc)
-     stderr-r       (:wat::kernel::Process/stderr proc)
-     stderr-lines   (:wat::kernel::drain-lines stderr-r)
      stderr-chain   (:wat::kernel::extract-panics stderr-lines)
      failure
       (:wat::core::match joined-result
