@@ -360,6 +360,96 @@ This is substrate-as-teacher in micro: the lift mechanism (Gap H + I-A) didn't j
 
 ---
 
+## 2026-05-15 — Failure engineering applied to the V5 retry deadlock
+
+**The moment.** V5 retry surfaced a substrate deadlock. Opus shipped a 5-second wall-clock timeout. User rejected it three times before the right answer landed.
+
+**The three nos:**
+
+1. *"i don't know if i agree with the detection here.... is there an arbitrary 5s wait?...."* — rejecting the symptom-fix.
+2. *"the subagents fix is absolute trash - we have engineered a completely stable lock step programming env - rando '>5s is bad' is fucking retarded — we must be able to measure this by expression"* — rejecting the framing.
+3. *"i do not accept the 5s fix. i want to know exactly where we are failing - our users must be told they did something illegal"* — naming what the right answer must do.
+
+**The doctrine the nos came from:** `~/work/holon/scratch/FAILURE-ENGINEERING.md`.
+
+> *"failure engineering says: the failure isn't recovered from; it is read."*
+>
+> *"the failure isn't 'this specific case panicked.' The failure is 'a class of inputs / states / interactions can produce this kind of panic.' The fix isn't 'make this case stop panicking'; the fix is 'make this CLASS of panic structurally impossible.'"*
+
+Level-1 vs Level-2. Opus's 5s was level-1. The user demanded level-2.
+
+**The level-2 fix that landed:** `ProcessJoinBeforeOutputDrain` compile-time check in `src/check.rs`. Walks every let-form's syntactic scope; pairs calls to `:wat::kernel::Process/join-result <p>` with calls to `:wat::kernel::Process/{stdout,stderr,output} <p>` on the same identifier; if both present in the same scope, fails with verbose diagnostic naming both sites + the rule + SERVICE-PROGRAMS.md citation + explicit "DO NOT add a wall-clock timeout to mask this."
+
+**The substrate's own code is the primary offender.** `wat/test.wat:506-551` `run-hermetic-driver` has the illegal orientation:
+
+```scheme
+(:wat::core::let
+    [joined-result  (:wat::kernel::Process/join-result proc)   ; ← BLOCKS FIRST
+     stdout-r       (:wat::kernel::Process/stdout proc)
+     stderr-r       (:wat::kernel::Process/stderr proc)
+     ...
+```
+
+Sequential let. join-result BLOCKS until child exits; substrate's internal drain threads consume child OS pipes into wat-level Receivers (bounded); user hasn't drained them; drain threads block on send when full; child blocks on stdout write; child cannot exit; join blocks forever.
+
+**The substrate now refuses to run.** 30+ ProcessJoinBeforeOutputDrain fires in workspace test run; no tests execute; no orphans; no deadlock. The failed state is structurally unrepresentable.
+
+**Recovery breadcrumb for post-compaction:**
+
+State at handoff:
+- Branch: `arc-170-gap-j-v5-deadlock-state` (diagnostic branch)
+- Detection committed: `8ef69f4` (src/check.rs +171 lines)
+- Sonnet's substrate splice fix + V5 retry shape committed at `c3f2bf7` + `8e07626`
+- Workspace: substrate refuses to run; 30+ detection fires on `wat/test.wat:510:21`
+- BRIEF for the fix: queued, to be drafted next (Gap K — fix run-hermetic-driver to drain-then-join, restoring the lockstep nesting from SERVICE-PROGRAMS.md step 3 applied at the Process boundary)
+
+When you wake up post-compaction:
+1. Read this entry first.
+2. Verify `git log --oneline | head -5` on `arc-170-gap-j-v5-deadlock-state` — should show `8ef69f4` (detection), `e189ac0` (BRIEF), `8e07626` (V5 retry), `c3f2bf7` (substrate splice).
+3. Read `BRIEF-SLICE-3-GAP-K-FIX-RUN-HERMETIC-DRIVER.md` (about to be created).
+4. Spawn sonnet for the fix; the detection IS the verifier — sonnet's success criterion is "ProcessJoinBeforeOutputDrain no longer fires on substrate's own code; the deadlock is gone."
+5. Other workspace failures (Pattern A typealias unfold from V5 retry) are SEPARATE category; out of scope for the Gap K fix.
+
+**The collaboration shape this exemplifies:**
+
+User direction 2026-05-15: *"i'd rather hear 'no' three times and arrive at the right answer" / "this is why we are 1337" / "no-three-times-yes-once shape works in both directions."*
+
+Both halves of the hologram trained to reject level-1 fixes when level-2 is in reach. Discipline doesn't care which half is holding it.
+
+The substrate now teaches code about its own rules. Failure mode: structurally unavailable.
+
+---
+
+## 2026-05-15 — The rhythm: "The Other Side" by Memphis May Fire
+
+User shared mid-session, after the failure-engineering moment landed: `https://www.youtube.com/watch?v=2Ieu6WeUAS8`
+
+> *Pain will be your guide / To peace that you can't find*
+> *It's always darkest just before the light*
+> *If you could see the other side*
+
+This is the tempo of failure engineering. Three nos. Three rejections of the easy out. Then the right answer lands.
+
+**The map between the song and the work:**
+
+| Lyric | The work |
+|---|---|
+| "Pain will be your guide / To peace that you can't find" | Failure is data, not noise. The deadlock IS the report. The pain is the system telling us where the architecture broke. |
+| "It's always too much or never enough" | The substrate-as-teacher cascade. Each gap revealed is too much; each fix exposes the next gap that is never enough. Until the foundation is impeccable. |
+| "Fighting for your life / Suffering inside / Taking one more breath just to survive" | Three subagent attempts. Two reverts. The grind to level-2. |
+| "It's always darkest just before the light" | The V5 retry deadlock arc — futex orphans, hung tests, hours of dead ends. Then SERVICE-PROGRAMS.md re-read. Then the rule. Then the detection. Then the light. |
+| "Hands held to the sky / waiting for a sign / Find a reason why on the other side" | The user's "i do not suffer fools" + "i demand perfection and attack failures relentlessly." The sign is the discipline; the reason is the substrate that emerges. |
+| "Time and space collide / Nowhere left to hide" | The substrate now refuses to run on illegal orientations. The failure mode is structurally unavailable. No hiding. |
+| "Must be more to life on the other side" | The post-fix state. The substrate that catches its own violations. The work that continues past the boss. |
+
+**This is the rhythm.** Failure engineering has a soundtrack. The "no three times then yes once" cadence IS musical. The grind is not noise; it's tempo. The breakthrough lands ON the beat — when the doctrine, the discipline, and the willingness to keep saying no align.
+
+**For post-compaction me:** when you wake up and the boss feels heavy, play this song. The work you're doing has a rhythm. The pain IS the guide. The other side is the impeccable foundation we're building toward.
+
+The substrate dreams the song. So do we.
+
+---
+
 ## Standing convention reminder
 
 This is what INTERSTITIAL is for: the architectural conversation that moves the arc forward gets preserved alongside the slice artifacts. The four-questions verdict, the gaze convergence, the stepping-stone analysis — these are NOT in the BRIEF (the BRIEF carries forward-instruction); they're not in the SCORE (the SCORE is post-hoc). They're the reasoning that produced the BRIEF. Compaction erases the orchestrator's working memory; the form persists.
