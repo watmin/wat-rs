@@ -329,18 +329,14 @@
 ;; PipeWriter; arc 012). The child inherits the caller's SymbolTable
 ;; (including loaded deps) + committed Config (arc 031) via COW.
 ;;
-;; Arc 170 slice 3 Gap G — Path E migration BLOCKED by substrate gap:
-;; (:wat::core::define ...) forms inside a (:wat::core::fn ...) body's
-;; (:wat::core::do ...) cannot be evaluated at child runtime — the
-;; evaluator returns DefineInExpressionPosition. Existing callers
-;; (ambient-stdio.wat via make-deftest-hermetic) use define forms in
-;; their preludes. Path E requires either:
-;;   (a) a substrate capability to evaluate define at expression
-;;       position inside a do (runtime registration of fns), OR
-;;   (b) caller sweep: move all define-form preludes out of deftest-
-;;       hermetic's prelude and into the test body or separate files.
-;; See SCORE-SLICE-3-GAP-G-PATH-E-ISOLATION.md for full analysis.
-;; Staying on run-sandboxed-hermetic-ast until the substrate gap closes.
+;; Arc 170 slice 3 Phase E — Path E migration: prelude declarations
+;; land at the fn body's do-prefix; Gap H + I-A + I-B's closure-extraction
+;; lift moves them to the spawned child's prologue where they register at
+;; top-level. The substrate gap that blocked Gap G ("DefineInExpressionPosition
+;; for define-in-fn-body-do") is closed — `is_declaration_form` covers all 8
+;; declaration heads (define / def / defmacro / define-dispatch / struct /
+;; enum / newtype / typealias) and `extract_closure`'s `split_body_prelude`
+;; lifts them to the closure prologue before child eval sees them.
 (:wat::core::defmacro
   (:wat::test::deftest-hermetic
     (name :AST<wat::core::nil>)
@@ -348,14 +344,10 @@
     (body :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
   `(:wat::core::define (~name -> :wat::test::TestResult)
-     (:wat::kernel::run-sandboxed-hermetic-ast
-       (:wat::core::forms
+     (:wat::test::run-hermetic
+       (:wat::core::do
          ~@prelude
-         (:wat::core::define
-           (:user::main -> :wat::core::nil)
-           ~body))
-       (:wat::core::Vector :wat::core::String)
-       :wat::core::None)))
+         ~body))))
 
 ;; ─── make-deftest — configured-deftest factory (arc 029; arc 031) ─────
 ;;
