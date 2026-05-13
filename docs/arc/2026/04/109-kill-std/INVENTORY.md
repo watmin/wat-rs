@@ -1277,6 +1277,12 @@ Cross-references:
 - Arc 169 DESIGN.md — settled four-questions evaluation,
   out-of-scope items, slice plan stub
 
+## I. Pending kernel verb renames
+
+| Current | Target | Reason | Status |
+|---|---|---|---|
+| `:wat::kernel::raise!` | `:wat::kernel::panic!` | The kernel's message-based terminator is canonically a panic; `raise!` reads as a generic exception verb (the substrate has no exceptions — only structured terminal exits). User direction 2026-05-15: *"i think we have a kernel panic func too - but eprintln is a 'we are crashing, here's what i know' and exits"* — the kernel's three terminating forms are `eprintln` (value), `panic!` (message), `assertion-failed!` (assertion shape); the message form should carry the canonical name. | pending — separate slice; coordinate with [[feedback_eprintln_is_terminal]] doctrine. |
+
 ## Cross-references
 
 - Arc 005 — stdlib naming audit (the inventory this arc updates).
