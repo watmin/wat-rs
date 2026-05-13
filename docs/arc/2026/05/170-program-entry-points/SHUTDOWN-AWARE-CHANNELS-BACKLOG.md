@@ -22,11 +22,11 @@ Each slice is independently verifiable. Each gates on the prior. Sonnet ships on
 | **B** | **Crossbeam multiplex.** Modify `typed_recv` Crossbeam arm to use `crossbeam::select!` between data_rx and SHUTDOWN_RX. On shutdown fire → return `RecvOutcome::Shutdown`. Wire `eval_kernel_recv` to map `Shutdown` → `Err(ThreadDiedError::Shutdown)` at wat boundary. Wire SIGTERM/SIGINT handler in `fork.rs` to write to wake-pipe (async-signal-safe). | YES — probe: raise SIGTERM mid-blocked-recv; assert recv returns Err Shutdown within 100ms. | M | C |
 | **C** | **PR_SET_PDEATHSIG in child fork branches.** Add `libc::prctl(PR_SET_PDEATHSIG, SIGTERM, ...)` in `src/spawn_process.rs::spawn_process_child_branch` (after `setpgid`) and `src/fork.rs` (after `setpgid`). | YES — probe: parent-forks-child; parent immediately exits; verify child receives SIGTERM and exits within 1s (no leak). | S | D |
 | **D** | **End-to-end probe + stability verification.** Test deftest that demonstrates the full cascade: spawn child via spawn-process → orphan it (parent dies) → child detects parent death → cascade fires → child exits cleanly. Run `scripts/stability-100.sh 20`; verify zero leaked processes accumulate. | YES — empirical leak count goes from "12 per run" to 0. | M | (terminal for the leak class) |
-| **E** | **(Deferred follow-up) PipeFd multiplex.** Tier-2 from-pipe Receivers also multiplex on shutdown. Requires OS-level select or pipe-fd-watcher pattern (harder than crossbeam). Defer unless Slice B+C+D leaves residual leaks at PipeFd boundaries. | YES — probe: from-pipe wrapped Process/stdout recv wakes on shutdown. | M-L | (independent) |
+| **E** | **PipeFd multiplex.** Tier-2 from-pipe Receivers also multiplex on shutdown. Implementation: OS-level select via `epoll`/`poll(2)` on (pipe_fd, shutdown_eventfd). The substrate gains a shutdown eventfd alongside the wake-pipe; PipeFd recv selects on both. Closes the tier-2 leak path so the architecture is uniform across tiers (per TIERS.md uniformity claim). | YES — probe: from-pipe wrapped Process/stdout recv wakes on shutdown within 100ms. | M-L | (independent of A-D, parallelizable with C/D) |
 
-**Critical path:** A → B → C → D. Total ≈ 4 ship cycles.
+**Critical path:** A → B → C → D → E. Total: 5 ship cycles.
 
-Slice E ships only if D's stability probe shows PipeFd leaks remain. Crossbeam multiplex (B) is the dominant case (trio's internal channels are crossbeam; user services typically use crossbeam).
+Slice E is mandatory, not deferred. Per `feedback_no_known_defect_left_unfixed`: known defect surfaceable now → ship now. Per `feedback_pivot_not_defer`: deferral bias is a STOP signal that the thing actually needs doing. PipeFd shutdown awareness is required for TIERS.md's uniformity claim to hold honestly at tier 2.
 
 ## What each slice protects against (failure-engineering)
 
