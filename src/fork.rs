@@ -466,6 +466,68 @@ fn install_silent_panic_hook() {
     }));
 }
 
+/// Arc 170 FD-multiplex Phase 3 — canonical post-fork initialization for
+/// substrate-spawned wat-vm children. Both fork paths
+/// (`fork_program_from_source` :: `child_branch_from_source` and
+/// `spawn_process` :: `spawn_process_child_branch`) call this immediately
+/// after finishing their pipe-specific dup2 + drop work and before any
+/// substrate startup/eval.
+///
+/// The 5-step canonical sequence:
+///
+/// 1. Install the silent panic hook (substrate's structured-stderr emit owns
+///    panic propagation; Rust's default panic output is suppressed).
+/// 2. Make the child its own process-group leader (arc 106 signal cascade
+///    discipline). Structured-stderr + `_exit` on failure.
+/// 3. Close inherited FDs above stdio (FD hygiene). The substrate-owned
+///    lifeline read-end is in the skip-list so it survives for the shutdown
+///    worker.
+/// 4. Initialize the shutdown infrastructure with the lifeline FD registered.
+///    Opens wake-pipe + broadcast pipe; spawns worker polling
+///    (wake_pipe_read, lifeline_r_raw) and holding broadcast_w.
+/// 5. Install substrate signal handlers (SIGTERM/SIGINT/SIGUSR1/2/SIGHUP)
+///    wired through the wake-pipe to the shutdown cascade.
+///
+/// On any failure inside, emits structured ProcessPanics on fd 2 and
+/// `_exit(EXIT_STARTUP_ERROR)`. Never returns to caller on failure; either
+/// completes all 5 steps or terminates the child.
+///
+/// `mem::forget(lifeline_r)` stays in the CALLER's scope (transfer of
+/// OwnedFd ownership to the substrate worker via the raw fd; the OwnedFd
+/// value's drop must not run, but this function takes only the raw fd, so
+/// the caller is the one with the OwnedFd in scope).
+pub(crate) fn child_post_fork_init(lifeline_r_raw: i32) {
+    // Step 1 — suppress Rust's default panic output on fd 2.
+    install_silent_panic_hook();
+
+    // Step 2 — make this child its own process-group leader.
+    if unsafe { libc::setpgid(0, 0) } < 0 {
+        let err = std::io::Error::last_os_error();
+        emit_structured_exit(
+            None,
+            crate::runtime::process_died_error_startup_value(
+                format!("setpgid(0, 0) failed: {}", err),
+            ),
+        );
+        unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
+    }
+
+    // Step 3 — FD hygiene: close inherited fds BEFORE opening any
+    // substrate-owned FDs. The lifeline read-end is in the skip-list so
+    // it survives for the shutdown worker. All other inherited fds > 2
+    // leaked from the parent are closed here.
+    close_inherited_fds_above_stdio(&[lifeline_r_raw]);
+
+    // Step 4 — register the lifeline read-end with the shutdown worker.
+    // Must run AFTER the close-sweep so wake-pipe FDs opened here are not
+    // at risk of being closed by the sweep.
+    crate::runtime::init_shutdown_signal_with_inputs(&[lifeline_r_raw]);
+
+    // Step 5 — install signal handlers AFTER shutdown infrastructure is
+    // ready so SIGTERM/SIGINT route through the existing wake-pipe path.
+    install_substrate_signal_handlers();
+}
+
 /// Arc 170 slice 1i — unified structured exit helper for ALL fork child
 /// exit paths. Wraps `value` in the `#wat.kernel/ProcessPanics [...]`
 /// envelope and writes the EDN line to stderr before the caller
@@ -1067,73 +1129,16 @@ fn child_branch_from_source(
     drop(stdout_pair.1);
     drop(stderr_pair.1);
 
-    // Make the child the leader of its own process group. Per arc 106:
-    // every fork child becomes its own group; subsequent `fork-program`
-    // calls inside the wat program inherit the pgid (POSIX default),
-    // so the cli's `killpg(child_pgid, sig)` cascades to every
-    // descendant — grandchildren, great-grandchildren, recursively.
-    // The kernel does the bookkeeping; the substrate doesn't maintain
-    // a child registry. Failure here is non-recoverable — the cascade
-    // contract is broken — so we _exit. EPERM should not happen
-    // (child is not a session leader; cli does not call setsid).
-    //
-    // Arc 170 slice 1i — install the silent panic hook AFTER dup2 (so
-    // fd 2 is already the subprocess stderr pipe) but BEFORE any Rust
-    // code that might panic. setpgid(2) is a C syscall; does not panic.
-    install_silent_panic_hook();
-
-    if unsafe { libc::setpgid(0, 0) } < 0 {
-        let err = std::io::Error::last_os_error();
-        emit_structured_exit(
-            None,
-            crate::runtime::process_died_error_startup_value(
-                format!("setpgid(0, 0) failed: {}", err),
-            ),
-        );
-        unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
-    }
-
-    // Arc 170 FD-multiplex Phase 1E — close inherited fds BEFORE opening any
-    // substrate-owned FDs. This ordering ensures the wake-pipe FDs created by
-    // init_shutdown_signal_with_inputs (below) are never in the sweep set.
-    // lifeline_r_raw is the one inherited FD we INTEND to keep open across this
-    // call — it's the parent's lifeline-write-end pair. The skip-list protects it.
-    // All other inherited fds > 2 are leaked from parent and should be closed.
-    close_inherited_fds_above_stdio(&[lifeline_r_raw]);
-
-    // Arc 170 FD-multiplex Phase 1C — register the lifeline read-end with
-    // the shutdown worker. The worker's poll(2) set grows by one FD; when
-    // the parent process dies for any reason, kernel closes the parent's
-    // lifeline write-end → this read-fd EOFs (POLLHUP) → worker wakes →
-    // trigger_shutdown → cascade unblocks all parked recvs.
-    //
-    // init_shutdown_signal_with_inputs is idempotent (OnceLock guard). The
-    // later call inside bootstrap_wat_vm_process becomes a no-op; the worker
-    // the bootstrap call would otherwise spawn is replaced by THIS one with
-    // the lifeline FD registered. Order matters: this MUST run before any
-    // later init_shutdown_signal() call.
-    //
-    // Phase 1E ordering: this runs AFTER the close-sweep so the wake-pipe FDs
-    // it opens are not at risk of being closed by the sweep.
-    crate::runtime::init_shutdown_signal_with_inputs(&[lifeline_r_raw]);
+    // Arc 170 FD-multiplex Phase 3 — canonical 5-step post-fork init:
+    // (1) silent panic hook, (2) setpgid, (3) close inherited fds,
+    // (4) init_shutdown_signal_with_inputs, (5) install signal handlers.
+    // All steps run in order; forgetting one is structurally impossible.
+    child_post_fork_init(lifeline_r_raw);
 
     // Transfer FD ownership to the worker thread — the substrate now owns
     // the lifeline read-fd. Dropping OwnedFd here would close the FD and
     // the worker would immediately POLLHUP (false-positive shutdown).
     std::mem::forget(lifeline_r);
-
-    // Arc 170 FD-multiplex Phase 1C — shutdown infrastructure initialized
-    // above with the lifeline FD; signal handlers installed after so any
-    // SIGTERM/SIGINT route to the existing wake-pipe path.
-
-    // Install wat signal handlers (arc 106 — replaces the arc 104d
-    // SIG_DFL reset). The handlers flip the same KERNEL_STOPPED /
-    // KERNEL_SIGUSR1 / etc. flags wat programs poll via
-    // `(:wat::kernel::stopped?)` etc. The polling contract works
-    // through fork now; a wat program in a forked child observes
-    // the cascade and exits cleanly. SIG_DFL would have killed the
-    // child by default action — wrong contract, racy waitpid window.
-    install_substrate_signal_handlers();
 
     // Build wat-level stdio over fd 0/1/2.
     let stdin_reader: Arc<dyn WatReader> =

@@ -18,6 +18,16 @@
 //! - Slice D baseline (10% race at delay=0 with PDEATHSIG): `SCORE-SLICE-D-LEAK-ZERO-VERIFICATION.md`
 //! - Pure-libc lifeline proof (100/100 trials, 0 orphans): `tests/probe_lifeline_pipe_proof.rs`
 //!
+//! # Rendezvous mechanism update (2026-05-13)
+//!
+//! Original rendezvous: `done_pipe` FD-inheritance — grandchild inherited done_w;
+//! when grandchild exited, done_w closed → POLLHUP on done_r. Phase 3 of arc 170
+//! FD-multiplex adds canonical `close_inherited_fds_above_stdio` to spawn-process,
+//! which closes inherited test-pipes in the grandchild at startup. done_pipe
+//! rendezvous no longer works. Replaced with `pidfd_open(grandchild_pid, 0)` +
+//! `poll(pidfd, POLLIN, 1000ms)` — POLLIN fires when the process exits.
+//! Kernel-guaranteed, Linux 5.3+. Observable contract unchanged.
+//!
 //! # Design
 //!
 //! ```text
@@ -28,14 +38,13 @@
 //!   │    └─ grandchild (pid: grandchild_pid) — lifeline read-end registered
 //!   │         │  with shutdown worker via init_shutdown_signal_with_inputs
 //!   │         │  blocks on typed_recv (Slice B cascade wires)
-//!   │         └─ holds done_pipe write-end (FD inherited from supervisor)
 //!   │
 //!   └─ test: waitpid(supervisor) → supervisor _exit(0) →
 //!            kernel closes supervisor's lifeline write-end →
 //!            grandchild shutdown worker POLLHUP fires →
 //!            trigger_shutdown → cascade wakes blocked recv →
-//!            grandchild exits → done_pipe write-end closes →
-//!            poll(done_pipe_read_fd, 1000ms) fires →
+//!            grandchild exits →
+//!            pidfd_open(grandchild_pid) → poll(pidfd, POLLIN, 1000ms) fires →
 //!            PASS: grandchild died within 1s
 //! ```
 //!
@@ -49,9 +58,9 @@
 //! # Rendezvous discipline (no wall-clock sleep)
 //!
 //! - `pid_pipe` (supervisor → test): supervisor writes grandchild pid; test reads it.
-//! - `done_pipe` (grandchild hold → test): grandchild inherits write-end. When
-//!   grandchild exits for any reason, OS closes all its FDs including done_pipe
-//!   write-end. Test does `poll(done_r, POLLHUP, 1000ms)` — fires on EOF.
+//! - After reading grandchild_pid, test calls `pidfd_open(grandchild_pid, 0)` to
+//!   obtain a file descriptor that becomes POLLIN-readable when the process exits.
+//!   `poll(pidfd, POLLIN, 1000ms)` is the bounded rendezvous mechanism.
 //! - No `thread::sleep`, `recv_timeout`, or `std::time::Instant` as a timer.
 //!   `std::time::Instant` is used ONLY to measure elapsed time after poll
 //!   returns (measurement, not timeout mechanism).
@@ -145,13 +154,13 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 /// # Shape
 ///
 /// 1. Build a blocking wat world (done before any fork — supervisor inherits it).
-/// 2. Create `pid_pipe` (supervisor → test) and `done_pipe` (grandchild → test).
+/// 2. Create `pid_pipe` (supervisor → test).
 /// 3. Fork supervisor.
 /// 4. Supervisor: eval(spawn-process), extract grandchild pid, write to pid_pipe,
-///    drop done_w (supervisor's copy of done_pipe write-end), `_exit(0)`.
-/// 5. Test: waitpid(supervisor), read grandchild pid from pid_pipe, drop done_w
-///    (test's copy — grandchild is the only remaining holder).
-/// 6. Test: poll(done_r, POLLHUP|POLLIN, 1000ms) — fires when grandchild exits.
+///    `_exit(0)`.
+/// 5. Test: waitpid(supervisor), read grandchild pid from pid_pipe.
+/// 6. Test: pidfd_open(grandchild_pid, 0) → poll(pidfd, POLLIN, 1000ms) — fires
+///    when grandchild process exits.
 /// 7. Verify grandchild process is gone (zombie or reaped).
 #[test]
 fn probe_lifeline_orphan_clean_via_substrate() {
@@ -159,14 +168,10 @@ fn probe_lifeline_orphan_clean_via_substrate() {
     // fork's copy-on-write semantics. InMemoryLoader has no disk state.
     let world = freeze_ok(BLOCKING_CHILD_SRC);
 
-    // Step 2: Create coordination pipes.
+    // Step 2: Create coordination pipe.
     //
     // pid_pipe: supervisor writes grandchild pid (4 bytes, i32 LE); test reads.
-    // done_pipe: grandchild inherits write-end (via spawn-process FD inheritance).
-    //   When grandchild exits for any reason, OS closes done_pipe write-end.
-    //   Test polls done_pipe read-end for POLLHUP — fires on EOF.
     let (pid_r, pid_w) = make_raw_pipe();
-    let (done_r, done_w) = make_raw_pipe();
 
     // Step 3: Fork supervisor.
     let supervisor_pid = unsafe { libc::fork() };
@@ -178,10 +183,8 @@ fn probe_lifeline_orphan_clean_via_substrate() {
 
     if supervisor_pid == 0 {
         // ── Supervisor child branch ───────────────────────────────────────
-        // Close the test's pipe ends (supervisor only uses pid_w and done_w).
+        // Close the test's pipe end (supervisor only uses pid_w).
         drop(pid_r);
-        // done_r stays open briefly — drop before _exit so only grandchild holds done_w.
-        drop(done_r);
 
         // Spawn grandchild via substrate spawn-process (Phase 1B path).
         // spawn_process_child_branch registers the lifeline read-end via
@@ -189,8 +192,9 @@ fn probe_lifeline_orphan_clean_via_substrate() {
         // supervisor _exit(0)s below, the kernel closes the supervisor's
         // copy of lifeline_w → grandchild's worker POLLHUP fires → cascade.
         //
-        // The grandchild INHERITS done_w because spawn_process_child_branch
-        // does not call close_inherited_fds_above_stdio.
+        // Phase 3: spawn_process_child_branch now calls
+        // close_inherited_fds_above_stdio — no FD-inheritance rendezvous
+        // possible; test uses pidfd_open instead.
         let call = WatAST::List(
             vec![
                 WatAST::Keyword(":wat::kernel::spawn-process".into(), Span::unknown()),
@@ -212,7 +216,6 @@ fn probe_lifeline_orphan_clean_via_substrate() {
                     )
                 };
                 drop(pid_w);
-                drop(done_w);
                 panic!("spawn-process failed: {}", e);
             }
         };
@@ -229,18 +232,16 @@ fn probe_lifeline_orphan_clean_via_substrate() {
         };
         assert_eq!(written, 4, "pid_pipe write failed");
 
-        // Drop pid_w and done_w (supervisor's copies) so grandchild is
-        // the only remaining holder of done_pipe write-end. Drop the
-        // Process struct WITHOUT calling wait — we're about to _exit,
-        // which orphans the grandchild intentionally. Arc's Drop on
-        // ChildHandleInner would SIGKILL it — prevent that by leaking.
+        // Drop pid_w (supervisor's copy). Drop the Process struct WITHOUT
+        // calling wait — we're about to _exit, which orphans the grandchild
+        // intentionally. Arc's Drop on ChildHandleInner would SIGKILL it —
+        // prevent that by leaking.
         //
         // Leak strategy: forget the process value so ChildHandleInner::drop
         // (which sends SIGKILL + waitpid) does NOT run. The lifeline mechanism
         // will clean up the grandchild instead.
         std::mem::forget(process);
         drop(pid_w);
-        drop(done_w);
 
         // Exit WITHOUT waiting for grandchild. This orphans the grandchild
         // whose PPID becomes 1 (init/subreaper). The kernel closes all FDs
@@ -252,11 +253,8 @@ fn probe_lifeline_orphan_clean_via_substrate() {
     }
 
     // ── Test (parent of supervisor) ───────────────────────────────────────
-    // Close supervisor's ends of the coordination pipes.
+    // Close supervisor's end of pid_pipe.
     drop(pid_w);
-    // Note: test holds done_r (for poll) and done_w. We must drop done_w
-    // AFTER we have read grandchild_pid so the grandchild is the only
-    // remaining holder. Drop it below after the pid_pipe read.
 
     // Step 4: Wait for supervisor to exit. Supervisor exits as soon as it
     // spawns grandchild and writes pid — this returns immediately.
@@ -282,48 +280,43 @@ fn probe_lifeline_orphan_clean_via_substrate() {
     assert!(grandchild > 0, "grandchild pid must be positive; got {}", grandchild);
     drop(pid_r);
 
-    // Drop test's copy of done_pipe write-end. After this, the grandchild
-    // is the ONLY holder of done_w. When the grandchild exits (via lifeline
-    // cascade), its done_w closes → EOF on done_r.
-    drop(done_w);
+    // Step 6: Open a pidfd for the grandchild and poll for process exit.
+    // pidfd_open(pid, 0) returns a file descriptor that becomes POLLIN-readable
+    // when the process exits. Linux 5.3+. No FD-inheritance required.
+    let pidfd = unsafe {
+        libc::syscall(libc::SYS_pidfd_open, grandchild as libc::c_long, 0i32 as libc::c_long)
+    } as libc::c_int;
+    assert!(
+        pidfd >= 0,
+        "pidfd_open(grandchild_pid={}) failed: {}",
+        grandchild,
+        std::io::Error::last_os_error()
+    );
 
-    // Step 6: Poll done_pipe read-end for EOF (POLLHUP) with 1000ms timeout.
-    // No wall-clock sleep — poll(2) is the bounded rendezvous mechanism.
-    // Fires when grandchild exits and closes its done_w.
-    //
-    // The lifeline cascade fires in microseconds-to-milliseconds: kernel closes
-    // lifeline_w (part of supervisor _exit) → worker POLLHUP → trigger_shutdown
-    // → recv wakes → _exit → done_w closes. 1000ms budget is generous.
+    let mut pollfd = libc::pollfd { fd: pidfd, events: libc::POLLIN, revents: 0 };
     let t0 = Instant::now();
-    let mut pollfd = libc::pollfd {
-        fd: done_r.as_raw_fd(),
-        events: libc::POLLHUP | libc::POLLIN,
-        revents: 0,
-    };
     let poll_ret = unsafe { libc::poll(&mut pollfd as *mut _, 1, 1000) };
     let elapsed = t0.elapsed();
-
-    drop(done_r);
+    unsafe { libc::close(pidfd) };
 
     assert!(
         poll_ret > 0,
-        "grandchild (pid {}) did not exit within 1s — lifeline cascade broken \
-         (poll_ret={}, elapsed={:?}; check Phase 1B/1C substrate wiring)",
+        "pidfd_open POLLIN did not fire within 1s — lifeline cascade broken \
+         (grandchild pid={}, poll_ret={}, elapsed={:?}; check Phase 1B/1C substrate wiring)",
         grandchild,
         poll_ret,
         elapsed
     );
 
     // Step 7: Verify grandchild process is no longer running.
-    // done_pipe EOF (step 6) is the definitive signal: the grandchild
-    // called _exit (or equivalent), which closes all FDs including done_w.
+    // pidfd POLLIN (step 6) is the definitive signal: the process has exited.
     // A zombie in the process table is acceptable — it means the process
     // exited and is awaiting reaping by init (since supervisor already
     // exited). We check /proc/<pid>/stat for the zombie state rather than
     // using kill(pid, 0) which returns 0 for both live AND zombie processes.
     //
     // Z = zombie (process exited, waiting to be reaped) — PASS.
-    // R/S/D = still running (should not happen after done_pipe EOF) — FAIL.
+    // R/S/D = still running (should not happen after pidfd POLLIN) — FAIL.
     let proc_stat = std::fs::read_to_string(format!("/proc/{}/stat", grandchild))
         .unwrap_or_default();
     // /proc/pid/stat field 3 is the state character (between the last ')' and next space).
@@ -336,7 +329,7 @@ fn probe_lifeline_orphan_clean_via_substrate() {
         // '?' = no such process (already reaped by init) — PASS.
         state == 'Z' || state == '?',
         "grandchild pid {} in unexpected state '{}' after lifeline cascade \
-         (poll fired at elapsed={:?}; expected zombie or gone)",
+         (pidfd POLLIN fired at elapsed={:?}; expected zombie or gone)",
         grandchild,
         state,
         elapsed
