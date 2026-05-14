@@ -61,3 +61,21 @@ Per `feedback_brief_constraint_contradictions`: BRIEFs must NOT have constraints
 ## Status
 
 Backlog drafted. Slice A ready to BRIEF. Awaiting orchestrator green light to draft BRIEF + spawn sonnet.
+
+---
+
+## Post-Slice-D rider (2026-05-13) — Slice C retires, Slice E expands
+
+Slice D ran. Slice D returned the substrate's truth: **the PR_SET_PDEATHSIG mechanism Slice C shipped is race-prone at ~10% rate** (empirical: 5/50 orphans at supervisor delay=0; 0/50 at delay=10ms). See `SCORE-SLICE-D-LEAK-ZERO-VERIFICATION.md` for the empirical record.
+
+The structural fix is on disk as `DESIGN-FD-MULTIPLEX-SHUTDOWN.md` — a unified slice that:
+
+1. **Retires Slice C's mechanism.** Drops `prctl(PR_SET_PDEATHSIG, SIGTERM)` + the early `init_shutdown_signal()` race-closing edit from both child branches. Slice C's INSCRIPTION (commit `fb9522d`) and SCORE doc stay on disk as historical record per `feedback_inscription_immutable`.
+2. **Subsumes Slice E.** Slice E's `epoll`/`poll(2)` over (pipe_fd, shutdown_eventfd) becomes the shutdown worker's primary mechanism: substrate-level FD multiplex with N inputs (wake-pipe, lifeline-pipe, future signalfd) and the existing crossbeam fanout as output. Tier-2 from-pipe Receivers ride the same multiplex for shutdown-awareness.
+3. **Introduces the lifeline pipe.** Substrate-owned pipe per spawn-process: parent holds write-end, child reads. Kernel closes the parent's FDs on `_exit`/panic/SIGKILL — child's blocking read returns EOF deterministically. Same primitive crossbeam Sender::Drop rides; same primitive the substrate's existing tier-2 architecture was reaching for via Slice E. No signal handler, no timer, no race window. Empirical: 100/100 trials in 28ms (`tests/probe_lifeline_pipe_proof.rs`).
+
+**Slices remaining in this backlog:** A, B, C, D are shipped. E is subsumed by the unified slice. The unified slice's own composition (phases 1-6) is named in its DESIGN.
+
+Why one unified slice rather than amending E in place: Slice C's mechanism is sunk; retiring it cleanly + ALSO landing Slice E in the same architectural pass is the honest shape per `feedback_simple_is_uniform_composition` — the underlying change is "the shutdown worker's wait grows from one FD to N." That's ONE change, surfaced at three sites (signal handler unchanged, lifeline added, tier-2 Receivers gained). Splitting the artifact into two BRIEFs against the same substrate edit would conflate them.
+
+INTERSTITIAL § "Slice D surfaced Slice C as the deviation" carries the substrate-teaching context — the recognition that PDEATHSIG was the ONLY piece of arc 170's shutdown machinery that didn't piggyback on a documented kernel-or-library invariant. Removing it is restoring the symmetry the substrate had already established in Slices A/B and was planning to extend in Slice E.
