@@ -192,6 +192,14 @@ static SHUTDOWN_TX_PTR: std::sync::atomic::AtomicPtr<crossbeam_channel::Sender<(
 pub static SHUTDOWN_WAKE_WRITE_FD: std::sync::atomic::AtomicI32 =
     std::sync::atomic::AtomicI32::new(-1);
 
+/// Arc 170 Phase 2 — substrate-owned shutdown broadcast read-fd.
+/// Worker holds the write-end; drops it after trigger_shutdown.
+/// All `Receiver/from-pipe` recvs poll this fd; POLLHUP → Shutdown.
+/// Value -1 until init_shutdown_signal_with_inputs runs; valid fd
+/// after. Once set, never re-set (idempotent init).
+pub static SHUTDOWN_BROADCAST_READ_FD: std::sync::atomic::AtomicI32 =
+    std::sync::atomic::AtomicI32::new(-1);
+
 /// Initialize the shutdown signal infrastructure. Idempotent — safe to
 /// call from every bootstrap path. Creates:
 ///   1. A crossbeam unbounded channel pair (rx → SHUTDOWN_RX, tx → SHUTDOWN_TX_PTR)
@@ -246,6 +254,20 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     let write_fd = fds[1];
     SHUTDOWN_WAKE_WRITE_FD.store(write_fd, Ordering::SeqCst);
 
+    // Phase 2 — broadcast pipe for tier-2 PipeFd recvs.
+    // Worker holds the write-end; drops it after trigger_shutdown().
+    // All Receiver/from-pipe recvs poll the read-end; POLLHUP → Shutdown.
+    let mut broadcast_fds = [0_i32; 2];
+    let broadcast_result = unsafe { libc::pipe(broadcast_fds.as_mut_ptr()) };
+    if broadcast_result != 0 {
+        let msg = b"substrate: pipe(2) failed during broadcast init\n";
+        unsafe { libc::write(2, msg.as_ptr() as *const _, msg.len()) };
+        std::process::exit(1);
+    }
+    let broadcast_r_fd = broadcast_fds[0];
+    let broadcast_w_fd = broadcast_fds[1];
+    SHUTDOWN_BROADCAST_READ_FD.store(broadcast_r_fd, Ordering::SeqCst);
+
     // Build the worker's pollfd set: wake-pipe + caller-provided inputs.
     // Captured by value into the worker closure; the worker owns its set.
     let mut input_fds: Vec<i32> = Vec::with_capacity(1 + extra_input_fds.len());
@@ -286,6 +308,9 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
             }
             // Wake received. Trigger shutdown in normal context.
             trigger_shutdown();
+            // Phase 2 — propagate shutdown to tier-2 PipeFd consumers by
+            // closing the broadcast write-end. All readers see POLLHUP.
+            unsafe { libc::close(broadcast_w_fd); }
             // Worker exits — its job is done; subsequent attempts are no-ops.
         })
         .expect("wat-shutdown-worker thread spawn failed");

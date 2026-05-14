@@ -52,6 +52,14 @@ pub trait WatReader: Send + Sync + std::fmt::Debug {
     /// for real stdin (real fds aren't rewindable); meaningful for
     /// `StringIoReader`.
     fn rewind(&self, span: Span) -> Result<(), RuntimeError>;
+
+    /// Arc 170 Phase 2 — return the raw FD this reader is backed by,
+    /// for OS-level multiplex via poll(2). Default `None` for
+    /// non-FD-backed readers (RealStdin, StringIoReader). Override
+    /// in PipeReader to return `Some(self.fd.as_raw_fd())`.
+    fn as_raw_fd_for_poll(&self) -> Option<i32> {
+        None
+    }
 }
 
 /// A sink for bytes. Wat-level type `:wat::io::IOWriter`.
@@ -569,6 +577,10 @@ impl WatReader for PipeReader {
             reason: "pipe fds are not rewindable".into(),
             span,
         })
+    }
+
+    fn as_raw_fd_for_poll(&self) -> Option<i32> {
+        Some(self.fd.as_raw_fd())
     }
 }
 

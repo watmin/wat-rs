@@ -321,22 +321,70 @@ pub fn typed_recv(
                 }
             }
         }
-        ReceiverInner::PipeFd(reader) => match reader.read_line(span) {
-            Ok(Some(line)) => {
-                let trimmed = line.trim_end_matches('\n');
-                match crate::edn_shim::read_edn(trimmed, types) {
-                    Ok(v) => RecvOutcome::Value(v),
-                    Err(e) => RecvOutcome::DecodeError(format!("{}", e)),
+        ReceiverInner::PipeFd(reader) => {
+            // Phase 2 — multiplex on shutdown via OS-level poll.
+            // If reader exposes a pollable FD AND the substrate's shutdown
+            // broadcast is initialized, poll both; otherwise fall back to
+            // bare read_line (non-FD-backed reader, or pre-init bootstrap).
+            let pipe_fd_opt = reader.as_raw_fd_for_poll();
+            let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(
+                std::sync::atomic::Ordering::SeqCst,
+            );
+            if let (Some(pfd), true) = (pipe_fd_opt, broadcast_fd >= 0) {
+                loop {
+                    let mut fds = [
+                        libc::pollfd {
+                            fd: pfd,
+                            events: libc::POLLIN | libc::POLLHUP,
+                            revents: 0,
+                        },
+                        libc::pollfd {
+                            fd: broadcast_fd,
+                            events: libc::POLLHUP,
+                            revents: 0,
+                        },
+                    ];
+                    let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
+                    if n < 0 {
+                        // EINTR → retry; other errors fall through to read_line.
+                        let err = std::io::Error::last_os_error();
+                        if err.kind() == std::io::ErrorKind::Interrupted {
+                            continue;
+                        }
+                        break;
+                    }
+                    if n == 0 {
+                        // timeout=-1 should never produce n=0; defensively retry.
+                        continue;
+                    }
+                    // Shutdown wins ties per Slice B discipline — process is
+                    // going down; honest reporting.
+                    if fds[1].revents != 0 {
+                        return RecvOutcome::Shutdown;
+                    }
+                    if fds[0].revents != 0 {
+                        break;
+                    }
                 }
             }
-            Ok(None) => RecvOutcome::Disconnected,
-            // A read error (kernel-level, not EOF) is also a
-            // disconnect from the wat-level POV — there's nothing
-            // useful for the caller to do beyond bail. Caller can
-            // distinguish if it cares by inspecting the IOReader
-            // directly.
-            Err(_) => RecvOutcome::Disconnected,
-        },
+            // Pipe is ready (or no multiplex possible). Read.
+            match reader.read_line(span) {
+                Ok(Some(line)) => {
+                    let trimmed = line.trim_end_matches('\n');
+                    match crate::edn_shim::read_edn(trimmed, types) {
+                        Ok(v) => RecvOutcome::Value(v),
+                        Err(e) => RecvOutcome::DecodeError(format!("{}", e)),
+                    }
+                }
+                Ok(None) => RecvOutcome::Disconnected,
+                // A read error (kernel-level, not EOF) is also a
+                // disconnect from the wat-level POV — there's nothing
+                // useful for the caller to do beyond bail. Caller can
+                // distinguish if it cares by inspecting the IOReader
+                // directly.
+                Err(_) => RecvOutcome::Disconnected,
+            }
+        }
     }
 }
 
@@ -349,13 +397,13 @@ pub fn typed_recv(
 ///   `RecvOutcome::Disconnected`. The order matters: shutdown checked
 ///   first so it overrides any pending Value (the process is going
 ///   down; honest reporting).
-/// - Tier 2 (PipeFd): NOT YET IMPLEMENTED — pipe fds are
-///   blocking by default, and the substrate doesn't currently
-///   set O_NONBLOCK on Process pipes. Callers that reach for
-///   `try-recv` on a pipe-backed Receiver get `Disconnected` as
-///   a stand-in (matches the crossbeam empty / disconnected
-///   collapse). Surface as honest delta if a real consumer
-///   demands non-blocking pipe recv.
+/// - Tier 2 (PipeFd): Arc 170 Phase 2 — non-blocking poll(timeout=0)
+///   on (broadcast_fd, pipe_fd). Shutdown wins ties. On shutdown →
+///   `RecvOutcome::Shutdown`. On data ready → falls through to
+///   read_line → `RecvOutcome::Value`. On empty (no data, no shutdown)
+///   or poll error → `RecvOutcome::Disconnected`. Broadcast fd is
+///   checked first so shutdown overrides any pending Value (process
+///   is going down; honest reporting).
 pub fn typed_try_recv(
     receiver: &ReceiverInner,
     _types: Option<&crate::types::TypeEnv>,
@@ -380,7 +428,54 @@ pub fn typed_try_recv(
                 Err(_) => RecvOutcome::Disconnected,
             }
         }
-        ReceiverInner::PipeFd(_) => RecvOutcome::Disconnected,
+        ReceiverInner::PipeFd(reader) => {
+            let pipe_fd_opt = reader.as_raw_fd_for_poll();
+            let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(
+                std::sync::atomic::Ordering::SeqCst,
+            );
+            if let (Some(pfd), true) = (pipe_fd_opt, broadcast_fd >= 0) {
+                let mut fds = [
+                    libc::pollfd {
+                        fd: broadcast_fd,
+                        events: libc::POLLHUP,
+                        revents: 0,
+                    },
+                    libc::pollfd {
+                        fd: pfd,
+                        events: libc::POLLIN | libc::POLLHUP,
+                        revents: 0,
+                    },
+                ];
+                let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, 0) };
+                if n > 0 {
+                    // Shutdown wins ties.
+                    if fds[0].revents != 0 {
+                        return RecvOutcome::Shutdown;
+                    }
+                    // Pipe ready — fall through to read_line.
+                } else {
+                    // n == 0: timeout (no data, no shutdown). Empty.
+                    // n < 0: error — Disconnected as the substrate's
+                    //   honest "I have no data" signal.
+                    return RecvOutcome::Disconnected;
+                }
+            } else {
+                // No multiplex possible — preserve old behavior.
+                return RecvOutcome::Disconnected;
+            }
+            // Pipe ready — try one read.
+            match reader.read_line(_span) {
+                Ok(Some(line)) => {
+                    let trimmed = line.trim_end_matches('\n');
+                    match crate::edn_shim::read_edn(trimmed, _types) {
+                        Ok(v) => RecvOutcome::Value(v),
+                        Err(e) => RecvOutcome::DecodeError(format!("{}", e)),
+                    }
+                }
+                Ok(None) => RecvOutcome::Disconnected,
+                Err(_) => RecvOutcome::Disconnected,
+            }
+        }
     }
 }
 
