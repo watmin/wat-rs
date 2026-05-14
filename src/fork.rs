@@ -199,14 +199,28 @@ pub struct ChildHandleInner {
     pub pid: libc::pid_t,
     pub reaped: AtomicBool,
     pub cached_exit: OnceLock<i64>,
+    /// Arc 170 FD-multiplex — substrate-owned lifeline write-end.
+    /// Parent holds this; never writes. When the parent process dies for
+    /// any reason (clean exit / panic / SIGKILL / OOM-kill / segfault),
+    /// the kernel closes all the parent's FDs as part of process
+    /// teardown — including this one. The child's poll(2) over its
+    /// lifeline read-end fires POLLHUP and the substrate shutdown
+    /// cascade triggers.
+    ///
+    /// Wrapped in Option because tier-1 callers (Forked in-process by
+    /// the legacy fork-program path before Phase 1C) may not yet plumb
+    /// a lifeline. Once Phase 1C ships, fork-program-ast also wires
+    /// one and this is always Some for forked children.
+    pub lifeline_w: Option<std::os::fd::OwnedFd>,
 }
 
 impl ChildHandleInner {
-    pub fn new(pid: libc::pid_t) -> Self {
+    pub fn new(pid: libc::pid_t, lifeline_w: Option<std::os::fd::OwnedFd>) -> Self {
         Self {
             pid,
             reaped: AtomicBool::new(false),
             cached_exit: OnceLock::new(),
+            lifeline_w,
         }
     }
 
@@ -574,7 +588,7 @@ pub fn eval_kernel_fork_program_ast(
     drop(stdout_w);
     drop(stderr_w);
 
-    let handle = Arc::new(ChildHandleInner::new(pid));
+    let handle = Arc::new(ChildHandleInner::new(pid, None));
 
     let stdin_writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(stdin_w));
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stdout_r));
@@ -872,7 +886,7 @@ pub fn fork_program_from_source(
     drop(stderr_w);
 
     Ok(ForkedProgramHandles {
-        child_handle: Arc::new(ChildHandleInner::new(pid)),
+        child_handle: Arc::new(ChildHandleInner::new(pid, None)),
         stdin_w,
         stdout_r,
         stderr_r,
