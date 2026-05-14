@@ -494,6 +494,87 @@ holon-rs, holon-lab-trading, every sibling. If the path of least
 resistance suggests "let me isolate this with a worktree," the path
 is wrong — pick a non-worktree alternative.
 
+### Failure mode 7-ter — Thread context illegality (the three-rule classification)
+
+**Signature:** running test bodies in `:wat::test::run-thread` (or
+the deftest macro's thread-default after 4a-γ ships) whose body
+reads `RunResult.stdout`/`stderr`, calls `:wat::kernel::println`/
+`readln`/`eprintln`, or invokes `:wat::config::set-*!` family verbs.
+Any of these makes the thread context wrong; the test needs
+`:wat::test::run-hermetic` (process boundary; dedicated runtime).
+
+**Reality check:** the substrate is honest about thread-vs-process
+asymmetries. Threads share the parent's address space, runtime, and
+fd 0/1/2. Processes have their own. The three-rule check captures
+exactly the cases where this asymmetry breaks tests:
+
+1. **Stdio-slot reads.** Threads return empty `RunResult.stdout`/
+   `stderr` Vecs by design (no per-thread pipe boundary). Tests
+   asserting on captured output (`assert-stdout-is`, `assert-stderr-
+   matches`, direct `RunResult/stdout` reads) need process pipes —
+   `run-hermetic`'s pipe-drain mechanism captures fd 1/2 into the
+   RunResult.
+
+2. **Stdio-verb calls in the body.** `:wat::kernel::println` /
+   `eprintln` / `readln` in a thread context route to ambient
+   services that share the parent's fd 0/1/2 — the output pollutes
+   the parent's stdout (test runner pollution; no per-thread
+   capture). In a process context the child has its own fd 0/1/2
+   captured by parent pipes. If the body calls these verbs, hermetic
+   is the only honest container.
+
+3. **`set-*!` family calls in the body.** Per-runtime config
+   mutation. The body calling `:wat::config::set-capacity-mode!` /
+   `set-dim-router!` / `set-redef!` / `set-eval-redef!` mutates
+   state the PARENT runtime is also reading. ILLEGAL cross-thread.
+   The legacy `:wat::test::run` (string-entry) used a special escape
+   hatch — its file-level string-parsing path captured top-level
+   `set-*!` forms BEFORE the thread spawned and applied them to the
+   child's FrozenWorld. The body-AST modern path has no parse-time
+   capture; `set-*!` in a thread body is just a runtime mutation of
+   shared state.
+
+**The collapse:** the three rules unify under one axis — *does the
+body need a private, captured, mutable runtime?* If yes, hermetic.
+If no, thread is safe.
+
+**Real incident, 2026-05-14 (4a-β):** sweep migrating legacy callers
+to `run-thread` saw 5 sites go red on `assert-stdout-is` / `assert-
+stderr-matches` assertions. Diagnosis: thread mode returns empty
+stdio slots. Re-migrated those 5 to `run-hermetic` in-slice. Then
+1 site had `(:wat::config::set-capacity-mode! :error)` in its body —
+stripped (test's original config-collection intent retires with the
+legacy string-parse path) plus migrated to hermetic for stdio
+capture (the test also asserted on stdout). Sonnet documented "no
+runtime handler" as the surface explanation; user surfaced the
+deeper truth: `set-*!` from a thread is illegal per-runtime
+mutation. The classification rule now lives here as the canonical
+substrate fact.
+
+**User direction 2026-05-14:** *"the point of the hermetic testing
+framework - the tests should still work - they just need a
+dedicated runtime to measure in."*
+
+**Prescription:**
+
+- Before migrating a test from `run-hermetic` to `run-thread` (or
+  flipping the deftest macro default), audit the body against the
+  three-rule check. Any rule firing → keeps hermetic.
+- When writing new tests, default to deftest (thread). Reach for
+  deftest-hermetic only when the test's structure DEMANDS one of
+  the three (stdio assertion, stdio verb in body, runtime
+  mutation). Most tests just panic via `assert-eq` — thread is
+  honest and cheap.
+- When refactoring a deftest body that gains a new rule-firing
+  property (e.g., adding a `println` call), promote to deftest-
+  hermetic before the addition lands. The audit pattern is
+  uniform; the renaming is mechanical.
+
+Documented as load-bearing for arc 170 slice 4a-γ-audit (the
+deftest-flip-prerequisite). See `INTERSTITIAL-REALIZATIONS.md`
+§ 2026-05-14 "Mid-session breadcrumb" for the empirical surfacing
+and the sub-stone decomposition.
+
 ### Failure mode 10 — Type-theoretic reach when an entity-kind addition is the answer
 
 **Signature:** sensing "the substrate is missing X" and reaching for
