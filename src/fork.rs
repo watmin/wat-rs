@@ -844,6 +844,15 @@ pub fn fork_program_from_source(
     let stdout_w_raw = stdout_w.as_raw_fd();
     let stderr_w_raw = stderr_w.as_raw_fd();
 
+    // Arc 170 FD-multiplex Phase 1C — lifeline pipe.
+    // Parent holds lifeline_w; never writes. Child polls lifeline_r_raw via
+    // the shutdown worker (registered in child_branch_from_source below).
+    // When parent dies for any reason, kernel closes lifeline_w → child's
+    // poll fires POLLHUP → shutdown cascade. Same pattern as spawn-process
+    // (Phase 1B; see src/spawn_process.rs).
+    let (lifeline_r, lifeline_w) = make_pipe(OP)?;
+    let lifeline_r_raw = lifeline_r.as_raw_fd();
+
     // Snapshot source + canonical so the child branch owns its
     // copies. `String::from(source)` is a heap copy in the parent;
     // after fork the child inherits it via COW.
@@ -873,9 +882,11 @@ pub fn fork_program_from_source(
             stdin_r_raw,
             stdout_w_raw,
             stderr_w_raw,
+            lifeline_r_raw,
             (stdin_r, stdin_w),
             (stdout_r, stdout_w),
             (stderr_r, stderr_w),
+            lifeline_r,
         );
     }
 
@@ -884,9 +895,13 @@ pub fn fork_program_from_source(
     drop(stdin_r);
     drop(stdout_w);
     drop(stderr_w);
+    // Drop the parent's copy of lifeline_r — only the child holds the
+    // read-end now. The parent retains lifeline_w (held in ChildHandleInner
+    // below) until parent process death closes it.
+    drop(lifeline_r);
 
     Ok(ForkedProgramHandles {
-        child_handle: Arc::new(ChildHandleInner::new(pid, None)),
+        child_handle: Arc::new(ChildHandleInner::new(pid, Some(lifeline_w))),
         stdin_w,
         stdout_r,
         stderr_r,
@@ -1020,9 +1035,11 @@ fn child_branch_from_source(
     stdin_r_raw: i32,
     stdout_w_raw: i32,
     stderr_w_raw: i32,
+    lifeline_r_raw: i32,
     stdin_pair: (OwnedFd, OwnedFd),
     stdout_pair: (OwnedFd, OwnedFd),
     stderr_pair: (OwnedFd, OwnedFd),
+    lifeline_r: OwnedFd,
 ) -> ! {
     // Drop parent-side pipe ends.
     drop(stdin_pair.1);
@@ -1071,38 +1088,27 @@ fn child_branch_from_source(
         unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
     }
 
-    // Arc 170 Slice C — PR_SET_PDEATHSIG.
-    // Tells the kernel: when my parent process dies (for ANY reason —
-    // clean exit, panic, segfault, OOM-kill), deliver SIGTERM to me.
-    // Mirrors the same call in spawn_process_child_branch. The flag
-    // resets across fork and exec; each child sets it in its branch.
-    if unsafe {
-        libc::prctl(
-            libc::PR_SET_PDEATHSIG,
-            libc::SIGTERM as libc::c_ulong,
-            0,
-            0,
-            0,
-        )
-    } < 0
-    {
-        let err = std::io::Error::last_os_error();
-        emit_structured_exit(
-            None,
-            crate::runtime::process_died_error_startup_value(
-                format!("prctl(PR_SET_PDEATHSIG, SIGTERM) failed: {}", err),
-            ),
-        );
-        unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
-    }
+    // Arc 170 FD-multiplex Phase 1C — register the lifeline read-end with
+    // the shutdown worker. The worker's poll(2) set grows by one FD; when
+    // the parent process dies for any reason, kernel closes the parent's
+    // lifeline write-end → this read-fd EOFs (POLLHUP) → worker wakes →
+    // trigger_shutdown → cascade unblocks all parked recvs.
+    //
+    // init_shutdown_signal_with_inputs is idempotent (OnceLock guard). The
+    // later call inside bootstrap_wat_vm_process becomes a no-op; the worker
+    // the bootstrap call would otherwise spawn is replaced by THIS one with
+    // the lifeline FD registered. Order matters: this MUST run before any
+    // later init_shutdown_signal() call.
+    crate::runtime::init_shutdown_signal_with_inputs(&[lifeline_r_raw]);
 
-    // Arc 170 Slice C — initialize the shutdown infrastructure BEFORE
-    // installing signal handlers. This ensures SHUTDOWN_WAKE_WRITE_FD
-    // is set before any SIGTERM can arrive (including via PDEATHSIG).
-    // bootstrap_wat_vm_process calls init_shutdown_signal() again below;
-    // the call is idempotent (OnceLock guard) — this early call closes
-    // the race between PDEATHSIG delivery and infrastructure setup.
-    crate::runtime::init_shutdown_signal();
+    // Transfer FD ownership to the worker thread — the substrate now owns
+    // the lifeline read-fd. Dropping OwnedFd here would close the FD and
+    // the worker would immediately POLLHUP (false-positive shutdown).
+    std::mem::forget(lifeline_r);
+
+    // Arc 170 FD-multiplex Phase 1C — shutdown infrastructure initialized
+    // above with the lifeline FD; signal handlers installed after so any
+    // SIGTERM/SIGINT route to the existing wake-pipe path.
 
     // Install wat signal handlers (arc 106 — replaces the arc 104d
     // SIG_DFL reset). The handlers flip the same KERNEL_STOPPED /
