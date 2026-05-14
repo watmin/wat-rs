@@ -1,3 +1,17 @@
+> **⚠ SUPERSEDED 2026-05-14** — This BRIEF's scope was wrong-direction. It would have swept all 32 legacy callers to `:wat::test::run-hermetic`, validating the arc 170 slice 3 phase C regression that collapsed both deftest forms into process-spawning. The user surfaced the conflation: *"non-hermetic test using a process or a thread? only hermetic should be a process."*
+>
+> The architectural correction (full account preserved in `INTERSTITIAL-REALIZATIONS.md` § 2026-05-14) rescoped this single slice into 5 stones:
+>
+> - **4a-α** (#308) — mint `:wat::test::run-thread` + `failure-from-thread-died` + `run-thread-driver` + standalone deftest. See `BRIEF-SLICE-4A-ALPHA-MINT-RUN-THREAD.md`.
+> - **4a-β** (#313) — sweep 32 callers (23 → run-thread, 9 → run-hermetic).
+> - **4a-γ** (#314) — flip deftest macro body to run-thread.
+> - **4c-α** (#315) — delete legacy wat wrappers.
+> - **4c-β** (#316) — rename `run-thread` → `run`; `run-thread-driver` → `run-driver`.
+>
+> Preserved as failure-engineering artifact per `feedback_inscription_immutable`. The conflation that drove this wrong-direction BRIEF — pattern-matching stdio-capture from process onto thread without reading runtime.rs — is named in INTERSTITIAL-REALIZATIONS.md as a discipline-failure record for future-me.
+
+---
+
 # Arc 170 Slice 4a BRIEF — sweep legacy `:wat::test::run*` → `:wat::test::run-hermetic`
 
 **Phase:** Slice 4a (consumer sweep). First of the closure-paperwork sweep series (4a → 4b wat-cli Stone B → 4c substrate Rust deletion → 4d Phase H clippy → 4e INSCRIPTION).

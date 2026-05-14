@@ -1,3 +1,7 @@
+> **⚠ SUPERSEDED 2026-05-14** — Companion to the wrong-direction BRIEF at `BRIEF-SLICE-4A-LEGACY-TEST-RUN-SWEEP.md` (SUPERSEDED, same date). See that file's prologue + `INTERSTITIAL-REALIZATIONS.md` § 2026-05-14 for the rescope rationale. Preserved as failure-engineering artifact. The current slice plan lives in `BRIEF-SLICE-4A-ALPHA-MINT-RUN-THREAD.md` + chain successors.
+
+---
+
 # Arc 170 Slice 4a EXPECTATIONS
 
 **BRIEF:** `BRIEF-SLICE-4A-LEGACY-TEST-RUN-SWEEP.md`
