@@ -14,22 +14,19 @@
   ()
   (:wat::core::let
     [_outcome
-      (:wat::test::run-ast
-        (:wat::test::program
+      (:wat::test::run-thread
+        (:wat::core::do
           (:wat::core::struct :my::Pair
             (a :wat::core::i64)
             (b :wat::core::i64))
-          (:wat::core::define
-            (:user::main -> :wat::core::nil)
-            (:wat::core::let
-              [p (:my::Pair/new 7 9)
-               form (:wat::core::struct->form p)
-               roundtrip (:wat::eval-ast! form)
-               ;; Just check the eval succeeded — the struct re-built
-               ;; from its lifted form.
-               _ (:wat::test::assert-eq true true)]
-              ())))
-        (:wat::core::Vector :wat::core::String))]
+          (:wat::core::let
+            [p (:my::Pair/new 7 9)
+             form (:wat::core::struct->form p)
+             roundtrip (:wat::eval-ast! form)
+             ;; Just check the eval succeeded — the struct re-built
+             ;; from its lifted form.
+             _ (:wat::test::assert-eq true true)]
+            ())))]
     (:wat::test::assert-eq true true)))
 
 

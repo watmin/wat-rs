@@ -154,12 +154,8 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
         (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::let
             [r
-              (:wat::test::run-ast
-                (:wat::test::program
-                  (:wat::core::define
-                    (:user::main -> :wat::core::nil)
-                    (:wat::kernel::println "hi")))
-                (:wat::core::Vector :wat::core::String))
+              (:wat::test::run-hermetic
+                (:wat::kernel::println "hi"))
              captured (:wat::kernel::RunResult/stdout r)
              line
               (:wat::core::match (:wat::core::first captured) -> :wat::core::String

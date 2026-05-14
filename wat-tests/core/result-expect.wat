@@ -39,18 +39,14 @@
   ()
   (:wat::core::let
     [r
-      (:wat::test::run-ast
-        (:wat::test::program
-          (:wat::core::define
-            (:user::main -> :wat::core::nil)
-            (:wat::core::let
-              [res (:wat::core::Err "rundb crashed")
-               _v
-                (:wat::core::Result/expect -> :wat::core::i64
-                  res
-                  "expected Ok value")]
-              ())))
-        (:wat::core::Vector :wat::core::String))
+      (:wat::test::run-thread
+        (:wat::core::let
+          [res (:wat::core::Err "rundb crashed")
+           _v
+            (:wat::core::Result/expect -> :wat::core::i64
+              res
+              "expected Ok value")]
+          ()))
      fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)

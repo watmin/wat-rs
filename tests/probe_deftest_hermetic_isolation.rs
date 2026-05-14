@@ -250,12 +250,8 @@ fn probe_make_deftest_hermetic_define_prelude_parent_isolated() {
           (
            (:wat::core::define
              (:test::g::run-inner -> :wat::kernel::RunResult)
-             (:wat::test::run-hermetic-ast
-               (:wat::test::program
-                 (:wat::core::define
-                   (:user::main -> :wat::core::nil)
-                   (:wat::kernel::println "hello")))
-               (:wat::core::Vector :wat::core::String)))
+             (:wat::test::run-hermetic
+               (:wat::kernel::println "hello")))
           ))
 
         (:deftest-g-isolated :test::g::using-make-deftest-hermetic

@@ -70,11 +70,8 @@ fn probe_run_hermetic_ast_child_stdout_captured() {
     // and calls (:wat::kernel::run-sandboxed-hermetic-ast forms stdin scope).
     let src = r#"
         (:wat::core::define (:probe::ast::capture-stdout -> :wat::kernel::RunResult)
-          (:wat::test::run-hermetic-ast
-            (:wat::test::program
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::kernel::println "hello-from-probe")))
-            (:wat::core::Vector :wat::core::String)))
+          (:wat::test::run-hermetic
+            (:wat::kernel::println "hello-from-probe")))
 
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
     "#;

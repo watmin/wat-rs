@@ -47,12 +47,8 @@
    ;; — that's what the trio writes line by line.
    (:wat::core::define
      (:test::run-println-string -> :wat::kernel::RunResult)
-     (:wat::test::run-hermetic-ast
-       (:wat::test::program
-         (:wat::core::define
-           (:user::main -> :wat::core::nil)
-           (:wat::kernel::println "hello")))
-       (:wat::core::Vector :wat::core::String)))
+     (:wat::test::run-hermetic
+       (:wat::kernel::println "hello")))
 
    ;; ─── Layer 1 helper — run inner program that prints an i64 ───────
    ;;
@@ -62,12 +58,8 @@
    ;; value_to_edn_with.
    (:wat::core::define
      (:test::run-println-i64 -> :wat::kernel::RunResult)
-     (:wat::test::run-hermetic-ast
-       (:wat::test::program
-         (:wat::core::define
-           (:user::main -> :wat::core::nil)
-           (:wat::kernel::println 42)))
-       (:wat::core::Vector :wat::core::String)))
+     (:wat::test::run-hermetic
+       (:wat::kernel::println 42)))
 
    ;; ─── Layer 2 helper — run inner program that eprints "err" ───────
    ;;
@@ -76,12 +68,8 @@
    ;; don't cross-talk: a single eprintln lands ONLY in stderr.
    (:wat::core::define
      (:test::run-eprintln-string -> :wat::kernel::RunResult)
-     (:wat::test::run-hermetic-ast
-       (:wat::test::program
-         (:wat::core::define
-           (:user::main -> :wat::core::nil)
-           (:wat::kernel::eprintln "err")))
-       (:wat::core::Vector :wat::core::String)))
+     (:wat::test::run-hermetic
+       (:wat::kernel::eprintln "err")))
 
    ;; ─── Layer 3 helper — run inner program with two println calls ───
    ;;
@@ -90,15 +78,11 @@
    ;; multiple round trips through the same fd pipeline.
    (:wat::core::define
      (:test::run-println-twice -> :wat::kernel::RunResult)
-     (:wat::test::run-hermetic-ast
-       (:wat::test::program
-         (:wat::core::define
-           (:user::main -> :wat::core::nil)
-           (:wat::core::do
-             (:wat::kernel::println "first")
-             (:wat::kernel::println "second")
-             :wat::core::nil)))
-       (:wat::core::Vector :wat::core::String)))
+     (:wat::test::run-hermetic
+       (:wat::core::do
+         (:wat::kernel::println "first")
+         (:wat::kernel::println "second")
+         :wat::core::nil)))
 
    ;; ─── Layer 4 helper — readln round trip via stdin pre-seed ───────
    ;;

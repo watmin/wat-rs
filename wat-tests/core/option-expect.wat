@@ -62,18 +62,14 @@
   ()
   (:wat::core::let
     [r
-      (:wat::test::run-ast
-        (:wat::test::program
-          (:wat::core::define
-            (:user::main -> :wat::core::nil)
-            (:wat::core::let
-              [opt :wat::core::None
-               _v
-                (:wat::core::Option/expect -> :wat::core::i64
-                  opt
-                  "broker disconnected")]
-              ())))
-        (:wat::core::Vector :wat::core::String))
+      (:wat::test::run-thread
+        (:wat::core::let
+          [opt :wat::core::None
+           _v
+            (:wat::core::Option/expect -> :wat::core::i64
+              opt
+              "broker disconnected")]
+          ()))
      fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
