@@ -186,6 +186,7 @@ pub fn eval_kernel_spawn_process(
             (output_r, output_w),
             (stderr_r, stderr_w),
             lifeline_r,
+            lifeline_w,
         );
     }
 
@@ -294,6 +295,7 @@ fn spawn_process_child_branch(
     output_pair: (OwnedFd, OwnedFd),
     stderr_pair: (OwnedFd, OwnedFd),
     lifeline_r: OwnedFd,
+    lifeline_w: OwnedFd,
 ) -> ! {
     // Drop parent-side pipe ends — close our inherited copies so
     // the parent's read-end EOFs cleanly when the child's last
@@ -301,6 +303,14 @@ fn spawn_process_child_branch(
     drop(input_pair.1);  // parent writes input
     drop(output_pair.0); // parent reads output
     drop(stderr_pair.0); // parent reads stderr
+    // Arc 170 Phase 1D fix: close the child's inherited copy of the
+    // lifeline write-end. The parent holds THE canonical lifeline_w
+    // (stored in ChildHandleInner). The child inherits a duplicate
+    // across fork(). If the child keeps this copy open, the lifeline
+    // pipe never EOFs from the child's perspective even after the
+    // parent dies — the child would be its own lifeline keeper.
+    // Closing it here ensures parent-death → POLLHUP on lifeline_r_raw.
+    drop(lifeline_w);
 
     // Stone C — dup2 all three fds:
     //   fd 0 ← stdin pipe read end  (child reads from parent)

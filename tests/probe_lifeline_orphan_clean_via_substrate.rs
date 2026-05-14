@@ -1,35 +1,22 @@
-//! Arc 170 — DIAGNOSTIC / leak-zero gate for orphan-cleanup mechanism.
+//! Arc 170 Phase 1D probe — lifeline mechanism delivers orphan-cleanup via
+//! substrate path (`:wat::kernel::spawn-process`).
 //!
-//! Same shape as `probe_pdeathsig_kills_orphan_child` BUT the supervisor's
-//! pre-`_exit` sleep is configurable via env var `WAT_PROBE_SUPERVISOR_DELAY_MS`
-//! (default 0).
+//! Verifies the substrate claim (Phase 1B + 1C): when the supervisor process
+//! exits for any reason, the kernel closes the supervisor's copy of the
+//! lifeline write-end → grandchild's shutdown worker detects POLLHUP on
+//! lifeline read-end → trigger_shutdown cascade fires → grandchild exits.
 //!
-//! # Post-Phase-1C mechanism
+//! This is the substrate-mechanism equivalent of `probe_pdeathsig_kills_orphan_child`
+//! (Slice C historical artifact). The observable contract is identical —
+//! grandchild dies within 1s — but the mechanism is the lifeline pipe wired
+//! through `spawn_process_child_branch` (Phase 1B: `init_shutdown_signal_with_inputs`)
+//! and `child_branch_from_source` (Phase 1C: symmetric lifeline for fork-program).
 //!
-//! After Phase 1B (spawn-process lifeline) and Phase 1C (fork-program lifeline),
-//! the PDEATHSIG mechanism is retired. The grandchild's death is now driven by
-//! the lifeline pipe: the parent holds the write-end; when the parent exits for
-//! ANY reason, the kernel closes its FDs including the lifeline write-end →
-//! grandchild's shutdown worker detects POLLHUP on the lifeline read-end →
-//! trigger_shutdown cascade fires → grandchild exits.
-//!
-//! The `WAT_PROBE_SUPERVISOR_DELAY_MS` env var was originally designed to ablate
-//! the PDEATHSIG race (supervisor exits before grandchild reaches prctl). With
-//! the lifeline mechanism the env var is vestigial: the lifeline write-end is
-//! inherited atomically at fork() — no subsequent registration, no race window.
-//! Both delay=0 and delay=10 should now produce 50/50 PASS.
-//!
-//! # Leak-zero gate
-//!
-//! This probe is now the empirical regression gate for the lifeline mechanism.
-//! Run with delay=0 (the previously-racy case):
-//!
-//!   WAT_PROBE_SUPERVISOR_DELAY_MS=0  cargo test --release --test probe_pdeathsig_diagnostic
-//!   WAT_PROBE_SUPERVISOR_DELAY_MS=10 cargo test --release --test probe_pdeathsig_diagnostic
-//!
-//! Pass criterion (Phase 1D): 50/50 PASS at delay=0. The Slice D baseline was
-//! 45/50 (10% race rate) with PDEATHSIG. Any regression back to orphan leaks at
-//! delay=0 indicates a Phase 1B/1C substrate defect.
+//! Cross-references:
+//! - Phase 1B SCORE: `SCORE-FD-MULTIPLEX-PHASE-1B-SPAWN-PROCESS-LIFELINE.md`
+//! - Phase 1C SCORE: `SCORE-FD-MULTIPLEX-PHASE-1C-FORK-PROGRAM-LIFELINE.md`
+//! - Slice D baseline (10% race at delay=0 with PDEATHSIG): `SCORE-SLICE-D-LEAK-ZERO-VERIFICATION.md`
+//! - Pure-libc lifeline proof (100/100 trials, 0 orphans): `tests/probe_lifeline_pipe_proof.rs`
 //!
 //! # Design
 //!
@@ -39,11 +26,11 @@
 //!   ├─ supervisor (pid: supervisor_pid)
 //!   │    │  calls substrate spawn-process (Phase 1B path)
 //!   │    └─ grandchild (pid: grandchild_pid) — lifeline read-end registered
-//!   │         │  with shutdown worker (init_shutdown_signal_with_inputs)
+//!   │         │  with shutdown worker via init_shutdown_signal_with_inputs
 //!   │         │  blocks on typed_recv (Slice B cascade wires)
 //!   │         └─ holds done_pipe write-end (FD inherited from supervisor)
 //!   │
-//!   └─ test: waitpid(supervisor) → supervisor exits →
+//!   └─ test: waitpid(supervisor) → supervisor _exit(0) →
 //!            kernel closes supervisor's lifeline write-end →
 //!            grandchild shutdown worker POLLHUP fires →
 //!            trigger_shutdown → cascade wakes blocked recv →
@@ -51,6 +38,13 @@
 //!            poll(done_pipe_read_fd, 1000ms) fires →
 //!            PASS: grandchild died within 1s
 //! ```
+//!
+//! # Why this is structurally race-free
+//!
+//! The lifeline write-end is created BEFORE fork. The child inherits the
+//! read-end atomically with fork(). No subsequent registration required —
+//! contrast with PDEATHSIG's `prctl` call which must race against the parent's
+//! `_exit`. The kernel FD-close-on-process-death invariant fires unconditionally.
 //!
 //! # Rendezvous discipline (no wall-clock sleep)
 //!
@@ -64,13 +58,12 @@
 //!
 //! # Grandchild program
 //!
-//! The grandchild runs a wat function that:
-//! 1. Creates an unbounded channel (sender + receiver).
-//! 2. Keeps the sender alive in a `let` binding (channel stays open).
-//! 3. Calls `recv` on the receiver (blocks).
-//! 4. Post-Phase-1B: lifeline EOF → shutdown worker POLLHUP → trigger_shutdown
-//!    → recv returns RecvOutcome::Shutdown → RuntimeError propagates up →
-//!    spawn_process_child_branch calls libc::_exit.
+//! Identical to `probe_pdeathsig_kills_orphan_child` — blocking recv on an
+//! unbounded channel. The mechanism that wakes it differs:
+//! - Pre-Phase-1B: SIGTERM → signal handler → wake-pipe → shutdown worker → trigger_shutdown
+//! - Post-Phase-1B: lifeline EOF → POLLHUP on shutdown worker's poll(2) → trigger_shutdown
+//! Same `RecvOutcome::Shutdown` outcome; same `(:wat::kernel::recv rx)` unblocks;
+//! same clean exit. The test cannot tell the difference at the wat surface.
 //!
 //! # ZERO-MUTEX compliance
 //!
@@ -89,8 +82,10 @@ use wat::span::Span;
 /// Source for the grandchild's blocking wat program.
 ///
 /// Creates an unbounded channel, keeps sender alive, blocks on recv.
-/// On Slice B cascade (SIGTERM → shutdown worker drops SHUTDOWN_TX →
-/// SHUTDOWN_RX disconnects → typed_recv select! fires Shutdown arm),
+/// Post-Phase-1B, the shutdown cascade is triggered by lifeline EOF
+/// (not SIGTERM): shutdown worker's poll(2) fires POLLHUP on the
+/// lifeline read-end → trigger_shutdown → SHUTDOWN_TX drops →
+/// SHUTDOWN_RX disconnects → typed_recv select! fires Shutdown arm →
 /// recv returns RecvOutcome::Shutdown → RuntimeError propagates up →
 /// spawn_process_child_branch calls libc::_exit.
 const BLOCKING_CHILD_SRC: &str = r#"
@@ -139,9 +134,13 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
     (r, w)
 }
 
-/// Row H — orphaned grandchild receives SIGTERM via PR_SET_PDEATHSIG and exits
-/// within 1s. Verifies that `spawn_process_child_branch` correctly calls
-/// `prctl(PR_SET_PDEATHSIG, SIGTERM)` after `setpgid`.
+/// Phase 1D — orphaned grandchild dies via lifeline mechanism (Phase 1B substrate
+/// path) within 1s after supervisor `_exit`. Verifies that `spawn_process_child_branch`
+/// correctly wires the lifeline read-end into `init_shutdown_signal_with_inputs` so
+/// the shutdown worker's poll(2) fires on POLLHUP when the parent process dies.
+///
+/// Structural counterpart of `probe_pdeathsig_kills_orphan_child` (Slice C
+/// historical artifact) — same observable contract; different substrate mechanism.
 ///
 /// # Shape
 ///
@@ -153,16 +152,9 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 /// 5. Test: waitpid(supervisor), read grandchild pid from pid_pipe, drop done_w
 ///    (test's copy — grandchild is the only remaining holder).
 /// 6. Test: poll(done_r, POLLHUP|POLLIN, 1000ms) — fires when grandchild exits.
-/// 7. Verify grandchild process is gone via `kill(grandchild_pid, 0)` → ESRCH.
+/// 7. Verify grandchild process is gone (zombie or reaped).
 #[test]
-fn probe_pdeathsig_diagnostic() {
-    // Read supervisor-pre-exit delay from env (default 0 = original behaviour).
-    let delay_ms: u32 = std::env::var("WAT_PROBE_SUPERVISOR_DELAY_MS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
-    eprintln!("[diagnostic] WAT_PROBE_SUPERVISOR_DELAY_MS = {}", delay_ms);
-
+fn probe_lifeline_orphan_clean_via_substrate() {
     // Step 1: Build the world before forking. Supervisor inherits it via
     // fork's copy-on-write semantics. InMemoryLoader has no disk state.
     let world = freeze_ok(BLOCKING_CHILD_SRC);
@@ -191,9 +183,12 @@ fn probe_pdeathsig_diagnostic() {
         // done_r stays open briefly — drop before _exit so only grandchild holds done_w.
         drop(done_r);
 
-        // Spawn grandchild via substrate spawn-process.
-        // spawn_process_child_branch (after Slice C edit) calls:
-        //   setpgid(0, 0) → prctl(PR_SET_PDEATHSIG, SIGTERM) → bootstrap → eval.
+        // Spawn grandchild via substrate spawn-process (Phase 1B path).
+        // spawn_process_child_branch registers the lifeline read-end via
+        // init_shutdown_signal_with_inputs before the bootstrap call. When
+        // supervisor _exit(0)s below, the kernel closes the supervisor's
+        // copy of lifeline_w → grandchild's worker POLLHUP fires → cascade.
+        //
         // The grandchild INHERITS done_w because spawn_process_child_branch
         // does not call close_inherited_fds_above_stdio.
         let call = WatAST::List(
@@ -241,28 +236,18 @@ fn probe_pdeathsig_diagnostic() {
         // ChildHandleInner would SIGKILL it — prevent that by leaking.
         //
         // Leak strategy: forget the process value so ChildHandleInner::drop
-        // (which sends SIGKILL + waitpid) does NOT run.
+        // (which sends SIGKILL + waitpid) does NOT run. The lifeline mechanism
+        // will clean up the grandchild instead.
         std::mem::forget(process);
         drop(pid_w);
         drop(done_w);
 
-        // DIAGNOSTIC: optionally sleep before _exit to widen the gap
-        // between fork and supervisor death. If grandchild's prctl wins
-        // the race against supervisor's _exit, this sleep should give the
-        // grandchild plenty of time to call prctl before supervisor dies.
-        if delay_ms > 0 {
-            unsafe {
-                let ts = libc::timespec {
-                    tv_sec: (delay_ms / 1000) as libc::time_t,
-                    tv_nsec: ((delay_ms % 1000) * 1_000_000) as libc::c_long,
-                };
-                libc::nanosleep(&ts, std::ptr::null_mut());
-            }
-        }
-
         // Exit WITHOUT waiting for grandchild. This orphans the grandchild
-        // whose PPID becomes 1 (init/subreaper). The kernel detects parent
-        // death and delivers SIGTERM to the grandchild via PR_SET_PDEATHSIG.
+        // whose PPID becomes 1 (init/subreaper). The kernel closes all FDs
+        // held by this supervisor process — including the lifeline write-end
+        // that spawn-process created inside eval() above. The grandchild's
+        // shutdown worker detects POLLHUP on the lifeline read-end and
+        // triggers the shutdown cascade. No signal. No timer. No race.
         unsafe { libc::_exit(0) };
     }
 
@@ -298,13 +283,17 @@ fn probe_pdeathsig_diagnostic() {
     drop(pid_r);
 
     // Drop test's copy of done_pipe write-end. After this, the grandchild
-    // is the ONLY holder of done_w. When the grandchild exits (due to
-    // PDEATHSIG cascade), its done_w closes → EOF on done_r.
+    // is the ONLY holder of done_w. When the grandchild exits (via lifeline
+    // cascade), its done_w closes → EOF on done_r.
     drop(done_w);
 
     // Step 6: Poll done_pipe read-end for EOF (POLLHUP) with 1000ms timeout.
     // No wall-clock sleep — poll(2) is the bounded rendezvous mechanism.
     // Fires when grandchild exits and closes its done_w.
+    //
+    // The lifeline cascade fires in microseconds-to-milliseconds: kernel closes
+    // lifeline_w (part of supervisor _exit) → worker POLLHUP → trigger_shutdown
+    // → recv wakes → _exit → done_w closes. 1000ms budget is generous.
     let t0 = Instant::now();
     let mut pollfd = libc::pollfd {
         fd: done_r.as_raw_fd(),
@@ -318,8 +307,8 @@ fn probe_pdeathsig_diagnostic() {
 
     assert!(
         poll_ret > 0,
-        "grandchild (pid {}) did not exit within 1s — PR_SET_PDEATHSIG cascade broken \
-         (poll_ret={}, elapsed={:?})",
+        "grandchild (pid {}) did not exit within 1s — lifeline cascade broken \
+         (poll_ret={}, elapsed={:?}; check Phase 1B/1C substrate wiring)",
         grandchild,
         poll_ret,
         elapsed
@@ -346,7 +335,7 @@ fn probe_pdeathsig_diagnostic() {
         // 'Z' = zombie (exited, awaiting reap) — PASS.
         // '?' = no such process (already reaped by init) — PASS.
         state == 'Z' || state == '?',
-        "grandchild pid {} in unexpected state '{}' after PDEATHSIG cascade \
+        "grandchild pid {} in unexpected state '{}' after lifeline cascade \
          (poll fired at elapsed={:?}; expected zombie or gone)",
         grandchild,
         state,
