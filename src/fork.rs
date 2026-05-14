@@ -376,7 +376,7 @@ pub fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
 /// its own fd cleanly), then close the collected fds. Any that
 /// were the iterator's own fd are already closed — `libc::close`
 /// returns -1 with EBADF which we ignore.
-fn close_inherited_fds_above_stdio() {
+fn close_inherited_fds_above_stdio(skip: &[i32]) {
     let mut to_close: Vec<i32> = Vec::new();
     for candidate in ["/proc/self/fd", "/dev/fd"] {
         if let Ok(entries) = std::fs::read_dir(candidate) {
@@ -393,6 +393,9 @@ fn close_inherited_fds_above_stdio() {
         }
     }
     for fd in to_close {
+        if skip.contains(&fd) {
+            continue;
+        }
         unsafe {
             libc::close(fd);
         }
@@ -668,8 +671,10 @@ fn child_branch(
     // code that might panic. setpgid(2)/dup2(2) are C syscalls; safe.
     install_silent_panic_hook();
 
-    // Hygiene: close any other inherited fd above 2.
-    close_inherited_fds_above_stdio();
+    // Hygiene: close any other inherited fd above 2. The legacy child_branch
+    // path has no substrate-owned FDs to protect (no lifeline, no
+    // init_shutdown_signal call), so the skip-list is empty.
+    close_inherited_fds_above_stdio(&[]);
 
     // Build wat-level stdio over fd 0/1/2.
     let stdin_reader: Arc<dyn WatReader> =
@@ -1088,6 +1093,14 @@ fn child_branch_from_source(
         unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
     }
 
+    // Arc 170 FD-multiplex Phase 1E — close inherited fds BEFORE opening any
+    // substrate-owned FDs. This ordering ensures the wake-pipe FDs created by
+    // init_shutdown_signal_with_inputs (below) are never in the sweep set.
+    // lifeline_r_raw is the one inherited FD we INTEND to keep open across this
+    // call — it's the parent's lifeline-write-end pair. The skip-list protects it.
+    // All other inherited fds > 2 are leaked from parent and should be closed.
+    close_inherited_fds_above_stdio(&[lifeline_r_raw]);
+
     // Arc 170 FD-multiplex Phase 1C — register the lifeline read-end with
     // the shutdown worker. The worker's poll(2) set grows by one FD; when
     // the parent process dies for any reason, kernel closes the parent's
@@ -1099,6 +1112,9 @@ fn child_branch_from_source(
     // the bootstrap call would otherwise spawn is replaced by THIS one with
     // the lifeline FD registered. Order matters: this MUST run before any
     // later init_shutdown_signal() call.
+    //
+    // Phase 1E ordering: this runs AFTER the close-sweep so the wake-pipe FDs
+    // it opens are not at risk of being closed by the sweep.
     crate::runtime::init_shutdown_signal_with_inputs(&[lifeline_r_raw]);
 
     // Transfer FD ownership to the worker thread — the substrate now owns
@@ -1118,9 +1134,6 @@ fn child_branch_from_source(
     // the cascade and exits cleanly. SIG_DFL would have killed the
     // child by default action — wrong contract, racy waitpid window.
     install_substrate_signal_handlers();
-
-    // Hygiene: close every inherited fd above 2.
-    close_inherited_fds_above_stdio();
 
     // Build wat-level stdio over fd 0/1/2.
     let stdin_reader: Arc<dyn WatReader> =
