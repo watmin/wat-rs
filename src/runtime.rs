@@ -199,6 +199,25 @@ pub static SHUTDOWN_WAKE_WRITE_FD: std::sync::atomic::AtomicI32 =
 ///   3. A worker thread that blocks on the wake pipe read; on wake,
 ///      calls trigger_shutdown
 pub fn init_shutdown_signal() {
+    init_shutdown_signal_with_inputs(&[])
+}
+
+/// Same as [`init_shutdown_signal`] but the spawned worker polls an
+/// additional input-FD set alongside the wake pipe. Any FD becoming
+/// ready (POLLIN | POLLHUP) → `trigger_shutdown`. The lifeline-pipe
+/// pattern (per `DESIGN-FD-MULTIPLEX-SHUTDOWN.md`) registers the
+/// child-side read-end here so parent-process death → kernel closes
+/// parent's write-end → child's poll returns POLLHUP → shutdown cascade.
+///
+/// All extra input FDs must remain valid for the lifetime of the
+/// process (the worker holds them in its poll set forever). The wake
+/// pipe is owned by the substrate; extra FDs are caller-owned and
+/// caller-managed (e.g., the bootstrap path keeps the lifeline read-end
+/// alive via an OwnedFd held in `ProcessRuntime`).
+///
+/// Idempotent: second call is a no-op even if `extra_input_fds` differs.
+/// Callers must arrange for the FIRST call to include all needed inputs.
+pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     if SHUTDOWN_RX.get().is_some() {
         return; // already initialized
     }
@@ -227,18 +246,44 @@ pub fn init_shutdown_signal() {
     let write_fd = fds[1];
     SHUTDOWN_WAKE_WRITE_FD.store(write_fd, Ordering::SeqCst);
 
-    // Spawn the shutdown-worker thread. It blocks on the wake pipe read;
-    // on wake (signal handler wrote a byte), calls trigger_shutdown in
+    // Build the worker's pollfd set: wake-pipe + caller-provided inputs.
+    // Captured by value into the worker closure; the worker owns its set.
+    let mut input_fds: Vec<i32> = Vec::with_capacity(1 + extra_input_fds.len());
+    input_fds.push(read_fd);
+    input_fds.extend_from_slice(extra_input_fds);
+
+    // Spawn the shutdown-worker thread. It blocks on poll(2) over all
+    // input FDs; first to fire wins. On wake → trigger_shutdown in
     // normal context (Sender drop is safe; not in signal handler).
+    //
+    // poll(2) over pipe FDs is the Linux primitive that gives lock-step
+    // OS-event delivery without timing (per INTERSTITIAL Linux-only § —
+    // signalfd/eventfd/epoll/poll are the load-bearing primitives).
+    // POLLHUP fires on pipe-EOF (all writers closed) — that's how the
+    // lifeline mechanism propagates parent-death without a signal.
     std::thread::Builder::new()
         .name("wat-shutdown-worker".to_string())
         .spawn(move || {
-            let mut buf = [0u8; 1];
-            // Block until the signal handler writes a byte. EINTR is treated
-            // as a wake — if the read was interrupted by a signal that wrote
-            // the byte, we call trigger_shutdown; if interrupted spuriously,
-            // we exit (the subsequent trigger_shutdown is idempotent).
-            let _ = unsafe { libc::read(read_fd, buf.as_mut_ptr() as *mut libc::c_void, 1) };
+            let mut pollfds: Vec<libc::pollfd> = input_fds
+                .iter()
+                .map(|&fd| libc::pollfd {
+                    fd,
+                    events: libc::POLLIN | libc::POLLHUP,
+                    revents: 0,
+                })
+                .collect();
+            // Block forever (timeout = -1). EINTR retries; any FD ready
+            // (POLLIN or POLLHUP) → break and trigger_shutdown.
+            loop {
+                let n = unsafe {
+                    libc::poll(pollfds.as_mut_ptr(), pollfds.len() as _, -1)
+                };
+                if n > 0 {
+                    break; // some FD ready — fire shutdown
+                }
+                // n == 0 cannot happen with timeout=-1 in normal operation;
+                // n < 0 is typically EINTR (signal interrupted poll). Retry.
+            }
             // Wake received. Trigger shutdown in normal context.
             trigger_shutdown();
             // Worker exits — its job is done; subsequent attempts are no-ops.
