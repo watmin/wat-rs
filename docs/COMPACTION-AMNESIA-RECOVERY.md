@@ -427,6 +427,73 @@ changing cwd.
 attempted to commit it to the holon root repo. User rejected:
 *"do not touch the holon root git repo at all - its frozen."*
 
+### Failure mode 7-bis — Git worktrees (NEVER USE)
+
+**Signature:** proposing `git worktree add`, passing `isolation:
+"worktree"` to the Agent tool, or treating `.claude/worktrees/` as a
+place to operate.
+
+**Reality check:** **NEVER use git worktrees.** Doctrine, not
+preference. Worktree drift, stale references, branch state diverging
+from the main checkout, and the LLM's tendency to lose track of which
+directory tree it's operating in all produce lost work.
+
+**Rules:**
+
+- Spawning a sonnet Agent: omit the `isolation` parameter. NEVER pass
+  `"worktree"`. Plain background spawn lands in the main checkout and
+  works correctly.
+- Need parallel branches or isolated work? Propose separate clones in
+  different paths, branch-per-task with explicit `git switch`,
+  stash/pop discipline, or sequential work — NOT worktrees.
+- `.claude/worktrees/` appearing in `git status` as untracked? Leave it
+  alone. It's harness state, not user-repo state. Don't `cd` into it;
+  don't add files there; don't reference it in commits. The 4a-α SCORE
+  noted this honestly: *"`.claude/worktrees/` is the harness's own
+  untracked dir, not mine."* That's the correct posture.
+
+**Real incident:** user has experienced worktree backfire in past
+sessions ("they backfire in nasty ways"). Specific failure modes
+include: orchestrator commits landing in the wrong tree; sonnet's
+edits writing into a worktree the orchestrator doesn't verify; branch
+HEAD divergence between worktree and main checkout going unnoticed
+until push time; cleanup operations leaving orphan refs.
+
+**Real incident, 2026-05-14 (harness-fake worktree path):** I spawned
+a sub-Agent (sonnet) for slice 4a-β with NO `isolation` parameter.
+The harness still injected `.claude/worktrees/agent-<id>/` into
+sonnet's cwd context. Sonnet spent ~10 minutes investigating the
+phantom worktree (its `git worktree list` came back showing only the
+main checkout; the `.claude/worktrees/agent-<id>/` path did NOT exist
+as a real worktree). Sonnet eventually operated on the main checkout
+correctly, but the trust cost is the failure mode. The user surfaced
+it: *"we have poison in our file system i think - we must purge this
+when sonnet returns."* Investigation confirmed `.claude/worktrees/`
+was EMPTY — no actual filesystem poison; the poison was sub-Agent
+cognitive confusion driven by the harness's path-reporting.
+
+**User direction 2026-05-14:** *"never use work trees - they backfire
+in nasty ways - i do not trust llms to operate worktrees."* And
+follow-up: *"only do work in ~/work/holon/wat-rs/ — all other
+locations are illegal."*
+
+**Prescription when spawning sub-Agents:**
+
+- Anchor the cwd EXPLICITLY in the agent prompt. Name the absolute
+  path the agent must operate in (e.g., `/home/watmin/work/holon/<project>/`).
+- Tell the agent to verify with `pwd` as its FIRST action; reject any
+  reported path containing `.claude/worktrees/` as illegal and re-cd
+  to the anchor.
+- Tell the agent to use `git -C <anchor>` for ALL git operations,
+  bypassing whatever cwd the harness reports.
+- Tell the agent that ANY filesystem path it sees that includes
+  `.claude/worktrees/` is harness state and MUST NOT be operated on.
+
+The discipline is absolute. This applies across all repos. wat-rs,
+holon-rs, holon-lab-trading, every sibling. If the path of least
+resistance suggests "let me isolate this with a worktree," the path
+is wrong — pick a non-worktree alternative.
+
 ### Failure mode 10 — Type-theoretic reach when an entity-kind addition is the answer
 
 **Signature:** sensing "the substrate is missing X" and reaching for
