@@ -44,6 +44,18 @@ for i in $(seq 1 "$ROUNDS"); do
     # Capture which tests failed
     printf '  --- failing tests run %d ---\n' "$i" >> "$LOG"
     printf '%s\n' "$out" | grep -E '^test .* FAILED|^failures:$|^    [a-zA-Z_:]+' | head -50 >> "$LOG"
+    # Capture failure bodies — the `---- TESTNAME stdout ----` sections cargo
+    # emits per failing test. This is the panic message + first stack frame.
+    # Without this, "exceeded time-limit 1000ms" vs "thread panicked at
+    # assertion failed" vs "ProcessJoinBeforeOutputDrain" all look identical
+    # in the log. With it, the failure CLASS is visible at a glance.
+    printf '  --- failure bodies run %d ---\n' "$i" >> "$LOG"
+    printf '%s\n' "$out" | awk '
+      /^---- .* stdout ----$/ { capture=1; print; next }
+      /^test result:/ { capture=0 }
+      capture && /^---- / { print }
+      capture && /panicked at|exceeded time-limit|assertion .* failed|FAILED|note: |thread \047/ { print }
+    ' | head -100 >> "$LOG"
   fi
 done
 

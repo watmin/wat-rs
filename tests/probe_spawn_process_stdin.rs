@@ -138,6 +138,9 @@ fn probe_spawn_process_stdin() {
         wat::typed_channel::RecvOutcome::DecodeError(msg) => {
             panic!("recv: decode error: {}", msg)
         }
+        wat::typed_channel::RecvOutcome::Shutdown => {
+            panic!("recv: unexpected process-wide shutdown during test")
+        }
     };
     match val {
         Value::i64(n) => assert_eq!(n, 42, "expected 42 (41+1); got {}", n),

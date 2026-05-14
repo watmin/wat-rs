@@ -165,6 +165,9 @@ fn drive_typed_recv(
         wat::typed_channel::RecvOutcome::DecodeError(msg) => {
             panic!("recv: decode error: {}", msg)
         }
+        wat::typed_channel::RecvOutcome::Shutdown => {
+            panic!("recv: unexpected process-wide shutdown during test")
+        }
     }
 }
 
@@ -302,6 +305,9 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
         }
         wat::typed_channel::RecvOutcome::DecodeError(msg) => {
             panic!("recv: decode error: {}", msg)
+        }
+        wat::typed_channel::RecvOutcome::Shutdown => {
+            panic!("recv: unexpected process-wide shutdown during test")
         }
     };
     match response {
