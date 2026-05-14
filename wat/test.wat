@@ -582,6 +582,125 @@
          -> :wat::core::nil
          ~body))))
 
+;; ─── Layer 1 — run-thread (cheap-thread default, arc 170 slice 4a-α) ──
+;;
+;; Sibling of run-hermetic above. Same TEST-WRITER surface (body-only
+;; macro; ambient stdio via the three substrate services); DIFFERENT
+;; transport (spawn-thread instead of spawn-process) AND different
+;; substrate inner-fn arity — spawn-thread requires
+;; `:Fn(:Receiver<I>, :Sender<O>) -> :nil` per arc 114, where
+;; spawn-process accepts `[] -> nil`. The macro absorbs the divergence;
+;; see the run-thread defmacro below for the unused-channel idiom.
+;; Threads share the parent's fd 0/1/2 (no per-thread stdio capture),
+;; panic via in-process `catch_unwind` (no cross-fork marshalling).
+;;
+;; The substrate model (one wat surface, three transports):
+;;   - Thread  → crossbeam Sender/Receiver (typed values in-process)
+;;   - Process → OS pipes + EDN marshalling (cross-fork boundary)
+;;   - Remote  → TCP + EDN marshalling (cross-network boundary)
+;; Thread<I,O>'s input Sender + output Receiver ARE the thread's
+;; stdin/stdout equivalent for thread-to-thread comms.
+;;
+;; Consequence for the driver: run-thread-driver is STRUCTURALLY LIGHTER
+;; than run-hermetic-driver. No drain (threads share parent fd 1/2,
+;; nothing to drain into per-thread Vec<String>). No extract-panics
+;; (catch_unwind at runtime.rs:16671-16680 catches in-process; the
+;; Vec<ThreadDiedError> chain rides through outcome_rx crossbeam and
+;; surfaces directly on Thread/join-result's Err arm). Match the join
+;; result, build RunResult with empty stdio Vecs.
+
+;; ── failure-from-thread-died — Vec<ThreadDiedError> → Failure ────────
+;;
+;; Thread-side analog of :wat::kernel::failure-from-process-died at
+;; wat/kernel/hermetic.wat:58-73. The substrate accessor
+;; :wat::kernel::ThreadDiedError/to-failure (runtime.rs:17470-17493)
+;; preserves arc 064's structured actual / expected / location / frames
+;; when the panic carried an AssertionPayload; falls back to a
+;; message-only Failure for plain panics, runtime errors, and the unit
+;; ChannelDisconnected variant.
+;;
+;; Naming exception: lives under :wat::test::*, not :wat::kernel::*
+;; (where the process-side sibling lives). There's exactly one caller
+;; — run-thread-driver, a test-layer helper. Promote to kernel:: if a
+;; kernel-layer caller surfaces later.
+(:wat::core::define
+  (:wat::test::failure-from-thread-died
+    (chain :wat::core::Vector<wat::kernel::ThreadDiedError>)
+    -> :wat::kernel::Failure)
+  (:wat::core::match (:wat::core::first chain)
+    -> :wat::kernel::Failure
+    ((:wat::core::Some err) (:wat::kernel::ThreadDiedError/to-failure err))
+    (:wat::core::None
+     ;; Empty chain — should not occur; substrate always emits at
+     ;; least the immediate-peer death. Defensive default mirrors
+     ;; failure-from-process-died's None arm.
+     (:wat::core::struct-new :wat::kernel::Failure
+       "empty died-chain (substrate bug)"
+       :wat::core::None
+       (:wat::core::Vector :wat::kernel::Frame)
+       :wat::core::None
+       :wat::core::None))))
+
+;; ── run-thread-driver — Thread<nil,nil> → RunResult ──────────────────
+;;
+;; Internal driver for Layer 1 cheap-thread mode. Joins the thread via
+;; Thread/join-result; on Err builds a structured Failure from the
+;; ThreadDiedError chain. RunResult.stdout / .stderr are EMPTY Vecs by
+;; design — threads share the parent's fd 1/2 via the three substrate
+;; stdio services (runtime.rs:16623-16648); there is no per-thread
+;; stream to drain. The structurally-lighter driver is the honest
+;; expression of the thread transport's properties.
+(:wat::core::define
+  (:wat::test::run-thread-driver
+    (thr :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+    -> :wat::kernel::RunResult)
+  (:wat::core::let
+    [joined  (:wat::kernel::Thread/join-result thr)
+     failure (:wat::core::match joined
+               -> :wat::core::Option<wat::kernel::Failure>
+               ((:wat::core::Ok _)      :wat::core::None)
+               ((:wat::core::Err chain) (:wat::core::Some
+                                          (:wat::test::failure-from-thread-died chain))))]
+    (:wat::core::struct-new :wat::kernel::RunResult
+      (:wat::core::Vector :wat::core::String)
+      (:wat::core::Vector :wat::core::String)
+      failure)))
+
+;; ── run-thread — Layer 1 macro (cheap-thread default) ───────────────
+;;
+;; Sibling of run-hermetic. Same TEST-WRITER contract — body is the
+;; payload; assertions panic on failure; the macro wraps and spawns —
+;; but the inner fn signature DIFFERS from run-hermetic's `[] -> nil`.
+;;
+;; spawn-thread (substrate, runtime.rs:16543-16567) requires
+;;   :Fn(:Receiver<I>, :Sender<O>) -> :nil
+;; per arc 114 — values flow only through typed channels at the thread
+;; transport. spawn-process's substrate contract is `[] -> nil`
+;; (src/spawn_process.rs:7,267,396-405). The two transports' fn shapes
+;; diverge; the macro absorbs the divergence so the test-writer sees
+;; the SAME `(run-thread BODY)` / `(run-hermetic BODY)` surface.
+;;
+;; The `_in` / `_out` channel params are unused — Layer 1 bodies
+;; communicate via ambient stdio (the three substrate services route
+;; println/eprintln/readln on the parent's fd 0/1/2 inside this
+;; thread). Same pattern stream.wat:94-99 uses for its producer
+;; workers: typed Receiver<nil> / Sender<nil> ignored by the body.
+;;
+;; DO NOT MODIFY deftest's body (currently expands to run-hermetic) —
+;; the deftest-default flip belongs to a future stone (arc 170 slice
+;; 4a-γ). This mint stands on its own; sweep + flip are downstream.
+(:wat::core::defmacro
+  (:wat::test::run-thread
+    (body :AST<wat::core::nil>)
+    -> :AST<wat::core::nil>)
+  `(:wat::test::run-thread-driver
+     (:wat::kernel::spawn-thread
+       (:wat::core::fn
+         [_in  <- :rust::crossbeam_channel::Receiver<wat::core::nil>
+          _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+         -> :wat::core::nil
+         ~body))))
+
 ;; ─── Layer 2 — run-hermetic-with-io ────────────────────────────────────
 ;;
 ;; Arc 170 slice 3 phase D: the 9% case macro. Builds on Phase C's
