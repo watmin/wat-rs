@@ -4752,6 +4752,33 @@ fn infer_list(
                     args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
                 });
             }
+            ":wat::runtime::signature-of-fn" => {
+                // Arc 201 slice 3 — signature-of-fn.
+                // (fn-value :wat::core::fn) -> :wat::holon::HolonAST
+                //
+                // The fn-value argument carries a polymorphic surface
+                // type (`:wat::core::Fn(args)->ret` with concrete arg /
+                // ret types per the fn). Normal unification against the
+                // registered type scheme (which uses the umbrella path
+                // `:wat::core::fn`) would fail at call sites where the
+                // arg is an inline `(:wat::core::fn ...)` form (typed
+                // as the concrete `:wat::core::Fn(...)->ret`) or a
+                // closure-valued local. Same arc-009 "names are values"
+                // bypass pattern as `signature-of`: infer for
+                // side-effects, do not constrain.
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
+            }
             ":wat::runtime::rename-callable-name" => {
                 // Arc 143 slice 3 — rename-callable-name.
                 // (head :HolonAST) (from :keyword) (to :keyword) -> :HolonAST
@@ -14176,6 +14203,30 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![symbol_ty()],
             ret: opt_holon_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 201 slice 3 — `signature-of-fn` operates on a fn VALUE (not a
+    // name keyword) and returns the structured signature HolonAST
+    // directly (NOT wrapped in Option — the fn-value input is
+    // structurally validated; absence is impossible). Sibling primitive
+    // to `signature-of` for the inline-fn / closure-value case that
+    // type-driven macros (arc 170 D2 `run-threads`) need.
+    //
+    // The type-checker `infer_list` special-case (below) bypasses normal
+    // unification because the first argument is typed `:wat::core::fn`
+    // (a polymorphic surface) and the substrate registers Function as
+    // `:wat::core::Fn(...)->ret`; uniform unification at the call site
+    // would fail. The check-side special-case mirrors `signature-of`'s
+    // arc-009 "names are values" treatment.
+    let fn_ty = || TypeExpr::Path(":wat::core::fn".into());
+    env.register(
+        ":wat::runtime::signature-of-fn".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![fn_ty()],
+            ret: TypeExpr::Path(":wat::holon::HolonAST".into()),
             rest_param_type: None,
         },
     );

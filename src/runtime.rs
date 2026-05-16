@@ -4044,6 +4044,7 @@ fn dispatch_keyword_head(
         // callable by keyword and return its AST representation.
         ":wat::runtime::lookup-define" => eval_lookup_define(args, env, sym),
         ":wat::runtime::signature-of" => eval_signature_of(args, env, sym),
+        ":wat::runtime::signature-of-fn" => eval_signature_of_fn(args, env, sym),
         ":wat::runtime::body-of" => eval_body_of(args, env, sym),
         // Arc 143 slice 3 — HolonAST manipulation primitives.
         ":wat::runtime::rename-callable-name" => eval_rename_callable_name(args, env, sym),
@@ -9855,6 +9856,77 @@ fn eval_signature_of(
         }
         None => Ok(Value::Option(Arc::new(None))),
     }
+}
+
+/// `(:wat::runtime::signature-of-fn <fn-value>) -> :wat::holon::HolonAST`
+///
+/// Arc 201 slice 3. The fn-input sibling of `signature-of` (which takes a
+/// NAME keyword and looks up a defined callable in the symbol table). This
+/// primitive operates on a FN VALUE — typically the result of evaluating an
+/// inline `(:wat::core::fn [...] -> :T body)` form at the call site, or a
+/// fn value bound to a local.
+///
+/// Returns the structured signature HolonAST in the SAME SHAPE that
+/// `signature-of` returns for named user defines (per
+/// `function_to_signature_ast`'s output, lowered via `watast_to_holon`):
+///
+/// ```text
+/// Bundle [
+///   Symbol(":anonymous"),
+///   Bundle [Symbol(param0-name), <type0-AST>],
+///   Bundle [Symbol(param1-name), <type1-AST>],
+///   ...
+///   Symbol("->"),
+///   <ret-type-AST>
+/// ]
+/// ```
+///
+/// Where `<typeN-AST>` follows slice 1's emission rules: `Bundle` for
+/// Parametric / Tuple / Fn types, `Symbol` (atomic) for Path / Var types.
+///
+/// REUSE: this primitive shares `function_to_signature_ast` directly with
+/// `signature-of`'s UserFunction branch — anonymous fn values carry the
+/// same `Function` struct as named defines, only `f.name` is `None`. The
+/// signature head spells out as `:anonymous` per the existing convention
+/// at `function_to_signature_ast`'s line ~9107.
+///
+/// Return type is `:wat::holon::HolonAST` (NOT `:Option<HolonAST>`).
+/// Unlike `signature-of` (which can fail to find a name → `:None`), this
+/// primitive's input is a structurally-validated fn value — absence is
+/// impossible. Type mismatches at the input slot surface as
+/// `RuntimeError::TypeMismatch`, not `:None`.
+///
+/// Used by macros (e.g. arc 170 Stone D2's `run-threads`) that receive a
+/// coordinator fn as a call-site argument and need to extract per-arg
+/// `:ThreadPeer<I,O>` types structurally without symbol-table lookup.
+fn eval_signature_of_fn(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::runtime::signature-of-fn";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    let f = match v {
+        Value::wat__core__fn(f) => f,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::fn value (e.g., from `(:wat::core::fn [...] -> :T body)`)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let ast = function_to_signature_ast(&f);
+    Ok(Value::holon__HolonAST(Arc::new(watast_to_holon(&ast))))
 }
 
 /// `(:wat::runtime::body-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
