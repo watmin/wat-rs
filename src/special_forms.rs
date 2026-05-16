@@ -111,6 +111,24 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // via the `validate_def_position` walker called in `check_program`.
     insert(&mut m, ":wat::core::def", &["<name>", "<expr>"]);
 
+    // Arc 198 — `:wat::core::def-restricted` binds a name to a value AND
+    // records an allowed-caller-prefix whitelist. The walker enforces the
+    // whitelist at type-check time: every call site whose head names a
+    // restricted binding has its enclosing fn FQDN checked against the
+    // binding's whitelist (prefix-or-exact rules). Shape:
+    //   (:wat::core::def-restricted :name [<prefix-kw>...] <expr>)
+    // Same position rules as `:wat::core::def`; same redef discipline.
+    // The whitelist vector is a Vector AST of keyword entries; each entry
+    // ending in `::` is a namespace prefix, each entry NOT ending in `::`
+    // is an exact-FQDN match. Dispatch sites: `src/check.rs` (infer_def_restricted)
+    // + `src/runtime.rs` (register_runtime_defs_form arm + dispatch_keyword_head
+    // arm + try_parse_fn_shape_def_restricted for fn-shape pre-registration).
+    insert(
+        &mut m,
+        ":wat::core::def-restricted",
+        &["<name>", "<prefixes>", "<expr>"],
+    );
+
     // ─── Redef config setters (arc 157 slice 1a-ii) ─────────────────────
     // Arc 157 slice 1a-ii — compile-time redef opt-in. Default `false`
     // (strict: every redef is an error). Set `true` to permit redef with

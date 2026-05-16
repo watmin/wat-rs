@@ -205,6 +205,27 @@
     -> :AST<wat::core::nil>)
   `(:wat::core::def ~name (:wat::core::fn ~@rest)))
 
+;; Arc 198 — `:wat::core::defn-restricted` is the named-fn counterpart of
+;; `:wat::core::def-restricted`. Same shape as `defn` plus a positional
+;; prefix-vec between the name and the fn signature:
+;;
+;;   (:wat::core::defn-restricted :name [<prefix-kw>...]
+;;     [p <- :T q <- :T] -> :Ret body)
+;;     ↓ macro-expansion
+;;   (:wat::core::def-restricted :name [<prefix-kw>...]
+;;     (:wat::core::fn [p <- :T q <- :T] -> :Ret body))
+;;
+;; Mechanical sugar. The whitelist is a property of the BINDING (not the
+;; fn shape); restriction lives on `def-restricted`, the substrate primitive.
+;; Same rest-binder shape as `defn` per arc 150 variadic-defmacro form.
+(:wat::core::defmacro
+  (:wat::core::defn-restricted
+    (name :AST<wat::core::nil>)
+    (prefixes :AST<wat::core::nil>)
+    & (rest :AST<wat::core::Vector<wat::WatAST>>)
+    -> :AST<wat::core::nil>)
+  `(:wat::core::def-restricted ~name ~prefixes (:wat::core::fn ~@rest)))
+
 ;; f64 same-type variadic — :+/:*/:- / :/
 
 (:wat::core::define

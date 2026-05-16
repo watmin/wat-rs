@@ -1014,6 +1014,18 @@ pub struct SymbolTable {
     /// registered locations. Slice 1a-ii will add `redef_allowed` /
     /// `eval_redef_allowed` bools + type-stability gating.
     pub defined_values: HashMap<String, (crate::types::TypeExpr, Span)>,
+    /// Arc 198 — per-binding allowed-caller-prefix whitelists, populated
+    /// by `:wat::core::def-restricted` declarations. Maps binding name →
+    /// Vec of allowed-prefix entries. Each entry is matched against caller
+    /// FQDNs at type-check time using prefix-or-exact rules: an entry
+    /// ending in `::` is a namespace prefix (caller FQDN must start with
+    /// it); an entry NOT ending in `::` is an exact FQDN match.
+    ///
+    /// Mirrored into [`crate::check::CheckEnv::defined_value_restrictions`]
+    /// at `from_symbols` time; consulted by the
+    /// `validate_def_restricted_caller_namespace` walker in
+    /// [`crate::check::check_program`].
+    pub defined_value_restrictions: HashMap<String, Vec<String>>,
     /// Arc 157 slice 1a-ii — runtime values bound via `:wat::core::def`.
     /// Maps name → `Value` produced when the top-level `def` form's
     /// expression was evaluated during `FrozenWorld::freeze` (step 9.5).
@@ -1067,6 +1079,10 @@ impl std::fmt::Debug for SymbolTable {
             .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
             .field("types", &self.types.is_some())
             .field("defined_values", &self.defined_values.len())
+            .field(
+                "defined_value_restrictions",
+                &self.defined_value_restrictions.len(),
+            )
             .field("runtime_def_values", &self.runtime_def_values.len())
             .field("redef_allowed", &self.redef_allowed)
             .field("eval_redef_allowed", &self.eval_redef_allowed)
@@ -1682,6 +1698,27 @@ pub fn register_defines(
                 sym.functions.insert(path, func);
             }
             rest.push(form);
+        } else if let Some((path, func, prefixes)) = try_parse_fn_shape_def_restricted(&form) {
+            // Arc 198 — `(:wat::core::def-restricted :name [prefixes]
+            // (:wat::core::fn sig body))` sister-path to arc 166's
+            // fn-shape def pre-registration. Pre-registers the fn into
+            // `sym.functions` (so the resolver sees the bound name) AND
+            // records the prefix whitelist into
+            // `sym.defined_value_restrictions` (so the walker sees it
+            // at check time). Same collision policy as `def`; same
+            // reserved-prefix gate.
+            let form_span = form.span().clone();
+            if crate::resolve::is_reserved_prefix(&path) {
+                return Err(RuntimeError::ReservedPrefix(path, form_span));
+            }
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path.clone(), func);
+            }
+            // Restriction registration is idempotent — multiple def-restricted
+            // forms for the same name re-register; redef-discipline gates
+            // collisions at check time, not here.
+            sym.defined_value_restrictions.insert(path, prefixes);
+            rest.push(form);
         } else if let WatAST::List(ref do_items, _) = form {
             // Arc 170 Gap C — top-level `(:wat::core::do ...)` splice.
             // Peek into the do body and pre-register any fn-shape defs so
@@ -2222,6 +2259,32 @@ fn register_runtime_defs_form(
                 }
             }
         }
+        ":wat::core::def-restricted" => {
+            // Arc 198 — runtime evaluation mirror of the `def` arm. The
+            // shape is `(:wat::core::def-restricted :name [prefixes] expr)`
+            // — 4 elements; the prefix vector at items[2] is purely a
+            // check-time concern (already recorded into
+            // `sym.defined_value_restrictions` by `register_defines` /
+            // `preregister_fn_defs_in_*`). Here we evaluate the expr and
+            // bind the runtime value the same way `def` does.
+            if items.len() != 4 {
+                return Ok(()); // malformed; type checker already caught it
+            }
+            let name = match &items[1] {
+                WatAST::Keyword(k, _) => k.clone(),
+                _ => return Ok(()),
+            };
+            let expr = &items[3];
+            if sym.runtime_def_values.contains_key(&name) && !sym.redef_allowed {
+                return Ok(());
+            }
+            let sym_ref: &SymbolTable = sym;
+            let value = eval(expr, env, sym_ref)?;
+            if let Value::wat__core__fn(ref func) = value {
+                sym.functions.insert(name.clone(), func.clone());
+            }
+            sym.runtime_def_values.insert(name, value);
+        }
         ":wat::core::def" => {
             // Shape: (:wat::core::def :name expr)
             // The type checker already validated shape + position; here we
@@ -2643,6 +2706,88 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
     ))
 }
 
+/// Arc 198 — detect `(:wat::core::def-restricted :name [<prefix-kw>...]
+/// (:wat::core::fn sig body))` shape. Returns the parsed
+/// `(name, Function, prefixes)` triple when the form is a
+/// `def-restricted` whose RHS is a fn-form; else `None`.
+///
+/// Sister to [`try_parse_fn_shape_def`]: same fn-shape detection +
+/// pre-registration into `sym.functions` (so `resolve_references` sees
+/// the bound name as a callable head) PLUS the prefix-list extraction
+/// for the per-binding caller whitelist.
+///
+/// The `defn-restricted` defmacro expands to this exact shape; the
+/// underlying `def-restricted` primitive is also accepted directly.
+/// Non-fn-shape `def-restricted` forms (binding a plain value) do not
+/// match here — only fn-shape defs participate in
+/// `sym.functions` pre-registration, mirroring `def` discipline.
+fn try_parse_fn_shape_def_restricted(
+    form: &WatAST,
+) -> Option<(String, Arc<Function>, Vec<String>)> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return None,
+    };
+    if items.len() != 4 {
+        return None;
+    }
+    match &items[0] {
+        WatAST::Keyword(k, _) if k == ":wat::core::def-restricted" => {}
+        _ => return None,
+    }
+    let name = match &items[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return None,
+    };
+    // Arg 1 — prefix Vector of keywords.
+    let prefix_items = match &items[2] {
+        WatAST::Vector(items, _) => items,
+        _ => return None,
+    };
+    let mut prefixes = Vec::with_capacity(prefix_items.len());
+    for pi in prefix_items {
+        match pi {
+            WatAST::Keyword(k, _) => prefixes.push(k.clone()),
+            _ => return None,
+        }
+    }
+    // Arg 2 — must be `(:wat::core::fn ARGS-VECTOR -> :RET body...)`.
+    let fn_items = match &items[3] {
+        WatAST::List(fn_items, _) => fn_items,
+        _ => return None,
+    };
+    match &fn_items.first()? {
+        WatAST::Keyword(k, _) if k == ":wat::core::fn" => {}
+        _ => return None,
+    }
+    if fn_items.len() < 4 {
+        return None;
+    }
+    let body = synthesize_fn_body(&fn_items[4..]);
+    let sig_args = [
+        fn_items[1].clone(),
+        fn_items[2].clone(),
+        fn_items[3].clone(),
+        body.clone(),
+    ];
+    let (params, param_types, ret_type) = parse_fn_signature(&sig_args).ok()?;
+    Some((
+        name.clone(),
+        Arc::new(Function {
+            name: Some(name),
+            params,
+            type_params: Vec::new(),
+            param_types,
+            ret_type,
+            rest_param: None,
+            rest_param_type: None,
+            body: Arc::new(body),
+            closed_env: None,
+        }),
+        prefixes,
+    ))
+}
+
 /// Arc 170 Gap C — pre-register fn-shape defs found inside a top-level
 /// `(:wat::core::do ...)` into `sym.functions`.
 ///
@@ -2675,6 +2820,18 @@ fn preregister_fn_defs_in_do(
             if !sym.functions.contains_key(&path) {
                 sym.functions.insert(path, func);
             }
+        } else if let Some((path, func, prefixes)) = try_parse_fn_shape_def_restricted(child) {
+            // Arc 198 — fn-shape `def-restricted` inside a top-level `do`.
+            // Pre-register the fn into `sym.functions` AND record the
+            // prefix whitelist. Sibling to the fn-shape `def` arm above.
+            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
+                let span = child.span().clone();
+                return Err(RuntimeError::ReservedPrefix(path, span));
+            }
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path.clone(), func);
+            }
+            sym.defined_value_restrictions.insert(path, prefixes);
         } else if is_define_form(child) {
             // Arc 170 slice 3 Gap E — also handle legacy `(:wat::core::define ...)` forms.
             // `parse_define_form` takes ownership, so clone the child (it stays in `rest`).
@@ -2746,6 +2903,16 @@ fn preregister_fn_defs_in_let(
             if !sym.functions.contains_key(&path) {
                 sym.functions.insert(path, func);
             }
+        } else if let Some((path, func, prefixes)) = try_parse_fn_shape_def_restricted(child) {
+            // Arc 198 — sibling to the `def` fn-shape arm; same pattern.
+            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
+                let span = child.span().clone();
+                return Err(RuntimeError::ReservedPrefix(path, span));
+            }
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path.clone(), func);
+            }
+            sym.defined_value_restrictions.insert(path, prefixes);
         } else if is_define_form(child) {
             // Arc 170 slice 3 Gap E — also handle legacy `(:wat::core::define ...)` forms.
             // `parse_define_form` takes ownership, so clone the child (it stays in `rest`).
@@ -3715,6 +3882,14 @@ fn dispatch_keyword_head(
         // through `eval` / `dispatch_keyword_head`.
         ":wat::core::def" => Err(RuntimeError::DeclarationInExpressionPosition(
             ":wat::core::def".into(),
+            list_span.clone(),
+        )),
+        // Arc 198 — `:wat::core::def-restricted` at expression position is
+        // a position violation, same as `def`. Top-level forms are processed
+        // by `register_runtime_defs_form` (freeze-time); any eval-time
+        // encounter is definitionally expression-position.
+        ":wat::core::def-restricted" => Err(RuntimeError::DeclarationInExpressionPosition(
+            ":wat::core::def-restricted".into(),
             list_span.clone(),
         )),
         // Arc 170 Gap I-B — `:wat::core::define` at expression position.

@@ -1390,6 +1390,9 @@ fn is_mutation_form(head: &str) -> bool {
         // only at startup (the startup pipeline's `check_program` +
         // `run_program` path; not the frozen `eval_in_frozen` path).
         ":wat::core::def"
+            // Arc 198 — `:wat::core::def-restricted` is `def` plus a
+            // caller-prefix whitelist; same mutation discipline as `def`.
+            | ":wat::core::def-restricted"
             | ":wat::core::define"
             | ":wat::core::defmacro"
             | ":wat::core::define-dispatch"
@@ -1424,6 +1427,10 @@ pub fn is_declaration_form(head: &str) -> bool {
     matches!(
         head,
         ":wat::core::def"
+            // Arc 198 — `:wat::core::def-restricted` is a declaration form
+            // (mirrors `:wat::core::def` in declaration discipline; the
+            // walker-enforced caller whitelist is additional metadata).
+            | ":wat::core::def-restricted"
             | ":wat::core::define"
             | ":wat::core::defmacro"
             | ":wat::core::define-dispatch"

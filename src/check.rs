@@ -651,6 +651,33 @@ pub enum CheckError {
         /// Source location of the call-site head token.
         span: Span,
     },
+    /// Arc 198 — a call site invokes a `:wat::core::def-restricted`
+    /// binding from a fn whose FQDN does not match any entry in the
+    /// binding's allowed-caller-prefix whitelist.
+    ///
+    /// Whitelist matching:
+    /// - entry ending in `::` → namespace prefix match
+    /// - entry NOT ending in `::` → exact FQDN match
+    ///
+    /// Generalizes Stone B's hard-coded `JoinResultUserNamespace` rule:
+    /// the restriction is declared at the binding site (per fn) rather
+    /// than hard-coded in the walker. Once arc 198 lands, a follow-up
+    /// step refactors Stone B's hard-coded rule to use this generic
+    /// mechanism.
+    DefRestrictedCallerNotAllowed {
+        /// The restricted callee — the FQDN of the binding declared via
+        /// `:wat::core::def-restricted`.
+        callee: String,
+        /// FQDN of the enclosing fn whose body called the restricted
+        /// binding. E.g. `":user::app::caller"`.
+        enclosing_fn: String,
+        /// The allowed-caller-prefix whitelist as declared at the
+        /// binding site. Each entry is matched against `enclosing_fn`
+        /// using prefix-or-exact rules.
+        prefixes: Vec<String>,
+        /// Source location of the call-site head token.
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 1 — render the file:line:col prefix for an error,
@@ -869,6 +896,21 @@ impl fmt::Display for CheckError {
                 f,
                 "{}`{}` at {} is forbidden from user-namespace code (arc 170 Stone B). The substrate-internal `*_join-result` verbs remain user-callable only from substrate-namespace fns (`:wat::*`-prefixed FQDN); user code reaches them through the canonical replacement `{}` (Stone A) or, when shipped, the bracket combinators `:wat::kernel::run-threads` / `:wat::kernel::run-processes` (Stones D/E). The drain-and-join helper drains the typed output channel (and stdout/stderr pipes for Process) before joining, so the lockstep deadlock arc 117/133 guards against cannot fire at the user-API boundary. Enclosing fn: `{}`. Migrate `({} <handle>)` → `({} <handle>)` at the offending site.",
                 span_prefix(span), verb, span, canonical, enclosing_fn, verb, canonical
+            ),
+            CheckError::DefRestrictedCallerNotAllowed {
+                callee,
+                enclosing_fn,
+                prefixes,
+                span,
+            } => write!(
+                f,
+                "{}`{}` at {} is a `:wat::core::def-restricted` binding — its allowed-caller whitelist is [{}]; the enclosing fn `{}` does not match any entry. An entry ending in `::` is a namespace prefix (caller FQDN must start with it); an entry without trailing `::` is an exact-FQDN match. Either move the caller into one of the allowed namespaces, or add `{}` to the whitelist at the binding site.",
+                span_prefix(span),
+                callee,
+                span,
+                prefixes.join(" "),
+                enclosing_fn,
+                enclosing_fn,
             ),
         }
     }
@@ -1214,6 +1256,16 @@ impl CheckError {
                 .field("verb", verb.as_str())
                 .field("canonical", canonical.as_str())
                 .field("enclosing_fn", enclosing_fn.as_str())
+                .field("location", format!("{}", span)),
+            CheckError::DefRestrictedCallerNotAllowed {
+                callee,
+                enclosing_fn,
+                prefixes,
+                span,
+            } => Diagnostic::new("DefRestrictedCallerNotAllowed")
+                .field("callee", callee.as_str())
+                .field("enclosing_fn", enclosing_fn.as_str())
+                .field("prefixes", prefixes.join(" "))
                 .field("location", format!("{}", span)),
         }
     }
@@ -1589,6 +1641,17 @@ pub struct CheckEnv {
     /// the binding site. Used to emit `DefRedefForbidden` with the
     /// prior location when a collision is detected.
     pub defined_value_spans: HashMap<String, Span>,
+    /// Arc 198 — per-binding allowed-caller-prefix whitelists, populated
+    /// by `:wat::core::def-restricted` declarations. Maps binding name →
+    /// Vec of allowed-prefix entries. The walker
+    /// `validate_def_restricted_caller_namespace` consults this map when
+    /// it encounters a call site whose head names a restricted binding.
+    ///
+    /// Mirrored from [`crate::runtime::SymbolTable::defined_value_restrictions`]
+    /// at `from_symbols` time. Each entry's matching rule:
+    /// - trailing `::` (e.g. `:wat::kernel::`) → namespace prefix match
+    /// - no trailing `::` (e.g. `:wat::kernel::specific-fn`) → exact match
+    pub defined_value_restrictions: HashMap<String, Vec<String>>,
     /// Arc 157 slice 1a-ii — compile-time redef-allowed flag. Default
     /// `false` (strict default: every redef is an error). Updated
     /// in-line by `check_program` when it encounters a top-level
@@ -1626,6 +1689,11 @@ impl CheckEnv {
         // `infer_def` can gate the collision check without needing direct
         // SymbolTable access. Option (b) per the BRIEF: mirror, not direct.
         env.redef_allowed = sym.redef_allowed;
+        // Arc 198 — mirror per-binding caller-prefix whitelists from the
+        // SymbolTable carrier. Populated during `register_defines` /
+        // `register_runtime_defs_form` when a `:wat::core::def-restricted`
+        // form is processed. The walker consults this map at check time.
+        env.defined_value_restrictions = sym.defined_value_restrictions.clone();
         env
     }
 
@@ -1663,6 +1731,7 @@ impl CheckEnv {
             dispatch_registry: None,
             defined_values: HashMap::new(),
             defined_value_spans: HashMap::new(),
+            defined_value_restrictions: HashMap::new(),
             redef_allowed: false,
         }
     }
@@ -1719,6 +1788,22 @@ impl CheckEnv {
     pub fn register_defined_value(&mut self, name: String, ty: TypeExpr, span: Span) {
         self.defined_values.insert(name.clone(), ty);
         self.defined_value_spans.insert(name, span);
+    }
+
+    /// Arc 198 — look up the caller-prefix whitelist for a restricted
+    /// binding. Returns `Some(&Vec<String>)` when the binding was
+    /// declared via `:wat::core::def-restricted`; `None` otherwise.
+    /// Consulted by `validate_def_restricted_caller_namespace` at every
+    /// call site.
+    pub fn get_defined_value_restriction(&self, name: &str) -> Option<&Vec<String>> {
+        self.defined_value_restrictions.get(name)
+    }
+
+    /// Arc 198 — register a caller-prefix whitelist for a binding.
+    /// Called by the `def-restricted` registration path so the walker
+    /// sees the whitelist at type-check time.
+    pub fn register_defined_value_restriction(&mut self, name: String, prefixes: Vec<String>) {
+        self.defined_value_restrictions.insert(name, prefixes);
     }
 }
 
@@ -1937,6 +2022,29 @@ pub fn check_program(
     // it can teach with the offending fn name).
     for (name, func) in sym.functions.iter() {
         validate_join_result_user_namespace(&func.body, name, &mut errors);
+    }
+
+    // Arc 198 — generic `:wat::core::def-restricted` walker. For every fn
+    // body, walk every call site; if the call head names a restricted
+    // binding (per `env.defined_value_restrictions`), verify the
+    // enclosing fn FQDN matches the binding's allowed-caller-prefix
+    // whitelist. Generalizes Stone B's hard-coded
+    // `validate_join_result_user_namespace` rule — the restriction is
+    // declared at the binding site, not hard-coded here. The walker uses
+    // the CheckEnv we built BEFORE the sequential `for form in forms`
+    // loop below, but the SymbolTable carrier has already been populated
+    // by `register_runtime_defs` (no — that comes later); we populate
+    // restrictions during `register_defines` (sibling to fn-shape
+    // pre-registration of `def-restricted` forms) so they're visible
+    // here at check time.
+    for (name, func) in sym.functions.iter() {
+        // Substrate-namespace fns (`:wat::*`) calling each other are not
+        // constrained by user-declared whitelists in the same way Stone B
+        // exempts them. The whitelist itself is authoritative: if a
+        // substrate-namespace fn is in the whitelist (e.g. `[:wat::kernel::]`
+        // covers callers in `:wat::kernel::*`), it passes. The walker
+        // applies uniformly; there's no implicit substrate exemption.
+        walk_for_def_restricted_call(&func.body, name, &env, &mut errors);
     }
 
     // Arc 159 slice 3 — `validate_legacy_typed_let_binding` walker
@@ -3156,6 +3264,82 @@ fn walk_for_join_result_call(
         }
         _ => {}
     }
+}
+
+/// Arc 198 — generic restricted-caller walker. For every call site in
+/// `node` whose head names a `def-restricted` binding, verify the
+/// `enclosing_fn` FQDN matches the binding's whitelist. Emit
+/// `DefRestrictedCallerNotAllowed` for each mismatch.
+///
+/// Restriction lookup runs through `env.get_defined_value_restriction`,
+/// which mirrors `SymbolTable.defined_value_restrictions` populated at
+/// `register_defines` time. Whitelist matching uses
+/// [`caller_matches_prefix_list`]:
+/// - entry ending in `::` → caller FQDN must START WITH the entry
+/// - entry NOT ending in `::` → caller FQDN must EQUAL the entry exactly
+///
+/// Generalizes Stone B's `walk_for_join_result_call` — Stone B's rule
+/// is one hard-coded restriction; arc 198 lets any binding declare its
+/// own whitelist at the binding site. The walker scope mirrors Stone B:
+/// recurses through every `List` and `Vector` child so a call buried
+/// inside a let body, match arm, or fn-literal argument is still caught.
+fn walk_for_def_restricted_call(
+    node: &WatAST,
+    enclosing_fn: &str,
+    env: &CheckEnv,
+    errors: &mut Vec<CheckError>,
+) {
+    match node {
+        WatAST::List(items, _) => {
+            if let Some(WatAST::Keyword(head, head_span)) = items.first() {
+                if let Some(prefixes) = env.get_defined_value_restriction(head) {
+                    if !caller_matches_prefix_list(enclosing_fn, prefixes) {
+                        errors.push(CheckError::DefRestrictedCallerNotAllowed {
+                            callee: head.clone(),
+                            enclosing_fn: enclosing_fn.into(),
+                            prefixes: prefixes.clone(),
+                            span: head_span.clone(),
+                        });
+                    }
+                }
+            }
+            for item in items {
+                walk_for_def_restricted_call(item, enclosing_fn, env, errors);
+            }
+        }
+        WatAST::Vector(items, _) => {
+            for item in items {
+                walk_for_def_restricted_call(item, enclosing_fn, env, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Arc 198 — match a caller FQDN against a `def-restricted` whitelist.
+///
+/// Each entry is matched independently; the first match wins. Two rules:
+/// - entry ending in `::` (e.g. `:wat::kernel::`) → caller FQDN must
+///   START WITH the entry (namespace-prefix match).
+/// - entry NOT ending in `::` (e.g. `:wat::kernel::specific-fn`) → caller
+///   FQDN must EQUAL the entry exactly (exact-FQDN match).
+///
+/// Empty whitelist semantics: `[]` matches nothing — every caller fails.
+/// This is the honest "substrate-internal only" reading and lets a future
+/// arc explicitly mint that pattern (e.g. `def-private`) over the same
+/// mechanism. The current arc doesn't gate empty whitelists at the
+/// declaration site; sonnet observed the asymmetry but kept the
+/// semantics simple: `caller_matches_prefix_list("anything", &[])`
+/// returns `false` and the walker fires `DefRestrictedCallerNotAllowed`
+/// with the empty prefix list rendered in the diagnostic.
+fn caller_matches_prefix_list(caller_fqdn: &str, prefixes: &[String]) -> bool {
+    prefixes.iter().any(|entry| {
+        if entry.ends_with("::") {
+            caller_fqdn.starts_with(entry.as_str())
+        } else {
+            caller_fqdn == entry.as_str()
+        }
+    })
 }
 
 /// Arc 117's pre-inference recursive walker. Retired by arc 133 slice 1.
@@ -4489,6 +4673,14 @@ fn infer_list(
             // call returns) using the helper `extract_def_binding`.
             // This two-phase approach keeps `infer`'s signature pure.
             ":wat::core::def" => return infer_def(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 198 — `:wat::core::def-restricted` type-check arm.
+            // Same shape as `def` plus a positional prefix-vec; emits Unit.
+            // The binding write + restriction write happens in
+            // `collect_splice_defs_ctx` after this fn returns (same two-phase
+            // pattern as `def` / `extract_def_binding`).
+            ":wat::core::def-restricted" => {
+                return infer_def_restricted(args, head_span, env, locals, fresh, subst, errors);
+            }
             // Arc 157 slice 1a-ii — config setters for redef opt-in.
             // Shape: (:wat::config::set-redef! <bool>) — returns Unit.
             // The bool arg is type-checked; the actual flag update is
@@ -7182,6 +7374,139 @@ fn infer_def(
     Some(TypeExpr::Tuple(vec![]))
 }
 
+/// Arc 198 — type-check arm for
+/// `(:wat::core::def-restricted :name [<prefix-kw>...] expr)`.
+///
+/// Shape validation:
+/// 1. Exactly 3 args: name keyword + prefix vector + expression.
+/// 2. First arg must be a keyword (the bound name).
+/// 3. Second arg must be a Vector AST whose children are all keywords.
+/// 4. Infer the type of `expr`.
+/// 5. Redef collision check (same as `infer_def`).
+///
+/// The prefix vector is not "evaluated" — its children are extracted
+/// directly as keyword strings (entries ending in `::` become namespace
+/// prefixes; entries without trailing `::` become exact-FQDN matches).
+/// The walker `validate_def_restricted_caller_namespace` reads the
+/// whitelist from `CheckEnv.defined_value_restrictions` and enforces it
+/// at every call site whose head names this binding.
+///
+/// The binding write happens via [`extract_def_restricted_binding`] in
+/// `collect_splice_defs_ctx` after `infer_def_restricted` returns
+/// (same two-phase pattern as `infer_def` / `extract_def_binding`).
+///
+/// Returns `Some(TypeExpr::Tuple([]))` — unit. `def-restricted` is a
+/// declaration, not a value expression (mirrors `def`).
+fn infer_def_restricted(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 3 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::def-restricted".into(),
+            reason: format!(
+                "expected (:wat::core::def-restricted :name [<prefix-kw>...] expr); got {} args",
+                args.len()
+            ),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            // Don't recurse into Vector arg — it would fire the
+            // "vector at value position" diagnostic spuriously.
+            if !matches!(arg, WatAST::Vector(_, _)) {
+                let _ = infer(arg, env, locals, fresh, subst, errors);
+            }
+        }
+        return Some(TypeExpr::Tuple(vec![]));
+    }
+
+    // Arg 0 — the bound name (keyword).
+    let name = match &args[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::def-restricted".into(),
+                reason: format!(
+                    "first arg must be a keyword name (e.g. `:my::name`); got {:?}",
+                    other
+                ),
+                span: head_span.clone(),
+            });
+            let _ = infer(&args[2], env, locals, fresh, subst, errors);
+            return Some(TypeExpr::Tuple(vec![]));
+        }
+    };
+
+    // Arg 1 — the prefix whitelist (Vector of Keyword entries).
+    match &args[1] {
+        WatAST::Vector(prefix_items, _) => {
+            for item in prefix_items {
+                if !matches!(item, WatAST::Keyword(_, _)) {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::def-restricted".into(),
+                        reason: format!(
+                            "prefix vector entries must be keywords; got {:?}",
+                            item
+                        ),
+                        span: item.span().clone(),
+                    });
+                }
+            }
+        }
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::def-restricted".into(),
+                reason: format!(
+                    "second arg must be a Vector of keyword prefixes (e.g. `[:wat::kernel::]`); got {:?}",
+                    other
+                ),
+                span: other.span().clone(),
+            });
+        }
+    }
+
+    // Arg 2 — infer the type of the value expression.
+    let expr_ty = infer(&args[2], env, locals, fresh, subst, errors);
+
+    // Redef gating — same shape as `infer_def`. The whitelist itself is
+    // also subject to redef discipline: opt-in redef requires type-stability;
+    // a redef cannot silently shrink/expand the whitelist without explicit
+    // opt-in. Same two-phase pattern: `extract_def_restricted_binding`
+    // writes both type AND restriction after this fn returns.
+    if let Some(prior_span) = env.get_defined_value_span(&name) {
+        if !env.redef_allowed {
+            errors.push(CheckError::DefRedefForbidden {
+                name,
+                prior_loc: prior_span.clone(),
+                current_loc: head_span.clone(),
+            });
+        } else {
+            let prior_type = env.get_defined_value_type(&name).cloned();
+            let new_type = expr_ty.as_ref().cloned();
+            if let (Some(pt), Some(nt)) = (prior_type, new_type) {
+                let pt_str = format_type(&pt);
+                let nt_str = format_type(&nt);
+                if pt_str != nt_str {
+                    errors.push(CheckError::DefRedefTypeChange {
+                        name,
+                        prior_type: pt_str,
+                        new_type: nt_str,
+                        prior_loc: prior_span.clone(),
+                        current_loc: head_span.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    Some(TypeExpr::Tuple(vec![]))
+}
+
 /// Arc 157 slice 1a-ii — type-check arm for
 /// `(:wat::config::set-redef! <bool>)` and
 /// `(:wat::config::set-eval-redef! <bool>)`.
@@ -7281,6 +7606,30 @@ fn collect_splice_defs_ctx(
         _ => return,
     };
     match head {
+        ":wat::core::def-restricted" if is_top => {
+            // Arc 198 — extract (name, type, span, prefixes) and register
+            // BOTH the binding (same map as `def`) AND the whitelist into
+            // `defined_value_restrictions`. Subsequent forms see the name
+            // for type resolution; the walker reads the whitelist.
+            if let Some((name, ty, span, prefixes)) =
+                extract_def_restricted_binding(form, env, fresh, errors)
+            {
+                if !env.defined_values.contains_key(&name) {
+                    env.register_defined_value(name.clone(), ty, span);
+                    env.register_defined_value_restriction(name, prefixes);
+                } else if env.redef_allowed {
+                    let prior_str = env
+                        .get_defined_value_type(&name)
+                        .map(format_type)
+                        .unwrap_or_default();
+                    let new_str = format_type(&ty);
+                    if prior_str == new_str {
+                        env.register_defined_value(name.clone(), ty, span);
+                        env.register_defined_value_restriction(name, prefixes);
+                    }
+                }
+            }
+        }
         ":wat::core::def" if is_top => {
             if let Some((name, ty, span)) = extract_def_binding(form, env, fresh, errors) {
                 if !env.defined_values.contains_key(&name) {
@@ -7358,6 +7707,67 @@ fn extract_def_binding(
     let ty = infer(&items[2], env, &HashMap::new(), fresh, &mut subst, errors)?;
     let ty = apply_subst(&ty, &subst);
     Some((name, ty, span))
+}
+
+/// Arc 198 — extract `(name, TypeExpr, Span, prefixes)` from a top-level
+/// `(:wat::core::def-restricted :name [<prefix-kw>...] expr)` form.
+///
+/// Mirrors `extract_def_binding` but ALSO pulls the prefix whitelist
+/// out of the Vector AST. Returns `None` when the form is malformed
+/// (errors already emitted by `infer_def_restricted`).
+///
+/// Called by `collect_splice_defs_ctx`'s `def-restricted` arm to register
+/// both the type binding and the whitelist into `CheckEnv` so subsequent
+/// forms (and the walker) see them.
+fn extract_def_restricted_binding(
+    form: &WatAST,
+    env: &CheckEnv,
+    fresh: &mut InferCtx,
+    errors: &mut Vec<CheckError>,
+) -> Option<(String, TypeExpr, Span, Vec<String>)> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return None,
+    };
+    if items.len() != 4 {
+        return None;
+    }
+    match &items[0] {
+        WatAST::Keyword(k, _) if k == ":wat::core::def-restricted" => {}
+        _ => return None,
+    }
+    let name = match &items[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return None,
+    };
+    let prefixes = extract_prefix_vec(&items[2])?;
+    let span = items[0].span().clone();
+    let mut subst = Subst::new();
+    let ty = infer(&items[3], env, &HashMap::new(), fresh, &mut subst, errors)?;
+    let ty = apply_subst(&ty, &subst);
+    Some((name, ty, span, prefixes))
+}
+
+/// Arc 198 — extract the prefix whitelist from a `def-restricted` form's
+/// Vector arg. Returns `Some(Vec<String>)` when every child is a keyword;
+/// `None` otherwise (errors already emitted by `infer_def_restricted`).
+///
+/// Each entry preserves the trailing `::` (or its absence) — the walker
+/// uses that to distinguish namespace-prefix matches from exact-FQDN
+/// matches.
+fn extract_prefix_vec(arg: &WatAST) -> Option<Vec<String>> {
+    let items = match arg {
+        WatAST::Vector(items, _) => items,
+        _ => return None,
+    };
+    let mut prefixes = Vec::with_capacity(items.len());
+    for item in items {
+        match item {
+            WatAST::Keyword(k, _) => prefixes.push(k.clone()),
+            _ => return None,
+        }
+    }
+    Some(prefixes)
 }
 
 /// Arc 157 slice 1a-ii — extract the bool flag from a top-level
