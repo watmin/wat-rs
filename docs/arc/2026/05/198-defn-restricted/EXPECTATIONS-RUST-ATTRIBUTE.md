@@ -1,3 +1,7 @@
+> **SUPERSEDED 2026-05-16 — see `BRIEF-RUST-ATTRIBUTE.md` SUPERSEDED note for decomposition into 4 stones.** Original EXPECTATIONS preserved below as historical record.
+
+---
+
 # Arc 198 Slice 2 EXPECTATIONS
 
 **BRIEF:** `BRIEF-RUST-ATTRIBUTE.md`

@@ -1,3 +1,14 @@
+> **SUPERSEDED 2026-05-16 — decomposed into 4 stones per `feedback_iterative_complexity`.** The original BRIEF below bundled too much (proc-macro + inventory wiring + 2 fn migrations + Stone B rule deletion + 4 test updates) and predicted 180-300 min, which IS the warning signal "this is too big." First sonnet launched on this BRIEF was killed in reading phase. Replaced by 4 stones:
+>
+> - `BRIEF-STONE-1-INVENTORY-WIRING.md` — substrate-only inventory + `RestrictionEntry` struct + setup iteration; no proc-macro yet
+> - `BRIEF-STONE-2-PROC-MACRO-ATTRIBUTE.md` — mint `#[restricted_to(...)]` in wat-macros
+> - `BRIEF-STONE-3-APPLY-TO-JOIN-RESULT.md` — annotate the 2 substrate fns; verify both walkers fire
+> - `BRIEF-STONE-4-LOOP-CLOSURE.md` — delete Stone B's ad-hoc rule + update Stone B's tests
+>
+> Each stone ~30-90 min sonnet. Each provable in isolation. Original BRIEF preserved below as historical record.
+
+---
+
 # Arc 198 Slice 2 BRIEF — `#[restricted_to(...)]` proc-macro attribute (Rust-side complement)
 
 **Arc:** 198 (continuation — slice 1 shipped wat-side `def-restricted` + `defn-restricted` at commit `24d3b0d`)
