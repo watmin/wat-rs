@@ -4279,6 +4279,15 @@ fn dispatch_keyword_head(
         ":wat::kernel::Process/join-result" => {
             eval_kernel_process_join_result(args, env, sym, list_span)
         }
+        // Arc 170 Stone A — drain stdout + stderr to EOF, then join.
+        // User-callable wrapper that encapsulates the drain-before-join
+        // discipline; arc 117/133's `process-join-before-output-drain`
+        // walker rule is the wat-side equivalent. Stone B hides
+        // `Process/join-result` from user namespace; this helper becomes
+        // the canonical wait verb.
+        ":wat::kernel::Process/drain-and-join" => {
+            eval_kernel_process_drain_and_join(args, env, sym, list_span)
+        }
         // Arc 170 Stone C — Process IO accessors. Field order in the
         // Process struct (per src/spawn_process.rs; 4-field shape):
         //   0 → stdin  (IOWriter)  — parent writes → child fd 0
@@ -4312,6 +4321,13 @@ fn dispatch_keyword_head(
         }
         ":wat::kernel::Thread/join-result" => {
             eval_kernel_thread_join_result(args, env, sym, list_span)
+        }
+        // Arc 170 Stone A — drain output channel to Disconnected, then
+        // join. Mirrors `Process/drain-and-join` for the in-thread
+        // satisfier. Stone B hides `Thread/join-result` from user
+        // namespace; this helper becomes the canonical wait verb.
+        ":wat::kernel::Thread/drain-and-join" => {
+            eval_kernel_thread_drain_and_join(args, env, sym, list_span)
         }
         // Arc 170 Stone C — Pattern 2 verb retirement.
         // process-send / process-recv are RETIRED. Real stdio is canonical
@@ -16411,6 +16427,134 @@ fn eval_kernel_process_join_result(
     Ok(value)
 }
 
+/// `(:wat::kernel::Process/drain-and-join proc) ->
+/// :wat::core::Result<:wat::core::nil, :wat::core::Vector<wat::kernel::ProcessDiedError>>`
+/// — arc 170 Stone A. User-callable wrapper that drains the Process's
+/// stdout + stderr pipes to EOF, then joins.
+///
+/// The drain step embodies in substrate the discipline arc 117/133's
+/// `process-join-before-output-drain` walker rule used to enforce
+/// structurally: inner scope drains the OS-pipe Readers to EOF before
+/// outer scope blocks on join. Encapsulating both steps in one
+/// primitive means users never have to stage the lockstep by hand;
+/// the recovery-doc § 13 IPC triangle (stdout / stderr / exit-code) is
+/// honored end-to-end.
+///
+/// Stone B will hide `Process/join-result` from user namespace; this
+/// helper becomes the canonical wait verb for `Process<I, O>`.
+fn eval_kernel_process_drain_and_join(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Process/drain-and-join";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let proc_value = eval(&args[0], env, sym)?;
+    let proc_struct = match proc_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::kernel::Process",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    // Process struct field order: stdin, stdout, stderr, join.
+    // Drain stdout + stderr (fields 1 and 2) before joining (field 3).
+    drain_process_reader_field(&proc_struct, 1, &args[0], OP)?;
+    drain_process_reader_field(&proc_struct, 2, &args[0], OP)?;
+    let handle = match proc_struct.fields.get(3) {
+        Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Process.join (ProgramHandle)",
+                got: "missing or wrong-type field",
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let value = match handle.as_ref() {
+        ProgramHandleInner::InThread(rx) => match rx.recv() {
+            Ok(SpawnOutcome::Ok(_)) => Value::Result(Arc::new(Ok(Value::Unit))),
+            Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_runtime(e.to_string()),
+            )))),
+            Ok(SpawnOutcome::Panic { message, assertion }) => {
+                let upstream = assertion.as_ref().and_then(|a| a.upstream_chain.clone());
+                let fresh = process_died_error_panic(message, assertion.clone());
+                Value::Result(Arc::new(Err(conj_died_chain(fresh, upstream))))
+            }
+            Err(_) => Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_channel_disconnected(),
+            )))),
+        },
+        ProgramHandleInner::Forked(child) => {
+            let code = child.wait_or_cached();
+            if code == 0 {
+                Value::Result(Arc::new(Ok(Value::Unit)))
+            } else {
+                Value::Result(Arc::new(Err(single_died_chain(process_died_error_panic(
+                    format!("forked program exited {}", code),
+                    None,
+                )))))
+            }
+        }
+    };
+    Ok(value)
+}
+
+/// Arc 170 Stone A internal — drain a `Process<I, O>`'s OS-pipe reader
+/// at `field_index` (1 = stdout, 2 = stderr) by calling `read_line` in
+/// a loop until EOF (None). Drained lines are discarded — drain-and-join
+/// returns only the join Result; line capture is the user's concern via
+/// the wat-side `:wat::kernel::drain-lines` helper.
+///
+/// Surfaces a `TypeMismatch` if the field isn't an IOReader. A
+/// kernel-level read error is treated as EOF for drain purposes; the
+/// join-result downstream surfaces the real exit code.
+fn drain_process_reader_field(
+    proc_struct: &Arc<StructValue>,
+    field_index: usize,
+    subject_ast: &WatAST,
+    op: &str,
+) -> Result<(), RuntimeError> {
+    let reader = match proc_struct.fields.get(field_index) {
+        Some(Value::io__IOReader(r)) => r.clone(),
+        _ => {
+            let expected = match field_index {
+                1 => "Process.stdout (IOReader)",
+                2 => "Process.stderr (IOReader)",
+                _ => "Process.<reader-field> (IOReader)",
+            };
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected,
+                got: "missing or wrong-type field",
+                span: subject_ast.span().clone(),
+            });
+        }
+    };
+    loop {
+        match reader.read_line(subject_ast.span().clone()) {
+            Ok(Some(_)) => continue,
+            Ok(None) => break,
+            Err(_) => break,
+        }
+    }
+    Ok(())
+}
+
 /// `(:wat::kernel::Process/stdin proc) -> :wat::io::IOWriter` —
 /// arc 170 slice 1f-δ. Extracts the stdin writer from a
 /// Process<I,O> struct. Field 0 per src/spawn_process.rs:221.
@@ -16787,6 +16931,128 @@ fn eval_kernel_thread_join_result(
         }
     };
     Ok(value)
+}
+
+/// `(:wat::kernel::Thread/drain-and-join thr) ->
+/// :wat::core::Result<:wat::core::nil, :wat::core::Vector<wat::kernel::ThreadDiedError>>`
+/// — arc 170 Stone A. User-callable wrapper that drains the Thread's
+/// typed output channel to `Disconnected`, then joins.
+///
+/// The drain step embodies in substrate the discipline arc 117/133's
+/// `scope-deadlock` walker rule used to enforce structurally: inner
+/// scope drains the Receiver to EOF before outer scope blocks on join.
+/// Encapsulating both steps in one primitive means users never have to
+/// stage the lockstep by hand.
+///
+/// Stone B will hide `Thread/join-result` from user namespace; this
+/// helper becomes the canonical wait verb for `Thread<I, O>`.
+fn eval_kernel_thread_drain_and_join(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Thread/drain-and-join";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let thread_value = eval(&args[0], env, sym)?;
+    let thread_struct = match thread_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::kernel::Thread",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    // Thread struct field order: input, output, join.
+    // Drain the output Receiver (field 1) before joining (field 2).
+    drain_thread_output_channel(&thread_struct, &args[0], OP)?;
+    // Now perform the same join logic as `eval_kernel_thread_join_result`.
+    let handle = match thread_struct.fields.get(2) {
+        Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Thread.join (ProgramHandle)",
+                got: "missing or wrong-type field",
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let value = match handle.as_ref() {
+        ProgramHandleInner::InThread(rx) => match rx.recv() {
+            Ok(SpawnOutcome::Ok(_)) => Value::Result(Arc::new(Ok(Value::Unit))),
+            Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
+                thread_died_error_runtime(e.to_string()),
+            )))),
+            Ok(SpawnOutcome::Panic { message, assertion }) => {
+                let upstream = assertion.as_ref().and_then(|a| a.upstream_chain.clone());
+                let fresh = thread_died_error_panic(message, assertion.clone());
+                Value::Result(Arc::new(Err(conj_died_chain(fresh, upstream))))
+            }
+            Err(_) => Value::Result(Arc::new(Err(single_died_chain(
+                thread_died_error_channel_disconnected(),
+            )))),
+        },
+        ProgramHandleInner::Forked(_) => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Thread.join (InThread variant)",
+                got: "Forked variant on a Thread<I,O> — substrate bug",
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    Ok(value)
+}
+
+/// Arc 170 Stone A internal — drain a `Thread<I, O>`'s typed output
+/// Receiver (field 1) by calling `typed_recv` in a loop until the peer
+/// disconnects (or the process-wide shutdown fires).
+///
+/// Returns `Ok(())` on `Disconnected`/`Shutdown`. Surfaces a
+/// `TypeMismatch` if field 1 isn't the expected Receiver variant. Any
+/// EDN `DecodeError` from a tier-2 transport is treated like a
+/// disconnect for drain purposes — we discard drained values either
+/// way; the join-result downstream surfaces the real failure mode.
+fn drain_thread_output_channel(
+    thread_struct: &Arc<StructValue>,
+    subject_ast: &WatAST,
+    op: &str,
+) -> Result<(), RuntimeError> {
+    let receiver_inner = match thread_struct.fields.get(1) {
+        Some(Value::wat__kernel__Receiver(inner)) => inner.clone(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "Thread.output (Receiver)",
+                got: "missing or wrong-type field",
+                span: subject_ast.span().clone(),
+            });
+        }
+    };
+    loop {
+        match crate::typed_channel::typed_recv(
+            receiver_inner.as_ref(),
+            None,
+            subject_ast.span().clone(),
+        ) {
+            crate::typed_channel::RecvOutcome::Value(_) => continue,
+            crate::typed_channel::RecvOutcome::Disconnected
+            | crate::typed_channel::RecvOutcome::Shutdown
+            | crate::typed_channel::RecvOutcome::DecodeError(_) => break,
+        }
+    }
+    Ok(())
 }
 
 /// `(:wat::kernel::Sender/from-pipe writer) -> :wat::kernel::Sender<T>` —

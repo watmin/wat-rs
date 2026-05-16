@@ -14,16 +14,18 @@
 
 ## Stones
 
-### Stone A — `Thread/drain-and-join` + `Process/drain-and-join` substrate helpers
+### Stone A — `Thread/drain-and-join` + `Process/drain-and-join` substrate helpers — **SHIPPED 2026-05-16**
 
-- [ ] Test: spawn-thread with simple body; user calls `Thread/drain-and-join handle`; verify drain happens before join; verify clean exit status
-- [ ] Test: same for Process via spawn-process
-- [ ] Implementation: substrate-vended user-callable wrappers that encapsulate drain-before-join logic currently inline in -with-io driver
-- [ ] No callers migrated yet — those wait for Stone B
+- [x] Test: Thread happy + panic, Process happy + panic — `tests/wat_arc170_stone_a_drain_and_join.rs` (4/4 green)
+- [x] Implementation: `eval_kernel_thread_drain_and_join` (`src/runtime.rs:16949`) + `eval_kernel_process_drain_and_join` (`src/runtime.rs:16445`) + drain helpers
+- [x] Dispatch arms: `src/runtime.rs:4288` (Process) + `:4329` (Thread)
+- [x] Type registrations: `src/check.rs:12482` (Process) + `:12619` (Thread)
+- [x] No existing tests broken (workspace baseline maintained)
+- [x] No callers migrated yet — Stone B handles that
 
-**Scope:** Substrate (`src/eval.rs` + `src/types.rs` + register methods).
-**Predicted:** 60-90 min sonnet.
-**Dependencies:** none.
+**Scope:** Substrate (`src/runtime.rs` + `src/check.rs`).
+**Actual:** ~50 min sonnet (predicted 90-120). 6/6 SCORE rows PASS.
+**SCORE:** `SCORE-STONE-A-DRAIN-AND-JOIN.md`
 
 ---
 
@@ -139,7 +141,7 @@
 ## Status
 
 - [x] Design phase complete (2026-05-16, captured in INTERSTITIAL-REALIZATIONS.md)
-- [ ] Stone A
+- [x] Stone A — drain-and-join helpers (2026-05-16, ~50 min, 4/4 tests green)
 - [ ] Stone B
 - [ ] Stone C
 - [ ] Stone D

@@ -12470,6 +12470,29 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // (:wat::kernel::Process/drain-and-join proc) →
+    //   :Result<:wat::core::nil, :wat::kernel::ProcessDiedError-chain>.
+    // Arc 170 Stone A — drain stdout + stderr to EOF before joining.
+    // Same return shape as `Process/join-result` (the drain step
+    // doesn't change the wait outcome — it just guarantees the child
+    // isn't blocked on a full OS pipe). The drain-and-join helper is
+    // the canonical user surface; Stone B hides `Process/join-result`
+    // from user namespace.
+    env.register(
+        ":wat::kernel::Process/drain-and-join".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_ty()],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Result".into(),
+                args: vec![
+                    TypeExpr::Tuple(vec![]),
+                    process_died_chain_ty(),
+                ],
+            },
+            rest_param_type: None,
+        },
+    );
     // Arc 170 slice 1f-δ — Process IO accessors.
     // (:wat::kernel::Process/stdin  proc) → :wat::io::IOWriter
     // (:wat::kernel::Process/stdout proc) → :wat::io::IOReader
@@ -12572,6 +12595,28 @@ fn register_builtins(env: &mut CheckEnv) {
     };
     env.register(
         ":wat::kernel::Thread/join-result".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![thread_ty()],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Result".into(),
+                args: vec![
+                    TypeExpr::Tuple(vec![]),
+                    thread_died_chain_ty(),
+                ],
+            },
+            rest_param_type: None,
+        },
+    );
+    // (:wat::kernel::Thread/drain-and-join thr) →
+    //   :Result<:wat::core::nil, :wat::kernel::ThreadDiedError-chain>.
+    // Arc 170 Stone A — drain the typed output channel to Disconnected
+    // before joining. Same return shape as `Thread/join-result` (the
+    // drain step is bookkeeping; the wait outcome is identical). Stone
+    // B hides `Thread/join-result` from user namespace; this helper is
+    // the canonical wait verb for `Thread<I, O>`.
+    env.register(
+        ":wat::kernel::Thread/drain-and-join".into(),
         TypeScheme {
             type_params: vec!["I".into(), "O".into()],
             params: vec![thread_ty()],
