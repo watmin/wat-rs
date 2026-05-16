@@ -1656,3 +1656,61 @@ time and emotional bandwidth.
 > a directory"*
 
 The crawl IS the work. Honor it.
+
+---
+
+## Section 13 — IPC contract for wat processes (stdout / stderr / exit-code triangle)
+
+**Canonical model for how wat processes communicate complex return values + error values back to their parent.** Established arc 170 REALIZATIONS pass 10; load-bearing for spawn-process, run-hermetic, wat-cli, and any future IPC primitive.
+
+### The triangle
+
+| Channel | Carries | When read |
+|---|---|---|
+| **stdout** | Complex return values (multi-line / structured / EDN-serialized) | Exit code 0 (clean exit) |
+| **stderr** | Complex error values (panic cascades; explicit eprintln EDN) | Exit code non-zero (panicked) |
+| **exit code** | Binary signal: 0 = clean / non-zero = panicked | Always; tells parent which channel holds the result |
+
+The exit code is JUST A SIGNAL — it discriminates which channel the parent should consume. It does NOT carry the value itself. Complex values live in stdout / stderr (where there's room for structured data).
+
+### Why no ExitCode return type
+
+Earlier in arc 170 (slice 1c / 2), a `:wat::kernel::ExitCode = :wat::core::u8` typealias was minted, and `:user::main`'s signature was `[] -> :wat::kernel::ExitCode`. **REALIZATIONS pass 10 retired it** (implemented in slice 1e).
+
+The rationale (per `docs/arc/2026/05/170-program-entry-points/DESIGN.md` § "Nil IS the exit code (no ExitCode type — superseded 2026-05-10)"):
+
+- An ExitCode return type CONFLATES "exit signal" with "return value." stdout already carries return values; the exit code only needs to signal which channel holds the result.
+- The substrate already maps panic-cascade to `libc::exit(N)` via slice 1i's StdErrService epilogue (the panic chain has the exit semantic baked in).
+- Clean nil-return maps to `libc::exit(0)`. No information lost; semantics preserved.
+- `:user::main`'s canonical signature is `[] -> :wat::core::nil`. Uniform with arc 114's `Program<I,O> -> :nil` shape across tier 0 (thread) / tier 1 (process) / tier 2 (remote).
+- Scope-out: *"future arc may mint a helper if a CLI tool genuinely needs 0/1/2 exit-code distinction; arc 170 affirmatively does not."*
+
+### For program authors
+
+- **`:user::main -> :wat::core::nil`** — return nil for clean exit; do NOT try to return a value
+- **Complex return values** — write to stdout via `:wat::kernel::println` (auto-EDN-encodes via the trio's StdOutService)
+- **Complex error values** — let panics propagate (substrate cascades structured `#wat.kernel/ProcessPanics` EDN to stderr) OR explicit `:wat::kernel::eprintln` of your own structured EDN error data
+- **Reading the result** — parent inspects exit code first; reads stdout (success) OR stderr (panic) accordingly; either channel may carry multi-line EDN
+
+### For substrate / macro authors
+
+- spawn-process, run-hermetic, run-thread, wat-cli, run-hermetic-with-io — ALL preserve this triangle
+- Any future IPC primitive must respect it; do NOT mint an "ExitCode" or "ReturnValue" type that competes with stdout
+- Do NOT add a fourth channel for "values"; stdout IS the values channel
+- Do NOT add a fourth channel for "structured errors"; stderr IS the structured-error channel (panic cascades use it canonically)
+
+### STOP signal
+
+If you reach for a shape like `:user::main -> :SomeReturnValueType` or a `spawn-process` variant that returns "the value" separately from stdout — STOP. Re-read this section. The triangle is sufficient. Adding shapes to it competes with the canonical model + creates "two ways to do the same thing" — anti-pattern per `feedback_wat_llm_first_design`.
+
+### User direction 2026-05-15
+
+> *"users communicate 'exit values' via stdout and there's only panic + value for stderr — (stdout, 0) and (stderr, 1)"*
+>
+> *"this is how we manage complex return values - we just write to stdout. if the exit code isn't 0 then the value is on stderr - stderr communicates complex error values and stdout communicates complex return values"*
+
+Cross-references:
+- `docs/arc/2026/05/170-program-entry-points/DESIGN.md` § "Nil IS the exit code"
+- `src/stdlib.rs:127` (the retirement note pointing to REALIZATIONS pass 10)
+- FM 7-ter (thread context illegality) — same axis at a different layer: threads share parent's stdio; processes get their own captured stdio via the trio
+
