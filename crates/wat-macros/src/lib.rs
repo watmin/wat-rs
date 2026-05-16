@@ -172,6 +172,114 @@ pub fn wat_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
+// ─── #[restricted_to(...)] — arc 198 slice 2 Stone 2 ─────────────────────
+//
+// Mints the Rust-side analog of slice 1's wat-side
+// `(:wat::core::def-restricted :name [prefixes] expr)` form. The
+// annotation parses positional string-literal args (first = wat FQDN of
+// the binding; rest = variadic caller-prefix whitelist) and emits a
+// sibling `inventory::submit!` block adjacent to the annotated fn that
+// pushes a `RestrictionEntry` into the link-time registry Stone 1 wired.
+//
+// Stone 1's startup pipeline drains the registry into
+// `SymbolTable.defined_value_restrictions` and the existing walker
+// (`validate_def_restricted_caller_namespace`) treats the unified store
+// uniformly — Rust-side and wat-side declarations share one downstream
+// channel.
+//
+// Form shape (positional, variadic):
+//
+//     #[restricted_to(":wat::kernel::some-fn", ":wat::", ":my::specific::caller")]
+//     pub(crate) fn some_fn(...) -> ... { ... }
+//
+// Sub-decision (a) positional was chosen over (b) named after weighing
+// against #[derive(...)] precedent. Multi-prefix lists read naturally as
+// variadic positional args; introducing a `name = "..." , from = [...]`
+// shape would buy nothing for the substrate-internal annotation case and
+// would diverge from Rust attribute idiom.
+//
+// Prefix matching rules (preserved from slice 1):
+// - Trailing `::` → namespace prefix match (any caller FQDN starting with it).
+// - No trailing `::` → exact FQDN match.
+
+/// Parsed `#[restricted_to(...)]` attribute arguments.
+///
+/// First positional arg is the wat FQDN of the binding being restricted;
+/// remaining args are the allowed-caller prefix whitelist (variadic,
+/// arbitrary length — zero prefixes is legal though it makes the binding
+/// effectively private to no caller).
+#[derive(Debug)]
+pub(crate) struct RestrictedToAttr {
+    pub wat_name: LitStr,
+    pub prefixes: Vec<LitStr>,
+}
+
+impl Parse for RestrictedToAttr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        // Parse a comma-separated, possibly trailing, list of string
+        // literals. syn's Punctuated::parse_terminated handles the
+        // optional trailing comma; the empty case is rejected below.
+        let lits: Punctuated<LitStr, syn::Token![,]> =
+            input.parse_terminated(<LitStr as Parse>::parse, syn::Token![,])?;
+
+        let mut iter = lits.into_iter();
+        let wat_name = iter.next().ok_or_else(|| {
+            Error::new(
+                input.span(),
+                "restricted_to requires at least one positional arg: \
+                 the wat FQDN of the binding being restricted, \
+                 e.g. `#[restricted_to(\":wat::kernel::some-fn\", \":wat::\")]`",
+            )
+        })?;
+        let prefixes: Vec<LitStr> = iter.collect();
+
+        Ok(RestrictedToAttr { wat_name, prefixes })
+    }
+}
+
+/// `#[restricted_to("...", "...", ...)]` — Rust-side substrate-restriction
+/// declaration. Emits an `inventory::submit!` block that pushes a
+/// `RestrictionEntry` into the link-time registry alongside the
+/// annotated fn (whose body is passed through unchanged). See module
+/// header above for the full form shape + design rationale.
+#[proc_macro_attribute]
+pub fn restricted_to(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let parsed_attr = parse_macro_input!(attr as RestrictedToAttr);
+    // Pass the item through as a generic TokenStream — the attribute
+    // does NOT inspect the annotated fn's signature. It only emits a
+    // sibling submit! block. Anything that's syntactically a Rust item
+    // at module scope (fn, const, static) survives — but typical use is
+    // `fn`. We keep the parse loose so future call sites needn't fight
+    // the macro over signature constraints.
+    let item_ts = TokenStream2::from(item);
+
+    let wat_name = parsed_attr.wat_name;
+    let prefix_lits: Vec<TokenStream2> = parsed_attr
+        .prefixes
+        .iter()
+        .map(|p| quote! { #p })
+        .collect();
+
+    // Generated code lands in the consumer's module scope. Use absolute
+    // crate paths (`::wat::...`, `::inventory::...`) so resolution is
+    // unambiguous regardless of the consumer's `use` graph.
+    //
+    // `inventory::submit!` creates an anonymous static; multiple submits
+    // from the same module are fine — no unique-ident hygiene needed.
+    let expanded = quote! {
+        #item_ts
+
+        ::inventory::submit! {
+            ::wat::restriction_entry::RestrictionEntry {
+                wat_name: #wat_name,
+                prefixes: &[ #(#prefix_lits),* ],
+            }
+        }
+    };
+
+    expanded.into()
+}
+
 // ─── wat::main! — arc 013 slice 3 ────────────────────────────────────────
 //
 // Declarative entry point for Rust binaries that embed wat programs.
