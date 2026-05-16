@@ -183,7 +183,7 @@
       (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
         "/tmp/wat-sqlite-test-spawn-001.db")
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq true true)))
 
 
@@ -195,5 +195,5 @@
       (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
         "/tmp/wat-sqlite-test-batch-001.db")
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq true true)))

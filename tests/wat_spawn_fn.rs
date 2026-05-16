@@ -99,7 +99,7 @@ fn spawn_thread_named_define_body() {
                 ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
                 ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
              _join
-              (:wat::core::match (:wat::kernel::Thread/join-result thr)
+              (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
                 -> :wat::core::nil
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
@@ -154,7 +154,7 @@ fn spawn_thread_inline_fn_body() {
                 ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
                 ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
              _join
-              (:wat::core::match (:wat::kernel::Thread/join-result thr)
+              (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
                 -> :wat::core::nil
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
@@ -217,7 +217,7 @@ fn spawn_thread_closure_capture() {
                 ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
                 ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
              _join
-              (:wat::core::match (:wat::kernel::Thread/join-result thr)
+              (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
                 -> :wat::core::nil
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]

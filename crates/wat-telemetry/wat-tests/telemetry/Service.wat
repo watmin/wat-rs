@@ -98,7 +98,7 @@
              (:wat::kernel::HandlePool::finish pool)]
            d)
         _join
-         (:wat::kernel::Thread/join-result driver)]
+         (:wat::kernel::Thread/drain-and-join driver)]
        ()))
 
 
@@ -250,7 +250,7 @@
      stub-rx
       (:wat::core::second thr-and-rx)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
      v
       (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64
         ((:wat::core::Ok (:wat::core::Some v)) v)
@@ -308,7 +308,7 @@
      stub-rx
       (:wat::core::second thr-and-rx)
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:test::svc-tel-assert-drain-3 stub-rx 10 20 30)))
 
 
@@ -330,5 +330,5 @@
      stub-rx
       (:wat::core::second thr-and-rx)
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:test::svc-tel-assert-drain-3 stub-rx 100 200 -1)))

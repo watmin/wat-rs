@@ -61,7 +61,7 @@
             _finish
              (:wat::kernel::HandlePool::finish pool)]
            d)]
-       (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::nil
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::nil
          ((:wat::core::Ok _) :wat::core::nil)
          ((:wat::core::Err _) (:wat::test::assert-eq "hcs-spawn-and-drop-died" "")))))
 
@@ -97,7 +97,7 @@
         driver
          (:wat::core::first driver-and-n)
         n (:wat::core::second driver-and-n)]
-       (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
          ((:wat::core::Ok _) n)
          ((:wat::core::Err _)
            (:wat::core::do
@@ -135,7 +135,7 @@
             _finish
              (:wat::kernel::HandlePool::finish pool)]
            d)]
-       (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
          ((:wat::core::Ok _) 1)
          ((:wat::core::Err _)
            (:wat::core::do
@@ -211,7 +211,7 @@
         driver
          (:wat::core::first driver-and-p)
         p (:wat::core::second driver-and-p)]
-       (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
          ((:wat::core::Ok _) p)
          ((:wat::core::Err _)
            (:wat::core::do
@@ -283,7 +283,7 @@
         driver
          (:wat::core::first driver-and-pat)
         pat (:wat::core::second driver-and-pat)]
-       (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
            (:wat::core::do
@@ -355,7 +355,7 @@
         driver
          (:wat::core::first driver-and-pat)
         pat (:wat::core::second driver-and-pat)]
-       (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
            (:wat::core::do
@@ -409,7 +409,7 @@
         driver
          (:wat::core::first driver-and-pat)
         pat (:wat::core::second driver-and-pat)]
-       (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
            (:wat::core::do

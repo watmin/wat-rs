@@ -280,7 +280,7 @@
              "svc-spawn-and-shutdown: thread died before delivering final state")
            "svc-spawn-and-shutdown: thread output closed without delivering final state")
         _join
-         (:wat::kernel::Thread/join-result driver)]
+         (:wat::kernel::Thread/drain-and-join driver)]
        ()))
 
 
@@ -404,7 +404,7 @@
              "svc-full-sequence: thread died before delivering final state")
            "svc-full-sequence: thread output closed without delivering final state")
         join-result
-         (:wat::kernel::Thread/join-result thr)]
+         (:wat::kernel::Thread/drain-and-join thr)]
        (:wat::core::match join-result -> :wat::core::nil
          ((:wat::core::Ok _)
            (:test::svc-assert-state final-state 3 1))
@@ -447,7 +447,7 @@
           "test-svc-send-push: thread died before delivering final state")
         "test-svc-send-push: thread output closed without delivering final state")
      _join
-      (:wat::kernel::Thread/join-result thr)]
+      (:wat::kernel::Thread/drain-and-join thr)]
     ()))
 
 

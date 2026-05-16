@@ -75,5 +75,5 @@
       (:test::auto-spawn-events
         "/tmp/wat-sqlite-test-auto-001.db")
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq true true)))

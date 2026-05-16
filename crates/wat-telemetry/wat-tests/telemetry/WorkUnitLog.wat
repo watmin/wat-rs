@@ -170,7 +170,7 @@
      driver (:wat::core::first thr-kw)
      kw (:wat::core::second thr-kw)
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq kw :ok)))
 
 
@@ -198,7 +198,7 @@
      driver (:wat::core::first thr-kw)
      level-back (:wat::core::second thr-kw)
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq level-back :info)))
 
 
@@ -238,5 +238,5 @@
      driver (:wat::core::first thr-kw)
      l4 (:wat::core::second thr-kw)
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq l4 :error)))

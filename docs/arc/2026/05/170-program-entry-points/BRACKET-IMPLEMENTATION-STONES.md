@@ -29,16 +29,18 @@
 
 ---
 
-### Stone B — Walker collapse: hide `*_join-result` from user namespace
+### Stone B — Walker collapse: hide `*_join-result` from user namespace — **SHIPPED 2026-05-16**
 
-- [ ] Test: user wat code calling `Thread/join-result` → compile error with helpful message ("Use Thread/drain-and-join or the bracket")
-- [ ] Test: same for `Process/join-result`
-- [ ] Implementation: walker change in `src/check.rs` — binary check for `*_join-result` from non-substrate-namespace caller
-- [ ] Migrate existing internal Rust + wat callers to `*_drain-and-join` helpers
+- [x] Test: user wat code calling `Thread/join-result` → compile error
+- [x] Test: same for `Process/join-result`
+- [x] Test: substrate-namespace caller (`:wat::*`) → check passes (Thread + Process)
+- [x] Implementation: `validate_join_result_user_namespace` (`src/check.rs:3094`) + `CheckError::JoinResultUserNamespace`; hooked into `check_program` at `src/check.rs:1939`
+- [x] ~40 user-namespace `*_join-result` call sites migrated to `*_drain-and-join` across 18 files (crates/wat-* + tests/ + wat-tests/)
 
 **Scope:** Walker + caller sweep.
-**Predicted:** 90-120 min sonnet.
-**Dependencies:** Stone A complete.
+**Actual:** ~75 min sonnet (predicted 90-120). 6/6 SCORE rows PASS.
+**Note:** Ad-hoc walker rule; arc 198 (`defn-restricted`) will generalize this into a substrate primitive; future refactor replaces this specific rule with primitive use.
+**SCORE:** `SCORE-STONE-B-WALKER-COLLAPSE.md`
 
 ---
 
@@ -142,7 +144,7 @@
 
 - [x] Design phase complete (2026-05-16, captured in INTERSTITIAL-REALIZATIONS.md)
 - [x] Stone A — drain-and-join helpers (2026-05-16, ~50 min, 4/4 tests green)
-- [ ] Stone B
+- [x] Stone B — walker collapse (2026-05-16, ~75 min, 4/4 tests green, +40 migrations)
 - [ ] Stone C
 - [ ] Stone D
 - [ ] Stone E

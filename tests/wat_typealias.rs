@@ -209,7 +209,7 @@ fn alias_over_fn_type_works_at_spawn() {
                    -> :wat::core::nil
                   (job tx)))
              _
-              (:wat::kernel::Thread/join-result h)]
+              (:wat::kernel::Thread/drain-and-join h)]
             (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
               ((:wat::core::Ok (:wat::core::Some v)) v)
               ((:wat::core::Ok :wat::core::None) 0)

@@ -72,5 +72,5 @@
       (:test::Tagged::auto-spawn-one
         "/tmp/wat-sqlite-test-hashmap-field-001.db")
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq true true)))

@@ -107,7 +107,7 @@
      driver
       (:test::reader::write-fixture path)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
 
      ;; Phase 2 — open as ReadHandle and stream the rows back.
      ;; Empty constraint vec = full-table scan.
@@ -134,7 +134,7 @@
      driver
       (:test::reader::write-fixture path)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
 
      handle
       (:wat::sqlite::open-readonly path)
@@ -162,7 +162,7 @@
      driver
       (:test::reader::write-fixture path)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
 
      handle
       (:wat::sqlite::open-readonly path)
@@ -188,7 +188,7 @@
      driver
       (:test::reader::write-fixture path)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
 
      handle
       (:wat::sqlite::open-readonly path)
@@ -219,7 +219,7 @@
      driver
       (:test::reader::write-fixture path)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
      handle
       (:wat::sqlite::open-readonly path)
      no-constraints
@@ -255,7 +255,7 @@
      driver
       (:test::reader::write-fixture path)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
      handle
       (:wat::sqlite::open-readonly path)
      no-constraints

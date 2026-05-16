@@ -53,6 +53,6 @@
         ;; Inner exits — handle drops. Driver sees disconnect on its
         ;; req-rx, exits cleanly.
         d)]
-    (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::nil
+    (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::nil
       ((:wat::core::Ok _) :wat::core::nil)
       ((:wat::core::Err _) (:wat::test::assert-eq "service-died" "")))))

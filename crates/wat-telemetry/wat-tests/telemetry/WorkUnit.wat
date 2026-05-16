@@ -306,7 +306,7 @@
         (:wat::core::fn [_wu <- :wat::telemetry::WorkUnit] -> :wat::core::nil ()))
      driver (:wat::core::first thr-rx)
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     ()))
 
 
@@ -320,7 +320,7 @@
      driver (:wat::core::first thr-cnt)
      cnt (:wat::core::second thr-cnt)
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq cnt 0)))
 
 
@@ -345,7 +345,7 @@
      stub-rx (:wat::core::second thr-rx)
      got (:test::wu-recv-event-is-some stub-rx)
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq got true)))
 
 
@@ -544,7 +544,7 @@
      stub-rx (:wat::core::second str-and-rx)
      got (:test::wu-recv-metric-uuid-ok stub-rx uuid-str)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
      _chk-uuid (:wat::test::assert-eq (:wat::core::= uuid-str "") false)]
     (:wat::test::assert-eq got true)))
 
@@ -570,7 +570,7 @@
      stub-rx (:wat::core::second str-and-rx)
      got (:test::wu-recv-metric-uuid-ok stub-rx uuid-str)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
      _chk-uuid (:wat::test::assert-eq (:wat::core::= uuid-str "") false)]
     (:wat::test::assert-eq got true)))
 
@@ -591,7 +591,7 @@
      driver (:wat::core::first thr-cnt)
      cnt (:wat::core::second thr-cnt)
      _join
-      (:wat::kernel::Thread/join-result driver)]
+      (:wat::kernel::Thread/drain-and-join driver)]
     (:wat::test::assert-eq cnt 0)))
 
 
@@ -630,7 +630,7 @@
      r1-some? (:test::wu-recv-event-is-some stub-rx)
      r2-some? (:test::wu-recv-event-is-some stub-rx)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
      _chk-r1 (:wat::test::assert-eq r1-some? true)]
     (:wat::test::assert-eq r2-some? true)))
 
@@ -719,6 +719,6 @@
      stub-rx (:wat::core::second i64-and-rx)
      r1-some? (:test::wu-recv-event-is-some stub-rx)
      _join
-      (:wat::kernel::Thread/join-result driver)
+      (:wat::kernel::Thread/drain-and-join driver)
      _a (:wat::test::assert-eq result 42)]
     (:wat::test::assert-eq r1-some? true)))

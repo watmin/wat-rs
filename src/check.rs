@@ -616,6 +616,41 @@ pub enum CheckError {
         /// Source location of the offending token.
         span: Span,
     },
+    /// Arc 170 Stone B — user-namespace caller invoked a substrate-internal
+    /// `*_join-result` verb. The verbs `:wat::kernel::Thread/join-result`
+    /// and `:wat::kernel::Process/join-result` remain user-callable from
+    /// substrate-namespace fns (`:wat::*`-prefixed FQDN) but are forbidden
+    /// to user code; the canonical replacement is
+    /// `:wat::kernel::Thread/drain-and-join` /
+    /// `:wat::kernel::Process/drain-and-join` (Stone A) or, when shipped,
+    /// the bracket combinators `run-threads` / `run-processes` (Stones D/E).
+    ///
+    /// Binary rule:
+    ///   enclosing fn FQDN starts with `:wat::` → allowed
+    ///   anything else → this variant fires
+    ///
+    /// The walker fires at every call site whose head matches one of the
+    /// two forbidden verbs, inside the body of every entry in
+    /// `sym.functions` whose key does NOT start with `:wat::`. Sibling
+    /// rule to `BareLegacyConsolePath`: same Pattern 3 (substrate-as-
+    /// teacher) — point at the offending token, name the canonical
+    /// replacement, do not punish.
+    JoinResultUserNamespace {
+        /// The forbidden verb path exactly as written —
+        /// `":wat::kernel::Thread/join-result"` or
+        /// `":wat::kernel::Process/join-result"`.
+        verb: String,
+        /// The canonical replacement that the user should reach for —
+        /// `":wat::kernel::Thread/drain-and-join"` or
+        /// `":wat::kernel::Process/drain-and-join"`.
+        canonical: String,
+        /// FQDN of the enclosing user fn whose body called the verb.
+        /// E.g. `":my::test::call-thread-join"`. Helps users locate the
+        /// offending fn without scanning the whole file.
+        enclosing_fn: String,
+        /// Source location of the call-site head token.
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 1 — render the file:line:col prefix for an error,
@@ -824,6 +859,16 @@ impl fmt::Display for CheckError {
                 f,
                 "{}`:wat::console::*` at {} is retired (arc 109 § kill-std / arc 170 slice 1f-η). The :wat::console::* namespace (Console driver, spawn factory, handle plumbing, ConsoleLogger) has been fully annihilated. User code uses the ambient kernel-level stdio ops directly:\n  - For output:  (:wat::kernel::println v)         — EDN-encodes v, emits to stdout\n  - For error:   (:wat::kernel::eprintln v)        — EDN-encodes v, emits to stderr\n  - For input:   (:wat::kernel::readln -> :T)       — reads one EDN-decoded value of type :T\nThese are EDN-only — any value EDN-encodes; no manual string formatting. See examples/console-demo/wat/main.wat for the canonical ambient-stdio shape. Offending token: '{}'.",
                 span_prefix(span), span, path
+            ),
+            CheckError::JoinResultUserNamespace {
+                verb,
+                canonical,
+                enclosing_fn,
+                span,
+            } => write!(
+                f,
+                "{}`{}` at {} is forbidden from user-namespace code (arc 170 Stone B). The substrate-internal `*_join-result` verbs remain user-callable only from substrate-namespace fns (`:wat::*`-prefixed FQDN); user code reaches them through the canonical replacement `{}` (Stone A) or, when shipped, the bracket combinators `:wat::kernel::run-threads` / `:wat::kernel::run-processes` (Stones D/E). The drain-and-join helper drains the typed output channel (and stdout/stderr pipes for Process) before joining, so the lockstep deadlock arc 117/133 guards against cannot fire at the user-API boundary. Enclosing fn: `{}`. Migrate `({} <handle>)` → `({} <handle>)` at the offending site.",
+                span_prefix(span), verb, span, canonical, enclosing_fn, verb, canonical
             ),
         }
     }
@@ -1160,6 +1205,16 @@ impl CheckError {
                     .field("canonical_stdin", ":wat::kernel::readln")
                     .field("location", format!("{}", span))
             }
+            CheckError::JoinResultUserNamespace {
+                verb,
+                canonical,
+                enclosing_fn,
+                span,
+            } => Diagnostic::new("JoinResultUserNamespace")
+                .field("verb", verb.as_str())
+                .field("canonical", canonical.as_str())
+                .field("enclosing_fn", enclosing_fn.as_str())
+                .field("location", format!("{}", span)),
         }
     }
 }
@@ -1862,6 +1917,26 @@ pub fn check_program(
     }
     for form in forms {
         validate_bare_legacy_console_path(form, &mut errors);
+    }
+
+    // Arc 170 Stone B — refuse user-namespace calls to the substrate-internal
+    // `*_join-result` verbs. Canonical replacements: `Thread/drain-and-join`
+    // / `Process/drain-and-join` (Stone A) or, when shipped, `run-threads` /
+    // `run-processes` brackets (Stones D/E). Binary rule keyed on the
+    // enclosing fn's FQDN — substrate-namespace fns (`:wat::*` prefix) are
+    // exempt because `wat/test.wat` + `wat/kernel/*.wat` wrap these verbs
+    // in the user-facing helpers and must call them legally. User-namespace
+    // fns must reach the canonical replacement.
+    //
+    // Sibling rule to `validate_bare_legacy_console_path`. Walker walks the
+    // body of every `sym.functions` entry once, passing the FQDN as
+    // `enclosing_fn`. Top-level `forms` outside any fn don't carry a
+    // function context — they're skipped by design (the substrate's own
+    // top-level forms include calls but never produce a user-namespace
+    // enclosing context; the rule fires from inside `define` bodies where
+    // it can teach with the offending fn name).
+    for (name, func) in sym.functions.iter() {
+        validate_join_result_user_namespace(&func.body, name, &mut errors);
     }
 
     // Arc 159 slice 3 — `validate_legacy_typed_let_binding` walker
@@ -2988,6 +3063,95 @@ fn walk_for_bare_legacy_console(node: &WatAST, errors: &mut Vec<CheckError>) {
         WatAST::Vector(items, _) => {
             for item in items {
                 walk_for_bare_legacy_console(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Arc 170 Stone B — refuse user-namespace calls to the substrate-internal
+/// `*_join-result` verbs. The two forbidden verbs:
+///
+/// - `:wat::kernel::Thread/join-result`  → canonical replacement `:wat::kernel::Thread/drain-and-join`
+/// - `:wat::kernel::Process/join-result` → canonical replacement `:wat::kernel::Process/drain-and-join`
+///
+/// Binary rule per the enclosing fn FQDN:
+/// - FQDN starts with `:wat::` → substrate caller, allowed (silently)
+/// - anything else → emit `CheckError::JoinResultUserNamespace`
+///
+/// Called from [`check_program`] once per entry in `sym.functions`, with
+/// the function FQDN as `enclosing_fn`. Sibling rule to
+/// [`validate_bare_legacy_console_path`]; same Pattern 3 (substrate-as-
+/// teacher) shape — locate, name the canonical, do not punish.
+///
+/// Looks for the verb as the head keyword of a list (the wat call shape
+/// `(:wat::kernel::Thread/join-result <handle>)`). Bare keyword
+/// references (e.g. passing the verb as a function value) are NOT
+/// flagged; the bracket/walker scope is direct-invocation only — same
+/// scope as arc 117/133's call-site walker. Recurses through `List` and
+/// `Vector` children so a call buried inside an inner `let` body or
+/// expression position is still caught.
+fn validate_join_result_user_namespace(
+    node: &WatAST,
+    enclosing_fn: &str,
+    errors: &mut Vec<CheckError>,
+) {
+    // Substrate-namespace caller — silently allowed. The substrate's
+    // own `wat/test.wat` / `wat/kernel/*.wat` fns wrap these verbs in
+    // user-facing helpers (`drain-and-join`, `run-thread-driver`,
+    // `run-hermetic-driver`, ...) and call them legally from inside.
+    if enclosing_fn.starts_with(":wat::") {
+        return;
+    }
+    walk_for_join_result_call(node, enclosing_fn, errors);
+}
+
+/// The two forbidden verbs and their canonical replacements. Kept as a
+/// const array so future maintainers extend the rule by editing one
+/// table (mirrors `LEGACY_KERNEL_QUEUE_NAMES` from
+/// `validate_legacy_kernel_queue_path`).
+const STONE_B_FORBIDDEN_VERBS: &[(&str, &str)] = &[
+    (
+        ":wat::kernel::Thread/join-result",
+        ":wat::kernel::Thread/drain-and-join",
+    ),
+    (
+        ":wat::kernel::Process/join-result",
+        ":wat::kernel::Process/drain-and-join",
+    ),
+];
+
+fn walk_for_join_result_call(
+    node: &WatAST,
+    enclosing_fn: &str,
+    errors: &mut Vec<CheckError>,
+) {
+    match node {
+        WatAST::List(items, _) => {
+            // Check the head — if it's one of the forbidden verbs in
+            // call position (i.e., this list is `(verb args...)`), fire.
+            if let Some(WatAST::Keyword(head, head_span)) = items.first() {
+                for (forbidden, canonical) in STONE_B_FORBIDDEN_VERBS {
+                    if head == forbidden {
+                        errors.push(CheckError::JoinResultUserNamespace {
+                            verb: (*forbidden).into(),
+                            canonical: (*canonical).into(),
+                            enclosing_fn: enclosing_fn.into(),
+                            span: head_span.clone(),
+                        });
+                        break;
+                    }
+                }
+            }
+            // Recurse into every child regardless — nested calls inside
+            // let bodies / match arms / fn bodies all get walked.
+            for item in items {
+                walk_for_join_result_call(item, enclosing_fn, errors);
+            }
+        }
+        WatAST::Vector(items, _) => {
+            for item in items {
+                walk_for_join_result_call(item, enclosing_fn, errors);
             }
         }
         _ => {}

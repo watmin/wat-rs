@@ -188,9 +188,9 @@ fn row_b_multi_thread_println() {
             [thr-a (:wat::kernel::spawn-thread :test::child-a)
              thr-b (:wat::kernel::spawn-thread :test::child-b)
              thr-c (:wat::kernel::spawn-thread :test::child-c)
-             _a (:wat::kernel::Thread/join-result thr-a)
-             _b (:wat::kernel::Thread/join-result thr-b)
-             _c (:wat::kernel::Thread/join-result thr-c)]
+             _a (:wat::kernel::Thread/drain-and-join thr-a)
+             _b (:wat::kernel::Thread/drain-and-join thr-b)
+             _c (:wat::kernel::Thread/drain-and-join thr-c)]
             :wat::core::nil))
     "#;
     let world = freeze(src);
@@ -226,7 +226,7 @@ fn row_c_panic_recovery() {
         (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::let
             [thr (:wat::kernel::spawn-thread :test::child-panic)
-             _join (:wat::kernel::Thread/join-result thr)]
+             _join (:wat::kernel::Thread/drain-and-join thr)]
             :wat::core::nil))
     "#;
     let world = freeze(src);

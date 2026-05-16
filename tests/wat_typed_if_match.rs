@@ -333,7 +333,7 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
                    -> :wat::core::nil
                   ()))
              result
-              (:wat::kernel::Thread/join-result handle)
+              (:wat::kernel::Thread/drain-and-join handle)
              chain
               (:wat::core::match result -> :wat::core::Vector<wat::kernel::ThreadDiedError>
                 ((:wat::core::Ok _)   (:wat::core::panic! "test wants Err"))
