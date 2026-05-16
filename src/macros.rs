@@ -163,8 +163,13 @@ pub enum MacroError {
     },
     /// An `unquote` reference named a parameter the macro didn't declare.
     UnboundMacroParam { name: String, span: Span },
-    /// `unquote-splicing` was applied to a non-list argument.
-    SpliceNotList { name: String, got: &'static str, span: Span },
+    /// `unquote-splicing` was applied to a non-sequence argument.
+    /// Accepts `WatAST::List` and `WatAST::Vector` (arc 200 made splice
+    /// symmetric across both); fires for any other shape (Atom, Symbol,
+    /// non-Vec runtime value, etc.). wat has no user-facing List runtime
+    /// type — sequence here means "splice-compatible AST shape or runtime
+    /// Vec value."
+    SpliceNotSequence { name: String, got: &'static str, span: Span },
     /// Expansion depth exceeded a sanity limit — probably an infinite
     /// recursive macro.
     ExpansionDepthExceeded { limit: usize, span: Span },
@@ -216,9 +221,9 @@ impl fmt::Display for MacroError {
             MacroError::UnboundMacroParam { name, span } => {
                 write!(f, "{}unquote references unbound macro parameter: {}", span_prefix(span), name)
             }
-            MacroError::SpliceNotList { name, got, span } => write!(
+            MacroError::SpliceNotSequence { name, got, span } => write!(
                 f,
-                "{}unquote-splicing (,@{}) requires a List argument; got {}",
+                "{}unquote-splicing (~@{}) requires a sequence (List/Vector AST or Vec value); got {}",
                 span_prefix(span),
                 name, got
             ),
@@ -1124,7 +1129,7 @@ fn splice_argument(
                 // whether `xs` was captured from a `(...)` or a `[...]`
                 // sub-form at the call site.
                 WatAST::Vector(items, _) => Ok(items.clone()),
-                other => Err(MacroError::SpliceNotList {
+                other => Err(MacroError::SpliceNotSequence {
                     name: ident.name.clone(),
                     got: ast_variant_name(other),
                     span: other.span().clone(), // Pattern A: bound value's span
@@ -1551,7 +1556,7 @@ mod tests {
             "#,
         )
         .unwrap_err();
-        assert!(matches!(err, MacroError::SpliceNotList { .. }));
+        assert!(matches!(err, MacroError::SpliceNotSequence { .. }));
     }
 
     // ─── Non-macro forms pass through unchanged ─────────────────────────

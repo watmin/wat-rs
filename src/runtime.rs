@@ -3699,17 +3699,22 @@ pub fn eval(
         WatAST::BoolLit(b, _) => Ok(Value::bool(*b)),
         WatAST::StringLit(s, _) => Ok(Value::String(Arc::new(s.clone()))),
         // Arc 167 slice 1 — vector literals at value position are
-        // not supported. Vectors are consumed only in
+        // NOT supported by design. Vectors are consumed only in
         // `:wat::core::fn` / `:wat::core::defn` signature positions
-        // (slice 2 wires those consumers). A future arc enables
-        // vector literals as `Value::Vec` values.
+        // (slice 2 wires those consumers). User-facing Vec values are
+        // built explicitly via `(:wat::core::Vector :T elem...)` —
+        // explicit-type-annotation discipline is wat-native; implicit
+        // element-type inference (à la Go's `:=`) is explicitly NOT
+        // the design intent. The earlier "future arc enables vector
+        // literals as Value::Vec values" speculation was retracted
+        // 2026-05-16; that path is declined.
         WatAST::Vector(_, span) => Err(RuntimeError::MalformedForm {
             head: "<vector literal>".into(),
-            reason: "vector literals at value position are not supported \
-                     in arc 167. Vectors are currently consumed only in \
-                     :wat::core::fn / :wat::core::defn signature positions \
-                     (slice 2 wires those consumers). A future arc enables \
-                     vector literals as `Value::Vec` values."
+            reason: "vector literals at value position are not supported. \
+                     Vectors are consumed only at fn / defn signature \
+                     binder positions. Build Vec values explicitly via \
+                     `(:wat::core::Vector :T elem...)`. Implicit element-\
+                     type inference is not a wat-native idiom."
                 .into(),
             span: span.clone(),
         }),
