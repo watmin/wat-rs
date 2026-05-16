@@ -4796,6 +4796,50 @@ fn infer_list(
                     args: vec![TypeExpr::Path(":wat::core::keyword".into())],
                 });
             }
+            ":wat::holon::Bundle/children" => {
+                // Arc 201 slice 2 — Bundle/children.
+                // (bundle :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>
+                // First arg is a HolonAST value; same special-case
+                // rationale as `extract-arg-names` (HolonAST inputs
+                // don't unify via normal type-scheme paths at arc-009
+                // call sites).
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+                });
+            }
+            ":wat::holon::Bundle/first" => {
+                // Arc 201 slice 2 — Bundle/first.
+                // (bundle :HolonAST) -> :wat::holon::HolonAST
+                // Mirrors `:wat::core::first` naming for "first child of
+                // a sequence-shaped value." Errors at runtime on empty
+                // or non-Bundle input; the type slot is the concrete
+                // HolonAST path (no Option wrap — the surface signals
+                // failure via TypeMismatch, not None).
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
+            }
             ":wat::core::macroexpand-1" | ":wat::core::macroexpand" => {
                 // Arc 030: macro debugging primitives.
                 // (:wat::core::macroexpand{-1}? <wat::WatAST>) -> :wat::WatAST
@@ -14166,6 +14210,40 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: vec_kw_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 201 slice 2 — general-purpose Bundle accessors.
+    //
+    // Bundle/children (bundle :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>
+    // Bundle/first    (bundle :HolonAST) -> :wat::holon::HolonAST
+    //
+    // The `Atom/value` half of the originally-proposed accessor set is
+    // already served by arc 057's `:wat::core::atom-value` (which
+    // unwraps `HolonAST::Atom` AND extracts the wat-`Value` for primitive
+    // leaves Symbol/String/I64/F64/Bool). Bundle/children + Bundle/first
+    // complete the structural decomposition surface; Atom/value would
+    // duplicate the existing accessor.
+    let vec_holon_ty = || TypeExpr::Parametric {
+        head: "wat::core::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+    };
+    env.register(
+        ":wat::holon::Bundle/children".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: vec_holon_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::Bundle/first".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: holon_ty(),
             rest_param_type: None,
         },
     );

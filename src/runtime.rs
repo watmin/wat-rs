@@ -4048,6 +4048,12 @@ fn dispatch_keyword_head(
         // Arc 143 slice 3 — HolonAST manipulation primitives.
         ":wat::runtime::rename-callable-name" => eval_rename_callable_name(args, env, sym),
         ":wat::runtime::extract-arg-names" => eval_extract_arg_names(args, env, sym),
+        // Arc 201 slice 2 — general-purpose Bundle accessors. The
+        // leaf-unwrap counterpart (`:wat::core::atom-value`) was already
+        // minted by arc 057; SCORE-SLICE-2 § Sibling check documents the
+        // decision to reuse it rather than mint `Atom/value` as a duplicate.
+        ":wat::holon::Bundle/children" => eval_bundle_children(args, env, sym),
+        ":wat::holon::Bundle/first" => eval_bundle_first(args, env, sym),
         // Arc 170 slice 1e — ambient runtime values per REALIZATIONS
         // pass 7 (drop stdio params from `:user::main`; argv +
         // current-thread move to ambient).
@@ -10137,6 +10143,101 @@ fn eval_extract_arg_names(
     }
 
     Ok(Value::Vec(Arc::new(names)))
+}
+
+/// `(:wat::holon::Bundle/children bundle) -> :wat::core::Vector<wat::holon::HolonAST>`
+///
+/// Arc 201 slice 2. General-purpose accessor on `HolonAST::Bundle`: returns
+/// the children sequence, each child re-wrapped as a `Value::holon__HolonAST`
+/// so consumers can recurse via the same accessor surface.
+///
+/// Errors on any non-`Bundle` HolonAST variant (Symbol, Atom, Bind, Permute,
+/// Thermometer, Blend, SlotMarker, or the primitive leaves) with
+/// `RuntimeError::TypeMismatch`. The leaf-unwrap counterpart for
+/// `HolonAST::Atom` / primitive leaves is `:wat::core::atom-value` (arc 057);
+/// `Bundle/children` and `atom-value` together cover the full HolonAST
+/// decomposition surface.
+fn eval_bundle_children(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Bundle/children";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let arg_val = eval(&args[0], env, sym)?;
+    let holon_arc = match arg_val {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST (Bundle)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+    let out: Vec<Value> = children
+        .iter()
+        .map(|child| Value::holon__HolonAST(Arc::new(child.clone())))
+        .collect();
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::holon::Bundle/first bundle) -> :wat::holon::HolonAST`
+///
+/// Arc 201 slice 2. General-purpose accessor on `HolonAST::Bundle`: returns
+/// the first child (index 0) as a `Value::holon__HolonAST`.
+///
+/// Name mirrors `:wat::core::first` (the wat convention for "head of a
+/// sequence"); avoids inventing a parallel "head" verb.
+///
+/// Errors:
+/// - Non-Bundle input → `RuntimeError::TypeMismatch`.
+/// - Empty Bundle → `RuntimeError::TypeMismatch` (no first child to return;
+///   matches `:wat::core::first` semantics on an empty Vec but expressed
+///   structurally — there is no `Option<HolonAST>` wrap at this surface).
+fn eval_bundle_first(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Bundle/first";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let arg_val = eval(&args[0], env, sym)?;
+    let holon_arc = match arg_val {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST (Bundle)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+    let first = children.first().ok_or_else(|| RuntimeError::TypeMismatch {
+        op: OP.into(),
+        expected: "Bundle with at least one child",
+        got: "empty Bundle",
+        span: args[0].span().clone(),
+    })?;
+    Ok(Value::holon__HolonAST(Arc::new(first.clone())))
 }
 
 /// Arc 098 — `:wat::form::matches?` runtime walker. Clara-style

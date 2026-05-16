@@ -2191,4 +2191,12 @@ This INTERSTITIAL entry IS the artifact. Future agents reading arc 201's choice 
 
 The "scrappy Scheme clone → competent Clojure-on-Rust" trajectory is the story; HolonAST's cross-domain coherence is one of many strange loops that close along the way.
 
+### Second instance same day — arc 057's `:wat::core::atom-value` serves reflection too
+
+Arc 201 slice 2 (commits later same day) added `:wat::holon::Bundle/children` + `:wat::holon::Bundle/first`. Originally proposed third accessor: `:wat::holon::Atom/value`. STOP trigger 3 fired during slice 2: sonnet found `:wat::core::atom-value` (arc 057, minted for VSA encoding to extract scalar leaves from atomic data) ALREADY handles every shape the proposed `Atom/value` would have. Same primitive, second cross-domain use.
+
+Pattern confirmed twice now: arc 057's HolonAST primitives (originally for VSA encoding) extend cleanly to reflection use cases. Bundle for structured-composition lookup; atom-value for leaf unwrapping. Two strange loops, same source arc, same day.
+
+This sharpens the lesson: when designing a new substrate primitive, check arc 057's existing surface BEFORE minting. Its primitives have proven cross-domain reach.
+
 ---
