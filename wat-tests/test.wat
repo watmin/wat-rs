@@ -129,7 +129,7 @@
 
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::std::test::test-assert-stdout-is-matches
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stdout-is-matches
   ()
   (:wat::core::let
     [inner
@@ -143,7 +143,7 @@
 
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
 
-(:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-pass
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-pass
   ()
   (:wat::core::let
     [inner
@@ -151,19 +151,25 @@
         (:wat::kernel::eprintln "error: code 42"))]
     (:wat::test::assert-stderr-matches inner "code [0-9]+")))
 
-(:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
   ()
-  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is a TWO-level nested embedded-program AST literal (fixture)
-  ;; Two-level nested sandbox: outer program runs inner program that runs silent program. The middle layer calls assert-stderr-matches
-  ;; against the silent program's empty stderr; that assertion fires; the middle program's RunResult.failure is populated with
-  ;; expected = "my-pattern". The outer inspects the middle's failure.
+  ;; Verifies assert-stderr-matches's failure-reporting shape on REAL non-matching stderr.
+  ;; Inner produces actual stderr content that doesn't match the pattern; the matcher
+  ;; loop runs against that content and fires; the failure carries `expected = "my-pattern"`
+  ;; and `actual = (Vec ... captured stderr lines ...)`.
+  ;;
+  ;; Architectural change (arc 170 slice 4a-γ-decorate): inner spawn was previously
+  ;; :wat::test::run-thread with empty body — the test passed via empty-input edge case
+  ;; without exercising the pattern-matching machinery. The rearchitecture uses
+  ;; :wat::test::run-hermetic with a non-matching stderr line so the matcher loop
+  ;; actually runs.
   (:wat::core::let
     [r
-      (:wat::test::run-thread
+      (:wat::test::run-hermetic
         (:wat::core::let
           [silent
-            (:wat::test::run-thread
-              ())]
+            (:wat::test::run-hermetic
+              (:wat::kernel::eprintln "different content"))]
           (:wat::test::assert-stderr-matches silent "my-pattern")))
      fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
@@ -185,7 +191,13 @@
 ;; (:wat::core::do ...). The dynamic-source-string path is no longer
 ;; exercised here — the modern surface is body-AST only.
 
-(:wat::test::deftest :wat-tests::std::test::test-run-string-entry-path
+;; Duplicate of :wat-tests::std::test::test-assert-stdout-is-matches at line 132 —
+;; same hermetic-print-and-capture pattern with different fixture string. Preserved
+;; per accumulate-tests-defer-cleanup policy (test cleanup is post-109; coverage
+;; tooling needed to verify safe deletion). Original test purpose
+;; ("test the legacy STRING-entry path") retired during arc 170 slice 4a-β
+;; when the legacy :wat::test::run path was swept to canonical macros.
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-run-string-entry-path
   ()
   ;; Arc 170 slice 4a-β: this test originally exercised the legacy
   ;; :wat::test::run STRING-parsing path; the inner source carried a
@@ -204,7 +216,13 @@
 
 ;; ─── :wat::test::run-ast — AST-entry path via :wat::test::program ────
 
-(:wat::test::deftest :wat-tests::std::test::test-run-ast-via-program
+;; Duplicate of :wat-tests::std::test::test-assert-stdout-is-matches at line 132 —
+;; same hermetic-print-and-capture pattern with different fixture string. Preserved
+;; per accumulate-tests-defer-cleanup policy (test cleanup is post-109; coverage
+;; tooling needed to verify safe deletion). Original test purpose
+;; ("test the legacy AST-via-program path") retired during arc 170 slice 4a-β
+;; when the legacy :wat::test::run-ast path was swept to canonical macros.
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-run-ast-via-program
   ()
   (:wat::core::let
     [r
