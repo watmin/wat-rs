@@ -1,21 +1,21 @@
 //! Arc 170 Stone B — walker collapse: hide `*_join-result` from user
 //! namespace.
 //!
-//! A new walker check in `src/check.rs` rejects user-namespace calls to
-//! `:wat::kernel::Thread/join-result` and `:wat::kernel::Process/join-result`.
-//! Substrate-namespace callers (`:wat::*` prefix on the enclosing fn FQDN)
-//! remain unaffected.
+//! Originally enforced by Stone B's hard-coded `validate_join_result_user_
+//! namespace` walker; that ad-hoc rule was deleted in arc 198 slice 2
+//! Stone 4 once arc 198's generic `walk_for_def_restricted_call` walker
+//! covered the same callees (via Stone 3's `#[restricted_to(...)]`
+//! attribute on `eval_kernel_*_join_result`). The enforcement contract is
+//! UNCHANGED:
 //!
-//! Binary rule:
 //! - Caller's enclosing wat `define` FQDN starts with `:wat::` → ALLOWED
-//! - Otherwise → compile error pointing users to the canonical
-//!   replacement (`:wat::kernel::Thread/drain-and-join` /
-//!   `:wat::kernel::Process/drain-and-join`).
+//! - Otherwise → compile error naming the offending callee verb plus
+//!   the `:wat::core::def-restricted` "allowed-caller whitelist" diagnostic.
 //!
 //! ## Tests
 //!
 //! - **Negative (Thread)**: user-namespace fn calls `Thread/join-result`
-//!   → startup fails; error message names `Thread/drain-and-join`.
+//!   → startup fails; error names the verb + arc 198's whitelist wording.
 //! - **Negative (Process)**: same shape for Process.
 //! - **Positive (Thread)**: `:wat::*` namespace fn calls
 //!   `Thread/join-result` → startup succeeds.
@@ -47,9 +47,10 @@ fn startup_ok(src: &str) {
 #[test]
 fn stone_b_user_namespace_thread_join_result_is_rejected() {
     // A user-namespace fn (`:my::test::call-thread-join`) reaches for
-    // `:wat::kernel::Thread/join-result` directly. Post-Stone-B, the
-    // walker refuses; the diagnostic teaches the canonical replacement
-    // (`Thread/drain-and-join`).
+    // `:wat::kernel::Thread/join-result` directly. Post-arc-198, arc 198's
+    // generic `walk_for_def_restricted_call` walker refuses (the callee
+    // carries `#[restricted_to(":wat::")]` per arc 198 slice 2 Stone 3);
+    // the diagnostic names the callee + the allowed-caller whitelist.
     let src = r#"
         (:wat::core::define
           (:my::test::call-thread-join
@@ -66,15 +67,17 @@ fn stone_b_user_namespace_thread_join_result_is_rejected() {
         err
     );
     assert!(
-        err.contains("drain-and-join"),
-        "error should teach the canonical replacement (`Thread/drain-and-join`); got: {}",
+        err.contains("DefRestrictedCallerNotAllowed"),
+        "error should be arc 198's `DefRestrictedCallerNotAllowed` variant; got: {}",
         err
     );
 }
 
 #[test]
 fn stone_b_user_namespace_process_join_result_is_rejected() {
-    // Mirror of the Thread negative case for Process.
+    // Mirror of the Thread negative case for Process. Arc 198 slice 2
+    // Stone 3 applied `#[restricted_to(":wat::")]` to
+    // `eval_kernel_process_join_result`; arc 198's walker now enforces.
     let src = r#"
         (:wat::core::define
           (:my::test::call-process-join
@@ -91,8 +94,8 @@ fn stone_b_user_namespace_process_join_result_is_rejected() {
         err
     );
     assert!(
-        err.contains("drain-and-join"),
-        "error should teach the canonical replacement (`Process/drain-and-join`); got: {}",
+        err.contains("DefRestrictedCallerNotAllowed"),
+        "error should be arc 198's `DefRestrictedCallerNotAllowed` variant; got: {}",
         err
     );
 }
