@@ -47,6 +47,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
+use wat_macros::restricted_to;
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
 ///
@@ -16528,6 +16529,7 @@ pub(crate) fn extract_panic_payload(
 /// `:wat::kernel::spawn` and returns ThreadDiedError. Different
 /// subjects (Thread vs Process) → different error names; same
 /// match-arm shape.
+#[restricted_to(":wat::kernel::Process/join-result", ":wat::")]
 fn eval_kernel_process_join_result(
     args: &[WatAST],
     env: &Environment,
@@ -17038,6 +17040,7 @@ fn eval_kernel_spawn_thread(
 /// Arc 113's chain shape applies: `Vec<ThreadDiedError>`, head =
 /// the immediate thread that died, tail = the upstream chain its
 /// panic carried (recovered from `AssertionPayload.upstream_chain`).
+#[restricted_to(":wat::kernel::Thread/join-result", ":wat::")]
 fn eval_kernel_thread_join_result(
     args: &[WatAST],
     env: &Environment,
