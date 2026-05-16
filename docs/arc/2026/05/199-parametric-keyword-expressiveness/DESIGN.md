@@ -1,8 +1,71 @@
-# Arc 199 — Parametric-keyword expressiveness in defmacro
+# Arc 199 — Parametric-keyword expressiveness in defmacro — **REJECTED 2026-05-16**
 
-**Direction:** vend an expand-time mechanism that lets a `:wat::core::defmacro` construct or splice into a parametric type keyword (`:Receiver<I>`, `:Sender<O>`, `:Vector<T>`, etc.) so the user can pass JUST the type arg (`I`) without spelling out the full wrapper at every call site.
+> **REJECTED — substrate is already sufficient. No work needed.**
+>
+> Post-DESIGN-sketch investigation revealed every primitive arc 199 would have minted ALREADY EXISTS:
+>
+> - `:wat::core::keyword/from-string` (src/check.rs:11931) — String → keyword Value
+> - `:wat::core::keyword/to-string` (src/check.rs:11923) — keyword → String
+> - `:wat::core::string::concat` (src/check.rs:4653) — variadic String concat
+> - **Computed unquote at macro expand time** (arc 143 slice 2, src/macros.rs:1010+) — `~(:keyword/op args...)` in a defmacro template substitutes macro params, runs `crate::runtime::eval` on the substituted expression at expand time, then `value_to_watast` converts the result to a `WatAST` node that lands at the `~(...)` position
+> - `value_to_watast` (src/runtime.rs:8815) — `Value::wat__core__keyword(k) → WatAST::Keyword(k)` is the working conversion
+>
+> **Macro dialect reminder (Clojure-style):**
+> - `~` = unquote
+> - `~@` = unquote-splicing
+> - `,` = whitespace literal (commas are visual separator only, like Clojure)
+>
+> Some docs (including the arc 143 INSCRIPTION quoted below) use the classical Clojure `,` notation when DESCRIBING quasiquote semantics. The actual wat source uses `~`.
+>
+> ### Production evidence — arc 143 slice 6's `define-alias` macro
+>
+> From `wat/runtime.wat:22-29`:
+>
+> ```scheme
+> (:wat::core::defmacro
+>   (:wat::runtime::define-alias
+>     (alias-name :AST<wat::core::keyword>)
+>     (target-name :AST<wat::core::keyword>)
+>     -> :AST<wat::core::unit>)
+>   `(:wat::core::define
+>      ~(:wat::runtime::rename-callable-name ...)
+>      (~target-name ~@(:wat::runtime::extract-arg-names ...))))
+> ```
+>
+> This macro has been in production since arc 143 shipped (2026-05). It exercises the EXACT pattern arc 170 D1 needed: an inner expression at the `~(...)` position evaluates at expand time, calls arbitrary substrate primitives, and the resulting Value is converted to a `WatAST` node via `value_to_watast`.
+>
+> The arc 143 INSCRIPTION at `docs/arc/2026/05/143-define-alias/INSCRIPTION.md:116-123` documents the keyword↔symbol distinction in this flow — confirming both the path works AND the failure modes are well-understood.
+>
+> ### Originating signal post-mortem
+>
+> Arc 170 Stone D1's authoring miss: sonnet documented the verbose call form as a "substrate constraint" without reaching for the existing computed-unquote + keyword-construction pattern. The verbose workaround landed in production (commit `d704820`); arc 199 was opened (commit `d6d9cc4`) to fix what looked like a substrate gap.
+>
+> **The substrate gap doesn't exist.** Stone D1's verbose form is a missed substrate-machinery discovery, not a missing substrate primitive.
+>
+> ### What this means for arc 170
+>
+> - D1 gets refactored to the clean call form `(run-threads :I :O factory client-fn)` via the computed-unquote pattern
+> - D2 (multi-factory) builds on the cleaner shape — no longer blocked by arc 199 (since arc 199 retires)
+> - D3 (panic cascade) follows D2
+> - Stone E (`run-processes`) mirrors the cleaned-up D family
+>
+> ### Lesson captured
+>
+> Before opening a substrate arc, **investigate existing substrate machinery for the pattern in question.** Arc 199's DESIGN sketch was drafted without first grepping `keyword/from-string` + `computed unquote` + walking the macro expander to see how arc 143 slice 2 wired arbitrary expand-time eval. The four-questions on Candidate 1 vs Candidate 2 vs Candidate 3 spent cycles on a non-problem.
+>
+> Discipline anchor: `feedback_assertion_demands_evidence` — every assertion the substrate is missing X needs evidence the substrate doesn't have X. Grep + read the relevant primitives BEFORE opening the arc.
+>
+> See also: `feedback_no_new_types` — the constructor-verb reflex caught at D1 BRIEF-time fired again here at arc 199 DESIGN-time. The fix is even more upstream than no-new-types: don't open new substrate arcs without first proving the existing substrate doesn't already solve it.
+>
+> ---
+>
+> **The original DESIGN text below is preserved as the historical artifact of what this arc proposed before evidence rejected it. Inscribed per `feedback_inscription_immutable` — what is inscribed is inscribed; we do not hide our faults, we learn from them.**
 
-**Status:** DESIGN. Not yet open for implementation. Implementation gated on a four-questions pass over the candidate mechanisms.
+---
+
+**Direction (HISTORICAL — REJECTED 2026-05-16):** vend an expand-time mechanism that lets a `:wat::core::defmacro` construct or splice into a parametric type keyword (`:Receiver<I>`, `:Sender<O>`, `:Vector<T>`, etc.) so the user can pass JUST the type arg (`I`) without spelling out the full wrapper at every call site.
+
+**Status:** REJECTED 2026-05-16 — substrate already provides this. Original DESIGN preserved below as historical record.
 
 **Originating signal:** arc 170 Stone D1 (commit `d704820`) shipped the `run-threads` defmacro with a 4-arg form that forces callers to spell out the full `:Receiver<I>` / `:Sender<O>` type keywords. The macro author "knows" those wrappers but cannot construct them at expand time. Same constraint surfaced earlier at `:wat::test::run-hermetic-with-io` (`wat/test.wat:800-815`). Will surface again in Stone E (`run-processes`), in any user-side concurrency macro, in any generic-type wrapper macro.
 

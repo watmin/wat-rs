@@ -19,16 +19,17 @@
 //! T1 — single-factory round-trip. The wat program defines an echo
 //!      factory that takes `ThreadPeer<String, String>`, reads one
 //!      line via `Thread/readln`, writes it back via `Thread/println`,
-//!      and returns nil. The bracket call shape (D1) takes 4 args:
-//!      `(:wat::kernel::run-threads server-rx-type server-tx-type factory client-fn)`
-//!      — server-rx-type is the full `:Receiver<I>` keyword and
-//!      server-tx-type is the full `:Sender<O>` keyword that the wrap-
-//!      fn binders must take. Honest delta: wat tokenizes parametric
-//!      types `<...>` atomically — `~` unquote does NOT splice INTO a
-//!      `<>` bracket pair at expand time. Same constraint
-//!      `:wat::test::run-hermetic-with-io` documented; the bracket
-//!      caller spells the full channel-end type, the macro splices
-//!      directly at the binder position.
+//!      and returns nil. The bracket call shape (D1, refactored
+//!      post-arc-199-rejection) takes 4 args:
+//!      `(:wat::kernel::run-threads :I :O factory client-fn)` —
+//!      where :I and :O are the bare type args the user cares about.
+//!      The macro constructs `:Receiver<I>` / `:Sender<O>` at expand
+//!      time via the computed-unquote pattern (arc 143 slice 2):
+//!      `:wat::core::keyword/to-string` strips the colon, `string::concat`
+//!      builds the `Receiver<...>` / `Sender<...>` string, `keyword/from-string`
+//!      adds the colon back, and the resulting `Value::wat__core__keyword`
+//!      is converted to `WatAST::Keyword` by `value_to_watast`, landing
+//!      at the binder type position.
 //!      Client-fn signature is `:Fn(ThreadPeer<String,String>) -> :String`;
 //!      its body writes "hello" via `Thread/println`, reads the echo via
 //!      `Thread/readln`, returns the read String. The bracket's value is
@@ -95,8 +96,8 @@ fn run_threads_d1_single_factory_round_trips_string() {
         (:wat::core::defn :my::test::run-d1
           [] -> :wat::core::String
           (:wat::kernel::run-threads
-            :rust::crossbeam_channel::Receiver<wat::core::String>
-            :rust::crossbeam_channel::Sender<wat::core::String>
+            :wat::core::String
+            :wat::core::String
             :my::echo-factory
             :my::echo-client))
     "#;
