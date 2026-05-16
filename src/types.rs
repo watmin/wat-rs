@@ -910,6 +910,64 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::ThreadPeer<I, O> — arc 170 Stone C1.
+    //
+    // Peer-relative view of one end of a thread↔thread typed-channel
+    // conversation. Per `INTERSTITIAL-REALIZATIONS.md § 2026-05-16
+    // (Stone C revision)`, the conceptual client/server distinction is
+    // encoded by mirror bindings of the two type parameters — both
+    // peers are instances of the SAME struct.
+    //
+    // Type parameters:
+    //   I — what THIS peer reads (input direction; comes IN from the
+    //       partner)
+    //   O — what THIS peer writes (output direction; goes OUT to the
+    //       partner)
+    //
+    // Fields, in declaration order:
+    //   rx — Receiver<I> the peer pulls inbound messages from
+    //   tx — Sender<O>   the peer pushes outbound messages through
+    //
+    // For a Request/Reply protocol the substrate provisions two
+    // typed-channel pairs, then constructs one ThreadPeer per side
+    // with the mirror parameter binding: server peer gets
+    // ThreadPeer<Request, Reply>; client peer gets
+    // ThreadPeer<Reply, Request>. Same struct, opposite directions.
+    //
+    // Stone D (`run-threads` bracket macro) is the user-facing
+    // constructor. Stone C1 itself only mints the type and the two
+    // peer-relative verbs (`Thread/readln`, `Thread/println`); test
+    // peer-pair construction goes through the substrate-internal
+    // `make_thread_peer_pair_for_test` helper in
+    // `typed_channel.rs`.
+    //
+    // Auto-generated `ThreadPeer/new` + per-field accessors
+    // (`ThreadPeer/rx`, `ThreadPeer/tx`) land at freeze time via
+    // `register_struct_methods`. Stone C1 does NOT exercise those
+    // accessors directly — the substrate verbs reach into the struct
+    // by index — but they exist for future stones and for diagnostic
+    // introspection.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::ThreadPeer".into(),
+        type_params: vec!["I".into(), "O".into()],
+        fields: vec![
+            (
+                "rx".into(),
+                TypeExpr::Parametric {
+                    head: "rust::crossbeam_channel::Receiver".into(),
+                    args: vec![TypeExpr::Path(":I".into())],
+                },
+            ),
+            (
+                "tx".into(),
+                TypeExpr::Parametric {
+                    head: "rust::crossbeam_channel::Sender".into(),
+                    args: vec![TypeExpr::Path(":O".into())],
+                },
+            ),
+        ],
+    }));
+
     // :wat::kernel::Program<I,O> — arc 109 § J slice 10a.
     //
     // Typealias for today's :wat::kernel::Process<I,O>. The "supertype

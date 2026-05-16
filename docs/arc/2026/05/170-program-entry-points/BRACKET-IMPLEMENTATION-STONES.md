@@ -165,7 +165,7 @@
 - [x] Design phase complete (2026-05-16, captured in INTERSTITIAL-REALIZATIONS.md)
 - [x] Stone A — drain-and-join helpers (2026-05-16, ~50 min, 4/4 tests green)
 - [x] Stone B — walker collapse (2026-05-16, ~75 min, 4/4 tests green, +40 migrations; ad-hoc rule retired by arc 198 slice 2 Stone 4 on 2026-05-16; tests now pass via arc 198's walker)
-- [ ] Stone C1 — `ThreadPeer<I, O>` + 2 verbs (decomposed from original Stone C per 2026-05-16 design revision)
+- [x] Stone C1 — `ThreadPeer<I, O>` + 2 verbs (2026-05-16, ~35 min, 3/3 tests green)
 - [ ] Stone C2 — `ProcessPeer<I, O>` + 2 verbs (mirror of C1)
 - [ ] Stone D
 - [ ] Stone E

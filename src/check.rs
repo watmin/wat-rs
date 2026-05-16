@@ -13042,6 +13042,53 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // (:wat::kernel::Thread/readln peer) → :I
+    // (:wat::kernel::Thread/println peer data:O) → :wat::core::nil
+    //
+    // Arc 170 Stone C1. Peer-relative read / write on a
+    // `:wat::kernel::ThreadPeer<I, O>`. The verbs read/write through
+    // the appropriate field of the peer struct (`peer.rx` for readln,
+    // `peer.tx` for println). The substrate enforces same-universe
+    // discipline: if the partner is gone, the operation surfaces a
+    // RuntimeError (the substrate-correct propagation per the user's
+    // "lock step - forks are servers - their clients went away - that
+    // is a panic event" framing in INTERSTITIAL-REALIZATIONS § "Link
+    // semantics"); user wat code never sees a None / Disconnected
+    // wrapping at this surface.
+    //
+    // The verbs are NAMED in the `Thread/` namespace (not
+    // `ThreadPeer/`) because that is the wat user's mental model:
+    // "read a line from the thread"; the peer struct is the bookkeeping
+    // device, not the conceptual subject. Auto-generated `ThreadPeer/rx`
+    // and `ThreadPeer/tx` field accessors land separately via
+    // `register_struct_methods` and are not what user code reaches
+    // for at the surface.
+    let thread_peer_ty = || TypeExpr::Parametric {
+        head: "wat::kernel::ThreadPeer".into(),
+        args: vec![
+            TypeExpr::Path(":I".into()),
+            TypeExpr::Path(":O".into()),
+        ],
+    };
+    env.register(
+        ":wat::kernel::Thread/readln".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![thread_peer_ty()],
+            ret: TypeExpr::Path(":I".into()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::kernel::Thread/println".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![thread_peer_ty(), TypeExpr::Path(":O".into())],
+            ret: TypeExpr::Tuple(vec![]),
+            rest_param_type: None,
+        },
+    );
+
     // (:wat::kernel::spawn-process program) → :wat::kernel::Process<I,O>.
     //
     // Arc 170 Slice 6 pivot. The `program` arg is a sequence of top-level

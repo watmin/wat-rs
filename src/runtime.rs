@@ -4505,6 +4505,15 @@ fn dispatch_keyword_head(
         ":wat::kernel::Thread/drain-and-join" => {
             eval_kernel_thread_drain_and_join(args, env, sym, list_span)
         }
+        // Arc 170 Stone C1 — peer-relative read/write verbs on
+        // `:wat::kernel::ThreadPeer<I, O>`. Read pulls from the peer's
+        // `rx` field; write pushes through the peer's `tx` field.
+        ":wat::kernel::Thread/readln" => {
+            eval_kernel_thread_readln(args, env, sym, list_span)
+        }
+        ":wat::kernel::Thread/println" => {
+            eval_kernel_thread_println(args, env, sym, list_span)
+        }
         // Arc 170 Stone C — Pattern 2 verb retirement.
         // process-send / process-recv are RETIRED. Real stdio is canonical
         // at the OS boundary. Use Process/stdin (IOWriter) + Process/stdout
@@ -17231,6 +17240,146 @@ fn drain_thread_output_channel(
         }
     }
     Ok(())
+}
+
+/// `(:wat::kernel::Thread/readln peer) -> :I` — arc 170 Stone C1.
+///
+/// Peer-relative blocking read on a `:wat::kernel::ThreadPeer<I, O>`.
+/// Pulls the `rx` field (a Receiver<I>) and blocks via `typed_recv`
+/// until a value arrives. The value is surfaced UNWRAPPED to the
+/// caller — this verb returns `:I`, not `:Option<I>` or `:Result<...>`.
+///
+/// Disconnect handling: per INTERSTITIAL-REALIZATIONS § "Link
+/// semantics" (the user's "we are lock step - forks are servers -
+/// their clients went away - that is a panic event" framing),
+/// same-universe peer death is a panic event. A disconnect or
+/// process-wide shutdown surfaces as `RuntimeError::ChannelDisconnected`
+/// — propagated through the panic chain at the spawn boundary so
+/// `Thread/drain-and-join` recovers the cause for the parent.
+/// EDN decode failures on a tier-2 transport surface as
+/// `MalformedForm` (matches the `kernel::recv` discipline).
+fn eval_kernel_thread_readln(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Thread/readln";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let peer_struct = eval_thread_peer_struct(OP, &args[0], env, sym)?;
+    let receiver_inner = match peer_struct.fields.first() {
+        Some(Value::wat__kernel__Receiver(inner)) => inner.clone(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "ThreadPeer.rx (Receiver)",
+                got: "missing or wrong-type field",
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    match crate::typed_channel::typed_recv(
+        receiver_inner.as_ref(),
+        sym.types().map(|a| a.as_ref()),
+        list_span.clone(),
+    ) {
+        crate::typed_channel::RecvOutcome::Value(v) => Ok(v),
+        crate::typed_channel::RecvOutcome::Disconnected
+        | crate::typed_channel::RecvOutcome::Shutdown => {
+            Err(RuntimeError::ChannelDisconnected {
+                op: OP.into(),
+                span: list_span.clone(),
+            })
+        }
+        crate::typed_channel::RecvOutcome::DecodeError(msg) => {
+            Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!("EDN decode on ThreadPeer.rx: {}", msg),
+                span: list_span.clone(),
+            })
+        }
+    }
+}
+
+/// `(:wat::kernel::Thread/println peer data:O) -> :wat::core::nil` —
+/// arc 170 Stone C1.
+///
+/// Peer-relative blocking write on a `:wat::kernel::ThreadPeer<I, O>`.
+/// Pulls the `tx` field (a Sender<O>) and sends `data` via
+/// `typed_send`. Returns `Value::Unit` (== `:wat::core::nil`) on the
+/// landed write. Disconnect surfaces as `RuntimeError::ChannelDisconnected`
+/// (same panic-propagation reasoning as `Thread/readln`).
+fn eval_kernel_thread_println(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Thread/println";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let peer_struct = eval_thread_peer_struct(OP, &args[0], env, sym)?;
+    let sender_inner = match peer_struct.fields.get(1) {
+        Some(Value::wat__kernel__Sender(inner)) => inner.clone(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "ThreadPeer.tx (Sender)",
+                got: "missing or wrong-type field",
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let payload = eval(&args[1], env, sym)?;
+    match crate::typed_channel::typed_send(
+        sender_inner.as_ref(),
+        payload,
+        sym.types().map(|a| a.as_ref()),
+        list_span.clone(),
+    ) {
+        crate::typed_channel::SendOutcome::Ok => Ok(Value::Unit),
+        crate::typed_channel::SendOutcome::Disconnected => {
+            Err(RuntimeError::ChannelDisconnected {
+                op: OP.into(),
+                span: list_span.clone(),
+            })
+        }
+    }
+}
+
+/// Shared peer-struct unwrap for both Thread/readln and Thread/println.
+/// Evaluates `subject_ast` and asserts the resulting Value is a Struct
+/// tagged `:wat::kernel::ThreadPeer`; surfaces a TypeMismatch with the
+/// originating op name otherwise.
+fn eval_thread_peer_struct(
+    op: &str,
+    subject_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Arc<StructValue>, RuntimeError> {
+    let peer_value = eval(subject_ast, env, sym)?;
+    match peer_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::ThreadPeer" => Ok(s),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::kernel::ThreadPeer",
+            got: other.type_name(),
+            span: subject_ast.span().clone(),
+        }),
+    }
 }
 
 /// `(:wat::kernel::Sender/from-pipe writer) -> :wat::kernel::Sender<T>` —
