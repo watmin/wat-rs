@@ -920,12 +920,53 @@ fn walk_template(
         // Arc 167 slice 1 — recurse into vector children so a
         // macro template that contains a fn-sig vector (slice 2
         // territory) walks through its parameters with the same
-        // hygiene scoping as a list. Vectors do not participate
-        // in unquote / unquote-splicing dispatch (head-keyword
-        // forms only).
+        // hygiene scoping as a list.
+        //
+        // Arc 200 Gap 2 — Vector templates also dispatch
+        // unquote-splicing on List children, mirroring the List
+        // branch above. Lispers expect `[~@xs]` to expand to a
+        // Vector with `xs`'s elements spliced in, identically to
+        // how `(~@xs)` works inside a List template.
         WatAST::Vector(items, _) => {
             let mut out = Vec::with_capacity(items.len());
             for child in items {
+                if let WatAST::List(child_items, _) = child {
+                    if let Some(splice_arg) =
+                        match_unquote(child_items, ":wat::core::unquote-splicing")
+                    {
+                        if depth == 1 {
+                            // Fire: splice the argument's elements.
+                            let spliced =
+                                splice_argument(splice_arg, bindings, macro_name, env, sym)?;
+                            out.extend(spliced);
+                            continue;
+                        } else {
+                            // Preserve + peel: walk arg at depth-1,
+                            // rebuild `(:wat::core::unquote-splicing ...)`.
+                            let inner = walk_template(
+                                splice_arg,
+                                bindings,
+                                macro_scope,
+                                macro_name,
+                                call_site_span,
+                                depth - 1,
+                                env,
+                                sym,
+                            )?;
+                            out.push(WatAST::List(
+                                vec![
+                                    WatAST::Keyword(
+                                        ":wat::core::unquote-splicing".into(),
+                                        call_site_span.clone(),
+                                    ),
+                                    inner,
+                                ],
+                                call_site_span.clone(),
+                            ));
+                            continue;
+                        }
+                    }
+                }
                 out.push(walk_template(
                     child,
                     bindings,
@@ -1078,6 +1119,11 @@ fn splice_argument(
                 })?;
             match bound {
                 WatAST::List(items, _) => Ok(items.clone()),
+                // Arc 200 Gap 1 — Vector-bound symbols splice identically
+                // to List-bound symbols. Lispers expect `~@xs` to splice
+                // whether `xs` was captured from a `(...)` or a `[...]`
+                // sub-form at the call site.
+                WatAST::Vector(items, _) => Ok(items.clone()),
                 other => Err(MacroError::SpliceNotList {
                     name: ident.name.clone(),
                     got: ast_variant_name(other),
