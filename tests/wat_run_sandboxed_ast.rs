@@ -1,5 +1,16 @@
-//! Integration coverage for `:wat::kernel::run-sandboxed-ast`
-//! (arc 007 slice 3b — AST-entry sandbox).
+//! Integration coverage for the canonical body-AST entry path —
+//! historically `:wat::kernel::run-sandboxed-ast`, now exercised through
+//! `:wat::test::run-hermetic` / `:wat::test::run-thread` per arc 170
+//! slice 4c-α-ii. The legacy substrate verb still exists (retires in
+//! task #310 after the whole 4c-α chain lands); these tests now ride the
+//! canonical macros so they share semantics with the rest of the test
+//! corpus.
+//!
+//! Per-site destinations follow FM 7-ter (three-rule classification):
+//! - `ast_entry_prints_hello` reads `RunResult/stdout` AND the body calls
+//!   `:wat::kernel::println` → rules 1+2 → run-hermetic.
+//! - `ast_entry_captures_assertion_failure` reads only `RunResult/failure`
+//!   with no stdio activity in the body → run-thread is safe.
 //!
 //! Arc 170 slice 1f-ζ: outer `:user::main` retired. Tests use
 //! `(:my::compute -> :T)` helper + `eval_in_frozen` for the outer
@@ -35,31 +46,22 @@ fn unwrap_string(v: Value) -> String {
     }
 }
 
-fn unwrap_bool(v: Value) -> bool {
-    match v {
-        Value::bool(b) => b,
-        other => panic!("expected bool; got {:?}", other),
-    }
-}
-
-// ─── AST-entry sandbox — happy path ─────────────────────────────────────
+// ─── Body-AST entry — happy path (run-hermetic per rules 1+2) ──────────
 
 #[test]
 fn ast_entry_prints_hello() {
-    // Outer builds a 1-form inner program via quote + vec and hands it to
-    // run-sandboxed-ast. Inner uses canonical nil main + :wat::kernel::println.
-    // Arc 170 slice 1f-ζ: outer is :my::compute returning captured stdout line.
+    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed-ast`
+    // to `:wat::test::run-hermetic`. The body invokes
+    // `:wat::kernel::println` and the outer reads `RunResult/stdout` —
+    // rules 1+2 of FM 7-ter demand hermetic for accurate stdio capture.
+    // Outer is :my::compute returning the captured stdout line.
     let src = r##"
         (:wat::config::set-capacity-mode! :error)
         (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::let
-            [forms
-              (:wat::core::Vector :wat::WatAST
-                (:wat::core::quote
-                  (:wat::core::define (:user::main -> :wat::core::nil)
-                    (:wat::kernel::println "hello"))))
-             r
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None)
+            [r
+              (:wat::test::run-hermetic
+                (:wat::kernel::println "hello"))
              lines (:wat::kernel::RunResult/stdout r)
              line
               (:wat::core::match (:wat::core::first lines) -> :wat::core::String
@@ -71,26 +73,26 @@ fn ast_entry_prints_hello() {
     assert_eq!(unwrap_string(run(src)), "\"hello\"");
 }
 
-// ─── AST-entry sandbox — failure surfaces identically ───────────────────
+// ─── Body-AST entry — failure surfaces identically (run-thread safe) ───
 
 #[test]
 fn ast_entry_captures_assertion_failure() {
-    // Inner program calls assert-eq with mismatched args; sandbox's
-    // catch_unwind surfaces Failure.message. Same mechanism as the
-    // source-text path — proving the AST-entry sandbox shares the
-    // full plumbing.
-    // Arc 170 slice 1f-ζ: outer is :my::compute returning bool (failure detected).
+    // The body calls assert-eq with mismatched args; the run-thread
+    // driver's join-result Err arm surfaces the structured Failure.
+    //
+    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed-ast`
+    // to `:wat::test::run-thread`. The body does not read stdio slots,
+    // does not call stdio verbs, and does not mutate runtime config —
+    // FM 7-ter's three rules do not fire, so thread is the correct
+    // (cheaper) destination. The outer only inspects `RunResult/failure`
+    // which the thread driver populates from the cascade chain.
     let src = r##"
         (:wat::config::set-capacity-mode! :error)
         (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
-            [forms
-              (:wat::core::Vector :wat::WatAST
-                (:wat::core::quote
-                  (:wat::core::define (:user::main -> :wat::core::nil)
-                    (:wat::test::assert-eq 1 2))))
-             r
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None)
+            [r
+              (:wat::test::run-thread
+                (:wat::test::assert-eq 1 2))
              fail
               (:wat::kernel::RunResult/failure r)]
             (:wat::core::match fail -> :wat::core::i64

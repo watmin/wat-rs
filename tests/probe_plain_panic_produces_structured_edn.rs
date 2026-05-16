@@ -10,9 +10,10 @@
 //! calls Rust's `panic!("...: capacity exceeded ...")` — a bare String
 //! payload, NOT an AssertionPayload.
 //!
-//! The probe uses `run-sandboxed` (which goes through fork-program →
-//! `child_branch_from_source`) so the inner program can declare its OWN
-//! config. The outer program does not need holon config.
+//! The probe uses `:wat::test::run-hermetic` (arc 170 slice 4c-α-ii — was
+//! `:wat::kernel::run-sandboxed` before the canonical-macro sweep). The
+//! body sets its OWN dim-count + capacity-mode under a fresh runtime —
+//! rule 3 of the three-rule classification (FM 7-ter) demands hermetic.
 //!
 //! Before arc 170 slice 1i: the `else` branch of `Err(panic_payload)`
 //! did NOT exist — only AssertionPayload was handled; plain panics fell
@@ -60,45 +61,36 @@ fn failure_message(v: &Value) -> String {
 
 #[test]
 fn probe_plain_panic_produces_structured_edn() {
-    // Inner program: dim_count=1 → budget=floor(sqrt(1))=1;
-    // a Bundle with 2 atoms exceeds capacity and triggers
-    // panic!("...: capacity exceeded ...") — a bare Rust String panic,
-    // NOT an AssertionPayload. This is the only reliably reachable
-    // non-AssertionPayload panic path from a wat body.
-    let inner_src = r#"
-(:wat::config::set-dim-count! 1)
-(:wat::config::set-capacity-mode! :panic)
-(:wat::core::define (:user::main -> :wat::core::nil)
-  ;; Two Atom children exceed floor(sqrt(1))=1 budget
-  ;; → panic!("capacity exceeded under :panic") fires inside eval_algebra_bundle.
-  (:wat::core::let
-    [_bundle
-      (:wat::holon::Bundle
-        (:wat::holon::Atom "key1")
-        (:wat::holon::Atom "key2"))]
-    :wat::core::nil))
-"#;
-
-    // Outer program wraps inner source string in run-sandboxed.
-    // Outer does NOT need holon config (it doesn't call Bundle).
-    let outer_src = format!(
-        r#"
+    // Body: dim_count=1 → budget=floor(sqrt(1))=1; a Bundle with 2
+    // atoms exceeds capacity and triggers panic!("...: capacity exceeded
+    // ...") — a bare Rust String panic, NOT an AssertionPayload. This
+    // is the only reliably reachable non-AssertionPayload panic path
+    // from a wat body.
+    //
+    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
+    // to `:wat::test::run-hermetic`. The body sets `set-dim-count!` +
+    // `set-capacity-mode!` (rule 3 of FM 7-ter) so hermetic is the
+    // required destination — the body needs a private, mutable runtime.
+    let outer_src = r#"
 (:wat::core::define (:probe::plain-panic -> :wat::kernel::RunResult)
-  (:wat::kernel::run-sandboxed
-    {inner_quoted}
-    (:wat::core::Vector :wat::core::String)
-    :wat::core::None))
+  (:wat::test::run-hermetic
+    (:wat::core::do
+      (:wat::config::set-dim-count! 1)
+      (:wat::config::set-capacity-mode! :panic)
+      ;; Two Atom children exceed floor(sqrt(1))=1 budget
+      ;; → panic!("capacity exceeded under :panic") fires inside eval_algebra_bundle.
+      (:wat::core::let
+        [_bundle
+          (:wat::holon::Bundle
+            (:wat::core::Vector :wat::holon::HolonAST
+              (:wat::holon::Atom "key1")
+              (:wat::holon::Atom "key2")))]
+        :wat::core::nil))))
 
 (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
-"#,
-        inner_quoted = {
-            // Escape the inner source as a wat String literal.
-            let escaped = inner_src.replace('\\', "\\\\").replace('"', "\\\"");
-            format!("\"{}\"", escaped)
-        }
-    );
+"#;
 
-    let world = freeze_ok(&outer_src);
+    let world = freeze_ok(outer_src);
     let ast = wat::parse_one!("(:probe::plain-panic)").expect("parse");
     let env = Environment::new();
     let result = eval_in_frozen(&ast, &world, &env).expect("outer should not panic");

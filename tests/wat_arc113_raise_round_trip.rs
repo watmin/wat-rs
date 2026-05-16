@@ -49,18 +49,19 @@ fn raise_data_round_trips_through_failure_message() {
     // is `:wat::edn::read`.
     //
     // Arc 170 slice 1f-ζ: outer uses :my::compute; inner uses canonical nil main.
+    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed-ast`
+    // to `:wat::test::run-thread`. Body calls `raise!` (panics with EDN
+    // payload); outer reads only `RunResult/failure`. None of FM 7-ter's
+    // three rules fire — no stdio-slot reads, no stdio verbs in body, no
+    // runtime config mutation. Thread is the correct (cheaper) destination.
     let src = r##"
         (:wat::core::define
           (:my::compute -> :wat::core::Option<wat::holon::HolonAST>)
           (:wat::core::let
-            [forms
-              (:wat::test::program
-                (:wat::core::define (:user::main -> :wat::core::nil)
-                  (:wat::kernel::raise!
-                    (:wat::holon::leaf 42))))
-             r
-              (:wat::kernel::run-sandboxed-ast
-                forms (:wat::core::Vector :wat::core::String) :wat::core::None)
+            [r
+              (:wat::test::run-thread
+                (:wat::kernel::raise!
+                  (:wat::holon::leaf 42)))
              fail
               (:wat::kernel::RunResult/failure r)
              recovered

@@ -92,25 +92,23 @@ fn forms_args_are_not_evaluated() {
     assert!(unwrap_bool(run(src)), "expected forms to capture 1 unevaluated form");
 }
 
-// ─── End-to-end: forms → run-sandboxed-ast → evaluation ────────────────
+// ─── End-to-end: program body → run-hermetic → evaluation ──────────────
 
 #[test]
 fn forms_composes_with_run_sandboxed_ast() {
-    // The canonical use: build a program via forms, run it sandboxed,
+    // The canonical use: build a program body, run it hermetically,
     // verify the inner program's output.
-    // Arc 170 slice 1f-ζ: inner program uses canonical nil main + :wat::kernel::println.
+    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed-ast`
+    // to `:wat::test::run-hermetic`. Body has `:wat::kernel::println` AND
+    // outer reads `RunResult/stdout` — rules 1+2 of FM 7-ter demand
+    // hermetic.
     let src = r##"
 
         (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::let
-            [program
-              (:wat::core::forms
-                (:wat::core::define
-                  (:user::main -> :wat::core::nil)
-                  (:wat::kernel::println "hello-from-inside")))
-             r
-              (:wat::kernel::run-sandboxed-ast program
-                (:wat::core::Vector :wat::core::String) :wat::core::None)
+            [r
+              (:wat::test::run-hermetic
+                (:wat::kernel::println "hello-from-inside"))
              captured (:wat::kernel::RunResult/stdout r)
              line
               (:wat::core::match (:wat::core::first captured) -> :wat::core::String

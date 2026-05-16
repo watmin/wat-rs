@@ -1,11 +1,16 @@
-//! Integration: `:wat::kernel::run-sandboxed-hermetic-ast` round trip.
+//! Integration: `:wat::test::run-hermetic` round trip (arc 170 slice
+//! 4c-α-ii — was `:wat::kernel::run-sandboxed-hermetic-ast` before the
+//! canonical-macro sweep).
 //!
 //! Demonstrates program-generates-program: the OUTER wat program
-//! forks an INNER wat program via the AST-entry hermetic path. The
-//! inner code prints a value to stdout. The outer program reads that
-//! captured string and evaluates it via `:wat::eval-edn!`. End result:
-//! a value generated inside a fork'd child gets evaluated in the outer
-//! process.
+//! forks an INNER body via the canonical hermetic macro. The body
+//! prints a value to stdout. The outer program reads that captured
+//! string and evaluates it via `:wat::eval-edn!`. End result: a value
+//! generated inside a fork'd child gets evaluated in the outer process.
+//!
+//! Both sites stay hermetic because the outer reads `RunResult/stdout`
+//! and the body calls `:wat::kernel::println` — rules 1+2 of FM 7-ter
+//! demand process boundary + pipe-captured stdio.
 //!
 //! Arc 170 slice 1f-ζ: outer main migrated to (:my::compute -> :T)
 //! + eval_in_frozen. Inner programs use canonical nil main +
@@ -44,12 +49,8 @@ fn hermetic_inner_program_stdout_captured() {
         (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [result
-              (:wat::kernel::run-sandboxed-hermetic-ast
-                (:wat::test::program
-                  (:wat::core::define (:user::main -> :wat::core::nil)
-                    (:wat::kernel::println "tada!")))
-                (:wat::core::Vector :wat::core::String)
-                :wat::core::None)
+              (:wat::test::run-hermetic
+                (:wat::kernel::println "tada!"))
              lines (:wat::kernel::RunResult/stdout result)]
             (:wat::core::length lines)))
     "#;
@@ -78,12 +79,8 @@ fn hermetic_output_evaluated_in_outer_scope() {
         (:wat::core::define (:my::compute -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let
             [hermetic-result
-              (:wat::kernel::run-sandboxed-hermetic-ast
-                (:wat::test::program
-                  (:wat::core::define (:user::main -> :wat::core::nil)
-                    (:wat::kernel::println 42)))
-                (:wat::core::Vector :wat::core::String)
-                :wat::core::None)
+              (:wat::test::run-hermetic
+                (:wat::kernel::println 42))
              lines
               (:wat::kernel::RunResult/stdout hermetic-result)
              captured-src

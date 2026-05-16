@@ -3,9 +3,10 @@
 //! frames) across a real fork boundary, via stderr-EDN as the
 //! transport.
 //!
-//! Pattern: outer wat program calls `run-sandboxed-hermetic-ast` on
-//! an inner program that triggers `assert-eq`. The inner program
-//! runs in a forked OS process; the substrate's catch_unwind
+//! Pattern: outer wat program calls `:wat::test::run-hermetic` (arc 170
+//! slice 4c-α-ii — was `:wat::kernel::run-sandboxed-hermetic-ast` before
+//! the canonical-macro sweep) on a body that triggers `assert-eq`. The
+//! body runs in a forked OS process; the substrate's catch_unwind
 //! captures the panic; `emit_cascade_chain_to_stderr` renders the
 //! ProcessDiedError chain to stderr as `#wat.died/chain {...}`. The
 //! parent's `drive-hermetic` (in `wat/kernel/hermetic.wat`) calls
@@ -67,15 +68,9 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
         (:wat::core::define
           (:my::compute -> :wat::core::Vector<wat::core::String>)
           (:wat::core::let
-            [forms
-              (:wat::test::program
-                (:wat::core::define (:user::main -> :wat::core::nil)
-                  (:wat::test::assert-eq 1 2)))
-             r
-              (:wat::kernel::run-sandboxed-hermetic-ast
-                forms
-                (:wat::core::Vector :wat::core::String)
-                :wat::core::None)
+            [r
+              (:wat::test::run-hermetic
+                (:wat::test::assert-eq 1 2))
              fail
               (:wat::kernel::RunResult/failure r)
              rendered
