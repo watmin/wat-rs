@@ -332,11 +332,17 @@
     (prelude :AST<wat::core::nil>)
     (body :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
+  ;; Arc 170 slice 6 — route through run-hermetic-with-prelude so the
+  ;; prelude declarations land as TOP-LEVEL program forms in the spawned
+  ;; child. Pre-slice-6 the prelude was spliced into the fn body's do-
+  ;; prefix and relied on Gap H + I-A's closure-extraction lift to
+  ;; escape to top-level; the spawn-process pivot retires that workaround
+  ;; — top-level forms ARE the substrate's program shape. Declarations
+  ;; sit at their natural position from the start; no lift required.
   `(:wat::core::define (~name -> :wat::test::TestResult)
-     (:wat::test::run-hermetic
-       (:wat::core::do
-         ~@prelude
-         ~body))))
+     (:wat::test::run-hermetic-with-prelude
+       ~prelude
+       ~body)))
 
 ;; ─── make-deftest — configured-deftest factory (arc 029; arc 031) ─────
 ;;
@@ -563,14 +569,27 @@
 ;; Layer 1 entry point. User writes only the body; macro generates:
 ;;   (:wat::test::run-hermetic-driver
 ;;     (:wat::kernel::spawn-process
-;;       (:wat::core::fn
-;;         []
-;;         -> :wat::core::nil
-;;         <body>)))
+;;       (:wat::core::forms
+;;         (:wat::core::define (:user::main -> :wat::core::nil) <body>))))
 ;;
-;; Stone C contract: child is [] -> nil (no rx/tx params). Layer 1 bodies
-;; run assertions that panic on failure; I/O is ambient via readln/println
-;; (routed through bootstrap services on fd 0/1/2).
+;; Arc 170 slice 6 pivot: spawn-process now accepts a wat PROGRAM
+;; (Vector<wat::WatAST>) — exactly what `wat some-file.wat` reads from
+;; disk: optional top-level setters / type declarations / helper
+;; defines, plus a `(:wat::core::define (:user::main -> :nil) ...)`
+;; entry point. The 99% case (no prelude) is a one-form program: the
+;; entry-point define. The 1% case (config setters etc.) uses the
+;; sibling macro `:wat::test::run-hermetic-with-prelude` (below) to
+;; expose the prelude slot.
+;;
+;; IPC contract (substrate-level, mirrors `wat some-file.wat`):
+;;   stdin  — parent writes; child reads via `(:wat::kernel::readln -> :T)`.
+;;   stdout — child writes via `(:wat::kernel::println v)`; parent reads.
+;;   stderr — child panics surface as `#wat.kernel/ProcessPanics ...`
+;;            EDN lines; parent's `Process/join-result` rebuilds the chain.
+;;
+;; Layer 1 bodies run assertions that panic on failure; I/O is ambient
+;; via readln/println (routed through bootstrap services on fd 0/1/2,
+;; installed by `bootstrap_wat_vm_process` inside `invoke_user_main`).
 ;;
 ;; DO NOT MODIFY deftest or deftest-hermetic above — this is a new
 ;; entry point running in PARALLEL to the existing macros. Consumer
@@ -581,10 +600,75 @@
     -> :AST<wat::core::nil>)
   `(:wat::test::run-hermetic-driver
      (:wat::kernel::spawn-process
-       (:wat::core::fn
-         []
-         -> :wat::core::nil
-         ~body))))
+       (:wat::core::forms
+         (:wat::core::define (:user::main -> :wat::core::nil)
+           ~body)))))
+
+;; ── run-hermetic-with-prelude — exposes the program prelude slot ────────
+;;
+;; Arc 170 slice 6 — sibling of run-hermetic for the 1% case that needs
+;; top-level forms preceding :user::main. After the spawn-process pivot,
+;; the substrate accepts a wat PROGRAM (Vector<wat::WatAST>) — exactly
+;; what `wat some-file.wat` reads from disk. This macro exposes that
+;; substrate capability at the test layer:
+;;
+;;   prelude — a parenthesized list of top-level forms (optional config
+;;             setters via :wat::config::set-*!, optional type
+;;             declarations via :wat::core::struct / :wat::core::enum,
+;;             optional helper defines via :wat::core::define, etc.).
+;;             Spliced as TOP-LEVEL program forms BEFORE the entry-point
+;;             define.
+;;   body    — the entry-point body. Wrapped in
+;;             `(:wat::core::define (:user::main -> :wat::core::nil)
+;;                ~body)` and appended after the prelude.
+;;
+;; Shape:
+;;
+;;   (:wat::test::run-hermetic-with-prelude
+;;     ((:wat::core::define (:helper -> :wat::core::nil)
+;;        (:wat::kernel::println "from helper"))
+;;      (:wat::core::define (:other-helper -> :wat::core::i64) 42))
+;;     (:wat::core::do
+;;       (:helper)
+;;       :wat::core::nil))
+;;
+;; Expansion:
+;;
+;;   (:wat::test::run-hermetic-driver
+;;     (:wat::kernel::spawn-process
+;;       (:wat::core::forms
+;;         (:wat::core::define (:helper -> :wat::core::nil)
+;;           (:wat::kernel::println "from helper"))
+;;         (:wat::core::define (:other-helper -> :wat::core::i64) 42)
+;;         (:wat::core::define (:user::main -> :wat::core::nil)
+;;           (:wat::core::do
+;;             (:helper)
+;;             :wat::core::nil)))))
+;;
+;; Why this matters (decay-recovery context): pre-slice-6, declarations
+;; in a fn body's do-prefix relied on Gap H + I-A's closure-extraction
+;; lift to escape to top-level. That mechanism was a workaround for the
+;; fn-only substrate shape. The slice-6 pivot makes the substrate's IPC
+;; contract = wat-cli's IPC contract — top-level forms ARE the program
+;; shape. This macro is the direct surface; no lift required because no
+;; expression-position descent ever happens. The 8 declaration heads
+;; (define / def / defmacro / define-dispatch / struct / enum /
+;; newtype / typealias) all sit at their natural position from the start.
+;;
+;; The driver is shared with run-hermetic — same Process<nil,nil> →
+;; RunResult flow; the only difference is the spawn-process program
+;; shape carries a prelude slot.
+(:wat::core::defmacro
+  (:wat::test::run-hermetic-with-prelude
+    (prelude :AST<wat::core::nil>)
+    (body    :AST<wat::core::nil>)
+    -> :AST<wat::core::nil>)
+  `(:wat::test::run-hermetic-driver
+     (:wat::kernel::spawn-process
+       (:wat::core::forms
+         ~@prelude
+         (:wat::core::define (:user::main -> :wat::core::nil)
+           ~body)))))
 
 ;; ─── Layer 1 — run-thread (cheap-thread default, arc 170 slice 4a-α) ──
 ;;
@@ -920,10 +1004,12 @@
     (inputs      :AST<wat::core::nil>)
     (body        :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
+  ;; Arc 170 slice 6 pivot — spawn-process takes a wat PROGRAM
+  ;; (Vector<wat::WatAST>). The body becomes the entry-point define's
+  ;; body. See run-hermetic above for the full IPC-contract rationale.
   `(:wat::test::run-hermetic-with-io-driver
      (:wat::kernel::spawn-process
-       (:wat::core::fn
-         []
-         -> :wat::core::nil
-         ~body))
+       (:wat::core::forms
+         (:wat::core::define (:user::main -> :wat::core::nil)
+           ~body)))
      ~inputs))

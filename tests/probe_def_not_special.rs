@@ -104,15 +104,17 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 /// 4. Child body: references `:h::local-answer` — resolves to 42 → exits 0
 #[test]
 fn probe_def_at_fn_body_do_prefix_lifts_to_prologue_end_to_end() {
+    // Arc 170 slice 6 — def lives at program top-level via the new
+    // spawn-process program shape; the lift mechanism is retired. The
+    // probe still verifies the end-to-end binding flow: child registers
+    // the def, body references the binding, child exits 0.
     let src = r#"
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
-            (:wat::core::fn
-              []
-              -> :wat::core::nil
-              (:wat::core::do
-                (:wat::core::def :h::local-answer 42)
+            (:wat::core::forms
+              (:wat::core::def :h::local-answer 42)
+              (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let
                   [v :h::local-answer]
                   :wat::core::nil)))))
@@ -264,29 +266,29 @@ fn probe_define_at_expression_position_still_emits_error() {
 /// a struct, references an enum variant, constructs a newtype, calls the dispatch.
 #[test]
 fn probe_mixed_declaration_prelude_now_includes_def() {
+    // Arc 170 slice 6 — all 8 declaration kinds sit at program top-level
+    // alongside :user::main via the new spawn-process program shape.
     let src = r#"
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
-            (:wat::core::fn
-              []
-              -> :wat::core::nil
-              (:wat::core::do
-                (:wat::core::def :h::def-answer 99)
-                (:wat::core::struct :h::MixPoint8
-                  (x :wat::core::i64)
-                  (y :wat::core::i64))
-                (:wat::core::enum :h::MixDir8
-                  :Up
-                  :Down)
-                (:wat::core::newtype :h::MixAmount8 :wat::core::i64)
-                (:wat::core::typealias :h::MixCount8 :wat::core::i64)
-                (:wat::core::define
-                  (:h::mix-i64-arm8 (v :wat::core::i64) -> :h::MixCount8)
-                  v)
-                (:wat::core::define-dispatch :h::mix-count8
-                  ((:wat::core::i64) :h::mix-i64-arm8))
-                (:wat::core::defmacro (:h::mix-id8 (z :AST) -> :AST) `~z)
+            (:wat::core::forms
+              (:wat::core::def :h::def-answer 99)
+              (:wat::core::struct :h::MixPoint8
+                (x :wat::core::i64)
+                (y :wat::core::i64))
+              (:wat::core::enum :h::MixDir8
+                :Up
+                :Down)
+              (:wat::core::newtype :h::MixAmount8 :wat::core::i64)
+              (:wat::core::typealias :h::MixCount8 :wat::core::i64)
+              (:wat::core::define
+                (:h::mix-i64-arm8 (v :wat::core::i64) -> :h::MixCount8)
+                v)
+              (:wat::core::define-dispatch :h::mix-count8
+                ((:wat::core::i64) :h::mix-i64-arm8))
+              (:wat::core::defmacro (:h::mix-id8 (z :AST) -> :AST) `~z)
+              (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let
                   [_ans :h::def-answer
                    _p   (:h::MixPoint8/new 1 2)

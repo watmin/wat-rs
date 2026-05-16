@@ -1,34 +1,40 @@
-//! Arc 170 Stone C — `:wat::kernel::spawn-process` substrate verb.
+//! Arc 170 Slice 6 — `:wat::kernel::spawn-process` substrate verb.
 //!
-//! "The fn IS the program." The wat-level surface is one verb that
-//! takes a fn satisfying the `:user::process` contract:
+//! **A wat process IS a wat program.** The wat-level surface takes
+//! `Vec<WatAST>` — exactly what `wat some-file.wat` would read from
+//! disk: top-level setters, type declarations, helper defines, and
+//! finally a `(:wat::core::define (:user::main -> :nil) ...)` entry
+//! point.
 //!
-//! ```text
-//! [] -> :wat::core::nil
-//! ```
+//! Returns `:wat::kernel::Process` (4 fields: stdin IOWriter,
+//! stdout IOReader, stderr IOReader, ProgramHandle). The IPC contract
+//! mirrors `wat some-file.wat`:
 //!
-//! and returns a `:wat::kernel::Process` (4 fields: stdin IOWriter,
-//! stdout IOReader, stderr IOReader, ProgramHandle). No typed-channel
-//! tx/rx fields — those were the slice-1c wrong turn. Real OS stdio
-//! is canonical at the process boundary; users wrap with
+//! - **stdin** — parent writes; child reads via `(:wat::kernel::readln -> :T)`.
+//! - **stdout** — child writes via `(:wat::kernel::println v)`; parent reads.
+//! - **stderr** — child panics surface as `#wat.kernel/ProcessPanics ...`
+//!   EDN lines; parent's `Process/join-result` rebuilds the chain.
+//!
+//! No typed-channel tx/rx fields — users wrap with
 //! `:wat::kernel::Sender/from-pipe` / `:wat::kernel::Receiver/from-pipe`
-//! for typed semantics (wat-level wrappers over EDN-over-pipes).
+//! at the wat level for typed semantics over the OS pipes.
 //!
-//! ## Pipeline (Stone C)
+//! ## Pipeline (Slice 6)
 //!
-//! 1. Caller passes a fn (Keyword path or fn Value-producing expression).
-//! 2. Substrate calls [`extract_closure`] → `ClosurePackage`.
-//! 3. Three OS pipes allocated: stdin (parent→child), stdout (child→parent),
-//!    stderr (child→parent).
+//! 1. Caller passes `Vec<WatAST>` (a Value::Vec of Value::wat__WatAST).
+//! 2. Substrate snapshots caller's `Config` for COW-inherit.
+//! 3. Three OS pipes allocated (stdin/stdout/stderr) plus a lifeline pipe.
 //! 4. Substrate forks.
-//!    **Child**: dup2 pipes onto fd 0/1/2 → `startup_from_forms` →
-//!    `bootstrap_wat_vm_process` (spawns trio services, installs ThreadIO)
-//!    → `apply_function(entry_func, [], runtime.symbols())` → `_exit`.
+//!    **Child**: dup2 pipes onto fd 0/1/2 → `child_post_fork_init` →
+//!    `startup_from_forms_with_inherit(forms, ..., cfg)` (or non-inherit
+//!    fallback) → `validate_user_main_signature` →
+//!    `invoke_user_main(&world, vec![])` (which internally calls
+//!    `bootstrap_wat_vm_process` for trio services + ThreadIO) → `_exit`.
 //!    **Parent**: closes child-side fds, constructs 4-field Process struct.
-//! 5. Child body uses `(:wat::kernel::println v)` / `(:wat::kernel::readln)`
-//!    for typed I/O (routes through per-thread services installed by
-//!    bootstrap). Parent reads via `Process/stdout` IOReader; writes via
-//!    `Process/stdin` IOWriter.
+//! 5. Child's `:user::main` body uses `(:wat::kernel::println v)` /
+//!    `(:wat::kernel::readln -> :T)` for typed I/O (routes through
+//!    per-thread services installed by bootstrap). Parent reads via
+//!    `Process/stdout` IOReader; writes via `Process/stdin` IOWriter.
 //!
 //! ## Why fork(2) instead of clone() / vfork() / posix_spawn()
 //!
@@ -37,23 +43,35 @@
 //! itself to syscalls + fresh-world wat eval; child uses `_exit(2)`
 //! to skip parent atexit handlers.
 //!
-//! ## Stone C — the fatal flaw fix
+//! ## Slice 6 — pivot from fn-only to program-shape
 //!
-//! Pre-Stone-C (slice 1c): child's fd 0/1 inherited from parent terminal;
-//! child had no bootstrap → no ThreadIO → `println` surfaced
-//! `ServiceNotRunning`. Stone C dup2s fd 0/1 to real pipes and calls
-//! `bootstrap_wat_vm_process`, giving every spawn-process child a full
-//! ambient runtime. `(:wat::kernel::println v)` now works in every child.
+//! Pre-slice-6 (slice 1c + Stone C): substrate took a fn value;
+//! `extract_closure` captured the fn's free vars as a prologue; the
+//! child re-applied the fn with zero args. That shape LOST CAPABILITIES
+//! the legacy `:wat::kernel::run-sandboxed src stdin scope` had:
+//! `(:wat::config::set-capacity-mode! ...)` at top-of-source couldn't
+//! be expressed in a fn body (config is startup-time only); `scope`
+//! drove `ScopedLoader` — body-AST shape had no surface for it.
+//!
+//! Slice 6 makes the IPC contract = wat-cli contract. Same operation,
+//! different access surfaces. The macro layer (`:wat::test::run-hermetic`
+//! et al.) absorbs ergonomics — user writes a body, the macro
+//! constructs the program shape internally; the new
+//! `:wat::test::run-hermetic-with-prelude` variant exposes the prelude
+//! slot for the 1% case (config setters, loader scope, type
+//! declarations, etc.).
 
 use crate::ast::WatAST;
-use crate::closure_extract::{extract_closure, ClosurePackage};
+use crate::config::Config;
 use crate::fork::{child_post_fork_init, make_pipe, ChildHandleInner};
-use crate::freeze::{startup_from_forms, bootstrap_wat_vm_process, BootstrapArgs};
+use crate::freeze::{
+    invoke_user_main, startup_from_forms, startup_from_forms_with_inherit,
+    validate_user_main_signature,
+};
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::load::InMemoryLoader;
 use crate::runtime::{
-    apply_function, eval, Environment, ProgramHandleInner, RuntimeError, StructValue, SymbolTable,
-    Value,
+    eval, Environment, ProgramHandleInner, RuntimeError, StructValue, SymbolTable, Value,
 };
 
 use std::os::fd::{AsRawFd, OwnedFd};
@@ -62,19 +80,14 @@ use std::sync::Arc;
 // Same exit-code convention `fork.rs` uses; spawn-process callers
 // observe these via Process/join-result the same way fork callers do.
 use crate::fork::{
-    EXIT_PANIC, EXIT_RUNTIME_ERROR, EXIT_STARTUP_ERROR, EXIT_SUCCESS,
+    EXIT_MAIN_SIGNATURE, EXIT_PANIC, EXIT_RUNTIME_ERROR, EXIT_STARTUP_ERROR, EXIT_SUCCESS,
 };
-
-// EXIT_MAIN_SIGNATURE is fork.rs's "user::main signature mismatch"
-// code; spawn-process uses a different exit code for "entry_form
-// failed to evaluate to a fn Value" — same numeric byte but a
-// distinct semantic in this path.
-const EXIT_ENTRY_FORM_FAILURE: i32 = 4;
 
 /// Wat-level dispatch arm for `:wat::kernel::spawn-process`.
 ///
-/// Arity 1 — the fn arg (Keyword path or fn Value-producing
-/// expression). Returns `:wat::kernel::Process<I,O>`.
+/// Arity 1 — the `program` arg evaluating to `:wat::core::Vector<wat::WatAST>`
+/// (top-level forms of a wat program, ending in `(:wat::core::define
+/// (:user::main -> :nil) ...)`). Returns `:wat::kernel::Process<I,O>`.
 pub fn eval_kernel_spawn_process(
     args: &[WatAST],
     env: &Environment,
@@ -90,62 +103,49 @@ pub fn eval_kernel_spawn_process(
         });
     }
 
-    // Resolve the fn arg. Two shapes:
-    //   - Keyword path: top-level defn lookup via `sym.get(k)` →
-    //     Function. Slice 1b's keyword-path entry_form Keyword AST
-    //     resolves through `sym.get` in the child world too, which
-    //     mirrors arc 170 slice 1b's substrate-fit Symbol→Keyword
-    //     pivot honest delta A.
-    //   - Expression: eval to a Value::wat__core__fn.
-    let (fn_value, entry_name) = match &args[0] {
-        WatAST::Keyword(k, kspan) => match sym.get(k) {
-            Some(f) => (Value::wat__core__fn(f.clone()), Some(k.clone())),
-            None => return Err(RuntimeError::UnknownFunction(k.clone(), kspan.clone())),
-        },
-        other => match eval(other, env, sym)? {
-            v @ Value::wat__core__fn(_) => (v, None),
-            other_val => {
-                return Err(RuntimeError::TypeMismatch {
-                    op: OP.into(),
-                    expected: "function keyword path or fn value",
-                    got: other_val.type_name(),
-                    span: args[0].span().clone(),
-                });
+    // Slice 6 — evaluate the program arg to Vec<WatAST>. Same shape as
+    // `:wat::kernel::fork-program-ast` (see src/fork.rs:574). Macros
+    // construct the program shape internally; user-facing surface
+    // remains body-only.
+    let forms = match eval(&args[0], env, sym)? {
+        Value::Vec(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items.iter() {
+                match item {
+                    Value::wat__WatAST(ast) => out.push((**ast).clone()),
+                    other => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "wat::WatAST",
+                            got: other.type_name(),
+                            span: args[0].span().clone(),
+                        });
+                    }
+                }
             }
-        },
-    };
-
-    // Slice 1b — extract closure. The TypeEnv is attached to the
-    // SymbolTable's encoding context; for parent worlds without one
-    // we surface a substrate error (the SymbolTable hasn't been
-    // wired with types — closure extraction can't succeed).
-    let parent_types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
-        head: OP.into(),
-        reason: "parent SymbolTable carries no TypeEnv; closure extraction needs the type registry to encode captured values".into(),
-        span: args[0].span().clone(),
-    })?;
-
-    let package = match extract_closure(
-        &fn_value,
-        entry_name.as_deref(),
-        sym,
-        parent_types.as_ref(),
-    ) {
-        Ok(pkg) => pkg,
-        Err(e) => {
-            return Err(RuntimeError::MalformedForm {
-                head: OP.into(),
-                reason: format!("{}", e),
+            out
+        }
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vec<wat::WatAST>",
+                got: other.type_name(),
                 span: args[0].span().clone(),
             });
         }
     };
 
-    // Three pipes — input (parent→child for typed sends), output
-    // (child→parent for typed sends), stderr (child→parent for
-    // panic-payload markers). The byte-pipe view of input/output
-    // populates the legacy stdin/stdout fields per slice 1c
-    // additive shape; the typed-channel view populates tx/rx.
+    // Snapshot caller's Config before fork so the child can inherit it
+    // through COW (arc 031 discipline). None when sym has no encoding
+    // context (test harnesses that built a SymbolTable directly). When
+    // present, the child's `startup_from_forms_with_inherit` pre-seeds
+    // every config field, so program forms can OMIT setters and still
+    // freeze; when None, the program forms must carry their own setters
+    // (this is the "wat program" entry-file discipline).
+    let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
+
+    // Three pipes — stdin (parent→child), stdout (child→parent),
+    // stderr (child→parent). The IPC contract mirrors `wat some-file.wat`.
     let (input_r, input_w) = make_pipe(":wat::kernel::spawn-process")?;
     let (output_r, output_w) = make_pipe(":wat::kernel::spawn-process")?;
     let (stderr_r, stderr_w) = make_pipe(":wat::kernel::spawn-process")?;
@@ -177,7 +177,8 @@ pub fn eval_kernel_spawn_process(
     if pid == 0 {
         // ── CHILD BRANCH ─────────────────────────────────────────
         spawn_process_child_branch(
-            package,
+            forms,
+            inherit_config,
             input_r_raw,
             output_w_raw,
             stderr_w_raw,
@@ -257,20 +258,25 @@ fn emit_structured_exit(world: Option<&crate::freeze::FrozenWorld>, value: crate
     write_direct_to_stderr(&line);
 }
 
-/// Stone C — child's post-fork pipeline for spawn-process.
+/// Slice 6 — child's post-fork pipeline for spawn-process.
 ///
-/// Changes from slice 1c:
-/// - dup2s fd 0 (stdin) + fd 1 (stdout) from the pipe ends (in
-///   addition to existing fd 2 / stderr).
-/// - calls `bootstrap_wat_vm_process` after `startup_from_forms` so
-///   the child gets full ambient runtime (trio services + ThreadIO).
-/// - entry fn is called with NO ARGS (`[] -> :nil`). Children use
-///   `(:wat::kernel::println v)` / `(:wat::kernel::readln -> :T)` for
-///   typed I/O (routes through per-thread services installed by
-///   bootstrap). Typed-channel args (rx/tx) are GONE — the slice-1c
-///   wrong turn, removed by Stone C's consumer sweep.
+/// Same plumbing as `fork.rs::child_branch_from_source`: dup2 the three
+/// pipes onto fd 0/1/2; `child_post_fork_init` wires the lifeline /
+/// signal handlers / pgid; freeze the program forms (inheriting parent
+/// Config when present); validate `:user::main` signature; run via
+/// `invoke_user_main`. The `invoke_user_main` orchestrator internally
+/// calls `bootstrap_wat_vm_process`, which gives the child the trio
+/// services + ThreadIO so `(:wat::kernel::println v)` /
+/// `(:wat::kernel::readln -> :T)` work.
+///
+/// Pre-slice-6 the child used `extract_closure` + `apply_function` to
+/// re-apply a captured fn; slice 6 retires that path because the
+/// program forms ARE the wat program — `:user::main` is the entry
+/// point, no closure-extract bookkeeping required.
+#[allow(clippy::too_many_arguments)]
 fn spawn_process_child_branch(
-    package: ClosurePackage,
+    forms: Vec<WatAST>,
+    inherit_config: Option<Config>,
     input_r_raw: i32,
     output_w_raw: i32,
     stderr_w_raw: i32,
@@ -296,7 +302,7 @@ fn spawn_process_child_branch(
     // Closing it here ensures parent-death → POLLHUP on lifeline_r_raw.
     drop(lifeline_w);
 
-    // Stone C — dup2 all three fds:
+    // dup2 all three fds:
     //   fd 0 ← stdin pipe read end  (child reads from parent)
     //   fd 1 ← stdout pipe write end (child writes to parent)
     //   fd 2 ← stderr pipe write end (panic-payload markers)
@@ -324,8 +330,6 @@ fn spawn_process_child_branch(
     // Arc 170 FD-multiplex Phase 3 — canonical 5-step post-fork init:
     // (1) silent panic hook, (2) setpgid, (3) close inherited fds,
     // (4) init_shutdown_signal_with_inputs, (5) install signal handlers.
-    // Phase 3 also adds step 3 (close_inherited_fds_above_stdio) which
-    // was previously missing from this path (Phase 1E scoped it out).
     // All steps run in order; forgetting one is structurally impossible.
     child_post_fork_init(lifeline_r_raw);
 
@@ -334,9 +338,23 @@ fn spawn_process_child_branch(
     // the worker would immediately POLLHUP (false-positive shutdown).
     std::mem::forget(lifeline_r);
 
-    // Build a fresh wat world from the prologue.
+    // Slice 6 — freeze the program forms in the child. InMemoryLoader
+    // (no disk reach) matches the pre-slice-6 hermetic default. If a
+    // future caller needs ScopedLoader / FsLoader, the prelude-slot
+    // macro (`run-hermetic-with-prelude`) is the surface to thread it
+    // through (potentially via additional substrate args; out of scope
+    // for slice 6).
+    //
+    // Inherit caller's Config when present so program forms that omit
+    // `(:wat::config::set-*!)` setters still freeze (mirrors arc 031's
+    // sandbox discipline). When None, the program must carry its own
+    // setters (entry-file discipline).
     let loader: Arc<dyn crate::load::SourceLoader> = Arc::new(InMemoryLoader::new());
-    let world = match startup_from_forms(package.prologue, None, loader) {
+    let startup_result = match &inherit_config {
+        Some(cfg) => startup_from_forms_with_inherit(forms, None, loader, cfg),
+        None => startup_from_forms(forms, None, loader),
+    };
+    let world = match startup_result {
         Ok(w) => w,
         Err(e) => {
             emit_structured_exit(
@@ -347,85 +365,42 @@ fn spawn_process_child_branch(
         }
     };
 
-    // Stone C — bootstrap full runtime context (trio services + ThreadIO).
-    // bootstrap_wat_vm_process calls synthesize_real_fd_stdio which dups
-    // fd 0/1/2 (the pipes we dup2'd above) into PipeReader/PipeWriter
-    // wrappers for the StdInService / StdOutService / StdErrService.
-    // After this call the child has a fully-functional ambient runtime:
-    // (:wat::kernel::println v) and (:wat::kernel::readln -> :T) work.
-    let runtime = match bootstrap_wat_vm_process(BootstrapArgs { frozen: &world }) {
-        Ok(r) => r,
-        Err(e) => {
-            emit_structured_exit(
-                Some(&world),
-                crate::runtime::process_died_error_startup_value(format!(
-                    "bootstrap_wat_vm_process failed: {}", e
-                )),
-            );
-            unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
-        }
-    };
+    // Validate `:user::main` signature (must be `[] -> :wat::core::nil`).
+    // Slice 6 — the IPC contract is OS stdio (fd 0/1/2 wired via dup2
+    // above); `:user::main` takes no args; `argv` is ambient via
+    // `(:wat::runtime::argv)`. Same contract as wat-cli's
+    // `child_branch_from_source` at src/fork.rs:1169.
+    if let Err(msg) = validate_user_main_signature(&world) {
+        emit_structured_exit(
+            Some(&world),
+            crate::runtime::process_died_error_main_signature_value(format!("{}", msg)),
+        );
+        unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
+    }
 
-    // Evaluate entry_form in the frozen world to obtain the fn Value.
-    let env = Environment::new();
-    let entry_value = match eval(&package.entry_form, &env, runtime.symbols()) {
-        Ok(v) => v,
-        Err(e) => {
+    // Run :user::main via the orchestrator. `invoke_user_main` internally
+    // calls `bootstrap_wat_vm_process`, which spawns the trio services
+    // (StdIn/StdOut/StdErr) over fd 0/1/2 and installs ThreadIO so
+    // `(:wat::kernel::println v)` / `(:wat::kernel::readln -> :T)` /
+    // `(:wat::kernel::eprintln v)` route through them. ProcessRuntime's
+    // Drop handles cleanup (deregister → uninstall → drop services →
+    // join service threads) when invoke_user_main returns.
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        invoke_user_main(&world, Vec::new())
+    }));
+
+    match outcome {
+        Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
+        Ok(Ok(other)) => {
             emit_structured_exit(
                 Some(&world),
-                crate::runtime::process_died_error_entry_form_failure_value(format!("{}", e)),
-            );
-            unsafe { libc::_exit(EXIT_ENTRY_FORM_FAILURE) };
-        }
-    };
-    let entry_func = match entry_value {
-        Value::wat__core__fn(f) => f,
-        other => {
-            emit_structured_exit(
-                Some(&world),
-                crate::runtime::process_died_error_entry_form_failure_value(format!(
-                    "entry_form did not evaluate to a fn Value (got {})",
+                crate::runtime::process_died_error_bad_return_value(format!(
+                    ":user::main returned non-nil value: {}",
                     other.type_name()
                 )),
             );
-            unsafe { libc::_exit(EXIT_ENTRY_FORM_FAILURE) };
+            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
-    };
-
-    // Stone C — entry fn is ALWAYS called with zero args.
-    // `:user::process` contract: `[] -> :wat::core::nil`.
-    // Children use (:wat::kernel::println v) / (:wat::kernel::readln -> :T)
-    // for I/O (routes through services installed by bootstrap above).
-    // 0-arity enforcement: any other arity surfaces a startup error
-    // (prevents silently calling a 2-arity slice-1c fn and hanging).
-    if entry_func.params.len() != 0 {
-        emit_structured_exit(
-            Some(&world),
-            crate::runtime::process_died_error_entry_form_failure_value(format!(
-                "entry_form fn has arity {} (Stone C contract: :user::process is [] -> :nil; \
-                 child uses readln/println for I/O — no rx/tx params)",
-                entry_func.params.len()
-            )),
-        );
-        unsafe { libc::_exit(EXIT_ENTRY_FORM_FAILURE) };
-    }
-
-    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        apply_function(
-            entry_func,
-            Vec::new(),
-            runtime.symbols(),
-            crate::rust_caller_span!(),
-        )
-    }));
-
-    // runtime drops here — cleanup in correct order (deregister →
-    // uninstall ThreadIO → drop sym → drop services → join service
-    // threads). ProcessRuntime::drop handles this via its Drop impl.
-    drop(runtime);
-
-    match outcome {
-        Ok(Ok(_)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Err(runtime_err)) => {
             emit_structured_exit(
                 Some(&world),

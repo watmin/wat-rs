@@ -116,15 +116,19 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 /// in the child's SymbolTable so the `let`-bound call succeeds.
 #[test]
 fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
+    // Arc 170 slice 6 — under the new spawn-process program shape, the
+    // prelude declarations sit at the program's TOP LEVEL alongside
+    // :user::main. The "lift" mechanism that pre-slice-6 moved
+    // declarations from the fn body's do-prefix to the closure prologue
+    // is retired; the natural shape replaces it (declarations live at
+    // their natural top-level position from the start).
     let src = r#"
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
-            (:wat::core::fn
-              []
-              -> :wat::core::nil
-              (:wat::core::do
-                (:wat::core::define (:h::helper -> :wat::core::i64) 42)
+            (:wat::core::forms
+              (:wat::core::define (:h::helper -> :wat::core::i64) 42)
+              (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let [v (:h::helper)] :wat::core::nil)))))
 
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
@@ -146,17 +150,17 @@ fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
 /// accessors. The body then calls `(:h::LocalPoint/new 3 4)` successfully.
 #[test]
 fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
+    // Arc 170 slice 6 — struct sits at program top-level via spawn-process's
+    // program shape (no lift required; the natural shape supersedes it).
     let src = r#"
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
-            (:wat::core::fn
-              []
-              -> :wat::core::nil
-              (:wat::core::do
-                (:wat::core::struct :h::LocalPoint
-                  (x :wat::core::i64)
-                  (y :wat::core::i64))
+            (:wat::core::forms
+              (:wat::core::struct :h::LocalPoint
+                (x :wat::core::i64)
+                (y :wat::core::i64))
+              (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let [p (:h::LocalPoint/new 3 4)] :wat::core::nil)))))
 
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
@@ -178,17 +182,16 @@ fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
 /// successfully.
 #[test]
 fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
+    // Arc 170 slice 6 — enum at program top-level.
     let src = r#"
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
-            (:wat::core::fn
-              []
-              -> :wat::core::nil
-              (:wat::core::do
-                (:wat::core::enum :h::LocalDir
-                  :North
-                  :South)
+            (:wat::core::forms
+              (:wat::core::enum :h::LocalDir
+                :North
+                :South)
+              (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let [d :h::LocalDir::North] :wat::core::nil)))))
 
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
@@ -210,21 +213,21 @@ fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
 /// variant, and calls a local helper define.
 #[test]
 fn probe_mixed_prelude_lift() {
+    // Arc 170 slice 6 — mixed prelude (struct + enum + define) all live
+    // at program top-level via the new spawn-process program shape.
     let src = r#"
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
-            (:wat::core::fn
-              []
-              -> :wat::core::nil
-              (:wat::core::do
-                (:wat::core::struct :h::LocalItem
-                  (value :wat::core::i64))
-                (:wat::core::enum :h::LocalKind
-                  :A
-                  :B)
-                (:wat::core::define (:h::make-item -> :h::LocalItem)
-                  (:h::LocalItem/new 99))
+            (:wat::core::forms
+              (:wat::core::struct :h::LocalItem
+                (value :wat::core::i64))
+              (:wat::core::enum :h::LocalKind
+                :A
+                :B)
+              (:wat::core::define (:h::make-item -> :h::LocalItem)
+                (:h::LocalItem/new 99))
+              (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let
                   [item (:h::make-item)
                    kind :h::LocalKind::A]
@@ -266,18 +269,18 @@ fn probe_mixed_prelude_lift() {
 /// form. The lift is prefix-only, not full-body-define-hoisting.
 #[test]
 fn probe_prelude_prefix_terminates_at_first_expression() {
-    // Body: do with ONE leading define (lifted), then ONE expression (nil).
-    // The expression terminates the prefix. Nothing comes after it.
-    // The early define IS lifted → child can call :h::counted-helper.
+    // Arc 170 slice 6 — the prefix-termination semantics retire under
+    // the new substrate: declarations sit at program top-level naturally
+    // and there is no "prefix" concept. The probe migrates to the
+    // top-level shape; the early define is registered as a normal
+    // top-level form alongside :user::main.
     let src = r#"
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
-            (:wat::core::fn
-              []
-              -> :wat::core::nil
-              (:wat::core::do
-                (:wat::core::define (:h::counted-helper -> :wat::core::i64) 7)
+            (:wat::core::forms
+              (:wat::core::define (:h::counted-helper -> :wat::core::i64) 7)
+              (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let [_v (:h::counted-helper)] :wat::core::nil)))))
 
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)

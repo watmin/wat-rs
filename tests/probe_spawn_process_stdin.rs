@@ -61,21 +61,34 @@ fn process_handle(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
 /// Parent reads 42 via Receiver/from-pipe over Process/stdout (IOReader).
 #[test]
 fn probe_spawn_process_stdin() {
-    // Child: Stone C — reads one i64 from stdin, prints n+1 to stdout.
-    let src = r#"
-        (:wat::core::defn :my::read-plus-one
-          []
-          -> :wat::core::nil
+    // Arc 170 slice 6 — the spawn-process child program defines its own
+    // :user::main inline (read one i64, add 1, print). The parent world
+    // is freeze-only; it doesn't need the worker fn at all because the
+    // child's program is self-contained.
+    let parent_src = r#"
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let world = freeze_ok(parent_src);
+    // Build the child program as a single :user::main define whose body
+    // is the read-plus-print logic. Use parse to construct the body —
+    // simpler than manual AST surgery and matches the source-form path.
+    let child_program_src = r#"
+        (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::let
             [n    (:wat::kernel::readln -> :wat::core::i64)
              _out (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
             :wat::core::nil))
     "#;
-    let world = freeze_ok(src);
+    let child_forms = wat::parser::parse_all_with_file(child_program_src, "<probe>")
+        .expect("child program parse");
+    // Wrap them in (:wat::core::forms <form>...) for the spawn-process call.
+    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), Span::unknown())];
+    forms_items.extend(child_forms);
+    let forms_call = WatAST::List(forms_items, Span::unknown());
     let call = WatAST::List(
         vec![
             WatAST::Keyword(":wat::kernel::spawn-process".into(), Span::unknown()),
-            WatAST::Keyword(":my::read-plus-one".into(), Span::unknown()),
+            forms_call,
         ],
         Span::unknown(),
     );

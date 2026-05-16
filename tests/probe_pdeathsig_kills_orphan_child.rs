@@ -73,10 +73,14 @@ use wat::span::Span;
 /// SHUTDOWN_RX disconnects → typed_recv select! fires Shutdown arm),
 /// recv returns RecvOutcome::Shutdown → RuntimeError propagates up →
 /// spawn_process_child_branch calls libc::_exit.
-const BLOCKING_CHILD_SRC: &str = r#"
-    (:wat::core::defn :test::block-until-shutdown
-      []
-      -> :wat::core::nil
+/// Arc 170 slice 6 — child program for spawn-process is a top-level
+/// (:user::main -> :nil) define.
+const PARENT_SRC: &str = r#"
+    (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+"#;
+
+const CHILD_PROGRAM_SRC: &str = r#"
+    (:wat::core::define (:user::main -> :wat::core::nil)
       (:wat::core::let
         [[tx rx] (:wat::kernel::make-unbounded-channel :wat::core::nil)
          _       (:wat::kernel::recv rx)]
@@ -138,7 +142,7 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 fn probe_pdeathsig_kills_orphan_child() {
     // Step 1: Build the world before forking. Supervisor inherits it via
     // fork's copy-on-write semantics. InMemoryLoader has no disk state.
-    let world = freeze_ok(BLOCKING_CHILD_SRC);
+    let world = freeze_ok(PARENT_SRC);
 
     // Step 2: Create coordination pipe.
     //
@@ -164,10 +168,18 @@ fn probe_pdeathsig_kills_orphan_child() {
         // Phase 3: spawn_process_child_branch now calls
         // close_inherited_fds_above_stdio — no FD-inheritance rendezvous
         // possible; test uses pidfd_open instead.
+        // Arc 170 slice 6 — spawn-process takes a wat PROGRAM
+        // (`Vec<WatAST>`); construct the child program inline.
+        let child_forms = wat::parser::parse_all_with_file(CHILD_PROGRAM_SRC, "<probe>")
+            .expect("child program parse");
+        let mut forms_items =
+            vec![WatAST::Keyword(":wat::core::forms".into(), Span::unknown())];
+        forms_items.extend(child_forms);
+        let forms_call = WatAST::List(forms_items, Span::unknown());
         let call = WatAST::List(
             vec![
                 WatAST::Keyword(":wat::kernel::spawn-process".into(), Span::unknown()),
-                WatAST::Keyword(":test::block-until-shutdown".into(), Span::unknown()),
+                forms_call,
             ],
             Span::unknown(),
         );

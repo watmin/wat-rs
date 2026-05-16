@@ -6,14 +6,12 @@
 //! 170 slice 1f-ζ) to use `spawn-process` with a canonical
 //! `(:user::main -> :wat::core::nil)` entry point.
 //!
-//! Stone C migration: spawn-process child fn contract is now `[] -> nil`.
-//! The phantom type params I/O on `Process<I,O>` are now inferred from
-//! the caller's annotated return type (not from the fn's Receiver/Sender
-//! params). The probe annotates the return of `(:wat::kernel::spawn-process ...)`
-//! as `:wat::kernel::Process<wat::core::i64,wat::core::i64>`. If the
-//! substrate's `instantiate` / `unify` chain handles `Process<I,O>`
-//! correctly with context-driven inference, the source freezes — that
-//! is the phantom-type-param probe under Stone C.
+//! Arc 170 slice 6 — spawn-process now accepts a wat PROGRAM
+//! (`Vec<WatAST>`) instead of a fn. The phantom type params I/O on
+//! `Process<I,O>` continue to unify from the caller's annotated return
+//! type alone; the substrate registers `type_params: vec!["I", "O"]`
+//! on `:wat::kernel::spawn-process` with the program shape's
+//! `Vec<WatAST>` parameter and a `Process<I,O>` return.
 
 use std::sync::Arc;
 use wat::freeze::startup_from_source;
@@ -21,8 +19,12 @@ use wat::load::InMemoryLoader;
 
 #[test]
 fn arc112_probe_spawn_program_parametric_return() {
-    // Stone C: worker fn is [] -> nil. The Process<i64,i64> type params
-    // unify against the launcher's declared return type annotation alone.
+    // Arc 170 slice 6: substrate accepts a wat program. The launch site
+    // constructs the program inline via `:wat::core::forms` + an inner
+    // `:user::main` define whose body invokes the worker. The
+    // Process<i64,i64> type params unify against the launcher's declared
+    // return type annotation alone (program shape carries no fn
+    // signature).
     let src = r##"
         (:wat::core::defn :my::worker
           []
@@ -31,7 +33,10 @@ fn arc112_probe_spawn_program_parametric_return() {
 
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::i64,wat::core::i64>)
-          (:wat::kernel::spawn-process :my::worker))
+          (:wat::kernel::spawn-process
+            (:wat::core::forms
+              (:wat::core::define (:user::main -> :wat::core::nil)
+                (:my::worker)))))
 
         (:wat::core::define (:user::main -> :wat::core::nil)
           :wat::core::nil)

@@ -12586,29 +12586,37 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // (:wat::kernel::spawn-process body) → :wat::kernel::Process<I,O>.
+    // (:wat::kernel::spawn-process program) → :wat::kernel::Process<I,O>.
     //
-    // Arc 170 Stone C. The `:user::process` contract is `[] -> :wat::core::nil`.
-    // The child uses `(:wat::kernel::readln -> :T)` and `(:wat::kernel::println v)`
-    // through ambient stdio (fd 0/1/2 wired by `bootstrap_wat_vm_process`).
-    // No rx/tx parameters — that was the slice-1c wrong turn. Real OS stdio
-    // is canonical at the process boundary; users wrap with
+    // Arc 170 Slice 6 pivot. The `program` arg is a sequence of top-level
+    // wat forms (`:wat::core::Vector<wat::WatAST>`) — exactly what
+    // `wat some-file.wat` would read from disk: optional top-level config
+    // setters, optional helper defines / type declarations, and a
+    // `(:wat::core::define (:user::main -> :wat::core::nil) ...)` entry
+    // point.
+    //
+    // The IPC contract mirrors `wat some-file.wat`: stdin = inputs;
+    // stdout = outputs; stderr = panics. Children use
+    // `(:wat::kernel::readln -> :T)` and `(:wat::kernel::println v)`
+    // through ambient stdio (fd 0/1/2 wired by `bootstrap_wat_vm_process`,
+    // called from within `invoke_user_main`). Real OS stdio is canonical
+    // at the process boundary; users wrap with
     // `:wat::kernel::Sender/from-pipe` / `:wat::kernel::Receiver/from-pipe`
     // at the parent side for typed semantics over the OS pipes.
     //
     // The type params I and O are preserved so `Process<I,O>` unifies with
     // caller-side annotations (e.g. `-> :wat::kernel::Process<i64,i64>`).
-    // Without the fn carrying Receiver<I>/Sender<O>, I and O are inferred
-    // from context (return-type annotation on the outer function).
-    let process_body_fn_ty = || TypeExpr::Fn {
-        args: vec![],
-        ret: Box::new(TypeExpr::Path(":wat::core::nil".into())),
-    };
+    // I and O are inferred from context (return-type annotation on the
+    // outer function); the program shape doesn't surface them at the
+    // call site.
     env.register(
         ":wat::kernel::spawn-process".into(),
         TypeScheme {
             type_params: vec!["I".into(), "O".into()],
-            params: vec![process_body_fn_ty()],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::WatAST".into())],
+            }],
             ret: process_ty(),
             rest_param_type: None,
         },

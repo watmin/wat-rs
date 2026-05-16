@@ -49,18 +49,25 @@ fn process_handle(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
 /// The received value must equal 42.
 #[test]
 fn probe_spawn_process_stdio() {
-    // Child: Stone C contract — [] -> nil; uses println for output.
-    let src = r#"
-        (:wat::core::defn :my::print-42
-          []
-          -> :wat::core::nil
+    // Arc 170 slice 6 — spawn-process takes a wat PROGRAM
+    // (`Vec<WatAST>`); the child's :user::main is self-contained.
+    let parent_src = r#"
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let world = freeze_ok(parent_src);
+    let child_program_src = r#"
+        (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::kernel::println 42))
     "#;
-    let world = freeze_ok(src);
+    let child_forms = wat::parser::parse_all_with_file(child_program_src, "<probe>")
+        .expect("child program parse");
+    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), Span::unknown())];
+    forms_items.extend(child_forms);
+    let forms_call = WatAST::List(forms_items, Span::unknown());
     let call = WatAST::List(
         vec![
             WatAST::Keyword(":wat::kernel::spawn-process".into(), Span::unknown()),
-            WatAST::Keyword(":my::print-42".into(), Span::unknown()),
+            forms_call,
         ],
         Span::unknown(),
     );

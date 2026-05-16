@@ -48,6 +48,35 @@ fn freeze_err(src: &str) -> String {
     }
 }
 
+/// Arc 170 slice 6 helper — build a `(:wat::kernel::spawn-process
+/// (:wat::core::forms <child-program-forms>...))` call AST from a
+/// child-program source string. The child program is parsed via
+/// `parser::parse_all_with_file` and must include a top-level
+/// `(:wat::core::define (:user::main -> :wat::core::nil) ...)`.
+fn build_spawn_process_call(child_program_src: &str) -> WatAST {
+    let child_forms =
+        wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
+            .expect("child program parse");
+    let mut forms_items =
+        vec![WatAST::Keyword(":wat::core::forms".into(), wat::span::Span::unknown())];
+    forms_items.extend(child_forms);
+    let forms_call = WatAST::List(forms_items, wat::span::Span::unknown());
+    WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
+            forms_call,
+        ],
+        wat::span::Span::unknown(),
+    )
+}
+
+/// Arc 170 slice 6 — minimal parent program for tests that don't need
+/// any helper defines at parent freeze time (the child program is
+/// self-contained per the new substrate contract).
+const PARENT_TRIVIAL: &str = r#"
+    (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+"#;
+
 // ─── T1. :user::main [] -> :wat::core::nil signature freezes; 3-arg fires walker ──
 
 #[test]
@@ -229,29 +258,20 @@ fn wait_child_exit_ok(handle: Arc<wat::runtime::ProgramHandleInner>) {
 
 #[test]
 fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
-    // Stone C contract: child is [] -> nil; uses readln/println through
-    // bootstrap services. Top-level defn reads one i64 via readln,
-    // sends back n+1 via println, returns nil. spawn-process forks an
-    // OS process; parent sends 41 via Sender/from-pipe over Process/stdin;
-    // child responds 42 via println (stdout pipe); parent reads 42 via
-    // Receiver/from-pipe over Process/stdout; child exits 0.
-    let src = r#"
-        (:wat::core::defn :my::echo-plus-one
-          []
-          -> :wat::core::nil
+    // Arc 170 slice 6 — spawn-process accepts a wat PROGRAM
+    // (`Vec<WatAST>`). The child program is self-contained: a single
+    // (:user::main -> :nil) define whose body reads one i64, prints n+1.
+    // Parent sends 41 via Sender/from-pipe; child responds 42 via
+    // println; parent reads 42 via Receiver/from-pipe; child exits 0.
+    let world = freeze_ok(PARENT_TRIVIAL);
+    let call = build_spawn_process_call(
+        r#"
+        (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::let
             [n    (:wat::kernel::readln -> :wat::core::i64)
              _out (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
             :wat::core::nil))
-    "#;
-    let world = freeze_ok(src);
-    // Build the spawn-process call form: (:wat::kernel::spawn-process :my::echo-plus-one)
-    let call = WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
-            WatAST::Keyword(":my::echo-plus-one".into(), wat::span::Span::unknown()),
-        ],
-        wat::span::Span::unknown(),
+    "#,
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
@@ -322,21 +342,22 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
 
 #[test]
 fn t5_spawn_process_inline_lambda_round_trips() {
-    // Stone C: No top-level defn — pass an inline (:wat::core::fn ...) directly
-    // as the spawn-process arg. Slice 1b's inline-lambda entry_form path.
-    // Child is [] -> nil; uses readln/println through bootstrap services.
+    // Arc 170 slice 6 — spawn-process accepts a wat PROGRAM
+    // (`Vec<WatAST>`); the launcher constructs the program via
+    // (:wat::core::forms (:wat::core::define ...)). The inline-lambda
+    // entry_form path of slice 1b retires under the new substrate; the
+    // analogous shape is now an inline program. Child is self-contained.
     let src = r#"
         (:wat::core::define
           (:my::launch
             -> :wat::kernel::Process<wat::core::i64,wat::core::i64>)
           (:wat::kernel::spawn-process
-            (:wat::core::fn
-              []
-              -> :wat::core::nil
-              (:wat::core::let
-                [n    (:wat::kernel::readln -> :wat::core::i64)
-                 _out (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
-                :wat::core::nil))))
+            (:wat::core::forms
+              (:wat::core::define (:user::main -> :wat::core::nil)
+                (:wat::core::let
+                  [n    (:wat::kernel::readln -> :wat::core::i64)
+                   _out (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
+                  :wat::core::nil)))))
     "#;
     let world = freeze_ok(src);
     // Invoke the launcher to get the Process Value.
@@ -377,24 +398,42 @@ fn t5_spawn_process_inline_lambda_round_trips() {
 
 #[test]
 fn t6_spawn_process_factory_with_capture_round_trips() {
-    // Stone C: A factory builds a closure capturing a config value, then
-    // spawn-process forks against the captured fn. Slice 1b's
-    // closure-extraction encodes the captured value into prologue
-    // (`(def :__captured_offset N)`); the child re-freezes; the
-    // captured offset survives. Child is [] -> nil; uses readln/println.
+    // Arc 170 slice 6 — closure-capture-across-fork is retired under the
+    // new substrate (programs are static at the substrate boundary).
+    // The substrate-equivalent capability is runtime AST construction:
+    // a launcher splices the runtime value INTO a program AST via
+    // `:wat::core::quasiquote` + `:wat::core::unquote` before handing
+    // the AST to spawn-process. This probe attempts that migration but
+    // the runtime quasiquote evaluator does not currently substitute
+    // unquoted symbols inside a `(:wat::core::Vector :wat::WatAST ...)`
+    // constructor — the child sees the literal `(:wat::core::unquote
+    // offset)` form, which it then evaluates as an unknown function.
+    //
+    // Surfaced as substrate-discovery: T6 needs either (a) runtime
+    // quasiquote eval to honor unquote inside Vector contexts, or
+    // (b) a dedicated runtime AST-template primitive, or (c) Rust-side
+    // launcher construction. Sticking with the quasiquote shape so the
+    // test surfaces the gap honestly until a downstream slice
+    // addresses it.
+    // Note: tested via a let-bound quasiquote form first (the
+    // struct-to-form pattern at wat-tests/core/struct-to-form.wat:39
+    // uses this shape and works). T6 may surface a substrate
+    // interaction between runtime quasiquote and the Vector<WatAST>
+    // constructor; the let-form isolates the quasiquote.
     let src = r#"
         (:wat::core::define
           (:my::launch
             (offset :wat::core::i64)
             -> :wat::kernel::Process<wat::core::i64,wat::core::i64>)
-          (:wat::kernel::spawn-process
-            (:wat::core::fn
-              []
-              -> :wat::core::nil
-              (:wat::core::let
-                [n    (:wat::kernel::readln -> :wat::core::i64)
-                 _out (:wat::kernel::println (:wat::core::i64::+'2 n offset))]
-                :wat::core::nil))))
+          (:wat::core::let
+            [main-form `(:wat::core::define (:user::main -> :wat::core::nil)
+                          (:wat::core::let
+                            [n    (:wat::kernel::readln -> :wat::core::i64)
+                             _out (:wat::kernel::println
+                                    (:wat::core::i64::+'2 n ~offset))]
+                            :wat::core::nil))]
+            (:wat::kernel::spawn-process
+              (:wat::core::Vector :wat::WatAST main-form))))
     "#;
     let world = freeze_ok(src);
     let launcher = world.symbols().get(":my::launch").expect("launch defined");
@@ -422,7 +461,28 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     let stdout_reader = process_stdout_field(&process);
     let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
     let receiver_inner = unwrap_receiver_inner(&receiver_val);
-    let response = drive_typed_recv(receiver_inner, types);
+    let recv_outcome =
+        wat::typed_channel::typed_recv(receiver_inner, types, wat::span::Span::unknown());
+    let response = match recv_outcome {
+        wat::typed_channel::RecvOutcome::Value(v) => v,
+        other => {
+            // Drain child stderr for diagnostic.
+            let stderr_text = match &process {
+                Value::Struct(s) => match &s.fields[2] {
+                    Value::io__IOReader(rdr) => {
+                        let mut all = String::new();
+                        while let Ok(Some(line)) = rdr.read_line(wat::span::Span::unknown()) {
+                            all.push_str(&line);
+                        }
+                        all
+                    }
+                    _ => "<not IOReader>".to_string(),
+                },
+                _ => "<not Struct>".to_string(),
+            };
+            panic!("t6 recv failed ({:?}); child stderr:\n{}", other, stderr_text);
+        }
+    };
     match response {
         Value::i64(n) => assert_eq!(n, 107, "expected 100+7=107; got {}", n),
         other => panic!("expected i64; got {:?}", other),
@@ -699,21 +759,14 @@ fn t11_legacy_main_signature_fires_walker_diagnostic() {
 
 #[test]
 fn t12_spawn_process_child_emits_without_recv() {
-    // Stone C: child is [] -> nil; emits via println (no recv).
-    // Parent reads the emitted value from Process/stdout via Receiver/from-pipe.
-    let src = r#"
-        (:wat::core::defn :my::emit-hello
-          []
-          -> :wat::core::nil
+    // Arc 170 slice 6 — child is a self-contained program emitting via
+    // println; parent reads via Receiver/from-pipe.
+    let world = freeze_ok(PARENT_TRIVIAL);
+    let call = build_spawn_process_call(
+        r#"
+        (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::kernel::println "hello-from-fork"))
-    "#;
-    let world = freeze_ok(src);
-    let call = WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
-            WatAST::Keyword(":my::emit-hello".into(), wat::span::Span::unknown()),
-        ],
-        wat::span::Span::unknown(),
+    "#,
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
@@ -739,22 +792,13 @@ fn t12_spawn_process_child_emits_without_recv() {
 
 #[test]
 fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
-    // Stone C: child is [] -> nil; returns immediately. Parent drops
-    // the Process (which closes stdin/stdout pipes) → child exits 0.
-    // Tests that drop + wait_child_exit_ok works under Stone C's 0-arity shape.
-    let src = r#"
-        (:wat::core::defn :my::immediate-exit
-          []
-          -> :wat::core::nil
-          :wat::core::nil)
-    "#;
-    let world = freeze_ok(src);
-    let call = WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
-            WatAST::Keyword(":my::immediate-exit".into(), wat::span::Span::unknown()),
-        ],
-        wat::span::Span::unknown(),
+    // Arc 170 slice 6 — child program returns immediately; parent drops
+    // Process (closes stdin/stdout pipes) → child exits 0.
+    let world = freeze_ok(PARENT_TRIVIAL);
+    let call = build_spawn_process_call(
+        r#"
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#,
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
@@ -773,20 +817,13 @@ fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
 
 #[test]
 fn t14_spawn_process_wait_handle_is_idempotent() {
-    // Stone C: child is [] -> nil.
-    let src = r#"
-        (:wat::core::defn :my::idle-worker
-          []
-          -> :wat::core::nil
-          :wat::core::nil)
-    "#;
-    let world = freeze_ok(src);
-    let call = WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
-            WatAST::Keyword(":my::idle-worker".into(), wat::span::Span::unknown()),
-        ],
-        wat::span::Span::unknown(),
+    // Arc 170 slice 6 — child program returns immediately; idempotent
+    // wait_or_cached caches exit 0 on first wait and reuses it on the second.
+    let world = freeze_ok(PARENT_TRIVIAL);
+    let call = build_spawn_process_call(
+        r#"
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#,
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
@@ -809,25 +846,16 @@ fn t14_spawn_process_wait_handle_is_idempotent() {
 
 #[test]
 fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
-    // Stone C: child is [] -> nil; panics intentionally before printing.
-    // Parent reads from Process/stdout via Receiver/from-pipe — should
-    // get Disconnected (child panicked before println). Handle exit
-    // code is non-zero (EXIT_PANIC=2).
-    let src = r#"
-        (:wat::core::defn :my::panic-worker
-          []
-          -> :wat::core::nil
+    // Arc 170 slice 6 — child panics intentionally before printing;
+    // parent's recv returns Disconnected; exit code is non-zero.
+    let world = freeze_ok(PARENT_TRIVIAL);
+    let call = build_spawn_process_call(
+        r#"
+        (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::Option/expect -> :wat::core::nil
             :wat::core::None
             "intentional panic in child"))
-    "#;
-    let world = freeze_ok(src);
-    let call = WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
-            WatAST::Keyword(":my::panic-worker".into(), wat::span::Span::unknown()),
-        ],
-        wat::span::Span::unknown(),
+    "#,
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
@@ -1178,22 +1206,15 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
 
 #[test]
 fn t16_spawn_process_sequential_spawns_no_fd_zombie_leak() {
-    // Stone C: child is [] -> nil.
-    let src = r#"
-        (:wat::core::defn :my::idle-worker-seq
-          []
-          -> :wat::core::nil
-          :wat::core::nil)
-    "#;
-    let world = freeze_ok(src);
+    // Arc 170 slice 6 — three sequential spawn-process+exit cycles;
+    // pipes close cleanly; waitpid reaps zombies; no accumulation.
+    let world = freeze_ok(PARENT_TRIVIAL);
     let env = Environment::new();
     for _ in 0..3 {
-        let call = WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
-                WatAST::Keyword(":my::idle-worker-seq".into(), wat::span::Span::unknown()),
-            ],
-            wat::span::Span::unknown(),
+        let call = build_spawn_process_call(
+            r#"
+            (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        "#,
         );
         let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
         let handle = process_handle_field(&process);

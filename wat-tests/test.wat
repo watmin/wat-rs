@@ -141,6 +141,35 @@
      expected (:wat::core::Vector :wat::core::String "\"alpha\"" "\"beta\"")]
     (:wat::test::assert-stdout-is inner expected)))
 
+;; ─── run-hermetic-with-prelude — proof of capability (arc 170 slice 6) ──
+;;
+;; Arc 170 slice 6 minted the new `:wat::test::run-hermetic-with-prelude`
+;; macro that exposes the program's prelude slot (the substrate's new
+;; spawn-process program shape lets the caller construct any wat program
+;; — config setters, type declarations, helper defines — preceding the
+;; entry-point `(:user::main -> :nil)` define).
+;;
+;; This deftest is the proof-of-capability: a prelude define is declared
+;; at program top-level via the macro, and :user::main's body invokes
+;; it. The child's `startup_from_forms` registers the helper at startup
+;; (top-level position); the body's invocation resolves at runtime.
+;; assert-stdout-is verifies the child's println landed on stdout.
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-run-hermetic-with-prelude-proof
+  ()
+  (:wat::core::let
+    [inner
+      (:wat::test::run-hermetic-with-prelude
+        ;; Prelude — spliced as top-level program forms BEFORE :user::main.
+        ;; A helper define that the body invokes; the helper itself prints
+        ;; the captured string so the test verifies the prelude binding
+        ;; was actually registered + callable in the child.
+        ((:wat::core::define (:prelude::helper -> :wat::core::nil)
+           (:wat::kernel::println "from-prelude-helper")))
+        ;; Body — :user::main runs this.
+        (:prelude::helper))
+     expected (:wat::core::Vector :wat::core::String "\"from-prelude-helper\"")]
+    (:wat::test::assert-stdout-is inner expected)))
+
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
 
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-pass

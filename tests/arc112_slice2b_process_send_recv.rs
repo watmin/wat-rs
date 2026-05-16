@@ -49,9 +49,16 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
         ;; The CLAIM under verification: send/recv verbs type-check correctly
         ;; over Sender/from-pipe and Receiver/from-pipe wrappers at the
         ;; process boundary.
+        ;;
+        ;; Arc 170 slice 6: spawn-process accepts a wat PROGRAM
+        ;; (`Vec<WatAST>`) — the program here is a one-form program: the
+        ;; child's `:user::main` define whose body invokes the worker fn.
         (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [proc (:wat::kernel::spawn-process :my::echo-worker)
+            [proc (:wat::kernel::spawn-process
+                    (:wat::core::forms
+                      (:wat::core::define (:user::main -> :wat::core::nil)
+                        (:my::echo-worker))))
              tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
              rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
              ;; send: use Result/expect (non-silent per arc 110).
