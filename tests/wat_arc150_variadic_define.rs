@@ -237,15 +237,27 @@ fn signature_of_variadic_define_returns_rest_shape() {
         other => panic!("expected String; got {:?}", other),
     };
     // Key substrings: the function name, the `&` rest-marker, the
-    // rest-binder name `xs`, and the rest-binder type `Vec<i64>`
-    // (the substrate canonicalises Vector to Vec at registration).
+    // rest-binder name `xs`, and the rest-binder type.
+    //
+    // Arc 201 slice 1 — the rest-binder's Parametric type slot is now
+    // emitted as a STRUCTURED Bundle, not a flat keyword string. The
+    // `Vec<i64>` / `Vector<i64>` / `Vector<wat::core::i64>` legacy flat
+    // spellings no longer appear; instead, the head and arg are each
+    // their own Symbol entry inside a Bundle: `Symbol ":wat::core::Vector"`
+    // and `Symbol ":wat::core::i64"`. Asserting both confirms the
+    // structured emission reached the variadic rest slot.
     assert!(rendered.contains("sum-of"), "expected 'sum-of' in {}", rendered);
     assert!(rendered.contains("\"&\""), "expected '&' rest-marker symbol in {}", rendered);
     assert!(rendered.contains("\"xs\""), "expected 'xs' rest-binder name in {}", rendered);
     assert!(
-        rendered.contains("Vec<i64>") || rendered.contains("Vector<i64>")
-            || rendered.contains("Vector<wat::core::i64>"),
-        "expected Vec/Vector<i64> in rest-binder type in {}", rendered
+        rendered.contains(":wat::core::Vector"),
+        "expected ':wat::core::Vector' Parametric head in rest-binder type in {}",
+        rendered
+    );
+    assert!(
+        rendered.contains(":wat::core::i64"),
+        "expected ':wat::core::i64' Parametric arg in rest-binder type in {}",
+        rendered
     );
     assert!(rendered.contains("init"), "expected 'init' fixed-param name in {}", rendered);
 }

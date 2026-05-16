@@ -3086,16 +3086,19 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
                     span: item.span().clone(),
                 });
             }
+            // Arc 201 slice 1 — accept either a keyword (legacy source
+            // form) or a structured-AST list (from a re-spliced
+            // signature). `parse_type_slot` walks both shapes.
             match item {
-                WatAST::Keyword(k, _) => {
-                    ret_type = Some(parse_type_keyword(&k)?);
+                WatAST::Keyword(_, _) | WatAST::List(_, _) => {
+                    ret_type = Some(parse_type_slot(&item)?);
                 }
                 other => {
                     let other_span = other.span().clone();
                     return Err(RuntimeError::MalformedForm {
                         head: ":wat::core::define".into(),
                         reason: format!(
-                            "return type after '->' must be a type keyword; got {}",
+                            "return type after '->' must be a type keyword or structured type list; got {}",
                             ast_variant_name(&other)
                         ),
                         span: other_span,
@@ -3253,22 +3256,15 @@ fn parse_param_pair(
         }
         None => unreachable!("length checked above"),
     };
-    let type_kw = match it.next() {
-        Some(WatAST::Keyword(k, _)) => k,
-        Some(other) => {
-            let other_span = other.span().clone();
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::define".into(),
-                reason: format!(
-                    "parameter type must be a type keyword; got {}",
-                    ast_variant_name(&other)
-                ),
-                span: other_span,
-            });
-        }
+    // Arc 201 slice 1 — accept either a keyword (legacy source form)
+    // or a structured-AST list (the shape `signature-of` emits for
+    // Parametric / Tuple / Fn types, which arc-143 `define-alias`
+    // splices back into a fresh define). `parse_type_slot` walks both
+    // shapes to the same `TypeExpr`.
+    let ty = match it.next() {
+        Some(ast) => parse_type_slot(&ast)?,
         None => unreachable!("length checked above"),
     };
-    let ty = parse_type_keyword(&type_kw)?;
     Ok((name, ty))
 }
 
@@ -3280,6 +3276,127 @@ fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> 
         reason: e.to_string(),
         span: Span::unknown(),
     })
+}
+
+/// Arc 201 slice 1 — accept EITHER a keyword (legacy source form) OR a
+/// structured-AST list (the shape `type_expr_to_ast` emits) as the
+/// type slot of a `define` parameter pair. The structured form arises
+/// when a reflection consumer (e.g. `:wat::runtime::define-alias`)
+/// takes a signature head from `signature-of` and splices it back into
+/// a fresh `define`: the splice carries `WatAST::List` for every
+/// Parametric / Tuple / Fn type, where the original source wrote a
+/// `WatAST::Keyword`.
+///
+/// Both routes converge on the same `TypeExpr`. Source-keyword inputs
+/// go through `crate::types::parse_type_expr` (which understands the
+/// `:Head<args>` / `:(T,U)` / `:Fn(T)->U` surface spelling). Structured-
+/// AST inputs are walked directly:
+///
+/// - `WatAST::List [Keyword ":Tuple", ...args]` → `TypeExpr::Tuple`
+/// - `WatAST::List [Keyword ":Fn", ...args, Symbol "->", ret]` → `TypeExpr::Fn`
+/// - `WatAST::List [Keyword ":Head", ...args]` (any other head) →
+///   `TypeExpr::Parametric { head: Head sans-colon, args: recurse }`
+///
+/// Atomic positions (`WatAST::Keyword`) recurse via `parse_type_keyword`
+/// so the existing surface spelling stays the source of truth for
+/// Path / Var shapes.
+fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, RuntimeError> {
+    match ast {
+        WatAST::Keyword(k, _) => parse_type_keyword(k),
+        WatAST::List(items, span) => {
+            if items.is_empty() {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::define".into(),
+                    reason: "structured type slot must be a non-empty list".into(),
+                    span: span.clone(),
+                });
+            }
+            let head_kw = match &items[0] {
+                WatAST::Keyword(k, _) => k.as_str(),
+                other => {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::define".into(),
+                        reason: format!(
+                            "structured type slot head must be a keyword; got {}",
+                            ast_variant_name(other)
+                        ),
+                        span: other.span().clone(),
+                    });
+                }
+            };
+            // :Fn — args*, Symbol("->"), ret. Split at the arrow.
+            if head_kw == ":Fn" {
+                let mut arrow_idx: Option<usize> = None;
+                for (i, child) in items.iter().enumerate().skip(1) {
+                    if let WatAST::Symbol(ident, _) = child {
+                        if ident.name.as_str() == "->" {
+                            arrow_idx = Some(i);
+                            break;
+                        }
+                    }
+                }
+                let arrow = arrow_idx.ok_or_else(|| RuntimeError::MalformedForm {
+                    head: ":wat::core::define".into(),
+                    reason: "structured :Fn type missing '->' arrow".into(),
+                    span: span.clone(),
+                })?;
+                if arrow + 1 >= items.len() {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::define".into(),
+                        reason: "structured :Fn type missing return-type slot after '->'".into(),
+                        span: span.clone(),
+                    });
+                }
+                if arrow + 2 != items.len() {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::define".into(),
+                        reason: "structured :Fn type has extra slots after return type".into(),
+                        span: span.clone(),
+                    });
+                }
+                let mut fn_args: Vec<crate::types::TypeExpr> =
+                    Vec::with_capacity(arrow.saturating_sub(1));
+                for child in items.iter().skip(1).take(arrow.saturating_sub(1)) {
+                    fn_args.push(parse_type_slot(child)?);
+                }
+                let ret = parse_type_slot(&items[arrow + 1])?;
+                return Ok(crate::types::TypeExpr::Fn {
+                    args: fn_args,
+                    ret: Box::new(ret),
+                });
+            }
+            // :Tuple — all remaining children are element types.
+            if head_kw == ":Tuple" {
+                let mut elems: Vec<crate::types::TypeExpr> =
+                    Vec::with_capacity(items.len().saturating_sub(1));
+                for child in items.iter().skip(1) {
+                    elems.push(parse_type_slot(child)?);
+                }
+                return Ok(crate::types::TypeExpr::Tuple(elems));
+            }
+            // Any other head — Parametric. Strip the leading ':' to
+            // recover the head spelling used by `TypeExpr::Parametric`
+            // (which stores the FQDN sans-colon, e.g. `wat::core::Option`).
+            let head_no_colon = head_kw.strip_prefix(':').unwrap_or(head_kw).to_string();
+            let mut p_args: Vec<crate::types::TypeExpr> =
+                Vec::with_capacity(items.len().saturating_sub(1));
+            for child in items.iter().skip(1) {
+                p_args.push(parse_type_slot(child)?);
+            }
+            Ok(crate::types::TypeExpr::Parametric {
+                head: head_no_colon,
+                args: p_args,
+            })
+        }
+        other => Err(RuntimeError::MalformedForm {
+            head: ":wat::core::define".into(),
+            reason: format!(
+                "parameter type must be a type keyword or structured type list; got {}",
+                ast_variant_name(other)
+            ),
+            span: other.span().clone(),
+        }),
+    }
 }
 
 /// Arc 139 — strip a turbofish-style `<T,U,...>` suffix from a
@@ -8894,11 +9011,78 @@ fn eval_struct_to_form(
 // data. Used by `eval_lookup_define`, `eval_signature_of`, `eval_body_of`.
 // None of these are exposed to wat; they are pure implementation detail.
 
-/// Render a `TypeExpr` as a WatAST keyword node.
-/// Delegates to `crate::check::format_type` which produces the canonical
-/// `:foo<Bar>` / `:fn(A,B)->R` / `:(T,U)` surface spelling.
-fn type_expr_to_kw(ty: &crate::types::TypeExpr) -> WatAST {
-    WatAST::Keyword(crate::check::format_type(ty), Span::unknown())
+/// Arc 201 slice 1 — render a `TypeExpr` as a STRUCTURED WatAST node
+/// for signature emission. Replaces arc 143's `type_expr_to_kw` (which
+/// flattened every shape to a single Keyword via `format_type`).
+///
+/// Emission rules:
+/// - `TypeExpr::Path(p)` → `WatAST::Keyword(p)` — `p` already carries
+///   its leading `:` (e.g. `:wat::core::i64`); atomic.
+/// - `TypeExpr::Parametric { head, args }` →
+///   `WatAST::List [ Keyword(":"+head), ...recurse(args) ]` — head is
+///   stored WITHOUT the leading colon (e.g. `wat::core::Option`), so
+///   we prepend `:` to match keyword convention. Args recurse so nested
+///   generics stay structured all the way down.
+/// - `TypeExpr::Tuple(args)` →
+///   `WatAST::List [ Keyword(":Tuple"), ...recurse(args) ]` — `:Tuple`
+///   is the synthetic head marker (no head string is carried in the
+///   variant). Empty tuple `:()` lowers to `(:Tuple)`.
+/// - `TypeExpr::Fn { args, ret }` →
+///   `WatAST::List [ Keyword(":Fn"), ...recurse(args), Symbol("->"),
+///                   recurse(ret) ]` — `->` is a Symbol (not a Keyword)
+///   so it round-trips through the same shape the existing
+///   `extract-arg-names` walker recognises (`HolonAST::Symbol("->")`).
+/// - `TypeExpr::Var(id)` → `WatAST::Keyword(":?{id}")` — mirrors
+///   `format_type`'s Var spelling; type variables stay atomic.
+///
+/// Downstream `watast_to_holon` lowers `WatAST::List` → `HolonAST::Bundle`
+/// and `WatAST::Keyword(":Foo")` → `HolonAST::Symbol(":Foo")` uniformly,
+/// so the reflection consumer sees structured `HolonAST::Bundle` for
+/// every Parametric / Tuple / Fn type and `HolonAST::Symbol` for every
+/// Path / Var. Type-driven macros can walk the structure via the
+/// existing HolonAST Bundle accessors instead of parsing keyword strings.
+///
+/// NOTE: this does NOT replace `format_type`. `format_type` remains the
+/// canonical source for DIAGNOSTIC / error-message spellings; only
+/// SIGNATURE emission paths (the helpers below + `dispatch_to_signature_ast`'s
+/// ret-type slot) get the structured form.
+fn type_expr_to_ast(ty: &crate::types::TypeExpr) -> WatAST {
+    let span = Span::unknown();
+    match ty {
+        crate::types::TypeExpr::Path(p) => WatAST::Keyword(p.clone(), span),
+        crate::types::TypeExpr::Parametric { head, args } => {
+            let mut items: Vec<WatAST> = Vec::with_capacity(1 + args.len());
+            items.push(WatAST::Keyword(format!(":{}", head), span.clone()));
+            for a in args {
+                items.push(type_expr_to_ast(a));
+            }
+            WatAST::List(items, span)
+        }
+        crate::types::TypeExpr::Tuple(args) => {
+            let mut items: Vec<WatAST> = Vec::with_capacity(1 + args.len());
+            items.push(WatAST::Keyword(":Tuple".into(), span.clone()));
+            for a in args {
+                items.push(type_expr_to_ast(a));
+            }
+            WatAST::List(items, span)
+        }
+        crate::types::TypeExpr::Fn { args, ret } => {
+            let mut items: Vec<WatAST> = Vec::with_capacity(3 + args.len());
+            items.push(WatAST::Keyword(":Fn".into(), span.clone()));
+            for a in args {
+                items.push(type_expr_to_ast(a));
+            }
+            items.push(WatAST::Symbol(
+                crate::identifier::Identifier::bare("->"),
+                span.clone(),
+            ));
+            items.push(type_expr_to_ast(ret));
+            WatAST::List(items, span)
+        }
+        crate::types::TypeExpr::Var(id) => {
+            WatAST::Keyword(format!(":?{}", id), span)
+        }
+    }
 }
 
 /// Build `(<name><type_params> (param0 :Type0) (param1 :Type1) ... -> :Ret)`
@@ -8925,7 +9109,7 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
                     crate::identifier::Identifier::bare(param.clone()),
                     span.clone(),
                 ),
-                type_expr_to_kw(ty),
+                type_expr_to_ast(ty),
             ],
             span.clone(),
         ));
@@ -8948,7 +9132,7 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
                     crate::identifier::Identifier::bare(rest_name.clone()),
                     span.clone(),
                 ),
-                type_expr_to_kw(rest_ty),
+                type_expr_to_ast(rest_ty),
             ],
             span.clone(),
         ));
@@ -8958,7 +9142,7 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
         crate::identifier::Identifier::bare("->"),
         span.clone(),
     ));
-    items.push(type_expr_to_kw(&f.ret_type));
+    items.push(type_expr_to_ast(&f.ret_type));
     WatAST::List(items, span)
 }
 
@@ -8998,7 +9182,7 @@ fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -
                     crate::identifier::Identifier::bare(format!("_a{}", i)),
                     span.clone(),
                 ),
-                type_expr_to_kw(ty),
+                type_expr_to_ast(ty),
             ],
             span.clone(),
         ));
@@ -9007,7 +9191,7 @@ fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -
         crate::identifier::Identifier::bare("->"),
         span.clone(),
     ));
-    items.push(type_expr_to_kw(&scheme.ret));
+    items.push(type_expr_to_ast(&scheme.ret));
     WatAST::List(items, span)
 }
 
@@ -9247,12 +9431,16 @@ fn dispatch_to_signature_ast(mm: &crate::dispatch::Dispatch, sym: &SymbolTable) 
     // synthesise `:T` as the honest fallback. Letters cycle T, U, V, ...
     // for param-type-var names (`:T0`-style would be ugly; T/U/V is the
     // wat-rs convention).
+    // Arc 201 slice 1 — ret type emits as structured AST (Bundle for
+    // Parametric / Tuple / Fn shapes; Keyword for Path / Var). The
+    // synthetic `:T` fallback stays a Keyword (it's a placeholder, not a
+    // real TypeExpr).
     let ret_kw: WatAST = match mm.arms.first() {
         Some(arm) => {
             if let Some(Binding::Primitive { scheme, .. }) =
                 lookup_form(&arm.impl_name, sym)
             {
-                WatAST::Keyword(type_expr_to_keyword(&scheme.ret), span.clone())
+                type_expr_to_ast(&scheme.ret)
             } else {
                 WatAST::Keyword(":T".into(), span.clone())
             }
