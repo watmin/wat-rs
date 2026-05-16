@@ -10,23 +10,26 @@
 ;; deftest so the failure trace names the broken layer.
 ;;
 ;; Slice mission — verify the forked-child orchestrator path (slice
-;; 1f-γ) continues to work after the arc 170 migration. Each helper
-;; uses :wat::test::run-hermetic-ast which forks a child via
-;; :wat::kernel::fork-program-ast; the child boots
-;; invoke_user_main_orchestrated, which spawns the trio services,
-;; registers thread-0, and runs the inner :user::main. The inner
-;; main's (:wat::kernel::println v) call routes through the trio to
-;; the child's fd 1; the parent drains via OS pipe → RunResult.
-;; deftest-hermetic (NOT deftest) on every test — the in-process
-;; path skips the fd pipeline; only the forked-child path exercises
-;; the orchestrator boot + service spawn + dup-fds + drain machinery.
+;; 1f-γ) continues to work after the arc 170 migration. Layers 0-3
+;; use :wat::test::run-hermetic (Layer 1, byte-stream RunResult);
+;; Layer 4 uses :wat::test::run-hermetic-with-io (Layer 2, typed
+;; channel RunResultIO<O>). Both layers call :wat::kernel::spawn-
+;; process underneath, which forks a child that boots bootstrap-fn
+;; → spawns the trio services → registers thread-0 → runs the
+;; user-supplied body. The body's (:wat::kernel::println v) / readln
+;; calls route through the trio to/from the child's fd 0/1/2; the
+;; parent drains via OS pipe — as raw lines for Layer 1, as typed-
+;; EDN-decoded values for Layer 2. deftest-hermetic (NOT deftest) on
+;; every test — the in-process path skips the fd pipeline; only the
+;; forked-child path exercises the orchestrator boot + service
+;; spawn + dup-fds + drain machinery.
 ;;
 ;; Top-down dependency graph (top → bottom; no forward refs):
-;;   Layer 0 :test::run-println-string   → run-hermetic-ast { (println "hello") }
-;;   Layer 1 :test::run-println-i64      → run-hermetic-ast { (println 42)      }
-;;   Layer 2 :test::run-eprintln-string  → run-hermetic-ast { (eprintln "err")  }
-;;   Layer 3 :test::run-println-twice    → run-hermetic-ast { 2× println        }
-;;   Layer 4 :test::run-readln-echo      → run-hermetic-ast { readln → println }
+;;   Layer 0 :test::run-println-string   → run-hermetic         { (println "hello") }
+;;   Layer 1 :test::run-println-i64      → run-hermetic         { (println 42)      }
+;;   Layer 2 :test::run-eprintln-string  → run-hermetic         { (eprintln "err")  }
+;;   Layer 3 :test::run-println-twice    → run-hermetic         { 2× println        }
+;;   Layer 4 :test::run-readln-echo      → run-hermetic-with-io { readln → println }
 
 ;; ─── Prelude — layered helpers spliced into each deftest ────────────
 ;;
@@ -84,37 +87,40 @@
          (:wat::kernel::println "second")
          :wat::core::nil)))
 
-   ;; ─── Layer 4 helper — readln round trip via stdin pre-seed ───────
+   ;; ─── Layer 4 helper — readln round trip via Layer 2 typed I/O ────
    ;;
-   ;; Test seeds stdin with one EDN line; inner main reads it via
-   ;; (readln -> :String) which parses the EDN line "echo me" (with
-   ;; quotes on the wire) into a native :wat::core::String "echo me"
-   ;; (without quotes), then prints the form back. Println re-EDN-
-   ;; encodes the String to "\"echo me\"" (with quotes). Proves both
-   ;; directions of the trio: input parsed in, output rendered out.
+   ;; Layer 2 (run-hermetic-with-io) wraps the child's fd 0/1 as typed
+   ;; channels: parent-side Sender<I>/from-pipe over Process/stdin and
+   ;; Receiver<O>/from-pipe over Process/stdout. The parent passes a
+   ;; native :wat::core::String "echo me"; Sender/from-pipe EDN-encodes
+   ;; it onto fd 0 (the wire form is `"echo me"` — the canonical EDN
+   ;; quoted form). The child body still runs through the trio
+   ;; orchestrator the same way as Layer 1: ambient (:wat::kernel::
+   ;; readln -> :String) reads from fd 0 (the StdInService routes the
+   ;; line up), parses the EDN-quoted wire form back to a native
+   ;; String "echo me", then (:wat::kernel::println echoed) renders
+   ;; the native String to its EDN-quoted form on fd 1. On the parent
+   ;; side, Receiver/from-pipe over Process/stdout decodes the EDN
+   ;; line back to a native String, which lands in RunResultIO/outputs.
    ;;
-   ;; Arc 170 slice 1f-iota — readln is polymorphic via the call-site
-   ;; `-> :T` annotation. Pre-1f-iota readln returned :HolonAST and
-   ;; the stdout assertion expected a tagged HolonAST String render
-   ;; (`#wat-edn.holon/String "echo me"`); post-1f-iota readln returns
-   ;; the native :String and the stdout assertion sees the canonical
-   ;; EDN-quoted form (`"echo me"`).
-   ;;
-   ;; The stdin vec uses TWO elements so the substrate's
-   ;; (:wat::core::string::join "\n" stdin) produces a trailing newline
-   ;; — IOReader/read-line in the stdin service blocks until \n
-   ;; arrives, and the parent process doesn't close stdin until
-   ;; :user::main exits (hermetic.wat docstring § Limitations).
+   ;; The round trip exercises both halves of the trio (stdin reader +
+   ;; stdout writer) and the symmetric EDN encode/decode at the typed-
+   ;; channel boundary. What changed from the legacy Layer 0 wire
+   ;; format: stdin pre-seed used to be a raw EDN string Vec with an
+   ;; explicit trailing-newline element to drive IOReader/read-line;
+   ;; Layer 2's Sender/from-pipe writes a complete EDN line per typed
+   ;; send (newline framing built in), and child exit closes fd 1 so
+   ;; the parent's Receiver/from-pipe drain sees EOF cleanly. T18
+   ;; bounded I/O: one send → one recv → child exits.
    (:wat::core::define
-     (:test::run-readln-echo -> :wat::kernel::RunResult)
-     (:wat::test::run-hermetic-ast
-       (:wat::test::program
-         (:wat::core::define
-           (:user::main -> :wat::core::nil)
-           (:wat::core::let
-             [echoed (:wat::kernel::readln -> :wat::core::String)]
-             (:wat::kernel::println echoed))))
-       (:wat::core::Vector :wat::core::String "\"echo me\"" "")))
+     (:test::run-readln-echo -> :wat::test::RunResultIO<wat::core::String>)
+     (:wat::test::run-hermetic-with-io
+       :wat::core::String                                  ;; input element type
+       :wat::core::String                                  ;; output element type
+       (:wat::core::Vector :wat::core::String "echo me")   ;; native String (Sender/from-pipe EDN-encodes)
+       (:wat::core::let
+         [echoed (:wat::kernel::readln -> :wat::core::String)]
+         (:wat::kernel::println echoed))))
    ))
 
 ;; ─── Layer 0 — :test::run-println-string ────────────────────────────
@@ -171,17 +177,21 @@
 
 ;; ─── Layer 4 — :test::run-readln-echo ───────────────────────────────
 ;;
-;; Stdin pre-seed delivers "echo me" (EDN-quoted) to the trio reader;
-;; (readln -> :String) parses the EDN line into a native String "echo
-;; me" (without quotes); println re-EDN-encodes it on stdout. Per the
-;; arc 170 slice 1f-iota EDN-only contract, the round trip preserves
-;; the canonical EDN form: "\"echo me\"" goes in, "\"echo me\"" comes
-;; out (the inner String is the same, the outer EDN-quoting is
-;; symmetric). The round trip proves the stdin half of the trio is
-;; wired into the orchestrator the same way as the stdout half.
+;; Layer 2 (run-hermetic-with-io) round trip: parent sends a native
+;; :wat::core::String "echo me" through the typed Sender<String> over
+;; Process/stdin (EDN-encoded on the wire); the child's (readln
+;; -> :String) reads + parses + binds the native String; (println
+;; echoed) writes it back through the trio to fd 1; the parent's
+;; Receiver<String>/from-pipe decodes the EDN line into a native
+;; String, landing in RunResultIO/outputs. assert-eq compares the
+;; outputs vector to (Vector :String "echo me") — a one-element vec of
+;; native Strings (no EDN quotes). The round trip proves the stdin
+;; half of the trio is wired into the orchestrator the same way as
+;; the stdout half, and that the typed-channel EDN encode/decode is
+;; symmetric at the Layer 2 boundary.
 
 (:wat::test::time-limit "15000ms")
 (:deftest-ambient :wat-rs::test::test-ambient-stdio-readln-echo
-  (:wat::test::assert-stdout-is
-    (:test::run-readln-echo)
-    (:wat::core::Vector :wat::core::String "\"echo me\"")))
+  (:wat::test::assert-eq
+    (:wat::test::RunResultIO/outputs (:test::run-readln-echo))
+    (:wat::core::Vector :wat::core::String "echo me")))
