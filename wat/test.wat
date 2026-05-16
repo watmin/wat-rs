@@ -257,20 +257,24 @@
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :wat::core::None))
 
-;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031; arc 170 slice 3 phase E V5) ───
+;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031; arc 170 slice 3 phase E V5; arc 170 slice 4a-γ-flip) ───
 ;;
 ;; Registers a named zero-arg test function that returns TestResult (= RunResult).
-;; The body runs in a hermetic subprocess via :wat::test::run-hermetic
-;; (arc 170 slice 3 phase C). Subprocess isolation is the default —
-;; every deftest is hermetic. The `prelude` list splices top-level
-;; forms (loads, type declarations, defmacros, struct/enum definitions)
-;; at the deftest's EXPANSION SITE under (:wat::core::do ...), registering
-;; them in the outer symbol table and TypeEnv at freeze time.
+;; The body runs in a cheap in-process THREAD via :wat::test::run-thread
+;; (arc 170 slice 4a-γ-flip; the macro's mid-migration name is `run-thread`
+;; and retires to `run` in 4c-β). For tests requiring process-level isolation
+;; (captured stdio, mutated runtime config, ambient stdio verb calls — see
+;; docs/COMPACTION-AMNESIA-RECOVERY.md § FM 7-ter), use `:wat::test::deftest-hermetic`
+;; below. The `prelude` list splices top-level forms (loads, type declarations,
+;; defmacros, struct/enum definitions) at the deftest's EXPANSION SITE under
+;; (:wat::core::do ...), registering them in the outer symbol table and
+;; TypeEnv at freeze time.
 ;; Gap J (arc 170 slice 3) ensures type declarations (struct/enum/newtype/
 ;; typealias) nested in the outer do are registered in the TypeEnv.
 ;; Gap F-1 ensures struct/enum accessor stubs are pre-registered.
 ;; Gap F-3 propagates the outer TypeEnv into the spawned child so the
-;; child's hermetic subprocess sees the same types.
+;; child's hermetic subprocess sees the same types (deftest-hermetic only —
+;; for the thread default, types are already shared with the parent runtime).
 ;;
 ;; Shape — empty prelude:
 ;;
@@ -290,7 +294,7 @@
 ;;   (:wat::core::do
 ;;     <prelude spliced here — top-level forms registered at freeze time>
 ;;     (:wat::core::define (:my::test::two-plus-two -> :wat::test::TestResult)
-;;       (:wat::test::run-hermetic <body>)))
+;;       (:wat::test::run-thread <body>)))
 (:wat::core::defmacro
   (:wat::test::deftest
     (name :AST<wat::core::nil>)
@@ -300,7 +304,7 @@
   `(:wat::core::do
      ~@prelude
      (:wat::core::define (~name -> :wat::test::TestResult)
-       (:wat::test::run-hermetic ~body))))
+       (:wat::test::run-thread ~body))))
 
 ;; ─── deftest-hermetic — same shape, forked child for isolation ────────
 ;;
