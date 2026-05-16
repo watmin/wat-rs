@@ -968,6 +968,70 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::ProcessPeer<I, O> — arc 170 Stone C2.
+    //
+    // CLIENT-side-only wrapper around the parent's view of a spawned
+    // process's stdin + stdout pipe ends. Per
+    // `INTERSTITIAL-REALIZATIONS.md § 2026-05-16 (Stone C revision)`,
+    // the Process side of the bracket-combinator family is ASYMMETRIC:
+    // the OS process has exactly one stdin / stdout per child, so only
+    // the parent (client) holds the peer struct; the child (server)
+    // uses ambient `(:wat::kernel::readln)` / `(:wat::kernel::println …)`
+    // over its own real stdio. NO `ProcessPeer/Server` variant is
+    // emitted — that's the design.
+    //
+    // Type parameters (mirror of ThreadPeer):
+    //   I — what the parent (client) READS from the server's stdout
+    //   O — what the parent (client) WRITES to the server's stdin
+    //
+    // Fields, in declaration order:
+    //   rx — Receiver<I> the parent pulls server output from. The
+    //        underlying transport is the PipeFd-backed Receiver inner
+    //        from `:wat::kernel::Receiver/from-pipe` over the
+    //        Process/stdout reader.
+    //   tx — Sender<O>   the parent pushes inbound messages to. The
+    //        underlying transport is the PipeFd-backed Sender inner
+    //        from `:wat::kernel::Sender/from-pipe` over the
+    //        Process/stdin writer.
+    //
+    // Stone D's `run-processes` bracket macro is the user-facing
+    // constructor (wires `spawn-process` → `Process/stdin` +
+    // `Process/stdout` → typed channels → ProcessPeer). Stone C2 itself
+    // only mints the type and the two peer-relative verbs
+    // (`Process/readln`, `Process/println`); the substrate-composition
+    // proof in `tests/wat_process_peer_ipc_round_trip.rs` exercises the
+    // peer via the auto-generated `:wat::kernel::ProcessPeer/new`
+    // constructor composing `Sender/from-pipe` + `Receiver/from-pipe`
+    // over `Process/stdin` + `Process/stdout` — the same composition
+    // Stone D's bracket macro will encapsulate for everyday use.
+    //
+    // The Receiver<I> / Sender<O> field types are deliberately the
+    // SAME typed-channel substrate ThreadPeer uses — `typed_recv` /
+    // `typed_send` are transport-polymorphic (Crossbeam tier-1 for
+    // threads, PipeFd tier-2 for processes), so the Process/readln +
+    // Process/println eval handlers can mirror Thread/readln +
+    // Thread/println verbatim modulo the struct tag.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::ProcessPeer".into(),
+        type_params: vec!["I".into(), "O".into()],
+        fields: vec![
+            (
+                "rx".into(),
+                TypeExpr::Parametric {
+                    head: "rust::crossbeam_channel::Receiver".into(),
+                    args: vec![TypeExpr::Path(":I".into())],
+                },
+            ),
+            (
+                "tx".into(),
+                TypeExpr::Parametric {
+                    head: "rust::crossbeam_channel::Sender".into(),
+                    args: vec![TypeExpr::Path(":O".into())],
+                },
+            ),
+        ],
+    }));
+
     // :wat::kernel::Program<I,O> — arc 109 § J slice 10a.
     //
     // Typealias for today's :wat::kernel::Process<I,O>. The "supertype

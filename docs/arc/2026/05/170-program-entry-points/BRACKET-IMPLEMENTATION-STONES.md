@@ -64,12 +64,12 @@
 
 #### C2 — `ProcessPeer<I, O>` type + 2 verbs + tests (mirror)
 
-- [ ] Mint `:wat::kernel::ProcessPeer<I, O>` substrate type (client-side wrapper around Process/stdin + Process/stdout)
-- [ ] Mint `:wat::kernel::Process/readln peer -> :I` verb
-- [ ] Mint `:wat::kernel::Process/println peer data:O -> :wat::core::nil` verb
-- [ ] Tests: type minting + verb dispatch + interaction with existing Process/stdin/stdout/stderr accessors
-- [ ] Process server stays ambient (uses bare `(readln)` / `(println)`) — no peer struct minted on server side
-- [ ] Document the asymmetry: Thread has peer-on-both-sides; Process has peer-on-client-only
+- [x] Mint `:wat::kernel::ProcessPeer<I, O>` substrate type (client-side wrapper around Process/stdin + Process/stdout)
+- [x] Mint `:wat::kernel::Process/readln peer -> :I` verb
+- [x] Mint `:wat::kernel::Process/println peer data:O -> :wat::core::nil` verb
+- [x] Tests: type minting + verb dispatch + interaction with existing Process/stdin/stdout/stderr accessors
+- [x] Process server stays ambient (uses bare `(readln)` / `(println)`) — no peer struct minted on server side
+- [x] Document the asymmetry: Thread has peer-on-both-sides; Process has peer-on-client-only
 
 **Scope:** Substrate type-system mirror of C1 + 2 verb registrations + interaction with existing Process accessors.
 **Predicted:** 30-45 min sonnet (mirror pattern from C1).
@@ -166,7 +166,7 @@
 - [x] Stone A — drain-and-join helpers (2026-05-16, ~50 min, 4/4 tests green)
 - [x] Stone B — walker collapse (2026-05-16, ~75 min, 4/4 tests green, +40 migrations; ad-hoc rule retired by arc 198 slice 2 Stone 4 on 2026-05-16; tests now pass via arc 198's walker)
 - [x] Stone C1 — `ThreadPeer<I, O>` + 2 verbs (2026-05-16, ~35 min, 3/3 tests green)
-- [ ] Stone C2 — `ProcessPeer<I, O>` + 2 verbs (mirror of C1)
+- [x] Stone C2 — `ProcessPeer<I, O>` + 2 verbs + real-spawn integration test (2026-05-16 post-revision, substrate-composition proof; user-facing surface is Stone D's run-processes bracket)
 - [ ] Stone D
 - [ ] Stone E
 - [ ] Stone F

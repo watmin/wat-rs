@@ -4514,6 +4514,18 @@ fn dispatch_keyword_head(
         ":wat::kernel::Thread/println" => {
             eval_kernel_thread_println(args, env, sym, list_span)
         }
+        // Arc 170 Stone C2 — peer-relative read/write verbs on
+        // `:wat::kernel::ProcessPeer<I, O>`. Asymmetric mirror of Stone
+        // C1: CLIENT-side only (server uses ambient stdio). Same
+        // dispatch shape as Thread/readln + Thread/println; the verb
+        // names are namespaced under `Process/` because the wat user's
+        // mental model is "read a line from the process".
+        ":wat::kernel::Process/readln" => {
+            eval_kernel_process_readln(args, env, sym, list_span)
+        }
+        ":wat::kernel::Process/println" => {
+            eval_kernel_process_println(args, env, sym, list_span)
+        }
         // Arc 170 Stone C — Pattern 2 verb retirement.
         // process-send / process-recv are RETIRED. Real stdio is canonical
         // at the OS boundary. Use Process/stdin (IOWriter) + Process/stdout
@@ -17376,6 +17388,145 @@ fn eval_thread_peer_struct(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::kernel::ThreadPeer",
+            got: other.type_name(),
+            span: subject_ast.span().clone(),
+        }),
+    }
+}
+
+/// `(:wat::kernel::Process/readln peer) -> :I` — arc 170 Stone C2.
+///
+/// Peer-relative blocking read on a `:wat::kernel::ProcessPeer<I, O>`.
+/// CLIENT-side only — the parent pulls from the `rx` field (a
+/// PipeFd-backed Receiver<I> wrapping the spawned process's stdout)
+/// and blocks via `typed_recv` until a value arrives. The value is
+/// surfaced UNWRAPPED to the caller — this verb returns `:I`, not
+/// `:Option<I>` or `:Result<...>`.
+///
+/// Asymmetric mirror of `Thread/readln` — same eval shape modulo the
+/// expected struct tag. Same disconnect / decode semantics: pipe close
+/// (or shutdown) → `RuntimeError::ChannelDisconnected`; EDN decode
+/// failure on the line → `RuntimeError::MalformedForm`. Server side
+/// uses ambient `(:wat::kernel::readln)` over real stdio — no peer
+/// struct on the server.
+fn eval_kernel_process_readln(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Process/readln";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let peer_struct = eval_process_peer_struct(OP, &args[0], env, sym)?;
+    let receiver_inner = match peer_struct.fields.first() {
+        Some(Value::wat__kernel__Receiver(inner)) => inner.clone(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "ProcessPeer.rx (Receiver)",
+                got: "missing or wrong-type field",
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    match crate::typed_channel::typed_recv(
+        receiver_inner.as_ref(),
+        sym.types().map(|a| a.as_ref()),
+        list_span.clone(),
+    ) {
+        crate::typed_channel::RecvOutcome::Value(v) => Ok(v),
+        crate::typed_channel::RecvOutcome::Disconnected
+        | crate::typed_channel::RecvOutcome::Shutdown => {
+            Err(RuntimeError::ChannelDisconnected {
+                op: OP.into(),
+                span: list_span.clone(),
+            })
+        }
+        crate::typed_channel::RecvOutcome::DecodeError(msg) => {
+            Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!("EDN decode on ProcessPeer.rx: {}", msg),
+                span: list_span.clone(),
+            })
+        }
+    }
+}
+
+/// `(:wat::kernel::Process/println peer data:O) -> :wat::core::nil` —
+/// arc 170 Stone C2.
+///
+/// Peer-relative blocking write on a `:wat::kernel::ProcessPeer<I, O>`.
+/// CLIENT-side only — the parent pushes through the `tx` field (a
+/// PipeFd-backed Sender<O> wrapping the spawned process's stdin) via
+/// `typed_send`. Returns `Value::Unit` (== `:wat::core::nil`) on the
+/// landed write. Asymmetric mirror of `Thread/println`; disconnect
+/// surfaces as `RuntimeError::ChannelDisconnected` (same panic-
+/// propagation reasoning).
+fn eval_kernel_process_println(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Process/println";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let peer_struct = eval_process_peer_struct(OP, &args[0], env, sym)?;
+    let sender_inner = match peer_struct.fields.get(1) {
+        Some(Value::wat__kernel__Sender(inner)) => inner.clone(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "ProcessPeer.tx (Sender)",
+                got: "missing or wrong-type field",
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let payload = eval(&args[1], env, sym)?;
+    match crate::typed_channel::typed_send(
+        sender_inner.as_ref(),
+        payload,
+        sym.types().map(|a| a.as_ref()),
+        list_span.clone(),
+    ) {
+        crate::typed_channel::SendOutcome::Ok => Ok(Value::Unit),
+        crate::typed_channel::SendOutcome::Disconnected => {
+            Err(RuntimeError::ChannelDisconnected {
+                op: OP.into(),
+                span: list_span.clone(),
+            })
+        }
+    }
+}
+
+/// Shared peer-struct unwrap for both Process/readln and Process/println.
+/// Mirror of `eval_thread_peer_struct` with the ProcessPeer tag.
+fn eval_process_peer_struct(
+    op: &str,
+    subject_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Arc<StructValue>, RuntimeError> {
+    let peer_value = eval(subject_ast, env, sym)?;
+    match peer_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::ProcessPeer" => Ok(s),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::kernel::ProcessPeer",
             got: other.type_name(),
             span: subject_ast.span().clone(),
         }),

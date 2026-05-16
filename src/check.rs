@@ -13089,6 +13089,58 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // (:wat::kernel::Process/readln peer) → :I
+    // (:wat::kernel::Process/println peer data:O) → :wat::core::nil
+    //
+    // Arc 170 Stone C2. Peer-relative read / write on a
+    // `:wat::kernel::ProcessPeer<I, O>` — the CLIENT-side wrapper
+    // around the parent's view of a spawned process's stdin + stdout.
+    // The asymmetric mirror of Thread/readln + Thread/println from
+    // Stone C1: the verbs read/write through the appropriate field of
+    // the peer struct (`peer.rx` for readln, `peer.tx` for println),
+    // backed by the same transport-polymorphic `typed_recv` /
+    // `typed_send` machinery (PipeFd tier-2 for processes vs Crossbeam
+    // tier-1 for threads — same eval shape modulo struct tag).
+    //
+    // Server side stays AMBIENT — no `ProcessPeer/Server` verbs. The
+    // child uses bare `:wat::kernel::readln` + `:wat::kernel::println`
+    // over its real OS stdio (per INTERSTITIAL-REALIZATIONS § 2026-05-16
+    // Stone C revision). The asymmetry is honest: OS process has
+    // exactly one stdin / stdout, so there's nothing for a server peer
+    // to wrap.
+    //
+    // Disconnect handling mirrors Thread/readln + Thread/println —
+    // surfaces as `RuntimeError::ChannelDisconnected`, which the
+    // substrate's panic-propagation chain catches at the spawn
+    // boundary so `Process/drain-and-join` recovers the cause for the
+    // parent. EDN decode failures on the PipeFd transport surface as
+    // `MalformedForm` (matches the `kernel::recv` discipline).
+    let process_peer_ty = || TypeExpr::Parametric {
+        head: "wat::kernel::ProcessPeer".into(),
+        args: vec![
+            TypeExpr::Path(":I".into()),
+            TypeExpr::Path(":O".into()),
+        ],
+    };
+    env.register(
+        ":wat::kernel::Process/readln".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_peer_ty()],
+            ret: TypeExpr::Path(":I".into()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::kernel::Process/println".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_peer_ty(), TypeExpr::Path(":O".into())],
+            ret: TypeExpr::Tuple(vec![]),
+            rest_param_type: None,
+        },
+    );
+
     // (:wat::kernel::spawn-process program) → :wat::kernel::Process<I,O>.
     //
     // Arc 170 Slice 6 pivot. The `program` arg is a sequence of top-level
