@@ -16,6 +16,49 @@ or through `#[wat_dispatch]` for `:rust::*`.
 
 Every other prefix is user territory.
 
+## Declared restriction — `def-restricted` / `#[restricted_to(...)]` (arc 198)
+
+A finer-grained access control complementing namespace privilege:
+any binding can declare an allowed-caller-prefix whitelist at its
+definition site. The walker rejects call sites whose enclosing
+definition does not match. Storage is a single `defined_value_restrictions`
+HashMap on `CheckEnv` (mirrored from `SymbolTable`); one walker
+(`walk_for_def_restricted_call`) enforces, regardless of which
+declaration surface populated the entry.
+
+**Two surfaces, same mechanism:**
+
+| Surface | Site | Form |
+|---------|------|------|
+| Wat | binding declaration | `(:wat::core::def-restricted :name [prefixes] value)` |
+| Wat (sugar) | fn binding | `(:wat::core::defn-restricted :name [prefixes] sig body)` |
+| Rust | substrate primitive | `#[restricted_to("wat-name", "prefix1", "prefix2")]` on the fn |
+
+**Prefix matching** (uniform across surfaces):
+- Trailing `::` (e.g., `:wat::kernel::`) → namespace prefix match
+- No trailing `::` (e.g., `:wat::kernel::specific-fn`) → exact FQDN match
+- Empty whitelist → no callers allowed
+
+**When substrate authors reach for `#[restricted_to(...)]`:**
+- A Rust-side substrate primitive should only be callable from a
+  bounded namespace set (e.g., `Thread/join-result` is only safe
+  for `:wat::*` callers; user code uses `Thread/drain-and-join` or
+  the bracket combinator)
+- The restriction is a property of the SYMBOL, not of caller hygiene —
+  declare it once at the fn site; the substrate enforces everywhere
+
+**When wat authors reach for `def-restricted`:**
+- A module's internal helper shouldn't be called from outside the
+  module namespace
+- A test-fixture helper should only be reachable from `:my::tests::*`
+- The binding's access policy belongs at the binding site, not in
+  README convention or post-hoc walker rules
+
+Wat-side primitive: `wat/core.wat` (arc 198 slice 1).
+Rust-side proc-macro: `crates/wat-macros/src/lib.rs` (arc 198 slice 2).
+Walker: `walk_for_def_restricted_call` in `src/check.rs`.
+Arc INSCRIPTION: `docs/arc/2026/05/198-defn-restricted/INSCRIPTION.md`.
+
 ## Namespaces
 
 | Prefix | What lives here |

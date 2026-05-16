@@ -731,6 +731,69 @@ see the desugaring.
 a separate `defn-clause` form, Erlang-style); docstrings (slated for
 arc 141 to wire across substrate forms).
 
+### `:wat::core::def-restricted` / `defn-restricted` — declared access control (arc 198)
+
+A name declared via `def-restricted` carries an allowed-caller-prefix
+whitelist. The walker rejects call sites whose enclosing definition
+does not match any whitelist entry, with `CheckError::DefRestrictedCallerNotAllowed`.
+This is "private functions" generalized — instead of binary public/private,
+you declare which namespaces may call.
+
+```scheme
+;; substrate primitive
+(:wat::core::def-restricted
+  :my::lib::internal-helper                   ;; the bound name
+  [:my::lib:: :my::tests::]                   ;; allowed-caller prefixes
+  (:wat::core::fn (x :wat::core::i64) -> :wat::core::i64
+    (:wat::core::i64::*,2 x 2)))
+
+;; calling from :my::lib::publish or :my::tests::test-helper → ALLOWED
+;; calling from :my::app::main → CheckError::DefRestrictedCallerNotAllowed
+
+;; defmacro sugar (mirrors defn shape)
+(:wat::core::defn-restricted :my::lib::internal-helper
+  [:my::lib:: :my::tests::]
+  [x <- :wat::core::i64]
+  -> :wat::core::i64
+  (:wat::core::i64::*,2 x 2))
+```
+
+**Prefix matching:**
+- Entry ending in `::` → namespace prefix match (caller FQDN starts with this)
+- Entry NOT ending in `::` → exact FQDN match (only this single caller allowed)
+- Empty whitelist `[]` → no callers allowed (every call fails)
+
+**Convergent design:** equivalent to Rust's `pub(crate)` / `pub(super)`,
+Clojure's `^:private`, Erlang's `-export([...])` (inverted — we declare who
+CAN call rather than what IS exported). More expressive than binary
+public/private because a single binding can name multiple specific allowed
+namespaces.
+
+**Substrate-side complement — `#[restricted_to(...)]` proc-macro attribute.**
+Rust-side substrate primitives (e.g., `eval_kernel_thread_join_result`)
+can declare their wat-name restriction via the proc-macro attribute from
+`wat-macros`:
+
+```rust
+#[restricted_to(":wat::kernel::Thread/join-result", ":wat::")]
+fn eval_kernel_thread_join_result(...) -> Result<Value, RuntimeError> { ... }
+```
+
+First arg = wat name; remaining args = variadic prefix list. Codegen
+emits an `inventory::submit!` block; substrate setup drains the inventory
+into the same `defined_value_restrictions` HashMap that wat-side
+`def-restricted` populates. **One walker enforces both surfaces** — the
+mechanism is symmetric across the wat ↔ Rust boundary.
+
+Use `def-restricted` when:
+- A helper fn shouldn't be called from outside its module/crate
+- Substrate-internal primitives need access control beyond what
+  `:wat::*` / `:rust::*` namespace privilege already provides
+- You want the access policy declared at the binding site, not enforced
+  by convention or post-hoc walker rules
+
+Arc 198 INSCRIPTION: `docs/arc/2026/05/198-defn-restricted/INSCRIPTION.md`.
+
 ### `:wat::core::nil` — the singleton type and value (arc 153)
 
 `:wat::core::nil` is wat's name for the unit type — the type
