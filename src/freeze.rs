@@ -863,6 +863,30 @@ fn startup_from_forms_post_config(
     //      and struct-field primitives.
     crate::runtime::register_newtype_methods(&types, &mut symbols)?;
 
+    // 6.8. Arc 198 slice 2 Stone 1 — drain the `inventory` registry of
+    //      Rust-side `RestrictionEntry` declarations into
+    //      `symbols.defined_value_restrictions`. The wat-side `def-restricted`
+    //      form (slice 1) populates the same map during `register_defines`
+    //      above; this iteration is the Rust-side analog. Both feeds land
+    //      in one HashMap so the walker
+    //      (`validate_def_restricted_caller_namespace`) sees a unified
+    //      whitelist regardless of where the declaration originated.
+    //
+    //      Positioned AFTER all `register_*` calls (so the map isn't
+    //      stomped) and BEFORE step 7.5 (which propagates other config to
+    //      `symbols` for check_program). Insertion is idempotent across
+    //      multiple freeze passes — `inventory::iter` returns the same
+    //      static entries every time; re-inserting overwrites with the
+    //      same value. Subsequent stones (Stone 2's proc-macro, Stone 3's
+    //      annotation on `*_join-result`, Stone 4's Stone B retirement)
+    //      plug into this channel without changing the iteration shape.
+    for entry in inventory::iter::<crate::restriction_entry::RestrictionEntry> {
+        symbols.defined_value_restrictions.insert(
+            entry.wat_name.to_string(),
+            entry.prefixes.iter().map(|s| s.to_string()).collect(),
+        );
+    }
+
     // 6b. User dispatch declarations — arc 146 slice 1 + slice 2.
     //     Walks the residue left after define registration, peels
     //     off every `(:wat::core::define-dispatch ...)` form, and

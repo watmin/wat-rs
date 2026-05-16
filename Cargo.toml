@@ -57,5 +57,11 @@ chrono = "0.4"
 tempfile = "3"
 wat-macros = { path = "crates/wat-macros" }
 wat-edn = { path = "crates/wat-edn" }
+# Arc 198 slice 2 Stone 1 — link-time registry for Rust-side substrate
+# restriction declarations. Stone 1 adds the wiring (RestrictionEntry +
+# inventory::collect! + setup-time iteration); Stones 2-4 mint the
+# proc-macro that submits entries, apply it to `*_join-result`, and retire
+# arc 170 Stone B's ad-hoc walker rule.
+inventory = "0.3"
 
 [dev-dependencies]
