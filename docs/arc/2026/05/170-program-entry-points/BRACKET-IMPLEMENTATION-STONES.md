@@ -77,17 +77,51 @@
 
 ---
 
-### Stone D — `run-threads` bracket macro
+### Stone D — `run-threads` bracket macro — **DECOMPOSED 2026-05-16**
 
-- [ ] Test: minimal — single factory + single client-fn; result threads through
-- [ ] Test: multi-factory — 3 factories with different `Thread<I,O>` types; tuple of Thread/Client handles passed to client-fn
-- [ ] Test: panic in any factory → graceful shutdown to siblings → ProcessGroupErr propagates
-- [ ] Implementation: variadic defmacro in `:wat::kernel::*`; expands to N spawn + Tuple-construct + client-fn call + N drain-and-join
-- [ ] Reference: `:wat::test::program` at `wat/test.wat:228-231` is the variadic macro precedent
+**Original monolithic Stone D (single-factory + multi-factory + panic cascade) superseded** per INTERSTITIAL-REALIZATIONS.md § 2026-05-16 (Stone D design pass). Per Stone C calibration — `feedback_iterative_complexity` + `feedback_simple_forms_per_func` — bounded stones beat one-shot multi-piece work.
 
-**Scope:** Wat-level macro implementation.
-**Predicted:** 90-120 min sonnet.
-**Dependencies:** Stone A (drain-and-join helper) + Stone C (Client type).
+Four-questions outcomes (settled with user 2026-05-16):
+- **Factory signature:** `:Fn(ThreadPeer<I, O>) -> :nil` (A) — peer is the surface everywhere else; spawn-thread's raw channels stay inside the macro adapter. YES YES YES YES.
+- **Client-fn signature:** variadic positional `(client-fn peer₁ peer₂ ... peerₙ)` (A) — Lisp-natural; concrete types post-expansion; no Tuple destructure. YES YES YES YES.
+- **Decomposition:** D1 (single-factory) + D2 (multi-factory heterogeneous) + D3 (panic cascade) (decompose) — Stone C lesson; each stone one teaching moment. YES YES YES YES.
+
+#### D1 — minimal `run-threads` with single factory + round-trip
+
+- [x] Mint `:wat::kernel::run-threads` macro accepting bare factory + client-fn (D1 supports single-factory only; D2 extends to N via variadic positional collector). Tuple-wrapped form deferred per honest delta: wat has no expand-time AST destructuring, so extracting child from `(Tuple factory)` AST is not expressible in a wat-level defmacro.
+- [x] Macro expansion target: `(let [thread (spawn-thread <wrap-fn>) client-peer (ThreadPeer/new (Thread/output thread) (Thread/input thread)) result (client-fn client-peer) _ (Thread/drain-and-join thread)] result)`
+- [x] `<wrap-fn>` = `(fn [server-rx <- :Receiver<I>, server-tx <- :Sender<O>] -> :nil (factory (ThreadPeer/new server-rx server-tx)))` — bracket converts raw spawn-thread sig to ThreadPeer for the user's factory. Honest delta: macro takes pre-baked `server-rx-type` (full `Receiver<I>` keyword) + `server-tx-type` (full `Sender<O>` keyword) as positional args; wat tokenizes parametric type keywords `<...>` atomically so `~` unquote does NOT splice inside `<>` brackets at expand time (same constraint `:wat::test::run-hermetic-with-io` documented at wat/test.wat:800-815).
+- [x] Test: single factory echoes one String round-trip; client sends "hello" via Thread/println, reads back via Thread/readln, asserts
+- [x] No panic cascade yet (factory completes cleanly; D3 handles panics)
+
+**Scope:** Wat-level macro + 1 test.
+**Predicted:** 30-45 min sonnet.
+**Dependencies:** Stone A (drain-and-join) + Stone C1 (ThreadPeer).
+
+#### D2 — multi-factory heterogeneous `(Tuple factory-A factory-B ... factory-N)`
+
+- [ ] Extend the macro to pattern-match N children of the Tuple AST
+- [ ] Expansion generates N let-bindings (each its own concrete `ThreadPeer<Iₖ, Oₖ>`), variadic client-fn invocation, N drain-and-join calls
+- [ ] Test: 3 factories with heterogeneous types (e.g. `ThreadPeer<String,i64>`, `ThreadPeer<i64,String>`, `ThreadPeer<String,String>`); client interacts with each; asserts
+- [ ] Verify: heterogeneous tuple iteration via macro expansion (NOT runtime tuple iteration); types resolve at expansion time
+
+**Scope:** Macro extension + 1 multi-factory test.
+**Predicted:** 30-45 min sonnet.
+**Dependencies:** D1.
+
+#### D3 — panic cascade + `ProcessGroupErr`
+
+- [ ] Factory panic → bracket detects via drain-and-join Result; cascades shutdown to siblings; wraps as `ProcessGroupErr`
+- [ ] Macro expansion changes: wrap drain-and-join Results, decide cascade policy on first Err
+- [ ] Bracket return type: `Result<R, ProcessGroupErr>` (was raw `R` in D1+D2)
+- [ ] Test: 2-factory setup; one factory panics mid-stream; verify sibling is signaled to shut down cleanly; verify `ProcessGroupErr` carries first panic + sibling-shutdown-status
+- [ ] If `ProcessGroupErr` enum doesn't exist yet → mint it (small substrate addition, vetted via four-questions first)
+
+**Scope:** Macro panic-cascade extension + new error type + 1 panic-cascade test.
+**Predicted:** 60-90 min sonnet (panic semantics + new substrate type).
+**Dependencies:** D1 + D2.
+
+**Reference:** `:wat::test::program` at `wat/test.wat:228-231` is the variadic macro precedent (variadic `&` collector + `~@` splice).
 
 ---
 
@@ -166,9 +200,11 @@
 - [x] Stone A — drain-and-join helpers (2026-05-16, ~50 min, 4/4 tests green)
 - [x] Stone B — walker collapse (2026-05-16, ~75 min, 4/4 tests green, +40 migrations; ad-hoc rule retired by arc 198 slice 2 Stone 4 on 2026-05-16; tests now pass via arc 198's walker)
 - [x] Stone C1 — `ThreadPeer<I, O>` + 2 verbs (2026-05-16, ~35 min, 3/3 tests green)
-- [x] Stone C2 — `ProcessPeer<I, O>` + 2 verbs + real-spawn integration test (2026-05-16 post-revision, substrate-composition proof; user-facing surface is Stone D's run-processes bracket)
-- [ ] Stone D
-- [ ] Stone E
+- [x] Stone C2 — `ProcessPeer<I, O>` + 2 verbs + real-spawn integration test (2026-05-16 post-revision, substrate-composition proof; user-facing surface is Stone D's run-processes bracket; commit `e4b9461`)
+- [x] D1 — minimal `run-threads` single-factory + round-trip (2026-05-16, ~35 min, 1/1 test green; baseline preserved at 4)
+- [ ] D2 — multi-factory heterogeneous expansion
+- [ ] D3 — panic cascade + `ProcessGroupErr`
+- [ ] Stone E (decomposes per same pattern when D family settles)
 - [ ] Stone F
 - [ ] Stone G
 - [ ] Stone H

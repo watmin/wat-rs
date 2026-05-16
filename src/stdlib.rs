@@ -124,6 +124,18 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/sandbox.wat",
         source: include_str!("../wat/kernel/sandbox.wat"),
     },
+    // Arc 170 Stone D1 — `:wat::kernel::run-threads` bracket macro
+    // (single-factory form). Wat-level defmacro; depends on
+    // `:wat::kernel::spawn-thread`, `:wat::kernel::ThreadPeer/new` +
+    // accessors, `:wat::kernel::Thread/input` + `Thread/output`
+    // accessors (Stone C1), `:wat::kernel::Thread/drain-and-join`
+    // (Stone A). Loaded AFTER sandbox.wat so the kernel-namespace
+    // file ordering matches the C-side dependency tree. D2 (multi-
+    // factory) + D3 (panic cascade) extend this same file.
+    WatSource {
+        path: "wat/kernel/run_threads.wat",
+        source: include_str!("../wat/kernel/run_threads.wat"),
+    },
     // Arc 170 slice 1e — `:wat::kernel::ExitCode` retired (REALIZATIONS
     // pass 10 — `:wat::core::nil` IS the success exit code; `:user::main`
     // returns nil; substrate maps to libc::exit(0); panic-cascade maps
