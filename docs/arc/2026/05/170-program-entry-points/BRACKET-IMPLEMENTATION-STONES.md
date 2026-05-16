@@ -44,16 +44,36 @@
 
 ---
 
-### Stone C — Mint `Thread/Client<I,O>` + `Thread/Server<I,O>` + `Process/Client<I,O>` + `Process/Server<I,O>` type pairs
+### Stone C — Mint `ThreadPeer<I, O>` + `ProcessPeer<I, O>` substrate types — **REVISED 2026-05-16**
 
-- [ ] Test: declaring `Thread<I,O>` auto-generates `Thread/Client<I,O>` + `Thread/Server<I,O>` companion types
-- [ ] Test: verbs dispatch on side (client.readln returns O; server.readln returns I)
-- [ ] Test: same for Process pair (client + phantom-server-uses-ambient)
-- [ ] Implementation: substrate type generation in `src/types.rs`; verb registration
+**Original framing (`Thread/Client<I,O>` + `Thread/Server<I,O>` + Process pair) superseded** per INTERSTITIAL-REALIZATIONS.md § 2026-05-16 (Stone C revision). Single `ThreadPeer<I, O>` type with type-param swap encodes the Client/Server distinction — the side is conceptual, not structural. Process server stays ambient (asymmetry honest at substrate-primitive level).
 
-**Scope:** Substrate type system.
-**Predicted:** 120-180 min sonnet — type-system work is fiddly.
-**Dependencies:** none (independent of A/B).
+**Decomposed into 2 sub-stones per `feedback_iterative_complexity` (and the arc 198 slice 2 calibration lesson — small bounded stones beat one-shot type-system work):**
+
+#### C1 — `ThreadPeer<I, O>` type + 2 verbs + tests
+
+- [ ] Mint `:wat::kernel::ThreadPeer<I, O>` substrate type (I = read direction; O = write direction; peer-relative naming)
+- [ ] Mint `:wat::kernel::Thread/readln peer -> :I` verb
+- [ ] Mint `:wat::kernel::Thread/println peer data:O -> :wat::core::nil` verb
+- [ ] Tests: type minting + verb dispatch + type-param swap semantics (two peers wired together; one reads what the other writes)
+- [ ] Substrate-internal pipe wiring helper (not yet exposed to bracket; that's Stone D)
+
+**Scope:** Substrate type-system addition + 2 verb registrations.
+**Predicted:** 30-45 min sonnet.
+**Dependencies:** none.
+
+#### C2 — `ProcessPeer<I, O>` type + 2 verbs + tests (mirror)
+
+- [ ] Mint `:wat::kernel::ProcessPeer<I, O>` substrate type (client-side wrapper around Process/stdin + Process/stdout)
+- [ ] Mint `:wat::kernel::Process/readln peer -> :I` verb
+- [ ] Mint `:wat::kernel::Process/println peer data:O -> :wat::core::nil` verb
+- [ ] Tests: type minting + verb dispatch + interaction with existing Process/stdin/stdout/stderr accessors
+- [ ] Process server stays ambient (uses bare `(readln)` / `(println)`) — no peer struct minted on server side
+- [ ] Document the asymmetry: Thread has peer-on-both-sides; Process has peer-on-client-only
+
+**Scope:** Substrate type-system mirror of C1 + 2 verb registrations + interaction with existing Process accessors.
+**Predicted:** 30-45 min sonnet (mirror pattern from C1).
+**Dependencies:** Stone C1 (template established).
 
 ---
 
@@ -144,8 +164,9 @@
 
 - [x] Design phase complete (2026-05-16, captured in INTERSTITIAL-REALIZATIONS.md)
 - [x] Stone A — drain-and-join helpers (2026-05-16, ~50 min, 4/4 tests green)
-- [x] Stone B — walker collapse (2026-05-16, ~75 min, 4/4 tests green, +40 migrations)
-- [ ] Stone C
+- [x] Stone B — walker collapse (2026-05-16, ~75 min, 4/4 tests green, +40 migrations; ad-hoc rule retired by arc 198 slice 2 Stone 4 on 2026-05-16; tests now pass via arc 198's walker)
+- [ ] Stone C1 — `ThreadPeer<I, O>` + 2 verbs (decomposed from original Stone C per 2026-05-16 design revision)
+- [ ] Stone C2 — `ProcessPeer<I, O>` + 2 verbs (mirror of C1)
 - [ ] Stone D
 - [ ] Stone E
 - [ ] Stone F
