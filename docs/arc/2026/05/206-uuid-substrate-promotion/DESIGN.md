@@ -1,6 +1,6 @@
 # Arc 206 — UUID primitive promotion to substrate (`:wat::core::uuid::v4`)
 
-**Status:** OPEN 2026-05-17.
+**Status:** CLOSED 2026-05-17 (slice 3).
 
 **Pedigree:** Arc 091 slice 2 minted `uuid::v4` under `wat-measure`; arc 096 folded `wat-measure` into `wat-telemetry`. UUIDs landed under `:wat::telemetry::uuid::v4` by historical accident, not by design — they were minted next to other telemetry primitives because that's where measurement infrastructure lived.
 
@@ -66,9 +66,10 @@ Arc 206 covers BOTH UUIDv4 and UUIDv5 at substrate level. Structured so future v
 
 | Slice | Status | What |
 |---|---|---|
-| **1 — v4 promotion** | IN FLIGHT (sonnet `a52eebfc...`) | Mint `:wat::core::uuid::v4` wrapping existing `wat_edn::new_uuid_v4`; backward-compat alias for telemetry |
-| **1.5 — v5 promotion** | BLOCKS on 1 | Mint `wat_edn::new_uuid_v5(namespace, name)` (adds `v5` feature to `uuid = "1"` dep); register `:wat::core::uuid::v5` at substrate (same pattern as v4) |
-| **2 — closure** | BLOCKS on 1.5 | INSCRIPTION covers both versions + the substrate positioning for future versions; 058 row; USER-GUIDE entry documenting both versions + when to use each |
+| **1 — v4 promotion** | DONE (`4ff2b72`) | Mint `:wat::core::uuid::v4` wrapping existing `wat_edn::new_uuid_v4`; backward-compat alias for telemetry |
+| **1.5 — v5 promotion** | DONE (`b56e272`) | Mint `wat_edn::new_uuid_v5(namespace, name)` (adds `v5` feature to `uuid = "1"` dep); register `:wat::core::uuid::v5` at substrate (same pattern as v4) |
+| **2 — closure (premature)** | DONE (`74d7fea`) | INSCRIPTION + USER-GUIDE + 058 row — **forward-corrected by slice 3**: telemetry's duplicate impl was NOT retired; slice 2's lesson ("separate-impl wins over alias-chain") was WRONG per user review |
+| **3 — telemetry de-dup + honest closure** | DONE | Retire `:rust::telemetry::uuid::v4` shim + `wat-edn` dep from `wat-telemetry`; delegate `:wat::telemetry::uuid::v4` to substrate-core at the wat layer; EDN roundtrip proven; arc 206 reaches honest closure |
 
 ### Why this positions for future versions
 

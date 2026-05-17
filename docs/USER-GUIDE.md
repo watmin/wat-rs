@@ -2524,11 +2524,14 @@ canonical UUID; otherwise the substrate panics with
 agreement) or use a published namespace (the DNS / URL / OID / X.500
 namespaces from RFC 4122).
 
-**Backward-compat note.** `:wat::telemetry::uuid::v4` still works; the
-substrate-level promotion in arc 206 added `:wat::core::uuid::v4`
-without retiring the telemetry alias. New code should reach for
-`:wat::core::uuid::*` (no telemetry dep needed). Existing telemetry
-consumers are not forced to migrate.
+**Backward-compat note.** `:wat::telemetry::uuid::v4` still works and
+keeps compiling. Arc 206 slice 3 retired the duplicate
+`:rust::telemetry::uuid::v4` Rust shim and the `wat-edn` Cargo dep from
+`wat-telemetry`; the telemetry wat verb now delegates directly to the
+substrate-core path (`:wat::core::uuid::v4`) at the wat layer. The
+delegation is transparent: existing callers of `:wat::telemetry::uuid::v4`
+see no behavior change. New code should reach for `:wat::core::uuid::*`
+directly (no telemetry dep needed).
 
 ---
 

@@ -77,7 +77,8 @@ pub struct WatMeasureWorkUnit {
     /// every emitted Event::Metric row.
     started_epoch_nanos: i64,
     /// Canonical 8-4-4-4-12 hyphenated v4 UUID. Minted via
-    /// `wat_edn::new_uuid_v4()` (arc 092) at construction.
+    /// `uuid::Uuid::new_v4()` at construction (arc 206 slice 3 retired
+    /// the wat-edn indirection — uuid crate is the substrate-of-substrates).
     uuid: String,
 }
 
@@ -120,7 +121,7 @@ impl WatMeasureWorkUnit {
             tags,
             namespace,
             started_epoch_nanos,
-            uuid: wat_edn::new_uuid_v4().to_string(),
+            uuid: uuid::Uuid::new_v4().to_string(),
         }
     }
 

@@ -1,23 +1,18 @@
 ;; :wat::telemetry::uuid::v4 — wat surface for fresh v4 UUID generation.
 ;;
-;; The Rust shim at :rust::telemetry::uuid::v4 mints via wat-edn (arc
-;; 092's `new_uuid_v4`) and renders to canonical 8-4-4-4-12
-;; hyphenated hex. This file is the wat-side re-export under the
-;; curated `:wat::telemetry::*` namespace.
+;; Backward-compat alias. Arc 206 promoted UUID minting to the
+;; substrate-core path :wat::core::uuid::v4 (reachable without any
+;; telemetry dep). This file remains so existing :wat::telemetry::uuid::v4
+;; callers keep compiling; it now delegates straight to the substrate
+;; primitive instead of duplicating the impl through a :rust::telemetry
+;; shim. New code should reach for :wat::core::uuid::v4 directly.
 ;;
-;; Usage:
+;; Usage (unchanged):
 ;;   (let (((id :wat::core::String) (:wat::telemetry::uuid::v4)))
 ;;     ...)
 ;;
-;; The `::` separator places `v4` as a free function under the
-;; `:wat::telemetry::uuid::*` sub-namespace — same convention as
-;; `:wat::edn::write` or `:wat::core::Vector`. The `/` separator is
-;; reserved for type-method calls (e.g. `Type/method`).
-;;
-;; Arc 091 slice 2.
-
-(:wat::core::use! :rust::telemetry::uuid::v4)
+;; Arc 091 slice 2 minted; arc 206 slice 3 retired the duplicate impl.
 
 (:wat::core::define
   (:wat::telemetry::uuid::v4 -> :wat::core::String)
-  (:rust::telemetry::uuid::v4))
+  (:wat::core::uuid::v4))

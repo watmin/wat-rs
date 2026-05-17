@@ -143,6 +143,41 @@ fn uuid_v4_canonical_hyphen_positions() {
     );
 }
 
+// ─── E: EDN roundtrip — UUID minted via substrate path serializes cleanly ───
+
+/// Arc 206 slice 3 — EDN-serialization proof.
+///
+/// User direction 2026-05-17: "we need to prove we can still comm uuids over
+/// edn serialization correctly."
+///
+/// Mints a UUID via `:wat::core::uuid::v4` (the new substrate-level path),
+/// then writes it through `:wat::edn::write` and reads it back via
+/// `:wat::edn::read`. The roundtripped value must equal the original.
+///
+/// Since `:wat::core::uuid::v4` returns a `:wat::core::String`, this is
+/// structurally a string EDN roundtrip — but the test is explicit about the
+/// UUID origin so future readers can trace the invariant directly.
+#[test]
+fn uuid_v4_edn_roundtrip() {
+    let src = r#"
+        (:wat::core::define
+          (:user::main -> :wat::core::nil)
+          (:wat::core::let
+            [id       (:wat::core::uuid::v4)
+             edn-form (:wat::edn::write id)
+             back     (:wat::edn::read edn-form)]
+            (:wat::core::if (:wat::core::= back id) -> :wat::core::nil
+              (:wat::kernel::println "ROUNDTRIP-OK")
+              (:wat::kernel::println "ROUNDTRIP-FAIL"))))
+    "#;
+    let lines = run(src);
+    assert_eq!(
+        lines,
+        vec!["\"ROUNDTRIP-OK\""],
+        "UUID minted via :wat::core::uuid::v4 must survive :wat::edn::write + :wat::edn::read roundtrip"
+    );
+}
+
 // ─── D: callable without telemetry dep ──────────────────────────────────────
 
 /// This test is structurally identical to A but its name makes the

@@ -11,8 +11,10 @@
 //! - **WorkUnit + Event + scope HOF** — measurement-scope state +
 //!   the events it ships at scope-close. Folded in from the
 //!   retired wat-measure crate.
-//! - **uuid::v4** — fresh canonical-hyphenated UUID per call,
-//!   minted via wat-edn's `mint` feature (arc 092).
+//! - **uuid::v4** — backward-compat alias under `:wat::telemetry::*`
+//!   that delegates to the substrate-core `:wat::core::uuid::v4`
+//!   (arc 206 slice 3 retired the duplicate `:rust::telemetry::uuid::v4`
+//!   shim; new code uses the substrate path directly).
 //! - **Tag, Tags, SinkHandles** — the type aliases consumers
 //!   reference at every measurement scope.
 //!
@@ -27,10 +29,10 @@
 //!
 //! - [`wat_sources`] — the baked `.wat` files (Service, types,
 //!   Event, uuid, WorkUnit, WorkUnitLog).
-//! - [`register`] — wires the Rust shims (uuid::v4 free fn,
-//!   WorkUnit thread-owned cell) into the deps builder.
+//! - [`register`] — wires the WorkUnit thread-owned cell Rust shim
+//!   into the deps builder. (UUID minting no longer needs a telemetry
+//!   shim — `:wat::core::uuid::v4` is substrate-level per arc 206.)
 
-pub mod shim;
 pub mod workunit;
 
 /// wat source files this crate contributes. Order matters —
@@ -61,8 +63,8 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
             path: "wat-telemetry/telemetry/Event.wat",
             source: include_str!("../wat/telemetry/Event.wat"),
         },
-        // uuid.wat — :wat::telemetry::uuid::v4 wrapper around
-        // the :rust::telemetry::uuid::v4 shim.
+        // uuid.wat — :wat::telemetry::uuid::v4 backward-compat alias
+        // that delegates to :wat::core::uuid::v4 (arc 206 slice 3).
         wat::WatSource {
             path: "wat-telemetry/telemetry/uuid.wat",
             source: include_str!("../wat/telemetry/uuid.wat"),
@@ -86,9 +88,10 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
     FILES
 }
 
-/// Registrar — wires the Rust shims (`:rust::telemetry::uuid::v4`
-/// + `:rust::telemetry::WorkUnit`) into the deps builder.
+/// Registrar — wires the `:rust::telemetry::WorkUnit` thread-owned
+/// cell shim into the deps builder. UUID minting retired here in
+/// arc 206 slice 3; `:wat::telemetry::uuid::v4` now delegates to the
+/// substrate-core `:wat::core::uuid::v4` at the wat layer.
 pub fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
-    shim::register(builder);
     workunit::register(builder);
 }
