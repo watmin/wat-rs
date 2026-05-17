@@ -75,6 +75,27 @@
 **Predicted:** 30-45 min sonnet (mirror pattern from C1).
 **Dependencies:** Stone C1 (template established).
 
+#### C3 — type-keyword honesty fix (revises C1/C2's deliberate shortcut) — **OPEN 2026-05-17**
+
+**The defect Stone C2 left behind:** ThreadPeer<I,O> + ProcessPeer<I,O> field types are declared as `:rust::crossbeam_channel::Receiver<I>` / `:rust::crossbeam_channel::Sender<O>` (src/types.rs:1003-1066). The COMMENT at lines 1040-1045 acknowledges the shortcut explicitly: *"The Receiver<I> / Sender<O> field types are deliberately the SAME typed-channel substrate ThreadPeer uses — `typed_recv` / `typed_send` are transport-polymorphic (Crossbeam tier-1 for threads, PipeFd tier-2 for processes), so the Process/readln + Process/println eval handlers can mirror Thread/readln + Thread/println verbatim modulo the struct tag."*
+
+The runtime IS transport-polymorphic (the Value wrapper branches between crossbeam-backed and PipeFd-backed inner at recv/send time). But the TYPE-KEYWORD at the user level lies — a Process's "Sender" is NOT a `crossbeam_channel::Sender`; it's an OS-pipe-backed typed-channel abstraction. ProcessPeer's PipeFd-backed transport is named after the wrong crate.
+
+**The honest answer (per arc 109 K-channel rename):** `:wat::kernel::Sender<T>` / `:wat::kernel::Receiver<T>` are the canonical names for the typed-channel abstraction. Arc 109 already minted these as aliases (src/check.rs:3056-3057 + 492-493); they unify with the underlying crossbeam at the type system level. Renaming the FIELD-TYPE keywords to the honest abstraction names costs ~0 runtime behavior (aliases unify) and ~0 cognitive load (anyone reading ProcessPeer's declaration knows what they ARE).
+
+- [ ] Update `src/types.rs` ThreadPeer + ProcessPeer field declarations: `:rust::crossbeam_channel::Receiver<I>` → `:wat::kernel::Receiver<I>`; `:rust::crossbeam_channel::Sender<O>` → `:wat::kernel::Sender<O>`
+- [ ] Update `src/check.rs` `Sender/from-pipe` + `Receiver/from-pipe` return type registrations to the honest names
+- [ ] Sweep consumers in tests/ + wat-tests/ + wat/ that explicitly reference `:rust::crossbeam_channel::Sender/Receiver` in type-annotation positions; substitute the honest names
+- [ ] Workspace test: 0 regressions (aliases unify; behavior unchanged)
+- [ ] No new walker code, no new error variants — pure rename/sweep
+
+**Scope:** Substrate rename + consumer sweep. ~10-30 sites depending on consumer surface.
+**Predicted:** 60-90 min sonnet.
+**Dependencies:** C1 + C2 shipped (the target types exist).
+**Blocks:** arc 203 slice 3 (ServiceWithProvisioning) — slice 3 wants to declare struct fields honestly without inheriting the lie.
+
+**Origin:** User flagged 2026-05-17 mid arc 203 slice 2 spawn. Sonnet's transcript revealed it was about to follow ProcessPeer's pattern and propagate the lie to Counter/Client. User's framing: *"why is a process using a crossbeam with stdio?"* → four-questions confirmed Path A (fix substrate FIRST). Per `feedback_attack_foundation_cracks` + `feedback_any_defect_catastrophic` + `feedback_no_known_defect_left_unfixed`: substrate trust binary; fix before more consumers inherit.
+
 ---
 
 ### Stone D — `run-threads` bracket macro — **DECOMPOSED 2026-05-16**
