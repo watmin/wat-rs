@@ -173,11 +173,19 @@ Both emit the same structured HolonAST shape (per slice 1's emission rules). Onl
 
 ### Slice 4 — Rename `signature-of` → `signature-of-defn` + consumer sweep
 
-- Rename the existing primitive at registration + eval + check sites.
-- Sweep consumers: `wat/runtime.wat` (`define-alias` macro), any tests, any docs.
-- Add a back-compat alias `signature-of → signature-of-defn` if the user prefers (decision in slice 4 BRIEF; per `feedback_refuse_easy_solutions` lean is HARD-rename without alias — short-term churn for long-term clarity).
+**Scope concrete (post-grep 2026-05-16):**
 
-**Predicted:** 30-60 min sonnet (depends on consumer count; likely small).
+User-facing keyword: `:wat::runtime::signature-of` → `:wat::runtime::signature-of-defn`. Internal Rust identifiers rename to match per FM 14 (`feedback_surface_retirement_internals`; arc 162 precedent).
+
+- **Substrate Rust** — `src/runtime.rs` (eval handler `eval_signature_of` → `eval_signature_of_defn`; dispatch arm at `:4046`; OP constant; 3 docstring/comment refs at `:9018`, `:9532`, `:9774`); `src/check.rs` (string-literal callee match at `:4721`; `env.register` entry at `:14192`; check-side comment refs); `src/freeze.rs` comments (2); `src/stdlib.rs` comment (1).
+- **Wat consumer** — `wat/runtime.wat` `define-alias` macro (calls `(:wat::runtime::signature-of target-name)` in its expansion body).
+- **Tests** — 13 test files reference `signature-of`: `tests/wat_arc143_lookup.rs`, `wat_arc143_define_alias.rs`, `wat_arc143_manipulation.rs`, `wat_arc136_do_form.rs`, `wat_arc144_lookup_form.rs`, `wat_arc144_uniform_reflection.rs`, `wat_arc144_special_forms.rs`, `wat_arc144_hardcoded_primitives.rs`, `wat_arc146_dispatch_mechanism.rs`, `wat_arc150_variadic_define.rs`, `wat_arc201_signature_of_fn.rs`, `wat_arc201_holon_ast_accessors.rs`, `wat_arc201_structured_signature_types.rs`. Mechanical sweep: every literal call `(:wat::runtime::signature-of ...)` → `(:wat::runtime::signature-of-defn ...)`; every Rust identifier `signature_of` → `signature_of_defn` in test fixture names (only where it refers to THIS primitive — preserve `eval_signature_of_fn` / `signature_of_fn` references unchanged).
+- **Active docs** — `docs/USER-GUIDE.md` (4 hits — explanatory sections), `docs/ZERO-MUTEX.md` (1 hit), `docs/MODULARIZATION-NOTES.md` (1 hit). Mechanical text replace.
+- **Historical artifacts (NOT touched per `feedback_inscription_immutable`):** past INSCRIPTIONs, SCOREs, BRIEFs, DESIGNs in `docs/arc/2026/05/143-*/`, `144-*/`, `146-*/`, `148-*/` — these describe state at write-time; the rename is forward-only.
+
+**Alias decision: RESOLVED — no back-compat alias.** Per `feedback_refuse_easy_solutions`: short-term sweep churn is the honest cost; alias would mint a synonym that violates `project_wat_llm_first_design` (one canonical path per task).
+
+**Predicted:** 60-90 min sonnet. Scope corrected from "likely small" hedge — concrete is ~150 mechanical edits across ~18 files. Still purely mechanical (no substrate-shape change); but the sweep needs careful preservation of `signature-of-fn` (slice 3 sibling) references which contain the substring.
 
 ### Slice 5 — `extract-arg-types` wat-side convenience
 
