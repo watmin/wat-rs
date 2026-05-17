@@ -2334,13 +2334,15 @@ Orchestrator framing: yes — and this is Alan Kay's ORIGINAL OOP, not the degen
 **Worked example shape:**
 
 ```scheme
-;; The "class" — minted as a thread-spawning fn
-(:wat::core::define (:counter/spawn -> :wat::kernel::Thread<Counter/Request, Counter/Response>)
+;; The "class" — minted as a thread-spawning fn (defn — define is being retired)
+(:wat::core::defn :counter/spawn
+  [initial <- :wat::core::i64]
+  -> :wat::kernel::Thread<Counter/Request, Counter/Response>
   (:wat::kernel::spawn-thread
     (:wat::core::fn [server-rx <- :Receiver<Counter/Request>
                      server-tx <- :Sender<Counter/Response>]
                     -> :wat::core::nil
-      (loop [state {:count 0}]
+      (loop [state {:count initial}]
         (match (recv server-rx)
           ((Counter/Request/Get)         (send server-tx (Counter/Response/Value (:count state)))
                                          (recur state))
