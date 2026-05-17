@@ -6,12 +6,12 @@
 ;; Previously (slice 3e): wrappers returned raw T; transport errors panicked via Result/expect.
 ;; Now (slice 3f): every wrapper returns Result<T,:counter::ServiceError>; callers match Ok/Err.
 ;;
-;; Same architecture as slice 3c (Admin + Client capability structs, struct-restricted,
+;; Same architecture as slice 3c (Admin + User capability structs, struct-restricted,
 ;; dynamic Provision/Deprovision, per-user independent state) but at the PROCESS TIER:
 ;;   - Server runs as a subprocess (spawn-process + :wat::core::forms)
 ;;   - All communication via stdio multiplexed through Wire (parent→sub) + WireResp (sub→parent)
 ;;   - Admin holds :counter::AdminProc (server-id, peer!, proc!)
-;;   - Each user holds :counter::ClientProc (server-id, client-id, peer!) — Arc-clone of admin's peer
+;;   - Each user holds :counter::UserProc (server-id, user-id, peer!) — Arc-clone of admin's peer
 ;;   - Sequential request-response (single-threaded body; no concurrent demux needed)
 ;;
 ;; ─── ERROR TYPE DESIGN (PROCESS TIER) ────────────────────────────────────────
@@ -37,14 +37,14 @@
 ;; ─── PROCESS-TIER VALIDATION SEMANTICS ──────────────────────────────────────
 ;;
 ;; At the process tier, the server-id check is LOAD-BEARING — not merely defense in depth.
-;; Unlike the thread tier (where the Sender<Wire> is enclosed in struct-restricted Admin/Client
+;; Unlike the thread tier (where the Sender<Wire> is enclosed in struct-restricted Admin/User
 ;; so only :counter::* code can obtain it), the process tier has NO such transport-level
 ;; guarantee. The subprocess accepts data over stdio; a bug, a future multiplexer, or a
 ;; malicious caller could write bytes to the subprocess's stdin outside of the :counter::*
 ;; wrappers. The server CANNOT rely on transport-level identity.
 ;;
 ;; The secret-witness pattern makes validation STRUCTURAL: only a caller who obtained
-;; an AdminProc or ClientProc capability (minted exclusively by :counter::spawn-proc and
+;; an AdminProc or UserProc capability (minted exclusively by :counter::spawn-proc and
 ;; :counter::provision-proc) knows the server-id. The subprocess validates every incoming
 ;; Wire against its own server-id. A Wire with the wrong server-id is rejected with
 ;; AccessDenied — the request is never processed.
@@ -56,9 +56,9 @@
 ;;
 ;; Design choices:
 ;;   1. Multiplexed single-stream — all admin + user ops share one ProcessPeer
-;;      Wire::User carries client-id so server can route; WireResp tags Admin vs User
+;;      Wire::User carries user-id so server can route; WireResp tags Admin vs User
 ;;   2. AdminProc holds proc! for drain-and-join in stop-proc (inner/outer let pattern)
-;;   3. ClientProc.peer! is same peer as AdminProc.peer! (Arc-clone; accessor clones)
+;;   3. UserProc.peer! is same peer as AdminProc.peer! (Arc-clone; accessor clones)
 ;;   4. -proc suffix avoids collision with slice 3c's thread-tier wrappers
 ;;
 ;; Lessons applied from prior slices:
@@ -83,7 +83,7 @@
    ;; the server cannot rely on transport identity alone.
    (:wat::core::enum :counter::Wire
      (Admin (server-id :wat::core::String) (req :counter::AdminReq))
-     (User  (server-id :wat::core::String) (id :wat::core::String) (req :counter::UserReq)))
+     (User  (server-id :wat::core::String) (user-id :wat::core::String) (req :counter::UserReq)))
 
    ;; ─── WireResp enum (subprocess → parent) ────────────────────────────────────
    ;; Tags Admin vs User responses so the parent can demux by category.
@@ -156,17 +156,17 @@
       [:counter::] proc!     <- :wat::kernel::Process<counter::Wire,counter::WireResp>)
      ())
 
-   ;; :counter::ClientProc — per-user capability handle.
-   ;;   server-id  — identifies which server issued this client
-   ;;   client-id  — server-minted unique id for this user slot
+   ;; :counter::UserProc — per-user capability handle.
+   ;;   server-id  — identifies which server issued this user
+   ;;   user-id    — server-minted unique id for this user slot
    ;;   peer!      — shared ProcessPeer (Arc-clone of AdminProc's peer!)
    ;;
    ;; Minted ONLY by :counter::provision-proc (constructor whitelist [:counter::]).
    ;; All fields restricted to :counter::* reads.
-   (:wat::core::struct-restricted :counter::ClientProc
+   (:wat::core::struct-restricted :counter::UserProc
      [:counter::]
      ([:counter::] server-id <- :wat::core::String
-      [:counter::] client-id <- :wat::core::String
+      [:counter::] user-id   <- :wat::core::String
       [:counter::] peer!     <- :wat::kernel::ProcessPeer<counter::WireResp,counter::Wire>)
      ())
 
@@ -200,7 +200,7 @@
               ;; Wire now carries server-id as the first field on both variants.
               (:wat::core::enum :counter::Wire
                 (Admin (server-id :wat::core::String) (req :counter::AdminReq))
-                (User  (server-id :wat::core::String) (id :wat::core::String) (req :counter::UserReq)))
+                (User  (server-id :wat::core::String) (user-id :wat::core::String) (req :counter::UserReq)))
 
               (:wat::core::enum :counter::WireResp
                 (Admin (resp :counter::AdminResp))
@@ -413,7 +413,7 @@
 
    ;; :counter::provision-proc — sends Wire/Admin Provision; reads WireResp/Admin Provisioned.
    ;;
-   ;; Now returns Result<ClientProc,ServiceError>.
+   ;; Now returns Result<UserProc,ServiceError>.
    ;; Process/println + Process/readln panic on transport failure;
    ;; only the wire-level AccessDenied is catchable as Result.
    ;;
@@ -422,14 +422,14 @@
    ;;
    ;; Wire::Admin now carries server-id (from AdminProc capability) as first field.
    ;; AdminResp::Provisioned carries only the minted id (no channels at process tier).
-   ;; ClientProc.peer! is constructed from admin.peer! — accessors clone Arc-backed values.
+   ;; UserProc.peer! is constructed from admin.peer! — accessors clone Arc-backed values.
    ;;
    ;; Two-level match: outer covers WireResp variants (Admin | User);
    ;; inner covers AdminResp variants (Provisioned | Deprovisioned | Stopped | AccessDenied).
    (:wat::core::defn :counter::provision-proc
      [admin!  <- :counter::AdminProc
       initial <- :wat::core::i64]
-     -> :wat::core::Result<counter::ClientProc,counter::ServiceError>
+     -> :wat::core::Result<counter::UserProc,counter::ServiceError>
      (:wat::core::let
        [pr      (:counter::AdminProc/peer!     admin!)
         sid     (:counter::AdminProc/server-id admin!)
@@ -438,11 +438,11 @@
             (:counter::Wire::Admin sid (:counter::AdminReq::Provision initial)))
         wire-resp
           (:wat::kernel::Process/readln pr)]
-       (:wat::core::match wire-resp -> :wat::core::Result<counter::ClientProc,counter::ServiceError>
+       (:wat::core::match wire-resp -> :wat::core::Result<counter::UserProc,counter::ServiceError>
          ((:counter::WireResp::Admin admin-resp)
-           (:wat::core::match admin-resp -> :wat::core::Result<counter::ClientProc,counter::ServiceError>
+           (:wat::core::match admin-resp -> :wat::core::Result<counter::UserProc,counter::ServiceError>
              ((:counter::AdminResp::Provisioned id)
-               (:wat::core::Ok (:counter::ClientProc/new sid id pr)))
+               (:wat::core::Ok (:counter::UserProc/new sid id pr)))
              ((:counter::AdminResp::AccessDenied)
                (:wat::core::Err (:counter::ServiceError::AccessDenied)))
              ((:counter::AdminResp::Deprovisioned _id)
@@ -458,12 +458,12 @@
    ;; Two-level match: outer WireResp → Admin|User; inner AdminResp → Deprovisioned|others.
    (:wat::core::defn :counter::deprovision-proc
      [admin!  <- :counter::AdminProc
-      client! <- :counter::ClientProc]
+      user!   <- :counter::UserProc]
      -> :wat::core::Result<wat::core::nil,counter::ServiceError>
      (:wat::core::let
-       [pr    (:counter::AdminProc/peer!      admin!)
-        sid   (:counter::AdminProc/server-id  admin!)
-        cid   (:counter::ClientProc/client-id client!)
+       [pr    (:counter::AdminProc/peer!     admin!)
+        sid   (:counter::AdminProc/server-id admin!)
+        cid   (:counter::UserProc/user-id    user!)
         _sent
           (:wat::kernel::Process/println pr
             (:counter::Wire::Admin sid (:counter::AdminReq::Deprovision cid)))
@@ -531,7 +531,7 @@
    ;; ─── User ops ────────────────────────────────────────────────────────────────
    ;;
    ;; Each user wrapper sends Wire::User carrying the server-id (secret witness),
-   ;; client-id (routing key), and the UserReq variant.
+   ;; user-id (routing key), and the UserReq variant.
    ;; Reads back WireResp::User carrying the UserResp; extracts and returns value.
    ;; Now returns Result<i64,ServiceError>.
    ;;
@@ -541,12 +541,12 @@
    ;; Two-level match — outer WireResp → User|Admin; inner UserResp → Value|Ok|AccessDenied.
 
    (:wat::core::defn :counter::get-proc
-     [client! <- :counter::ClientProc]
+     [user! <- :counter::UserProc]
      -> :wat::core::Result<wat::core::i64,counter::ServiceError>
      (:wat::core::let
-       [pr   (:counter::ClientProc/peer!      client!)
-        cid  (:counter::ClientProc/client-id  client!)
-        sid  (:counter::ClientProc/server-id  client!)
+       [pr   (:counter::UserProc/peer!      user!)
+        cid  (:counter::UserProc/user-id    user!)
+        sid  (:counter::UserProc/server-id  user!)
         _sent
           (:wat::kernel::Process/println pr
             (:counter::Wire::User sid cid (:counter::UserReq::Get)))
@@ -563,13 +563,13 @@
            (:wat::kernel::assertion-failed! "get-proc: expected User WireResp, got Admin" :wat::core::None :wat::core::None)))))
 
    (:wat::core::defn :counter::increment-proc
-     [client! <- :counter::ClientProc
-      n       <- :wat::core::i64]
+     [user! <- :counter::UserProc
+      n     <- :wat::core::i64]
      -> :wat::core::Result<wat::core::i64,counter::ServiceError>
      (:wat::core::let
-       [pr   (:counter::ClientProc/peer!      client!)
-        cid  (:counter::ClientProc/client-id  client!)
-        sid  (:counter::ClientProc/server-id  client!)
+       [pr   (:counter::UserProc/peer!      user!)
+        cid  (:counter::UserProc/user-id    user!)
+        sid  (:counter::UserProc/server-id  user!)
         _sent
           (:wat::kernel::Process/println pr
             (:counter::Wire::User sid cid (:counter::UserReq::Increment n)))
@@ -586,12 +586,12 @@
            (:wat::kernel::assertion-failed! "increment-proc: expected User WireResp, got Admin" :wat::core::None :wat::core::None)))))
 
    (:wat::core::defn :counter::reset-proc
-     [client! <- :counter::ClientProc]
+     [user! <- :counter::UserProc]
      -> :wat::core::Result<wat::core::i64,counter::ServiceError>
      (:wat::core::let
-       [pr   (:counter::ClientProc/peer!      client!)
-        cid  (:counter::ClientProc/client-id  client!)
-        sid  (:counter::ClientProc/server-id  client!)
+       [pr   (:counter::UserProc/peer!      user!)
+        cid  (:counter::UserProc/user-id    user!)
+        sid  (:counter::UserProc/server-id  user!)
         _sent
           (:wat::kernel::Process/println pr
             (:counter::Wire::User sid cid (:counter::UserReq::Reset)))
@@ -689,11 +689,11 @@
   ;; Exercises ALL ops via capability wrappers ONLY.
   ;; This namespace is :counter-service::process-N3 — NOT :counter::*.
   ;; The test body CANNOT:
-  ;;   - call :counter::AdminProc/new or :counter::ClientProc/new (restricted ctor)
+  ;;   - call :counter::AdminProc/new or :counter::UserProc/new (restricted ctor)
   ;;   - call :counter::AdminProc/server-id, :counter::AdminProc/peer!, etc. (restricted accessors)
-  ;;   - call :counter::ClientProc/server-id, :counter::ClientProc/client-id, etc.
+  ;;   - call :counter::UserProc/server-id, :counter::UserProc/user-id, etc.
   ;;
-  ;; admin! and client-X! are struct types (not raw ProcessPeer or Process);
+  ;; admin! and user-X! are struct types (not raw ProcessPeer or Process);
   ;; the scope-deadlock checker does not fire on struct-typed bindings.
   ;; SERVICE-PROGRAMS lockstep is absorbed entirely into :counter::stop-proc.
   ;;
@@ -704,7 +704,7 @@
   ;;
   ;; Scenario:
   ;;   1.  Spawn server subprocess → admin!
-  ;;   2.  Provision 3 users: initial 10, 100, 0 → client-a!, client-b!, client-c!
+  ;;   2.  Provision 3 users: initial 10, 100, 0 → user-a!, user-b!, user-c!
   ;;   3.  Increment a by 5  → 15
   ;;   4.  Increment b by 50 → 150
   ;;   5.  Get c             → 0
@@ -717,30 +717,30 @@
   (:wat::core::let
     [admin!    (:counter::spawn-proc)
 
-     ;; Step 2: provision — each returns Result<ClientProc,ServiceError>; match Ok
-     client-a-res (:counter::provision-proc admin! 10)
-     client-a!
-       (:wat::core::match client-a-res -> :counter::ClientProc
+     ;; Step 2: provision — each returns Result<UserProc,ServiceError>; match Ok
+     user-a-res (:counter::provision-proc admin! 10)
+     user-a!
+       (:wat::core::match user-a-res -> :counter::UserProc
          ((:wat::core::Ok c) c)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "provision-proc a: expected Ok" :wat::core::None :wat::core::None)))
 
-     client-b-res (:counter::provision-proc admin! 100)
-     client-b!
-       (:wat::core::match client-b-res -> :counter::ClientProc
+     user-b-res (:counter::provision-proc admin! 100)
+     user-b!
+       (:wat::core::match user-b-res -> :counter::UserProc
          ((:wat::core::Ok c) c)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "provision-proc b: expected Ok" :wat::core::None :wat::core::None)))
 
-     client-c-res (:counter::provision-proc admin! 0)
-     client-c!
-       (:wat::core::match client-c-res -> :counter::ClientProc
+     user-c-res (:counter::provision-proc admin! 0)
+     user-c!
+       (:wat::core::match user-c-res -> :counter::UserProc
          ((:wat::core::Ok c) c)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "provision-proc c: expected Ok" :wat::core::None :wat::core::None)))
 
      ;; Step 3: increment a — returns Result<i64,ServiceError>; match Ok; assert
-     a1-res (:counter::increment-proc client-a! 5)
+     a1-res (:counter::increment-proc user-a! 5)
      a1
        (:wat::core::match a1-res -> :wat::core::i64
          ((:wat::core::Ok v) v)
@@ -749,7 +749,7 @@
      _  (:wat::test::assert-eq a1 15)
 
      ;; Step 4: increment b
-     b1-res (:counter::increment-proc client-b! 50)
+     b1-res (:counter::increment-proc user-b! 50)
      b1
        (:wat::core::match b1-res -> :wat::core::i64
          ((:wat::core::Ok v) v)
@@ -758,7 +758,7 @@
      _  (:wat::test::assert-eq b1 150)
 
      ;; Step 5: get c
-     c1-res (:counter::get-proc client-c!)
+     c1-res (:counter::get-proc user-c!)
      c1
        (:wat::core::match c1-res -> :wat::core::i64
          ((:wat::core::Ok v) v)
@@ -767,7 +767,7 @@
      _  (:wat::test::assert-eq c1 0)
 
      ;; Step 6: deprovision b — returns Result<nil,ServiceError>; assert Ok
-     dep-res (:counter::deprovision-proc admin! client-b!)
+     dep-res (:counter::deprovision-proc admin! user-b!)
      _dep
        (:wat::core::match dep-res -> :wat::core::nil
          ((:wat::core::Ok _) ())
@@ -775,7 +775,7 @@
            (:wat::kernel::assertion-failed! "deprovision-proc b: expected Ok" :wat::core::None :wat::core::None)))
 
      ;; Step 7: get a (still alive after b deprovisioned)
-     a2-res (:counter::get-proc client-a!)
+     a2-res (:counter::get-proc user-a!)
      a2
        (:wat::core::match a2-res -> :wat::core::i64
          ((:wat::core::Ok v) v)
@@ -784,7 +784,7 @@
      _  (:wat::test::assert-eq a2 15)
 
      ;; Step 8: reset c (still alive)
-     c2-res (:counter::reset-proc client-c!)
+     c2-res (:counter::reset-proc user-c!)
      c2
        (:wat::core::match c2-res -> :wat::core::i64
          ((:wat::core::Ok v) v)
