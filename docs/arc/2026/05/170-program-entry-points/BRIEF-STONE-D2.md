@@ -1,3 +1,15 @@
+## SUPERSEDED 2026-05-16 (late evening)
+
+**This BRIEF (nested-vectors call form `[[:I :O f] ...]`) is HISTORICAL ARTIFACT. SUPERSEDED by `BRIEF-STONE-D2-COORDINATOR.md`** at the same commit boundary, which adopts the coordinator-fn call form per INTERSTITIAL § "design phase complete" (line 1764) + § "Stone D design pass" (line 2013-2110).
+
+**Why superseded:** the call form changed across the same-day design conversation. Old form duplicated type declarations (once in the spec triple, once in the factory fn's own signature). New form uses arc 201's reflection chain (signature-of-fn + extract-arg-names + extract-arg-types + Bundle/children) to read everything from a single source of truth — the coordinator fn's typed binders. Four-questions outcome: old form scored Marginal on Obvious + Honest + Good UX (DRY violation); new form scored YES YES YES YES.
+
+**STOP record preserved:** this BRIEF reached SCORE-STONE-D2.md (STOPPED on substrate gap). Arc 200 (committed `6661483`) shipped the relaxations that unblocked it; arc 201 (commits `0706949` + `c9445a4` + `815d597` + `ecc876a` + `2776635`, closed `bab6b8e`) shipped the reflection chain the NEW form uses. Both arcs are forward-progress; the SCORE's STOP signal was correct at the time.
+
+**Per `feedback_inscription_immutable`:** body unchanged below. Forward correction lives in the new BRIEF.
+
+---
+
 # Arc 170 Stone D2 BRIEF — multi-factory heterogeneous `run-threads`
 
 **Phase:** Second sub-stone of decomposed Stone D. See STONES.md § Stone D + INTERSTITIAL § 2026-05-16 (Stone D design pass).
