@@ -2780,6 +2780,76 @@ The lab doesn't need a new ARCHITECTURE — it needs to BE this architecture. Th
 
 ---
 
+### Compaction breadcrumb 2026-05-16 (late) — handoff state
+
+**Tip commit:** `9638145` (this entry pre-dates a planned compaction; tonight's chain since arc 201 closure runs ~20 commits — see § "Dungeon rank-up" + § "Trajectory now (10 → 11 floors)" for the narrative arc).
+
+**In-flight sonnet at compaction:** Counter actor pattern proof — agent `af695dd8289e66fb6`. Output file:
+`/tmp/claude-1000/-home-watmin-work-holon/bc87fd88-050a-4542-bf0c-ccb5a18db436/tasks/af695dd8289e66fb6.output`
+
+State on disk (UNCOMMITTED — sonnet hasn't completed):
+- `wat-tests/counter-actor-proof-thread.wat` (214 lines)
+- `wat-tests/counter-actor-proof-process.wat` (197 lines)
+- `docs/arc/2026/05/170-program-entry-points/SCORE-COUNTER-ACTOR-PROOF.md` — NOT YET written
+
+**Recovery instructions for post-compaction orchestrator:**
+
+1. **Read this section first.** Then read INTERSTITIAL § 2026-05-16 (late) Kay-OOP entry + § (deeper) control-channels entry + the immediately preceding § service-with-provisioning addendum.
+
+2. **Verify state:**
+   - `git -C /home/watmin/work/holon/wat-rs log --oneline | head -5` should show `9638145` at tip
+   - `git -C /home/watmin/work/holon/wat-rs status --short` should show two untracked `wat-tests/counter-actor-proof-*.wat` files + `.claude/worktrees/` (harness state — leave alone per FM 7-bis)
+
+3. **Check sonnet completion:**
+   - If `docs/arc/2026/05/170-program-entry-points/SCORE-COUNTER-ACTOR-PROOF.md` EXISTS: sonnet completed. Verify load-bearing rows (run `cargo test --release -p wat --test counter-actor-proof-thread` + `--test counter-actor-proof-process` — exact test invocation depends on how wat-tests deftest sites surface via cargo). Then atomic commit (test files + SCORE) per standard cadence. Push.
+   - If SCORE DOES NOT exist: sonnet didn't complete. Read the BRIEF + EXPECTATIONS at `docs/arc/2026/05/170-program-entry-points/BRIEF-COUNTER-ACTOR-PROOF.md` + `EXPECTATIONS-COUNTER-ACTOR-PROOF.md`. Inspect the two `wat-tests/counter-actor-proof-*.wat` files; decide: respawn sonnet to finish, OR adopt the work + write SCORE yourself, OR start fresh. Use the discipline (orchestrator owns SCORE drafting; sonnet wrote tests).
+
+4. **Honest-delta watch:** EXPECTATIONS predicted 1-3 inscription↔substrate gaps would surface (recv-Result handling, ambient verb spellings, ProcessPeer/new arg order). When SCORE lands, read for these. If any gap, INSCRIBE forward-correction in a new INTERSTITIAL entry per `feedback_inscription_immutable` — past Counter examples stay; new entry names the correction.
+
+**Queued after Counter actor proof lands:**
+
+| # | Item | Source |
+|---|------|--------|
+| 1 | ServiceWithProvisioning thread-tier proof | Task #338 + INTERSTITIAL § service-with-provisioning |
+| 2 | ServiceWithProvisioning process-tier proof | Task #339 + same |
+| 3 | D3 — panic cascade + ProcessGroupErr | STONES.md § D3 |
+| 4 | Stone E — run-processes bracket (mirrors D2) | STONES.md § Stone E |
+| 5 | Stones F/G/H — fallout cleanup + walker retirement + INSCRIPTION | STONES.md |
+| 6 | Arc 170 closes via Stone H's INSCRIPTION | STONES.md final |
+
+**Decisions settled tonight that post-compaction me MUST honor (no re-litigation):**
+
+- `Shutdown` is the conventional terminal Request variant (every actor)
+- `Final<State>` is the conventional terminal Response variant (carries actor's accumulator)
+- Flavor 1 (coordinator-explicit per-peer shutdown) over Flavor 2 (bracket auto-helper) — disqualified Flavor 2 on Simple + Honest
+- Tier-placeholder convention: `:user::thread-main` placeholder (thread); `:user::main` LITERAL (process; ambient stdio); remote TBD
+- `!` suffix on impure-handle binders (ThreadPeer/ProcessPeer/IOWriter/etc.); pure values unsuffixed
+- HashMap-as-Box is ANTI-PATTERN; bare value is the state (no Box primitive — DISQUALIFIED on four)
+- Three-line handler shape per match arm (compute, send, recur); Terminal is single send
+- Thread tier IS the workhorse for intra-process shared state (caches, logs, registries); process tier when crash-isolation or boundary value exceeds EDN-serialization cost
+- ServiceWithProvisioning pattern: shared-state actor with Provision / Deprovision Request variants alongside domain ops
+- Fractal deployment composition is the lab-trading shape; reconstruction inherits this as the canonical model
+
+**Key disk anchors for fresh post-compaction agent (read in order):**
+
+1. `docs/COMPACTION-AMNESIA-RECOVERY.md` — the protocol
+2. This file `INTERSTITIAL-REALIZATIONS.md` — search for "2026-05-16" and read those entries in document order; tonight's chain runs Kay-OOP → control-channels → service-with-provisioning → THIS BREADCRUMB
+3. `docs/arc/2026/05/170-program-entry-points/BRACKET-IMPLEMENTATION-STONES.md` — status of each stone
+4. `docs/arc/2026/05/170-program-entry-points/BRIEF-COUNTER-ACTOR-PROOF.md` + `EXPECTATIONS-COUNTER-ACTOR-PROOF.md` — what sonnet is/was working on
+5. `docs/arc/2026/05/170-program-entry-points/SCORE-STONE-D2-COORDINATOR.md` — what shipped immediately before this work
+6. `docs/USER-GUIDE.md` § "Runtime reflection" (extended in arc 201 closure) — what's exposed to users now
+
+**Branch state:**
+- `arc-170-gap-j-v5-deadlock-state` is the working branch
+- Lab repo (`/home/watmin/work/holon/holon-lab-trading`) at `8701317` (058 changelog rows for arcs 200/201/202; main branch; clean)
+
+**Open scheduled wakeup:**
+- A wakeup is scheduled for the Counter actor proof sonnet's failure-to-communicate fallback (~22:47 UTC). If sonnet completes first, task-notification arrives normally + wakeup is no-op when it fires. If sonnet hangs, wakeup fires and orchestrator decides keep-waiting vs TaskStop per recovery doc § 7 time-boxing discipline.
+
+The substrate teaches; we listen; we ship; the disk remembers.
+
+---
+
 ### Addendum — state-shape taxonomy + handler-shape taxonomy + Box rejected
 
 **User's framing 2026-05-16:** *"i agree that State is whatever it must be ... we can just TCO the state into the next iteration"* + *"the increment call .. it looks wrong... it should be ... (let [new-n (+ state n)] (send server-tx! (Counter/Response/Ok new-n)) (:counter/dispatch server-rx! server-tx! new-n)) ... that's the whole handler?..."*
