@@ -2217,6 +2217,19 @@ The substrate engineered the separation:
 
 That separation IS the load-bearing guarantee that makes expand-time reflection on fn-forms safe — regardless of macro/type-def ordering. We almost called this a crack; investigation revealed the design working exactly as engineered.
 
+### The trade plainly
+
+**What parse/resolve separation PREVENTS:** eager type resolution at parse-time. If you write `(:fn [x <- :MyApp::Foo] -> :nil ...)` and `MyApp::Foo` doesn't exist (yet, or ever), parse-time DOES NOT error. The unknown-type error doesn't surface until check-time.
+
+**What we PURCHASE by allowing that:**
+1. **Macros run before type-checking** — because macros GENERATE code the type-checker then checks. If macros required types resolved, they couldn't reference user types in generated code (chicken-and-egg).
+2. **Forward references work** — any non-trivial Lisp program references types defined later in the file (or in `load!`'d files); eager resolution would forbid this.
+3. **Reflection at macro-expand-time works** — exactly the D2 use case. `signature-of-fn` reads TypeExpr from a closure built at expand-time, before user types are registered.
+
+**What we LOSE:** parse-time can't catch type-name typos. The typo surfaces at check-time instead of expand-time. But: check-time still runs before program execution, in the same `freeze` pass. User gets the error in their build — just one phase later. No user-facing capability is lost; only the moment-of-error-surfacing shifts.
+
+**The trade is asymmetric in our favor.** Late-binding gain (macros + forward refs + reflection) >> late-binding cost (error message one phase later). Every Lisp ever made the same trade for the same reason — it's what makes macros possible.
+
 ### The pattern (now confirmed three times today)
 
 - Arc 199 — rejected because computed-unquote + keyword/from-string + string::concat already shipped (arc 143 + arc 057 surface). Asserted gap; reality: engineered solution already present.
