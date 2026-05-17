@@ -191,3 +191,34 @@ pub fn parse_all(input: &str) -> Result<Vec<Value<'_>>> {
 pub fn new_uuid_v4() -> uuid::Uuid {
     uuid::Uuid::new_v4()
 }
+
+/// Mint a deterministic v5 (SHA-1-based) UUID from a `namespace` UUID and a
+/// `name` string. Output is canonical 8-4-4-4-12 hyphenated form when
+/// stringified — always 36 chars, always lowercase, always hyphenated at
+/// positions 8, 13, 18, 23.
+///
+/// Same inputs always produce the same output (deterministic). This makes v5
+/// suitable for content addressing and hierarchical UUID derivation.
+///
+/// Available only with the `mint` feature enabled (see Cargo.toml) — the
+/// feature pulls in `uuid`'s `v5` capability. Parser-only consumers stay lean.
+///
+/// Arc 206 slice 1.5 — substrate promotion of `:wat::core::uuid::v5`.
+///
+/// # Example
+///
+/// ```
+/// # #[cfg(feature = "mint")] {
+/// use wat_edn::new_uuid_v5;
+/// use uuid::Uuid;
+///
+/// let ns = Uuid::parse_str("6ba7b810-9dad-11d1-80b4-00c04fd430c8").unwrap();
+/// let id1 = new_uuid_v5(ns, "hello");
+/// let id2 = new_uuid_v5(ns, "hello");
+/// assert_eq!(id1, id2, "v5 is deterministic");
+/// # }
+/// ```
+#[cfg(feature = "mint")]
+pub fn new_uuid_v5(namespace: uuid::Uuid, name: &str) -> uuid::Uuid {
+    uuid::Uuid::new_v5(&namespace, name.as_bytes())
+}

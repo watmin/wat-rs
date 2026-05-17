@@ -11,7 +11,7 @@ default = []
 # `mint` enables `new_uuid_v4()` — pulls `uuid`'s `v4` feature, which links
 # `getrandom`. Off by default so parser-only consumers don't pay for entropy
 # init they don't use. Arc 092.
-mint = ["uuid/v4"]
+mint = ["uuid/v4", "uuid/v5"]
 
 [dependencies]
 chrono       = { version = "0.4", default-features = false, features = ["std", "clock"] }

@@ -253,6 +253,73 @@ pub fn eval_uuid_v4(
     Ok(Value::String(Arc::new(id)))
 }
 
+/// `(:wat::core::uuid::v5 namespace name)` → `:wat::core::String`.
+///
+/// Mints a deterministic v5 (SHA-1-based) UUID from a `namespace` UUID string
+/// and a `name` string. Returns the canonical 8-4-4-4-12 hyphenated hex
+/// representation — always 36 chars, always lowercase.
+///
+/// `namespace` must be a canonical 36-char UUID string (e.g., the RFC 4122
+/// DNS namespace `"6ba7b810-9dad-11d1-80b4-00c04fd430c8"`). An invalid
+/// namespace panics with `assertion-failed!` and a clear diagnostic.
+///
+/// Arity-2; any other argument count is a runtime ArityMismatch.
+///
+/// Arc 206 slice 1.5 — substrate promotion. Available to all wat code without
+/// a `:wat::telemetry` dep. Deterministic: same (namespace, name) always
+/// produces the same UUID.
+pub fn eval_uuid_v5(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::uuid::v5";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: if args.is_empty() {
+                crate::span::Span::unknown()
+            } else {
+                args[0].span().clone()
+            },
+        });
+    }
+    let ns_val = eval(&args[0], env, sym)?;
+    let name_val = eval(&args[1], env, sym)?;
+    let ns_str = match &ns_val {
+        Value::String(s) => s.as_str().to_string(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String".into(),
+                got: ns_val.type_name().into(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let name_str = match &name_val {
+        Value::String(s) => s.as_str().to_string(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String".into(),
+                got: name_val.type_name().into(),
+                span: args[1].span().clone(),
+            });
+        }
+    };
+    let ns_uuid = uuid::Uuid::parse_str(&ns_str).unwrap_or_else(|_| {
+        panic!(
+            "assertion-failed! uuid::v5: namespace must be a canonical UUID string, got: {:?}",
+            ns_str
+        )
+    });
+    let id = wat_edn::new_uuid_v5(ns_uuid, &name_str).to_string();
+    Ok(Value::String(Arc::new(id)))
+}
+
 // ─── regex ───────────────────────────────────────────────────────────────
 
 /// `(:wat::core::regex::matches? pattern haystack)` → `:bool`.
