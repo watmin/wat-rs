@@ -3257,7 +3257,7 @@ fn parse_param_pair(
         None => unreachable!("length checked above"),
     };
     // Arc 201 slice 1 — accept either a keyword (legacy source form)
-    // or a structured-AST list (the shape `signature-of` emits for
+    // or a structured-AST list (the shape `signature-of-defn` emits for
     // Parametric / Tuple / Fn types, which arc-143 `define-alias`
     // splices back into a fresh define). `parse_type_slot` walks both
     // shapes to the same `TypeExpr`.
@@ -3282,7 +3282,7 @@ fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> 
 /// structured-AST list (the shape `type_expr_to_ast` emits) as the
 /// type slot of a `define` parameter pair. The structured form arises
 /// when a reflection consumer (e.g. `:wat::runtime::define-alias`)
-/// takes a signature head from `signature-of` and splices it back into
+/// takes a signature head from `signature-of-defn` and splices it back into
 /// a fresh `define`: the splice carries `WatAST::List` for every
 /// Parametric / Tuple / Fn type, where the original source wrote a
 /// `WatAST::Keyword`.
@@ -4043,7 +4043,7 @@ fn dispatch_keyword_head(
         // Arc 143 slice 1 — runtime introspection: look up a named
         // callable by keyword and return its AST representation.
         ":wat::runtime::lookup-define" => eval_lookup_define(args, env, sym),
-        ":wat::runtime::signature-of" => eval_signature_of(args, env, sym),
+        ":wat::runtime::signature-of-defn" => eval_signature_of_defn(args, env, sym),
         ":wat::runtime::signature-of-fn" => eval_signature_of_fn(args, env, sym),
         ":wat::runtime::body-of" => eval_body_of(args, env, sym),
         // Arc 143 slice 3 — HolonAST manipulation primitives.
@@ -9015,7 +9015,7 @@ fn eval_struct_to_form(
 // ─── Arc 143 slice 1 — runtime introspection helpers ────────────────────────
 //
 // Four Rust-internal helpers that reconstruct WatAST from stored runtime
-// data. Used by `eval_lookup_define`, `eval_signature_of`, `eval_body_of`.
+// data. Used by `eval_lookup_define`, `eval_signature_of_defn`, `eval_body_of`.
 // None of these are exposed to wat; they are pure implementation detail.
 
 /// Arc 201 slice 1 — render a `TypeExpr` as a STRUCTURED WatAST node
@@ -9529,7 +9529,7 @@ fn name_from_keyword_or_fn(v: &Value) -> Option<String> {
 /// Arc 144 slice 1 — uniform reflection binding. Every kind of known
 /// wat form (user defines, macros, substrate primitives, special forms,
 /// types) produces a `Binding` when looked up. The reflection-layer
-/// consumers (`lookup-define`, `signature-of`, `body-of`) dispatch on
+/// consumers (`lookup-define`, `signature-of-defn`, `body-of`) dispatch on
 /// the variant uniformly — the consumer doesn't case the kinds it
 /// cares about; the data flows through one shape.
 ///
@@ -9771,7 +9771,7 @@ fn eval_lookup_define(
     }
 }
 
-/// `(:wat::runtime::signature-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
+/// `(:wat::runtime::signature-of-defn <name :keyword>) -> :Option<wat::holon::HolonAST>`
 ///
 /// Arc 143 slice 1. Returns ONLY the signature HEAD:
 /// `(<name><type_params> (param :Type) ... -> :Ret)`.
@@ -9779,12 +9779,12 @@ fn eval_lookup_define(
 /// For user defines, reconstructs from the `Function`.
 /// For substrate primitives, synthesises from the `TypeScheme`.
 /// For unknown names, returns `:None`.
-fn eval_signature_of(
+fn eval_signature_of_defn(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::runtime::signature-of";
+    const OP: &str = ":wat::runtime::signature-of-defn";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -9834,7 +9834,7 @@ fn eval_signature_of(
         }
         Some(Binding::Dispatch { mm, .. }) => {
             // Arc 146 slice 2 — emit a SYNTHETIC polymorphic signature
-            // head so consumers of `signature-of` (notably
+            // head so consumers of `signature-of-defn` (notably
             // `:wat::runtime::define-alias`'s `rename-callable-name`
             // step) can treat a dispatch like any other callable. The
             // synthetic head is `(<name> (_a0 :T) ... -> :ret)` where
@@ -9860,14 +9860,14 @@ fn eval_signature_of(
 
 /// `(:wat::runtime::signature-of-fn <fn-value>) -> :wat::holon::HolonAST`
 ///
-/// Arc 201 slice 3. The fn-input sibling of `signature-of` (which takes a
+/// Arc 201 slice 3. The fn-input sibling of `signature-of-defn` (which takes a
 /// NAME keyword and looks up a defined callable in the symbol table). This
 /// primitive operates on a FN VALUE — typically the result of evaluating an
 /// inline `(:wat::core::fn [...] -> :T body)` form at the call site, or a
 /// fn value bound to a local.
 ///
 /// Returns the structured signature HolonAST in the SAME SHAPE that
-/// `signature-of` returns for named user defines (per
+/// `signature-of-defn` returns for named user defines (per
 /// `function_to_signature_ast`'s output, lowered via `watast_to_holon`):
 ///
 /// ```text
@@ -9885,13 +9885,13 @@ fn eval_signature_of(
 /// Parametric / Tuple / Fn types, `Symbol` (atomic) for Path / Var types.
 ///
 /// REUSE: this primitive shares `function_to_signature_ast` directly with
-/// `signature-of`'s UserFunction branch — anonymous fn values carry the
+/// `signature-of-defn`'s UserFunction branch — anonymous fn values carry the
 /// same `Function` struct as named defines, only `f.name` is `None`. The
 /// signature head spells out as `:anonymous` per the existing convention
 /// at `function_to_signature_ast`'s line ~9107.
 ///
 /// Return type is `:wat::holon::HolonAST` (NOT `:Option<HolonAST>`).
-/// Unlike `signature-of` (which can fail to find a name → `:None`), this
+/// Unlike `signature-of-defn` (which can fail to find a name → `:None`), this
 /// primitive's input is a structurally-validated fn value — absence is
 /// impossible. Type mismatches at the input slot surface as
 /// `RuntimeError::TypeMismatch`, not `:None`.
@@ -20811,7 +20811,7 @@ mod tests {
                     .expect("stdlib defmacros register");
             // Arc 146 slice 2: stdlib dispatch registration BEFORE
             // macro expansion (mirrors freeze.rs's step 4a). Reflection-
-            // driven macros invoke `signature-of` on dispatch-promoted
+            // driven macros invoke `signature-of-defn` on dispatch-promoted
             // names (e.g. `:wat::core::length`); the dispatch_registry
             // must be visible to the expander.
             let mut dispatchs = crate::dispatch::DispatchRegistry::new();

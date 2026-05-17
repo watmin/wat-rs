@@ -757,7 +757,7 @@ fn startup_from_forms_post_config(
 
     // 4a. Arc 146 slice 2 — stdlib dispatch registration BEFORE
     //     macro expansion. Reflection-driven macros (e.g.
-    //     `:wat::runtime::define-alias`) call `signature-of` /
+    //     `:wat::runtime::define-alias`) call `signature-of-defn` /
     //     `lookup-define` on substrate names during expansion; if a
     //     substrate name is now a Dispatch (e.g. `:wat::core::length`
     //     post-arc-146-slice-2), the dispatch_registry must be
@@ -780,7 +780,7 @@ fn startup_from_forms_post_config(
     // use :wat::holon::Subtract / list helpers / etc.
     //
     // The ambient SymbolTable carries the stdlib dispatch registry so
-    // reflection primitives invoked from macro bodies (signature-of,
+    // reflection primitives invoked from macro bodies (signature-of-defn,
     // lookup-define, body-of) see substrate dispatches.
     let mut macro_sym = SymbolTable::default();
     macro_sym.set_dispatch_registry(Arc::new(dispatchs.clone()));

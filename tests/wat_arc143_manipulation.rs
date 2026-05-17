@@ -4,7 +4,7 @@
 //!   `:wat::runtime::extract-arg-names`
 //!
 //! Both operate on signature heads (Bundle ASTs) produced by slice 1's
-//! `signature-of`. Tests cover:
+//! `signature-of-defn`. Tests cover:
 //!
 //! rename-callable-name:
 //!   1. Happy path — rename :wat::core::foldl head to :wat::list::reduce;
@@ -15,7 +15,7 @@
 //!   4. Error — `from` name doesn't match the head's base name.
 //!
 //! extract-arg-names:
-//!   5. Happy path — extract from `signature-of :wat::core::foldl`;
+//!   5. Happy path — extract from `signature-of-defn :wat::core::foldl`;
 //!      returns [:_a0, :_a1, :_a2].
 //!   6. Zero-args — extract from a thunk (zero-param function);
 //!      returns empty Vec.
@@ -23,8 +23,8 @@
 //!   8. Error — input is not a Bundle.
 //!
 //! Composing with slice 1:
-//!   9. rename composed with signature-of — full pipeline:
-//!      (rename (signature-of :fn) :fn :alias) returns Some with the
+//!   9. rename composed with signature-of-defn — full pipeline:
+//!      (rename (signature-of-defn :fn) :fn :alias) returns Some with the
 //!      renamed name in the head.
 
 use std::os::fd::{FromRawFd, OwnedFd};
@@ -116,7 +116,7 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of :wat::core::foldl)
+                (:wat::runtime::signature-of-defn :wat::core::foldl)
                 "expected Some")
              renamed
               (:wat::runtime::rename-callable-name
@@ -166,7 +166,7 @@ fn rename_callable_name_no_type_params() {
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of :user::my-double)
+                (:wat::runtime::signature-of-defn :user::my-double)
                 "expected Some")
              renamed
               (:wat::runtime::rename-callable-name
@@ -220,7 +220,7 @@ fn rename_callable_name_error_from_mismatch() {
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of :user::my-neg)
+                (:wat::runtime::signature-of-defn :user::my-neg)
                 "expected Some")
              renamed
               (:wat::runtime::rename-callable-name
@@ -250,7 +250,7 @@ fn extract_arg_names_foldl_returns_three_names() {
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of :wat::core::foldl)
+                (:wat::runtime::signature-of-defn :wat::core::foldl)
                 "expected Some")
              names
               (:wat::runtime::extract-arg-names sig)
@@ -307,7 +307,7 @@ fn extract_arg_names_zero_args_returns_empty() {
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of :user::constant)
+                (:wat::runtime::signature-of-defn :user::constant)
                 "expected Some")
              names
               (:wat::runtime::extract-arg-names sig)
@@ -340,7 +340,7 @@ fn extract_arg_names_stops_before_return_type() {
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of :user::my-add)
+                (:wat::runtime::signature-of-defn :user::my-add)
                 "expected Some")
              names
               (:wat::runtime::extract-arg-names sig)
@@ -394,12 +394,12 @@ fn extract_arg_names_error_non_bundle() {
     );
 }
 
-// ─── Composition test: rename-callable-name ∘ signature-of ─────────────────
+// ─── Composition test: rename-callable-name ∘ signature-of-defn ─────────────
 
 #[test]
 fn rename_then_extract_preserves_arg_names() {
     // Full pipeline:
-    //   1. signature-of :user::my-add         → head with args :x, :y
+    //   1. signature-of-defn :user::my-add         → head with args :x, :y
     //   2. rename-callable-name head :user::my-add :user::my-sum → renamed head
     //   3. extract-arg-names renamed head     → still [:x, :y]
     //
@@ -415,7 +415,7 @@ fn rename_then_extract_preserves_arg_names() {
           (:wat::core::let
             [sig
               (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of :user::my-add)
+                (:wat::runtime::signature-of-defn :user::my-add)
                 "expected Some")
              renamed
               (:wat::runtime::rename-callable-name

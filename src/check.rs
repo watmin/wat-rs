@@ -4718,7 +4718,7 @@ fn infer_list(
                 return Some(TypeExpr::Path(":wat::WatAST".into()));
             }
             ":wat::runtime::lookup-define"
-            | ":wat::runtime::signature-of"
+            | ":wat::runtime::signature-of-defn"
             | ":wat::runtime::body-of" => {
                 // Arc 143 slice 1 — runtime introspection primitives.
                 // Each takes a keyword name (`:fn::path`) and returns
@@ -4764,7 +4764,7 @@ fn infer_list(
                 // arg is an inline `(:wat::core::fn ...)` form (typed
                 // as the concrete `:wat::core::Fn(...)->ret`) or a
                 // closure-valued local. Same arc-009 "names are values"
-                // bypass pattern as `signature-of`: infer for
+                // bypass pattern as `signature-of-defn`: infer for
                 // side-effects, do not constrain.
                 if args.len() != 1 {
                     errors.push(CheckError::ArityMismatch {
@@ -4783,7 +4783,7 @@ fn infer_list(
                 // Arc 143 slice 3 — rename-callable-name.
                 // (head :HolonAST) (from :keyword) (to :keyword) -> :HolonAST
                 // The first arg is a HolonAST value (may come from
-                // `signature-of` which returns Option<HolonAST>; caller
+                // `signature-of-defn` which returns Option<HolonAST>; caller
                 // unwraps it first). We infer all args for side-effects
                 // but do not enforce type constraints — the runtime does
                 // its own validation. Arity must be exactly 3.
@@ -11280,7 +11280,7 @@ fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> TypeExpr {
 
 /// Arc 143 — exposed so `runtime.rs` helpers can render a `TypeExpr`
 /// as a keyword string for AST reconstruction in the three introspection
-/// primitives (`lookup-define`, `signature-of`, `body-of`).
+/// primitives (`lookup-define`, `signature-of-defn`, `body-of`).
 pub fn format_type(t: &TypeExpr) -> String {
     match t {
         TypeExpr::Path(p) => p.clone(),
@@ -14172,7 +14172,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 143 slice 1 — three runtime introspection primitives. Each
     // takes a :Symbol (keyword name) and returns :Option<HolonAST>:
     //   lookup-define  — full (:define <head> <body>) AST
-    //   signature-of   — head only
+    //   signature-of-defn — head only
     //   body-of        — body only (:None for substrate primitives)
     let symbol_ty = || TypeExpr::Path(":wat::core::keyword".into());
     let opt_holon_ty = || TypeExpr::Parametric {
@@ -14189,7 +14189,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::runtime::signature-of".into(),
+        ":wat::runtime::signature-of-defn".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![symbol_ty()],
@@ -14211,14 +14211,14 @@ fn register_builtins(env: &mut CheckEnv) {
     // name keyword) and returns the structured signature HolonAST
     // directly (NOT wrapped in Option — the fn-value input is
     // structurally validated; absence is impossible). Sibling primitive
-    // to `signature-of` for the inline-fn / closure-value case that
+    // to `signature-of-defn` for the inline-fn / closure-value case that
     // type-driven macros (arc 170 D2 `run-threads`) need.
     //
     // The type-checker `infer_list` special-case (below) bypasses normal
     // unification because the first argument is typed `:wat::core::fn`
     // (a polymorphic surface) and the substrate registers Function as
     // `:wat::core::Fn(...)->ret`; uniform unification at the call site
-    // would fail. The check-side special-case mirrors `signature-of`'s
+    // would fail. The check-side special-case mirrors `signature-of-defn`'s
     // arc-009 "names are values" treatment.
     let fn_ty = || TypeExpr::Path(":wat::core::fn".into());
     env.register(
@@ -14696,7 +14696,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // by this slice. The TypeScheme entries below are FINGERPRINTS:
     // they capture arity + return type so `lookup_form` (arc 144
     // slice 1) reaches them via the `CheckEnv::with_builtins().get(name)`
-    // path and emits `Binding::Primitive`. Reflection (`signature-of`,
+    // path and emits `Binding::Primitive`. Reflection (`signature-of-defn`,
     // `body-of`, `lookup-define`) and the `define-alias` macro
     // (slice 6 length canary) then "just work" uniformly.
     //
@@ -14959,7 +14959,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::core::contains?` / `:wat::core::get` /
     // `:wat::core::conj` arc 144 slice 3 fingerprints are retired.
     // Each is now a Dispatch (declared in `wat/core.wat`);
-    // signature-of returns Some via `dispatch_to_signature_ast` (slice
+    // signature-of-defn returns Some via `dispatch_to_signature_ast` (slice
     // 2 Delta 4); per-Type impls registered above are the queryable
     // rank-1 schemes.
 
@@ -14967,7 +14967,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:values` / `:concat` arc 144 slice 3 fingerprints retired. Each
     // is now a user-define alias (declared in `wat/core-aliases.wat`)
     // delegating to the per-Type impl (`:wat::core::HashMap/assoc` etc.,
-    // `:wat::core::Vector/concat`); signature-of returns the alias's
+    // `:wat::core::Vector/concat`); signature-of-defn returns the alias's
     // user-define signature; per-Type impls registered above (and
     // adjacent to slice 2/3 blocks below) are the queryable rank-1
     // schemes.

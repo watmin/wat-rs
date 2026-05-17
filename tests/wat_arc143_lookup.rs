@@ -1,7 +1,7 @@
 //! Integration coverage for arc 143 slice 1 — three substrate
 //! introspection primitives:
 //!   `:wat::runtime::lookup-define`
-//!   `:wat::runtime::signature-of`
+//!   `:wat::runtime::signature-of-defn`
 //!   `:wat::runtime::body-of`
 //!
 //! Each primitive takes a keyword name and returns
@@ -126,11 +126,11 @@ fn lookup_define_unknown_name_returns_none() {
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
 
-// ─── :wat::runtime::signature-of ────────────────────────────────────────────
+// ─── :wat::runtime::signature-of-defn ───────────────────────────────────────
 
 #[test]
-fn signature_of_user_define_returns_some() {
-    // User-defined function → signature-of returns Some.
+fn signature_of_defn_user_define_returns_some() {
+    // User-defined function → signature-of-defn returns Some.
     let src = r##"
 
         (:wat::core::define
@@ -140,7 +140,7 @@ fn signature_of_user_define_returns_some() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::match
-            (:wat::runtime::signature-of :user::my-mul)
+            (:wat::runtime::signature-of-defn :user::my-mul)
             -> :wat::core::nil
             ((:wat::core::Some _) (:wat::kernel::println "pass"))
             (:wat::core::None    (:wat::kernel::println "fail"))))
@@ -149,14 +149,14 @@ fn signature_of_user_define_returns_some() {
 }
 
 #[test]
-fn signature_of_substrate_primitive_returns_some() {
+fn signature_of_defn_substrate_primitive_returns_some() {
     // :wat::core::foldl → synthesised head; must be Some.
     let src = r##"
 
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::match
-            (:wat::runtime::signature-of :wat::core::foldl)
+            (:wat::runtime::signature-of-defn :wat::core::foldl)
             -> :wat::core::nil
             ((:wat::core::Some _) (:wat::kernel::println "pass"))
             (:wat::core::None    (:wat::kernel::println "fail"))))
@@ -165,13 +165,13 @@ fn signature_of_substrate_primitive_returns_some() {
 }
 
 #[test]
-fn signature_of_unknown_name_returns_none() {
+fn signature_of_defn_unknown_name_returns_none() {
     let src = r##"
 
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::match
-            (:wat::runtime::signature-of :no::such::function)
+            (:wat::runtime::signature-of-defn :no::such::function)
             -> :wat::core::nil
             ((:wat::core::Some _) (:wat::kernel::println "fail"))
             (:wat::core::None    (:wat::kernel::println "pass"))))
@@ -236,7 +236,7 @@ fn body_of_unknown_name_returns_none() {
 // ─── Shape verification via edn::write ───────────────────────────────────
 
 #[test]
-fn signature_of_foldl_renders_synthesised_shape() {
+fn signature_of_defn_foldl_renders_synthesised_shape() {
     // Verify the actual synthesised AST for :wat::core::foldl.
     // Expected: a Bundle whose first element is a Symbol for
     // ":wat::core::foldl<T,Acc>", followed by param-pair Bundles and
@@ -247,7 +247,7 @@ fn signature_of_foldl_renders_synthesised_shape() {
           (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig-opt
-              (:wat::runtime::signature-of :wat::core::foldl)
+              (:wat::runtime::signature-of-defn :wat::core::foldl)
              rendered
               (:wat::edn::write sig-opt)]
             (:wat::kernel::println rendered)))

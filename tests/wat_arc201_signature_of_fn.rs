@@ -1,12 +1,12 @@
 //! Arc 201 slice 3 — `:wat::runtime::signature-of-fn`.
 //!
-//! The fn-input sibling of `signature-of`. Where `signature-of` takes a
+//! The fn-input sibling of `signature-of-defn`. Where `signature-of-defn` takes a
 //! NAME keyword and looks up a defined callable in the symbol table,
 //! `signature-of-fn` operates on a FN VALUE — typically the result of
 //! evaluating an inline `(:wat::core::fn [...] -> :T body)` form at the
 //! call site, or a fn value bound to a local.
 //!
-//! Output is structurally identical to `signature-of`'s UserFunction
+//! Output is structurally identical to `signature-of-defn`'s UserFunction
 //! branch (per `function_to_signature_ast`'s shape, lowered to HolonAST
 //! via `watast_to_holon`):
 //!

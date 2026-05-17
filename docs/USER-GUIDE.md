@@ -1199,7 +1199,7 @@ Rules:
   positionally, the rest collect into the Vector
 
 Type-checking enforces both fixed-arity-or-more AND that each
-rest-arg unifies with `T`. Reflection (`signature-of`) round-trips
+rest-arg unifies with `T`. Reflection (`signature-of-defn`) round-trips
 the variadic shape correctly.
 
 This is the foundation for variadic surfaces — Lisp-natural call
@@ -1312,7 +1312,7 @@ genuinely differ per type-pair. Arithmetic needs them
 LLM-generated code stays at Tier 1; substrate addressing is for
 substrate authors.
 
-Every entity is queryable via `:wat::core::signature-of`,
+Every entity is queryable via `:wat::core::signature-of-defn`,
 `:wat::core::lookup-define`, `:wat::core::body-of` — discoverable,
 addressable, reflectable per arc 144.
 
@@ -1380,7 +1380,7 @@ arms route by input type to per-Type Rust leaves). The single-impl
 verbs `assoc` / `dissoc` / `keys` / `values` / `concat` use
 **`:wat::runtime::define-alias`** to point the polymorphic name at
 the one per-Type impl that exists. All ten verbs are queryable via
-`signature-of` / `lookup-define` / `body-of` (arc 144) — the
+`signature-of-defn` / `lookup-define` / `body-of` (arc 144) — the
 substrate runs ONE polymorphism model (rank-1 schemes + Dispatch
 composing them); the polymorphic-handler anti-pattern is retired.
 
@@ -2821,7 +2821,7 @@ defines have a substrate-side query surface in the
 ;;   form (head + body sentinel for substrate primitives; real body
 ;;   for user defines)
 
-(:wat::runtime::signature-of :wat::core::foldl)
+(:wat::runtime::signature-of-defn :wat::core::foldl)
 ;; → :Option<:wat::holon::HolonAST> wrapping the signature head only
 
 (:wat::runtime::body-of :user::my-add)
@@ -2867,7 +2867,7 @@ bindings then evaluates the substrate call at expand-time. Non-callable
 list shapes preserve template substitution behavior. The two shapes
 coexist; the heuristic disambiguates by head.
 
-**Coverage today.** `:wat::runtime::signature-of` + `lookup-callable` +
+**Coverage today.** `:wat::runtime::signature-of-defn` + `lookup-callable` +
 `body-of` find:
 
 - User defines (registered in `SymbolTable.functions`)

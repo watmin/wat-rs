@@ -14,7 +14,7 @@
 //!   3. Check-time TypeMismatch when no arm matches the input type.
 //!   4. `lookup-define` returns Some + emission carries
 //!      `:wat::core::define-dispatch` head.
-//!   5. `signature-of` returns Some (the declaration form).
+//!   5. `signature-of-defn` returns Some (the declaration form).
 //!   6. `body-of` returns :None (dispatchs have no wat body — the
 //!      arms ARE the contract).
 //!   7. `define_dispatch` arity-mismatch surfaces as a startup error
@@ -203,8 +203,8 @@ fn lookup_form_returns_dispatch_binding() {
 }
 
 #[test]
-fn signature_of_dispatch_returns_declaration() {
-    // signature-of on a dispatch returns Some — the declaration
+fn signature_of_defn_dispatch_returns_declaration() {
+    // signature-of-defn on a dispatch returns Some — the declaration
     // form (no separate "header" — the dispatch table IS the contract).
     let src = format!(
         r##"
@@ -213,7 +213,7 @@ fn signature_of_dispatch_returns_declaration() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::match
-            (:wat::runtime::signature-of :test::describe)
+            (:wat::runtime::signature-of-defn :test::describe)
             -> :wat::core::nil
             ((:wat::core::Some _) (:wat::kernel::println "pass"))
             (:wat::core::None    (:wat::kernel::println "fail"))))

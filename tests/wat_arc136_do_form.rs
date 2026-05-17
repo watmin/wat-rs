@@ -161,11 +161,11 @@ fn do_non_final_type_is_unconstrained() {
     assert_eq!(unwrap_i64(run(src)), 42);
 }
 
-// ─── 7. Reflection round-trip via signature-of ──────────────────────────
+// ─── 7. Reflection round-trip via signature-of-defn ─────────────────────
 
 #[test]
 fn do_reflection_round_trip_emits_variadic_sketch() {
-    // `(:wat::runtime::signature-of :wat::core::do)` should return
+    // `(:wat::runtime::signature-of-defn :wat::core::do)` should return
     // Some(<HolonAST>) carrying the registered sketch. The sketch's
     // bundle head is `:wat::core::do` and the slot is `<form>+` (the
     // variadic placeholder).
@@ -173,7 +173,7 @@ fn do_reflection_round_trip_emits_variadic_sketch() {
         (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [sig-opt
-              (:wat::runtime::signature-of :wat::core::do)
+              (:wat::runtime::signature-of-defn :wat::core::do)
              rendered
               (:wat::edn::write sig-opt)]
             rendered))

@@ -1,7 +1,7 @@
 //! Arc 201 slice 2 — general-purpose HolonAST accessors:
 //! `:wat::holon::Bundle/children` and `:wat::holon::Bundle/first`.
 //!
-//! Slice 1 (commit 0706949) shifted `signature-of` from flat keyword
+//! Slice 1 (commit 0706949) shifted `signature-of-defn` from flat keyword
 //! strings to structured `HolonAST::Bundle` for Parametric / Tuple / Fn
 //! type shapes. Slice 2 mints the verbs that let macros WALK that
 //! structure: `Bundle/children` returns the per-child HolonAST sequence;
@@ -106,11 +106,11 @@ fn run_expecting_runtime_error(src: &str) -> Option<String> {
 
 #[test]
 fn bundle_children_returns_vec_of_holonast_from_signature() {
-    // signature-of on a parametric-typed fn yields a Bundle. The
+    // signature-of-defn on a parametric-typed fn yields a Bundle. The
     // outer Bundle's children include the head keyword + each
     // arg-pair Bundle + (optionally) `&` + rest-pair + `->` + ret.
     //
-    // We unwrap the signature-of Option via match-handling, then call
+    // We unwrap the signature-of-defn Option via match-handling, then call
     // Bundle/children on it and assert the result's length is > 1
     // (head + at least one arg pair) by EDN-rendering the Vec.
     let src = r##"
@@ -122,10 +122,10 @@ fn bundle_children_returns_vec_of_holonast_from_signature() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [sig-opt (:wat::runtime::signature-of :user::add-two)
+            [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
              sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
                        ((:wat::core::Some s) s)
-                       (:wat::core::None     (:wat::kernel::abort "signature-of returned None")))
+                       (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
              kids    (:wat::holon::Bundle/children sig)
              rendered (:wat::edn::write kids)]
             (:wat::kernel::println rendered)))
@@ -182,10 +182,10 @@ fn bundle_children_walks_parametric_type_slot() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [sig-opt (:wat::runtime::signature-of :user::sum-list)
+            [sig-opt (:wat::runtime::signature-of-defn :user::sum-list)
              sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
                        ((:wat::core::Some s) s)
-                       (:wat::core::None     (:wat::kernel::abort "signature-of returned None")))
+                       (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
              kids    (:wat::holon::Bundle/children sig)
              rendered (:wat::edn::write kids)]
             (:wat::kernel::println rendered)))
@@ -241,7 +241,7 @@ fn bundle_children_errors_on_atom_input() {
 
 #[test]
 fn bundle_first_returns_head_keyword_of_signature() {
-    // signature-of yields a Bundle whose first child is the function
+    // signature-of-defn yields a Bundle whose first child is the function
     // name Symbol. Bundle/first returns that Symbol as a HolonAST.
     // EDN-rendering it should produce the function name keyword.
     let src = r##"
@@ -253,10 +253,10 @@ fn bundle_first_returns_head_keyword_of_signature() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [sig-opt (:wat::runtime::signature-of :user::add-two)
+            [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
              sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
                        ((:wat::core::Some s) s)
-                       (:wat::core::None     (:wat::kernel::abort "signature-of returned None")))
+                       (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
              head    (:wat::holon::Bundle/first sig)
              rendered (:wat::edn::write head)]
             (:wat::kernel::println rendered)))
@@ -290,10 +290,10 @@ fn bundle_first_composes_with_atom_value() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [sig-opt (:wat::runtime::signature-of :user::add-two)
+            [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
              sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
                        ((:wat::core::Some s) s)
-                       (:wat::core::None     (:wat::kernel::abort "signature-of returned None")))
+                       (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
              head    (:wat::holon::Bundle/first sig)
              name-kw (:wat::core::atom-value head)
              rendered (:wat::edn::write name-kw)]

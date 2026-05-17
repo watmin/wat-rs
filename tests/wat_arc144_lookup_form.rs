@@ -2,7 +2,7 @@
 //! reflection across the five form-kinds.
 //!
 //! The arc-143 reflection primitives (`:wat::runtime::lookup-define`,
-//! `:wat::runtime::signature-of`, `:wat::runtime::body-of`) now
+//! `:wat::runtime::signature-of-defn`, `:wat::runtime::body-of`) now
 //! dispatch on a uniform `Binding` enum (5 variants). Slice 1 ships
 //! UserFunction, Macro, Primitive, and Type coverage; SpecialForm
 //! arrives in slice 2 (registry not yet populated; lookup_form's
@@ -10,10 +10,10 @@
 //!
 //! These tests verify:
 //!   1. Macro lookup — defmacro is reflected; lookup-define returns
-//!      Some + emission carries `:wat::core::defmacro`; signature-of
+//!      Some + emission carries `:wat::core::defmacro`; signature-of-defn
 //!      returns Some; body-of returns the template.
 //!   2. Type lookup — struct decl is reflected; lookup-define returns
-//!      Some + emission carries `:wat::core::struct`; signature-of
+//!      Some + emission carries `:wat::core::struct`; signature-of-defn
 //!      returns Some + emission carries the type's name; body-of
 //!      returns :None (types are body-less in the wat sense).
 //!   3. User-function lookup — no regression vs arc 143's existing
@@ -100,18 +100,18 @@ fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
 }
 
 #[test]
-fn signature_of_macro_returns_some() {
+fn signature_of_defn_macro_returns_some() {
     let src = r##"
         (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
-            (:wat::runtime::signature-of :my::ident)
+            (:wat::runtime::signature-of-defn :my::ident)
             -> :wat::core::bool
             ((:wat::core::Some _) true)
             (:wat::core::None    false)))
     "##;
-    assert!(run_bool(src), "signature-of :my::ident should return Some");
+    assert!(run_bool(src), "signature-of-defn :my::ident should return Some");
 }
 
 #[test]
@@ -167,7 +167,7 @@ fn lookup_define_struct_returns_some_and_emits_struct_head() {
 }
 
 #[test]
-fn signature_of_struct_returns_some() {
+fn signature_of_defn_struct_returns_some() {
     let src = r##"
         (:wat::core::struct :my::Point
           (x :wat::core::f64)
@@ -175,12 +175,12 @@ fn signature_of_struct_returns_some() {
 
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
-            (:wat::runtime::signature-of :my::Point)
+            (:wat::runtime::signature-of-defn :my::Point)
             -> :wat::core::bool
             ((:wat::core::Some _) true)
             (:wat::core::None    false)))
     "##;
-    assert!(run_bool(src), "signature-of :my::Point should return Some");
+    assert!(run_bool(src), "signature-of-defn :my::Point should return Some");
 }
 
 #[test]
@@ -225,25 +225,25 @@ fn lookup_define_user_function_still_returns_some_post_refactor() {
 }
 
 #[test]
-fn signature_of_substrate_primitive_still_returns_some_post_refactor() {
+fn signature_of_defn_substrate_primitive_still_returns_some_post_refactor() {
     // Regression guard: arc 143's Primitive emission behavior
     // (type_scheme_to_signature_ast) must be unchanged after refactor.
     let src = r##"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
-            (:wat::runtime::signature-of :wat::core::foldl)
+            (:wat::runtime::signature-of-defn :wat::core::foldl)
             -> :wat::core::bool
             ((:wat::core::Some _) true)
             (:wat::core::None    false)))
     "##;
-    assert!(run_bool(src), "signature-of :wat::core::foldl should return Some");
+    assert!(run_bool(src), "signature-of-defn :wat::core::foldl should return Some");
 }
 
 // ─── Unknown name returns None across all three primitives ──────────────────
 
 #[test]
 fn all_three_primitives_return_none_on_unknown_name() {
-    // For a name no registry knows, lookup-define / signature-of /
+    // For a name no registry knows, lookup-define / signature-of-defn /
     // body-of all return :None. lookup_form's SpecialForm path is
     // currently a no-op (slice 2 territory); it does not produce
     // false-positive Some(...) for arbitrary names.
@@ -253,7 +253,7 @@ fn all_three_primitives_return_none_on_unknown_name() {
             [d-opt
               (:wat::runtime::lookup-define :no::such::thing)
              s-opt
-              (:wat::runtime::signature-of :no::such::thing)
+              (:wat::runtime::signature-of-defn :no::such::thing)
              b-opt
               (:wat::runtime::body-of    :no::such::thing)]
             (:wat::core::match d-opt

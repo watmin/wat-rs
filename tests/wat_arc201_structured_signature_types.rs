@@ -1,4 +1,4 @@
-//! Arc 201 slice 1 — `signature-of` emits STRUCTURED type ASTs for
+//! Arc 201 slice 1 — `signature-of-defn` emits STRUCTURED type ASTs for
 //! Parametric / Tuple / Fn types instead of flattening them to atomic
 //! keyword strings.
 //!
@@ -82,7 +82,7 @@ fn run(src: &str) -> Vec<String> {
     drain_lines(&stdout_capture)
 }
 
-/// Helper — render `signature-of` of `target_keyword` as an EDN string
+/// Helper — render `signature-of-defn` of `target_keyword` as an EDN string
 /// and return the single output line.
 fn render_signature(target_keyword: &str) -> String {
     let src = format!(
@@ -91,7 +91,7 @@ fn render_signature(target_keyword: &str) -> String {
           (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
-              (:wat::runtime::signature-of {target})
+              (:wat::runtime::signature-of-defn {target})
              rendered
               (:wat::edn::write sig)]
             (:wat::kernel::println rendered)))
@@ -106,7 +106,7 @@ fn render_signature(target_keyword: &str) -> String {
 // ─── Parametric: user-defined fn with :Vector<i64> parameter ───────────────
 
 #[test]
-fn signature_of_emits_structured_parametric_user_fn() {
+fn signature_of_defn_emits_structured_parametric_user_fn() {
     // User-defined fn taking a :wat::core::Vector<wat::core::i64> as
     // the variadic rest binder — exercises the strict-arity init slot
     // (atomic :i64) AND the variadic Vector<i64> rest slot's structured
@@ -123,7 +123,7 @@ fn signature_of_emits_structured_parametric_user_fn() {
           (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
-              (:wat::runtime::signature-of :user::sum-list)
+              (:wat::runtime::signature-of-defn :user::sum-list)
              rendered
               (:wat::edn::write sig)]
             (:wat::kernel::println rendered)))
@@ -163,7 +163,7 @@ fn signature_of_emits_structured_parametric_user_fn() {
 // ─── Path-only signature: still atomic, unchanged from arc 143 ────────────
 
 #[test]
-fn signature_of_emits_atomic_for_monomorphic_path_types() {
+fn signature_of_defn_emits_atomic_for_monomorphic_path_types() {
     // All-Path types remain single keyword Symbols — slice 1 only
     // restructures Parametric / Tuple / Fn shapes; Path stays atomic.
     // `:wat::core::i64::+'2` is a substrate primitive whose scheme is
@@ -179,7 +179,7 @@ fn signature_of_emits_atomic_for_monomorphic_path_types() {
 // ─── Substrate primitive with Parametric + Fn shapes (foldl) ───────────────
 
 #[test]
-fn signature_of_foldl_emits_structured_parametric_and_fn() {
+fn signature_of_defn_foldl_emits_structured_parametric_and_fn() {
     // `:wat::core::foldl` has:
     //   param 0 = Parametric { head: "wat::core::Vector", args: [Path ":T"] }
     //   param 1 = Path ":Acc"
@@ -235,7 +235,7 @@ fn signature_of_foldl_emits_structured_parametric_and_fn() {
 // ─── Tuple shape ───────────────────────────────────────────────────────────
 
 #[test]
-fn signature_of_emits_structured_tuple_return_type() {
+fn signature_of_defn_emits_structured_tuple_return_type() {
     // User fn whose return type is a tuple exercises the Tuple
     // emission path on the ret slot. Tuple shapes are common at
     // return position; this is the typical place they surface.
@@ -249,7 +249,7 @@ fn signature_of_emits_structured_tuple_return_type() {
           (:user::main -> :wat::core::nil)
           (:wat::core::let
             [sig
-              (:wat::runtime::signature-of :user::make-pair)
+              (:wat::runtime::signature-of-defn :user::make-pair)
              rendered
               (:wat::edn::write sig)]
             (:wat::kernel::println rendered)))
@@ -288,7 +288,7 @@ fn signature_of_emits_structured_tuple_return_type() {
 
 #[test]
 fn define_alias_round_trips_on_parametric_signature() {
-    // `:wat::runtime::define-alias` walks signature-of's HolonAST and
+    // `:wat::runtime::define-alias` walks signature-of-defn's HolonAST and
     // splices the renamed signature head back into a fresh `define`.
     // After arc 201, that spliced head carries STRUCTURED type slots
     // (Bundles for Parametric / Tuple / Fn shapes) where the original

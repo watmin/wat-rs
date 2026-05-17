@@ -81,7 +81,7 @@ The substrate examples:
   Every thread holds an `Arc<FrozenWorld>` or `&FrozenWorld`. No
   mutation possible; no lock needed. Reflection (arcs 143/144/146)
   walks these registries via the uniform `Binding` enum; the trio
-  `:wat::runtime::lookup-define / signature-of / body-of` reads
+  `:wat::runtime::lookup-define / signature-of-defn / body-of` reads
   them through the `Arc<FrozenWorld>` with zero coordination.
 - **`EncodingCtx`** — `EncoderRegistry` (per-dim VM/Scalar pair) +
   `Config`, populated at freeze, referenced by every thread that

@@ -10,7 +10,7 @@
 ;; the alias name substituted, and whose body delegates to the target.
 ;;
 ;; Depends on:
-;;   - slice 1: :wat::runtime::signature-of
+;;   - slice 1: :wat::runtime::signature-of-defn
 ;;   - slice 2: computed unquote ,(expr) at expand-time
 ;;   - slice 3: :wat::runtime::rename-callable-name
 ;;              :wat::runtime::extract-arg-names
@@ -22,11 +22,11 @@
   `(:wat::core::define
      ~(:wat::runtime::rename-callable-name
         (:wat::core::Option/expect -> :wat::holon::HolonAST
-          (:wat::runtime::signature-of target-name)
+          (:wat::runtime::signature-of-defn target-name)
           "define-alias: target name not found in environment")
         target-name
         alias-name)
      (~target-name ~@(:wat::runtime::extract-arg-names
                        (:wat::core::Option/expect -> :wat::holon::HolonAST
-                         (:wat::runtime::signature-of target-name)
+                         (:wat::runtime::signature-of-defn target-name)
                          "define-alias: target name not found in environment")))))

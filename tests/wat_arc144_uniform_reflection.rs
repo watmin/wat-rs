@@ -27,7 +27,7 @@
 //! |--------------|-------------------------------------------|---------------------------|
 //! | UserFunction | `wat_arc144_lookup_form.rs::lookup_define_user_function_*` (Some-only) | Full trio + head verify  |
 //! | Macro        | `wat_arc144_lookup_form.rs` (3 tests, full trio)                       | Smoke (regression-guard) |
-//! | Primitive    | `wat_arc144_hardcoded_primitives.rs::lookup_define_length_renders_primitive_sentinel` + `wat_arc143_lookup.rs::lookup_define_substrate_primitive_returns_some` + `wat_arc144_lookup_form.rs::signature_of_substrate_primitive_*` | Smoke (regression-guard) |
+//! | Primitive    | `wat_arc144_hardcoded_primitives.rs::lookup_define_length_renders_primitive_sentinel` + `wat_arc143_lookup.rs::lookup_define_substrate_primitive_returns_some` + `wat_arc144_lookup_form.rs::signature_of_defn_substrate_primitive_*` | Smoke (regression-guard) |
 //! | SpecialForm  | `wat_arc144_special_forms.rs` (9 tests, full trio with sentinel + slot verification) | Smoke (regression-guard) |
 //! | Type         | `wat_arc144_lookup_form.rs` (3 tests, full trio)                       | Smoke (regression-guard) |
 //! | Dispatch     | `wat_arc146_dispatch_mechanism.rs` (synthetic `:test::describe`)        | Real-builtin: `:wat::core::length` |
@@ -133,7 +133,7 @@ fn user_function_lookup_define_emits_define_head() {
 
 #[test]
 fn user_function_signature_and_body_return_some() {
-    // Reflection trio for UserFunction: signature-of returns Some,
+    // Reflection trio for UserFunction: signature-of-defn returns Some,
     // body-of returns Some (functions have wat bodies — distinct from
     // Type/SpecialForm/Dispatch which return :None for body-of).
     let src = r##"
@@ -144,7 +144,7 @@ fn user_function_signature_and_body_return_some() {
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [sig-opt
-              (:wat::runtime::signature-of :user::add)
+              (:wat::runtime::signature-of-defn :user::add)
              body-opt
               (:wat::runtime::body-of :user::add)]
             (:wat::core::match sig-opt
@@ -156,7 +156,7 @@ fn user_function_signature_and_body_return_some() {
                   (:wat::core::None    false)))
               (:wat::core::None false))))
     "##;
-    assert!(run_bool(src), "signature-of and body-of :user::add should both return Some");
+    assert!(run_bool(src), "signature-of-defn and body-of :user::add should both return Some");
 }
 
 // ─── Kind 2: Macro — smoke (full coverage at wat_arc144_lookup_form.rs) ────
@@ -165,7 +165,7 @@ fn user_function_signature_and_body_return_some() {
 fn macro_lookup_define_smoke() {
     // REGRESSION GUARD only — exhaustive coverage at
     // `wat_arc144_lookup_form.rs::lookup_define_macro_returns_some_and_emits_defmacro_head`
-    // (full trio incl. body template + signature-of). This thin assert
+    // (full trio incl. body template + signature-of-defn). This thin assert
     // pins the cross-test invariant: lookup-define on a registered macro
     // returns Some.
     let src = r##"
@@ -188,16 +188,16 @@ fn primitive_lookup_define_and_signature_smoke() {
     // REGRESSION GUARD only — exhaustive coverage at
     // `wat_arc144_hardcoded_primitives.rs::lookup_define_length_renders_primitive_sentinel`
     // (head verification on Vector/length) and
-    // `wat_arc144_lookup_form.rs::signature_of_substrate_primitive_*`
-    // (signature-of on foldl). This pins the slice 4 framing: a
-    // TypeScheme primitive answers BOTH lookup-define + signature-of.
+    // `wat_arc144_lookup_form.rs::signature_of_defn_substrate_primitive_*`
+    // (signature-of-defn on foldl). This pins the slice 4 framing: a
+    // TypeScheme primitive answers BOTH lookup-define + signature-of-defn.
     let src = r##"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [def-opt
               (:wat::runtime::lookup-define :wat::core::foldl)
              sig-opt
-              (:wat::runtime::signature-of :wat::core::foldl)]
+              (:wat::runtime::signature-of-defn :wat::core::foldl)]
             (:wat::core::match def-opt
               -> :wat::core::bool
               ((:wat::core::Some _)
@@ -207,7 +207,7 @@ fn primitive_lookup_define_and_signature_smoke() {
                   (:wat::core::None    false)))
               (:wat::core::None false))))
     "##;
-    assert!(run_bool(src), "lookup-define and signature-of :wat::core::foldl should both return Some");
+    assert!(run_bool(src), "lookup-define and signature-of-defn :wat::core::foldl should both return Some");
 }
 
 // ─── Kind 4: SpecialForm — smoke (full coverage at slice 2) ────────────────
@@ -322,14 +322,14 @@ fn dispatch_length_lookup_define_emits_define_dispatch_head() {
 
 #[test]
 fn dispatch_length_signature_and_body_shape() {
-    // signature-of returns Some (the dispatch declaration form);
+    // signature-of-defn returns Some (the dispatch declaration form);
     // body-of returns :None (dispatchs have no wat-side body — the arms
     // table IS the contract; per arc 146 slice 1 BRIEF).
     let src = r##"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [sig-opt
-              (:wat::runtime::signature-of :wat::core::length)
+              (:wat::runtime::signature-of-defn :wat::core::length)
              body-opt
               (:wat::runtime::body-of :wat::core::length)]
             (:wat::core::match sig-opt
@@ -341,7 +341,7 @@ fn dispatch_length_signature_and_body_shape() {
                   (:wat::core::None    true)))
               (:wat::core::None false))))
     "##;
-    assert!(run_bool(src), "signature-of should return Some and body-of should return None for dispatch");
+    assert!(run_bool(src), "signature-of-defn should return Some and body-of should return None for dispatch");
 }
 
 // ─── Length canary regression — HashMap shape (brief request) ──────────────

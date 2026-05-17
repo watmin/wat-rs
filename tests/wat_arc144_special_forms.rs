@@ -12,7 +12,7 @@
 //!     `Some(<wat::holon::HolonAST>)` for every known special form;
 //!     the AST emits the slice-1 sentinel
 //!     `(:wat::core::__internal/special-form <name>)`.
-//!   - `(:wat::runtime::signature-of :SOMETHING)` returns
+//!   - `(:wat::runtime::signature-of-defn :SOMETHING)` returns
 //!     `Some(<HolonAST>)` whose head matches the form's keyword and
 //!     whose body slots match the audited grammar.
 //!   - `(:wat::runtime::body-of :SOMETHING)` returns `:None` —
@@ -79,7 +79,7 @@ fn three_probes(name_keyword: &str) -> (String, String, bool) {
     let sig_rendered = eval_string(&format!(
         r##"
         (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::edn::write (:wat::runtime::signature-of {name})))
+          (:wat::edn::write (:wat::runtime::signature-of-defn {name})))
         "##,
         name = name_keyword
     ));
@@ -100,7 +100,7 @@ fn three_probes(name_keyword: &str) -> (String, String, bool) {
 /// Common assertions on the three-probe output:
 ///   - lookup-define rendered AST contains the slice-1 sentinel head
 ///     `:wat::core::__internal/special-form` and the form's name
-///   - signature-of rendered AST contains the form's name (its
+///   - signature-of-defn rendered AST contains the form's name (its
 ///     bundle head)
 ///   - body-of returned :None
 fn assert_special_form(name_keyword: &str, name_no_colon_prefix: &str) {
@@ -120,7 +120,7 @@ fn assert_special_form(name_keyword: &str, name_no_colon_prefix: &str) {
     );
     assert!(
         signature_line.contains(name_no_colon_prefix),
-        "signature-of for {} should render the form's name as its bundle head; got: {}",
+        "signature-of-defn for {} should render the form's name as its bundle head; got: {}",
         name_keyword,
         signature_line
     );
@@ -148,7 +148,7 @@ fn lookup_form_if_returns_special_form() {
         "expected form name, got: {}",
         define_line
     );
-    // signature-of emits the registry's synthetic Bundle: head =
+    // signature-of-defn emits the registry's synthetic Bundle: head =
     // `:wat::core::if`, slots = `<cond>`/`<then>`/`<else>`. The slots
     // are the load-bearing evidence that slice 2 populated the
     // registry's `signature` field (vs slice 1 returning None for
@@ -284,7 +284,7 @@ fn lookup_form_unknown_special_form_name_returns_none() {
             [d-opt
               (:wat::runtime::lookup-define :wat::core::not-a-special-form)
              s-opt
-              (:wat::runtime::signature-of :wat::core::not-a-special-form)
+              (:wat::runtime::signature-of-defn :wat::core::not-a-special-form)
              b-opt
               (:wat::runtime::body-of    :wat::core::not-a-special-form)]
             (:wat::core::match d-opt

@@ -72,7 +72,7 @@ Functions: `lookup_form`, `Binding` enum + impls,
 `function_to_define_ast`, `primitive_to_define_ast`,
 `macrodef_to_define_ast`, `typedef_to_define_ast`,
 `dispatch_to_define_ast`, `name_from_keyword_or_fn`,
-`eval_lookup_define`, `eval_signature_of`, `eval_body_of`.
+`eval_lookup_define`, `eval_signature_of_defn`, `eval_body_of`.
 
 Boundary signal: all reflection-output rendering. Self-contained
 helpers; takes `&SymbolTable` + name string in, returns `HolonAST`

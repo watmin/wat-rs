@@ -16,7 +16,7 @@
 //! - Variadic define with NO fixed params (only `& (rest :wat::core::Vector<T>)`).
 //! - Arity error: caller passes fewer than fixed-arity args.
 //! - Type error: rest-arg's type doesn't match the declared element type.
-//! - Reflection: `signature-of` round-trips the variadic shape.
+//! - Reflection: `signature-of-defn` round-trips the variadic shape.
 //! - Canonical pattern: variadic define folding over rest-args (the
 //!   shape arc 148 slice 4 needs).
 //! - Negative parse tests: double `&`, `&` without binder, fixed param
@@ -205,17 +205,17 @@ fn variadic_define_type_error_on_mismatched_rest_arg() {
     }
 }
 
-// ─── Reflection: signature-of round-trips the variadic shape ─────────
+// ─── Reflection: signature-of-defn round-trips the variadic shape ────
 
 #[test]
-fn signature_of_variadic_define_returns_rest_shape() {
-    // `signature-of` emits a HolonAST signature that, for variadic
+fn signature_of_defn_variadic_define_returns_rest_shape() {
+    // `signature-of-defn` emits a HolonAST signature that, for variadic
     // defines, includes both the `&` rest-marker and the rest-binder
     // pair (`(xs :Vector<i64>)`). We render the Option<HolonAST>
     // through `:wat::edn::write` (which is transparent over Some) and
     // assert key substrings appear in the rendered EDN. This mirrors
     // the pattern already in use by `wat_arc143_lookup.rs` for
-    // signature-of round-trips.
+    // signature-of-defn round-trips.
     let src = r##"
 
         (:wat::core::define
@@ -227,7 +227,7 @@ fn signature_of_variadic_define_returns_rest_shape() {
         (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [sig-opt
-              (:wat::runtime::signature-of :my::sum-of)
+              (:wat::runtime::signature-of-defn :my::sum-of)
              rendered
               (:wat::edn::write sig-opt)]
             rendered))

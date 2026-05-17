@@ -3,7 +3,7 @@
 //!
 //! The macro lives in `wat/runtime.wat` (pure wat) and composes
 //! the substrate primitives shipped in slices 1+2+3:
-//!   - `:wat::runtime::signature-of`         (slice 1)
+//!   - `:wat::runtime::signature-of-defn`     (slice 1)
 //!   - `:wat::runtime::rename-callable-name`  (slice 3)
 //!   - `:wat::runtime::extract-arg-names`     (slice 3)
 //!   - computed unquote `,(expr)`             (slice 2)
@@ -19,7 +19,7 @@
 //!
 //! Tests:
 //!   1. Alias a substrate primitive (:wat::core::foldl) — expand-time
-//!      signature-of succeeds; alias delegates to the primitive correctly.
+//!      signature-of-defn succeeds; alias delegates to the primitive correctly.
 //!   2. Alias another substrate primitive (:wat::core::length) — verifies
 //!      the macro works for multiple targets.
 //!   3. Error case — alias to a name that doesn't exist (not a substrate
@@ -60,7 +60,7 @@ fn run(src: &str) -> Value {
 #[test]
 fn define_alias_foldl_to_user_fold_delegates_correctly() {
     // Alias :wat::core::foldl as :user::my-fold.
-    // At expand-time, signature-of :wat::core::foldl resolves via
+    // At expand-time, signature-of-defn :wat::core::foldl resolves via
     // CheckEnv::with_builtins() — the substrate primitive IS visible.
     // Call (:user::my-fold (Vector :wat::core::i64 1 2 3 4) 0 +fn) → 10.
     // Arc 170 slice 1f-ζ: result returned as i64 via :my::compute.
@@ -87,7 +87,7 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
 #[test]
 fn define_alias_length_to_user_size_delegates_correctly() {
     // Alias :wat::core::length as :user::my-size.
-    // At expand-time, signature-of :wat::core::length resolves via substrate.
+    // At expand-time, signature-of-defn :wat::core::length resolves via substrate.
     // Call (:user::my-size (Vector :wat::core::i64 10 20 30)) → 3.
     // Arc 170 slice 1f-ζ: result returned as i64 via :my::compute.
     let src = r##"
@@ -109,7 +109,7 @@ fn define_alias_length_to_user_size_delegates_correctly() {
 #[test]
 fn define_alias_unknown_target_panics_at_expand_time() {
     // :user::name-that-does-not-exist is not a substrate primitive or user define.
-    // The macro calls (Option/expect (signature-of :user::name-that-does-not-exist) ...)
+    // The macro calls (Option/expect (signature-of-defn :user::name-that-does-not-exist) ...)
     // at expand-time; expect panics via std::panic::panic_any —
     // this propagates as a Rust panic out of startup_from_source.
     //

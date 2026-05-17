@@ -4,10 +4,10 @@
 //! `infer_*` handlers. Slice 3 is purely additive: the handlers
 //! continue to do real type-checking; the registrations make these
 //! callables visible to `lookup_form` (and therefore to
-//! `signature-of` / `body-of` / `lookup-define`) so reflection
+//! `signature-of-defn` / `body-of` / `lookup-define`) so reflection
 //! covers them uniformly with the other Primitive forms.
 //!
-//! Each test verifies that `(:wat::runtime::signature-of <name>)`
+//! Each test verifies that `(:wat::runtime::signature-of-defn <name>)`
 //! returns `:Some(_)` for a name that previously returned `:None`
 //! because the callable bypassed the TypeScheme registry.
 
@@ -55,14 +55,14 @@ fn run_string(src: &str) -> String {
     }
 }
 
-/// Helper: assert that `(:wat::runtime::signature-of name)` returns
+/// Helper: assert that `(:wat::runtime::signature-of-defn name)` returns
 /// `:Some(_)` for the given name. Returns true on Some, false on None.
-fn assert_signature_of_some(name: &str) -> bool {
+fn assert_signature_of_defn_some(name: &str) -> bool {
     let src = format!(
         r##"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
-            (:wat::runtime::signature-of {name})
+            (:wat::runtime::signature-of-defn {name})
             -> :wat::core::bool
             ((:wat::core::Some _) true)
             (:wat::core::None    false)))
@@ -75,46 +75,46 @@ fn assert_signature_of_some(name: &str) -> bool {
 // ─── Polymorphic predicates / accessors ────────────────────────────────────
 
 #[test]
-fn signature_of_length_returns_some() {
+fn signature_of_defn_length_returns_some() {
     // Slice 6 length canary — `:wat::core::length` was the original
     // "hardcoded callable bypasses TypeScheme" example. Slice 3
-    // registers it; signature-of must now return Some.
+    // registers it; signature-of-defn must now return Some.
     assert_eq!(
-        assert_signature_of_some(":wat::core::length"),
+        assert_signature_of_defn_some(":wat::core::length"),
         true
     );
 }
 
 #[test]
-fn signature_of_empty_q_returns_some() {
+fn signature_of_defn_empty_q_returns_some() {
     assert_eq!(
-        assert_signature_of_some(":wat::core::empty?"),
+        assert_signature_of_defn_some(":wat::core::empty?"),
         true
     );
 }
 
 #[test]
-fn signature_of_contains_q_returns_some() {
+fn signature_of_defn_contains_q_returns_some() {
     assert_eq!(
-        assert_signature_of_some(":wat::core::contains?"),
+        assert_signature_of_defn_some(":wat::core::contains?"),
         true
     );
 }
 
 #[test]
-fn signature_of_get_returns_some() {
+fn signature_of_defn_get_returns_some() {
     // `get` returns Option<V> at the handler; the fingerprint
     // models the HashMap-shaped variant since it carries both K and V.
     assert_eq!(
-        assert_signature_of_some(":wat::core::get"),
+        assert_signature_of_defn_some(":wat::core::get"),
         true
     );
 }
 
 #[test]
-fn signature_of_conj_returns_some() {
+fn signature_of_defn_conj_returns_some() {
     assert_eq!(
-        assert_signature_of_some(":wat::core::conj"),
+        assert_signature_of_defn_some(":wat::core::conj"),
         true
     );
 }
@@ -122,33 +122,33 @@ fn signature_of_conj_returns_some() {
 // ─── HashMap-shaped operations ─────────────────────────────────────────────
 
 #[test]
-fn signature_of_assoc_returns_some() {
+fn signature_of_defn_assoc_returns_some() {
     assert_eq!(
-        assert_signature_of_some(":wat::core::assoc"),
+        assert_signature_of_defn_some(":wat::core::assoc"),
         true
     );
 }
 
 #[test]
-fn signature_of_dissoc_returns_some() {
+fn signature_of_defn_dissoc_returns_some() {
     assert_eq!(
-        assert_signature_of_some(":wat::core::dissoc"),
+        assert_signature_of_defn_some(":wat::core::dissoc"),
         true
     );
 }
 
 #[test]
-fn signature_of_keys_returns_some() {
+fn signature_of_defn_keys_returns_some() {
     assert_eq!(
-        assert_signature_of_some(":wat::core::keys"),
+        assert_signature_of_defn_some(":wat::core::keys"),
         true
     );
 }
 
 #[test]
-fn signature_of_values_returns_some() {
+fn signature_of_defn_values_returns_some() {
     assert_eq!(
-        assert_signature_of_some(":wat::core::values"),
+        assert_signature_of_defn_some(":wat::core::values"),
         true
     );
 }
@@ -156,55 +156,55 @@ fn signature_of_values_returns_some() {
 // ─── Variadic constructors (1-arg or 2-arg fingerprints) ───────────────────
 
 #[test]
-fn signature_of_vector_returns_some() {
+fn signature_of_defn_vector_returns_some() {
     // 1-arg fingerprint per arc 144 slice 3 limitation (TypeScheme
     // has no variadic shape today; the runtime accepts `:T x1 x2 ...`).
     assert_eq!(
-        assert_signature_of_some(":wat::core::Vector"),
+        assert_signature_of_defn_some(":wat::core::Vector"),
         true
     );
 }
 
 #[test]
-fn signature_of_tuple_returns_some() {
+fn signature_of_defn_tuple_returns_some() {
     assert_eq!(
-        assert_signature_of_some(":wat::core::Tuple"),
+        assert_signature_of_defn_some(":wat::core::Tuple"),
         true
     );
 }
 
 #[test]
-fn signature_of_hashmap_returns_some() {
+fn signature_of_defn_hashmap_returns_some() {
     // 2-arg fingerprint per arc 144 slice 3 limitation; the runtime
     // accepts `:(K,V) k1 v1 k2 v2 ...`.
     assert_eq!(
-        assert_signature_of_some(":wat::core::HashMap"),
+        assert_signature_of_defn_some(":wat::core::HashMap"),
         true
     );
 }
 
 #[test]
-fn signature_of_hashset_returns_some() {
+fn signature_of_defn_hashset_returns_some() {
     assert_eq!(
-        assert_signature_of_some(":wat::core::HashSet"),
+        assert_signature_of_defn_some(":wat::core::HashSet"),
         true
     );
 }
 
 #[test]
-fn signature_of_concat_returns_some() {
+fn signature_of_defn_concat_returns_some() {
     // 2-arg fingerprint; runtime accepts 1+ Vec<T>.
     assert_eq!(
-        assert_signature_of_some(":wat::core::concat"),
+        assert_signature_of_defn_some(":wat::core::concat"),
         true
     );
 }
 
 #[test]
-fn signature_of_string_concat_returns_some() {
+fn signature_of_defn_string_concat_returns_some() {
     // 2-arg fingerprint; runtime accepts 0+ :wat::core::String.
     assert_eq!(
-        assert_signature_of_some(":wat::core::string::concat"),
+        assert_signature_of_defn_some(":wat::core::string::concat"),
         true
     );
 }

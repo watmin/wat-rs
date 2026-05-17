@@ -208,7 +208,7 @@ const STDLIB_FILES: &[WatSource] = &[
     },
     // Arc 143 slice 6 — :wat::runtime::* reflection-driven macros.
     // Depends on substrate primitives from slices 1+2+3 (lookup-define,
-    // signature-of, body-of, rename-callable-name, extract-arg-names,
+    // signature-of-defn, body-of, rename-callable-name, extract-arg-names,
     // and computed-unquote in defmacro bodies). Loads last so all
     // substrate dispatch is in place when this defmacro registers.
     WatSource {
