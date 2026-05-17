@@ -214,3 +214,64 @@ Arc 170's substrate work (typed channels, ProcessPeer, drain-and-join, structura
 
 Future services follow the canonical pattern by copying from the Counter demos and adapting the per-domain bits. Future substrate work that introduces new transport tiers (remote per `:wat::kernel::run-remotes`) extends the pattern uniformly.
 
+
+---
+
+## Post-3f pivot — arc 203 blocked on new protocols arc (settled 2026-05-17)
+
+User direction post-3f-spawn: *"203 is blocked on the protocol arc proving they work and then we unbind back to 170."*
+
+Realization mid-session: what arc 203 hand-rolled IS Clojure's protocols pattern (independent convergence — Wire enum = protocol's operation list; dispatch loop = the implementations; `:counter::*` wrappers = the protocol's call surface; struct-restricted Admin+Client = typed views into the protocol). The natural next step is a substrate meta-form that abstracts the repetition.
+
+### Revised dependency chain
+
+| Slice / Arc | Status | What |
+|---|---|---|
+| 3a-3e | SHIPPED | Hand-rolled pattern proven (substrate primitive + Counter demos at both tiers + capability + secret-witness) |
+| **3f** | IN FLIGHT (sonnet `aeb4fe6...`) | Error propagation (Result-bearing wrappers, typed ServiceError) |
+| **NEW arc (TBD number)** | BLOCKS arc 203 closure | `defservice` substrate primitive — meta-form that auto-synthesizes Wire enum + capability structs + dispatch loop + wrappers from a user-supplied protocol declaration. Substrate validates all required handlers present at freeze time; PANIC if missing. Per Clojure protocols convergence |
+| 3g — wat-lru CacheService refactor | BLOCKED on new arc | Becomes a USE of `defservice` (not hand-rolled refactor) |
+| 3h — HologramCacheService refactor | BLOCKED on new arc | Same |
+| 3i — stdio services refactor | BLOCKED on new arc | Same |
+| 3j — closure | BLOCKED on 3g/3h/3i | INSCRIPTION + 058 + USER-GUIDE |
+| Arc 170 closure | BLOCKED on arc 203 closure | The bracket-combinator family's actual user (arc 203) closes; arc 170 then closes |
+
+### The `defservice` shape (sketch — refined when the new arc opens)
+
+```scheme
+(:wat::service::defservice :counter
+  :admin    {Provision   [initial :i64]                     -> :counter::Client
+             Deprovision [client  :counter::Client]         -> :wat::core::nil
+             Stop        []                                  -> :wat::core::nil}
+  :user     {Get         []                                  -> :i64
+             Increment   [n :i64]                            -> :i64
+             Reset       []                                  -> :i64}
+  :state    :i64
+  :handlers {<keyword-map of operation-name → handler-fn>})
+```
+
+Substrate auto-synthesizes:
+- `:counter::Wire` + `:counter::WireResp` enums (Admin/User tagged)
+- `:counter::ServiceError` enum (standard variants: AccessDenied, PeerDied, ServerDied, Disconnected)
+- `:counter::Admin` + `:counter::Client` capability structs (struct-restricted)
+- Server dispatch loop (select + route + validate server-id + handler dispatch)
+- Client-side wrappers (Result-bearing)
+- Per-tier transport adapter (thread = crossbeam; process = stdio multiplex)
+
+Substrate validates at freeze time: every operation in the protocol has a registered handler; signatures match. Missing handler → PANIC with diagnostic.
+
+### Why this is the right architecture
+
+Arc 203's hand-rolled pattern proved the SHAPE works. Repeating it per service (cache, holon-cache, stdio) by hand is N× the boilerplate with N× the surface for inconsistency. The meta-form abstracts what's repeated:
+- User writes operations + handlers
+- Substrate writes everything else
+- New services follow the pattern by construction
+
+Per `feedback_simple_is_uniform_composition`: N identical compositions IS simple; abstracting them into one form is the simplest possible composition.
+
+Per the Clojure-protocols convergence pattern from INTERSTITIAL § 2026-05-16 (Erlang/OTP arrival): when independent design walks into a place a great has been, that's the validation signal that the engineering is on a known-good path.
+
+### Arc 170 unblock
+
+Once arc 203 closes (after the new arc + 3g/3h/3i ship), arc 170's bracket combinator chain (D3 + Stones E/F/G/H) can close because arc 203 demonstrated the actual user pattern that justified the bracket primitives in the first place. The full closure chain: new arc (protocols) → arc 203 (apply protocols to all vended services + close) → arc 170 (close on demonstrated user pattern + bracket primitives complete).
+
