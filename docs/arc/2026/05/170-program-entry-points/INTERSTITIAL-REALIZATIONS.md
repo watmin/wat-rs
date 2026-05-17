@@ -2342,25 +2342,29 @@ Orchestrator framing: yes — and this is Alan Kay's ORIGINAL OOP, not the degen
     (:wat::core::fn [server-rx! <- :Receiver<Counter/Request>           ;; impure handle — !
                      server-tx! <- :Sender<Counter/Response>]            ;; impure handle — !
                     -> :wat::core::nil
-      (:counter/dispatch server-rx! server-tx! {:count initial}))))
+      (:counter/dispatch server-rx! server-tx! initial))))
 
 ;; The dispatch loop — defn + tail call per ITERATION-PATTERNS.md pattern 6.
 ;; Wat has no loop/recur; native TCO makes the recursive call zero-cost.
+;; State is the bare value (no HashMap-as-Box; see addendum below).
 (:wat::core::defn :counter/dispatch
   [server-rx! <- :Receiver<Counter/Request>
    server-tx! <- :Sender<Counter/Response>
-   state      <- :wat::core::HashMap<:wat::core::keyword,wat::core::i64>]   ;; pure — no !
+   state      <- :wat::core::i64]   ;; pure value — no !
   -> :wat::core::nil
   (match (recv server-rx!)
     ((Counter/Request/Get)
-       (send server-tx! (Counter/Response/Value (:count state)))
-       (:counter/dispatch server-rx! server-tx! state))
+       (:wat::core::do
+         (send server-tx! (Counter/Response/Value state))
+         (:counter/dispatch server-rx! server-tx! state)))
     ((Counter/Request/Increment n)
-       (send server-tx! (Counter/Response/Ok))
-       (:counter/dispatch server-rx! server-tx! (assoc state :count (+ (:count state) n))))
+       (:wat::core::let [new-n (+ state n)]
+         (send server-tx! (Counter/Response/Ok new-n))
+         (:counter/dispatch server-rx! server-tx! new-n)))
     ((Counter/Request/Reset)
-       (send server-tx! (Counter/Response/Ok))
-       (:counter/dispatch server-rx! server-tx! {:count 0}))))
+       (:wat::core::do
+         (send server-tx! (Counter/Response/Ok 0))
+         (:counter/dispatch server-rx! server-tx! 0)))))
 
 ;; "Method invocation" — caller writes (client-side wrappers go through ThreadPeer):
 (:counter/get peer!)         ;; convenience wrapper: send Get; recv Value; return n
@@ -2519,11 +2523,11 @@ Four-questions ran on two flavors of who-shuts-down-whom:
   Shutdown)                                                              ;; ← convention
 
 (:wat::core::enum :Counter/Response
-  (Value :wat::core::i64)
-  Ok
-  (Final :wat::core::HashMap<:wat::core::keyword,wat::core::i64>))         ;; ← convention
+  (Value :wat::core::i64)              ;; Get returns current value
+  (Ok    :wat::core::i64)              ;; Increment/Reset acknowledge with NEW value
+  (Final :wat::core::i64))              ;; ← convention; Shutdown returns final state
 
-;; Constructor
+;; Constructor — state IS the bare i64 (no HashMap-as-Box; see addendum)
 (:wat::core::defn :counter/spawn
   [initial <- :wat::core::i64]
   -> :wat::kernel::Thread<Counter/Request, Counter/Response>
@@ -2531,32 +2535,43 @@ Four-questions ran on two flavors of who-shuts-down-whom:
     (:wat::core::fn [server-rx! <- :Receiver<Counter/Request>
                      server-tx! <- :Sender<Counter/Response>]
                     -> :wat::core::nil
-      (:counter/dispatch server-rx! server-tx! {:count initial}))))
+      (:counter/dispatch server-rx! server-tx! initial))))
 
-;; Dispatch loop — Shutdown arm doesn't recur; returns nil; thread exits
+;; Dispatch loop — each handler is THREE LINES: compute, send-reply, recur.
+;; Shutdown arm doesn't recur; returns nil; thread exits.
 (:wat::core::defn :counter/dispatch
   [server-rx! <- :Receiver<Counter/Request>
    server-tx! <- :Sender<Counter/Response>
-   state      <- :wat::core::HashMap<:wat::core::keyword,wat::core::i64>]
+   state      <- :wat::core::i64]
   -> :wat::core::nil
   (match (recv server-rx!)
+
+    ;; Read — no state change; reply current; recur same state
     ((Counter/Request/Get)
-       (send server-tx! (Counter/Response/Value (:count state)))
-       (:counter/dispatch server-rx! server-tx! state))
+       (:wat::core::do
+         (send server-tx! (Counter/Response/Value state))
+         (:counter/dispatch server-rx! server-tx! state)))
+
+    ;; Mutate-computed — let-bind new state once; reply + recur with it
     ((Counter/Request/Increment n)
-       (send server-tx! (Counter/Response/Ok))
-       (:counter/dispatch server-rx! server-tx! (assoc state :count (+ (:count state) n))))
+       (:wat::core::let [new-n (+ state n)]
+         (send server-tx! (Counter/Response/Ok new-n))
+         (:counter/dispatch server-rx! server-tx! new-n)))
+
+    ;; Mutate-literal — no compute; reply + recur with the literal
     ((Counter/Request/Reset)
-       (send server-tx! (Counter/Response/Ok))
-       (:counter/dispatch server-rx! server-tx! {:count 0}))
-    ((Counter/Request/Shutdown)                                          ;; ← terminal arm
-       (send server-tx! (Counter/Response/Final state))
-       :wat::core::nil)))                                                  ;; ← no recur; thread exits
+       (:wat::core::do
+         (send server-tx! (Counter/Response/Ok 0))
+         (:counter/dispatch server-rx! server-tx! 0)))
+
+    ;; Terminal — reply with Final<state>; no recur; thread exits
+    ((Counter/Request/Shutdown)
+       (send server-tx! (Counter/Response/Final state)))))                ;; ← single expression; fn returns nil
 
 ;; Per-actor shutdown verb — 3-line user-defined wrapper following the convention
 (:wat::core::defn :counter/shutdown
   [peer! <- :wat::kernel::ThreadPeer<Counter/Request, Counter/Response>]
-  -> :wat::core::HashMap<:wat::core::keyword,wat::core::i64>
+  -> :wat::core::i64
   (do
     (:wat::kernel::Thread/println peer! (Counter/Request/Shutdown))
     (match (:wat::kernel::Thread/readln peer!)
@@ -2574,7 +2589,7 @@ Four-questions ran on two flavors of who-shuts-down-whom:
 (:wat::core::defn :user::thread-main
   [logger!  <- :wat::kernel::ThreadPeer<Log/Request, Log/Response>
    counter! <- :wat::kernel::ThreadPeer<Counter/Request, Counter/Response>]
-  -> :wat::core::Tuple<:Log/State, :wat::core::HashMap<:wat::core::keyword,wat::core::i64>>
+  -> :wat::core::Tuple<:Log/State, :wat::core::i64>            ;; Counter/State = bare i64
   (do
     (:log/info logger! "starting")
     (:counter/increment counter! 5)
@@ -2582,13 +2597,13 @@ Four-questions ran on two flavors of who-shuts-down-whom:
     (:log/info logger! "done")
     (:wat::core::Tuple
       (:log/shutdown logger!)              ;; sends Shutdown; recvs Final; returns Log/State
-      (:counter/shutdown counter!))))      ;; sends Shutdown; recvs Final; returns Counter/State
+      (:counter/shutdown counter!))))      ;; sends Shutdown; recvs Final; returns i64
 
 ;; Bracket invocation — coordinator-fn body delegates to the named fn
 (:wat::kernel::run-threads
   (:wat::core::fn [logger!  <- :wat::kernel::ThreadPeer<Log/Request, Log/Response>
                    counter! <- :wat::kernel::ThreadPeer<Counter/Request, Counter/Response>]
-                  -> :wat::core::Tuple<:Log/State, :wat::core::HashMap<:wat::core::keyword,wat::core::i64>>
+                  -> :wat::core::Tuple<:Log/State, :wat::core::i64>
     (:user::thread-main logger! counter!))
   (:log/spawn)
   (:counter/spawn 0))
@@ -2638,5 +2653,52 @@ This pattern IS the same lock-step from `ZERO-MUTEX.md:295-297` ("the lock is th
 - `docs/SERVICE-PROGRAMS.md` § "The lockstep" — the service-program discipline this convention follows
 - Arc 170 STONES.md § Stone E (`run-processes`) — symmetric bracket at the process tier
 - Arc 191/192/193 backlog — hot-reload (state recovery via Final<State> IS the missing piece these arcs called for)
+
+### Addendum — state-shape taxonomy + handler-shape taxonomy + Box rejected
+
+**User's framing 2026-05-16:** *"i agree that State is whatever it must be ... we can just TCO the state into the next iteration"* + *"the increment call .. it looks wrong... it should be ... (let [new-n (+ state n)] (send server-tx! (Counter/Response/Ok new-n)) (:counter/dispatch server-rx! server-tx! new-n)) ... that's the whole handler?..."*
+
+Yes — that IS the whole handler. Three lines per arm: compute, send, recur. The Counter example above was updated in place per these recognitions.
+
+**State-shape taxonomy — when to use what:**
+
+| State shape | Right type | When |
+|--|--|--|
+| Single value | The value itself — `:i64`, `:String`, `:bool`, `:Vector<T>` | The actor guards ONE thing. No HashMap-as-Box; the bare scalar IS the state. |
+| Multiple named fields | `struct` — `(:wat::core::struct :Counter/State [count :i64 last-update-ts :i64 mutations :i64])` | Multiple fields known at write time; types matter; field access is positional. |
+| Dynamic key→value pairs | `:HashMap<K, V>` | Keys determined at runtime; user-data caches; symbol tables; honest map semantics. |
+
+**The HashMap-as-Box anti-pattern (corrected in this entry):** earlier drafts of the Counter example used `:HashMap<:keyword, :i64>` as `{:count value}` — a single-key map wrapping one integer. Pure ceremony; same as `Box<i64>` in Rust but worse (no Rust ownership reason in wat). The bare `:i64` is the honest form. Reflex was wrong; corrected.
+
+**Box primitive — four questions:**
+
+| | Score |
+|--|-------|
+| Obvious | NO — "box" is a Rust ownership concept (heap-allocate for recursive types or shared mutable semantics); wat is immutable + by-value; no aliasing problem |
+| Simple | NO — adds a substrate type for zero new capability; bare `T` works wherever `Box<T>` would |
+| Honest | NO — names a Rust pattern in wat where it doesn't fit |
+| Good UX | NO — actively harmful: users (and AI authors) reach for it reflexively and obfuscate single-value state |
+
+→ **DISQUALIFIED on all four.** No `Box<T>` primitive. Use bare values.
+
+**Handler-shape taxonomy (per match arm in a dispatch loop):**
+
+| Arm shape | Form | Example |
+|--|--|--|
+| **Read** | `(:wat::core::do (send ...) (:dispatch ... state))` — state unchanged; reply current; recur same state | Get |
+| **Mutate-computed** | `(:wat::core::let [new (...)] (send ... new) (:dispatch ... new))` — let-bind new state once; reply + recur with it (DRY) | Increment |
+| **Mutate-literal** | `(:wat::core::do (send ... lit) (:dispatch ... lit))` — no compute; reply + recur with the literal value | Reset |
+| **Terminal** | `(send ... (Final state))` — single expression; fn returns nil implicitly; no recur; thread exits | Shutdown |
+
+Three lines per handler (Read/Mutate-computed/Mutate-literal); single line for Terminal. Each handler is one tiny mini-TCP roundtrip. The lockstep is structural (bounded(1) channels prevent racing). The dispatch fn body IS the encapsulation boundary. This IS Kay's OOP, mini-TCP, and DI — three vocabularies, one shape.
+
+**Inscription history (for future readers):**
+
+The Counter example in this entry was refined three times in the same session:
+1. Initial draft used `loop`/`recur` (Clojure idiom) — corrected per ITERATION-PATTERNS.md § Pattern 6 (wat has no loop/recur; native TCO via recursive defn).
+2. Second draft used `:HashMap<:keyword, :i64>` as `{:count value}` (HashMap-as-Box anti-pattern) — corrected to bare `:i64` per the state-shape taxonomy above.
+3. Third draft used zero-arg `Ok` Response with two-form match arm bodies — corrected to one-arg `Ok` carrying new state + let-bind-then-use handler form per the handler-shape taxonomy above.
+
+Each iteration tightened toward the canonical form. The path is preserved here so future readers see how the recognition refined, not just the final form.
 
 ---
