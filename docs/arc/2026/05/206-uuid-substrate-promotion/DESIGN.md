@@ -47,3 +47,41 @@ After arc 206 closes:
 - **Arc 170 closure** → unblocks
 EOF
 echo "DESIGN written"
+---
+
+## Scope expansion 2026-05-17 — v4 AND v5 in same arc; positioned for future versions
+
+User direction: *"we grow the current uuid arc to handle this proper.. no new arc.. the uuid arc handles v4 and v5 (we'll position ourselves for other versions being added in if we need them...)"*
+
+### Revised scope
+
+Arc 206 covers BOTH UUIDv4 and UUIDv5 at substrate level. Structured so future versions (v7, etc.) are mechanical additions.
+
+| Version | Use case | Substrate-side signature |
+|---|---|---|
+| **v4** (random) | Unguessable secret-witness; capability tokens; per-actor secret server-ids | `:wat::core::uuid::v4` `[] -> :wat::core::String` |
+| **v5** (SHA-1 namespace+name) | Content addressing; hierarchical-derivation (parent-id + counter → deterministic child-id); cross-process consistent ids | `:wat::core::uuid::v5` `[namespace :String, name :String] -> :wat::core::String` |
+| Future (v7 timestamp-ordered, etc.) | Open | Same `:wat::core::uuid::v<N>` namespace; mechanical addition |
+
+### Revised slicing
+
+| Slice | Status | What |
+|---|---|---|
+| **1 — v4 promotion** | IN FLIGHT (sonnet `a52eebfc...`) | Mint `:wat::core::uuid::v4` wrapping existing `wat_edn::new_uuid_v4`; backward-compat alias for telemetry |
+| **1.5 — v5 promotion** | BLOCKS on 1 | Mint `wat_edn::new_uuid_v5(namespace, name)` (adds `v5` feature to `uuid = "1"` dep); register `:wat::core::uuid::v5` at substrate (same pattern as v4) |
+| **2 — closure** | BLOCKS on 1.5 | INSCRIPTION covers both versions + the substrate positioning for future versions; 058 row; USER-GUIDE entry documenting both versions + when to use each |
+
+### Why this positions for future versions
+
+The substrate-registration pattern is per-version (each `:wat::core::uuid::v<N>` is its own verb). No central dispatch. Adding a new version = three mechanical steps:
+1. Enable the version's feature flag in `wat-edn/Cargo.toml` (uuid crate already supports v1/v3/v4/v5/v7/v8)
+2. Mint `wat_edn::new_uuid_v<N>(args)` thin wrapper around `uuid::Uuid::new_v<N>(...)`
+3. Register `:wat::core::uuid::v<N>` substrate verb (mirror v4/v5 pattern)
+
+No architectural decisions to re-litigate. Future arc can add v7 as one small slice when a consumer needs timestamp-ordered ids.
+
+### Out of scope (still)
+
+- Typed `:wat::core::Uuid` — future arc if demand surfaces (would make v5's namespace parameter honest at type-system level)
+- UUID parsing/validation verbs (`:wat::core::Uuid/from-string`, `/parse`) — future arc
+- UUID equality/comparison primitives — String equality suffices today
