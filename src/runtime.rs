@@ -1964,6 +1964,22 @@ pub fn register_struct_methods(
             }
             sym.functions.insert(accessor_path, Arc::new(accessor_func));
         }
+
+        // Arc 203 — if the struct carries restriction metadata (minted by
+        // `struct-restricted`), write the ctor + per-field whitelists into
+        // `sym.defined_value_restrictions` so the arc 198 walker enforces them
+        // at type-check time. Public fields (absent from `field_restrictions`)
+        // get no entry — no entry = no restriction = any caller allowed.
+        if let Some(restrictions) = &struct_def.restrictions {
+            let ctor_path = format!("{}/new", struct_def.name);
+            sym.defined_value_restrictions
+                .insert(ctor_path, restrictions.ctor_whitelist.clone());
+            for (field_name, field_wlist) in &restrictions.field_restrictions {
+                let accessor_path = format!("{}/{}", struct_def.name, field_name);
+                sym.defined_value_restrictions
+                    .insert(accessor_path, field_wlist.clone());
+            }
+        }
     }
     Ok(())
 }
@@ -2403,11 +2419,16 @@ fn is_define_form(form: &WatAST) -> bool {
 }
 
 /// Arc 170 slice 3 Gap F-1 — detect `(:wat::core::struct :Name ...)` shape.
+/// Arc 203 — also detects `(:wat::core::struct-restricted :Name ...)`.
 fn is_struct_form(form: &WatAST) -> bool {
     matches!(
         form,
         WatAST::List(items, _)
-            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::struct")
+            if matches!(
+                items.first(),
+                Some(WatAST::Keyword(k, _))
+                    if k == ":wat::core::struct" || k == ":wat::core::struct-restricted"
+            )
     )
 }
 
@@ -2490,38 +2511,127 @@ fn preregister_struct_accessors_from_form(
         );
     }
 
-    // Field accessors: `{type}/{field}` for each field declaration.
-    // Field declarations are in items[2..], each a List `(field-name :FieldType)`
-    // where `field-name` is a bare `WatAST::Symbol` (no leading colon) — per
-    // `parse_field` in types.rs.
-    for field_item in items.get(2..).unwrap_or(&[]) {
-        let field_name = match field_item {
-            WatAST::List(field_items, _) => match field_items.first() {
-                Some(WatAST::Symbol(ident, _)) => ident.name.as_str(),
-                _ => continue, // malformed field; type checker will catch it
-            },
-            _ => continue, // malformed field; type checker will catch it
-        };
-        let accessor_path = format!("{}/{}", type_base, field_name);
-        if check_reserved_prefix && crate::resolve::is_reserved_prefix(&accessor_path) {
-            let span = form.span().clone();
-            return Err(RuntimeError::ReservedPrefix(accessor_path, span));
+    // Determine which field-extraction strategy to use based on the head keyword.
+    // Arc 203 — `struct-restricted` has a different field layout:
+    //   items[0] = `:wat::core::struct-restricted`
+    //   items[1] = `:TypeName`
+    //   items[2] = ctor-whitelist Vector (skip)
+    //   items[3] = restricted-attrs List (flat chunks of 4: [wlist] field <- :T)
+    //   items[4] = public-attrs List (flat chunks of 3: field <- :T)
+    //
+    // Plain `struct` has:
+    //   items[0] = `:wat::core::struct`
+    //   items[1] = `:TypeName`
+    //   items[2..] = field declarations: `(field-name :FieldType)` lists
+    let is_restricted = matches!(
+        items.first(),
+        Some(WatAST::Keyword(k, _)) if k == ":wat::core::struct-restricted"
+    );
+
+    if is_restricted {
+        // Field accessors from struct-restricted: parse restricted + public sections.
+        // Restricted section: items[3]; flat chunks of 4: [wlist] field <- :T.
+        if let Some(WatAST::List(restricted_items, _)) = items.get(3) {
+            let ri = restricted_items.as_slice();
+            let mut idx = 0;
+            while idx + 3 < ri.len() {
+                // chunk: [wlist](idx=0) field(idx+1) <-(idx+2) :T(idx+3)
+                let field_name = match &ri[idx + 1] {
+                    WatAST::Symbol(ident, _) => ident.name.as_str(),
+                    _ => { idx += 4; continue; }
+                };
+                let accessor_path = format!("{}/{}", type_base, field_name);
+                if check_reserved_prefix && crate::resolve::is_reserved_prefix(&accessor_path) {
+                    let span = form.span().clone();
+                    return Err(RuntimeError::ReservedPrefix(accessor_path, span));
+                }
+                if !sym.functions.contains_key(&accessor_path) {
+                    sym.functions.insert(
+                        accessor_path,
+                        Arc::new(Function {
+                            name: None,
+                            params: Vec::new(),
+                            type_params: Vec::new(),
+                            param_types: Vec::new(),
+                            ret_type: unit_type.clone(),
+                            rest_param: None,
+                            rest_param_type: None,
+                            body: stub_body.clone(),
+                            closed_env: None,
+                        }),
+                    );
+                }
+                idx += 4;
+            }
         }
-        if !sym.functions.contains_key(&accessor_path) {
-            sym.functions.insert(
-                accessor_path,
-                Arc::new(Function {
-                    name: None,
-                    params: Vec::new(),
-                    type_params: Vec::new(),
-                    param_types: Vec::new(),
-                    ret_type: unit_type.clone(),
-                    rest_param: None,
-                    rest_param_type: None,
-                    body: stub_body.clone(),
-                    closed_env: None,
-                }),
-            );
+        // Public section: items[4]; flat chunks of 3: field <- :T.
+        if let Some(WatAST::List(public_items, _)) = items.get(4) {
+            let pi = public_items.as_slice();
+            let mut pidx = 0;
+            while pidx + 2 < pi.len() {
+                // chunk: field(pidx=0) <-(pidx+1) :T(pidx+2)
+                let field_name = match &pi[pidx] {
+                    WatAST::Symbol(ident, _) => ident.name.as_str(),
+                    _ => { pidx += 3; continue; }
+                };
+                let accessor_path = format!("{}/{}", type_base, field_name);
+                if check_reserved_prefix && crate::resolve::is_reserved_prefix(&accessor_path) {
+                    let span = form.span().clone();
+                    return Err(RuntimeError::ReservedPrefix(accessor_path, span));
+                }
+                if !sym.functions.contains_key(&accessor_path) {
+                    sym.functions.insert(
+                        accessor_path,
+                        Arc::new(Function {
+                            name: None,
+                            params: Vec::new(),
+                            type_params: Vec::new(),
+                            param_types: Vec::new(),
+                            ret_type: unit_type.clone(),
+                            rest_param: None,
+                            rest_param_type: None,
+                            body: stub_body.clone(),
+                            closed_env: None,
+                        }),
+                    );
+                }
+                pidx += 3;
+            }
+        }
+    } else {
+        // Field accessors: `{type}/{field}` for each field declaration.
+        // Field declarations are in items[2..], each a List `(field-name :FieldType)`
+        // where `field-name` is a bare `WatAST::Symbol` (no leading colon) — per
+        // `parse_field` in types.rs.
+        for field_item in items.get(2..).unwrap_or(&[]) {
+            let field_name = match field_item {
+                WatAST::List(field_items, _) => match field_items.first() {
+                    Some(WatAST::Symbol(ident, _)) => ident.name.as_str(),
+                    _ => continue, // malformed field; type checker will catch it
+                },
+                _ => continue, // malformed field; type checker will catch it
+            };
+            let accessor_path = format!("{}/{}", type_base, field_name);
+            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&accessor_path) {
+                let span = form.span().clone();
+                return Err(RuntimeError::ReservedPrefix(accessor_path, span));
+            }
+            if !sym.functions.contains_key(&accessor_path) {
+                sym.functions.insert(
+                    accessor_path,
+                    Arc::new(Function {
+                        name: None,
+                        params: Vec::new(),
+                        type_params: Vec::new(),
+                        param_types: Vec::new(),
+                        ret_type: unit_type.clone(),
+                        rest_param: None,
+                        rest_param_type: None,
+                        body: stub_body.clone(),
+                        closed_env: None,
+                    }),
+                );
+            }
         }
     }
     Ok(())

@@ -77,12 +77,34 @@ pub enum TypeExpr {
     Tuple(Vec<TypeExpr>),
 }
 
+/// Arc 203 — per-struct access-control restrictions, populated by
+/// `(:wat::core::struct-restricted ...)` declarations.
+///
+/// `ctor_whitelist` governs `Name/new`; `field_restrictions` maps each
+/// restricted field name to its allowed-caller-prefix whitelist. Fields
+/// absent from `field_restrictions` are public (no restriction entry
+/// in `defined_value_restrictions`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructRestrictions {
+    /// Allowed-caller prefixes for the auto-synthesized `Name/new` constructor.
+    pub ctor_whitelist: Vec<String>,
+    /// Per-field whitelists. Only restricted fields appear here;
+    /// public fields are absent (no whitelist = no restriction).
+    pub field_restrictions: HashMap<String, Vec<String>>,
+}
+
 /// Struct declaration — named product type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructDef {
     pub name: String,
     pub type_params: Vec<String>,
     pub fields: Vec<(String, TypeExpr)>,
+    /// Arc 203 — `None` for plain `:wat::core::struct` declarations;
+    /// `Some(_)` for `:wat::core::struct-restricted` declarations.
+    /// When present, `register_struct_methods` writes the ctor + per-field
+    /// whitelists into `SymbolTable.defined_value_restrictions` alongside
+    /// the synthesized Function entries.
+    pub restrictions: Option<StructRestrictions>,
 }
 
 /// Enum declaration — coproduct type. Variants are either unit
@@ -295,6 +317,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             ("cost".into(), TypeExpr::Path(":wat::core::i64".into())),
             ("budget".into(), TypeExpr::Path(":wat::core::i64".into())),
         ],
+        restrictions: None,
     }));
 
     // :wat::holon::BundleResult — arc 032. Typealias for the
@@ -379,6 +402,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             ("kind".into(), TypeExpr::Path(":wat::core::String".into())),
             ("message".into(), TypeExpr::Path(":wat::core::String".into())),
         ],
+        restrictions: None,
     }));
 
     // :wat::core::Bytes — substrate-general byte buffer. Alias for
@@ -661,6 +685,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
             ("col".into(), TypeExpr::Path(":wat::core::i64".into())),
         ],
+        restrictions: None,
     }));
 
     // :wat::kernel::Frame — one entry from a Rust backtrace. The wat-
@@ -695,6 +720,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 },
             ),
         ],
+        restrictions: None,
     }));
 
     // :wat::kernel::Failure — structured panic / assertion payload
@@ -736,6 +762,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 },
             ),
         ],
+        restrictions: None,
     }));
 
     // :wat::kernel::RunResult — return type of
@@ -769,6 +796,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 },
             ),
         ],
+        restrictions: None,
     }));
 
     // :wat::kernel::ForkedChild RETIRED 2026-04-30 (arc 112).
@@ -798,6 +826,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::kernel::StartupError".into(),
         type_params: vec![],
         fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
+        restrictions: None,
     }));
 
     // :wat::kernel::Process<I,O> — return type of
@@ -859,6 +888,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 },
             ),
         ],
+        restrictions: None,
     }));
 
     // :wat::kernel::Thread<I,O> — arc 114 slice 1.
@@ -908,6 +938,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 },
             ),
         ],
+        restrictions: None,
     }));
 
     // :wat::kernel::ThreadPeer<I, O> — arc 170 Stone C1.
@@ -966,6 +997,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 },
             ),
         ],
+        restrictions: None,
     }));
 
     // :wat::kernel::ProcessPeer<I, O> — arc 170 Stone C2.
@@ -1030,6 +1062,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 },
             ),
         ],
+        restrictions: None,
     }));
 
     // :wat::kernel::Program<I,O> — arc 109 § J slice 10a.
@@ -1086,6 +1119,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 TypeExpr::Path(":wat::core::i64".into()),
             ),
         ],
+        restrictions: None,
     }));
 
     // :wat::test::RunResultIO<O> — return type of
@@ -1135,6 +1169,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 },
             ),
         ],
+        restrictions: None,
     }));
 }
 
@@ -1519,6 +1554,12 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
         if let Some(WatAST::Keyword(k, _)) = items.first() {
             match k.as_str() {
                 ":wat::core::struct" => return Some("struct"),
+                // Arc 203 — struct-restricted is a type declaration; parsed into
+                // a StructDef with restriction metadata attached. Registers into
+                // TypeEnv like a plain struct so register_struct_methods can
+                // synthesize the same Function entries + write the whitelists into
+                // SymbolTable.defined_value_restrictions.
+                ":wat::core::struct-restricted" => return Some("struct-restricted"),
                 ":wat::core::enum" => return Some("enum"),
                 ":wat::core::newtype" => return Some("newtype"),
                 ":wat::core::typealias" => return Some("typealias"),
@@ -1548,6 +1589,8 @@ fn parse_type_decl(
     let _head_kw = iter.next();
     match head {
         "struct" => parse_struct(iter.collect(), decl_span),
+        // Arc 203 — parse the four-slot struct-restricted form.
+        "struct-restricted" => parse_struct_restricted(iter.collect(), decl_span),
         "enum" => parse_enum(iter.collect(), decl_span),
         "newtype" => parse_newtype(iter.collect(), decl_span),
         "typealias" => parse_typealias(iter.collect(), decl_span),
@@ -1571,6 +1614,252 @@ fn parse_struct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError
         name,
         type_params,
         fields,
+        restrictions: None,
+    }))
+}
+
+/// Arc 203 — parse a `(:wat::core::struct-restricted :Name [ctor-wlist] (restricted-section) (public-section))`
+/// declaration into a `TypeDef::Struct` carrying restriction metadata.
+///
+/// Four positional slots after the head keyword (consumed by `parse_type_decl` before
+/// calling this function):
+///   args[0] — name keyword (e.g. `:my::Token`)
+///   args[1] — ctor whitelist Vector of keyword prefixes
+///   args[2] — restricted-attrs section: a List with flat items in groups of 4:
+///             `[wlist] field-symbol <- :T`  (where `<-` is a bare Symbol)
+///   args[3] — public-attrs section: a List with flat items in groups of 3:
+///             `field-symbol <- :T`
+///
+/// Both sections may be empty Lists `()`.
+///
+/// The full field list (restricted fields first, then public fields) is stored
+/// in `StructDef.fields` in declaration order. Restriction metadata (ctor whitelist +
+/// per-field whitelists) lives in `StructDef.restrictions` so `register_struct_methods`
+/// can write them into `SymbolTable.defined_value_restrictions` alongside the
+/// synthesized Function entries.
+fn parse_struct_restricted(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
+    const HEAD: &str = "struct-restricted";
+    if args.len() != 4 {
+        return Err(TypeError::MalformedDecl {
+            head: HEAD.into(),
+            reason: format!(
+                "expected (:wat::core::struct-restricted :Name [ctor-wlist] (restricted-section) (public-section)); got {} args after head",
+                args.len()
+            ),
+            span: decl_span,
+        });
+    }
+    let mut iter = args.into_iter();
+
+    // Slot 0 — name keyword.
+    let name_kw = iter.next().unwrap();
+    let (name, type_params) = parse_declared_name(HEAD, &name_kw, &decl_span)?;
+
+    // Slot 1 — ctor whitelist Vector.
+    let ctor_whitelist_ast = iter.next().unwrap();
+    let ctor_whitelist = match &ctor_whitelist_ast {
+        WatAST::Vector(items, _) => {
+            let mut prefixes = Vec::with_capacity(items.len());
+            for item in items {
+                match item {
+                    WatAST::Keyword(k, _) => prefixes.push(k.clone()),
+                    _ => {
+                        return Err(TypeError::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: "ctor whitelist entries must be keyword prefixes (e.g. `:my::ns::`)".into(),
+                            span: item.span().clone(),
+                        });
+                    }
+                }
+            }
+            prefixes
+        }
+        _ => {
+            return Err(TypeError::MalformedDecl {
+                head: HEAD.into(),
+                reason: "second arg must be a Vector of keyword prefixes `[...]`".into(),
+                span: ctor_whitelist_ast.span().clone(),
+            });
+        }
+    };
+
+    // Slot 2 — restricted-attrs section (List; flat chunks of 4: [wlist] field <- :T).
+    let restricted_ast = iter.next().unwrap();
+    let restricted_items = match restricted_ast {
+        WatAST::List(items, _) => items,
+        _ => {
+            return Err(TypeError::MalformedDecl {
+                head: HEAD.into(),
+                reason: "third arg must be a List `(...)` for the restricted-attrs section".into(),
+                span: decl_span.clone(),
+            });
+        }
+    };
+
+    // Slot 3 — public-attrs section (List; flat chunks of 3: field <- :T).
+    let public_ast = iter.next().unwrap();
+    let public_items = match public_ast {
+        WatAST::List(items, _) => items,
+        _ => {
+            return Err(TypeError::MalformedDecl {
+                head: HEAD.into(),
+                reason: "fourth arg must be a List `(...)` for the public-attrs section".into(),
+                span: decl_span.clone(),
+            });
+        }
+    };
+
+    // Parse restricted section: flat chunks of 4 — [wlist] field <- :T.
+    let mut fields: Vec<(String, crate::types::TypeExpr)> = Vec::new();
+    let mut field_restrictions: HashMap<String, Vec<String>> = HashMap::new();
+
+    let ri = restricted_items;
+    if ri.len() % 4 != 0 {
+        return Err(TypeError::MalformedDecl {
+            head: HEAD.into(),
+            reason: format!(
+                "restricted-attrs section must have items in groups of 4 ([wlist] field <- :T); got {} items (not divisible by 4)",
+                ri.len()
+            ),
+            span: decl_span.clone(),
+        });
+    }
+    let mut idx = 0;
+    while idx < ri.len() {
+        // [wlist]
+        let wlist_prefixes = match &ri[idx] {
+            WatAST::Vector(items, _) => {
+                let mut prefixes = Vec::with_capacity(items.len());
+                for item in items {
+                    match item {
+                        WatAST::Keyword(k, _) => prefixes.push(k.clone()),
+                        _ => {
+                            return Err(TypeError::MalformedDecl {
+                                head: HEAD.into(),
+                                reason: "restricted-attrs field whitelist entries must be keyword prefixes".into(),
+                                span: item.span().clone(),
+                            });
+                        }
+                    }
+                }
+                prefixes
+            }
+            _ => {
+                return Err(TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "restricted-attrs section chunk must start with a Vector `[...]` whitelist".into(),
+                    span: ri[idx].span().clone(),
+                });
+            }
+        };
+        // field symbol
+        let field_name = match &ri[idx + 1] {
+            WatAST::Symbol(ident, _) => ident.name.clone(),
+            _ => {
+                return Err(TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "restricted-attrs field name must be a bare symbol (no leading colon)".into(),
+                    span: ri[idx + 1].span().clone(),
+                });
+            }
+        };
+        // <- arrow
+        match &ri[idx + 2] {
+            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
+            _ => {
+                return Err(TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "restricted-attrs chunk must have `<-` arrow between field name and type".into(),
+                    span: ri[idx + 2].span().clone(),
+                });
+            }
+        }
+        // :T keyword
+        let field_type = match &ri[idx + 3] {
+            WatAST::Keyword(k, span) => parse_type_expr_with_span(k, span)
+                .map_err(|e| TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: format!("restricted-attrs field type parse error: {}", e),
+                    span: ri[idx + 3].span().clone(),
+                })?,
+            _ => {
+                return Err(TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "restricted-attrs field type must be a keyword (e.g. `:wat::core::i64`)".into(),
+                    span: ri[idx + 3].span().clone(),
+                });
+            }
+        };
+        fields.push((field_name.clone(), field_type));
+        field_restrictions.insert(field_name, wlist_prefixes);
+        idx += 4;
+    }
+
+    // Parse public section: flat chunks of 3 — field <- :T.
+    let pi = public_items;
+    if pi.len() % 3 != 0 {
+        return Err(TypeError::MalformedDecl {
+            head: HEAD.into(),
+            reason: format!(
+                "public-attrs section must have items in groups of 3 (field <- :T); got {} items (not divisible by 3)",
+                pi.len()
+            ),
+            span: decl_span.clone(),
+        });
+    }
+    let mut pidx = 0;
+    while pidx < pi.len() {
+        // field symbol
+        let field_name = match &pi[pidx] {
+            WatAST::Symbol(ident, _) => ident.name.clone(),
+            _ => {
+                return Err(TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "public-attrs field name must be a bare symbol (no leading colon)".into(),
+                    span: pi[pidx].span().clone(),
+                });
+            }
+        };
+        // <- arrow
+        match &pi[pidx + 1] {
+            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
+            _ => {
+                return Err(TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "public-attrs chunk must have `<-` arrow between field name and type".into(),
+                    span: pi[pidx + 1].span().clone(),
+                });
+            }
+        }
+        // :T keyword
+        let field_type = match &pi[pidx + 2] {
+            WatAST::Keyword(k, span) => parse_type_expr_with_span(k, span)
+                .map_err(|e| TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: format!("public-attrs field type parse error: {}", e),
+                    span: pi[pidx + 2].span().clone(),
+                })?,
+            _ => {
+                return Err(TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "public-attrs field type must be a keyword (e.g. `:wat::core::i64`)".into(),
+                    span: pi[pidx + 2].span().clone(),
+                });
+            }
+        };
+        fields.push((field_name, field_type));
+        // public fields get NO entry in field_restrictions.
+        pidx += 3;
+    }
+
+    Ok(TypeDef::Struct(StructDef {
+        name,
+        type_params,
+        fields,
+        restrictions: Some(StructRestrictions {
+            ctor_whitelist,
+            field_restrictions,
+        }),
     }))
 }
 

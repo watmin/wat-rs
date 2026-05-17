@@ -5258,6 +5258,10 @@ fn infer_list(
             }
             ":wat::core::define"
             | ":wat::core::struct"
+            // Arc 203 — struct-restricted is a type declaration (stripped into
+            // TypeEnv by register_types before check_program sees the residue).
+            // It does not participate in expression-level inference.
+            | ":wat::core::struct-restricted"
             | ":wat::core::enum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
