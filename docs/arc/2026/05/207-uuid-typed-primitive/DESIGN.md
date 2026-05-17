@@ -11,7 +11,7 @@
 1. **`src/edn_shim.rs:404` rejects `Edn::Uuid(_)` with `EdnReadError::Other(...)`.** When user wat code calls `(:wat::edn::read "#uuid \"550e8400-...\"")`, the substrate errors instead of producing a wat-level Uuid value — because there's no wat-typed Uuid for the EDN read path to land on. The substrate has a literal arm waiting to be filled. That IS consumer pressure, sitting on disk uncomplained-of until the user named it.
 2. **`:wat::core::uuid::v5`'s `namespace` parameter is `:wat::core::String` and runtime-panics on invalid UUID input.** A typed Uuid parameter would push the validation gate to check time. Currently the substrate carries a foot-gun documented in the USER-GUIDE.
 
-User direction 2026-05-17, naming the doctrine: *"deferral is a dishonest term."* Arc 206's "no current consumer" framing was deferral dressed in affirmative language; the consumer pressure existed, we hadn't named it. Arc 207 names it and closes it.
+User direction 2026-05-17, naming the doctrine: *"deferral is a dishonest term."* Arc 206's "no current consumer" framing was deferral dressed in affirmative language; the consumer pressure existed on disk, we hadn't named it. Arc 207 names it and closes it.
 
 ## What "proper UUID support" means (the Clojure reference)
 
@@ -23,56 +23,74 @@ Clojure's pattern (the great whose footprints we're stepping into per `user_no_l
 - `(uuid? x)` predicate
 - `#uuid "..."` reader literal produces a UUID
 - Equality: UUID-to-UUID; a UUID does NOT equal its String representation
-- Strings stringify via `(str u)`
+- Nil-uuid `(UUID. 0 0)` is honest — sentinel for "no id yet" cases
 
 wat-edn already mirrors this internally: `Value::Uuid(uuid::Uuid)` distinct variant (`crates/wat-edn/src/value.rs:55`), full `#uuid` parser + writer, `as_uuid()` accessor. **The gap is that this typed surface stops at the wat-edn Rust crate boundary** — the wat substrate above it ships String at the substrate-API level.
 
-## Goal
+## Goal — user-facing surface (locked 2026-05-17)
 
-Mint `:wat::core::Uuid` as a typed primitive at the wat substrate level. Surface mirrors Clojure's `java.util.UUID`:
+Mint `:wat::core::Uuid` as a typed primitive at the wat substrate level. Six entries on the type using Type/verb naming per `feedback_wat_namespace_principle` (CONVENTIONS.md: `::` separates namespaces; `/` separates type from method/constructor):
 
 | Verb | Signature | Notes |
 |---|---|---|
-| `:wat::core::uuid::v4` | `[] -> :wat::core::Uuid` | FLIPPED from `:String`; random 122-bit |
-| `:wat::core::uuid::v5` | `[namespace :wat::core::Uuid, name :wat::core::String] -> :wat::core::Uuid` | FLIPPED; namespace becomes type-enforced |
-| `:wat::core::Uuid/from-string` | `[s :wat::core::String] -> :Option<wat::core::Uuid>` | Parse; None on invalid |
-| `:wat::core::Uuid/to-string` | `[u :wat::core::Uuid] -> :wat::core::String` | Render canonical hyphenated form |
+| `:wat::core::Uuid` | TYPE | The primitive; minted at substrate level |
+| `:wat::core::Uuid/v4` | `[] -> :wat::core::Uuid` | Random 122-bit; constructor |
+| `:wat::core::Uuid/v5` | `[ns :wat::core::Uuid, name :wat::core::String] -> :wat::core::Uuid` | Deterministic SHA-1; namespace is type-enforced (no runtime panic on invalid String) |
+| `:wat::core::Uuid/from-string` | `[s :wat::core::String] -> :Option<:wat::core::Uuid>` | Parse; None on invalid (no panic) |
+| `:wat::core::Uuid/to-string` | `[u :wat::core::Uuid] -> :wat::core::String` | Render canonical 8-4-4-4-12 hyphenated form |
+| `:wat::core::Uuid/nil` | the nil-uuid (`00000000-0000-0000-0000-000000000000`) | Whether 0-arg verb or constant is implementation detail per slice 1 |
 
 Plus the substrate fix at `src/edn_shim.rs:404`: `Edn::Uuid(u)` → produce a wat-level `:wat::core::Uuid` value (no more EdnReadError).
 
-The four substrate verbs cover Clojure's surface: v4 is `random-uuid`; v5 covers content-addressing (no Clojure equivalent — it's our extension); `Uuid/from-string` is `parse-uuid`; `Uuid/to-string` is `str`. Equality + comparison fall out from the existing wat substrate dispatch infrastructure (arc 146) — if the substrate's existing equality dispatch needs a `:wat::core::Uuid` arm, that's part of slice 2/3.
+**Why six and not more — version-check is out (affirmative):**
+
+User check 2026-05-17: *"do we need a version check?.. what's the utility in that?... if i have a uuid do i care how it was constructed?.."* No. UUIDs are identifiers; construction technique is implementation detail not visible to comparators. Clojure exposes `.version` because java.util.UUID does, not because it was designed in. Real consumer demand: audit-trail debugging, narrow security validation, v7 timestamp-ordering — none exist today in wat. If v7 lands or an audit consumer surfaces, open new arc. Arc 207 does NOT mint `Uuid/version`.
+
+**v4-vs-v5 type distinction is out (affirmative):**
+
+User check 2026-05-17: *"do we need a v4 and v5 type?.. they are all uuid with just a different construction technique?.."* Confirmed. ONE `:wat::core::Uuid` type; v4 and v5 are constructors, indistinguishable post-construction. Matches Clojure: `(random-uuid)` and `(UUID/fromString s)` return the SAME type. The "v4-ness" / "v5-ness" lives at construction time, not type level. Equality between a v4 Uuid and a v5 Uuid with the same value works; they are the same Uuid.
+
+## Naming convention notes
+
+- `from-string` / `to-string` matches existing substrate convention (`:wat::core::keyword/from-string` + `keyword/to-string`). NOT `from-str` / `to-str` (abbreviation form not used elsewhere).
+- Arc 207 RENAMES arc 206's namespace-form verbs (`:wat::core::uuid::v4` → `:wat::core::Uuid/v4`; same for v5). Per `feedback_refuse_easy_solutions`: NO parallel namespace+Type forms kept for "compatibility." The namespace-form was correct when UUIDs were String-typed (free functions in a namespace); now that Uuid is a type, constructors on the type IS the honest form. Telemetry's wat-side alias (`:wat::telemetry::uuid::v4`) updates its target accordingly.
+- Equality, comparison, hash all fall out from the substrate's dispatch infrastructure (arc 146 generic equality dispatch). No Uuid-specific equality verb minted.
 
 ## Out of scope (affirmatively, not deferral)
 
-Per the lesson the user just inscribed ("deferral is a dishonest term"), what arc 207 does NOT cover and why:
+Per the doctrine the user inscribed ("deferral is a dishonest term"), what arc 207 does NOT cover and why:
 
-- **Other UUID versions (v1 / v3 / v7 / v8).** Arc 206 documented the 3-step mechanical pattern in DESIGN; flipping their return type from `:String` to `:wat::core::Uuid` is a one-line edit per version when the version arrives. No version other than v4 and v5 ships today; flipping non-existent verbs is anti-work.
-- **Direct UUID literal at the wat-syntax level** (e.g., `#uuid "..."` as wat reader literal alongside `(:wat::core::Uuid/from-string "...")`). The EDN read path covers reader-literal semantics; a wat-syntax-level literal is a separate concern (parser change, not substrate change). If a consumer surfaces wanting it inline in wat source, that opens a new arc.
-- **UUID equality verb as substrate primitive** (e.g., `:wat::core::Uuid/equal?`). The substrate's dispatch infrastructure (arc 146) handles equality polymorphically; minting a type-specific verb when polymorphic dispatch covers it is wrong shape per `feedback_no_new_types`. Slice 2/3 confirms via test that `(= u1 u2)` works through the existing dispatch.
+- **Other UUID versions (v1 / v3 / v7 / v8).** Arc 206 documented the 3-step mechanical pattern for adding versions; flipping their return type from `:String` to `:wat::core::Uuid` is a one-line edit per version when the version arrives. No version other than v4 and v5 ships today; flipping non-existent verbs is anti-work.
+- **Direct UUID literal at the wat-syntax level** (e.g., `#uuid "..."` as wat reader literal alongside `(:wat::core::Uuid/from-string "...")`). The EDN read path covers reader-literal semantics; a wat-syntax-level literal is a separate concern (parser change, not substrate change). No consumer pressure surfaces today.
+- **UUID equality verb as substrate primitive** (e.g., `:wat::core::Uuid/equal?`). The substrate's dispatch infrastructure (arc 146) handles equality polymorphically; minting a type-specific verb when polymorphic dispatch covers it is wrong shape per `feedback_no_new_types`. Slice 2 confirms via test that `(= u1 u2)` works through the existing dispatch.
+- **`Uuid/version` extraction.** Per the "what's the utility" check above — no consumer pressure today.
+- **`uuid?` predicate verb.** Substrate dispatch handles type-predicates polymorphically; no Uuid-specific predicate verb needed.
 
 ## Slicing (proactive stepping stones per recovery doc § 5)
 
 | Slice | Status | What | Notes |
 |---|---|---|---|
-| **1 — substrate audit + shape decision** | OPEN | Audit how existing typed primitives are registered at the wat substrate (`Bytes`? `Symbol`? other typealiases / newtypes / opaque types?). Decide: typealias-of-String vs newtype-over-String vs new `Value::wat__core__Uuid` variant. Decision committed in slice 1 SCORE; subsequent slices build on it. NO substrate code edits in slice 1 — pure investigation. | Per `feedback_diagnose_before_spec`: read the actual code path before specifying. Slice 1 produces the implementation shape that slice 2 ships. |
-| **2 — mint `:wat::core::Uuid` type + `Uuid/from-string` + `Uuid/to-string`** | BLOCKS on 1 | Substrate-register the type per slice 1's decision; mint the two parse/render verbs; tests cover round-trip. No verb-flip yet — v4/v5 still return `:String`. | Stepping stone: the type exists + can be constructed/destructed before any consumer-facing API changes. |
-| **3 — flip `:wat::core::uuid::v4` + `v5` return types + v5 namespace type** | BLOCKS on 2 | v4: `[] -> :wat::core::Uuid`. v5: `[namespace :wat::core::Uuid, name :String] -> :wat::core::Uuid`. v5's namespace runtime-panic on invalid String retires (type system enforces). Update arc 206 USER-GUIDE entry to reflect typed surface. | Consumer-facing API change. Telemetry alias + arc 203 demo consumers ripple. |
-| **4 — fix `src/edn_shim.rs:404`** | BLOCKS on 2 | `Edn::Uuid(u)` arm produces wat-level `:wat::core::Uuid` value instead of erroring. Test: `(:wat::edn::read "#uuid \"...\"")` returns a typed Uuid. | Parallel-with-3-possible; either slice closes the substrate gap independently. |
-| **5 — consumer ripple** | BLOCKS on 3 + 4 | wat-telemetry alias (`:wat::telemetry::uuid::v4` return type flips), arc 203 demos (counter-service-{capability,process}-N3.wat — server-id type changes), any other String-typed consumer that holds a Uuid-shaped value. | Mechanical sweep guided by grep. |
-| **6 — closure paperwork** | BLOCKS on 5 | INSCRIPTION; DESIGN status CLOSED; USER-GUIDE § 11 rewrite (replaces arc 206's String-typed entry with typed Uuid entry); 058 row in lab repo. | Arc 207's INSCRIPTION explicitly retires the "no current consumer demands" framing as a discipline failure pattern. Arc 206's INSCRIPTIONs stay immutable. |
+| **1 — substrate audit + shape decision** | OPEN | Audit how existing typed primitives are registered at the wat substrate (look at `Bytes`, `Symbol`, `keyword`, other typealiases / newtypes / opaque types; how does the wat substrate Value enum hold these? Where does dispatch find them?). Decide: typealias-of-String vs newtype-over-String vs new `Value::wat__core__Uuid` variant. Decision committed in slice 1 SCORE; subsequent slices build on it. **NO substrate code edits in slice 1 — pure investigation.** | Per `feedback_diagnose_before_spec`: read the actual code path before specifying. Slice 1 produces the implementation shape that slice 2 ships. |
+| **2 — mint `:wat::core::Uuid` type + the six entries (constructors, accessors, nil)** | BLOCKS on 1 | Substrate-register the type per slice 1's decision; mint `Uuid/v4` + `Uuid/v5` (returning `:Uuid` not `:String`) + `Uuid/from-string` + `Uuid/to-string` + `Uuid/nil`. v5 namespace param is `:Uuid` (no String). Tests cover construction + parse + render + equality round-trip + nil-uuid. | This slice ships the full user-facing surface in one go because it's a single coherent type minting; splitting feels artificial. |
+| **3 — fix `src/edn_shim.rs:404`** | BLOCKS on 2 | `Edn::Uuid(u)` arm produces wat-level `:wat::core::Uuid` value instead of erroring. Test: `(:wat::edn::read "#uuid \"...\"")` returns a typed Uuid. EDN write of a `:wat::core::Uuid` value produces `#uuid "..."` reader-literal. | The substrate gap that the existing arc 206 inscription's "no consumer demands it" denied. |
+| **4 — retire `:wat::core::uuid::*` namespace verbs** | BLOCKS on 2 | Arc 206's `:wat::core::uuid::v4` + `v5` namespace verbs retire entirely. Telemetry's `:wat::telemetry::uuid::v4` alias retargets to `:wat::core::Uuid/v4`. Workunit.rs Rust-side switch confirmed correct (it uses `uuid::Uuid::new_v4()` from the uuid crate, not the wat-substrate verb — no change needed there). | Per `feedback_refuse_easy_solutions`: no parallel keep-both. The namespace form was correct for String era; type era demands Type/verb. |
+| **5 — consumer ripple** | BLOCKS on 4 | Arc 203 demos (`wat-tests/counter-service-{capability,process}-N3.wat` + `counter-client-capability-proof.wat`): server-id + user-id types flip from `:String` to `:wat::core::Uuid`. Wire protocol stays EDN-readable (UUIDs serialize as `#uuid "..."` literals via edn_shim slice 3 fix). Any other consumer holding a Uuid-shaped value migrates. Arc 206 wat-tests/uuid tests update for new return type. USER-GUIDE § 11 backward-compat note rewrites: arc 206's "delegates to substrate-core" entry retires; new entry documents typed Uuid surface. | Mechanical sweep guided by `grep ":wat::core::uuid::"` + `grep ":wat::telemetry::uuid::"` + manual review of any `:String` field semantically holding a UUID. |
+| **6 — closure paperwork** | BLOCKS on 5 | INSCRIPTION (FM 11 pre-grep clean); DESIGN status CLOSED; USER-GUIDE § 11 already rewritten in slice 5; 058 row in lab repo. Arc 207's INSCRIPTION explicitly names arc 206's "no current consumer demands it" framing as the discipline failure pattern (deferral dressed in affirmative language); the doctrine "before naming anything 'out of scope; no consumer demands it,' grep the substrate for arms/errors/panics that name the missing type" lands as a discipline carry-forward. | Arc 206's INSCRIPTIONs stay immutable; arc 207's INSCRIPTION forward-corrects them. |
 
 After arc 207 closes: arc 170, arc 203, lab reconstruction all unblock.
 
 ## Substrate touchpoints (preliminary; slice 1's audit refines)
 
-- `src/runtime.rs` — wat substrate Value enum; check for typealias / newtype / variant patterns
-- `src/check.rs` — type scheme registrations for `:wat::core::uuid::*` verbs
-- `src/string_ops.rs` — current `eval_uuid_v4` + `eval_uuid_v5` handlers
-- `src/edn_shim.rs:404` — the `Edn::Uuid` rejection arm
-- `crates/wat-edn/src/value.rs` — `Value::Uuid(uuid::Uuid)` variant (substrate-of-substrate; should NOT need edits)
+- `src/runtime.rs` — wat substrate Value enum; check for typealias / newtype / variant patterns (audit target for slice 1)
+- `src/check.rs` — type scheme registrations for `:wat::core::uuid::*` verbs (retired in slice 4) + `:wat::core::Uuid/*` verbs (added in slice 2)
+- `src/string_ops.rs` — current `eval_uuid_v4` + `eval_uuid_v5` handlers (rewritten in slice 2 to return typed Uuid)
+- `src/edn_shim.rs:404` — the `Edn::Uuid` rejection arm (fixed in slice 3)
+- `crates/wat-edn/src/value.rs` — `Value::Uuid(uuid::Uuid)` variant (substrate-of-substrate; should NOT need edits unless slice 1's audit surfaces something)
 - `Cargo.toml` (root wat crate) — `uuid` dep already present (added arc 206 slice 1.5)
-- `docs/USER-GUIDE.md` § 11 — backward-compat section rewrites
-- `docs/arc/2026/05/206-uuid-substrate-promotion/INSCRIPTION.md` + `INSCRIPTION-SLICE-3.md` — immutable; arc 207 INSCRIPTION cross-references them as "forward-correcting the type-level honesty gap"
+- `docs/USER-GUIDE.md` § 11 — backward-compat section rewrites in slice 5
+- `crates/wat-telemetry/wat/telemetry/uuid.wat` — alias target update in slice 4 (one-liner)
+- `wat-tests/counter-service-{capability,process}-N3.wat` + `counter-client-capability-proof.wat` — server-id/user-id type flips in slice 5
+- `tests/wat_arc206_uuid_substrate.rs` + `tests/wat_arc206_uuid_v5.rs` — return-type assertions update in slice 5
 
 ## Connection to broader work
 
@@ -82,7 +100,7 @@ Arc 207 is the third (and final, modulo future versions) UUID-substrate arc:
 |---|---|---|
 | 092 | Initial mint | `wat_edn::new_uuid_v4` in wat-edn crate |
 | 206 | Substrate promotion + telemetry de-dup | `:wat::core::uuid::v4` + `v5` (String-returning) |
-| **207** | **Type-level honesty** | **`:wat::core::Uuid` typed primitive; EDN read gap closed** |
+| **207** | **Type-level honesty** | **`:wat::core::Uuid` typed primitive; EDN read gap closed; namespace verbs retired** |
 
 After 207 ships, the UUID story is complete at every layer: substrate verbs are type-honest, EDN reads work end-to-end, capability-token consumers can express UUID-shaped identity at check time, telemetry/arc-203/lab-reconstruction unblock.
 
