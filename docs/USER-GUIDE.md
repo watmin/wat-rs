@@ -2474,6 +2474,62 @@ seam:
 For the explicit "I'm fine with sqlite's defaults" choice,
 pass `:wat::telemetry::Sqlite/null-pre-install`.
 
+### Identifiers — UUID generation (arc 206)
+
+Two substrate-level UUID primitives at `:wat::core::uuid::*`, available
+to all wat code without any crate dep:
+
+```scheme
+(:wat::core::uuid::v4)
+;;   -> :wat::core::String — canonical 36-char hyphenated hex, 122 bits of entropy
+
+(:wat::core::uuid::v5 namespace name)
+;;   namespace : :wat::core::String — must be a canonical UUID string
+;;   name      : :wat::core::String — arbitrary identifying string
+;;   -> :wat::core::String — deterministic SHA-1 of (namespace, name)
+```
+
+**When to use v4 (random):** unguessable secret-witness for capability
+tokens, per-actor server-ids, one-off correlation ids. 122 bits of
+entropy makes collisions astronomically unlikely; opacity makes the id
+useless to an attacker who hasn't been handed one.
+
+```scheme
+(:wat::core::let
+  [server-id  (:wat::core::uuid::v4)              ;; capability witness
+   user-id    (:wat::core::uuid::v4)]             ;; per-user identifier
+  ...)
+```
+
+**When to use v5 (deterministic):** content addressing, hierarchical
+derivation (parent-id + child-name → deterministic child-id),
+cross-process consistent ids that must be derivable without
+coordination. Same `(namespace, name)` ALWAYS returns the same UUID;
+different namespace OR different name yields a different UUID.
+
+```scheme
+(:wat::core::let
+  ;; RFC 4122 DNS namespace; use whatever stable parent-id fits your domain.
+  [dns-ns        "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+   service-id    (:wat::core::uuid::v5 dns-ns "users.example.com")
+   ;; service-id is the same in every wat-vm process that runs this code.
+   user-x-id     (:wat::core::uuid::v5 service-id "user-x")]
+  ...)
+```
+
+**Invalid `namespace` panics.** v5's namespace argument must parse as a
+canonical UUID; otherwise the substrate panics with
+`assertion-failed!` naming the offending value. Mint the namespace via
+`:wat::core::uuid::v4` (one-time, hard-coded for cross-process
+agreement) or use a published namespace (the DNS / URL / OID / X.500
+namespaces from RFC 4122).
+
+**Backward-compat note.** `:wat::telemetry::uuid::v4` still works; the
+substrate-level promotion in arc 206 added `:wat::core::uuid::v4`
+without retiring the telemetry alias. New code should reach for
+`:wat::core::uuid::*` (no telemetry dep needed). Existing telemetry
+consumers are not forced to migrate.
+
 ---
 
 ## 12. Error handling
