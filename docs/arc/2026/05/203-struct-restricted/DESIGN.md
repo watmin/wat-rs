@@ -86,36 +86,51 @@ Verified during DESIGN drafting (FM 1 + FM 9 + FM 13):
 
 ## Slicing
 
-Per arc 198 calibration lesson — bounded stones beat one-shot multi-piece changes (`feedback_iterative_complexity`).
+Per arc 198 calibration lesson — bounded stones beat one-shot multi-piece changes (`feedback_iterative_complexity`). Refined 2026-05-17 post-slice-1: split original "slice 2 consumer integration" into a minimal capability proof + full ServiceWithProvisioning proof, per user direction "the least amount of oneshotting we can entertain."
 
-### Slice 1 — substrate primitive minting
+### Slice 1 — substrate primitive minting (SHIPPED 2026-05-17 at `26c9298`)
 
-Parser arm + check.rs validation + runtime registration extension + minimal proof tests.
+Parser arm + check.rs validation + runtime registration extension + minimal proof tests. SCORE: 6/6 PASS. Honest delta: type-declaration forms flow through `parse_type_decl` (types.rs) at register_types step 5; no `infer_struct_restricted` in check.rs needed (the BRIEF assumption was wrong; SCORE corrects it).
+
+### Slice 2 — minimal Counter/Client capability proof (NEXT)
+
+Minimal first consumer of struct-restricted: a Counter actor that ISSUES `:counter::Client` capability values to its caller via the restricted constructor. Single user, single state, simple round-trip. Proves struct-restricted works in real consumer context (not just isolated unit tests).
 
 **Scope:**
-- src/check.rs: recognize `:wat::core::struct-restricted` keyword head; mint `infer_struct_restricted` mirroring `infer_def_restricted`'s shape-validation pattern (parses ctor whitelist + restricted-section + public-section + per-field whitelist validation)
-- src/runtime.rs: detect `:wat::core::struct-restricted` at `register_runtime_defs_form` (parallel to existing struct detection); extend `register_struct_methods` (or fork into `register_struct_methods_with_restrictions`) to write restrictions into `defined_value_restrictions` for each accessor + ctor
-- Tests prove: form parses; ctor restriction fires; per-field restriction fires per accessor; public accessors callable from anywhere; caller from whitelist succeeds; empty restricted/public sections work
+- New wat-tests file `wat-tests/counter-client-capability-proof.wat`
+- Counter actor declared via spawn-thread; mints `:counter::Client` via restricted constructor; hands to caller (test body)
+- Caller uses `:counter::Client/in!` + `:counter::Client/out!` (public accessors) to talk
+- `:counter::Client/server-id` + `:counter::Client/client-id` (restricted accessors) — verified server's own code reads them; caller cannot
+- Positive test: round-trip Increment + Get succeeds; capability used successfully
+- Negative test (compile-time): a hand-rolled defn outside `:counter/` prefix attempting `:counter::Client/new` → `DefRestrictedCallerNotAllowed`
 
-**Predicted runtime:** 60-90 min sonnet.
+**Predicted runtime:** 30-60 min sonnet.
 
-**Dependencies:** arc 198 mechanism (shipped); no other substrate dependencies.
+**Dependencies:** Slice 1 (substrate primitive shipped); arc 091 `uuid::v4` for the server-id + client-id generation.
 
-### Slice 2 — consumer integration
+**Out of scope:** Provision/Deprovision admin protocol; multiple users; HandlePool registry; per-channel select. That's slice 3.
 
-ServiceWithProvisioning thread-tier proof (task #338) using `Counter/Client` capability struct minted via `struct-restricted`. End-to-end demo: admin holds AdminPeer + registry; users hold Counter/Client values (capability); per-field restrictions distinguish server-only validation fields from user-facing channel ends.
+### Slice 3 — ServiceWithProvisioning thread-tier (task #338 proper)
 
-**Predicted runtime:** 60-90 min sonnet.
+Full ServiceWithProvisioning demo with:
+- Two separate channel types (admin `AdminPeer<AdminReq, AdminResp>` + per-user `Sender<UserReq>+Receiver<UserResp>`)
+- Server-side dispatch with `:wat::kernel::select` across admin-rx + N user-rxs (dynamic registry)
+- Admin sends Provision → server mints `:counter::Client` (using slice 2's pattern) + adds user-rx to select set + returns Client
+- Admin sends Deprovision client-id → server drops registry entry; user's recv sees Disconnect
+- User self-drop: drops Sender → server's recv on that user-rx sees Disconnect → server cleans up registry entry automatically
+- Tests prove the full multi-user lifecycle: spawn → provision N users → all talk concurrently → deprovision some → server keeps going → final Stop returns Final state
 
-**Dependencies:** Slice 1 ships first.
+**Predicted runtime:** 90-120 min sonnet (larger; richer protocol; multi-user state).
 
-### Slice 3 — closure
+**Dependencies:** Slice 2 (capability pattern proven in single-user case).
+
+### Slice 4 — closure paperwork
 
 INSCRIPTION + 058 changelog row + USER-GUIDE entry + cross-reference to arc 198 as the precursor; pre-INSCRIPTION grep (FM 11) for deferral language.
 
 **Predicted runtime:** 30 min orchestrator-side.
 
-**Dependencies:** Slice 1 + Slice 2 shipped.
+**Dependencies:** Slices 1 + 2 + 3 shipped.
 
 ## Connection to prior arcs
 
