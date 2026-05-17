@@ -28,30 +28,35 @@ Four positional slots after head:
 
 **No inheritance.** Every whitelist explicit at declaration. Empty restricted-section `()` means "all fields public except the constructor is still restricted." Empty public-section `()` means "everything restricted including all reads."
 
-### Worked example — Counter/Client
+### Worked example — counter::Client (per slice 2 proven shape)
 
 ```scheme
-(:wat::core::struct-restricted :Counter/Client
-  [:counter/]                                                  ;; only :counter/* can mint Client/new
-  ([:counter/] server-id <- :wat::core::keyword                ;; only :counter/* can read server-id (validates issuance)
-   [:counter/] client-id <- :wat::core::keyword)               ;; only :counter/* can read client-id (registry key)
-  (in!  <- :wat::core::Sender<Counter/UserReq>                 ;; any caller can read in! (user needs to talk)
-   out! <- :wat::core::Receiver<Counter/UserResp>))            ;; any caller can read out! (user needs to listen)
+(:wat::core::struct-restricted :counter::Client
+  [:counter::]                                                          ;; only :counter::* can mint Client/new
+  ([:counter::] server-id <- :wat::core::String                         ;; only :counter::* can read server-id (validates issuance)
+   [:counter::] client-id <- :wat::core::String)                        ;; only :counter::* can read client-id (registry key)
+  (peer! <- :wat::kernel::ThreadPeer<counter::Response,counter::Request>)) ;; user reads to talk/listen (bundles channels)
 ```
+
+**Naming note (per slice 2 honest delta 2):** Arc 198's `caller_matches_prefix_list` requires whitelist entries to end in `::` for namespace-prefix matching; entries not ending in `::` are exact-FQDN matches. Capability-issuing modules using struct-restricted must use `::` separator in their function names (e.g., `:counter::spawn`, not `:counter/spawn`) so the `[:counter::]` whitelist matches via prefix.
+
+**Field shape note (per slice 2 honest delta 3):** Bundling the channel pair as a single `:wat::kernel::ThreadPeer<I,O>` field (instead of separate `Sender<O>` + `Receiver<I>`) is the cleaner consumer pattern. The wrappers (`:counter::get` etc.) use `Thread/println peer!` + `Thread/readln peer!` directly without per-call ThreadPeer construction. This ALSO sidesteps the known ProcessPeer/ThreadPeer field-type naming defect at the consumer surface (substrate-internal `:rust::crossbeam_channel::*` field-type naming for ThreadPeer/ProcessPeer is a separate concern; arc 204 territory).
+
+**uuid::v4 note (per slice 2 honest delta 1):** Random IDs come from `:wat::telemetry::uuid::v4` (under the `wat-telemetry` dep), not `:wat::measure::uuid::v4`. Return type is `:wat::core::String` (canonical 8-4-4-4-12 hyphenated hex), not `:wat::core::keyword`. Slice 3's BRIEF must declare the telemetry dep.
 
 ### Degenerate cases
 
 ```scheme
 ;; All-restricted struct (every read + the constructor restricted to same whitelist)
-(:wat::core::struct-restricted :Secret
-  [:internal/]
-  ([:internal/] secret-1 <- :T1
-   [:internal/] secret-2 <- :T2)
+(:wat::core::struct-restricted :secret::Secret
+  [:secret::]
+  ([:secret::] secret-1 <- :T1
+   [:secret::] secret-2 <- :T2)
   ())
 
 ;; Constructor-only restriction (mint protection; all fields readable by holder)
-(:wat::core::struct-restricted :Token
-  [:auth/]
+(:wat::core::struct-restricted :auth::Token
+  [:auth::]
   ()                                                           ;; no restricted attrs
   (id      <- :wat::core::keyword
    payload <- :wat::core::Bytes))
