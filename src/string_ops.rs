@@ -1,4 +1,5 @@
-//! `:wat::core::string::*` + `:wat::core::regex::*` — string basics.
+//! `:wat::core::string::*` + `:wat::core::regex::*` + `:wat::core::uuid::*`
+//! — string basics and substrate-level UUID minting.
 //!
 //! Follows the `:wat::core::i64` precedent: per-type operations live
 //! in their own sub-namespace under `:wat::core::`. Keeps the top-level
@@ -13,6 +14,11 @@
 //! crate is its own concern — a wat-rs deployment that didn't want the
 //! regex dep could feature-gate this module separately in a future
 //! refactor.
+//!
+//! UUID — `:wat::core::uuid::v4` (arc 206 slice 1) lives here because it
+//! returns `:wat::core::String` and belongs to the same "String-returning
+//! substrate utility" category as the string ops. No opaque type; no dep
+//! beyond `wat_edn`'s `mint` feature (already enabled by the `wat` crate).
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
@@ -212,6 +218,39 @@ pub fn eval_string_concat(
         out.push_str(p);
     }
     Ok(Value::String(Arc::new(out)))
+}
+
+// ─── uuid ────────────────────────────────────────────────────────────────
+
+/// `(:wat::core::uuid::v4)` → `:wat::core::String`.
+///
+/// Mints a fresh v4 UUID on every call via `wat_edn::new_uuid_v4` (arc 092).
+/// Returns the canonical 8-4-4-4-12 hyphenated hex representation —
+/// always 36 chars, always lowercase, always hyphenated at positions 8, 13,
+/// 18, 23.
+///
+/// Arity-0; any arguments are a runtime ArityMismatch.
+///
+/// Arc 206 slice 1 — substrate promotion. Available to all wat code without
+/// a `:wat::telemetry` dep. `:wat::telemetry::uuid::v4` delegates to the
+/// same `wat_edn::new_uuid_v4` source via its own Rust shim; both paths are
+/// independently valid.
+pub fn eval_uuid_v4(
+    args: &[WatAST],
+    _env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::uuid::v4";
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 0,
+            got: args.len(),
+            span: args[0].span().clone(),
+        });
+    }
+    let id = wat_edn::new_uuid_v4().to_string();
+    Ok(Value::String(Arc::new(id)))
 }
 
 // ─── regex ───────────────────────────────────────────────────────────────

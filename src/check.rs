@@ -12259,6 +12259,19 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // UUID — arc 206 slice 1. Substrate-level UUID minting; arity-0,
+    // returns :wat::core::String (canonical 8-4-4-4-12 hyphenated hex).
+    // Available without :wat::telemetry dep.
+    env.register(
+        ":wat::core::uuid::v4".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+
     // Comparison / equality — arc 050 + arc 148 slice 5. The
     // polymorphic forms (`:wat::core::{=,not=,<,>,<=,>=}`) are
     // special-cased in `infer_list` so they accept mixed numeric

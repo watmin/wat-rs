@@ -4263,6 +4263,11 @@ fn dispatch_keyword_head(
         ":wat::core::string::join" => crate::string_ops::eval_string_join(args, env, sym),
         ":wat::core::string::concat" => crate::string_ops::eval_string_concat(args, env, sym),
 
+        // UUID — arc 206 slice 1. Substrate-level UUID minting; no
+        // :wat::telemetry dep required. Thin wrapper around
+        // `wat_edn::new_uuid_v4`; returns canonical 8-4-4-4-12 String.
+        ":wat::core::uuid::v4" => crate::string_ops::eval_uuid_v4(args, env, sym),
+
         // Regex — pattern matching. Lives in its own :wat::core::regex::*
         // namespace since the regex crate is a distinct concern.
         ":wat::core::regex::matches?" => crate::string_ops::eval_regex_matches(args, env, sym),
