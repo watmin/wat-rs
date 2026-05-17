@@ -787,8 +787,8 @@
   `(:wat::test::run-thread-driver
      (:wat::kernel::spawn-thread
        (:wat::core::fn
-         [_in  <- :rust::crossbeam_channel::Receiver<wat::core::nil>
-          _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+         [_in  <- :wat::kernel::Receiver<wat::core::nil>
+          _out <- :wat::kernel::Sender<wat::core::nil>]
          -> :wat::core::nil
          ~body))))
 

@@ -94,8 +94,8 @@ fn stone_a_thread_drain_and_join_clean_exit_returns_ok() {
     // channel before joining. A clean exit yields Ok(()).
     let src = r#"
         (:wat::core::defn :my::three-vals-thread
-          [_rx <- :rust::crossbeam_channel::Receiver<wat::core::i64>
-           tx <- :rust::crossbeam_channel::Sender<wat::core::i64>]
+          [_rx <- :wat::kernel::Receiver<wat::core::i64>
+           tx <- :wat::kernel::Sender<wat::core::i64>]
           -> :wat::core::nil
           (:wat::core::let
             [_ (:wat::kernel::send tx 1)
@@ -164,8 +164,8 @@ fn stone_a_thread_drain_and_join_panic_returns_err() {
     // returns Err with a ThreadDiedError::Panic head.
     let src = r#"
         (:wat::core::defn :my::panic-thread
-          [_rx <- :rust::crossbeam_channel::Receiver<wat::core::i64>
-           _tx <- :rust::crossbeam_channel::Sender<wat::core::i64>]
+          [_rx <- :wat::kernel::Receiver<wat::core::i64>
+           _tx <- :wat::kernel::Sender<wat::core::i64>]
           -> :wat::core::nil
           (:wat::core::Option/expect -> :wat::core::nil
             :wat::core::None

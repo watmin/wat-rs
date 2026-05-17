@@ -121,8 +121,8 @@
      -> :wat::kernel::Thread<counter::Request,counter::Response>
      (:wat::kernel::spawn-thread
        (:wat::core::fn
-         [server-rx! <- :rust::crossbeam_channel::Receiver<counter::Request>
-          server-tx! <- :rust::crossbeam_channel::Sender<counter::Response>]
+         [server-rx! <- :wat::kernel::Receiver<counter::Request>
+          server-tx! <- :wat::kernel::Sender<counter::Response>]
          -> :wat::core::nil
          (:counter/dispatch
            (:wat::kernel::ThreadPeer/new server-rx! server-tx!)

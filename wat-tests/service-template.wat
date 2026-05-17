@@ -119,8 +119,8 @@
    ;; The substrate-allocated `_in` Receiver is unused by the service
    ;; driver (the service's request channels are the real inputs).
    ;; Aliased for clarity at the spawn-thread call site.
-   (:wat::core::typealias :svc::DriverIn  :rust::crossbeam_channel::Receiver<wat::core::nil>)
-   (:wat::core::typealias :svc::DriverOut :rust::crossbeam_channel::Sender<svc::State>)
+   (:wat::core::typealias :svc::DriverIn  :wat::kernel::Receiver<wat::core::nil>)
+   (:wat::core::typealias :svc::DriverOut :wat::kernel::Sender<svc::State>)
 
 
    ;; ─── Per-variant dispatch ─────────────────────────────────────

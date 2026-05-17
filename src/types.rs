@@ -985,14 +985,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
             (
                 "rx".into(),
                 TypeExpr::Parametric {
-                    head: "rust::crossbeam_channel::Receiver".into(),
+                    head: "wat::kernel::Receiver".into(),
                     args: vec![TypeExpr::Path(":I".into())],
                 },
             ),
             (
                 "tx".into(),
                 TypeExpr::Parametric {
-                    head: "rust::crossbeam_channel::Sender".into(),
+                    head: "wat::kernel::Sender".into(),
                     args: vec![TypeExpr::Path(":O".into())],
                 },
             ),
@@ -1037,12 +1037,28 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // over `Process/stdin` + `Process/stdout` — the same composition
     // Stone D's bracket macro will encapsulate for everyday use.
     //
-    // The Receiver<I> / Sender<O> field types are deliberately the
-    // SAME typed-channel substrate ThreadPeer uses — `typed_recv` /
-    // `typed_send` are transport-polymorphic (Crossbeam tier-1 for
-    // threads, PipeFd tier-2 for processes), so the Process/readln +
-    // Process/println eval handlers can mirror Thread/readln +
-    // Thread/println verbatim modulo the struct tag.
+    // Stone C3 — field-type honesty fix (arc 170). Previously, the
+    // Receiver<I> / Sender<O> field types were deliberately named after
+    // the THREAD-TIER backing crate (`rust::crossbeam_channel::*`) so
+    // both Process verbs and Thread verbs could share dispatch logic.
+    // Stone C2's confession comment noted:
+    //   "The Receiver<I> / Sender<O> field types are deliberately the
+    //   SAME typed-channel substrate ThreadPeer uses — `typed_recv` /
+    //   `typed_send` are transport-polymorphic (Crossbeam tier-1 for
+    //   threads, PipeFd tier-2 for processes), so the Process/readln +
+    //   Process/println eval handlers can mirror Thread/readln +
+    //   Thread/println verbatim modulo the struct tag."
+    //
+    // The architectural lesson: dispatch logic is shared via runtime
+    // polymorphism (`typed_recv` branches on the Value variant); the
+    // TYPE-KEYWORD should name the ABSTRACTION (`:wat::kernel::Sender/Receiver`),
+    // not the implementation crate (crossbeam happens to back one tier).
+    // The `:wat::kernel::Sender<T>` / `:wat::kernel::Receiver<T>` aliases
+    // established by arc 109 K-channel rename (src/check.rs:3056-3057)
+    // already unify at the type-system level, so this rename is
+    // behavior-preserving. The dishonest `rust::crossbeam_channel::*`
+    // names are retired from the FIELD DECLARATIONS here (Stone C3);
+    // the alias registrations in channel.wat remain as the alias target.
     env.register_builtin(TypeDef::Struct(StructDef {
         name: ":wat::kernel::ProcessPeer".into(),
         type_params: vec!["I".into(), "O".into()],
@@ -1050,14 +1066,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
             (
                 "rx".into(),
                 TypeExpr::Parametric {
-                    head: "rust::crossbeam_channel::Receiver".into(),
+                    head: "wat::kernel::Receiver".into(),
                     args: vec![TypeExpr::Path(":I".into())],
                 },
             ),
             (
                 "tx".into(),
                 TypeExpr::Parametric {
-                    head: "rust::crossbeam_channel::Sender".into(),
+                    head: "wat::kernel::Sender".into(),
                     args: vec![TypeExpr::Path(":O".into())],
                 },
             ),

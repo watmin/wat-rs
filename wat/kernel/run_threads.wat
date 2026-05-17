@@ -35,7 +35,7 @@
 ;;    ThreadPeer<I,O> type args from the coordinator signature:
 ;;    signature-of-fn → extract-arg-types → Bundle/children → atom-value
 ;;    → keyword/to-string + string::concat + keyword/from-string
-;;    This constructs :rust::crossbeam_channel::Receiver<I> / Sender<O>
+;;    This constructs :wat::kernel::Receiver<I> / Sender<O>
 ;;    at expand time (same pattern arc 143 slice 2 proved with define-alias)
 ;; 5. Peer binding names come from coordinator arg names (extract-arg-names
 ;;    + to-watast → WatAST::Symbol as valid let binder)
@@ -115,8 +115,8 @@
 ;; Type extraction per slot 0:
 ;;   i-type-0 = I from ThreadPeer<I,O> at coordinator arg 0 (children[1])
 ;;   o-type-0 = O from ThreadPeer<I,O> at coordinator arg 0 (children[2])
-;;   receiver-0 = :rust::crossbeam_channel::Receiver<i-type-0>
-;;   sender-0   = :rust::crossbeam_channel::Sender<o-type-0>
+;;   receiver-0 = :wat::kernel::Receiver<i-type-0>
+;;   sender-0   = :wat::kernel::Sender<o-type-0>
 ;;
 ;; Peer binder name: coordinator arg name 0 (e.g. "logger" → WatAST::Symbol).
 ;; Coordinator call: (~coordinator peer-name-0).
@@ -190,8 +190,8 @@
 ;; Each slot k extracts:
 ;;   i-type-k = children[1] of type-AST at arg k
 ;;   o-type-k = children[2] of type-AST at arg k
-;;   receiver-k = :rust::crossbeam_channel::Receiver<i-type-k>
-;;   sender-k   = :rust::crossbeam_channel::Sender<o-type-k>
+;;   receiver-k = :wat::kernel::Receiver<i-type-k>
+;;   sender-k   = :wat::kernel::Sender<o-type-k>
 ;;
 ;; Peer binder names: coordinator arg names 0/1/2 (WatAST::Symbol).
 ;; Coordinator call: (~coordinator peer-0-name peer-1-name peer-2-name).

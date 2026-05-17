@@ -93,8 +93,8 @@
      handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
-           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+          [_in <- :wat::kernel::Receiver<wat::core::nil>
+           _out <- :wat::kernel::Sender<wat::core::nil>]
            -> :wat::core::nil
           (producer tx)))]
     (:wat::core::Tuple rx handle)))
@@ -157,8 +157,8 @@
      handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
-           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+          [_in <- :wat::kernel::Receiver<wat::core::nil>
+           _out <- :wat::kernel::Sender<wat::core::nil>]
            -> :wat::core::nil
           (:wat::stream::map-worker up-rx tx f)))]
     (:wat::core::Tuple rx handle)))
@@ -262,8 +262,8 @@
      handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
-           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+          [_in <- :wat::kernel::Receiver<wat::core::nil>
+           _out <- :wat::kernel::Sender<wat::core::nil>]
            -> :wat::core::nil
           (:wat::stream::filter-worker up-rx tx pred)))]
     (:wat::core::Tuple rx handle)))
@@ -306,8 +306,8 @@
      handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
-           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+          [_in <- :wat::kernel::Receiver<wat::core::nil>
+           _out <- :wat::kernel::Sender<wat::core::nil>]
            -> :wat::core::nil
           (:wat::stream::inspect-worker up-rx tx f)))]
     (:wat::core::Tuple rx handle)))
@@ -444,8 +444,8 @@
      handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
-           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+          [_in <- :wat::kernel::Receiver<wat::core::nil>
+           _out <- :wat::kernel::Sender<wat::core::nil>]
            -> :wat::core::nil
           (:wat::stream::with-state-worker up-rx tx step flush init)))]
     (:wat::core::Tuple rx handle)))
@@ -678,8 +678,8 @@
      handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
-           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+          [_in <- :wat::kernel::Receiver<wat::core::nil>
+           _out <- :wat::kernel::Sender<wat::core::nil>]
            -> :wat::core::nil
           (:wat::stream::take-worker up-rx tx n)))]
     (:wat::core::Tuple rx handle)))
@@ -735,8 +735,8 @@
      handle
       (:wat::kernel::spawn-thread
         (:wat::core::fn
-          [_in <- :rust::crossbeam_channel::Receiver<wat::core::nil>
-           _out <- :rust::crossbeam_channel::Sender<wat::core::nil>]
+          [_in <- :wat::kernel::Receiver<wat::core::nil>
+           _out <- :wat::kernel::Sender<wat::core::nil>]
            -> :wat::core::nil
           (:wat::stream::flat-map-worker up-rx tx f (:wat::core::Vector :U))))]
     (:wat::core::Tuple rx handle)))

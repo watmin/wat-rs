@@ -678,8 +678,8 @@ fn t10_spawn_thread_unchanged_positive_control() {
     // via crossbeam channels, returns Thread<I,O>.
     let src = r#"
         (:wat::core::defn :my::echo-thread
-          [rx <- :rust::crossbeam_channel::Receiver<wat::core::i64>
-           tx <- :rust::crossbeam_channel::Sender<wat::core::i64>]
+          [rx <- :wat::kernel::Receiver<wat::core::i64>
+           tx <- :wat::kernel::Sender<wat::core::i64>]
           -> :wat::core::nil
           (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
             ((:wat::core::Ok (:wat::core::Some n))

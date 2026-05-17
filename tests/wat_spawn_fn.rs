@@ -60,8 +60,8 @@ fn spawn_thread_named_define_body() {
 
         (:wat::core::define
           (:app::increment
-            (in  :rust::crossbeam_channel::Receiver<wat::core::i64>)
-            (out :rust::crossbeam_channel::Sender<wat::core::i64>)
+            (in  :wat::kernel::Receiver<wat::core::i64>)
+            (out :wat::kernel::Sender<wat::core::i64>)
             -> :wat::core::nil)
           (:wat::core::let
             [value
@@ -120,8 +120,8 @@ fn spawn_thread_inline_fn_body() {
             [thr
               (:wat::kernel::spawn-thread
                 (:wat::core::fn
-                  [in  <- :rust::crossbeam_channel::Receiver<wat::core::i64>
-                   out <- :rust::crossbeam_channel::Sender<wat::core::i64>]
+                  [in  <- :wat::kernel::Receiver<wat::core::i64>
+                   out <- :wat::kernel::Sender<wat::core::i64>]
                    -> :wat::core::nil
                   (:wat::core::let
                     [value
@@ -181,8 +181,8 @@ fn spawn_thread_closure_capture() {
             [delta 100
              body
               (:wat::core::fn
-                [in  <- :rust::crossbeam_channel::Receiver<wat::core::i64>
-                 out <- :rust::crossbeam_channel::Sender<wat::core::i64>]
+                [in  <- :wat::kernel::Receiver<wat::core::i64>
+                 out <- :wat::kernel::Sender<wat::core::i64>]
                  -> :wat::core::nil
                 (:wat::core::let
                   [n

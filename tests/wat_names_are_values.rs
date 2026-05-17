@@ -146,7 +146,7 @@ fn named_define_as_stream_map_fn() {
           (:wat::core::let
             [source
               (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :rust::crossbeam_channel::Sender<wat::core::i64>] -> :wat::core::nil
+                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
                   (:wat::core::do
                     (:wat::core::Result/expect -> :wat::core::nil
                       (:wat::kernel::send tx 1)
