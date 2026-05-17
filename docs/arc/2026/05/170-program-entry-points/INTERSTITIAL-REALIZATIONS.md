@@ -2654,6 +2654,132 @@ This pattern IS the same lock-step from `ZERO-MUTEX.md:295-297` ("the lock is th
 - Arc 170 STONES.md § Stone E (`run-processes`) — symmetric bracket at the process tier
 - Arc 191/192/193 backlog — hot-reload (state recovery via Final<State> IS the missing piece these arcs called for)
 
+### Addendum — service-with-provisioning + tier-choice for shared-state services
+
+**User's framing 2026-05-16:** *"we should enqueue both a thread and process flavor of these ... the caches and intra-process shared state .. not inter-process - but no reason they couldn't be... but perf and similar you'd almost always want a threaded shared state server"*
+
+The Counter pattern is one-actor-one-state. The fractal-deployment extension is **service-with-provisioning** — a shared-state actor whose Request enum carries lifecycle messages alongside domain operations:
+
+```scheme
+(:wat::core::enum :CacheService/Request
+  ;; Lifecycle (provisioning conversation on the control channel)
+  Provision
+  (Deprovision :wat::core::keyword)        ;; release handle by id
+  ;; Domain operations (via issued handles)
+  (Get :wat::core::keyword :Key)
+  (Put :wat::core::keyword :Key :Value)
+  ;; Terminal
+  Shutdown)
+
+(:wat::core::enum :CacheService/Response
+  (ClientHandle :wat::core::keyword)        ;; lifecycle reply — carries the new handle
+  Ok                                         ;; deprovision / put ack
+  (Value :wat::core::Option<:Value>)        ;; get reply
+  (Final :wat::core::HashMap<:Key, :Value>)) ;; terminal — Shutdown returns cache state
+```
+
+The service's dispatch loop handles ALL of these via the existing three-line handler pattern. Provisioning is just another match arm; no new mechanism. Service's accumulator state tracks issued handles (so it knows who has what; can refuse on capacity; can detect leaks at shutdown).
+
+### Fractal deployment composition (the lab-trading shape)
+
+```
+Top supervisor (run-processes — cross-asset manager)
+├─ BTC desk supervisor (run-threads under BTC process)
+│   ├─ BTC market observer    (handles: cache-h1, log-h1, db-h1)
+│   ├─ BTC risk observer      (handles: cache-h2, log-h2)
+│   └─ BTC treasury observer  (handles: cache-h3, db-h2)
+└─ ETH desk supervisor (run-threads under ETH process)
+    └─ ETH market observer    (handles: cache-h4, log-h4, db-h3)
+
+Shared services (running alongside the supervisor tree):
+  cache-service-peer        ← thread-tier (intra-process, hot path)
+  log-service-peer          ← thread-tier (intra-process, high volume)
+  db-service-peer           ← thread-tier (intra-process)
+                              OR process-tier IF actual DB I/O benefits from process isolation
+```
+
+**Per-observer spawn sequence (supervisor's coordinator-fn body):**
+
+```scheme
+(:wat::core::let
+  ;; Provision per-observer handles via control-channel conversations
+  [cache-h1   (:cache-service/provision cache-svc!)
+   log-h1     (:log-service/provision   log-svc!)
+   db-h1      (:db-service/provision    db-svc!)
+   market-obs (:btc-market/spawn cache-h1 log-h1 db-h1)
+   ;; ... operations using the observers ...
+   ;; Deferred shutdown cascade
+   _shut-obs  (:btc-market/shutdown market-peer)
+   _dep-c1    (:cache-service/deprovision cache-svc! cache-h1)
+   _dep-l1    (:log-service/deprovision   log-svc!   log-h1)
+   _dep-d1    (:db-service/deprovision    db-svc!    db-h1)]
+  ...)
+```
+
+What this gives the architecture for free:
+- **Dynamic membership** — observers spawn over time; handles provisioned on demand; no static pre-allocation
+- **Per-client typed handles** — service tracks who-has-what; mis-use surfaces structurally
+- **Bounded resources** — service can refuse Provision when at capacity; backpressure on control channel
+- **Cascade shutdown is honest** — supervisor exit deprovisions all held handles; no leaks
+- **Service-side state recovery** — service's Final<State> on Shutdown carries the cache contents → hot-reload re-spawns with seeded state (arcs 191/192/193 hot-reload)
+- **Per-client per-service-state** — service tracks per-handle metadata in its accumulator
+- **Fractal** — desk supervisor is itself an actor the top-level provisioned for; pattern composes at every tier
+
+### Tier-choice guidance for shared-state services
+
+**Thread tier is the workhorse** for intra-process shared state. Pick it for:
+- Caches (LRU, hologram cache, query result cache)
+- Logs (high volume; intra-process; structured-event accumulator)
+- In-memory registries (symbol tables, handle pools, metrics)
+- Anything where multiple in-process actors need shared mutable state with sub-millisecond latency
+
+**Why thread tier wins for intra-process shared state:**
+- No EDN serialization cost (values pass by reference/clone in same address space)
+- Microsecond channel latency (crossbeam) vs millisecond pipe + parse latency
+- No per-message memory duplication
+- Same isolation guarantee (typed channels + immutable values prevent races)
+- Mini-TCP discipline holds identically
+
+**Process tier is for crash-isolation, sandboxing, or true cross-process boundaries.** Pick it when:
+- The service's own crash should NOT take down the supervisor tree (independent restart)
+- The service uses OS resources you want sandboxed (file descriptors, network connections, untrusted code)
+- The service genuinely IS cross-process (one wat-vm spawns another; service belongs to one, clients in others)
+- The serialization cost is dwarfed by the I/O cost the service is doing anyway (DB queries, network calls)
+
+For lab-trading's intra-asset shared state (caches, logs, in-mem db caches): **thread tier always.** Cross-asset coordination is already process-tier (top supervisor spawns per-asset processes); within each asset's process, threaded services serve the intra-asset observers.
+
+### What this unblocks (queued for proof after Counter actor lands)
+
+Two ServiceWithProvisioning proofs queued in the task system:
+1. **Thread-tier ServiceWithProvisioning proof** — cache-service actor with Provision/Deprovision; supervisor coordinator-fn provisions on spawn + deprovisions on cascade; intra-process workhorse demonstration
+2. **Process-tier ServiceWithProvisioning proof** — same pattern over ProcessPeer + EDN-serialized RPC; documents the perf-vs-isolation trade-off explicitly
+
+Both prove the pattern at their tier; together they validate the cross-tier symmetry. After they land, lab-trading reconstruction has the substrate-canonical model.
+
+### Connection to lab-trading reconstruction
+
+Per `project_lab_reconstruction`: lab archived as reference; reconstruction tests fresh-user-follow-along; wat-rs is the durable substrate; substrate work doesn't wait for lab.
+
+The arc 089/091/096/119 services (Db, WorkUnit, telemetry, Cache/HolonLRU) were minted as ad-hoc service-templates with mini-TCP discipline before the Counter actor pattern + Shutdown/Final convention + supervisor brackets were inscribed. The reconstruction inherits ALL of this as the uniform model:
+- Each service is an actor with Provision/Deprovision/Domain/Shutdown Requests
+- Each observer is an actor consuming provisioned handles
+- Each desk is a supervisor (run-threads bracket) over its observers
+- Cross-asset is a supervisor (run-processes bracket) over per-asset processes
+- Hot-reload (arcs 191/192/193 future) composes via Final<State> carry-over
+
+The lab doesn't need a new ARCHITECTURE — it needs to BE this architecture. The substrate composes; the pattern is canonical; the reconstruction follows the inscription.
+
+### Cross-references
+
+- `project_lab_reconstruction` — the destination application
+- `project_trading_lab` — current state of the lab (active arcs)
+- Arc 089 / 091 / 096 (services) + arc 119 (cache services) — historical service-template work; refactored under this uniform pattern during lab reconstruction
+- INTERSTITIAL § 2026-05-16 (deeper) "Control channels" — the convention this extends
+- Arc 191/192/193 backlog — hot-reload (Final<State> from service Shutdown is the carry-over mechanism)
+- Task entries (added 2026-05-16) — thread-tier + process-tier ServiceWithProvisioning proofs queued
+
+---
+
 ### Addendum — state-shape taxonomy + handler-shape taxonomy + Box rejected
 
 **User's framing 2026-05-16:** *"i agree that State is whatever it must be ... we can just TCO the state into the next iteration"* + *"the increment call .. it looks wrong... it should be ... (let [new-n (+ state n)] (send server-tx! (Counter/Response/Ok new-n)) (:counter/dispatch server-rx! server-tx! new-n)) ... that's the whole handler?..."*
