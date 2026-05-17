@@ -152,3 +152,65 @@ INSCRIPTION + 058 changelog row + USER-GUIDE entry + cross-reference to arc 198 
 - `src/check.rs:7478+` (`infer_def_restricted`) — the shape-validation pattern arc 203 mirrors
 
 The substrate refuses; the user does the work; we ship the hard part because that's what we do.
+
+---
+
+## Post-3e expansion — arc 203 becomes "the one pattern" enforcement arc (settled 2026-05-17)
+
+User direction post-slice-3e: *"we do not close out arc 203 until all services we vend follow the one and only pattern for parallelism and concurrency... so this means we go block that 'everyone must follow the one pattern' on error propagation for both being delivered - i think we are eliminating the remainder of the 170 issues now by doing this... all deadlocks are eliminated by following the rules... we show our users how to behave for guaranteed success."*
+
+Arc 203 expands its scope: not just minting the substrate primitive + proving the pattern, but ENFORCING the pattern across every service the substrate vends. The two Counter demos become the canonical user-facing documentation; all existing services align with the pattern; closure ships only when alignment is complete.
+
+### Revised slicing (post-3e)
+
+| Slice | Status | What |
+|---|---|---|
+| 1 — substrate primitive | SHIPPED `26c9298` | `:wat::core::struct-restricted` form + parser + check + registration |
+| 2 — Counter/Client single-user proof | SHIPPED `e8101d8` | First consumer; ThreadPeer composition |
+| 3a — server dispatch foundation | SHIPPED `d4d76b4` | N=1, Wire enum, select |
+| 3b — dynamic Provision/Deprovision | SHIPPED `15cf7a8` | N=3 multi-user, Vector registry, auto-cleanup |
+| 3c — capability struct wrappers (thread) | SHIPPED `e7aa671` | Admin + Client struct-restricted |
+| 3d — process variant (stdio multiplexed) | SHIPPED `45a1727` | Wire + WireResp over single stream |
+| 3e — server-id validation (secret-witness live) | SHIPPED `cd6f261` | AccessDenied; forge demonstration |
+| **3f — error propagation pattern (Result-bearing wrappers)** | OPEN | Counter demos: `Result<T, :counter::ServiceError>`; honest typed errors (no String escape) |
+| **3g — apply pattern to wat-lru CacheService** | OPEN | Refactor `crates/wat-lru/wat/lru/CacheService.wat` to use struct-restricted Client capability + Result-bearing wrappers |
+| **3h — apply pattern to HologramCacheService** | OPEN | Same pattern, holon-lru consumer |
+| **3i — apply pattern to stdio services** | OPEN | `wat/kernel/services/{stdin,stdout,stderr}.wat`: substrate-side orchestrator holds Admin; threads hold per-thread Client (forge-resistance load-bearing — currently a thread could forge Add/Remove for other thread-ids) |
+| **3j — closure paperwork** | OPEN | INSCRIPTION + 058 changelog row + USER-GUIDE entry pointing at all canonical artifacts |
+
+### Honest typed errors (slice 3f core decision)
+
+`(SubprocessDied (chain :String))` would be DISHONEST — chains are structured EDN/data, not strings. The honest shape uses substrate-provided typed errors:
+
+```scheme
+(:wat::core::enum :counter::ServiceError
+  (AccessDenied)                                              ;; server rejected server-id
+  (PeerDied    (cause :wat::kernel::ThreadDiedError))         ;; thread-tier peer dropped
+  (ServerDied  (cause :wat::kernel::ProcessDiedError))        ;; process-tier subprocess died (carries typed panic-chain)
+  (Disconnected))                                             ;; clean recv-returned-None
+```
+
+Wrappers return `:wat::core::Result<:T, :counter::ServiceError>`. Callers pattern-match on Ok/Err; Err variants carry typed cause data (not stringified).
+
+`:wat::kernel::ThreadDiedError` (arc 060) and `:wat::kernel::ProcessDiedError` (src/types.rs:632) are substrate-provided. ProcessDiedError's `Panic` variant carries the structured chain via the existing accessors `/message` + `/to-failure` (src/runtime.rs:4687, 18545).
+
+### Why this is "the one pattern"
+
+The canonical wat service implements (in order):
+1. **Privacy** — struct-restricted capability hides server-id, client-id, and channel ends; users hold opaque values
+2. **Capability mint protection** — only the issuing namespace can construct Admin / Client
+3. **Behavioral protocol routing** — Wire enum with Admin/User variants; server matches on receipt
+4. **Secret-witness validation** — server validates incoming wire payload's server-id; AccessDenied on mismatch
+5. **Honest error propagation** — Result-bearing wrappers with typed-data errors (no String escapes)
+6. **Lifecycle discipline** — Provision/Deprovision via admin channel; auto-cleanup on user Disconnect; Stop with drain-and-join
+
+Services that follow this pattern: cannot be impersonated; cannot have id-forgery succeed; cannot have callers stuck panicking on transient errors; cannot deadlock under the rules-enforced-at-substrate (per arc 117/126/202 walkers + the pattern's structural discipline).
+
+### Connection to arc 170 closure
+
+User: *"i think we are eliminating the remainder of the 170 issues now by doing this... all deadlocks are eliminated by following the rules."*
+
+Arc 170's substrate work (typed channels, ProcessPeer, drain-and-join, structural walkers, deadlock detection) provided the SUBSTRATE for "the one pattern." Arc 203 ships the pattern itself. Together they form the foundation: arc 170 makes the rules possible; arc 203 makes the rules concrete + applies them to every vended service.
+
+Future services follow the canonical pattern by copying from the Counter demos and adapting the per-domain bits. Future substrate work that introduces new transport tiers (remote per `:wat::kernel::run-remotes`) extends the pattern uniformly.
+
