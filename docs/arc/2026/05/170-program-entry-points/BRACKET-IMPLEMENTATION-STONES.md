@@ -202,7 +202,7 @@ Four-questions outcomes (settled with user 2026-05-16):
 - [x] Stone C1 — `ThreadPeer<I, O>` + 2 verbs (2026-05-16, ~35 min, 3/3 tests green)
 - [x] Stone C2 — `ProcessPeer<I, O>` + 2 verbs + real-spawn integration test (2026-05-16 post-revision, substrate-composition proof; user-facing surface is Stone D's run-processes bracket; commit `e4b9461`)
 - [x] D1 — minimal `run-threads` single-factory + round-trip (2026-05-16, initial commit `d704820` verbose-form; refactored same-day to clean call form `(run-threads :I :O factory client-fn)` via arc 143 slice 2's computed-unquote pattern after arc 199 REJECTED — substrate already sufficient; 1/1 test green; baseline preserved at 4)
-- [ ] D2 — multi-factory heterogeneous expansion (unblocked — arc 199 rejected; build on D1's clean call form)
+- [ ] D2 — multi-factory heterogeneous expansion (unblocked — arc 201 closed 2026-05-16; full reflection chain shipped: signature-of-fn + extract-arg-types + Bundle/children + Bundle/first; build on D1's clean call form)
 - [ ] D3 — panic cascade + `ProcessGroupErr` — depends on D2
 - [ ] Stone E (decomposes per same pattern when D family settles) — unblocked
 - [ ] Stone F

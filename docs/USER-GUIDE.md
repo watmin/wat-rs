@@ -2917,6 +2917,61 @@ See `docs/arc/2026/05/143-define-alias/INSCRIPTION.md` for the full
 slice cadence + the substrate-as-teacher cascade record. Arc 144
 INSCRIPTION at `docs/arc/2026/05/144-uniform-reflection-foundation/INSCRIPTION.md`.
 
+**Structured type-AST in reflection (arc 201).** Pre-arc-201 the
+reflection layer FLATTENED structured `TypeExpr` values into atomic
+keyword strings — `signature-of` of a fn with a `:ThreadPeer<I,O>`
+arg returned the type slot as one Keyword `":wat::kernel::ThreadPeer<wat::core::String,wat::core::String>"`,
+forcing macros into string parsing. Arc 201 made the emission
+structured: parametric types emit as `HolonAST::Bundle [Atom(head), ...args]`;
+path types as atomic `HolonAST::Atom`. Five new primitives:
+
+```scheme
+(:wat::runtime::signature-of-defn :name-keyword)
+;; → :Option<HolonAST>  — symbol-table lookup (renamed from
+;;   pre-arc-201 :signature-of for explicit asymmetry with -fn sibling)
+
+(:wat::runtime::signature-of-fn fn-value)
+;; → :HolonAST  — closure introspection on a fn VALUE produced by
+;;   an inline (:wat::core::fn ...) form
+
+(:wat::runtime::extract-arg-types <signature>)
+;; → :Vec<:wat::holon::HolonAST>  — type-direction sibling of
+;;   extract-arg-names; each item is the structured type AST per arg
+
+(:wat::holon::Bundle/children :HolonAST::Bundle)
+;; → :Vec<:HolonAST>  — children of a structured-composition node
+
+(:wat::holon::Bundle/first :HolonAST::Bundle)
+;; → :HolonAST  — first child (typically the head atom)
+```
+
+The chain for type-driven macros (Stone D2's algorithm shape):
+
+```scheme
+;; sig is the signature HolonAST from signature-of-fn / signature-of-defn
+(:wat::core::let
+  [names      (:wat::runtime::extract-arg-names sig)
+   types      (:wat::runtime::extract-arg-types sig)
+   ;; for arg k:
+   name-k     (:wat::core::Vector/get names k)
+   type-k     (:wat::core::Vector/get types k)
+   ;; if type-k is :ThreadPeer<I,O>:
+   type-k-ast (:wat::core::Option/expect type-k "arg index out of range")
+   children   (:wat::holon::Bundle/children type-k-ast)
+   ;; children = [Atom(:ThreadPeer), I-type-ast, O-type-ast]
+   I-ast      (:wat::core::Vector/get children 1)
+   O-ast      (:wat::core::Vector/get children 2)]
+  ...)
+```
+
+Arc 057's `:wat::core::atom-value` already serves leaf unwrapping
+(parametric extension of an originally-VSA-focused primitive — see
+`docs/arc/2026/05/170-program-entry-points/INTERSTITIAL-REALIZATIONS.md`
+"HolonAST as universal semantic AST").
+
+Arc 201 INSCRIPTION at
+`docs/arc/2026/05/201-reflection-structured-type-ast/INSCRIPTION.md`.
+
 ### Fork/sandbox tests — when you need an inner program
 
 Sometimes a test wants to verify how an INNER program behaves — its
