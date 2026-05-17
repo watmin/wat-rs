@@ -2462,3 +2462,181 @@ The destination is the place; the road is what each vocabulary builds. Kay built
 - `docs/CONVENTIONS.md` § Batch convention — arc 119 batch-granularity insight (every wat-rs service takes batches; user controls "lock duration" via batch size)
 
 ---
+
+## 2026-05-16 (deeper) — Control channels: Shutdown/Final convention + state recovery + tier-placeholder naming
+
+The Kay-OOP realization above named WHAT we have. This entry names how it COMPOSES into graceful lifecycle, state recovery, and cross-tier symmetry.
+
+### User's voice (the chain of realizations)
+
+> *"i think there's another thing here... these are control channels... we can cascade graceful shutdown trivially - users opt into it by using the pipes... we can have return value be the state of the system such that it can be re-inserted in the main-fn..."*
+
+> *"is this a real thing?.... we could have a shutdown action that doesn't dispatch into itself and return whatevver its internal state is.. the client issues the server stop"*
+
+> *"this pattern shape is the same for processes and soon to be remotes"*
+
+> *"Flavor 1 is superior but we shouldn't advertisie :user::main in the thread context"*
+
+> *"processes must always define :user::main .... there is no :user::main-process ... just like (:wat::kernel::readln) and (:wat::kernel::println data) operate on stdio"*
+
+> *"remote will behave like threads and processes ... i think the remote process will be probably... something like a tokio loop?... 'green-threads' or whatever - later propblem - get our docs updated"*
+
+### These ARE control channels
+
+The Kay-OOP example earlier in this file (Counter with Get/Increment/Reset) showed the ALWAYS-dispatching loop. The deeper recognition: the SAME channel carries control alongside data. There is no separate "shutdown channel" — there's a `Shutdown` variant of the existing Request enum. The dispatch arm for `Shutdown` doesn't tail-recurse — it sends the final state as Response, then the fn returns. Thread exits cleanly. Client captures the final state from the Response.
+
+### Settled conventions (user confirmed "both yes" 2026-05-16)
+
+**1. `Shutdown` is the conventional Request-enum variant for terminal request.** Every actor's `I` enum carries a zero-arg `Shutdown` variant. The dispatch arm for Shutdown:
+- Sends the Final response (carrying state)
+- Returns nil (no tail recursion)
+- Thread / process / remote terminates cleanly
+
+**2. `Final<State>` is the conventional Response-enum variant carrying terminal state.** The shape `Final<State>` is the actor's commitment to expose its final state at shutdown. Client recvs Final → captures state → can re-spawn the actor with that state as the new `initial`. This IS the hot-reload carry-over mechanism that arcs 191/192/193 backlog called for; no new substrate needed.
+
+Convention propagation: documented in canonical examples + USER-GUIDE; substrate does NOT enforce or auto-invoke. Each actor's per-actor shutdown verb is a 3-line user-defined wrapper following the convention.
+
+### Settled pattern: explicit-coordinator-shutdown (Flavor 1)
+
+Four-questions ran on two flavors of who-shuts-down-whom:
+
+**Flavor A (substrate auto-shutdown via bracket helper):** bracket vends `run-threads/shutdown-all` helper that auto-synthesizes Shutdown variants, sends, collects Final. → DISQUALIFIED on Simple + Honest (substrate auto-invocation hides discipline; substrate awareness of user enum shape is heavy; per-peer special handling impossible without opting out; violates one-canonical-path).
+
+**Flavor B (coordinator-explicit per-peer shutdown):** coordinator-fn's named delegate explicitly calls `(:peer-name/shutdown peer!)` per peer; bracket stays minimal (just spawn + drain-and-join). → YES YES YES YES (lifecycle visible inline; verbose-is-honest; convention named at variant level; substrate unchanged; per-peer flush-before-shutdown lives in that peer's shutdown verb where it's visible).
+
+**Settled:** Flavor B. No bracket helper.
+
+### Counter example refined — full lifecycle with Shutdown
+
+```scheme
+;; Request + Response enums (Counter/Request gains Shutdown; Counter/Response gains Final)
+;; (Pseudocode shape; actual enum declaration follows wat's `(:wat::core::enum ...)` form)
+
+(:wat::core::enum :Counter/Request
+  Get
+  (Increment :wat::core::i64)
+  Reset
+  Shutdown)                                                              ;; ← convention
+
+(:wat::core::enum :Counter/Response
+  (Value :wat::core::i64)
+  Ok
+  (Final :wat::core::HashMap<:wat::core::keyword,wat::core::i64>))         ;; ← convention
+
+;; Constructor
+(:wat::core::defn :counter/spawn
+  [initial <- :wat::core::i64]
+  -> :wat::kernel::Thread<Counter/Request, Counter/Response>
+  (:wat::kernel::spawn-thread
+    (:wat::core::fn [server-rx! <- :Receiver<Counter/Request>
+                     server-tx! <- :Sender<Counter/Response>]
+                    -> :wat::core::nil
+      (:counter/dispatch server-rx! server-tx! {:count initial}))))
+
+;; Dispatch loop — Shutdown arm doesn't recur; returns nil; thread exits
+(:wat::core::defn :counter/dispatch
+  [server-rx! <- :Receiver<Counter/Request>
+   server-tx! <- :Sender<Counter/Response>
+   state      <- :wat::core::HashMap<:wat::core::keyword,wat::core::i64>]
+  -> :wat::core::nil
+  (match (recv server-rx!)
+    ((Counter/Request/Get)
+       (send server-tx! (Counter/Response/Value (:count state)))
+       (:counter/dispatch server-rx! server-tx! state))
+    ((Counter/Request/Increment n)
+       (send server-tx! (Counter/Response/Ok))
+       (:counter/dispatch server-rx! server-tx! (assoc state :count (+ (:count state) n))))
+    ((Counter/Request/Reset)
+       (send server-tx! (Counter/Response/Ok))
+       (:counter/dispatch server-rx! server-tx! {:count 0}))
+    ((Counter/Request/Shutdown)                                          ;; ← terminal arm
+       (send server-tx! (Counter/Response/Final state))
+       :wat::core::nil)))                                                  ;; ← no recur; thread exits
+
+;; Per-actor shutdown verb — 3-line user-defined wrapper following the convention
+(:wat::core::defn :counter/shutdown
+  [peer! <- :wat::kernel::ThreadPeer<Counter/Request, Counter/Response>]
+  -> :wat::core::HashMap<:wat::core::keyword,wat::core::i64>
+  (do
+    (:wat::kernel::Thread/println peer! (Counter/Request/Shutdown))
+    (match (:wat::kernel::Thread/readln peer!)
+      ((Counter/Response/Final state) state))))
+```
+
+### Coordinator-explicit user form at the thread tier
+
+```scheme
+;; The thread-coordinator's named delegate — PLACEHOLDER name :user::thread-main.
+;; The substrate doesn't bless this name; users pick whatever fits their domain
+;; (e.g., :my-app::orchestrate). The placeholder exists for DOCS to avoid
+;; confusing the thread-coordinator role with :user::main (which IS literal,
+;; substrate-blessed, only at the process tier).
+(:wat::core::defn :user::thread-main
+  [logger!  <- :wat::kernel::ThreadPeer<Log/Request, Log/Response>
+   counter! <- :wat::kernel::ThreadPeer<Counter/Request, Counter/Response>]
+  -> :wat::core::Tuple<:Log/State, :wat::core::HashMap<:wat::core::keyword,wat::core::i64>>
+  (do
+    (:log/info logger! "starting")
+    (:counter/increment counter! 5)
+    (:counter/increment counter! 3)
+    (:log/info logger! "done")
+    (:wat::core::Tuple
+      (:log/shutdown logger!)              ;; sends Shutdown; recvs Final; returns Log/State
+      (:counter/shutdown counter!))))      ;; sends Shutdown; recvs Final; returns Counter/State
+
+;; Bracket invocation — coordinator-fn body delegates to the named fn
+(:wat::kernel::run-threads
+  (:wat::core::fn [logger!  <- :wat::kernel::ThreadPeer<Log/Request, Log/Response>
+                   counter! <- :wat::kernel::ThreadPeer<Counter/Request, Counter/Response>]
+                  -> :wat::core::Tuple<:Log/State, :wat::core::HashMap<:wat::core::keyword,wat::core::i64>>
+    (:user::thread-main logger! counter!))
+  (:log/spawn)
+  (:counter/spawn 0))
+;; Returns the Tuple of final states. Both threads have exited cleanly.
+;; The states can be re-inserted into a new spawn for continuity (hot-reload).
+```
+
+### Tier-placeholder convention (corrected per user 2026-05-16)
+
+The naming asymmetry is HONEST — it tracks the substrate's asymmetry:
+
+| Tier | Bracket macro | Peer type | Worker substrate entry | Coordinator delegate placeholder (docs) |
+|--|--|--|--|--|
+| Thread | `:wat::kernel::run-threads` | `ThreadPeer<I,O>` | none — worker is a fn taking raw channels (no ambient anything) | **`:user::thread-main`** (placeholder for docs; users name however) |
+| Process | `:wat::kernel::run-processes` (Stone E) | `ProcessPeer<I,O>` | **`:user::main`** (LITERAL; substrate-blessed; ambient stdio via `readln`/`println`) | none — `:user::main` IS where the work lives; bracket coordinator-body delegates to whatever name the user picks |
+| Remote | `:wat::kernel::run-remotes` (future) | `RemotePeer<I,O>` (future) | TBD when remote ships (probably mirrors process: each remote IS a wat-vm process running on a remote host) | TBD — placeholder convention settles when the implementation does |
+
+The user's framing on remote: *"remote will behave like threads and processes ... i think the remote process will be probably... something like a tokio loop?... 'green-threads' or whatever - later propblem."* Later problem; the SHAPE is shared (Peer + Request/Response + Shutdown/Final + bracket); the implementation choice (OS process over network vs tokio task vs green-thread) settles when the slice happens.
+
+### Why processes don't get a separate placeholder
+
+Per user 2026-05-16: *"processes must always define :user::main .... there is no :user::main-process ... just like (:wat::kernel::readln) and (:wat::kernel::println data) operate on stdio."*
+
+The substrate doesn't have a "process-tier readln" distinct from generic `readln` — `readln` IS the process-tier mechanism (operates on ambient stdio). Symmetrically: `:user::main` IS the process-tier entry; there's no `:user::process-main` to disambiguate.
+
+The placeholder `:user::thread-main` exists ONLY because thread workers don't have an ambient surface OR a substrate-blessed entry name. The bracket's coordinator-fn body needs SOME named delegate (per the "always delegate" pattern); docs need a placeholder name; that name should NOT conflict with `:user::main`. Hence `:user::thread-main`.
+
+### What this unblocks
+
+**Graceful cascading shutdown:** supervisor's coordinator decides to shut down → sends Shutdown to each peer → peer's dispatch arm sends Final<State> + returns → thread exits → join unblocks → coordinator captures all states + returns. Per Erlang OTP `terminate/2` exactly. Mechanism: typed channels + tail-call-or-not. Substrate: unchanged.
+
+**State recovery for hot-reload (arcs 191/192/193):** the Final<State> Response IS the carry-over mechanism. After exec/state-preserving-exec, the new universe re-spawns the actor with `(actor/spawn old-state)`. Per INTERSTITIAL § "Round 4 — the hot-reload recognition" (line 477+): this is exactly the "stateful exec-program-with-state" the user envisioned. The substrate didn't need a new primitive; the convention names what's there.
+
+**Cross-tier symmetry without conflation:** processes get `:user::main` literal (ambient stdio + substrate entry); threads get `:user::thread-main` placeholder (no ambient, no blessed entry); remotes settle when they ship. The pattern shape is uniform; the tier-specific surfaces are honest about their substrate-level differences.
+
+### Lock-step alignment with mini-TCP
+
+This pattern IS the same lock-step from `ZERO-MUTEX.md:295-297` ("the lock is the loop body itself; the release is the ack send"). Client sends Request, blocks on recv Response; server recv Request, processes, sends Response. Bounded(1) channels prevent racing. The Shutdown variant is just a terminal Request whose Response carries the final state. Per the user: *"we block on client read and then block on client write and then block on client read and so on?... always lock step."* Confirmed — strict alternation; both sides advance in lockstep.
+
+### Cross-references
+
+- INTERSTITIAL § 2026-05-16 (late) — Kay-OOP entry (the prior layer in the same realization)
+- INTERSTITIAL § 2026-05-13 "Round 4 — the hot-reload recognition" (line 477+) — Final<State> IS the carry-over mechanism for arcs 191/192/193
+- INTERSTITIAL § 2026-05-13 "How the shadow channel fans out" — shutdown event broadcast; this pattern is the user-level COOPERATIVE shutdown that composes alongside (orthogonal to substrate-level signal cascade)
+- INTERSTITIAL § 2026-05-13 "Networked programs ride the same substrate" — the cross-tier ride is exactly this pattern, projected onto remote transport
+- `docs/ZERO-MUTEX.md` § "Mini-TCP" — the substrate mechanism this convention names at the user level
+- `docs/SERVICE-PROGRAMS.md` § "The lockstep" — the service-program discipline this convention follows
+- Arc 170 STONES.md § Stone E (`run-processes`) — symmetric bracket at the process tier
+- Arc 191/192/193 backlog — hot-reload (state recovery via Final<State> IS the missing piece these arcs called for)
+
+---
