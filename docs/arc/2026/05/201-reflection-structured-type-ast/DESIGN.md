@@ -187,13 +187,23 @@ User-facing keyword: `:wat::runtime::signature-of` → `:wat::runtime::signature
 
 **Predicted:** 60-90 min sonnet. Scope corrected from "likely small" hedge — concrete is ~150 mechanical edits across ~18 files. Still purely mechanical (no substrate-shape change); but the sweep needs careful preservation of `signature-of-fn` (slice 3 sibling) references which contain the substring.
 
-### Slice 5 — `extract-arg-types` wat-side convenience
+### Slice 5 — `extract-arg-types` substrate primitive (mirror of `extract-arg-names`)
 
-- Wat-level fn in `wat/runtime.wat` that mirrors `extract-arg-names` but returns pair[1] (the structured type slot) per arg.
-- Composes slice 2's accessors. No new substrate primitive.
-- Test: `extract-arg-types` on a known fn signature → assert structured types come back.
+**Q2 RESOLVED 2026-05-16 (substrate-side over wat-side):**
 
-**Predicted:** 20-40 min sonnet.
+Original lean was wat-side composition via `Bundle/children` + Vector ops. Verification (post-`feedback_assertion_demands_evidence` discipline) showed wat's Vector ops are limited to `{length, empty?, contains?, get, conj, concat}` + `map`/`foldl`/`foldr` — **no slice / take / drop primitives.** Implementing pair-extraction-from-signature in wat would require hand-rolled foldl-with-index-counter to filter out head + arrow + ret slots by position. Four questions on the wat-side candidate failed Obvious + Simple. Substrate-side mirror of `extract-arg-names` passes YES YES YES YES — direct sibling, same walker, same layer, symmetric API.
+
+**Scope:**
+
+- Mint `:wat::runtime::extract-arg-types` substrate primitive at `src/runtime.rs` — eval handler mirrors `eval_extract_arg_names` (`src/runtime.rs:10165`); changes pair extraction from index 0 (name keyword) to index 1 (type AST); returns `Vector<HolonAST>` instead of `Vector<keyword>`
+- Type-scheme registration at `src/check.rs` (mirror `extract-arg-names` registration at `src/check.rs:14385+`)
+- Dispatch arm at `src/runtime.rs:4051` area (mirror `extract-arg-names` dispatch arm)
+- Reuses slice 1's structured HolonAST emission for type slots (the walker already gets structured Bundles/Atoms for type AST)
+- Test: `extract-arg-types` on a known parametric-typed fn signature → assert structured Bundles for parametric args, Atoms for path args
+
+**Reuse path:** `eval_extract_arg_names` walks the signature head; for each arg-pair Bundle, extracts pair[0] (a `HolonAST::Symbol` keyword). New eval handler walks the SAME signature head; for each arg-pair Bundle, extracts pair[1] (a structured HolonAST representing the type, per slice 1 rules). Skipping head + arrow + ret slots happens identically.
+
+**Predicted:** 30-60 min sonnet.
 
 ### Slice 6 — Closure paperwork
 
@@ -230,8 +240,8 @@ User-facing keyword: `:wat::runtime::signature-of` → `:wat::runtime::signature
 
 ## Open questions for user
 
-1. **Accessor naming.** `Bundle/children` reads clean to me; `Bundle/head` mirrors common Lisp; `Atom/value` ambiguous (might prefer `Atom/symbol` or `Atom/unwrap`). Want `/gaze` here or sonnet's call?
-2. **`extract-arg-types` location.** Wat-side helper in `wat/runtime.wat` (my lean) vs substrate primitive in `:wat::runtime::*`. Convenience either way; wat-side is more in line with "compose existing primitives."
-3. **Slice 1 atomicity.** Should the signature-builder rewrite + consumer sweep ship in ONE slice, or split (slice 1a substrate, slice 1b consumer-sweep)? Lean: one slice — the consumer sweep should be small (only define-alias's rename-callable-name is in play).
+1. **Accessor naming** — RESOLVED in slice 2 (sonnet's call: `Bundle/children`, `Bundle/first`; `Atom/value` covered by existing arc 057 `:wat::core::atom-value`).
+2. **`extract-arg-types` location** — RESOLVED 2026-05-16 (substrate-side mirror of `extract-arg-names`). See § Slice 5 for verification.
+3. **Slice 1 atomicity** — RESOLVED (shipped as single slice; consumer sweep was trivial).
 
-Awaiting your read.
+All open questions closed.
