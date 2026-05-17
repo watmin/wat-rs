@@ -524,9 +524,12 @@
   (:wat::core::let
     [drain-pair
       (:wat::core::let
-        ;; Inner scope: Receivers + drained lines only.
-        ;; Dropping these bindings lets the child's OS pipes drain to EOF.
-        [stdout-r       (:wat::kernel::Process/stdout proc)
+        ;; Inner scope: stdin Sender + Receivers + drained lines.
+        ;; stdin-w drops at inner-let exit → child's StdInService sees EOF →
+        ;; child can exit. stdout-r/stderr-r also drop here → drain threads
+        ;; see EOF → child's OS pipes drain cleanly before outer join.
+        [stdin-w        (:wat::kernel::Process/stdin proc)
+         stdout-r       (:wat::kernel::Process/stdout proc)
          stderr-r       (:wat::kernel::Process/stderr proc)
          stdout-lines   (:wat::kernel::drain-lines stdout-r)
          stderr-lines   (:wat::kernel::drain-lines stderr-r)]

@@ -204,6 +204,32 @@ pub enum CheckError {
         /// Source location of the conflicting output accessor call.
         output_span: Span,
     },
+    /// Arc 202 — Process input-channel held-at-join rule.
+    /// A `let` form contains:
+    ///   - a call to `:wat::kernel::Process/join-result <p>` (blocks
+    ///     until the forked child exits), AND
+    ///   - NO call to `:wat::kernel::Process/stdin <p>` anywhere in
+    ///     the let's scope tree (so the stdin Sender stays alive in
+    ///     the Process handle for the entire outer-let scope).
+    ///
+    /// The substrate's child has a structural StdInService (arc 170
+    /// slice 1f) blocked on fd 0. Without an EOF on the parent's
+    /// write-end of the child's stdin pipe, the child cannot exit;
+    /// parent's join blocks forever.
+    ///
+    /// Inverse direction of ProcessJoinBeforeOutputDrain: that rule
+    /// catches output-Receiver-held-at-join; this catches input-Sender-
+    /// held-at-join (via the Process handle, never extracted). Both
+    /// produce the same deadlock signature; both arise from the same
+    /// lockstep-discipline violation; both fire at freeze time.
+    ProcessJoinHoldsStdinSender {
+        /// Name of the Process identifier the join-result is called on.
+        process_identifier: String,
+        /// Source location of the `Process/join-result` call.
+        join_span: Span,
+        /// Source location where `<process_identifier>` was bound.
+        bind_span: Span,
+    },
     /// Arc 126 — a function call passes two arguments that trace
     /// back to the same `:wat::kernel::make-bounded-channel` /
     /// `make-unbounded-channel` pair-anchor. One argument is a
@@ -734,6 +760,17 @@ impl fmt::Display for CheckError {
                 p = process_identifier,
                 acc = output_accessor,
             ),
+            CheckError::ProcessJoinHoldsStdinSender {
+                process_identifier,
+                join_span,
+                bind_span,
+            } => write!(
+                f,
+                "process-join-holds-stdin-sender at {join}: `:wat::kernel::Process/join-result {p}` blocks until the forked child exits, but `:wat::kernel::Process/stdin {p}` was never extracted from the Process handle anywhere in this `let` scope. The substrate's child has a structural StdInService (arc 170 slice 1f) blocked on `read(fd 0)` waiting for EOF. The parent holds the write-end of the child's stdin pipe via the Process handle bound at {bind}. Without EOF on that pipe, the child cannot exit; parent's join blocks forever — a true deadlock. ILLEGAL STATEMENT ORIENTATION. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: extract `:wat::kernel::Process/stdin {p}` in an INNER `let` (nested inside an outer binding before the join binding) so the Sender drops at inner-let exit before the outer join runs. The inner let should also contain the output Receivers and drain them before returning. DO NOT add a wall-clock timeout to mask this — restructure the let.",
+                join = join_span,
+                bind = bind_span,
+                p = process_identifier,
+            ),
             CheckError::ChannelPairDeadlock {
                 callee,
                 sender_arg,
@@ -1054,6 +1091,14 @@ impl CheckError {
                 .field("output_accessor", output_accessor.as_str())
                 .field("join_location", format!("{}", join_span))
                 .field("output_location", format!("{}", output_span)),
+            CheckError::ProcessJoinHoldsStdinSender {
+                process_identifier,
+                join_span,
+                bind_span,
+            } => Diagnostic::new("ProcessJoinHoldsStdinSender")
+                .field("process_identifier", process_identifier.as_str())
+                .field("join_location", format!("{}", join_span))
+                .field("bind_location", format!("{}", bind_span)),
             CheckError::ChannelPairDeadlock {
                 callee,
                 sender_arg,
@@ -3526,6 +3571,92 @@ fn collect_process_calls(
     }
     for child in items {
         collect_process_calls(child, joins, accessors);
+    }
+}
+
+/// Arc 202 — Process input-channel held-at-join detection.
+///
+/// For each `(:wat::kernel::Process/join-result <p>)` found in `node`,
+/// checks whether `(:wat::kernel::Process/stdin <p>)` exists ANYWHERE
+/// in the same syntactic scope tree. If a join exists but NO stdin
+/// extraction exists for the same process identifier, the process
+/// handle holds the stdin Sender for the entire let scope; the child's
+/// structural StdInService is blocked on `read(fd 0)`; the child cannot
+/// exit; the parent's join blocks forever.
+///
+/// Returns `(process_identifier, join_span, bind_span)` where `bind_span`
+/// is the span of the join call itself (used as a proxy for the bind
+/// location when the binding span is not separately tracked at this layer).
+/// None if no deadlock shape is found.
+///
+/// Detection choice: option (β) from DESIGN.md — absence detection.
+/// Fires when `Process/stdin` is NOT called anywhere in the scope.
+/// Does NOT fire when `Process/stdin` appears (even as a sibling binding
+/// that technically still holds the Sender at join-time) — v1 conservative;
+/// the absent-stdin shape is the canonical deadlock.
+///
+/// NOTE: does not recurse into nested `:wat::core::fn` / `:wat::core::lambda`
+/// bodies (separate scopes), mirroring `collect_process_calls`.
+fn find_process_join_holds_stdin_sender(
+    node: &WatAST,
+) -> Option<(String, Span, Span)> {
+    let mut joins: Vec<(String, Span)> = Vec::new();
+    let mut stdin_calls: Vec<String> = Vec::new(); // process identifiers for which stdin was called
+    collect_process_stdin_and_joins(node, &mut joins, &mut stdin_calls);
+    for (join_proc, join_span) in &joins {
+        if !stdin_calls.contains(join_proc) {
+            return Some((join_proc.clone(), join_span.clone(), join_span.clone()));
+        }
+    }
+    None
+}
+
+/// Recursively collect `:wat::kernel::Process/join-result <p>` calls into
+/// `joins` and `:wat::kernel::Process/stdin <p>` calls into `stdin_procs`.
+/// Does NOT recurse into nested fn/lambda bodies (separate scopes).
+///
+/// Recurses into BOTH `WatAST::List` and `WatAST::Vector` nodes — the
+/// bindings of an inner `(:wat::core::let [name rhs ...] body)` live in a
+/// `WatAST::Vector`, and we must descend into that vector to find
+/// `(:wat::kernel::Process/stdin proc)` calls inside inner-let bindings.
+fn collect_process_stdin_and_joins(
+    node: &WatAST,
+    joins: &mut Vec<(String, Span)>,
+    stdin_procs: &mut Vec<String>,
+) {
+    match node {
+        WatAST::List(items, span) => {
+            if let Some(WatAST::Keyword(k, _)) = items.first() {
+                match k.as_str() {
+                    ":wat::kernel::Process/join-result" => {
+                        if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                            joins.push((id.name.clone(), span.clone()));
+                        }
+                    }
+                    ":wat::kernel::Process/stdin" => {
+                        if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                            stdin_procs.push(id.name.clone());
+                        }
+                    }
+                    // Do NOT recurse into nested fn bodies — separate scopes.
+                    ":wat::core::fn" | ":wat::core::lambda" => return,
+                    _ => {}
+                }
+            }
+            for child in items {
+                collect_process_stdin_and_joins(child, joins, stdin_procs);
+            }
+        }
+        WatAST::Vector(items, _) => {
+            // Binding vectors inside inner `let` forms: the RHS expressions
+            // (even-indexed elements at positions 1, 3, 5, ...) may contain
+            // `Process/stdin` or `Process/join-result` calls. Recurse into
+            // all children; the pattern-match above handles classification.
+            for child in items {
+                collect_process_stdin_and_joins(child, joins, stdin_procs);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -7160,6 +7291,23 @@ fn infer_let(
                 output_accessor: accessor,
                 join_span,
                 output_span,
+            });
+        }
+
+        // Arc 202 — Process input-channel held-at-join rule.
+        // Additive alongside Gap K. Fires when `Process/join-result <p>` is
+        // present but `Process/stdin <p>` is absent from the entire let scope
+        // tree (option β detection: absence of stdin extraction). The child's
+        // structural StdInService blocks on read(fd 0); without EOF the child
+        // cannot exit; the join blocks forever.
+        // See ProcessJoinHoldsStdinSender Display for the full rule rationale.
+        if let Some((proc_id, join_span, bind_span)) =
+            find_process_join_holds_stdin_sender(&let_scope)
+        {
+            errors.push(CheckError::ProcessJoinHoldsStdinSender {
+                process_identifier: proc_id,
+                join_span,
+                bind_span,
             });
         }
     }
