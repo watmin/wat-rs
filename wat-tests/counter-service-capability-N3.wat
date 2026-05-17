@@ -1,6 +1,11 @@
 ;; wat-tests/counter-service-capability-N3.wat — Capability-wrapped multi-user counter.
 ;;
-;; Arc 203 slice 3c — third stepping stone.
+;; Arc 203 slice 3e — fifth stepping stone (in-place update of slice 3c).
+;; Wires server-id validation from dead-data into live validation.
+;;
+;; Previously (slice 3c): server-id stored in Admin + Client structs but never validated.
+;; Now (slice 3e): server-id embedded in every Wire payload; server validates on receipt.
+;;
 ;; Wraps slice 3b's bare-channel multi-user flow in struct-restricted capability values.
 ;;
 ;; Extends slice 3b (counter-service-thread-N3.wat) with:
@@ -14,22 +19,24 @@
 ;; polling). Behavior enforces protocol separation; struct-restricted enforces
 ;; capability minting.
 ;;
-;; All enums, type aliases, registry helpers, and dispatch loop are COPIED
-;; VERBATIM from counter-service-thread-N3.wat (slice 3b). The dispatch loop
-;; (dispatch3, handle-admin3, handle-user3) is UNCHANGED — server-side dispatch
-;; doesn't care about capability wrappers.
+;; ─── THREAD-TIER VALIDATION SEMANTICS ────────────────────────────────────────
 ;;
-;; Privileged wrappers under :counter::* read restricted fields + mint caps:
-;;   :counter::spawn-cap  — creates server, returns Admin
-;;   :counter::provision  — sends Provision, returns Client
-;;   :counter::deprovision — sends Deprovision, waits for ack, returns nil
-;;   :counter::stop       — sends Stop, drains thread, returns nil
-;;   :counter::get        — user Get op
-;;   :counter::increment  — user Increment op
-;;   :counter::reset      — user Reset op
+;; At the thread tier, channel ownership already prevents wire forgery structurally.
+;; The admin-tx Sender is stored inside the struct-restricted Admin; the user-tx
+;; Sender is stored inside the struct-restricted Client. Code outside :counter::*
+;; cannot obtain these senders. Therefore, any Wire that arrives at the server
+;; ALREADY came from a :counter::* wrapper — the sender is a structural proof.
 ;;
-;; Test body (outside :counter::*) exercises ONLY via wrappers.
-;; Cannot mint Admin or Client directly; cannot read restricted fields.
+;; The server-id check in this file is DEFENSE IN DEPTH: a harmless redundancy
+;; that mirrors the process-tier pattern uniformly. The check adds a validation
+;; step that would catch bugs (e.g. a wrapper accidentally embedding the wrong
+;; server-id) and makes the code a consistent model for the process tier where
+;; the check is load-bearing.
+;;
+;; In production, mint server-id via :wat::telemetry::uuid::v4 for unguessability.
+;; The constant string "server-counter-thread-0" demonstrates the validation flow.
+;;
+;; ─────────────────────────────────────────────────────────────────────────────
 ;;
 ;; Key lessons from prior slices:
 ;;   - Registry MUST be Vector<RegistryEntry> (HashMap order non-deterministic)
@@ -40,9 +47,10 @@
 ;;   - Thread/drain-and-join (not Thread/join-result)
 ;;   - Inner/outer let for scope-deadlock compliance at drain-and-join sites
 ;;   - AdminResp::Provisioned.rx is Receiver<UserResp> (not Receiver<Wire>)
+;;   - Two-level match required when matching enums carrying enum payloads
 
 (:wat::test::deftest :counter-service::capability-N3
-  (;; ─── Admin protocol (verbatim from slice 3b) ─────────────────────────
+  (;; ─── Admin protocol ──────────────────────────────────────────────────────
    (:wat::core::enum :counter::AdminReq
      (Provision (initial :wat::core::i64))
      (Deprovision (id :wat::core::String))
@@ -51,9 +59,10 @@
    (:wat::core::enum :counter::AdminResp
      (Provisioned (id :wat::core::String) (tx :wat::kernel::Sender<counter::Wire>) (rx :wat::kernel::Receiver<counter::UserResp>))
      (Deprovisioned (id :wat::core::String))
-     (Stopped))
+     (Stopped)
+     (AccessDenied))                          ;; server refused — server-id mismatch
 
-   ;; ─── User protocol (verbatim from slice 3b) ───────────────────────────
+   ;; ─── User protocol ───────────────────────────────────────────────────────
    (:wat::core::enum :counter::UserReq
      (Get)
      (Increment (n :wat::core::i64))
@@ -61,14 +70,18 @@
 
    (:wat::core::enum :counter::UserResp
      (Value (v :wat::core::i64))
-     (Ok    (v :wat::core::i64)))
+     (Ok    (v :wat::core::i64))
+     (AccessDenied))                          ;; server refused — server-id mismatch
 
-   ;; ─── Wire enum (verbatim from slice 3b) ───────────────────────────────
+   ;; ─── Wire enum ────────────────────────────────────────────────────────────
+   ;; server-id is now the FIRST field on both variants — the secret witness.
+   ;; Every wrapper embeds the capability's server-id when constructing Wire.
+   ;; The server validates server-id against its own before processing.
    (:wat::core::enum :counter::Wire
-     (Admin (req :counter::AdminReq))
-     (User  (req :counter::UserReq)))
+     (Admin (server-id :wat::core::String) (req :counter::AdminReq))
+     (User  (server-id :wat::core::String) (id :wat::core::String) (req :counter::UserReq)))
 
-   ;; ─── Registry types (verbatim from slice 3b) ──────────────────────────
+   ;; ─── Registry types ───────────────────────────────────────────────────────
    (:wat::core::typealias :counter::TxStatePair
      :(wat::kernel::Sender<counter::UserResp>,wat::core::i64))
 
@@ -78,7 +91,7 @@
    (:wat::core::typealias :counter::RegistryVec
      :wat::core::Vector<counter::RegistryEntry>)
 
-   ;; ─── Capability structs ───────────────────────────────────────────────
+   ;; ─── Capability structs ───────────────────────────────────────────────────
    ;;
    ;; :counter::Admin — the privileged admin handle.
    ;;
@@ -122,7 +135,7 @@
       [:counter::] user-rx   <- :wat::kernel::Receiver<counter::UserResp>)
      ())
 
-   ;; ─── Registry helpers (verbatim from slice 3b) ───────────────────────
+   ;; ─── Registry helpers ────────────────────────────────────────────────────
    (:wat::core::defn :counter::registry-rxs
      [registry-vec <- :counter::RegistryVec]
      -> :wat::core::Vector<wat::kernel::Receiver<counter::Wire>>
@@ -186,7 +199,15 @@
                (:wat::core::Tuple next-vec next-pos))))]
        (:wat::core::first result)))
 
-   ;; ─── Server dispatch loop (verbatim from slice 3b) ───────────────────
+   ;; ─── Server dispatch loop ─────────────────────────────────────────────────
+   ;;
+   ;; The server holds its OWN server-id = "server-counter-thread-0".
+   ;; Every Wire that arrives carries a wire-server-id field.
+   ;; Dispatch functions check wire-server-id vs self-server-id before routing.
+   ;;
+   ;; DEFENSE IN DEPTH: at the thread tier, the Sender<Wire> is stored inside
+   ;; struct-restricted Admin/Client — code outside :counter::* cannot forge a Wire.
+   ;; The check is harmless redundancy that mirrors the process-tier pattern uniformly.
    (:wat::core::defn :counter::dispatch3
      [admin-wire-rx <- :wat::kernel::Receiver<counter::Wire>
       admin-resp-tx <- :wat::kernel::Sender<counter::AdminResp>
@@ -232,49 +253,64 @@
       wire          <- :counter::Wire]
      -> :wat::core::nil
      (:wat::core::match wire -> :wat::core::nil
-       ((:counter::Wire::Admin req)
-         (:wat::core::match req -> :wat::core::nil
-           ((:counter::AdminReq::Provision initial)
-             (:wat::core::let
-               [id-str    (:wat::core::string::concat "client-"
-                            (:wat::core::i64::to-string next-id))
-                uwp       (:wat::kernel::make-bounded-channel :counter::Wire 1)
-                user-tx   (:wat::core::first  uwp)
-                server-rx (:wat::core::second uwp)
-                urp       (:wat::kernel::make-bounded-channel :counter::UserResp 1)
-                server-tx (:wat::core::first  urp)
-                user-rx   (:wat::core::second urp)
-                new-registry
-                  (:counter::registry-provision
-                    registry-vec id-str server-rx server-tx initial)
-                _sent
-                  (:wat::core::Result/expect -> :wat::core::nil
-                    (:wat::kernel::send admin-resp-tx
-                      (:counter::AdminResp::Provisioned id-str user-tx user-rx))
-                    "handle-admin3: admin-resp-tx disconnected on Provision")]
-               (:counter::dispatch3
-                 admin-wire-rx admin-resp-tx
-                 new-registry
-                 (:wat::core::i64::+'2 next-id 1))))
-           ((:counter::AdminReq::Deprovision dep-id)
-             (:wat::core::let
-               [new-registry
-                  (:counter::registry-deprovision registry-vec dep-id)
-                _sent
-                  (:wat::core::Result/expect -> :wat::core::nil
-                    (:wat::kernel::send admin-resp-tx
-                      (:counter::AdminResp::Deprovisioned dep-id))
-                    "handle-admin3: admin-resp-tx disconnected on Deprovision")]
-               (:counter::dispatch3
-                 admin-wire-rx admin-resp-tx
-                 new-registry
-                 next-id)))
-           ((:counter::AdminReq::Stop)
-             (:wat::core::Result/expect -> :wat::core::nil
-               (:wat::kernel::send admin-resp-tx
-                 (:counter::AdminResp::Stopped))
-               "handle-admin3: admin-resp-tx disconnected on Stop"))))
-       ((:counter::Wire::User _req)
+       ((:counter::Wire::Admin wire-sid req)
+         ;; Server-id validation (defense in depth at thread tier).
+         ;; Channel ownership already prevents forge structurally; this
+         ;; check is a uniform harmless redundancy mirroring process-tier.
+         (:wat::core::if (:wat::core::= wire-sid "server-counter-thread-0")
+           -> :wat::core::nil
+           (:wat::core::match req -> :wat::core::nil
+             ((:counter::AdminReq::Provision initial)
+               (:wat::core::let
+                 [id-str    (:wat::core::string::concat "client-"
+                              (:wat::core::i64::to-string next-id))
+                  uwp       (:wat::kernel::make-bounded-channel :counter::Wire 1)
+                  user-tx   (:wat::core::first  uwp)
+                  server-rx (:wat::core::second uwp)
+                  urp       (:wat::kernel::make-bounded-channel :counter::UserResp 1)
+                  server-tx (:wat::core::first  urp)
+                  user-rx   (:wat::core::second urp)
+                  new-registry
+                    (:counter::registry-provision
+                      registry-vec id-str server-rx server-tx initial)
+                  _sent
+                    (:wat::core::Result/expect -> :wat::core::nil
+                      (:wat::kernel::send admin-resp-tx
+                        (:counter::AdminResp::Provisioned id-str user-tx user-rx))
+                      "handle-admin3: admin-resp-tx disconnected on Provision")]
+                 (:counter::dispatch3
+                   admin-wire-rx admin-resp-tx
+                   new-registry
+                   (:wat::core::i64::+'2 next-id 1))))
+             ((:counter::AdminReq::Deprovision dep-id)
+               (:wat::core::let
+                 [new-registry
+                    (:counter::registry-deprovision registry-vec dep-id)
+                  _sent
+                    (:wat::core::Result/expect -> :wat::core::nil
+                      (:wat::kernel::send admin-resp-tx
+                        (:counter::AdminResp::Deprovisioned dep-id))
+                      "handle-admin3: admin-resp-tx disconnected on Deprovision")]
+                 (:counter::dispatch3
+                   admin-wire-rx admin-resp-tx
+                   new-registry
+                   next-id)))
+             ((:counter::AdminReq::Stop)
+               (:wat::core::Result/expect -> :wat::core::nil
+                 (:wat::kernel::send admin-resp-tx
+                   (:counter::AdminResp::Stopped))
+                 "handle-admin3: admin-resp-tx disconnected on Stop")))
+           ;; Mismatch: emit AccessDenied; continue dispatch (do not process request)
+           (:wat::core::let
+             [_denied
+                (:wat::core::Result/expect -> :wat::core::nil
+                  (:wat::kernel::send admin-resp-tx
+                    (:counter::AdminResp::AccessDenied))
+                  "handle-admin3: admin-resp-tx disconnected on AccessDenied")]
+             (:counter::dispatch3
+               admin-wire-rx admin-resp-tx
+               registry-vec next-id))))
+       ((:counter::Wire::User _wire-sid _id _req)
          (:counter::dispatch3
            admin-wire-rx admin-resp-tx
            registry-vec next-id))))
@@ -296,53 +332,67 @@
               server-tx (:wat::core::first tx-state)
               state     (:wat::core::second tx-state)]
              (:wat::core::match wire -> :wat::core::nil
-               ((:counter::Wire::User req)
-                 (:wat::core::match req -> :wat::core::nil
-                   ((:counter::UserReq::Get)
-                     (:wat::core::do
-                       (:wat::core::Result/expect -> :wat::core::nil
-                         (:wat::kernel::send server-tx
-                           (:counter::UserResp::Value state))
-                         "handle-user3: server-tx disconnected on Get")
-                       (:counter::dispatch3
-                         admin-wire-rx admin-resp-tx
-                         registry-vec next-id)))
-                   ((:counter::UserReq::Increment n)
-                     (:wat::core::let
-                       [new-n     (:wat::core::i64::+'2 state n)
-                        _sent
-                          (:wat::core::Result/expect -> :wat::core::nil
-                            (:wat::kernel::send server-tx
-                              (:counter::UserResp::Ok new-n))
-                            "handle-user3: server-tx disconnected on Increment")
-                        new-registry
-                          (:counter::registry-update-state registry-vec idx new-n)]
-                       (:counter::dispatch3
-                         admin-wire-rx admin-resp-tx
-                         new-registry next-id)))
-                   ((:counter::UserReq::Reset)
-                     (:wat::core::do
-                       (:wat::core::Result/expect -> :wat::core::nil
-                         (:wat::kernel::send server-tx
-                           (:counter::UserResp::Ok 0))
-                         "handle-user3: server-tx disconnected on Reset")
-                       (:counter::dispatch3
-                         admin-wire-rx admin-resp-tx
-                         (:counter::registry-update-state registry-vec idx 0)
-                         next-id)))))
-               ((:counter::Wire::Admin _req)
+               ((:counter::Wire::User wire-sid _id req)
+                 ;; Server-id validation (defense in depth at thread tier).
+                 (:wat::core::if (:wat::core::= wire-sid "server-counter-thread-0")
+                   -> :wat::core::nil
+                   (:wat::core::match req -> :wat::core::nil
+                     ((:counter::UserReq::Get)
+                       (:wat::core::do
+                         (:wat::core::Result/expect -> :wat::core::nil
+                           (:wat::kernel::send server-tx
+                             (:counter::UserResp::Value state))
+                           "handle-user3: server-tx disconnected on Get")
+                         (:counter::dispatch3
+                           admin-wire-rx admin-resp-tx
+                           registry-vec next-id)))
+                     ((:counter::UserReq::Increment n)
+                       (:wat::core::let
+                         [new-n     (:wat::core::i64::+'2 state n)
+                          _sent
+                            (:wat::core::Result/expect -> :wat::core::nil
+                              (:wat::kernel::send server-tx
+                                (:counter::UserResp::Ok new-n))
+                              "handle-user3: server-tx disconnected on Increment")
+                          new-registry
+                            (:counter::registry-update-state registry-vec idx new-n)]
+                         (:counter::dispatch3
+                           admin-wire-rx admin-resp-tx
+                           new-registry next-id)))
+                     ((:counter::UserReq::Reset)
+                       (:wat::core::do
+                         (:wat::core::Result/expect -> :wat::core::nil
+                           (:wat::kernel::send server-tx
+                             (:counter::UserResp::Ok 0))
+                           "handle-user3: server-tx disconnected on Reset")
+                         (:counter::dispatch3
+                           admin-wire-rx admin-resp-tx
+                           (:counter::registry-update-state registry-vec idx 0)
+                           next-id))))
+                   ;; Mismatch: emit AccessDenied; continue dispatch
+                   (:wat::core::let
+                     [_denied
+                        (:wat::core::Result/expect -> :wat::core::nil
+                          (:wat::kernel::send server-tx
+                            (:counter::UserResp::AccessDenied))
+                          "handle-user3: server-tx disconnected on AccessDenied")]
+                     (:counter::dispatch3
+                       admin-wire-rx admin-resp-tx
+                       registry-vec next-id))))
+               ((:counter::Wire::Admin _wire-sid _req)
                  (:counter::dispatch3
                    admin-wire-rx admin-resp-tx
                    registry-vec next-id)))))
          (:wat::core::None
            ()))))
 
-   ;; ─── Privileged wrappers: Admin ops ───────────────────────────────────
+   ;; ─── Privileged wrappers: Admin ops ───────────────────────────────────────
    ;;
    ;; :counter::spawn-cap — creates server, returns Admin capability.
    ;;
-   ;; Server-id uses constant "server-counter-0" (no telemetry dep needed
+   ;; Server-id uses constant "server-counter-thread-0" (no telemetry dep needed
    ;; for this proof; uniqueness irrelevant in single-server test).
+   ;; In production, mint via :wat::telemetry::uuid::v4 for unguessability.
    ;;
    ;; Thread<I=Wire, O=AdminResp>:
    ;;   Thread/input(thread)  = Sender<Wire>       = admin-tx
@@ -368,11 +418,12 @@
                        0)))
         adm-tx   (:wat::kernel::Thread/input  thread)
         adm-rx   (:wat::kernel::Thread/output thread)]
-       (:counter::Admin/new "server-counter-0" adm-tx adm-rx thread)))
+       (:counter::Admin/new "server-counter-thread-0" adm-tx adm-rx thread)))
 
    ;; :counter::provision — sends Provision(initial), receives Provisioned, returns Client.
    ;;
    ;; Reads restricted fields (admin-tx, admin-rx, server-id) from Admin struct.
+   ;; Constructs Wire::Admin with the admin's server-id embedded as the secret witness.
    ;; Constructs and returns Client capability with restricted fields populated.
    ;;
    ;; Note on accessor semantics: accessors clone the field value (channel ends
@@ -389,7 +440,7 @@
         _sent
           (:wat::core::Result/expect -> :wat::core::nil
             (:wat::kernel::send adm-tx
-              (:counter::Wire::Admin (:counter::AdminReq::Provision initial)))
+              (:counter::Wire::Admin sid (:counter::AdminReq::Provision initial)))
             "provision: admin-tx disconnected")
         resp
           (:wat::core::Option/expect -> :counter::AdminResp
@@ -403,24 +454,28 @@
          ((:counter::AdminResp::Deprovisioned _id)
            (:wat::kernel::assertion-failed! "provision: expected Provisioned, got Deprovisioned" :wat::core::None :wat::core::None))
          ((:counter::AdminResp::Stopped)
-           (:wat::kernel::assertion-failed! "provision: expected Provisioned, got Stopped" :wat::core::None :wat::core::None)))))
+           (:wat::kernel::assertion-failed! "provision: expected Provisioned, got Stopped" :wat::core::None :wat::core::None))
+         ((:counter::AdminResp::AccessDenied)
+           (:wat::kernel::assertion-failed! "provision: server refused — server-id mismatch" :wat::core::None :wat::core::None)))))
 
    ;; :counter::deprovision — sends Deprovision, receives Deprovisioned ack, returns nil.
    ;;
    ;; Reads client-id from Client capability (restricted accessor — :counter:: ok).
+   ;; Reads server-id from Admin capability; embeds it in the Wire::Admin payload.
    ;; Sends Deprovision(client-id) via admin-tx; receives Deprovisioned ack.
    (:wat::core::defn :counter::deprovision
      [admin!  <- :counter::Admin
       client! <- :counter::Client]
      -> :wat::core::nil
      (:wat::core::let
-       [adm-tx  (:counter::Admin/admin-tx admin!)
-        adm-rx  (:counter::Admin/admin-rx admin!)
+       [adm-tx  (:counter::Admin/admin-tx  admin!)
+        adm-rx  (:counter::Admin/admin-rx  admin!)
+        sid     (:counter::Admin/server-id admin!)
         cid     (:counter::Client/client-id client!)
         _sent
           (:wat::core::Result/expect -> :wat::core::nil
             (:wat::kernel::send adm-tx
-              (:counter::Wire::Admin (:counter::AdminReq::Deprovision cid)))
+              (:counter::Wire::Admin sid (:counter::AdminReq::Deprovision cid)))
             "deprovision: admin-tx disconnected")
         resp
           (:wat::core::Option/expect -> :counter::AdminResp
@@ -433,9 +488,13 @@
          ((:counter::AdminResp::Provisioned _id _tx _rx)
            (:wat::kernel::assertion-failed! "deprovision: expected Deprovisioned, got Provisioned" :wat::core::None :wat::core::None))
          ((:counter::AdminResp::Stopped)
-           (:wat::kernel::assertion-failed! "deprovision: expected Deprovisioned, got Stopped" :wat::core::None :wat::core::None)))))
+           (:wat::kernel::assertion-failed! "deprovision: expected Deprovisioned, got Stopped" :wat::core::None :wat::core::None))
+         ((:counter::AdminResp::AccessDenied)
+           (:wat::kernel::assertion-failed! "deprovision: server refused — server-id mismatch" :wat::core::None :wat::core::None)))))
 
    ;; :counter::stop — sends Stop, receives Stopped, drains thread, returns nil.
+   ;;
+   ;; Reads server-id from Admin capability; embeds it in the Wire::Admin payload.
    ;;
    ;; SERVICE-PROGRAMS lockstep absorbed inside this wrapper:
    ;;   inner-let: extracts and uses admin-tx (Sender<Wire>) + admin-rx + thread
@@ -453,11 +512,12 @@
           (:wat::core::let
             [adm-tx  (:counter::Admin/admin-tx  admin!)
              adm-rx  (:counter::Admin/admin-rx  admin!)
+             sid     (:counter::Admin/server-id admin!)
              thr     (:counter::Admin/thread    admin!)
              _sent
                (:wat::core::Result/expect -> :wat::core::nil
                  (:wat::kernel::send adm-tx
-                   (:counter::Wire::Admin (:counter::AdminReq::Stop)))
+                   (:counter::Wire::Admin sid (:counter::AdminReq::Stop)))
                  "stop: admin-tx disconnected")
              _resp
                (:wat::core::Option/expect -> :counter::AdminResp
@@ -473,21 +533,24 @@
             "stop: thread died")]
        ()))
 
-   ;; ─── Privileged wrappers: User ops ────────────────────────────────────
+   ;; ─── Privileged wrappers: User ops ────────────────────────────────────────
    ;;
-   ;; Each user wrapper reads user-tx and user-rx from Client (restricted accessors
-   ;; — :counter:: namespace matches [:counter::] whitelist).
+   ;; Each user wrapper reads user-tx, user-rx, server-id, and client-id from
+   ;; Client (restricted accessors — :counter:: namespace matches [:counter::] whitelist).
+   ;; Constructs Wire::User with server-id as the secret witness + client-id as routing key.
    ;; Sends the appropriate Wire::User variant; receives UserResp; extracts value.
 
    (:wat::core::defn :counter::get
      [client! <- :counter::Client]
      -> :wat::core::i64
      (:wat::core::let
-       [utx  (:counter::Client/user-tx client!)
-        urx  (:counter::Client/user-rx client!)
+       [utx  (:counter::Client/user-tx  client!)
+        urx  (:counter::Client/user-rx  client!)
+        sid  (:counter::Client/server-id client!)
+        cid  (:counter::Client/client-id client!)
         _sent
           (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::send utx (:counter::Wire::User (:counter::UserReq::Get)))
+            (:wat::kernel::send utx (:counter::Wire::User sid cid (:counter::UserReq::Get)))
             "get: user-tx disconnected")
         resp
           (:wat::core::Option/expect -> :counter::UserResp
@@ -497,18 +560,22 @@
             "get: clean disconnect")]
        (:wat::core::match resp -> :wat::core::i64
          ((:counter::UserResp::Value v) v)
-         ((:counter::UserResp::Ok    v) v))))
+         ((:counter::UserResp::Ok    v) v)
+         ((:counter::UserResp::AccessDenied)
+           (:wat::kernel::assertion-failed! "get: server refused — server-id mismatch" :wat::core::None :wat::core::None)))))
 
    (:wat::core::defn :counter::increment
      [client! <- :counter::Client
       n       <- :wat::core::i64]
      -> :wat::core::i64
      (:wat::core::let
-       [utx  (:counter::Client/user-tx client!)
-        urx  (:counter::Client/user-rx client!)
+       [utx  (:counter::Client/user-tx  client!)
+        urx  (:counter::Client/user-rx  client!)
+        sid  (:counter::Client/server-id client!)
+        cid  (:counter::Client/client-id client!)
         _sent
           (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::send utx (:counter::Wire::User (:counter::UserReq::Increment n)))
+            (:wat::kernel::send utx (:counter::Wire::User sid cid (:counter::UserReq::Increment n)))
             "increment: user-tx disconnected")
         resp
           (:wat::core::Option/expect -> :counter::UserResp
@@ -518,17 +585,21 @@
             "increment: clean disconnect")]
        (:wat::core::match resp -> :wat::core::i64
          ((:counter::UserResp::Ok    v) v)
-         ((:counter::UserResp::Value v) v))))
+         ((:counter::UserResp::Value v) v)
+         ((:counter::UserResp::AccessDenied)
+           (:wat::kernel::assertion-failed! "increment: server refused — server-id mismatch" :wat::core::None :wat::core::None)))))
 
    (:wat::core::defn :counter::reset
      [client! <- :counter::Client]
      -> :wat::core::i64
      (:wat::core::let
-       [utx  (:counter::Client/user-tx client!)
-        urx  (:counter::Client/user-rx client!)
+       [utx  (:counter::Client/user-tx  client!)
+        urx  (:counter::Client/user-rx  client!)
+        sid  (:counter::Client/server-id client!)
+        cid  (:counter::Client/client-id client!)
         _sent
           (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::send utx (:counter::Wire::User (:counter::UserReq::Reset)))
+            (:wat::kernel::send utx (:counter::Wire::User sid cid (:counter::UserReq::Reset)))
             "reset: user-tx disconnected")
         resp
           (:wat::core::Option/expect -> :counter::UserResp
@@ -538,9 +609,52 @@
             "reset: clean disconnect")]
        (:wat::core::match resp -> :wat::core::i64
          ((:counter::UserResp::Ok    v) v)
-         ((:counter::UserResp::Value v) v)))))
+         ((:counter::UserResp::Value v) v)
+         ((:counter::UserResp::AccessDenied)
+           (:wat::kernel::assertion-failed! "reset: server refused — server-id mismatch" :wat::core::None :wat::core::None)))))
 
-  ;; ─── Test body ─────────────────────────────────────────────────────────
+   ;; ─── Forge demonstration: adversarial test ───────────────────────────────
+   ;;
+   ;; NOTE: Code outside :counter::* CANNOT construct Wire variants directly —
+   ;; Wire variants are enum forms, not struct-restricted, so they ARE constructible
+   ;; by any code that has access to the enum definition... but the Sender<Wire>
+   ;; that delivers to the server IS restricted (inside Admin/Client structs).
+   ;; No code outside :counter::* can obtain a Sender<Wire> to send a forged Wire.
+   ;;
+   ;; WITHIN :counter::* we CAN construct a deliberately wrong Wire to test the
+   ;; rejection path. The helper below intentionally builds Wire with a BAD server-id
+   ;; and sends it via the admin channel; expects AccessDenied response.
+   ;;
+   ;; This is a contrived adversarial test FROM WITHIN the privileged namespace.
+   ;; It documents what happens if a wrapper bug accidentally embeds the wrong id.
+   (:wat::core::defn :counter::test-forge-admin-rejection
+     [admin! <- :counter::Admin]
+     -> :wat::core::nil
+     (:wat::core::let
+       [adm-tx  (:counter::Admin/admin-tx  admin!)
+        adm-rx  (:counter::Admin/admin-rx  admin!)
+        ;; Intentionally WRONG server-id — simulates a forged or mis-routed message
+        _sent
+          (:wat::core::Result/expect -> :wat::core::nil
+            (:wat::kernel::send adm-tx
+              (:counter::Wire::Admin "WRONG-SERVER-ID" (:counter::AdminReq::Provision 99)))
+            "forge-test: admin-tx disconnected")
+        resp
+          (:wat::core::Option/expect -> :counter::AdminResp
+            (:wat::core::Result/expect -> :wat::core::Option<counter::AdminResp>
+              (:wat::kernel::recv adm-rx)
+              "forge-test: recv peer died")
+            "forge-test: clean disconnect")]
+       (:wat::core::match resp -> :wat::core::nil
+         ((:counter::AdminResp::AccessDenied) ())   ;; expected — server correctly rejected
+         ((:counter::AdminResp::Provisioned _id _tx _rx)
+           (:wat::kernel::assertion-failed! "forge-test: server should have rejected WRONG-SERVER-ID, got Provisioned" :wat::core::None :wat::core::None))
+         ((:counter::AdminResp::Deprovisioned _id)
+           (:wat::kernel::assertion-failed! "forge-test: server should have rejected WRONG-SERVER-ID, got Deprovisioned" :wat::core::None :wat::core::None))
+         ((:counter::AdminResp::Stopped)
+           (:wat::kernel::assertion-failed! "forge-test: server should have rejected WRONG-SERVER-ID, got Stopped" :wat::core::None :wat::core::None))))))
+
+  ;; ─── Test body ─────────────────────────────────────────────────────────────
   ;;
   ;; Exercises ALL ops via capability wrappers ONLY.
   ;; This namespace is :counter-service::capability-N3 — NOT :counter::*.
@@ -563,7 +677,8 @@
   ;;   6. Deprovision b
   ;;   7. Get a             → 15  (still alive after b deprovisioned)
   ;;   8. Reset c           → 0   (still alive)
-  ;;   9. Stop admin!       → drains thread inside wrapper
+  ;;   9. Forge test: send wrong-server-id to admin; assert AccessDenied
+  ;;  10. Stop admin!       → drains thread inside wrapper
   (:wat::core::let
     [admin!    (:counter::spawn-cap)
      client-a! (:counter::provision admin! 10)
@@ -590,6 +705,10 @@
      ;; client-c still works
      c2        (:counter::reset client-c!)
      _         (:wat::test::assert-eq c2 0)
+
+     ;; Forge test: adversarial helper sends Wire with WRONG server-id;
+     ;; server should respond AccessDenied; wrapper asserts the rejection.
+     _forge    (:counter::test-forge-admin-rejection admin!)
 
      ;; Admin Stop — sends Stop, receives Stopped, drains thread; all inside wrapper
      _stop     (:counter::stop admin!)]
