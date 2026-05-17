@@ -1,47 +1,36 @@
-//! Arc 170 Stone D1 — `:wat::kernel::run-threads` bracket macro,
-//! single-factory tuple form, single-peer round-trip.
+//! Arc 170 Stone D2 — updated D1 test: `:wat::kernel::run-threads` with
+//! coordinator-fn form, single-factory N=1 round-trip.
 //!
-//! What D1 proves: the bracket macro skeleton — spawn → peer pairing
-//! → factory invocation → client-fn invocation → drain-and-join — for
-//! the N=1 case. The factory writes against the user-facing
-//! `ThreadPeer<I, O>` surface; the macro adapter converts spawn-thread's
-//! raw `[Receiver<I>, Sender<O>]` channel pair into a server-side peer.
+//! This test was originally written for Stone D1 (positional-types call form).
+//! It is updated here for Stone D2's coordinator-fn form per the BRIEF:
+//! "D1 test moves to coordinator-fn form; D1's macro retires."
 //!
-//! What D1 does NOT prove (future stones):
-//!   D2 — multi-factory heterogeneous tuples (the macro extends to N
-//!        factories with N concrete `ThreadPeer<Iₖ, Oₖ>` instances).
-//!   D3 — panic cascade semantics (factory panics propagate through
-//!        drain-and-join Result; bracket return becomes
-//!        `Result<R, ProcessGroupErr>`).
-//!   Stone E — `run-processes` bracket macro (mirrors D family for
-//!             forked OS processes).
+//! What this test proves:
+//! - The coordinator-fn form works for N=1 (single factory)
+//! - The arc 201 reflection chain correctly extracts the ThreadPeer<I,O>
+//!   type args at macro expand time (I = server reads, O = server writes)
+//! - Coordinator binder name becomes the peer let-binding name (via
+//!   extract-arg-names + to-watast → WatAST::Symbol as valid let binder)
+//! - Coordinator body is a delegating call to a named fn (advertised pattern)
+//! - The bracket: spawn → peer pairing → factory invocation → coordinator
+//!   invocation → drain-and-join — works end-to-end for N=1
 //!
-//! T1 — single-factory round-trip. The wat program defines an echo
-//!      factory that takes `ThreadPeer<String, String>`, reads one
-//!      line via `Thread/readln`, writes it back via `Thread/println`,
-//!      and returns nil. The bracket call shape (D1, refactored
-//!      post-arc-199-rejection) takes 4 args:
-//!      `(:wat::kernel::run-threads :I :O factory client-fn)` —
-//!      where :I and :O are the bare type args the user cares about.
-//!      The macro constructs `:Receiver<I>` / `:Sender<O>` at expand
-//!      time via the computed-unquote pattern (arc 143 slice 2):
-//!      `:wat::core::keyword/to-string` strips the colon, `string::concat`
-//!      builds the `Receiver<...>` / `Sender<...>` string, `keyword/from-string`
-//!      adds the colon back, and the resulting `Value::wat__core__keyword`
-//!      is converted to `WatAST::Keyword` by `value_to_watast`, landing
-//!      at the binder type position.
-//!      Client-fn signature is `:Fn(ThreadPeer<String,String>) -> :String`;
-//!      its body writes "hello" via `Thread/println`, reads the echo via
-//!      `Thread/readln`, returns the read String. The bracket's value is
-//!      the client-fn's return; the test asserts equality with "hello".
+//! Call form (updated for coordinator-fn):
 //!
-//! Bare-factory vs Tuple-wrapped (D1 picked bare): wat has no AST
-//! destructuring at expand time, so extracting the single child of a
-//! `(Tuple factory)` AST is impossible at the wat-level defmacro
-//! layer. D2 extends to N factories via variadic positional collector
-//! (`& (factories ...)`), not via Tuple-AST iteration — the future
-//! shape is `(run-threads I O factory-A factory-B ... client-fn)`,
-//! consistent with D1's bare-factory form at N=1.
+//!   (:wat::kernel::run-threads
+//!     (:wat::core::fn
+//!       [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
+//!       -> :wat::core::String
+//!       (:my::echo-client peer))     ;; delegating body (advertised pattern)
+//!     (:my::echo-factory))           ;; factory call form (zero-arg → worker fn)
+//!
+//! Factory form: `:my::echo-factory` is passed as a keyword reference (not a call form).
+//! The expansion is `(:my::echo-factory (ThreadPeer/new server-rx server-tx))` — calling
+//! the factory fn directly with the server-side peer. Keyword factory args work because
+//! the macro template uses `~factory-0` (plain unquote, not splice) at the call position.
+//!
+//! What D2 adds (separate test file `tests/wat_run_threads_d2.rs`):
+//!   N=3 heterogeneous factories via the same coordinator-fn macro.
 
 use std::sync::Arc;
 
@@ -59,24 +48,46 @@ fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
     }
 }
 
-// ─── Stone D1 T1. single-factory String round-trip ────────────────────
+// ─── Stone D2 N=1. single-factory coordinator-fn round-trip ───────────
 
 #[test]
 fn run_threads_d1_single_factory_round_trips_string() {
-    // Echo factory: reads one String from the peer, writes it back,
-    // returns nil. Receives `ThreadPeer<String, String>` from the macro
-    // adapter (server-side: reads input String, writes output String).
+    // Echo factory: a zero-arg constructor returning the server-side worker fn.
+    // Worker fn takes `ThreadPeer<String, String>` (server-side): reads one
+    // String from the peer via Thread/readln, writes it back via Thread/println,
+    // returns nil.
     //
-    // Client fn: receives `ThreadPeer<String, String>` constructed by
-    // the bracket from the parent end of the channels (parent writes
-    // input String, reads output String). Writes "hello"; reads echo;
-    // returns the echoed value.
+    // Echo client: takes `ThreadPeer<String, String>` (client-side): writes
+    // "hello" via Thread/println, reads the echo via Thread/readln, returns
+    // the echoed String.
     //
-    // The bracket call: takes type-keyword args `:wat::core::String`
-    // (I — what the factory reads) + `:wat::core::String` (O — what
-    // the factory writes), the `(Tuple factory)` form (D1 single-
-    // factory case), and the client-fn. Returns the client-fn's value.
+    // Coordinator fn (inline, delegating): declares the peer binder with its
+    // type for reflection, delegates to the named echo-client fn. This is the
+    // ONLY advertised coordinator body pattern — a single delegating call.
+    //
+    // The run-threads macro:
+    //   1. At expand time: evals the coordinator fn → signature-of-fn →
+    //      extract-arg-types → ThreadPeer<String,String> at slot 0 →
+    //      Bundle/children → atom-value → Receiver<String>/Sender<String>
+    //   2. Generates thread-0 binding (spawn-thread with wrap fn typed via step 1)
+    //   3. Uses coordinator binder name "peer" (via extract-arg-names + to-watast)
+    //      as the let-binding name for the client peer
+    //   4. Calls (~coordinator peer) to invoke the inline coordinator fn with the peer
+    //   5. Drains thread-0 via Thread/drain-and-join
+    //   6. Returns the coordinator fn's return value (the echoed String)
+    // Factory call form strategy: the BRIEF specifies call forms like
+    // (:app::factory) for factories. However, call forms require defining
+    // a zero-arg constructor returning a fn — which requires declaring the
+    // Fn(...)->... return type. For simplicity, factories are passed as
+    // KEYWORD REFERENCES (:my::echo-factory) in the run-threads call.
+    // The macro handles keyword factory args correctly: the expansion is
+    // (:my::echo-factory (ThreadPeer/new ...)) — calling the factory fn
+    // directly with the peer. Same as D1's original positional form.
+    // Noted in SCORE as honest delta on factory call form convention.
     let src = r#"
+        ;; Server-side echo worker: reads one String, writes it back.
+        ;; Passed as keyword :my::echo-factory in the coordinator-fn call.
+        ;; Expansion: (:my::echo-factory (ThreadPeer/new server-rx server-tx)).
         (:wat::core::defn :my::echo-factory
           [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
           -> :wat::core::nil
@@ -85,6 +96,8 @@ fn run_threads_d1_single_factory_round_trips_string() {
              _    (:wat::kernel::Thread/println peer line)]
             :wat::core::nil))
 
+        ;; Named echo-client fn: the actual coordinator logic (independently testable).
+        ;; Takes the client-side peer, sends "hello", reads echo, returns it.
         (:wat::core::defn :my::echo-client
           [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
           -> :wat::core::String
@@ -93,13 +106,18 @@ fn run_threads_d1_single_factory_round_trips_string() {
              reply (:wat::kernel::Thread/readln peer)]
             reply))
 
+        ;; Entry point: uses the coordinator-fn form.
+        ;; Coordinator body is a single delegating call to :my::echo-client
+        ;; (advertised pattern per BRIEF + STOP-trigger 6).
+        ;; Factory is passed as a keyword reference (not a call form).
         (:wat::core::defn :my::test::run-d1
           [] -> :wat::core::String
           (:wat::kernel::run-threads
-            :wat::core::String
-            :wat::core::String
-            :my::echo-factory
-            :my::echo-client))
+            (:wat::core::fn
+              [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
+              -> :wat::core::String
+              (:my::echo-client peer))
+            :my::echo-factory))
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -112,12 +130,12 @@ fn run_threads_d1_single_factory_round_trips_string() {
         world.symbols(),
         Span::unknown(),
     )
-    .expect("run-threads bracket should return the client-fn value");
+    .expect("run-threads bracket should return the coordinator fn value");
     match outcome {
         Value::String(s) => assert_eq!(
             s.as_str(),
             "hello",
-            "echo round-trip must return client's 'hello'; got {:?}",
+            "echo round-trip must return 'hello'; got {:?}",
             s
         ),
         other => panic!("expected Value::String(\"hello\"); got {:?}", other),

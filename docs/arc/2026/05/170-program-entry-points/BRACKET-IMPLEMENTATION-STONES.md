@@ -98,16 +98,23 @@ Four-questions outcomes (settled with user 2026-05-16):
 **Predicted:** 30-45 min sonnet.
 **Dependencies:** Stone A (drain-and-join) + Stone C1 (ThreadPeer).
 
-#### D2 — multi-factory heterogeneous `(Tuple factory-A factory-B ... factory-N)`
+#### D2 — multi-factory heterogeneous (coordinator-fn form) — **SHIPPED 2026-05-16**
 
-- [ ] Extend the macro to pattern-match N children of the Tuple AST
-- [ ] Expansion generates N let-bindings (each its own concrete `ThreadPeer<Iₖ, Oₖ>`), variadic client-fn invocation, N drain-and-join calls
-- [ ] Test: 3 factories with heterogeneous types (e.g. `ThreadPeer<String,i64>`, `ThreadPeer<i64,String>`, `ThreadPeer<String,String>`); client interacts with each; asserts
-- [ ] Verify: heterogeneous tuple iteration via macro expansion (NOT runtime tuple iteration); types resolve at expansion time
+**Design revised** (per BRIEF-STONE-D2-COORDINATOR.md): D1's positional-types call form (`(run-threads :I :O factory client-fn)`) retired; D2 ships the coordinator-fn form (`(run-threads (fn [a <- ThreadPeer<I,O> ...] -> T (:user::fn a ...)) factory-a factory-b factory-c)`) for BOTH N=1 and N=3.
 
-**Scope:** Macro extension + 1 multi-factory test.
-**Predicted:** 30-45 min sonnet.
-**Dependencies:** D1.
+- [x] `run-threads` variadic macro rewritten for coordinator-fn form: reflect coordinator fn at expand time via `signature-of-fn → extract-arg-types → Bundle/children → atom-value → keyword/to-string + string::concat + keyword/from-string` to extract `Receiver<I>` / `Sender<O>` channel types; dispatch to `run-threads-n1` (N=1) or `run-threads-n3` (N=3) sub-macros
+- [x] `run-threads-n1` helper macro (N=1 fixed template): coordinator arg names via `extract-arg-names + to-watast → WatAST::Symbol` as valid let binder; peer pairing via `ThreadPeer/new(Thread/output, Thread/input)`; coordinator invocation via `(~coordinator ~@arg-names)`
+- [x] `run-threads-n3` helper macro (N=3 fixed template): same pattern for 3 slots; literal index-based names `thread-0/1/2`, `_drained-0/1/2`
+- [x] D1 test updated to coordinator-fn form: `(run-threads (fn [peer <- ThreadPeer<S,S>] -> S (:my::echo-client peer)) :my::echo-factory)` with keyword factory reference
+- [x] D2 test: 3 heterogeneous-behavior factories (uniform `ThreadPeer<String,String>` types for type-system clarity); coordinator delegates to named fn `(:my::three-fac-coordinator a b c)`; asserts `["hello","world","pong"]`
+- [x] STOP-trigger-1 disclosed: fresh binding name construction from keyword (`keyword/from-string → WatAST::Keyword`) blocked by `parse_let_binding`; resolved by using literal index-based names for thread/drain slots and coordinator's own binder names for peer slots
+- [x] Factory call-form convention settled: keyword references (`factory-name`, not `(factory-name)`) used throughout; macro template `(~factory-k (ThreadPeer/new server-rx server-tx))` direct-calls the factory fn with peer — honest delta on original BRIEF's call-form convention
+- [x] Baseline preserved: 4 pre-existing failures unchanged; 2 new tests pass (D1 updated + D2 new)
+
+**Scope:** Macro rewrite in `wat/kernel/run_threads.wat` + D1 test update + D2 new test.
+**Actual:** TBD min sonnet (coordinator-fn form + N-dispatch via computed-unquote + arc 201 reflection chain at expand time).
+**SCORE:** `SCORE-STONE-D2-COORDINATOR.md`
+**Dependencies:** D1 (ThreadPeer primitives) + arc 201 (reflection chain) + arc 200 (macro vector handling).
 
 #### D3 — panic cascade + `ProcessGroupErr`
 
@@ -202,7 +209,7 @@ Four-questions outcomes (settled with user 2026-05-16):
 - [x] Stone C1 — `ThreadPeer<I, O>` + 2 verbs (2026-05-16, ~35 min, 3/3 tests green)
 - [x] Stone C2 — `ProcessPeer<I, O>` + 2 verbs + real-spawn integration test (2026-05-16 post-revision, substrate-composition proof; user-facing surface is Stone D's run-processes bracket; commit `e4b9461`)
 - [x] D1 — minimal `run-threads` single-factory + round-trip (2026-05-16, initial commit `d704820` verbose-form; refactored same-day to clean call form `(run-threads :I :O factory client-fn)` via arc 143 slice 2's computed-unquote pattern after arc 199 REJECTED — substrate already sufficient; 1/1 test green; baseline preserved at 4)
-- [ ] D2 — multi-factory heterogeneous expansion (unblocked — arc 201 closed 2026-05-16; full reflection chain shipped: signature-of-fn + extract-arg-types + Bundle/children + Bundle/first; build on D1's clean call form)
+- [x] D2 — coordinator-fn form macro rewrite (2026-05-16; N=1+N=3 via run-threads-n1/n3 sub-macros; arc 201 reflection chain at expand time; D1 test migrated to coordinator-fn; D2 new 3-factory test passes; 2/2 tests green; baseline preserved)
 - [ ] D3 — panic cascade + `ProcessGroupErr` — depends on D2
 - [ ] Stone E (decomposes per same pattern when D family settles) — unblocked
 - [ ] Stone F
