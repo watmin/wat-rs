@@ -45,8 +45,7 @@ After arc 206 closes:
 - **Arc 203 services refactor (3g/3h/3i)** — cache + holon-cache + stdio services use defservice → use UUIDs
 - **Arc 203 closure** → unblocks
 - **Arc 170 closure** → unblocks
-EOF
-echo "DESIGN written"
+
 ---
 
 ## Scope expansion 2026-05-17 — v4 AND v5 in same arc; positioned for future versions
