@@ -77,7 +77,5 @@ known flaky behavior documented in arc 170 inscription history. Not introduced b
 
 | Repo | Commit | Branch |
 |---|---|---|
-| wat-rs | TBD | `arc-170-gap-j-v5-deadlock-state` |
-| holon-lab-trading | TBD | `main` |
-
-*(Updated in place after both commits pushed.)*
+| wat-rs | `3dd2505` | `arc-170-gap-j-v5-deadlock-state` |
+| holon-lab-trading | `9b21bf5` | `main` |
