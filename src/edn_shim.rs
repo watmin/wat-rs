@@ -868,8 +868,15 @@ fn coerce_enum_path(
         }
         crate::types::EnumVariant::Tagged { fields, .. } => {
             // Tagged variant body must be Vector matching arity.
-            let items = match body {
+            // Exception: zero-field tagged variants (declared as `(VariantName)` with
+            // no payload fields) are serialized with a Nil body by `value_to_edn_with`
+            // (because `EnumValue.fields.is_empty()` is true at runtime regardless of
+            // whether the TypeDef says Unit or Tagged). Accept Nil as equivalent to
+            // an empty vector for the zero-field case so the round-trip is coherent.
+            let empty_slice: &[wat_edn::OwnedValue] = &[];
+            let items: &[wat_edn::OwnedValue] = match body {
                 Edn::Vector(items) | Edn::List(items) => items.as_slice(),
+                Edn::Nil if fields.is_empty() => empty_slice,
                 other => {
                     return Err(EdnCoerceError {
                         expected: format!("{}::{} (tagged)", type_path, tag_name),
