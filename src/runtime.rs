@@ -4049,6 +4049,8 @@ fn dispatch_keyword_head(
         // Arc 143 slice 3 — HolonAST manipulation primitives.
         ":wat::runtime::rename-callable-name" => eval_rename_callable_name(args, env, sym),
         ":wat::runtime::extract-arg-names" => eval_extract_arg_names(args, env, sym),
+        // Arc 201 slice 5 — type-direction sibling of extract-arg-names.
+        ":wat::runtime::extract-arg-types" => eval_extract_arg_types(args, env, sym),
         // Arc 201 slice 2 — general-purpose Bundle accessors. The
         // leaf-unwrap counterpart (`:wat::core::atom-value`) was already
         // minted by arc 057; SCORE-SLICE-2 § Sibling check documents the
@@ -10215,6 +10217,76 @@ fn eval_extract_arg_names(
     }
 
     Ok(Value::Vec(Arc::new(names)))
+}
+
+/// `(:wat::runtime::extract-arg-types head) -> :wat::core::Vector<wat::holon::HolonAST>`
+///
+/// Arc 201 slice 5. Direct sibling of `eval_extract_arg_names` (arc 143 slice 3).
+/// Given a signature HolonAST (the shape `signature-of-defn` and `signature-of-fn`
+/// return), walks the head Bundle and collects the TYPE AST (pair[1]) from each
+/// arg-pair Bundle.
+///
+/// Algorithm:
+/// 1. Eval and destructure head as Bundle.
+/// 2. Skip children[0] (the function name symbol).
+/// 3. For each remaining child:
+///    - Symbol("->"): STOP collecting (everything after is return type).
+///    - Bundle([_, type_ast]) (2 children): collect type_ast as a HolonAST value.
+///    - Anything else: skip.
+/// 4. Return Vec<Value::holon__HolonAST>.
+///
+/// Parallel to `eval_extract_arg_names` — same walker logic, extract pair[1]
+/// (type AST) instead of pair[0] (name keyword). Per `feedback_simple_is_uniform_composition`:
+/// two near-identical handlers with one-character difference are cleaner than
+/// a shared walker parameterised on slot index.
+fn eval_extract_arg_types(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::runtime::extract-arg-types";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let head_val = eval(&args[0], env, sym)?;
+    let holon_arc = match head_val {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST (signature head)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+
+    let mut types: Vec<Value> = Vec::new();
+    // Skip children[0] (function name symbol); walk from index 1.
+    for child in children.iter().skip(1) {
+        match child {
+            // Arrow symbol — stop collecting.
+            HolonAST::Symbol(s) if s.as_ref() == "->" => break,
+            // Arg-pair Bundle: [Symbol(arg_name), type_ast].
+            // Extract pair[1] (the structured type AST per slice 1 emission rules).
+            HolonAST::Bundle(pair) if pair.len() == 2 => {
+                // pair[0] is the arg name (Symbol); pair[1] is the type AST.
+                // Wrap pair[1] as a Value::holon__HolonAST so callers can
+                // recurse via Bundle/children for parametric decomposition.
+                types.push(Value::holon__HolonAST(Arc::new(pair[1].clone())));
+            }
+            // Any other shape: skip.
+            _ => {}
+        }
+    }
+
+    Ok(Value::Vec(Arc::new(types)))
 }
 
 /// `(:wat::holon::Bundle/children bundle) -> :wat::core::Vector<wat::holon::HolonAST>`

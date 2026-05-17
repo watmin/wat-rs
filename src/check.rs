@@ -4954,6 +4954,28 @@ fn infer_list(
                     args: vec![TypeExpr::Path(":wat::core::keyword".into())],
                 });
             }
+            ":wat::runtime::extract-arg-types" => {
+                // Arc 201 slice 5 — extract-arg-types.
+                // (head :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>
+                // Type-direction sibling of extract-arg-names. Same special-case
+                // rationale: first arg is a HolonAST value; normal type-scheme
+                // unification would fail on arc-009 call sites.
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+                });
+            }
             ":wat::holon::Bundle/children" => {
                 // Arc 201 slice 2 — Bundle/children.
                 // (bundle :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>
@@ -14409,6 +14431,20 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: vec_kw_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 201 slice 5 — extract-arg-types: type-direction sibling.
+    // extract-arg-types (head :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>
+    env.register(
+        ":wat::runtime::extract-arg-types".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+            },
             rest_param_type: None,
         },
     );
