@@ -275,3 +275,25 @@ Per the Clojure-protocols convergence pattern from INTERSTITIAL § 2026-05-16 (E
 
 Once arc 203 closes (after the new arc + 3g/3h/3i ship), arc 170's bracket combinator chain (D3 + Stones E/F/G/H) can close because arc 203 demonstrated the actual user pattern that justified the bracket primitives in the first place. The full closure chain: new arc (protocols) → arc 203 (apply protocols to all vended services + close) → arc 170 (close on demonstrated user pattern + bracket primitives complete).
 
+
+---
+
+## Depth-3 decomposition rule (recognized 2026-05-17 mid-3f)
+
+User direction during slice 3f sonnet run: *"we may need an ergonomic refactor for delegation instead of this nested mess.... we may need to have a rule like a linter... call a func if you're more than 3 layers deep?"*
+
+**Trigger:** Slice 3f's hand-rolled Result-propagation produces 5-7 nesting levels per send/recv site (no `?` operator in wat; each layer is explicit match). Sonnet hit a close-paren mismatch in `:counter::test-forge-admin-rejection` because the depth made paren-counting unreliable.
+
+**The rule:** Any function reaching >3 nesting levels MUST decompose into smaller named helpers. The main function becomes a flat stitch over small helpers; each helper does ONE step (e.g., `send-and-handle`, `recv-and-decode`, `dispatch-response`).
+
+Per `feedback_simple_forms_per_func` (existing memory): *"large/nested let*'s trip the assistant. Cap at ONE outer let* per function; offload complexity to small named functions; main stitch is verbose-but-obvious."*
+
+The depth-3 framing makes this MECHANICAL — a substrate spell/ward can fire on >3 nesting depth. Future arc (ward) can enforce; for now it's a discipline.
+
+**Application:**
+- 3f hand-rolled code: needs decomposition pass (either sonnet self-applies on hitting the bug, or follow-up refactor)
+- **Protocols arc (defservice): substrate-generated wrappers MUST follow depth-3 rule.** Auto-generation has no excuse for nesting beyond 3; the generator decomposes by construction
+- Future spell/ward: linter checks function bodies for nesting depth >3; fires structural advisory or block
+
+This eliminates the "I can't track my own parens" failure mode. Compose small, named, single-purpose helpers; the main function becomes a readable sequence.
+
