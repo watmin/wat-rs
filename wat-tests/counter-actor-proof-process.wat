@@ -65,12 +65,24 @@
    ;; where:
    ;;   peer.rx = Receiver (reads counter::Response from process stdout)
    ;;   peer.tx = Sender   (writes counter::Request to process stdin)
+   ;;
+   ;; Arc 208 slice 1 minimal patch — both verbs now return Result.
+   ;; Process/println wrapped with Result/expect (panic-on-Err, same as
+   ;; pre-arc-208 behavior). Process/readln unwrapped via Result/expect
+   ;; before matching on the inner counter::Response (same panic semantics).
+   ;; Slice 2 will replace expect with proper Err-arm handling so
+   ;; transport failures surface as ServiceError::ServerDied.
 
    (:wat::core::defn :counter-proc/get
      [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>]
      -> :wat::core::i64
-     (:wat::kernel::Process/println peer! (:counter::Request::Get))
-     (:wat::core::match (:wat::kernel::Process/readln peer!)
+     (:wat::core::Result/expect -> :wat::core::nil
+       (:wat::kernel::Process/println peer! (:counter::Request::Get))
+       "Process/println failed: subprocess died")
+     (:wat::core::match
+       (:wat::core::Result/expect -> :counter::Response
+         (:wat::kernel::Process/readln peer!)
+         "Process/readln failed: subprocess died")
        -> :wat::core::i64
        ((:counter::Response::Value v) v)
        ((:counter::Response::Ok    v) v)
@@ -80,8 +92,13 @@
      [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>
       n     <- :wat::core::i64]
      -> :wat::core::i64
-     (:wat::kernel::Process/println peer! (:counter::Request::Increment n))
-     (:wat::core::match (:wat::kernel::Process/readln peer!)
+     (:wat::core::Result/expect -> :wat::core::nil
+       (:wat::kernel::Process/println peer! (:counter::Request::Increment n))
+       "Process/println failed: subprocess died")
+     (:wat::core::match
+       (:wat::core::Result/expect -> :counter::Response
+         (:wat::kernel::Process/readln peer!)
+         "Process/readln failed: subprocess died")
        -> :wat::core::i64
        ((:counter::Response::Value v) v)
        ((:counter::Response::Ok    v) v)
@@ -90,8 +107,13 @@
    (:wat::core::defn :counter-proc/reset
      [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>]
      -> :wat::core::i64
-     (:wat::kernel::Process/println peer! (:counter::Request::Reset))
-     (:wat::core::match (:wat::kernel::Process/readln peer!)
+     (:wat::core::Result/expect -> :wat::core::nil
+       (:wat::kernel::Process/println peer! (:counter::Request::Reset))
+       "Process/println failed: subprocess died")
+     (:wat::core::match
+       (:wat::core::Result/expect -> :counter::Response
+         (:wat::kernel::Process/readln peer!)
+         "Process/readln failed: subprocess died")
        -> :wat::core::i64
        ((:counter::Response::Value v) v)
        ((:counter::Response::Ok    v) v)
@@ -100,8 +122,13 @@
    (:wat::core::defn :counter-proc/shutdown
      [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>]
      -> :wat::core::i64
-     (:wat::kernel::Process/println peer! (:counter::Request::Shutdown))
-     (:wat::core::match (:wat::kernel::Process/readln peer!)
+     (:wat::core::Result/expect -> :wat::core::nil
+       (:wat::kernel::Process/println peer! (:counter::Request::Shutdown))
+       "Process/println failed: subprocess died")
+     (:wat::core::match
+       (:wat::core::Result/expect -> :counter::Response
+         (:wat::kernel::Process/readln peer!)
+         "Process/readln failed: subprocess died")
        -> :wat::core::i64
        ((:counter::Response::Value v) v)
        ((:counter::Response::Ok    v) v)

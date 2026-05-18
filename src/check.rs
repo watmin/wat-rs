@@ -2149,12 +2149,20 @@ fn validate_comm_positions(
     };
 
     // (1) THIS node is a kernel-comm call.
+    // Arc 208 slice 1 — Process/readln + Process/println added here
+    // after their signatures flipped to Result-returning. Pre-flip they
+    // panicked on disconnect (loud); post-flip they return Result (quiet
+    // on Err if not matched). Walker now enforces match-or-expect at
+    // every Process/readln + Process/println call site, same discipline
+    // as arc 110 enforces for thread-tier send/recv.
     if matches!(
         head_str,
         ":wat::kernel::send"
             | ":wat::kernel::recv"
             | ":wat::kernel::process-send"
             | ":wat::kernel::process-recv"
+            | ":wat::kernel::Process/readln"
+            | ":wat::kernel::Process/println"
     ) {
         let permitted = matches!(
             ctx,
@@ -13399,8 +13407,8 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // (:wat::kernel::Process/readln peer) → :I
-    // (:wat::kernel::Process/println peer data:O) → :wat::core::nil
+    // (:wat::kernel::Process/readln peer) → :Result<:I, :Vector<ProcessDiedError>>
+    // (:wat::kernel::Process/println peer data:O) → :Result<:nil, :Vector<ProcessDiedError>>
     //
     // Arc 170 Stone C2. Peer-relative read / write on a
     // `:wat::kernel::ProcessPeer<I, O>` — the CLIENT-side wrapper
@@ -13419,12 +13427,17 @@ fn register_builtins(env: &mut CheckEnv) {
     // exactly one stdin / stdout, so there's nothing for a server peer
     // to wrap.
     //
-    // Disconnect handling mirrors Thread/readln + Thread/println —
-    // surfaces as `RuntimeError::ChannelDisconnected`, which the
-    // substrate's panic-propagation chain catches at the spawn
-    // boundary so `Process/drain-and-join` recovers the cause for the
-    // parent. EDN decode failures on the PipeFd transport surface as
-    // `MalformedForm` (matches the `kernel::recv` discipline).
+    // Arc 208 slice 1 — flip from panic-on-disconnect to
+    // Result-returning. Mirrors arc 110/111's thread-tier discipline at
+    // the process tier. Process/readln returns Result<:I, ...> (no
+    // Option wrapper): at the process tier, clean stdin EOF IS
+    // subprocess death — the subprocess cannot read after exit, and the
+    // lifeline-pipe + drain mechanism detects death deterministically
+    // via FD EOF (arc 170 FD-multiplex phases 1A-1E). There is no
+    // distinguishable "clean close while subprocess lives" state that
+    // would make Ok(:None) load-bearing here. Err arm carries a
+    // Vector<ProcessDiedError> chain matching arc 113's pattern (used
+    // by Process/join-result and Process/drain-and-join already).
     let process_peer_ty = || TypeExpr::Parametric {
         head: "wat::kernel::ProcessPeer".into(),
         args: vec![
@@ -13432,12 +13445,19 @@ fn register_builtins(env: &mut CheckEnv) {
             TypeExpr::Path(":O".into()),
         ],
     };
+    let proc_io_err_chain_ty = || TypeExpr::Parametric {
+        head: "wat::core::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
+    };
     env.register(
         ":wat::kernel::Process/readln".into(),
         TypeScheme {
             type_params: vec!["I".into(), "O".into()],
             params: vec![process_peer_ty()],
-            ret: TypeExpr::Path(":I".into()),
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Result".into(),
+                args: vec![TypeExpr::Path(":I".into()), proc_io_err_chain_ty()],
+            },
             rest_param_type: None,
         },
     );
@@ -13446,7 +13466,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["I".into(), "O".into()],
             params: vec![process_peer_ty(), TypeExpr::Path(":O".into())],
-            ret: TypeExpr::Tuple(vec![]),
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Result".into(),
+                args: vec![TypeExpr::Tuple(vec![]), proc_io_err_chain_ty()],
+            },
             rest_param_type: None,
         },
     );

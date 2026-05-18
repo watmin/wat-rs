@@ -17986,6 +17986,21 @@ fn eval_thread_peer_struct(
 /// failure on the line → `RuntimeError::MalformedForm`. Server side
 /// uses ambient `(:wat::kernel::readln)` over real stdio — no peer
 /// struct on the server.
+/// `(:wat::kernel::Process/readln peer) -> :Result<:I, :Vector<ProcessDiedError>>` —
+/// arc 208 slice 1.
+///
+/// Flipped from panic-on-disconnect to Result-returning, mirroring arc
+/// 110/111's thread-tier discipline at the process tier. Returns
+/// `Ok(v)` when a value is received, `Err(chain)` when the subprocess
+/// pipe is disconnected or the process-wide shutdown fires. No
+/// `Ok(:None)` wrapper: clean EOF on the PipeFd transport IS
+/// subprocess death at the process tier (see DESIGN § "Note on
+/// Process/readln's return type").
+///
+/// EDN decode errors still surface as `RuntimeError::MalformedForm` —
+/// these are substrate-level parse failures (bad wire format) rather
+/// than transport failures; there's no useful recovery path for the
+/// caller.
 fn eval_kernel_process_readln(
     args: &[WatAST],
     env: &Environment,
@@ -18018,13 +18033,14 @@ fn eval_kernel_process_readln(
         sym.types().map(|a| a.as_ref()),
         list_span.clone(),
     ) {
-        crate::typed_channel::RecvOutcome::Value(v) => Ok(v),
+        crate::typed_channel::RecvOutcome::Value(v) => {
+            Ok(Value::Result(Arc::new(Ok(v))))
+        }
         crate::typed_channel::RecvOutcome::Disconnected
         | crate::typed_channel::RecvOutcome::Shutdown => {
-            Err(RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: list_span.clone(),
-            })
+            Ok(Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_channel_disconnected(),
+            )))))
         }
         crate::typed_channel::RecvOutcome::DecodeError(msg) => {
             Err(RuntimeError::MalformedForm {
@@ -18036,16 +18052,13 @@ fn eval_kernel_process_readln(
     }
 }
 
-/// `(:wat::kernel::Process/println peer data:O) -> :wat::core::nil` —
-/// arc 170 Stone C2.
+/// `(:wat::kernel::Process/println peer data:O) -> :Result<:nil, :Vector<ProcessDiedError>>` —
+/// arc 208 slice 1.
 ///
-/// Peer-relative blocking write on a `:wat::kernel::ProcessPeer<I, O>`.
-/// CLIENT-side only — the parent pushes through the `tx` field (a
-/// PipeFd-backed Sender<O> wrapping the spawned process's stdin) via
-/// `typed_send`. Returns `Value::Unit` (== `:wat::core::nil`) on the
-/// landed write. Asymmetric mirror of `Thread/println`; disconnect
-/// surfaces as `RuntimeError::ChannelDisconnected` (same panic-
-/// propagation reasoning).
+/// Flipped from panic-on-disconnect to Result-returning, mirroring arc
+/// 110/111's thread-tier discipline at the process tier. Returns
+/// `Ok(nil)` on a landed write, `Err(chain)` when the subprocess pipe
+/// is disconnected (subprocess closed its stdin or exited).
 fn eval_kernel_process_println(
     args: &[WatAST],
     env: &Environment,
@@ -18080,12 +18093,13 @@ fn eval_kernel_process_println(
         sym.types().map(|a| a.as_ref()),
         list_span.clone(),
     ) {
-        crate::typed_channel::SendOutcome::Ok => Ok(Value::Unit),
+        crate::typed_channel::SendOutcome::Ok => {
+            Ok(Value::Result(Arc::new(Ok(Value::Unit))))
+        }
         crate::typed_channel::SendOutcome::Disconnected => {
-            Err(RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: list_span.clone(),
-            })
+            Ok(Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_channel_disconnected(),
+            )))))
         }
     }
 }

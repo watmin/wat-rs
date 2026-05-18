@@ -178,14 +178,23 @@ fn process_peer_round_trips_string_via_real_subprocess() {
         .child()
         .bind("server", server.clone())
         .build();
+    // Arc 208 slice 1 — Process/println + Process/readln now return Result.
+    // Wrapped with Result/expect to preserve panic-on-transport-error semantics.
+    // reply is unwrapped :String (not Result<:String, ...>) so the Rust-side
+    // match below stays unchanged. Walker requires Process/readln to appear in
+    // Result/expect value-position; same for Process/println.
     let round_trip = wat::parse_one!(
         r#"
         (:wat::core::let
           [rx       (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
            tx       (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
            peer     (:wat::kernel::ProcessPeer/new rx tx)
-           _written (:wat::kernel::Process/println peer "hello")
-           reply    (:wat::kernel::Process/readln peer)
+           _written (:wat::core::Result/expect -> :wat::core::nil
+                       (:wat::kernel::Process/println peer "hello")
+                       "Process/println failed: subprocess died")
+           reply    (:wat::core::Result/expect -> :wat::core::String
+                       (:wat::kernel::Process/readln peer)
+                       "Process/readln failed: subprocess died")
            _drained (:wat::kernel::Process/drain-and-join server)]
           reply)
         "#
@@ -194,10 +203,10 @@ fn process_peer_round_trips_string_via_real_subprocess() {
 
     // Hermetic time-bound: if eval ever blocks indefinitely on a wat-
     // level deadlock, the test harness's per-test timeout will kill us.
-    // On the clean-shutdown failure path (`RecvOutcome::Disconnected`
-    // surfaces as `RuntimeError::ChannelDisconnected` through
-    // Process/readln), we surface the server's stderr for diagnostic
-    // mirroring `tests/wat_arc170_program_contracts.rs:308-323`.
+    // On the clean-shutdown failure path, Process/readln now surfaces
+    // Err(chain) rather than RuntimeError::ChannelDisconnected — the
+    // Result/expect above converts Err to a panic. The server stderr is
+    // surfaced for diagnostic via the Err(e) arm below.
     let reply = match eval(&round_trip, &env, world.symbols()) {
         Ok(v) => v,
         Err(e) => {
@@ -216,7 +225,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
             s
         ),
         other => panic!(
-            "expected Value::String(\"hello\") from Process/readln; got {:?}",
+            "expected Value::String(\"hello\") from Process/readln (unwrapped via Result/expect); got {:?}",
             other
         ),
     }
