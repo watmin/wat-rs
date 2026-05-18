@@ -181,3 +181,133 @@ The depth-3 decomposition rule (arc 203 DESIGN line 281+) becomes structurally e
 - Does NOT touch arc 110/111/146/198/200/203/207/208 substrate — composes them
 - Does NOT mint a runtime registry of services or runtime dispatch — defservice is static-expansion + freeze-time validation
 - Does NOT solve the orphan-process leak (arc 170 INTERSTITIAL leak notes are the diagnostic for that separate concern)
+
+---
+
+## Surface settled 2026-05-17 (late) — corrections to slice 1 absorption (THIS IS THE LOCKED SURFACE)
+
+The slice 1 deltas above (lines 105-160 area) were partially absorbed wrong by the orchestrator. Per INTERSTITIAL § 2026-05-17 (late) — defservice trust-recovery sub-story: the user caught the violations + drove the surface to its final form through several refinement rounds. This section is the FINAL LOCKED SURFACE; supersedes the conflicting framings in the slice 1 deltas section above (which stays as historical record of the absorption-failure-and-correction arc).
+
+### The locked defservice form
+
+```scheme
+(:wat::service::defservice :counter
+  :admin    [Provision   [] -> :counter::User
+             Deprovision [user <- :counter::User] -> :wat::core::nil
+             Stop        [] -> :wat::core::i64]
+  :user     [Get         [] -> :wat::core::i64
+             Increment   [n <- :wat::core::i64] -> :wat::core::i64
+             Reset       [] -> :wat::core::i64]
+  :state    :wat::core::i64
+  :handlers [Start       <fn>
+             Stop        <fn>
+             Provision   <fn>
+             Deprovision <fn>
+             Get         <fn>
+             Increment   <fn>
+             Reset       <fn>])
+```
+
+**Clojure-shaped square brackets, not nested parens.** Cleaner than the prior list-of-pairs form. The substrate parses `:admin [Name [args] -> ret  Name [args] -> ret ...]` as a flat sequence of declarations.
+
+### Handler shapes
+
+| Handler family | Signature | Notes |
+|---|---|---|
+| Lifecycle: `Start` | `(state) -> state` | Caller-provided initial state lands here; service can do init work + return possibly-modified state |
+| Lifecycle: `Stop` | `(state) -> state` | Final state returned; substrate ships to admin caller as Final<State> for hot-reload |
+| Lifecycle: `Provision` | `(state, user) -> state` | Substrate already minted the User capability; handler does prep + returns state |
+| Lifecycle: `Deprovision` | `(state, user) -> state` | Cleanup time; returns state |
+| Domain (Get/Increment/Reset/...) | `(state, args...) -> (Tuple state return-value)` | Substrate threads state; extracts return-value for user caller |
+
+**Lifecycle handlers return state ONLY** (no value channel — admin has no reason to receive data; if admin wants data they Provision themselves a User and read like any user).
+**Domain handlers return (Tuple state return-value)** (substrate threads state; extracts value for user caller).
+**All handlers can panic** — substrate catches → wraps as `ServiceError::ServerDied(chain)` per arc 170 slice 1i structured-exit + arc 208 Result pattern.
+
+### Spawn API (transport choice = user choice; 1-ary Start)
+
+```scheme
+(:counter::spawn-thread state)   -> :Result<:counter::Admin, :counter::ServiceError>
+(:counter::spawn-process state)  -> :Result<:counter::Admin, :counter::ServiceError>
+(:counter::spawn-remote state ...) ;; future
+```
+
+**Caller provides initial state.** Spawn calls Start with that state. Hot-reload loop closes structurally:
+
+```scheme
+(let [s0      0
+      admin   (:counter::spawn-thread s0)
+      ;; ops
+      final   (:counter::stop admin)]
+  ...
+  (:counter::spawn-process final))  ;; same state; different transport
+```
+
+### Admin / User capabilities
+
+- `:counter::Admin` — substrate-generated struct-restricted; obtained from spawn-thread/spawn-process; holds opaque closure for management. Caller doesn't know transport behind it.
+- `:counter::User` — substrate-generated struct-restricted; obtained from Provision; holds opaque closure for data ops.
+
+Capabilities discriminate access at the type system layer (wrapper signatures take Admin OR User; type checker enforces). Substrate-generated dispatch routes Wire variants to the right handler arm. Restricted accessors prevent forgery.
+
+### Substrate-internal (NOT user-visible)
+
+- Wire / WireResp enums — process-tier-only multiplex envelopes; substrate hides them inside the per-tier transport adapter; thread tier uses direct channels and has no Wire wrapping
+- Server-id minting + startup handshake — substrate generates: parent writes server-id to subprocess stdin at startup via Process/println; subprocess does Process/readln at startup; binds + enters dispatch loop. NOT user-managed.
+- Dispatch loop — substrate-generated; routes Wire variants to handlers; threads state.
+- Per-tier transport adapter — thread = crossbeam; process = ProcessPeer<I,O> with Wire multiplex + arc 208 Result-returning I/O.
+
+### The agnostic-interface invariant
+
+User-facing surface is **identical at both tiers**. `(:counter::get user!)` returns the same `:Result<:i64, :counter::ServiceError>` whether the service runs on a thread or in a process. Substrate hides the transport difference. No user-visible Wire/WireResp/forms-block/handshake mechanics.
+
+### Two-surface concurrency canon (companion to defservice)
+
+defservice is one of two user-facing canonical concurrency surfaces:
+
+| Use case | wat surface |
+|---|---|
+| Long-lived state-bearing RPC service | `defservice` + `spawn-thread/process/remote(state)` |
+| Fan-out parallel work (Ruby Parallel.map shape) | `run-threads` / `run-processes` (arc 170 D3 + Stones) |
+
+Per INTERSTITIAL § 2026-05-17 (late) ten-greats convergence: both surfaces honor independent convergence with multiple greats. Both coexist; neither subsumes the other.
+
+### Restrict raw spawn-* to substrate-internal
+
+`:wat::kernel::spawn-thread` + `:wat::kernel::spawn-process` should be `restricted_to :wat::` after arc 209 ships. User code accesses concurrency ONLY via defservice + brackets. This eliminates structurally the entire walker-caught misuse class (ProcessJoinBeforeOutputDrain / ProcessJoinHoldsStdinSender / scope-deadlock / orphan / forge-id / silent Process I/O). Substrate refuses to compile user-side raw spawn-*.
+
+**Scope open:** whether this restriction lands in arc 209's final slice OR a follow-up arc — orchestrator + user decide.
+
+### Corrections to slice 1 deltas (the prior section)
+
+| Slice 1 delta | Correction inscribed here |
+|---|---|
+| Delta 2 (Uuid/nil at process tier as design property) | DELETED — substrate generates startup handshake; server-id is freshly minted per spawn; demo's "out of scope for THIS demo" was demo-scope not defservice-scope |
+| Delta 3 (WireResp tier-conditional user-visible) | DELETED user-visible framing; WireResp is substrate-internal multiplex envelope only |
+| Delta 5 (forge tests out of scope) | DELETED — forge tests are substrate-generatable per arc 200 splice; defservice ships them as security proof |
+
+Deltas 1, 4, 6 stay as inscribed (strategy = pure defmacro; AdminResp shape divergence hidden by typed capability struct; handler-map syntax — superseded here by the locked square-bracket form).
+
+### Open scope questions for slice 2 BRIEF
+
+1. Restrict raw spawn-* in arc 209 OR follow-up arc?
+2. Spawn-vended names: per-service `:counter::spawn-thread` (substrate-generated) OR generic `(:wat::service::spawn-thread :counter state)` (one generic verb)?
+
+---
+
+## Compaction-recovery breadcrumb (2026-05-17 late)
+
+**Tip at this commit on `arc-170-gap-j-v5-deadlock-state`.** Arc 209 status:
+- Slice 1: SHIPPED `f815c14` (audit + pure-defmacro decision)
+- Surface: LOCKED in this section (the "Surface settled 2026-05-17 (late)" section above)
+- Slice 2 BRIEF: NOT YET DRAFTED (next move)
+- Slice 2 source of truth: SCORE-SLICE-1.md's 19-item checklist + the locked surface in this DESIGN
+
+**Recovery instructions for post-compaction orchestrator:**
+
+1. Read this entire DESIGN file (especially the "Surface settled 2026-05-17 (late)" section — that's the LOCKED surface)
+2. Read INTERSTITIAL § 2026-05-17 (late) "defservice is OOP done right" — the architectural recognition narrative
+3. Read SCORE-SLICE-1.md for the 19-item slice 2 implementation checklist
+4. Verify state: `git -C /home/watmin/work/holon/wat-rs log --oneline | head -10` should show this commit at tip; arc 209 slice 1 at `f815c14`; arc 208 CLOSED at `f1157f1`; arc 207 CLOSED at `ec1e2c5`
+5. Next action: draft BRIEF-SLICE-2.md + EXPECTATIONS-SLICE-2.md for the defmacro mint (in `wat/service.wat`); spawn sonnet against the LOCKED surface (not slice 1's bad deltas)
+6. **CRITICAL** per the trust-failure recovery: orchestrator-side architectural review applies to sonnet's outputs. Every sonnet delta must pass four-questions against design intent BEFORE absorption into DESIGN. See INTERSTITIAL "trust-recovery sub-story" + memory `feedback_sonnet_output_requires_review`.
