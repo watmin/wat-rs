@@ -245,7 +245,7 @@ pub fn eval_kernel_spawn_process(
 
 /// Arc 170 slice 1i — unified structured exit helper for ALL child exit
 /// paths. Wraps `value` in the `#wat.kernel/ProcessPanics [...]` envelope
-/// and writes the EDN line to stderr (fd 2 via `write_direct_to_stderr`)
+/// and emits the EDN line via [`crate::process_stdio::emit_panic_envelope`]
 /// before the caller calls `libc::_exit`.
 ///
 /// `world` is `None` for pre-world startup failures — those values only
@@ -255,7 +255,7 @@ fn emit_structured_exit(world: Option<&crate::freeze::FrozenWorld>, value: crate
     let types = world.map(|w| w.types());
     let edn = crate::edn_shim::value_to_edn_with(&chain, types);
     let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
-    write_direct_to_stderr(&line);
+    crate::process_stdio::emit_panic_envelope(&line);
 }
 
 /// Slice 6 — child's post-fork pipeline for spawn-process.
@@ -309,8 +309,11 @@ fn spawn_process_child_branch(
     // After dup2, the OwnedFds in the pairs are closed (their Drop
     // runs after this block). The dup'd copies at fd 0/1/2 are now
     // owned by the OS and will be inherited by bootstrap's
-    // synthesize_real_fd_stdio (which dups them again into the
-    // services).
+    // process_stdio::lend_ambient (which dups them again so
+    // AmbientStdio owns lifetime-separated copies; raw fd 0/1/2
+    // stay open for the process lifetime, available to
+    // process_stdio::emit_panic_envelope for post-AmbientStdio-drop
+    // panic emission). See src/process_stdio.rs module docs.
     unsafe {
         if libc::dup2(input_r_raw, 0) < 0 {
             libc::_exit(EXIT_STARTUP_ERROR);
@@ -432,10 +435,9 @@ fn spawn_process_child_branch(
 }
 
 /// Mirrors `fork.rs::emit_panics_to_stderr`. Emits the structured
-/// `#wat.kernel/ProcessPanics {…}` tagged EDN line on stderr so the
-/// parent's `extract-panics` can rebuild the cascade chain.
-/// Duplicated locally (same pattern as `write_direct_to_stderr`
-/// below) to avoid a `pub(crate)` dance for a six-line helper.
+/// `#wat.kernel/ProcessPanics {…}` tagged EDN line on stderr via
+/// [`crate::process_stdio::emit_panic_envelope`] so the parent's
+/// `extract-panics` can rebuild the cascade chain.
 fn emit_panics_to_stderr(
     world: &crate::freeze::FrozenWorld,
     payload: &crate::assertion::AssertionPayload,
@@ -448,27 +450,5 @@ fn emit_panics_to_stderr(
     let chain = crate::runtime::conj_died_chain_value(fresh, upstream);
     let edn = crate::edn_shim::value_to_edn_with(&chain, Some(world.types()));
     let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
-    write_direct_to_stderr(&line);
-}
-
-/// Direct write to fd 2, bypassing `eprintln` and friends. Mirrors
-/// `fork.rs::write_direct_to_stderr` — we don't import the helper
-/// to avoid an `(crate)`-pub vs. private dance for a four-line
-/// helper.
-fn write_direct_to_stderr(s: &str) {
-    let bytes = s.as_bytes();
-    let mut written = 0;
-    while written < bytes.len() {
-        let n = unsafe {
-            libc::write(
-                2,
-                bytes.as_ptr().add(written) as *const libc::c_void,
-                bytes.len() - written,
-            )
-        };
-        if n <= 0 {
-            break;
-        }
-        written += n as usize;
-    }
+    crate::process_stdio::emit_panic_envelope(&line);
 }

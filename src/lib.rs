@@ -85,6 +85,7 @@ pub mod rust_deps;
 pub mod sandbox;
 pub mod spawn;
 pub mod spawn_process;
+pub mod process_stdio;
 pub mod panic_hook;
 pub mod source;
 pub mod span;

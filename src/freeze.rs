@@ -235,7 +235,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     // Step 1 — Source the IOReader / IOWriter handles.
     let stdio = match crate::thread_io::take_ambient_stdio() {
         Some(s) => s,
-        None => synthesize_real_fd_stdio(),
+        None => crate::process_stdio::lend_ambient(),
     };
 
     // Step 2 — Spawn the three services.
@@ -1008,62 +1008,6 @@ fn invoke_user_main_orchestrated(
     drop(runtime);
 
     result
-}
-
-/// Synthesize default IOReader / IOWriter handles for real fd 0/1/2.
-/// Production wat-cli + fork.rs callers reach this path; they hand
-/// the orchestrator pipe-backed wrappers that delegate to the
-/// process's true stdio fds.
-fn synthesize_real_fd_stdio() -> crate::thread_io::AmbientStdio {
-    use std::os::fd::FromRawFd;
-    // Dup the raw fds so the orchestrator owns its own copies; Drop
-    // closes them when the AmbientStdio (and its inner PipeReader /
-    // PipeWriter) drops. Without dup, an orchestrator drop after
-    // user::main returns would close real fd 0/1/2 in the process,
-    // breaking subsequent invoke_user_main calls (or harness code
-    // that still wants real stdio).
-    //
-    // SAFETY: libc::dup returns a freshly-opened fd on success or -1
-    // on error. We assert >= 0 immediately. On failure we fall back
-    // to whatever raw fd dup returned; the PipeReader/Writer
-    // constructors then own that fd (legitimate behavior for the
-    // closed-fd case — write/read will surface clean errors).
-    fn dup_fd(fd: i32) -> i32 {
-        let r = unsafe { libc::dup(fd) };
-        if r < 0 {
-            // libc::dup failed (out of fds, EINTR-on-restart, etc.);
-            // hand back -1 so the PipeReader/Writer carries an
-            // unusable fd. Subsequent reads/writes surface clean
-            // diagnostics; orchestrator-level work still proceeds
-            // (services run, just nothing flows through this fd).
-            -1
-        } else {
-            r
-        }
-    }
-    let stdin_fd = dup_fd(0);
-    let stdout_fd = dup_fd(1);
-    let stderr_fd = dup_fd(2);
-    let stdin: Arc<dyn crate::io::WatReader> = Arc::new(
-        crate::io::PipeReader::from_owned_fd(unsafe {
-            std::os::fd::OwnedFd::from_raw_fd(stdin_fd)
-        }),
-    );
-    let stdout: Arc<dyn crate::io::WatWriter> = Arc::new(
-        crate::io::PipeWriter::from_owned_fd(unsafe {
-            std::os::fd::OwnedFd::from_raw_fd(stdout_fd)
-        }),
-    );
-    let stderr: Arc<dyn crate::io::WatWriter> = Arc::new(
-        crate::io::PipeWriter::from_owned_fd(unsafe {
-            std::os::fd::OwnedFd::from_raw_fd(stderr_fd)
-        }),
-    );
-    crate::thread_io::AmbientStdio {
-        stdin,
-        stdout,
-        stderr,
-    }
 }
 
 /// Look up a service spawn fn by keyword path; apply it with the

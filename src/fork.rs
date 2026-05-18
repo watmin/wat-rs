@@ -402,17 +402,6 @@ fn close_inherited_fds_above_stdio(skip: &[i32]) {
     }
 }
 
-/// Write a diagnostic directly to fd 2 via `libc::write(2)`. Used
-/// only inside the child branch after dup2 has redirected stderr
-/// to the parent-observable pipe. Bypasses `std::io::Stderr`'s
-/// Mutex.
-fn write_direct_to_stderr(s: &str) {
-    let bytes = s.as_bytes();
-    unsafe {
-        let _ = libc::write(2, bytes.as_ptr() as *const _, bytes.len());
-    }
-}
-
 /// Arc 113 slice 3 — emit the cascade chain as a tagged EDN line
 /// on stderr just before `_exit`. Stderr is the diagnostic
 /// channel by convention; the wat-side sandbox driver (which
@@ -446,7 +435,7 @@ fn emit_panics_to_stderr(
     let chain = crate::runtime::conj_died_chain_value(fresh, upstream);
     let edn = crate::edn_shim::value_to_edn_with(&chain, Some(world.types()));
     let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
-    write_direct_to_stderr(&line);
+    crate::process_stdio::emit_panic_envelope(&line);
 }
 
 /// Arc 170 slice 1i — install a no-op Rust panic hook in fork child
@@ -543,7 +532,7 @@ fn emit_structured_exit(
     let types = world.map(|w| w.types());
     let edn = crate::edn_shim::value_to_edn_with(&chain, types);
     let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
-    write_direct_to_stderr(&line);
+    crate::process_stdio::emit_panic_envelope(&line);
 }
 
 /// `(:wat::kernel::fork-program-ast (forms :wat::core::Vector<wat::WatAST>)) ->
