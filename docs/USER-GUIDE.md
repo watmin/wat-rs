@@ -2474,19 +2474,36 @@ seam:
 For the explicit "I'm fine with sqlite's defaults" choice,
 pass `:wat::telemetry::Sqlite/null-pre-install`.
 
-### Identifiers — UUID generation (arc 206)
+### Identifiers — UUID generation (arc 207)
 
-Two substrate-level UUID primitives at `:wat::core::uuid::*`, available
-to all wat code without any crate dep:
+Arc 207 promoted UUID from a `:String`-returning helper into a
+**first-class typed primitive**: `:wat::core::Uuid`. UUID values are
+distinct from `:String` at the type level; the substrate refuses to
+unify them. Five constructors + two accessors cover all use-cases:
 
 ```scheme
-(:wat::core::uuid::v4)
-;;   -> :wat::core::String — canonical 36-char hyphenated hex, 122 bits of entropy
+;; --- constructors ---
 
-(:wat::core::uuid::v5 namespace name)
-;;   namespace : :wat::core::String — must be a canonical UUID string
+(:wat::core::Uuid/v4)
+;;   -> :wat::core::Uuid — 122-bit random UUID (secret witness, capability tokens)
+
+(:wat::core::Uuid/v5 namespace name)
+;;   namespace : :wat::core::Uuid — typed UUID namespace
 ;;   name      : :wat::core::String — arbitrary identifying string
-;;   -> :wat::core::String — deterministic SHA-1 of (namespace, name)
+;;   -> :wat::core::Uuid — deterministic SHA-1 of (namespace, name)
+
+(:wat::core::Uuid/from-string s)
+;;   s  : :wat::core::String — must be canonical 36-char hyphenated form
+;;   -> :wat::core::Option<:wat::core::Uuid> — None when s is not a valid UUID
+
+(:wat::core::Uuid/nil)
+;;   -> :wat::core::Uuid — nil UUID (all zeros); useful as a well-known constant
+
+;; --- accessor ---
+
+(:wat::core::Uuid/to-string u)
+;;   u  : :wat::core::Uuid
+;;   -> :wat::core::String — canonical hyphenated form, e.g. "550e8400-e29b-41d4-a716-446655440000"
 ```
 
 **When to use v4 (random):** unguessable secret-witness for capability
@@ -2496,8 +2513,8 @@ useless to an attacker who hasn't been handed one.
 
 ```scheme
 (:wat::core::let
-  [server-id  (:wat::core::uuid::v4)              ;; capability witness
-   user-id    (:wat::core::uuid::v4)]             ;; per-user identifier
+  [server-id  (:wat::core::Uuid/v4)    ;; capability witness — :Uuid, not :String
+   user-id    (:wat::core::Uuid/v4)]   ;; per-user identifier
   ...)
 ```
 
@@ -2509,29 +2526,56 @@ different namespace OR different name yields a different UUID.
 
 ```scheme
 (:wat::core::let
-  ;; RFC 4122 DNS namespace; use whatever stable parent-id fits your domain.
-  [dns-ns        "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
-   service-id    (:wat::core::uuid::v5 dns-ns "users.example.com")
+  ;; Mint a stable namespace once (or use a published RFC 4122 namespace).
+  ;; Here we use Uuid/nil as the root; in production pin a real v4 constant.
+  [dns-ns        (:wat::core::Uuid/nil)
+   service-id    (:wat::core::Uuid/v5 dns-ns "users.example.com")
    ;; service-id is the same in every wat-vm process that runs this code.
-   user-x-id     (:wat::core::uuid::v5 service-id "user-x")]
+   user-x-id     (:wat::core::Uuid/v5 service-id "user-x")]
   ...)
 ```
 
-**Invalid `namespace` panics.** v5's namespace argument must parse as a
-canonical UUID; otherwise the substrate panics with
-`assertion-failed!` naming the offending value. Mint the namespace via
-`:wat::core::uuid::v4` (one-time, hard-coded for cross-process
-agreement) or use a published namespace (the DNS / URL / OID / X.500
-namespaces from RFC 4122).
+**`Uuid/v5` namespace must be `:Uuid`, not `:String`.** Pass a typed
+`:wat::core::Uuid` value — the substrate does not accept a raw string
+here. If you have a canonical UUID string from the RFC 4122 published
+namespaces, convert it first:
 
-**Backward-compat note.** `:wat::telemetry::uuid::v4` still works and
-keeps compiling. Arc 206 slice 3 retired the duplicate
-`:rust::telemetry::uuid::v4` Rust shim and the `wat-edn` Cargo dep from
-`wat-telemetry`; the telemetry wat verb now delegates directly to the
-substrate-core path (`:wat::core::uuid::v4`) at the wat layer. The
-delegation is transparent: existing callers of `:wat::telemetry::uuid::v4`
-see no behavior change. New code should reach for `:wat::core::uuid::*`
-directly (no telemetry dep needed).
+```scheme
+(:wat::core::let
+  ;; RFC 4122 DNS namespace as a typed Uuid.
+  [dns-ns-opt  (:wat::core::Uuid/from-string "6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+   dns-ns      (:wat::core::Option/unwrap dns-ns-opt)]
+  ...)
+```
+
+**`Uuid/nil` as a well-known constant.** The nil UUID (all zeros) is
+useful in process-tier programs where a subprocess forms block cannot
+capture runtime-minted values. Use `Uuid/nil` as the constant
+server-id inside the subprocess and compare via `=`; the parent stores
+the same `Uuid/nil` so the capability check passes. Any v4 mint
+is definitionally distinct from nil.
+
+**EDN roundtrip.** `:wat::edn::read` produces typed `:Uuid` values
+from the `#uuid "..."` reader literal; no explicit coercion needed
+in typed `readln -> :T` pipelines. The EDN serializer emits
+`#uuid "..."` for `:Uuid` fields automatically.
+
+```scheme
+(:wat::core::let
+  [raw  "#uuid \"550e8400-e29b-41d4-a716-446655440000\""
+   uid  (:wat::edn::read raw)]   ;; uid : :wat::core::Uuid
+  (:wat::core::Uuid/to-string uid))
+;;   -> "550e8400-e29b-41d4-a716-446655440000"
+```
+
+**Backward-compat note.** The retired namespace verbs
+`:wat::core::uuid::v4` and `:wat::core::uuid::v5` no longer exist in
+the substrate; new code MUST use `Uuid/v4` and `Uuid/v5`.
+`:wat::telemetry::uuid::v4` still works — it delegates to
+`:wat::core::Uuid/v4` at the wat layer and returns a typed `:Uuid`.
+Existing callers of the telemetry alias see no behavior change; new
+code should reach for `:wat::core::Uuid/v4` directly (no telemetry dep
+needed).
 
 ---
 

@@ -576,6 +576,14 @@ fn edn_to_typed_value_inner(
                 Edn::Integer(n) => Ok(Value::u8(*n as u8)),
                 other => Err(mismatch(target, other)),
             },
+            // Arc 207 slice 4 (latent gap from slice 2): `#uuid "..."` EDN → typed `:Uuid`.
+            // `edn_to_value` (untyped path) already handled `Edn::Uuid`; this arm
+            // covers the typed path (`readln -> :T` where T contains `:wat::core::Uuid`
+            // fields). Required for subprocess wire deserialization of UUID-typed fields.
+            ":wat::core::Uuid" => match edn {
+                Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
+                other => Err(mismatch(target, other)),
+            },
             ":wat::holon::HolonAST" => {
                 // Tagged round-trip OR natural-form lift to a leaf —
                 // mirrors `edn_shim`'s two-mode reader.

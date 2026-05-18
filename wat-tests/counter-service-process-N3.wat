@@ -49,8 +49,10 @@
 ;; Wire against its own server-id. A Wire with the wrong server-id is rejected with
 ;; AccessDenied — the request is never processed.
 ;;
-;; In production, mint server-id via :wat::telemetry::uuid::v4 for unguessability.
-;; The constant string "server-counter-proc-0" demonstrates the validation flow.
+;; Arc 207: server-id is now :wat::core::Uuid. The subprocess uses Uuid/nil as a
+;; well-known constant server-id (forms blocks cannot capture runtime-minted values).
+;; Uuid/nil is typed :Uuid — honesty over String. A fresh-mint protocol would require
+;; subprocess-to-parent handshake which is out of scope for this demo.
 ;;
 ;; ─────────────────────────────────────────────────────────────────────────────
 ;;
@@ -81,9 +83,10 @@
    ;; The subprocess validates this server-id against its own before processing.
    ;; This is LOAD-BEARING at the process tier: shared ProcessPeer means
    ;; the server cannot rely on transport identity alone.
+   ;; Arc 207: server-id and user-id are typed :wat::core::Uuid.
    (:wat::core::enum :counter::Wire
-     (Admin (server-id :wat::core::String) (req :counter::AdminReq))
-     (User  (server-id :wat::core::String) (user-id :wat::core::String) (req :counter::UserReq)))
+     (Admin (server-id :wat::core::Uuid) (req :counter::AdminReq))
+     (User  (server-id :wat::core::Uuid) (user-id :wat::core::Uuid) (req :counter::UserReq)))
 
    ;; ─── WireResp enum (subprocess → parent) ────────────────────────────────────
    ;; Tags Admin vs User responses so the parent can demux by category.
@@ -96,12 +99,12 @@
    ;; No channels at process tier; user ops go via the shared peer.
    (:wat::core::enum :counter::AdminReq
      (Provision   (initial :wat::core::i64))
-     (Deprovision (id :wat::core::String))
+     (Deprovision (id :wat::core::Uuid))
      (Stop))
 
    (:wat::core::enum :counter::AdminResp
-     (Provisioned  (id :wat::core::String))
-     (Deprovisioned (id :wat::core::String))
+     (Provisioned  (id :wat::core::Uuid))
+     (Deprovisioned (id :wat::core::Uuid))
      (Stopped)
      (AccessDenied))                          ;; server refused — server-id mismatch
 
@@ -149,9 +152,10 @@
    ;;
    ;; Minted ONLY by :counter::spawn-proc (constructor whitelist [:counter::]).
    ;; All fields restricted to :counter::* reads.
+   ;; Arc 207: server-id is typed :wat::core::Uuid.
    (:wat::core::struct-restricted :counter::AdminProc
      [:counter::]
-     ([:counter::] server-id <- :wat::core::String
+     ([:counter::] server-id <- :wat::core::Uuid
       [:counter::] peer!     <- :wat::kernel::ProcessPeer<counter::WireResp,counter::Wire>
       [:counter::] proc!     <- :wat::kernel::Process<counter::Wire,counter::WireResp>)
      ())
@@ -163,10 +167,11 @@
    ;;
    ;; Minted ONLY by :counter::provision-proc (constructor whitelist [:counter::]).
    ;; All fields restricted to :counter::* reads.
+   ;; Arc 207: server-id and user-id are typed :wat::core::Uuid.
    (:wat::core::struct-restricted :counter::UserProc
      [:counter::]
-     ([:counter::] server-id <- :wat::core::String
-      [:counter::] user-id   <- :wat::core::String
+     ([:counter::] server-id <- :wat::core::Uuid
+      [:counter::] user-id   <- :wat::core::Uuid
       [:counter::] peer!     <- :wat::kernel::ProcessPeer<counter::WireResp,counter::Wire>)
      ())
 
@@ -179,10 +184,10 @@
    ;; The subprocess declares its own independent copies of all enum types.
    ;; Same enum names → same EDN tags → interoperable across process boundary.
    ;;
-   ;; The subprocess's own server-id = "server-counter-proc-0" (constant string).
-   ;; In production, mint via :wat::telemetry::uuid::v4 for unguessability.
-   ;; The parent stores this SAME id in AdminProc.server-id so that wrappers
-   ;; can embed it in every Wire they construct.
+   ;; Arc 207: server-id is :wat::core::Uuid. The subprocess uses Uuid/nil as a
+   ;; well-known constant (forms block cannot capture a runtime-minted value).
+   ;; The parent stores Uuid/nil in AdminProc.server-id — types are honest (:Uuid)
+   ;; even though the value is a constant. See top-of-file comment for rationale.
    ;;
    ;; ProcessPeer construction (verbose-is-honest composition per Stone C2):
    ;;   rx = Receiver/from-pipe(Process/stdout proc)   ← reads subprocess stdout (WireResp)
@@ -198,9 +203,10 @@
               ;; ── Subprocess type declarations (independent from parent's) ──
               ;; Same names + shapes → same EDN tags → round-trip works.
               ;; Wire now carries server-id as the first field on both variants.
+              ;; Arc 207: server-id and user-id are typed :wat::core::Uuid.
               (:wat::core::enum :counter::Wire
-                (Admin (server-id :wat::core::String) (req :counter::AdminReq))
-                (User  (server-id :wat::core::String) (user-id :wat::core::String) (req :counter::UserReq)))
+                (Admin (server-id :wat::core::Uuid) (req :counter::AdminReq))
+                (User  (server-id :wat::core::Uuid) (user-id :wat::core::Uuid) (req :counter::UserReq)))
 
               (:wat::core::enum :counter::WireResp
                 (Admin (resp :counter::AdminResp))
@@ -208,12 +214,12 @@
 
               (:wat::core::enum :counter::AdminReq
                 (Provision   (initial :wat::core::i64))
-                (Deprovision (id :wat::core::String))
+                (Deprovision (id :wat::core::Uuid))
                 (Stop))
 
               (:wat::core::enum :counter::AdminResp
-                (Provisioned  (id :wat::core::String))
-                (Deprovisioned (id :wat::core::String))
+                (Provisioned  (id :wat::core::Uuid))
+                (Deprovisioned (id :wat::core::Uuid))
                 (Stopped)
                 (AccessDenied))              ;; server refused — server-id mismatch
 
@@ -227,16 +233,17 @@
                 (Ok    (v :wat::core::i64))
                 (AccessDenied))              ;; server refused — server-id mismatch
 
-              ;; Registry type: Vector of (id, state) 2-tuples
+              ;; Registry type: Vector of (user-id, state) 2-tuples.
+              ;; Arc 207: user-id is typed :wat::core::Uuid.
               (:wat::core::typealias :sub::RegEntry
-                :(wat::core::String,wat::core::i64))
+                :(wat::core::Uuid,wat::core::i64))
 
               ;; ── Subprocess helpers ──────────────────────────────────────
 
               ;; Find the state for a given id; returns -1 if not found (sentinel)
               (:wat::core::defn :sub::find-state
                 [registry <- :wat::core::Vector<sub::RegEntry>
-                 target   <- :wat::core::String]
+                 target   <- :wat::core::Uuid]
                 -> :wat::core::i64
                 (:wat::core::let
                   [init   (:wat::core::Tuple -1 0)
@@ -259,7 +266,7 @@
               ;; Update state for a given id in the registry; returns new registry
               (:wat::core::defn :sub::update-state
                 [registry  <- :wat::core::Vector<sub::RegEntry>
-                 target    <- :wat::core::String
+                 target    <- :wat::core::Uuid
                  new-state <- :wat::core::i64]
                 -> :wat::core::Vector<sub::RegEntry>
                 (:wat::core::let
@@ -288,7 +295,7 @@
               ;; Remove entry by id from registry
               (:wat::core::defn :sub::remove-entry
                 [registry <- :wat::core::Vector<sub::RegEntry>
-                 target   <- :wat::core::String]
+                 target   <- :wat::core::Uuid]
                 -> :wat::core::Vector<sub::RegEntry>
                 (:wat::core::filter registry
                   (:wat::core::fn
@@ -300,6 +307,8 @@
               ;; ── Admin handler ──────────────────────────────────────────
               ;; Called from dispatch when Wire::Admin received AND server-id matches.
               ;; Returns nil (tail-calls dispatch or exits on Stop).
+              ;; Arc 207: server-id constant is Uuid/nil; dispatch compares directly,
+              ;; so no need to thread self-server-id as a parameter here.
               (:wat::core::defn :sub::handle-admin
                 [registry  <- :wat::core::Vector<sub::RegEntry>
                  next-id   <- :wat::core::i64
@@ -308,13 +317,12 @@
                 (:wat::core::match admin-req -> :wat::core::nil
                   ((:counter::AdminReq::Provision initial)
                     (:wat::core::let
-                      [id-str    (:wat::core::string::concat "client-"
-                                   (:wat::core::i64::to-string next-id))
-                       new-entry (:wat::core::Tuple id-str initial)
+                      [user-id   (:wat::core::Uuid/v4)
+                       new-entry (:wat::core::Tuple user-id initial)
                        new-reg   (:wat::core::conj registry new-entry)
                        next-next (:wat::core::i64::+'2 next-id 1)]
                       (:wat::kernel::println
-                        (:counter::WireResp::Admin (:counter::AdminResp::Provisioned id-str)))
+                        (:counter::WireResp::Admin (:counter::AdminResp::Provisioned user-id)))
                       (:sub::dispatch new-reg next-next)))
                   ((:counter::AdminReq::Deprovision dep-id)
                     (:wat::core::let
@@ -332,7 +340,7 @@
               (:wat::core::defn :sub::handle-user
                 [registry <- :wat::core::Vector<sub::RegEntry>
                  next-id  <- :wat::core::i64
-                 uid      <- :wat::core::String
+                 uid      <- :wat::core::Uuid
                  user-req <- :counter::UserReq]
                 -> :wat::core::nil
                 (:wat::core::match user-req -> :wat::core::nil
@@ -365,9 +373,11 @@
               ;; Wires over stdio. The server CANNOT rely on transport-level identity.
               ;; The server-id embedded in the Wire IS the auth mechanism.
               ;;
+              ;; Arc 207: server-id constant is Uuid/nil. Comparison uses Uuid/nil
+              ;; inline — no need to thread as a parameter (constant never changes).
               ;; Validation shape:
               ;;   outer match: one arm per Wire variant (Admin | User)
-              ;;   each arm: extracts wire-sid; checks against "server-counter-proc-0"
+              ;;   each arm: extracts wire-sid (:Uuid); checks = (:Uuid/nil)
               ;;     MATCH   → call handle-admin / handle-user
               ;;     MISMATCH → emit AccessDenied WireResp; recur dispatch
               (:wat::core::defn :sub::dispatch
@@ -377,7 +387,7 @@
                 (:wat::core::match (:wat::kernel::readln -> :counter::Wire)
                   -> :wat::core::nil
                   ((:counter::Wire::Admin wire-sid admin-req)
-                    (:wat::core::if (:wat::core::= wire-sid "server-counter-proc-0")
+                    (:wat::core::if (:wat::core::= wire-sid (:wat::core::Uuid/nil))
                       -> :wat::core::nil
                       (:sub::handle-admin registry next-id admin-req)
                       ;; Mismatch: emit AccessDenied for admin; continue dispatch
@@ -386,7 +396,7 @@
                           (:counter::WireResp::Admin (:counter::AdminResp::AccessDenied)))
                         (:sub::dispatch registry next-id))))
                   ((:counter::Wire::User wire-sid uid user-req)
-                    (:wat::core::if (:wat::core::= wire-sid "server-counter-proc-0")
+                    (:wat::core::if (:wat::core::= wire-sid (:wat::core::Uuid/nil))
                       -> :wat::core::nil
                       (:sub::handle-user registry next-id uid user-req)
                       ;; Mismatch: emit AccessDenied for user; continue dispatch
@@ -395,11 +405,12 @@
                           (:counter::WireResp::User (:counter::UserResp::AccessDenied)))
                         (:sub::dispatch registry next-id))))))
 
-              ;; Entry point — substrate calls :user::main when subprocess starts
+              ;; Entry point — substrate calls :user::main when subprocess starts.
               (:wat::core::define (:user::main -> :wat::core::nil)
                 (:sub::dispatch
                   (:wat::core::Vector :sub::RegEntry)
                   0))))
+
 
         ;; Build ProcessPeer — verbose-is-honest composition per Stone C2.
         ;; rx = Receiver/from-pipe(stdout) → reads WireResp the subprocess prints
@@ -408,8 +419,9 @@
         rx      (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
         tx      (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
         peer!   (:wat::kernel::ProcessPeer/new rx tx)]
-       ;; proc! stored in AdminProc so stop-proc can drain-and-join
-       (:counter::AdminProc/new "server-counter-proc-0" peer! proc)))
+       ;; proc! stored in AdminProc so stop-proc can drain-and-join.
+       ;; Arc 207: server-id is Uuid/nil — matches the subprocess's self-server-id.
+       (:counter::AdminProc/new (:wat::core::Uuid/nil) peer! proc)))
 
    ;; :counter::provision-proc — sends Wire/Admin Provision; reads WireResp/Admin Provisioned.
    ;;
@@ -624,10 +636,11 @@
      -> :wat::core::Result<wat::core::nil,counter::ServiceError>
      (:wat::core::let
        [pr    (:counter::AdminProc/peer!     admin!)
-        ;; Intentionally WRONG server-id — simulates a forged or mis-routed message
+        ;; Arc 207: forge uses a fresh v4 Uuid — server's id is Uuid/nil so any v4 mismatches.
+        wrong-id (:wat::core::Uuid/v4)
         _sent
           (:wat::kernel::Process/println pr
-            (:counter::Wire::Admin "WRONG-SERVER-ID" (:counter::AdminReq::Provision 99)))
+            (:counter::Wire::Admin wrong-id (:counter::AdminReq::Provision 99)))
         wire-resp
           (:wat::kernel::Process/readln pr)]
        (:wat::core::match wire-resp -> :wat::core::Result<wat::core::nil,counter::ServiceError>
@@ -636,11 +649,11 @@
              ((:counter::AdminResp::AccessDenied)
                (:wat::core::Err (:counter::ServiceError::AccessDenied)))   ;; expected — server correctly rejected
              ((:counter::AdminResp::Provisioned _id)
-               (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected WRONG-SERVER-ID, got Provisioned" :wat::core::None :wat::core::None))
+               (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected mismatched Uuid, got Provisioned" :wat::core::None :wat::core::None))
              ((:counter::AdminResp::Deprovisioned _id)
-               (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected WRONG-SERVER-ID, got Deprovisioned" :wat::core::None :wat::core::None))
+               (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected mismatched Uuid, got Deprovisioned" :wat::core::None :wat::core::None))
              ((:counter::AdminResp::Stopped)
-               (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected WRONG-SERVER-ID, got Stopped" :wat::core::None :wat::core::None))))
+               (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected mismatched Uuid, got Stopped" :wat::core::None :wat::core::None))))
          ((:counter::WireResp::User _resp)
            (:wat::kernel::assertion-failed! "forge-proc-test: expected Admin WireResp, got User" :wat::core::None :wat::core::None)))))
 

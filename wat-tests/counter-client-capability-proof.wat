@@ -14,10 +14,9 @@
 ;;
 ;; Honest deltas from BRIEF assumptions (surfaced in SCORE-SLICE-2.md):
 ;;   1. uuid::v4 FQDN is :wat::telemetry::uuid::v4 (not :wat::measure::),
-;;      and it returns :wat::core::String (not :wat::core::keyword).
-;;      This slice uses constant strings for IDs (no uuid dep needed;
-;;      single-user proof; uniqueness irrelevant).
-;;   2. server-id / user-id use :wat::core::String type (not keyword).
+;;      and it returned :wat::core::String (not :wat::core::keyword).
+;;      Arc 207: IDs are now :wat::core::Uuid minted via :wat::core::Uuid/v4.
+;;   2. server-id / user-id use :wat::core::Uuid type (arc 207; was :String).
 ;;   3. Public field is peer! <- :wat::kernel::ThreadPeer<counter::Response,
 ;;      counter::Request> — cleaner than storing Sender+Receiver separately;
 ;;      client wrappers use Thread/println + Thread/readln on it.
@@ -67,16 +66,16 @@
    ;; the server uses them for identity; callers cannot access them directly.
    ;; peer! is public — callers use it (via wrappers) to talk to the server.
    ;;
-   ;; Honest delta: IDs are :wat::core::String (uuid::v4 returns String,
-   ;; not keyword; and this slice uses constant strings for simplicity).
+   ;; Arc 207: IDs are :wat::core::Uuid (typed primitive — distinct from :String).
+   ;; server-id is minted fresh via Uuid/v4 in :counter::spawn; user-id likewise.
    ;; Public field peer! stores the user-side ThreadPeer; wrappers use
    ;; Thread/println + Thread/readln on it.
-   ;; Honest delta: whitelist [:counter::] (NOT [:counter/]) — arc 198
-   ;; prefix matching fires only for entries ending in ::; see SCORE.
+   ;; Whitelist [:counter::] (NOT [:counter/]) — arc 198 prefix matching fires
+   ;; only for entries ending in ::; see SCORE.
    (:wat::core::struct-restricted :counter::User
      [:counter::]
-     ([:counter::] server-id <- :wat::core::String
-      [:counter::] user-id   <- :wat::core::String)
+     ([:counter::] server-id <- :wat::core::Uuid
+      [:counter::] user-id   <- :wat::core::Uuid)
      (peer! <- :wat::kernel::ThreadPeer<counter::Response,counter::Request>))
 
    ;; ─── Dispatch loop ───────────────────────────────────────────────────
@@ -150,10 +149,12 @@
                      (:wat::kernel::Thread/output thread)
                      (:wat::kernel::Thread/input  thread))
         ;; Mint the capability struct. Constructor is restricted to :counter::*.
-        ;; Constant IDs used for this single-user proof; slice 3 will use uuid::v4.
+        ;; Arc 207: IDs are typed :wat::core::Uuid minted fresh via Uuid/v4.
+        server-uuid (:wat::core::Uuid/v4)
+        user-uuid   (:wat::core::Uuid/v4)
         user!    (:counter::User/new
-                   "counter-server-0"
-                   "counter-user-0"
+                   server-uuid
+                   user-uuid
                    user-peer!)
         ;; Read restricted accessors from within :counter:: namespace —
         ;; proves the accessor whitelist works for the issuing namespace.
