@@ -2099,7 +2099,7 @@ pub fn check_program(
 
 /// Arc 110 — parent-context tag for the `validate_comm_positions`
 /// walk. Every sub-expression descends with one of these; comm calls
-/// are legal only under the three non-Forbidden tags.
+/// are legal only under the four non-Forbidden tags.
 #[derive(Clone, Copy)]
 enum CommCtx {
     /// Top-level form, function body, struct field, call
@@ -2122,6 +2122,12 @@ enum CommCtx {
     /// type is Result<Option<_>, _>, not Option<_>; they fit
     /// `ResultExpectValue` instead.)
     OptionExpectValue,
+    /// RHS position of a `:wat::core::let` binding whose name is
+    /// later consumed in the same let via match scrutinee or
+    /// Result/Option expect. Arc 212 stone δ-comm-positions: the
+    /// fourth permitted slot — comm result bound to a name and
+    /// immediately matched/expected in the same let scope.
+    LetBindingRhs,
 }
 
 /// Arc 110 — refuse to compile programs that ignore a kernel-comm
@@ -2137,136 +2143,290 @@ fn validate_comm_positions(
     ctx: CommCtx,
     errors: &mut Vec<CheckError>,
 ) {
-    // TEMPORARY List-only — walker RULE lacks position-awareness.
-    // NOT an exemption from arc 212's children() doctrine; a sharpening
-    // target. Arc 212 stone δ-comm-positions makes this walker correct
-    // under children() by teaching it the fourth permitted slot.
+    // Let-form scope-aware handler — implements the fourth permitted slot
+    // (bound-name-later-matched-or-expected). Arc 212 stone δ-comm-positions
+    // sharpening: recognize that comm-in-binding-RHS is valid when the
+    // binding-name is later consumed in the same let.
     //
-    // The arc 110 comm-discipline currently recognizes three permitted
-    // slots for send/recv/process-send/process-recv/Process/readln/
-    // Process/println: match scrutinee, Result/expect value,
-    // Option/expect value. Migration to children() recursion produces
-    // false positives on this VALID pattern:
-    //
-    //   (:wat::core::let [recv-result (:wat::kernel::recv rx)
-    //                     _val (:wat::core::match recv-result -> ...)]
-    //     ...)
-    //
-    // where recv is bound to a name later matched/expected — a fourth
-    // permitted slot the walker rule must learn to recognize. Sharpening
-    // lands in arc 212 stone δ-comm-positions; this list-only fallback
-    // retires when the sharpened walker ships.
-    //
-    // Audit evidence: arc112_slice2b_schemes_wire_through_typechecker
-    // fires false positive under naive children() migration.
-    let WatAST::List(items, _) = node else { return; };
-    let (head_str, head_span) = match items.first() {
-        Some(WatAST::Keyword(k, hs)) => (k.as_str(), hs),
-        _ => {
-            for child in items {
+    // Layout of a let form: (:wat::core::let [n1 rhs1 n2 rhs2 ...] body...)
+    // The bindings are a flat Vector of alternating name/expr pairs.
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
+            if head == ":wat::core::let" {
+                if let Some(WatAST::Vector(binding_items, _)) = items.get(1) {
+                    let body_forms = &items[2..];
+                    // 1. Pre-walk all RHSes and body forms to collect names
+                    //    that appear as match-scrutinee or expect-value.
+                    let consumed =
+                        collect_consumed_names_in_let(binding_items, body_forms);
+                    // 2. Walk each binding-RHS with consumed-aware context.
+                    //    Bindings are flat: [name0, rhs0, name1, rhs1, ...]
+                    let mut i = 0;
+                    while i + 1 < binding_items.len() {
+                        let name_node = &binding_items[i];
+                        let rhs_node = &binding_items[i + 1];
+                        let binding_name = match name_node {
+                            WatAST::Symbol(ident, _) => Some(ident.name.as_str()),
+                            WatAST::Keyword(k, _) => Some(k.as_str()),
+                            _ => None,
+                        };
+                        let rhs_ctx = match binding_name {
+                            Some(name) if consumed.contains(name) => {
+                                CommCtx::LetBindingRhs
+                            }
+                            _ => CommCtx::Forbidden,
+                        };
+                        validate_comm_positions(rhs_node, rhs_ctx, errors);
+                        i += 2;
+                    }
+                    // 3. Walk body forms with Forbidden context; comm in body
+                    //    must be consumed by an enclosing match/expect there.
+                    for body_form in body_forms {
+                        validate_comm_positions(body_form, CommCtx::Forbidden, errors);
+                    }
+                } else {
+                    // Malformed let (no bindings vector) — recurse generically.
+                    for child in node.children() {
+                        validate_comm_positions(child, CommCtx::Forbidden, errors);
+                    }
+                }
+                return; // do NOT fall through to generic recursion
+            }
+        }
+    }
+
+    // Walker-specific List-head logic for comm-call positions (existing
+    // three-slot detection preserved verbatim from pre-arc-212, with the
+    // fourth slot LetBindingRhs now included in the permitted check).
+    if let WatAST::List(items, _) = node {
+        let (head_str, head_span) = match items.first() {
+            Some(WatAST::Keyword(k, hs)) => (k.as_str(), hs),
+            _ => {
+                // No keyword head — recurse into all children as Forbidden.
+                for child in items {
+                    validate_comm_positions(child, CommCtx::Forbidden, errors);
+                }
+                return;
+            }
+        };
+
+        // (1) THIS node is a kernel-comm call.
+        // Arc 208 slice 1 — Process/readln + Process/println added here
+        // after their signatures flipped to Result-returning. Pre-flip they
+        // panicked on disconnect (loud); post-flip they return Result (quiet
+        // on Err if not matched). Walker now enforces match-or-expect at
+        // every Process/readln + Process/println call site, same discipline
+        // as arc 110 enforces for thread-tier send/recv.
+        if matches!(
+            head_str,
+            ":wat::kernel::send"
+                | ":wat::kernel::recv"
+                | ":wat::kernel::process-send"
+                | ":wat::kernel::process-recv"
+                | ":wat::kernel::Process/readln"
+                | ":wat::kernel::Process/println"
+        ) {
+            let permitted = matches!(
+                ctx,
+                CommCtx::MatchScrutinee
+                    | CommCtx::ResultExpectValue
+                    | CommCtx::OptionExpectValue
+                    | CommCtx::LetBindingRhs,
+            );
+            if !permitted {
+                errors.push(CheckError::CommCallOutOfPosition {
+                    callee: head_str.into(),
+                    span: head_span.clone(),
+                });
+            }
+            // Comm-call arguments are ordinary expressions; nested comm
+            // calls inside them are themselves Forbidden.
+            for child in &items[1..] {
                 validate_comm_positions(child, CommCtx::Forbidden, errors);
             }
             return;
         }
-    };
 
-    // (1) THIS node is a kernel-comm call.
-    // Arc 208 slice 1 — Process/readln + Process/println added here
-    // after their signatures flipped to Result-returning. Pre-flip they
-    // panicked on disconnect (loud); post-flip they return Result (quiet
-    // on Err if not matched). Walker now enforces match-or-expect at
-    // every Process/readln + Process/println call site, same discipline
-    // as arc 110 enforces for thread-tier send/recv.
-    if matches!(
-        head_str,
-        ":wat::kernel::send"
-            | ":wat::kernel::recv"
-            | ":wat::kernel::process-send"
-            | ":wat::kernel::process-recv"
-            | ":wat::kernel::Process/readln"
-            | ":wat::kernel::Process/println"
-    ) {
-        let permitted = matches!(
-            ctx,
-            CommCtx::MatchScrutinee
-                | CommCtx::ResultExpectValue
-                | CommCtx::OptionExpectValue,
-        );
-        if !permitted {
-            errors.push(CheckError::CommCallOutOfPosition {
-                callee: head_str.into(),
-                span: head_span.clone(),
-            });
+        // (2) `:wat::core::match` — items[1] is the scrutinee (permitted slot).
+        //     Layout: (match scrut -> :T arm1 arm2 ...)
+        if head_str == ":wat::core::match" && items.len() >= 4 {
+            validate_comm_positions(&items[1], CommCtx::MatchScrutinee, errors);
+            for child in &items[2..] {
+                validate_comm_positions(child, CommCtx::Forbidden, errors);
+            }
+            return;
         }
-        // Comm-call arguments are ordinary expressions; nested comm
-        // calls inside them are themselves Forbidden.
-        for child in &items[1..] {
+
+        // (3) Result-side `expect` form — items[3] is the value-position.
+        //     Layout: (Result/expect -> :T <res> <msg>). Arc 109 slice 1j
+        //     renamed `:wat::core::result::expect` to
+        //     `:wat::core::Result/expect`; both heads still dispatch (the
+        //     retired form fires a Pattern 2 poison) so both are
+        //     recognized here for the duration of the migration.
+        //     Arc 111: send/recv now return Result<Option<_>, _>; this is
+        //     their natural panic-on-Err home.
+        if (head_str == ":wat::core::Result/expect"
+            || head_str == ":wat::core::result::expect")
+            && items.len() >= 5
+        {
+            for (i, child) in items.iter().enumerate() {
+                let child_ctx = if i == 3 {
+                    CommCtx::ResultExpectValue
+                } else {
+                    CommCtx::Forbidden
+                };
+                validate_comm_positions(child, child_ctx, errors);
+            }
+            return;
+        }
+
+        // (4) Option-side `expect` form — items[3] is the value-position.
+        //     Layout: (Option/expect -> :T <opt> <msg>). Arc 109 slice 1j
+        //     renamed `:wat::core::option::expect` to
+        //     `:wat::core::Option/expect`; both heads recognized for the
+        //     migration window (same poison-and-dispatch shape as the
+        //     Result form above). Pre-arc-111 home for kernel comm; kept
+        //     for callers who have ALREADY unwrapped the outer Result
+        //     (their own match/expect) and want to panic on the inner
+        //     :None.
+        if (head_str == ":wat::core::Option/expect"
+            || head_str == ":wat::core::option::expect")
+            && items.len() >= 5
+        {
+            for (i, child) in items.iter().enumerate() {
+                let child_ctx = if i == 3 {
+                    CommCtx::OptionExpectValue
+                } else {
+                    CommCtx::Forbidden
+                };
+                validate_comm_positions(child, child_ctx, errors);
+            }
+            return;
+        }
+
+        // (5) Default List case — every child descends as Forbidden.
+        for child in items {
             validate_comm_positions(child, CommCtx::Forbidden, errors);
         }
         return;
     }
 
-    // (2) `:wat::core::match` — items[1] is the scrutinee (permitted slot).
-    //     Layout: (match scrut -> :T arm1 arm2 ...)
-    if head_str == ":wat::core::match" && items.len() >= 4 {
-        validate_comm_positions(&items[1], CommCtx::MatchScrutinee, errors);
-        for child in &items[2..] {
-            validate_comm_positions(child, CommCtx::Forbidden, errors);
-        }
-        return;
-    }
-
-    // (3) Result-side `expect` form — items[3] is the value-position.
-    //     Layout: (Result/expect -> :T <res> <msg>). Arc 109 slice 1j
-    //     renamed `:wat::core::result::expect` to
-    //     `:wat::core::Result/expect`; both heads still dispatch (the
-    //     retired form fires a Pattern 2 poison) so both are
-    //     recognized here for the duration of the migration.
-    //     Arc 111: send/recv now return Result<Option<_>, _>; this is
-    //     their natural panic-on-Err home.
-    if (head_str == ":wat::core::Result/expect"
-        || head_str == ":wat::core::result::expect")
-        && items.len() >= 5
-    {
-        for (i, child) in items.iter().enumerate() {
-            let child_ctx = if i == 3 {
-                CommCtx::ResultExpectValue
-            } else {
-                CommCtx::Forbidden
-            };
-            validate_comm_positions(child, child_ctx, errors);
-        }
-        return;
-    }
-
-    // (4) Option-side `expect` form — items[3] is the value-position.
-    //     Layout: (Option/expect -> :T <opt> <msg>). Arc 109 slice 1j
-    //     renamed `:wat::core::option::expect` to
-    //     `:wat::core::Option/expect`; both heads recognized for the
-    //     migration window (same poison-and-dispatch shape as the
-    //     Result form above). Pre-arc-111 home for kernel comm; kept
-    //     for callers who have ALREADY unwrapped the outer Result
-    //     (their own match/expect) and want to panic on the inner
-    //     :None.
-    if (head_str == ":wat::core::Option/expect"
-        || head_str == ":wat::core::option::expect")
-        && items.len() >= 5
-    {
-        for (i, child) in items.iter().enumerate() {
-            let child_ctx = if i == 3 {
-                CommCtx::OptionExpectValue
-            } else {
-                CommCtx::Forbidden
-            };
-            validate_comm_positions(child, child_ctx, errors);
-        }
-        return;
-    }
-
-    // (5) Default — every child descends as Forbidden.
-    for child in items {
+    // Arc 212 — generic recursion via children() covers Vector and
+    // StructPattern uniformly. Let-form handler above intercepts the
+    // scope-aware case; List-head logic above covers all List nodes;
+    // this handles Vector and StructPattern (children() returns &[] for
+    // leaf nodes, so this is a no-op for atoms).
+    for child in node.children() {
         validate_comm_positions(child, CommCtx::Forbidden, errors);
     }
+}
+
+/// Arc 212 stone δ-comm-positions — pre-walk a `:wat::core::let` form's
+/// binding-RHSes and body forms to collect names that are consumed as
+/// match scrutinees or Result/Option expect-values. A comm call in a
+/// binding-RHS whose name appears in this set is the fourth permitted
+/// slot (LetBindingRhs).
+///
+/// `binding_items` is the flat Vector content `[n0 rhs0 n1 rhs1 ...]`.
+/// `body_forms` is the let's body (items[2..]).
+///
+/// "Consumed" means the name appears as:
+/// - The first argument of `(:wat::core::match <name> ...)`
+/// - The value argument (position 3) of `(:wat::core::Result/expect -> :T <name> "msg")`
+///   or `(:wat::core::result::expect -> :T <name> "msg")`
+/// - The value argument of `(:wat::core::Option/expect -> :T <name> "msg")`
+///   or `(:wat::core::option::expect -> :T <name> "msg")`
+fn collect_consumed_names_in_let(
+    binding_items: &[WatAST],
+    body_forms: &[WatAST],
+) -> std::collections::HashSet<String> {
+    let mut consumed: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // Walk a single AST node looking for consumption patterns;
+    // recurse into all children for nested forms.
+    fn walk(node: &WatAST, consumed: &mut std::collections::HashSet<String>) {
+        let items = match node {
+            WatAST::List(items, _) => items,
+            _ => {
+                // Recurse into Vector/StructPattern children.
+                for child in node.children() {
+                    walk(child, consumed);
+                }
+                return;
+            }
+        };
+        let head_str = match items.first() {
+            Some(WatAST::Keyword(k, _)) => k.as_str(),
+            _ => {
+                for child in items {
+                    walk(child, consumed);
+                }
+                return;
+            }
+        };
+
+        // (:wat::core::match <scrutinee> -> ...)
+        // items[1] is the scrutinee — collect if it's a bare symbol.
+        if head_str == ":wat::core::match" && items.len() >= 2 {
+            if let Some(WatAST::Symbol(ident, _)) = items.get(1) {
+                consumed.insert(ident.name.clone());
+            }
+            // Recurse into arm sub-forms (may contain nested lets).
+            for child in &items[2..] {
+                walk(child, consumed);
+            }
+            return;
+        }
+
+        // (:wat::core::Result/expect -> :T <value> "msg")
+        // (:wat::core::result::expect -> :T <value> "msg")
+        // items[3] is the value — collect if it's a bare symbol.
+        if (head_str == ":wat::core::Result/expect"
+            || head_str == ":wat::core::result::expect")
+            && items.len() >= 5
+        {
+            if let Some(WatAST::Symbol(ident, _)) = items.get(3) {
+                consumed.insert(ident.name.clone());
+            }
+            for child in items {
+                walk(child, consumed);
+            }
+            return;
+        }
+
+        // (:wat::core::Option/expect -> :T <value> "msg")
+        // (:wat::core::option::expect -> :T <value> "msg")
+        if (head_str == ":wat::core::Option/expect"
+            || head_str == ":wat::core::option::expect")
+            && items.len() >= 5
+        {
+            if let Some(WatAST::Symbol(ident, _)) = items.get(3) {
+                consumed.insert(ident.name.clone());
+            }
+            for child in items {
+                walk(child, consumed);
+            }
+            return;
+        }
+
+        // Generic: recurse into all children.
+        for child in items {
+            walk(child, consumed);
+        }
+    }
+
+    // Walk all RHSes (odd indices in the flat binding vector).
+    let mut i = 1;
+    while i < binding_items.len() {
+        walk(&binding_items[i], &mut consumed);
+        i += 2;
+    }
+    // Walk all body forms.
+    for body_form in body_forms {
+        walk(body_form, &mut consumed);
+    }
+
+    consumed
 }
 
 // ─── Arc 140 — sandbox-scope leak prevention ──────────────────────────
