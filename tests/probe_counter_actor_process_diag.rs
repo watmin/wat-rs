@@ -202,29 +202,36 @@ fn probe_counter_subprocess_full_process_peer() {
     // Bind process and exercise via embedded wat code
     let env = Environment::new().child().bind("proc", process.clone()).build();
 
-    // Arc 208 slice 1 — Process/println + Process/readln now return Result.
-    // Wrapped with Result/expect to preserve panic-on-transport-error semantics.
-    // resp is the unwrapped counter::Response (not Result-wrapped).
+    // Arc 208 slice 2 — Process/println + Process/readln are matched honestly.
+    // resp is the unwrapped counter::Response (from the Ok arm).
     let client_code = wat::parse_one!(
         r#"
         (:wat::core::let
           [rx    (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
            tx    (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
-           peer! (:wat::kernel::ProcessPeer/new rx tx)
-           _     (:wat::core::Result/expect -> :wat::core::nil
-                    (:wat::kernel::Process/println peer! (:counter::Request::Increment 5))
-                    "Process/println (Increment) failed")
-           resp  (:wat::core::Result/expect -> :counter::Response
-                    (:wat::kernel::Process/readln peer!)
-                    "Process/readln (Increment resp) failed")
-           _     (:wat::core::Result/expect -> :wat::core::nil
-                    (:wat::kernel::Process/println peer! (:counter::Request::Shutdown))
-                    "Process/println (Shutdown) failed")
-           _resp2 (:wat::core::Result/expect -> :counter::Response
-                    (:wat::kernel::Process/readln peer!)
-                    "Process/readln (Shutdown resp) failed")
-           _joined (:wat::kernel::Process/drain-and-join proc)]
-          resp)
+           peer! (:wat::kernel::ProcessPeer/new rx tx)]
+          (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Increment 5))
+            -> :counter::Response
+            ((:wat::core::Ok _)
+              (:wat::core::match (:wat::kernel::Process/readln peer!)
+                -> :counter::Response
+                ((:wat::core::Ok resp)
+                  (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Shutdown))
+                    -> :counter::Response
+                    ((:wat::core::Ok _)
+                      (:wat::core::match (:wat::kernel::Process/readln peer!)
+                        -> :counter::Response
+                        ((:wat::core::Ok _resp2)
+                          (:wat::core::let [_joined (:wat::kernel::Process/drain-and-join proc)]
+                            resp))
+                        ((:wat::core::Err _chain)
+                          (:wat::kernel::assertion-failed! "Process/readln (Shutdown resp) failed" :wat::core::None :wat::core::None))))
+                    ((:wat::core::Err _chain)
+                      (:wat::kernel::assertion-failed! "Process/println (Shutdown) failed" :wat::core::None :wat::core::None))))
+                ((:wat::core::Err _chain)
+                  (:wat::kernel::assertion-failed! "Process/readln (Increment resp) failed" :wat::core::None :wat::core::None))))
+            ((:wat::core::Err _chain)
+              (:wat::kernel::assertion-failed! "Process/println (Increment) failed" :wat::core::None :wat::core::None))))
         "#
     )
     .expect("client code parses");
@@ -247,7 +254,7 @@ fn probe_counter_subprocess_full_process_peer() {
                 ev.variant_name
             );
         }
-        other => panic!("expected Enum from Process/readln (unwrapped via Result/expect); got {:?}", other),
+        other => panic!("expected Enum from Process/readln (via match Ok arm); got {:?}", other),
     }
 }
 

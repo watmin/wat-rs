@@ -21,15 +21,16 @@
 ;;   ServerDied    — subprocess died; chain is Vector<ProcessDiedError> (arc 113 shape)
 ;;   Disconnected  — Process/drain-and-join returned Ok but we got Disconnected before response
 ;;
-;; Arc 208 — Process/println and Process/readln NOW return Result:
+;; Arc 208 — Process/println and Process/readln return Result (slice 1 substrate flip).
 ;;   :wat::kernel::Process/println → Result<nil, Vector<ProcessDiedError>>
 ;;   :wat::kernel::Process/readln  → Result<I,   Vector<ProcessDiedError>>
 ;;
-;;   This file uses the arc 208 slice 1 minimal patch (Result/expect) to
-;;   preserve pre-208 panic-on-transport-error semantics. Slice 2 will
-;;   replace Result/expect with proper Err-arm handling so transport failures
-;;   surface as ServiceError::ServerDied without requiring a separate
-;;   crash-test-proc helper.
+;;   Arc 208 slice 2: every wrapper now matches on the Result and propagates
+;;   ServiceError::ServerDied on Err. Transport failures surface through the
+;;   main service wrappers — no separate crash-test-proc helper is needed for
+;;   this path. crash-test-proc is RETAINED to cover the drain-and-join Err
+;;   path (abnormal subprocess exit after communication completes), which is
+;;   orthogonal to the transport I/O error path.
 ;;
 ;;   Process/drain-and-join ALSO returns Result<nil,Vector<ProcessDiedError>>
 ;;   and is still the canonical wait verb after the subprocess handshake.
@@ -73,7 +74,7 @@
 ;;   - ProcessPeer/new(rx, tx) where rx = Receiver/from-pipe(stdout), tx = Sender/from-pipe(stdin)
 ;;   - Subprocess declares :user::main via (:wat::core::define ...) not defn
 ;;   - Two-level match required when matching enums carrying enum payloads
-;;   - Process/println + Process/readln return Result (arc 208); arc 208 slice 1 patch uses Result/expect
+;;   - Process/println + Process/readln return Result (arc 208 slice 1); slice 2 matches on Err → ServerDied
 ;;   - Process/drain-and-join returns Result<nil,Vector<ProcessDiedError>> (Err = chain)
 ;;   - No spaces inside type parameter <> brackets
 
@@ -127,14 +128,15 @@
    ;;   ServerDied    — subprocess died; chain is Vector<ProcessDiedError> (arc 113 shape)
    ;;   Disconnected  — drain-and-join returned Ok but clean-disconnect observed
    ;;
-   ;; Note: Process/println + Process/readln do NOT return Result — they panic on
-   ;; transport failure. So user-op wrappers (get-proc, increment-proc, reset-proc)
-   ;; can only propagate AccessDenied via Result; transport errors still panic at
-   ;; the substrate level for those wrappers.
+   ;; Arc 208 slice 2: Process/println + Process/readln return Result.
+   ;; All wrappers now match on Err → Err(ServerDied(chain)).
    ;;
    ;; The ServerDied Err path is reachable via:
-   ;;   1. stop-proc → Process/drain-and-join → Err(chain) → Err(ServerDied(chain))
-   ;;   2. crash-test-proc → spawn crashing subprocess → drain-and-join → Err(ServerDied(chain))
+   ;;   1. Any wrapper — Process/println or Process/readln returns Err(chain)
+   ;;      when subprocess dies mid-communication → Err(ServerDied(chain))
+   ;;   2. stop-proc → Process/drain-and-join → Err(chain) → Err(ServerDied(chain))
+   ;;   3. crash-test-proc → spawn crashing subprocess → drain-and-join → Err(ServerDied(chain))
+   ;;      (retained to cover the drain-and-join Err path independently)
    (:wat::core::enum :counter::ServiceError
      (AccessDenied)
      (ServerDied  (chain :wat::core::Vector<wat::kernel::ProcessDiedError>))
@@ -425,227 +427,242 @@
 
    ;; :counter::provision-proc — sends Wire/Admin Provision; reads WireResp/Admin Provisioned.
    ;;
-   ;; Now returns Result<UserProc,ServiceError>.
-   ;; Process/println + Process/readln panic on transport failure;
-   ;; only the wire-level AccessDenied is catchable as Result.
+   ;; Returns Result<UserProc,ServiceError>.
+   ;; Arc 208 slice 2: Process/println + Process/readln are matched on Err;
+   ;; transport failure surfaces as Err(ServerDied(chain)).
    ;;
    ;; AccessDenied path: server responds AccessDenied → Err(ServiceError/AccessDenied)
-   ;; Transport failure: still panics (substrate limitation for process tier)
+   ;; Transport failure: → Err(ServiceError/ServerDied(chain))
    ;;
    ;; Wire::Admin now carries server-id (from AdminProc capability) as first field.
    ;; AdminResp::Provisioned carries only the minted id (no channels at process tier).
    ;; UserProc.peer! is constructed from admin.peer! — accessors clone Arc-backed values.
    ;;
-   ;; Two-level match: outer covers WireResp variants (Admin | User);
-   ;; inner covers AdminResp variants (Provisioned | Deprovisioned | Stopped | AccessDenied).
+   ;; Three-level match: println Ok/Err → readln Ok/Err → WireResp → AdminResp
    (:wat::core::defn :counter::provision-proc
      [admin!  <- :counter::AdminProc
       initial <- :wat::core::i64]
      -> :wat::core::Result<counter::UserProc,counter::ServiceError>
-     ;; Arc 208 slice 1 minimal patch: Process/println + Process/readln
-     ;; now return Result. Wrapped with Result/expect (panic-on-Err,
-     ;; same semantics as pre-208). Slice 2 will convert to proper Err
-     ;; handling returning ServiceError::ServerDied.
      (:wat::core::let
-       [pr      (:counter::AdminProc/peer!     admin!)
-        sid     (:counter::AdminProc/server-id admin!)
-        _sent
-          (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::Process/println pr
-              (:counter::Wire::Admin sid (:counter::AdminReq::Provision initial)))
-            "provision-proc: Process/println failed")
-        wire-resp
-          (:wat::core::Result/expect -> :counter::WireResp
-            (:wat::kernel::Process/readln pr)
-            "provision-proc: Process/readln failed")]
-       (:wat::core::match wire-resp -> :wat::core::Result<counter::UserProc,counter::ServiceError>
-         ((:counter::WireResp::Admin admin-resp)
-           (:wat::core::match admin-resp -> :wat::core::Result<counter::UserProc,counter::ServiceError>
-             ((:counter::AdminResp::Provisioned id)
-               (:wat::core::Ok (:counter::UserProc/new sid id pr)))
-             ((:counter::AdminResp::AccessDenied)
-               (:wat::core::Err (:counter::ServiceError::AccessDenied)))
-             ((:counter::AdminResp::Deprovisioned _id)
-               (:wat::kernel::assertion-failed! "provision-proc: expected Provisioned, got Deprovisioned" :wat::core::None :wat::core::None))
-             ((:counter::AdminResp::Stopped)
-               (:wat::kernel::assertion-failed! "provision-proc: expected Provisioned, got Stopped" :wat::core::None :wat::core::None))))
-         ((:counter::WireResp::User _resp)
-           (:wat::kernel::assertion-failed! "provision-proc: expected Admin WireResp, got User" :wat::core::None :wat::core::None)))))
+       [pr  (:counter::AdminProc/peer!     admin!)
+        sid (:counter::AdminProc/server-id admin!)]
+       (:wat::core::match
+         (:wat::kernel::Process/println pr
+           (:counter::Wire::Admin sid (:counter::AdminReq::Provision initial)))
+         -> :wat::core::Result<counter::UserProc,counter::ServiceError>
+         ((:wat::core::Ok _)
+           (:wat::core::match (:wat::kernel::Process/readln pr)
+             -> :wat::core::Result<counter::UserProc,counter::ServiceError>
+             ((:wat::core::Ok wire-resp)
+               (:wat::core::match wire-resp -> :wat::core::Result<counter::UserProc,counter::ServiceError>
+                 ((:counter::WireResp::Admin admin-resp)
+                   (:wat::core::match admin-resp -> :wat::core::Result<counter::UserProc,counter::ServiceError>
+                     ((:counter::AdminResp::Provisioned id)
+                       (:wat::core::Ok (:counter::UserProc/new sid id pr)))
+                     ((:counter::AdminResp::AccessDenied)
+                       (:wat::core::Err (:counter::ServiceError::AccessDenied)))
+                     ((:counter::AdminResp::Deprovisioned _id)
+                       (:wat::kernel::assertion-failed! "provision-proc: expected Provisioned, got Deprovisioned" :wat::core::None :wat::core::None))
+                     ((:counter::AdminResp::Stopped)
+                       (:wat::kernel::assertion-failed! "provision-proc: expected Provisioned, got Stopped" :wat::core::None :wat::core::None))))
+                 ((:counter::WireResp::User _resp)
+                   (:wat::kernel::assertion-failed! "provision-proc: expected Admin WireResp, got User" :wat::core::None :wat::core::None))))
+             ((:wat::core::Err chain)
+               (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))
+         ((:wat::core::Err chain)
+           (:wat::core::Err (:counter::ServiceError::ServerDied chain))))))
 
    ;; :counter::deprovision-proc — sends Wire/Admin Deprovision; reads WireResp/Admin Deprovisioned.
-   ;; Now returns Result<nil,ServiceError>.
+   ;; Returns Result<nil,ServiceError>.
+   ;; Arc 208 slice 2: println + readln matched on Err → Err(ServerDied(chain)).
    ;; Wire::Admin carries server-id from AdminProc capability.
-   ;; Two-level match: outer WireResp → Admin|User; inner AdminResp → Deprovisioned|others.
+   ;; Three-level match: println Ok/Err → readln Ok/Err → WireResp → AdminResp
    (:wat::core::defn :counter::deprovision-proc
      [admin!  <- :counter::AdminProc
       user!   <- :counter::UserProc]
      -> :wat::core::Result<wat::core::nil,counter::ServiceError>
      (:wat::core::let
-       [pr    (:counter::AdminProc/peer!     admin!)
-        sid   (:counter::AdminProc/server-id admin!)
-        cid   (:counter::UserProc/user-id    user!)
-        _sent
-          (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::Process/println pr
-              (:counter::Wire::Admin sid (:counter::AdminReq::Deprovision cid)))
-            "deprovision-proc: Process/println failed")
-        wire-resp
-          (:wat::core::Result/expect -> :counter::WireResp
-            (:wat::kernel::Process/readln pr)
-            "deprovision-proc: Process/readln failed")]
-       (:wat::core::match wire-resp -> :wat::core::Result<wat::core::nil,counter::ServiceError>
-         ((:counter::WireResp::Admin admin-resp)
-           (:wat::core::match admin-resp -> :wat::core::Result<wat::core::nil,counter::ServiceError>
-             ((:counter::AdminResp::Deprovisioned _id)
-               (:wat::core::Ok ()))
-             ((:counter::AdminResp::AccessDenied)
-               (:wat::core::Err (:counter::ServiceError::AccessDenied)))
-             ((:counter::AdminResp::Provisioned _id)
-               (:wat::kernel::assertion-failed! "deprovision-proc: expected Deprovisioned, got Provisioned" :wat::core::None :wat::core::None))
-             ((:counter::AdminResp::Stopped)
-               (:wat::kernel::assertion-failed! "deprovision-proc: expected Deprovisioned, got Stopped" :wat::core::None :wat::core::None))))
-         ((:counter::WireResp::User _resp)
-           (:wat::kernel::assertion-failed! "deprovision-proc: expected Admin WireResp, got User" :wat::core::None :wat::core::None)))))
+       [pr  (:counter::AdminProc/peer!     admin!)
+        sid (:counter::AdminProc/server-id admin!)
+        cid (:counter::UserProc/user-id    user!)]
+       (:wat::core::match
+         (:wat::kernel::Process/println pr
+           (:counter::Wire::Admin sid (:counter::AdminReq::Deprovision cid)))
+         -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+         ((:wat::core::Ok _)
+           (:wat::core::match (:wat::kernel::Process/readln pr)
+             -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+             ((:wat::core::Ok wire-resp)
+               (:wat::core::match wire-resp -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+                 ((:counter::WireResp::Admin admin-resp)
+                   (:wat::core::match admin-resp -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+                     ((:counter::AdminResp::Deprovisioned _id)
+                       (:wat::core::Ok ()))
+                     ((:counter::AdminResp::AccessDenied)
+                       (:wat::core::Err (:counter::ServiceError::AccessDenied)))
+                     ((:counter::AdminResp::Provisioned _id)
+                       (:wat::kernel::assertion-failed! "deprovision-proc: expected Deprovisioned, got Provisioned" :wat::core::None :wat::core::None))
+                     ((:counter::AdminResp::Stopped)
+                       (:wat::kernel::assertion-failed! "deprovision-proc: expected Deprovisioned, got Stopped" :wat::core::None :wat::core::None))))
+                 ((:counter::WireResp::User _resp)
+                   (:wat::kernel::assertion-failed! "deprovision-proc: expected Admin WireResp, got User" :wat::core::None :wat::core::None))))
+             ((:wat::core::Err chain)
+               (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))
+         ((:wat::core::Err chain)
+           (:wat::core::Err (:counter::ServiceError::ServerDied chain))))))
 
    ;; :counter::stop-proc — sends Wire/Admin Stop; reads WireResp/Admin Stopped;
    ;; drains subprocess via Process/drain-and-join; returns Result<nil,ServiceError>.
    ;;
    ;; Wire::Admin carries server-id from AdminProc capability.
    ;;
-   ;; This wrapper CAN propagate ServerDied: Process/drain-and-join returns
-   ;; Result<nil,Vector<ProcessDiedError>>. If the subprocess panicked or was
-   ;; killed abnormally, drain-and-join returns Err(chain) → Err(ServerDied(chain)).
+   ;; Arc 208 slice 2: Process/println + Process/readln now matched on Err;
+   ;; transport failure → Err(ServerDied(chain)) at any of the three stages:
+   ;;   1. println Err   → Err(ServerDied(chain))
+   ;;   2. readln Err    → Err(ServerDied(chain))
+   ;;   3. drain-and-join Err → Err(ServerDied(chain))
    ;;
-   ;; SERVICE-PROGRAMS lockstep absorbed inside this wrapper:
-   ;;   inner-let: extracts peer (ProcessPeer) and proc! (Process);
-   ;;              does send/recv handshake; returns proc! to outer
-   ;;   outer-let: holds only raw-proc (Process type, not raw IOWriter/Sender);
-   ;;              calls Process/drain-and-join; matches Result
-   ;;
-   ;; Note: arc 208 slice 1 patch uses Result/expect for Process/println +
-   ;; Process/readln in the inner-let (panic-on-Err semantics preserved).
-   ;; If the subprocess dies BEFORE responding to Stop, the inner-let panics.
-   ;; Slice 2 will convert to proper Err-arm handling (ServerDied propagation).
+   ;; SERVICE-PROGRAMS lockstep preserved via inner/outer let:
+   ;;   inner-let: extracts peer (ProcessPeer) + proc!; does send/recv handshake;
+   ;;              returns Result<Process<Wire,WireResp>,ServiceError> to outer
+   ;;              pr (ProcessPeer) drops at inner-let exit — frees stdout pipe
+   ;;              reader before drain-and-join can drain it
+   ;;   outer-let: matches result; on Ok(raw-proc), calls drain-and-join;
+   ;;              on Err(e), propagates error
    (:wat::core::defn :counter::stop-proc
      [admin! <- :counter::AdminProc]
      -> :wat::core::Result<wat::core::nil,counter::ServiceError>
      (:wat::core::let
-       [raw-proc
+       [result
           (:wat::core::let
-            [pr      (:counter::AdminProc/peer!      admin!)
-             p       (:counter::AdminProc/proc!      admin!)
-             sid     (:counter::AdminProc/server-id  admin!)
-             _sent
-               (:wat::core::Result/expect -> :wat::core::nil
-                 (:wat::kernel::Process/println pr
-                   (:counter::Wire::Admin sid (:counter::AdminReq::Stop)))
-                 "stop-proc: Process/println failed")
-             _resp
-               (:wat::core::Result/expect -> :counter::WireResp
-                 (:wat::kernel::Process/readln pr)
-                 "stop-proc: Process/readln failed")]
-            ;; pr (ProcessPeer) drops at inner-let exit; p returned to outer
-            p)]
-       ;; outer: match drain-and-join result
-       (:wat::core::match (:wat::kernel::Process/drain-and-join raw-proc)
+            [pr  (:counter::AdminProc/peer!      admin!)
+             p   (:counter::AdminProc/proc!      admin!)
+             sid (:counter::AdminProc/server-id  admin!)]
+            ;; inner-let: send Stop + recv Stopped; return p or ServerDied
+            (:wat::core::match
+              (:wat::kernel::Process/println pr
+                (:counter::Wire::Admin sid (:counter::AdminReq::Stop)))
+              -> :wat::core::Result<wat::kernel::Process<counter::Wire,counter::WireResp>,counter::ServiceError>
+              ((:wat::core::Ok _)
+                (:wat::core::match (:wat::kernel::Process/readln pr)
+                  -> :wat::core::Result<wat::kernel::Process<counter::Wire,counter::WireResp>,counter::ServiceError>
+                  ((:wat::core::Ok _resp)
+                    ;; handshake complete; pr drops at inner-let exit; return process handle
+                    (:wat::core::Ok p))
+                  ((:wat::core::Err chain)
+                    (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))
+              ((:wat::core::Err chain)
+                (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))]
+       ;; outer: pr dropped; match result → drain-and-join on Ok, propagate on Err
+       (:wat::core::match result
          -> :wat::core::Result<wat::core::nil,counter::ServiceError>
-         ((:wat::core::Ok _)
-           (:wat::core::Ok ()))
-         ((:wat::core::Err chain)
-           (:wat::core::Err (:counter::ServiceError::ServerDied chain))))))
+         ((:wat::core::Ok raw-proc)
+           (:wat::core::match (:wat::kernel::Process/drain-and-join raw-proc)
+             -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+             ((:wat::core::Ok _)
+               (:wat::core::Ok ()))
+             ((:wat::core::Err chain)
+               (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))
+         ((:wat::core::Err e)
+           (:wat::core::Err e)))))
 
    ;; ─── User ops ────────────────────────────────────────────────────────────────
    ;;
    ;; Each user wrapper sends Wire::User carrying the server-id (secret witness),
    ;; user-id (routing key), and the UserReq variant.
    ;; Reads back WireResp::User carrying the UserResp; extracts and returns value.
-   ;; Now returns Result<i64,ServiceError>.
+   ;; Returns Result<i64,ServiceError>.
    ;;
-   ;; The only catchable Err here is AccessDenied (from wire-level rejection).
-   ;; Process/println + Process/readln now return Result (arc 208); arc 208 slice 1
-   ;; uses Result/expect to preserve panic-on-transport-error semantics. Slice 2
-   ;; will add ServerDied propagation here too.
-   ;;
-   ;; Two-level match — outer WireResp → User|Admin; inner UserResp → Value|Ok|AccessDenied.
+   ;; Arc 208 slice 2: println + readln matched on Err → Err(ServerDied(chain)).
+   ;; Three-level match: println Ok/Err → readln Ok/Err → WireResp → UserResp
 
    (:wat::core::defn :counter::get-proc
      [user! <- :counter::UserProc]
      -> :wat::core::Result<wat::core::i64,counter::ServiceError>
      (:wat::core::let
-       [pr   (:counter::UserProc/peer!      user!)
-        cid  (:counter::UserProc/user-id    user!)
-        sid  (:counter::UserProc/server-id  user!)
-        _sent
-          (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::Process/println pr
-              (:counter::Wire::User sid cid (:counter::UserReq::Get)))
-            "get-proc: Process/println failed")
-        wire-resp
-          (:wat::core::Result/expect -> :counter::WireResp
-            (:wat::kernel::Process/readln pr)
-            "get-proc: Process/readln failed")]
-       (:wat::core::match wire-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
-         ((:counter::WireResp::User user-resp)
-           (:wat::core::match user-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
-             ((:counter::UserResp::Value v) (:wat::core::Ok v))
-             ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
-             ((:counter::UserResp::AccessDenied)
-               (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
-         ((:counter::WireResp::Admin _admin-resp)
-           (:wat::kernel::assertion-failed! "get-proc: expected User WireResp, got Admin" :wat::core::None :wat::core::None)))))
+       [pr  (:counter::UserProc/peer!      user!)
+        cid (:counter::UserProc/user-id    user!)
+        sid (:counter::UserProc/server-id  user!)]
+       (:wat::core::match
+         (:wat::kernel::Process/println pr
+           (:counter::Wire::User sid cid (:counter::UserReq::Get)))
+         -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+         ((:wat::core::Ok _)
+           (:wat::core::match (:wat::kernel::Process/readln pr)
+             -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+             ((:wat::core::Ok wire-resp)
+               (:wat::core::match wire-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+                 ((:counter::WireResp::User user-resp)
+                   (:wat::core::match user-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+                     ((:counter::UserResp::Value v) (:wat::core::Ok v))
+                     ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
+                     ((:counter::UserResp::AccessDenied)
+                       (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
+                 ((:counter::WireResp::Admin _admin-resp)
+                   (:wat::kernel::assertion-failed! "get-proc: expected User WireResp, got Admin" :wat::core::None :wat::core::None))))
+             ((:wat::core::Err chain)
+               (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))
+         ((:wat::core::Err chain)
+           (:wat::core::Err (:counter::ServiceError::ServerDied chain))))))
 
    (:wat::core::defn :counter::increment-proc
      [user! <- :counter::UserProc
       n     <- :wat::core::i64]
      -> :wat::core::Result<wat::core::i64,counter::ServiceError>
      (:wat::core::let
-       [pr   (:counter::UserProc/peer!      user!)
-        cid  (:counter::UserProc/user-id    user!)
-        sid  (:counter::UserProc/server-id  user!)
-        _sent
-          (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::Process/println pr
-              (:counter::Wire::User sid cid (:counter::UserReq::Increment n)))
-            "increment-proc: Process/println failed")
-        wire-resp
-          (:wat::core::Result/expect -> :counter::WireResp
-            (:wat::kernel::Process/readln pr)
-            "increment-proc: Process/readln failed")]
-       (:wat::core::match wire-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
-         ((:counter::WireResp::User user-resp)
-           (:wat::core::match user-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
-             ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
-             ((:counter::UserResp::Value v) (:wat::core::Ok v))
-             ((:counter::UserResp::AccessDenied)
-               (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
-         ((:counter::WireResp::Admin _admin-resp)
-           (:wat::kernel::assertion-failed! "increment-proc: expected User WireResp, got Admin" :wat::core::None :wat::core::None)))))
+       [pr  (:counter::UserProc/peer!      user!)
+        cid (:counter::UserProc/user-id    user!)
+        sid (:counter::UserProc/server-id  user!)]
+       (:wat::core::match
+         (:wat::kernel::Process/println pr
+           (:counter::Wire::User sid cid (:counter::UserReq::Increment n)))
+         -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+         ((:wat::core::Ok _)
+           (:wat::core::match (:wat::kernel::Process/readln pr)
+             -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+             ((:wat::core::Ok wire-resp)
+               (:wat::core::match wire-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+                 ((:counter::WireResp::User user-resp)
+                   (:wat::core::match user-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+                     ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
+                     ((:counter::UserResp::Value v) (:wat::core::Ok v))
+                     ((:counter::UserResp::AccessDenied)
+                       (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
+                 ((:counter::WireResp::Admin _admin-resp)
+                   (:wat::kernel::assertion-failed! "increment-proc: expected User WireResp, got Admin" :wat::core::None :wat::core::None))))
+             ((:wat::core::Err chain)
+               (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))
+         ((:wat::core::Err chain)
+           (:wat::core::Err (:counter::ServiceError::ServerDied chain))))))
 
    (:wat::core::defn :counter::reset-proc
      [user! <- :counter::UserProc]
      -> :wat::core::Result<wat::core::i64,counter::ServiceError>
      (:wat::core::let
-       [pr   (:counter::UserProc/peer!      user!)
-        cid  (:counter::UserProc/user-id    user!)
-        sid  (:counter::UserProc/server-id  user!)
-        _sent
-          (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::Process/println pr
-              (:counter::Wire::User sid cid (:counter::UserReq::Reset)))
-            "reset-proc: Process/println failed")
-        wire-resp
-          (:wat::core::Result/expect -> :counter::WireResp
-            (:wat::kernel::Process/readln pr)
-            "reset-proc: Process/readln failed")]
-       (:wat::core::match wire-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
-         ((:counter::WireResp::User user-resp)
-           (:wat::core::match user-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
-             ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
-             ((:counter::UserResp::Value v) (:wat::core::Ok v))
-             ((:counter::UserResp::AccessDenied)
-               (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
-         ((:counter::WireResp::Admin _admin-resp)
-           (:wat::kernel::assertion-failed! "reset-proc: expected User WireResp, got Admin" :wat::core::None :wat::core::None)))))
+       [pr  (:counter::UserProc/peer!      user!)
+        cid (:counter::UserProc/user-id    user!)
+        sid (:counter::UserProc/server-id  user!)]
+       (:wat::core::match
+         (:wat::kernel::Process/println pr
+           (:counter::Wire::User sid cid (:counter::UserReq::Reset)))
+         -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+         ((:wat::core::Ok _)
+           (:wat::core::match (:wat::kernel::Process/readln pr)
+             -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+             ((:wat::core::Ok wire-resp)
+               (:wat::core::match wire-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+                 ((:counter::WireResp::User user-resp)
+                   (:wat::core::match user-resp -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+                     ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
+                     ((:counter::UserResp::Value v) (:wat::core::Ok v))
+                     ((:counter::UserResp::AccessDenied)
+                       (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
+                 ((:counter::WireResp::Admin _admin-resp)
+                   (:wat::kernel::assertion-failed! "reset-proc: expected User WireResp, got Admin" :wat::core::None :wat::core::None))))
+             ((:wat::core::Err chain)
+               (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))
+         ((:wat::core::Err chain)
+           (:wat::core::Err (:counter::ServiceError::ServerDied chain))))))
 
    ;; ─── Forge demonstration: adversarial test ───────────────────────────────────
    ;;
@@ -663,51 +680,55 @@
      [admin! <- :counter::AdminProc]
      -> :wat::core::Result<wat::core::nil,counter::ServiceError>
      (:wat::core::let
-       [pr    (:counter::AdminProc/peer!     admin!)
+       [pr       (:counter::AdminProc/peer! admin!)
         ;; Arc 207: forge uses a fresh v4 Uuid — server's id is Uuid/nil so any v4 mismatches.
-        wrong-id (:wat::core::Uuid/v4)
-        _sent
-          (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::Process/println pr
-              (:counter::Wire::Admin wrong-id (:counter::AdminReq::Provision 99)))
-            "forge-proc-test: Process/println failed")
-        wire-resp
-          (:wat::core::Result/expect -> :counter::WireResp
-            (:wat::kernel::Process/readln pr)
-            "forge-proc-test: Process/readln failed")]
-       (:wat::core::match wire-resp -> :wat::core::Result<wat::core::nil,counter::ServiceError>
-         ((:counter::WireResp::Admin admin-resp)
-           (:wat::core::match admin-resp -> :wat::core::Result<wat::core::nil,counter::ServiceError>
-             ((:counter::AdminResp::AccessDenied)
-               (:wat::core::Err (:counter::ServiceError::AccessDenied)))   ;; expected — server correctly rejected
-             ((:counter::AdminResp::Provisioned _id)
-               (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected mismatched Uuid, got Provisioned" :wat::core::None :wat::core::None))
-             ((:counter::AdminResp::Deprovisioned _id)
-               (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected mismatched Uuid, got Deprovisioned" :wat::core::None :wat::core::None))
-             ((:counter::AdminResp::Stopped)
-               (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected mismatched Uuid, got Stopped" :wat::core::None :wat::core::None))))
-         ((:counter::WireResp::User _resp)
-           (:wat::kernel::assertion-failed! "forge-proc-test: expected Admin WireResp, got User" :wat::core::None :wat::core::None)))))
+        wrong-id (:wat::core::Uuid/v4)]
+       (:wat::core::match
+         (:wat::kernel::Process/println pr
+           (:counter::Wire::Admin wrong-id (:counter::AdminReq::Provision 99)))
+         -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+         ((:wat::core::Ok _)
+           (:wat::core::match (:wat::kernel::Process/readln pr)
+             -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+             ((:wat::core::Ok wire-resp)
+               (:wat::core::match wire-resp -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+                 ((:counter::WireResp::Admin admin-resp)
+                   (:wat::core::match admin-resp -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+                     ((:counter::AdminResp::AccessDenied)
+                       (:wat::core::Err (:counter::ServiceError::AccessDenied)))   ;; expected — server correctly rejected
+                     ((:counter::AdminResp::Provisioned _id)
+                       (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected mismatched Uuid, got Provisioned" :wat::core::None :wat::core::None))
+                     ((:counter::AdminResp::Deprovisioned _id)
+                       (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected mismatched Uuid, got Deprovisioned" :wat::core::None :wat::core::None))
+                     ((:counter::AdminResp::Stopped)
+                       (:wat::kernel::assertion-failed! "forge-proc-test: server should have rejected mismatched Uuid, got Stopped" :wat::core::None :wat::core::None))))
+                 ((:counter::WireResp::User _resp)
+                   (:wat::kernel::assertion-failed! "forge-proc-test: expected Admin WireResp, got User" :wat::core::None :wat::core::None))))
+             ((:wat::core::Err chain)
+               (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))
+         ((:wat::core::Err chain)
+           (:wat::core::Err (:counter::ServiceError::ServerDied chain))))))
 
-   ;; ─── ServerDied Err path: subprocess crash demonstration ─────────────────────
+   ;; ─── ServerDied Err path: drain-and-join path demonstration ─────────────────
    ;;
-   ;; Demonstrates the ServerDied variant by spawning a subprocess that panics
-   ;; immediately and then calling Process/drain-and-join to detect the failure.
+   ;; Demonstrates the ServerDied variant via the drain-and-join error path:
+   ;; spawns a subprocess that panics immediately; drain-and-join detects the
+   ;; abnormal exit and returns Err(chain).
+   ;;
+   ;; Arc 208 slice 2 retention rationale:
+   ;; After slice 2, the main service wrappers (get-proc, increment-proc, etc.)
+   ;; now demonstrate ServerDied via the TRANSPORT I/O path (Process/println /
+   ;; Process/readln Err on subprocess death). crash-test-proc covers the
+   ;; orthogonal DRAIN-AND-JOIN path — subprocess exits abnormally AFTER
+   ;; communication completes, detected via Process/drain-and-join.
+   ;; These are two distinct failure modes; both paths have value to demonstrate.
    ;;
    ;; Process/drain-and-join returns Result<nil,Vector<ProcessDiedError>>:
    ;;   Ok(nil)      — subprocess exited cleanly (exit code 0)
    ;;   Err(chain)   — subprocess panicked or exited with non-zero code
    ;;
-   ;; This helper spawns a minimal subprocess that immediately panics via
-   ;; assertion-failed!. Then drain-and-join detects the abnormal exit and
-   ;; returns Err(chain) where chain[0] is a ProcessDiedError variant.
-   ;;
-   ;; The test body can then:
-   ;;   1. Call crash-test-proc → expect Err(ServiceError/ServerDied(chain))
-   ;;   2. Match ServerDied and verify it's an Err
-   ;;
    ;; Note: The subprocess spawned here is independent of the counter service subprocess.
-   ;; It is a fresh Process used only for demonstrating the ServerDied detection pattern.
+   ;; It is a fresh Process used only for demonstrating the drain-and-join Err path.
    (:wat::core::defn :counter::crash-test-proc
      []
      -> :wat::core::Result<wat::core::nil,counter::ServiceError>
@@ -745,7 +766,9 @@
   ;; All Result-returning wrappers are pattern-matched. Happy-path assertions
   ;; extract Ok values explicitly. Err paths are demonstrated:
   ;;   - AccessDenied: forge test → Result<nil,ServiceError> → match Err(AccessDenied)
-  ;;   - ServerDied: crash-test-proc → spawns crashing subprocess → match Err(ServerDied)
+  ;;   - ServerDied (transport I/O): when subprocess dies mid-comm, main wrappers
+  ;;     surface ServerDied via Process/println or Process/readln Err arm (arc 208 sl2)
+  ;;   - ServerDied (drain-and-join): crash-test-proc → spawn panicking subprocess → drain-and-join Err
   ;;
   ;; Scenario:
   ;;   1.  Spawn server subprocess → admin!
@@ -861,11 +884,11 @@
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "stop-proc: expected Ok" :wat::core::None :wat::core::None)))
 
-     ;; Step 11: ServerDied Err path — subprocess crash detection via drain-and-join.
-     ;; crash-test-proc spawns a subprocess that panics immediately.
-     ;; Process/drain-and-join detects the abnormal exit → Err(ProcessDiedError chain).
-     ;; The wrapper converts this to Err(ServiceError/ServerDied(chain)).
-     ;; This demonstrates the honest typed error path for subprocess failure.
+     ;; Step 11: ServerDied Err path (drain-and-join) — crash-test-proc spawns a
+     ;; subprocess that panics immediately; Process/drain-and-join detects abnormal
+     ;; exit → Err(chain) → Err(ServiceError/ServerDied(chain)).
+     ;; This covers the drain-and-join failure path (distinct from the transport I/O
+     ;; path demonstrated by the main wrappers above when subprocess dies mid-comm).
      crash-res (:counter::crash-test-proc)
      _crash
        (:wat::core::match crash-res -> :wat::core::nil

@@ -178,35 +178,37 @@ fn process_peer_round_trips_string_via_real_subprocess() {
         .child()
         .bind("server", server.clone())
         .build();
-    // Arc 208 slice 1 — Process/println + Process/readln now return Result.
-    // Wrapped with Result/expect to preserve panic-on-transport-error semantics.
-    // reply is unwrapped :String (not Result<:String, ...>) so the Rust-side
+    // Arc 208 slice 2 — Process/println + Process/readln are matched honestly.
+    // reply is unwrapped :String (from the Ok arm) so the Rust-side
     // match below stays unchanged. Walker requires Process/readln to appear in
-    // Result/expect value-position; same for Process/println.
+    // match-value position; same for Process/println — both now do.
     let round_trip = wat::parse_one!(
         r#"
         (:wat::core::let
-          [rx       (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
-           tx       (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer     (:wat::kernel::ProcessPeer/new rx tx)
-           _written (:wat::core::Result/expect -> :wat::core::nil
-                       (:wat::kernel::Process/println peer "hello")
-                       "Process/println failed: subprocess died")
-           reply    (:wat::core::Result/expect -> :wat::core::String
-                       (:wat::kernel::Process/readln peer)
-                       "Process/readln failed: subprocess died")
-           _drained (:wat::kernel::Process/drain-and-join server)]
-          reply)
+          [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
+           tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
+           peer (:wat::kernel::ProcessPeer/new rx tx)]
+          (:wat::core::match (:wat::kernel::Process/println peer "hello")
+            -> :wat::core::String
+            ((:wat::core::Ok _)
+              (:wat::core::match (:wat::kernel::Process/readln peer)
+                -> :wat::core::String
+                ((:wat::core::Ok reply)
+                  (:wat::core::let [_drained (:wat::kernel::Process/drain-and-join server)]
+                    reply))
+                ((:wat::core::Err _chain)
+                  (:wat::kernel::assertion-failed! "Process/readln failed: subprocess died" :wat::core::None :wat::core::None))))
+            ((:wat::core::Err _chain)
+              (:wat::kernel::assertion-failed! "Process/println failed: subprocess died" :wat::core::None :wat::core::None))))
         "#
     )
     .expect("round-trip let form parses");
 
     // Hermetic time-bound: if eval ever blocks indefinitely on a wat-
     // level deadlock, the test harness's per-test timeout will kill us.
-    // On the clean-shutdown failure path, Process/readln now surfaces
-    // Err(chain) rather than RuntimeError::ChannelDisconnected — the
-    // Result/expect above converts Err to a panic. The server stderr is
-    // surfaced for diagnostic via the Err(e) arm below.
+    // On the clean-shutdown failure path, Process/readln surfaces Err(chain)
+    // via the match-on-Err arm, which calls assertion-failed! → RuntimeError.
+    // The server stderr is surfaced for diagnostic via the Err(e) arm below.
     let reply = match eval(&round_trip, &env, world.symbols()) {
         Ok(v) => v,
         Err(e) => {
@@ -225,7 +227,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
             s
         ),
         other => panic!(
-            "expected Value::String(\"hello\") from Process/readln (unwrapped via Result/expect); got {:?}",
+            "expected Value::String(\"hello\") from Process/readln (via match Ok arm); got {:?}",
             other
         ),
     }
