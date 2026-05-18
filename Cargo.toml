@@ -64,5 +64,8 @@ uuid    = "1"
 # proc-macro that submits entries, apply it to `*_join-result`, and retire
 # arc 170 Stone B's ad-hoc walker rule.
 inventory = "0.3"
+# Arc 211a — auto-install panic_hook at library load time via #[ctor::ctor];
+# impossible-to-forget by construction.
+ctor = "1"
 
 [dev-dependencies]

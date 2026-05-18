@@ -41,21 +41,40 @@
 //!
 //! # Install sites
 //!
-//! Called from:
-//! - [`crate::compose_and_run`] — consumer binary entry.
-//! - [`crate::test_runner::run_tests_from_dir`] — `cargo test` entry
-//!   via `wat::test!`.
-//! - `src/bin/wat.rs::main` — the `wat` CLI.
+//! Arc 211a: auto-installed at library load via `#[ctor::ctor]` —
+//! fires before `main()` in every binary that links `wat`.
+//! Impossible to forget by construction.
 //!
-//! Idempotent: calling `install` twice chains two of these hooks;
-//! the inner one still fires because the outer one delegates to
-//! `previous(info)` for non-AssertionPayload panics.
+//! Legacy explicit call sites (compose_and_run, test_runner, runtime,
+//! wat-cli) remain in place as idempotent no-ops; they may be cleaned
+//! up in a later sweep.
+//!
+//! Idempotent: first call installs; repeated calls are no-ops
+//! (guarded by `INSTALLED: AtomicBool`).  Arc 211a.
 
 use crate::assertion::AssertionPayload;
 use crate::runtime::FrameInfo;
 use crate::span::Span;
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
+
+/// Tracks whether the hook has been installed. First install wins;
+/// subsequent `install()` calls become idempotent no-ops (Arc 211a).
+static INSTALLED: AtomicBool = AtomicBool::new(false);
+
+/// Auto-install at library load time via `#[ctor(unsafe)]` (Arc 211a).
+/// Fires before `main()` in every binary that links `wat`. Impossible
+/// to forget by construction.
+///
+/// `unsafe` here is the ctor 1.x spelling; the implementation is
+/// safe (it only calls `install()` which is a safe Rust function).
+/// ctor 1.x requires this annotation because library constructors
+/// can in principle run before the Rust runtime is fully initialized.
+#[ctor::ctor(unsafe)]
+fn auto_install() {
+    install();
+}
 
 /// Cached `RUST_BACKTRACE` env lookup — one env read per process,
 /// checked on every failure. `true` when set to any non-"0" value
@@ -73,9 +92,16 @@ fn backtrace_enabled() -> bool {
 /// for [`AssertionPayload`] panics; passes through to the previous
 /// hook for anything else.
 ///
-/// Idempotent in the sense that repeated installs stack — each
-/// new hook delegates to the prior one for non-assertion payloads.
+/// Idempotent: first call installs; subsequent calls are no-ops.
+/// The `#[ctor::ctor]` auto-install (Arc 211a) fires before `main()`;
+/// explicit call sites (compose, test_runner, runtime, wat-cli) remain
+/// as no-ops and may be cleaned up in a later sweep.
 pub fn install() {
+    // Arc 211a: first-call-wins idempotency. swap returns the OLD value;
+    // if it was already true, someone beat us here — return immediately.
+    if INSTALLED.swap(true, Ordering::SeqCst) {
+        return;
+    }
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         if let Some(payload) = info.payload().downcast_ref::<AssertionPayload>() {
@@ -87,6 +113,13 @@ pub fn install() {
         // "thread X panicked at src/foo.rs:L:C: <message>").
         previous(info);
     }));
+}
+
+/// Returns `true` if `install()` has completed at least once.
+/// Used by the probe test to verify the `#[ctor::ctor]` auto-install
+/// fired before any explicit call in test code.
+pub fn is_installed() -> bool {
+    INSTALLED.load(Ordering::SeqCst)
 }
 
 /// Render an [`AssertionPayload`] as Rust-styled failure text on
