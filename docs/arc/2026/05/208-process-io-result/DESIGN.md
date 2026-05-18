@@ -1,6 +1,6 @@
 # Arc 208 — Process I/O returns Result (mirror arc 110/111 at process tier)
 
-**Status:** OPEN 2026-05-17.
+**Status:** CLOSED 2026-05-17 — INSCRIPTION at INSCRIPTION.md
 
 **Priority:** **BLOCKING.** Per arc 203 DESIGN § "What arc 203 demands from upstream" demand 2: substrate Process I/O Result slice is required for "the one pattern" to claim parity across thread + process tiers. Arc 203 closure depends on this; arc 170 closure depends on arc 203 closure.
 
@@ -46,9 +46,9 @@ Three slices likely sufficient given the precedent shape is settled:
 
 | Slice | Status | What | Notes |
 |---|---|---|---|
-| **1 — substrate audit + Result flip** | OPEN | Audit current Process I/O code paths; confirm shape decision (`Result<:I, ...>` vs `Result<Option<:I>, ...>` for readln); flip `Process/readln` + `Process/println` signatures + eval handlers; mint tests proving Result roundtrip (Ok path) + Err path (subprocess crash) | Larger first slice because shape is settled by arc 111 precedent; no separate audit slice needed |
-| **2 — consumer ripple + (conditional) walker** | BLOCKS on 1 | Arc 203 process-tier demo (`wat-tests/counter-service-process-N3.wat`) gets its honest-Result wrappers — slice 3f's `crash-test-proc` workaround retires because main service wrappers now surface transport failure directly. Other consumers of `Process/readln`/`Process/println` (sonnet greps) flip. IF slice 1 audit identified need for walker rule (silent Process I/O illegal), add here; otherwise affirmatively scoped out | Mechanical ripple; walker rule conditional |
-| **3 — closure paperwork** | BLOCKS on 2 | INSCRIPTION (FM 11 grep clean); DESIGN status CLOSED; 058 row; cross-reference arc 110/111 precedent + arc 203 demand 2 closure | Unblocks arc 203 demand 2; one of two demands closed |
+| **1 — substrate audit + Result flip** | SHIPPED `44cde7b` | Audit confirmed shape decision (`Result<:I, ...>` plain, no Option — PipeFd transport has no discriminable clean-EOF path); `Process/readln` + `Process/println` type schemes flipped; eval handlers rewritten to Ok/Err Result wrapping; `validate_comm_positions` walker extended (absorbed in slice 1 — 2-line addition, atomic with flip); 7/7 tests pass | Walker absorbed in slice 1 per `feedback_no_known_defect_left_unfixed` (was conditional in BRIEF; trivial in practice) |
+| **2 — consumer ripple + ServerDied propagation** | SHIPPED `9218e68` | 4 consumer files converted to honest match-on-Err with ServerDied propagation; arc 203 slice 3f delta CLOSED; `crash-test-proc` retained with explicit orthogonal-demonstration rationale (tests drain-and-join path, not transport I/O path); workspace baseline preserved | `crash-test-proc` retained (not retired) — tests an orthogonal failure mode distinct from transport I/O Err |
+| **3 — closure paperwork** | SHIPPED (orchestrator commits atomically) | INSCRIPTION (FM 11 grep clean); DESIGN status CLOSED; 058 row; SCORE-SLICE-3 | Arc 203 demand 2 satisfied; arc 203 closure waits on demand 1 (protocols arc) |
 
 ## Substrate touchpoints (preliminary; slice 1's audit refines)
 
