@@ -307,12 +307,10 @@ fn spawn_process_child_branch(
     //   fd 1 ← stdout pipe write end (child writes to parent)
     //   fd 2 ← stderr pipe write end (panic-payload markers)
     // After dup2, the OwnedFds in the pairs are closed (their Drop
-    // runs after this block). The dup2'd copies at fd 0/1/2 are now
-    // owned by the OS; bootstrap's synthesize_real_fd_stdio wraps
-    // them directly via OwnedFd::from_raw_fd (no second dup — see
-    // arc 211 dup removal in src/freeze.rs:1017). When AmbientStdio
-    // drops at end-of-`:user::main`, fd 0/1/2 close → parent reads
-    // see EOF → no orphan-pattern deadlock.
+    // runs after this block). The dup'd copies at fd 0/1/2 are now
+    // owned by the OS and will be inherited by bootstrap's
+    // synthesize_real_fd_stdio (which dups them again into the
+    // services).
     unsafe {
         if libc::dup2(input_r_raw, 0) < 0 {
             libc::_exit(EXIT_STARTUP_ERROR);

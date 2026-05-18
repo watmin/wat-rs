@@ -13,7 +13,11 @@
 ;; probe is the OTHER case: name exists nowhere. Both should fail at
 ;; freeze, but only the first has a teaching diagnostic.
 
-(:wat::test::should-panic "unknown function")
+;; Arc 211c audit (2026-05-18) — actual diagnostic message is
+;; "call head — not a builtin, not a registered function" (substrate
+;; resolve-pass output). Updated substring from "unknown function"
+;; (which was anticipated phrasing) to the verified actual message.
+(:wat::test::should-panic "not a builtin")
 (:wat::test::deftest :wat-tests::tmp::totally-bogus
   ()
   (:wat::test::assert-eq (:totally::made::up::name 42) 42))

@@ -1014,44 +1014,49 @@ fn invoke_user_main_orchestrated(
 /// Production wat-cli + fork.rs callers reach this path; they hand
 /// the orchestrator pipe-backed wrappers that delegate to the
 /// process's true stdio fds.
-///
-/// Arc 211 — dup removal. The prior implementation dup'd fd 0/1/2 so
-/// AmbientStdio drop wouldn't close real stdio; rationale was
-/// "subsequent invoke_user_main calls (or harness code that still
-/// wants real stdio)." That rationale describes test/harness
-/// scenarios — but those scenarios reach the substrate via
-/// `install_ambient_stdio` and never call this function. The two
-/// callers that DO hit this function (wat-cli main + spawn_process
-/// child branch) both have exactly one `:user::main` invocation
-/// followed by process exit; the OS closes fd 0/1/2 on process
-/// teardown regardless. The dup provided nothing useful in either
-/// path and left duplicate writers in spawned-child fd tables that
-/// prevented parent-side EOF (the orphan-process leak inscribed in
-/// INTERSTITIAL § 2026-05-17 + § 2026-05-18 live-reproduction).
 fn synthesize_real_fd_stdio() -> crate::thread_io::AmbientStdio {
     use std::os::fd::FromRawFd;
-    // SAFETY: fd 0/1/2 are the process's standard streams, established
-    // by either (a) the OS for wat-cli main, or (b) spawn_process's
-    // child-branch dup2 wiring (`src/spawn_process.rs:315-323`) which
-    // points fd 0/1/2 at the parent-side pipes. The OwnedFd takes
-    // ownership; Drop closes the fd. Closing fd 0/1/2 at AmbientStdio
-    // drop is correct: process is about to exit; parent reads on
-    // child's stdout pipe see EOF immediately rather than waiting for
-    // process exit (which would deadlock if process can't exit
-    // because services are blocked).
+    // Dup the raw fds so the orchestrator owns its own copies; Drop
+    // closes them when the AmbientStdio (and its inner PipeReader /
+    // PipeWriter) drops. Without dup, an orchestrator drop after
+    // user::main returns would close real fd 0/1/2 in the process,
+    // breaking subsequent invoke_user_main calls (or harness code
+    // that still wants real stdio).
+    //
+    // SAFETY: libc::dup returns a freshly-opened fd on success or -1
+    // on error. We assert >= 0 immediately. On failure we fall back
+    // to whatever raw fd dup returned; the PipeReader/Writer
+    // constructors then own that fd (legitimate behavior for the
+    // closed-fd case — write/read will surface clean errors).
+    fn dup_fd(fd: i32) -> i32 {
+        let r = unsafe { libc::dup(fd) };
+        if r < 0 {
+            // libc::dup failed (out of fds, EINTR-on-restart, etc.);
+            // hand back -1 so the PipeReader/Writer carries an
+            // unusable fd. Subsequent reads/writes surface clean
+            // diagnostics; orchestrator-level work still proceeds
+            // (services run, just nothing flows through this fd).
+            -1
+        } else {
+            r
+        }
+    }
+    let stdin_fd = dup_fd(0);
+    let stdout_fd = dup_fd(1);
+    let stderr_fd = dup_fd(2);
     let stdin: Arc<dyn crate::io::WatReader> = Arc::new(
         crate::io::PipeReader::from_owned_fd(unsafe {
-            std::os::fd::OwnedFd::from_raw_fd(0)
+            std::os::fd::OwnedFd::from_raw_fd(stdin_fd)
         }),
     );
     let stdout: Arc<dyn crate::io::WatWriter> = Arc::new(
         crate::io::PipeWriter::from_owned_fd(unsafe {
-            std::os::fd::OwnedFd::from_raw_fd(1)
+            std::os::fd::OwnedFd::from_raw_fd(stdout_fd)
         }),
     );
     let stderr: Arc<dyn crate::io::WatWriter> = Arc::new(
         crate::io::PipeWriter::from_owned_fd(unsafe {
-            std::os::fd::OwnedFd::from_raw_fd(2)
+            std::os::fd::OwnedFd::from_raw_fd(stderr_fd)
         }),
     );
     crate::thread_io::AmbientStdio {

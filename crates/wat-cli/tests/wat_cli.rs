@@ -386,11 +386,12 @@ fn startup_error_bubbles_up_as_exit_3() {
     let _ = std::fs::remove_file(&path);
     assert_eq!(output.status.code(), Some(3));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    // Child's "startup: ..." prefix (no "wat:" — that was a pre-arc-104
-    // cli prefix; the proxy forwards the child's stderr verbatim).
+    // Arc 211b — child's stderr now carries the structured #wat.kernel/ProcessPanics
+    // EDN envelope (slice 1i) wrapping a StartupError variant. The substrate's
+    // panic-as-EDN doctrine (arc 211b) supersedes the pre-211 "startup:" text prefix.
     assert!(
-        stderr.contains("startup:"),
-        "stderr should contain 'startup:'; got: {}",
+        stderr.contains("#wat.kernel/ProcessPanics") && stderr.contains("StartupError"),
+        "stderr should contain structured ProcessPanics envelope with StartupError variant; got: {}",
         stderr
     );
 }
