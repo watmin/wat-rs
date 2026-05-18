@@ -2706,68 +2706,59 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
 }
 
 fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
-    match node {
-        WatAST::Keyword(s, span) => {
-            // Arc 163 follow-up — re-arm four walkers whose firing
-            // bodies were retired post-sweep (arc 153 slice 2 retired
-            // BareLegacyUnitName; arc 154 slice 2 retired
-            // BareLegacyLetStar; arc 155 slice 2 retired
-            // BareLegacyLambda + BareLegacyLowercaseFn). The retirement
-            // assumed runtime fall-through arms would handle stray
-            // post-checker calls, but arc 163's audit found those
-            // fall-throughs silently accept legacy spellings under the
-            // new substrate. Re-arming here puts the walker back in
-            // the diagnostic stream so user-source bare-form fires
-            // fatal at check time. Variant + Display preserved per
-            // arc 113 precedent stand; this just brings the firing
-            // path back online.
-            if s == ":wat::core::let*" {
-                errors.push(CheckError::BareLegacyLetStar { span: span.clone() });
-                return;
-            }
-            if s == ":wat::core::lambda" {
-                errors.push(CheckError::BareLegacyLambda { span: span.clone() });
-                return;
-            }
-            if s == ":wat::core::unit" {
-                errors.push(CheckError::BareLegacyUnitName { span: span.clone() });
-                return;
-            }
-            if s.starts_with(":fn(") {
-                errors.push(CheckError::BareLegacyLowercaseFn { span: span.clone() });
-                return;
-            }
-            // Try parsing as a type expression. Most keywords aren't
-            // types (callee paths, value keywords like `:None`); they
-            // parse to a plain Path that doesn't match any bare
-            // primitive — the walk falls through cleanly.
-            //
-            // `parse_type_expr_audit` is parse_type_inner with the
-            // bare→bare canonicalization suppressed: bare `:i64`
-            // produces `Path(":i64")`, FQDN `:wat::core::i64`
-            // produces `Path(":wat::core::i64")`. Source spelling
-            // preserved; the structural walk distinguishes them.
-            if let Some(ty) = crate::types::parse_type_expr_audit(s) {
-                walk_type_for_bare(&ty, span, errors);
-            }
+    // Walker-specific Keyword-head logic — fire diagnostic for legacy
+    // keywords; preserved verbatim from pre-arc-212 shape.
+    if let WatAST::Keyword(s, span) = node {
+        // Arc 163 follow-up — re-arm four walkers whose firing
+        // bodies were retired post-sweep (arc 153 slice 2 retired
+        // BareLegacyUnitName; arc 154 slice 2 retired
+        // BareLegacyLetStar; arc 155 slice 2 retired
+        // BareLegacyLambda + BareLegacyLowercaseFn). The retirement
+        // assumed runtime fall-through arms would handle stray
+        // post-checker calls, but arc 163's audit found those
+        // fall-throughs silently accept legacy spellings under the
+        // new substrate. Re-arming here puts the walker back in
+        // the diagnostic stream so user-source bare-form fires
+        // fatal at check time. Variant + Display preserved per
+        // arc 113 precedent stand; this just brings the firing
+        // path back online.
+        if s == ":wat::core::let*" {
+            errors.push(CheckError::BareLegacyLetStar { span: span.clone() });
+            return;
         }
-        WatAST::List(items, _) => {
-            for item in items {
-                walk_for_bare_primitives(item, errors);
-            }
+        if s == ":wat::core::lambda" {
+            errors.push(CheckError::BareLegacyLambda { span: span.clone() });
+            return;
         }
-        WatAST::Vector(items, _) => {
-            // Arc 167 slice 3 — recurse into Vector children. Arc 167
-            // slice 1 minted `WatAST::Vector` for `[...]` syntax; slice
-            // 2's flat-shape fn-sig moved type keywords inside fn args
-            // into Vector position. Without this arm, bare primitives
-            // and bare retired keywords inside fn-arg-vectors evade the
-            // walker. Mirrors the List arm structurally.
-            for item in items {
-                walk_for_bare_primitives(item, errors);
-            }
+        if s == ":wat::core::unit" {
+            errors.push(CheckError::BareLegacyUnitName { span: span.clone() });
+            return;
         }
-        _ => {}
+        if s.starts_with(":fn(") {
+            errors.push(CheckError::BareLegacyLowercaseFn { span: span.clone() });
+            return;
+        }
+        // Try parsing as a type expression. Most keywords aren't
+        // types (callee paths, value keywords like `:None`); they
+        // parse to a plain Path that doesn't match any bare
+        // primitive — the walk falls through cleanly.
+        //
+        // `parse_type_expr_audit` is parse_type_inner with the
+        // bare→bare canonicalization suppressed: bare `:i64`
+        // produces `Path(":i64")`, FQDN `:wat::core::i64`
+        // produces `Path(":wat::core::i64")`. Source spelling
+        // preserved; the structural walk distinguishes them.
+        if let Some(ty) = crate::types::parse_type_expr_audit(s) {
+            walk_type_for_bare(&ty, span, errors);
+        }
+        return;
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector,
+    // and StructPattern uniformly so legacy keywords buried inside ANY
+    // bracketed shape are caught. children() returns &[] for leaf nodes
+    // (no-op).
+    for child in node.children() {
+        walk_for_bare_primitives(child, errors);
     }
 }
 
