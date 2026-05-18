@@ -93,12 +93,47 @@ Likely 5-6 slices. Per `feedback_iterative_complexity`: build small. Per arc 207
 
 | Slice | Status | What | Notes |
 |---|---|---|---|
-| **1 — audit + implementation strategy decision** | OPEN | Audit existing macro infrastructure (defmacro per arc 150 + arc 200 splice symmetry); arc 146 dispatch; arc 203 hand-rolled pattern's structural elements; arc 198 restricted_to; arc 207 typed Uuid; arc 208 Process I/O Result. Decide implementation strategy: pure defmacro (expands at parse time) vs substrate special form (registered in check.rs/runtime.rs) vs hybrid. Decision committed in SCORE; subsequent slices build on it. **NO code edits in slice 1.** | Per `feedback_diagnose_before_spec`: read paths before specifying |
-| **2 — mint defservice meta-form (substrate)** | BLOCKS on 1 | Per slice 1 decision: ship the meta-form. Synthesizes Wire enum + ServiceError + Admin/User structs + dispatch loop + wrappers + per-tier transport. Substrate validates handler completeness + signature matching at freeze time. Minimal test: a "Hello" service with 1 admin op + 1 user op + thread tier only | Stepping stone: prove the synthesis works on the simplest case |
-| **3 — process tier transport** | BLOCKS on 2 | Add process-tier transport adapter (ProcessPeer<I,O> with arc 208 Result-returning I/O). Same Hello service compiled for both tiers; tests cover both. | Per-tier adapter completes the meta-form |
-| **4 — Counter demo migration (validation)** | BLOCKS on 3 | Migrate `wat-tests/counter-service-{capability,process}-N3.wat` + `counter-client-capability-proof.wat` from hand-rolled to defservice USES. Hand-rolled pattern retires; demos become canonical defservice examples. ~75% line reduction expected; tests still pass with identical semantics. | THIS proves the meta-form works for the canonical pattern |
+| **1 — audit + implementation strategy decision** | SHIPPED 2026-05-17 | Audit complete (SCORE-SLICE-1.md). Strategy: option (a) — PURE DEFMACRO. Zero substrate changes; defmacro expands to `(:wat::core::do ...)` containing all generated artifacts; do-splice pipeline (arc 170 Gap C + Gap J) handles top-level splicing identically to individually-declared forms. `deftest` proves this pattern in production. One new file: `wat/service.wat` carrying the defmacro. | Audit OVERTURNED orchestrator hypothesis of "hybrid" — substrate-as-teacher cascade working as designed. Honest deltas surfaced (see "Honest deltas from slice 1 audit" below). |
+| **2 — mint defservice defmacro** | BLOCKS on 1 | Per slice 1 SCORE 19-item checklist: ship the defmacro in `wat/service.wat`. Synthesizes Wire enum + ServiceError + Admin/User structs + dispatch loop + wrappers via expand-time computed unquote. Handler-completeness validation at expand time (no check.rs hook needed). Minimal test: a "Hello" service with 1 admin op + 1 user op + thread tier only. | Pure wat-side work; zero substrate changes. Stepping stone proves synthesis works on simplest case. |
+| **3 — process tier transport** | BLOCKS on 2 | Add process-tier conditional path to defservice. Per honest delta 3: process tier has WireResp + Provisioned-with-id (vs thread tier no WireResp + Provisioned-with-channels). Per honest delta 2: process-tier server-id is always `Uuid/nil` (forms-block can't capture runtime values; design characteristic, not limitation). Same Hello service for both tiers; tests cover both. | Per-tier adapter completes the meta-form |
+| **4 — Counter demo migration (validation)** | BLOCKS on 3 | Migrate `wat-tests/counter-service-{capability,process}-N3.wat` + `counter-client-capability-proof.wat` from hand-rolled to defservice USES. Hand-rolled pattern retires; demos become canonical defservice examples. ~75% line reduction expected; tests still pass with identical semantics. Per honest delta 5: forge-test helpers stay hand-rolled (test utilities; not defservice scope) — either retained or retired per slice 4 audit. | THIS proves the meta-form works for the canonical pattern |
 | **5 — arc 203 slice 3g/3h/3i (vended services)** | BLOCKS on 4 | wat-lru CacheService + HologramCacheService + stdio services convert to defservice. Each was hand-rolled with the slice-3f-era pattern; each migrates to defservice. The substrate's "the one pattern" enforcement now applies uniformly. | Closes arc 203's vended-services scope |
-| **6 — closure paperwork** | BLOCKS on 5 | INSCRIPTION (FM 11 grep clean) + DESIGN status CLOSED + USER-GUIDE entry for defservice + 058 row. Cross-references arc 203 (the originating consumer pressure) + arc 207 + arc 208 (the load-bearing substrate substrate it depends on) + arc 146 (dispatch infrastructure) + arc 200 (macro splice) + arc 150 (variadic macros). | Arc 209 closes → arc 203 demand 1 satisfied → arc 203 closure unblocks → arc 170 closure unblocks → lab reconstruction unblocks |
+| **6 — closure paperwork** | BLOCKS on 5 | INSCRIPTION (FM 11 grep clean) + DESIGN status CLOSED + USER-GUIDE entry for defservice + 058 row. Cross-references arc 203 (the originating consumer pressure) + arc 207 + arc 208 (the load-bearing substrate it depends on) + arc 146 (dispatch infrastructure) + arc 200 (macro splice) + arc 150 (variadic macros) + arc 170 Gap C + Gap J (do-splice pipeline that makes option-a possible). | Arc 209 closes → arc 203 demand 1 satisfied → arc 203 closure unblocks → arc 170 closure unblocks → lab reconstruction unblocks |
+
+## Honest deltas from slice 1 audit (absorbed into DESIGN per FM 13)
+
+Slice 1 audit (`SCORE-SLICE-1.md`) surfaced 6 honest deltas; all absorbed forward:
+
+1. **Strategy decision overturned hypothesis.** EXPECTATIONS predicted option (c) hybrid; audit found option (a) pure defmacro is sufficient because the do-splice pipeline (arc 170 Gap C in `src/runtime.rs:1731–1754` + Gap J in `src/types.rs:1450–1481`) handles `(:wat::core::do ...)` expansion at every pipeline stage identically to individually-declared forms. `deftest` family (`wat/test.wat:298–307`) proves the pattern. Counter-service tests (909/905 lines) prove it scales to the full artifact set defservice generates. Substrate-as-teacher cascade working: the audit grounded the right answer that speculation got wrong.
+
+2. **Process-tier server-id is always `:wat::core::Uuid/nil`.** Forms-block (per arc 170 Stone C2 + Slice 6) cannot capture runtime-minted values across the spawn boundary. Process-tier services use Uuid/nil as their secret-witness sentinel; the substrate enforces the dispatch validation with `(= wire-sid (:wat::core::Uuid/nil))` inline comparison. This is a design characteristic of the static forms-block contract, not a limitation. Slice 3 BRIEF inscribes the pattern explicitly.
+
+3. **`WireResp` enum is process-tier-only.** Thread tier has no WireResp because thread-tier responses route via per-user Sender/Receiver pairs (not multiplexed over a single stream). Process tier needs WireResp to multiplex Admin + User responses over the single stdio stream. Defservice synthesis is tier-conditional: thread-tier expansion omits WireResp; process-tier expansion generates it. Slice 2 ships thread-tier only; slice 3 adds the conditional process-tier path.
+
+4. **`AdminResp::Provisioned` shape differs by tier.** Thread tier: `Provisioned` carries the channel pair (Sender + Receiver) for the new user. Process tier: `Provisioned` carries only the `user-id` (channels are demultiplexed from the single stdio stream by the parent). Slice 2 generates thread-tier shape; slice 3 BRIEF handles the divergence explicitly.
+
+5. **Forge-test helpers are NOT generated by defservice.** Tests that exercise rejection paths (forged server-id, wrong-id Admin rejection) are TEST UTILITIES, not part of the service surface. Slice 4 migration of counter demos retains forge-test helpers as hand-rolled OR retires them per the slice's audit; defservice does not auto-generate test utilities.
+
+6. **Handler-map syntax: list-of-pairs `((OpName handler-fn) ...)`.** Slice 1 audit recommends this shape over a literal map-keyword form for defmacro compatibility (the existing defmacro infrastructure handles list-of-pairs cleanly; map literals would need extra parser work). Slice 2 BRIEF locks the syntax; final defmacro signature is:
+
+```scheme
+(:wat::service::defservice :counter
+  :admin    ((Provision   [initial :i64]                        -> :counter::User)
+             (Deprovision [user    :counter::User]              -> :wat::core::nil)
+             (Stop        []                                     -> :wat::core::nil))
+  :user     ((Get         []                                     -> :wat::core::i64)
+             (Increment   [n :wat::core::i64]                    -> :wat::core::i64)
+             (Reset       []                                     -> :wat::core::i64))
+  :state    :wat::core::i64
+  :handlers ((Provision  <handler-fn>)
+             (Deprovision <handler-fn>)
+             (Stop       <handler-fn>)
+             (Get        <handler-fn>)
+             (Increment  <handler-fn>)
+             (Reset      <handler-fn>)))
+```
+
+All operation lists + handler maps are list-of-pairs. Substrate-grouped under `:admin` / `:user` / `:state` / `:handlers` keyword tags. Goal section's earlier sketch (map-literal `{...}` form) was DESIGN imprecision; this list-of-pairs form is the locked surface.
 
 ## Substrate touchpoints (preliminary; slice 1's audit refines)
 
