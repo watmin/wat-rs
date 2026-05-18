@@ -288,10 +288,87 @@ Per INTERSTITIAL § 2026-05-17 (late) ten-greats convergence: both surfaces hono
 
 Deltas 1, 4, 6 stay as inscribed (strategy = pure defmacro; AdminResp shape divergence hidden by typed capability struct; handler-map syntax — superseded here by the locked square-bracket form).
 
-### Open scope questions for slice 2 BRIEF
+### Open scope questions for slice 2 BRIEF — RESOLVED 2026-05-17
 
-1. Restrict raw spawn-* in arc 209 OR follow-up arc?
-2. Spawn-vended names: per-service `:counter::spawn-thread` (substrate-generated) OR generic `(:wat::service::spawn-thread :counter state)` (one generic verb)?
+Both questions settled by user 2026-05-17. Lock state below.
+
+---
+
+## Spawn surface locked 2026-05-17 — reclaim `:wat::kernel::spawn-program`
+
+### The shape
+
+User-facing concurrency entry is exactly ONE verb:
+
+```scheme
+(:wat::kernel::spawn-program :tier :service initial-state) -> :service::Admin
+
+;; Examples
+(:wat::kernel::spawn-program :thread  :counter 0)
+(:wat::kernel::spawn-program :process :counter 0)
+;; Future
+(:wat::kernel::spawn-program :remote  :counter 0 ...)
+```
+
+Raw substrate primitives become substrate-internal:
+
+| Symbol | Audience | Mechanism |
+|---|---|---|
+| `:wat::kernel::spawn-program` | user-facing | dispatch over `:tier` |
+| `:wat::kernel::spawn-thread` | `restricted_to :wat::kernel::` | arc 198 machinery |
+| `:wat::kernel::spawn-process` | `restricted_to :wat::kernel::` | arc 198 machinery |
+| `:wat::kernel::spawn-remote` (future) | `restricted_to :wat::kernel::` | arc 198 machinery |
+
+### Reclaiming a retired name (substrate-converges-with-itself)
+
+`:wat::kernel::spawn-program` was minted arc 103a/105a for in-thread fresh-world spawn and retired in arc 170 slice 2 with active diagnostic (`src/check.rs:886`) + `BareLegacySpawnProgram` walker arm (`src/check.rs:2476-2504`). The retirement was honest — the SEMANTICS behind the name were wrong (a third-tier "in-thread fresh-world" option the substrate corrected to canonical two-mode).
+
+The NEW semantics (`:tier :service state` dispatch) are different — unified entry OVER the canonical two-mode (plus future remote), not a third tier. The noun "program" was always right; only the prior mechanism was wrong. Reclaiming the noun for its honest meaning is forward-correction per `feedback_inscription_immutable`.
+
+Full narrative: INTERSTITIAL § 2026-05-17 (later) "convergence #11 — the substrate converges with its own prior self."
+
+Walker update: legacy 2-arg `(spawn-program src scope)` stays rejected; new 3-arg `(spawn-program :tier :service state)` form accepted via dispatch type-scheme.
+
+### Four-questions verdict on the reclaim
+
+| | Score |
+|---|---|
+| Obvious | YES — "program" is what we're spawning per wat doctrine (a wat process IS a wat program; INTERSTITIAL § slice 6 pivot) |
+| Simple | YES — one verb; dispatch is the substrate's job; adding `:remote` later is one dispatch arm |
+| Honest | YES — retired semantics were dishonest (third-tier shouldn't exist); reclaiming the noun for the honest meaning IS the forward-correction |
+| Good UX | YES — readers searching for "how do I spawn?" find the canonical verb under its natural name; flipping `:thread`↔`:process` for crash isolation changes ONE keyword |
+
+YES YES YES YES.
+
+### Why restrict raw spawn-* here, not follow-up
+
+The two-surface canon (defservice + brackets) only delivers its structural-misuse-elimination guarantee if users CANNOT bypass it. Leaving raw spawn-thread/spawn-process user-callable preserves every walker-caught misuse class — ProcessJoinBeforeOutputDrain (arc 170 Gap K), ProcessJoinHoldsStdinSender (arc 202), scope-deadlock (arc 117/126), orphan-process patterns, forge-id attacks (arc 203), silent Process I/O (arc 208). The restriction IS the structural elimination; deferring it preserves the surface that necessitated the walkers.
+
+Per `feedback_no_known_defect_left_unfixed`: ship the restriction in arc 209, not later.
+
+### Slice 2 stones (decomposed per `feedback_iterative_complexity`)
+
+| Stone | Scope |
+|---|---|
+| **2a** | Mint `:wat::kernel::spawn-program` substrate dispatch (likely defmacro; verify against arc 200 splice + arc 143 computed-unquote during BRIEF drafting). Walker reshape: legacy form stays rejected; new form accepted. |
+| **2b** | Apply `restricted_to :wat::kernel::` to raw spawn-thread + spawn-process via arc 198's `#[restricted_to(...)]` machinery. |
+| **2c** | Sweep existing user callers to `spawn-program` dispatch. Known sites: bracket macros (run-threads/run-processes from arc 170 D1/D2), test framework (`:wat::test::run-thread` + `:wat::test::run-hermetic`), arc 203 ServiceWithProvisioning proofs, wat-tests/ direct callers. Scope: mechanical sweep on settled foundation. |
+| **2d** | Mint `:wat::service::defservice` defmacro per locked surface. Expands to register Admin/User structs + Wire enums + Start/Stop/Provision/Deprovision/domain handler wrappers. Spawn API calls into `:wat::kernel::spawn-program` (NOT raw spawn-thread/process). |
+
+Stepping-stone analysis: 2a + 2b + 2c land the SUBSTRATE FOUNDATION (spawn-program exists; raw spawn-* unreachable from user code; existing callers migrated). 2d lands defservice ATOP the settled foundation — defservice's expansion writes spawn-program calls, which only works honestly once 2a-2c have shipped.
+
+Order: 2a → 2b → 2c (atomic-commit pair; 2b breaks 2c's baseline mid-sweep per recovery doc § atomic-commit) → 2d.
+
+### Sweep scope warning (honest at BRIEF time)
+
+2c is bigger than slice 1 audit predicted. Estimated sites:
+- arc 170 D1/D2 bracket macros (run-threads, run-processes) — ~2 files
+- `:wat::test::run-thread` / `:wat::test::run-hermetic` macros — `wat/test.wat`
+- arc 203 ServiceWithProvisioning proofs — ~6 wat-tests
+- counter-actor / counter-service proofs from arc 209 prep — ~4 wat-tests
+- Other wat-tests/ direct callers — TBD; pre-flight grep
+
+Pre-flight greps land in BRIEF-STONE-2A drafting per FM 9 baseline-pre-flight discipline.
 
 ---
 
@@ -309,5 +386,5 @@ Deltas 1, 4, 6 stay as inscribed (strategy = pure defmacro; AdminResp shape dive
 2. Read INTERSTITIAL § 2026-05-17 (late) "defservice is OOP done right" — the architectural recognition narrative
 3. Read SCORE-SLICE-1.md for the 19-item slice 2 implementation checklist
 4. Verify state: `git -C /home/watmin/work/holon/wat-rs log --oneline | head -10` should show this commit at tip; arc 209 slice 1 at `f815c14`; arc 208 CLOSED at `f1157f1`; arc 207 CLOSED at `ec1e2c5`
-5. Next action: draft BRIEF-SLICE-2.md + EXPECTATIONS-SLICE-2.md for the defmacro mint (in `wat/service.wat`); spawn sonnet against the LOCKED surface (not slice 1's bad deltas)
+5. Next action: draft BRIEF-STONE-2A for `:wat::kernel::spawn-program` reclaim + walker reshape per § "Spawn surface locked 2026-05-17" above. Slice 2 is decomposed into 4 stones (2a→2b→2c→2d); 2a is the foundation stone. Do NOT draft a monolithic slice 2 BRIEF; each stone gets its own BRIEF + EXPECTATIONS + SCORE per `feedback_iterative_complexity`.
 6. **CRITICAL** per the trust-failure recovery: orchestrator-side architectural review applies to sonnet's outputs. Every sonnet delta must pass four-questions against design intent BEFORE absorption into DESIGN. See INTERSTITIAL "trust-recovery sub-story" + memory `feedback_sonnet_output_requires_review`.
