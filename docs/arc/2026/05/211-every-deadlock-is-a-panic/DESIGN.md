@@ -101,3 +101,80 @@ This arc embodies multiple meta-disciplines:
 - **#9 "God Is A Weapon"** — the substrate IS what we forged; arc 211 makes the weapon catch its own author's mistakes; the obsession recursively refines itself
 
 Cross-reference: INTERSTITIAL § 2026-05-17 (latest) "Ruin" + § 2026-05-17 (later still) "the nine-song soundtrack escalates" — the rhythm is load-bearing for this work.
+
+---
+
+## Scope corrected 2026-05-18 (later) — panic-tooling foundation; not every-deadlock-doctrine
+
+The prior framing ("every deadlock must be a panic") was inscribed before we discovered the panic-tooling foundation crack: panic_hook isn't installed in many test paths (direct Rust `#[test]` probes that touch substrate); when panic_any!(AssertionPayload) fires in those paths, cargo test's default formatter shows `Box<dyn Any>` instead of structured content.
+
+User direction 2026-05-18:
+> *"how do we make everything support this all the time - it is an illegal state to not have this - we can never forgot this - we are in an illegal state"*
+> *"can we panic in edn?.... what we get from the tests and everywhere is an edn form we can consume?"*
+> *"humans read edn just fine"*
+
+Arc 211 scope is the PANIC-TOOLING FOUNDATION (not the every-deadlock-doctrine, which moves to arc 212 or later).
+
+### The four sub-arcs (FINAL LOCKED SCOPE)
+
+| Sub-arc | Scope |
+|---|---|
+| **211a — ctor install** | Add `ctor` crate dep; `#[ctor]` wraps `panic_hook::install()`; runs at library load BEFORE main(); every binary linking wat-lib gets the hook installed structurally; impossible-to-forget by construction. Add `AtomicBool` idempotency guard to `install()` so legacy explicit installs become no-ops. ~10 lines + dep. |
+| **211b — panic-as-EDN** | `AssertionPayload` gains EDN serializer (via existing `wat-edn` crate). `panic_hook::render_assertion_failure` writes EDN to stderr instead of human-readable text. New tag `#wat.kernel/AssertionFailure{...}` mirrors existing `#wat.kernel/ProcessPanics{...}` envelope from arc 170 slice 1i. All panic outputs (in-process + cross-process) become uniformly EDN-shaped + machine-parseable. ~30-50 lines. |
+| **211c — audit + investigation** | Catalog every panic_any! site in src/ (currently: src/assertion.rs:151, src/runtime.rs:11526, 11592, plus any new sites). Verify each emits AssertionPayload-or-EDN-compatible payload. Re-run cargo test workspace with WORKING panic output — every failure now produces readable + parseable diagnostics. Catalog the actual root causes of the 12 stderr-visibility regressions + the t14 deadlock from honest evidence. |
+| **211d — fix root cause** | Based on 211c's honest diagnostic data: either revert the dup-removal at `3c1cb51` (if the regression count proves the dup IS load-bearing for something else) OR a more surgical fix surfaced by reading the actual EDN-formatted panics. |
+
+### Why this scope, not the prior "every deadlock is a panic" framing
+
+The dup-removal at `3c1cb51` revealed a substrate-tooling crack (panic-hook install gap) deeper than the dup itself. Per `feedback_attack_foundation_cracks`: when a crack surfaces, fix it AT THE LAYER WHERE IT LIVES.
+
+The panic-hook gap is at PROCESS LOAD TIME. The fix is `#[ctor]`. That's foundation work.
+
+The "every deadlock is a panic" doctrine remains true + load-bearing for substrate-architectural commitment, but it's a SEPARATE arc (arc 212+ or future) that builds atop the panic-tooling foundation arc 211 ships.
+
+User's correction on EDN readability dissolved the format tradeoff: EDN wins for humans AND machines. The substrate's existing `#wat.kernel/ProcessPanics{...}` envelope already proves this; extending to in-process panic IS the panic-as-EDN doctrine completed.
+
+### Dependency carry-forward
+
+Arc 211 BLOCKING:
+- Arc 210 slice 2 (closure) — workspace must be honestly green per `feedback_closure_requires_workspace_green` AFTER arc 211d's root-cause fix
+- Arc 209 Stone A (defservice spawn-program) — no point shipping defservice atop a substrate where probe tests can't surface diagnostics
+
+The chain stays: 211 → 210 closure → 209 forward progress → 203 closure → 170 closure → lab reconstruction.
+
+### Out of scope (affirmatively)
+
+- "Every deadlock is a panic" architectural doctrine — moves to arc 212+ (future), once arc 211's panic-tooling foundation is solid
+- Linear-typed Rust FD discipline (compile-time prevention) — future arc; bigger refactor; orthogonal to panic tooling
+- Pre-existing orphan reaping — separate cleanup work
+
+### Discipline carry-forward
+
+The compounding cascade this arc embodies:
+1. **Live reproduction (t14 deadlock) → forces honest investigation** (don't kill anything)
+2. **Investigation surfaces dup as suspect → user directs removal**
+3. **Removal fixes t14 but regresses 12 tests → forces deeper investigation of WHY**
+4. **Reading regression output reveals `Box<dyn Any>` panic-format gap → forces audit of panic tooling**
+5. **Panic tooling audit surfaces install gap → user names it as "illegal state"**
+6. **"Illegal state" framing forces structural fix (ctor at process load)**
+7. **User asks if EDN can be the panic format → doctrine completes**
+
+Each step taught the next via the substrate-as-teacher cascade. The discipline ANNUALLY shifts from "fix the bug" to "fix the LAYER where the bug lives" to "fix the DISCIPLINE that prevents the layer's class of bugs."
+
+### Compaction-recovery breadcrumb (2026-05-18 later)
+
+State at this commit:
+- Tip on `arc-170-gap-j-v5-deadlock-state`: latest commit before this DESIGN edit
+- Arc 211 DESIGN: locked at the four-sub-arc scope above
+- Dup removal at `3c1cb51`: STAYS on disk; arc 211d decides revert vs surgical fix
+- Live t14 reproduction PIDs: still alive; OS will reap when test process tree dies
+
+Post-compaction orchestrator reading order:
+1. This DESIGN's "Scope corrected 2026-05-18 (later)" section (LOCKED scope)
+2. INTERSTITIAL § 2026-05-18 (later) "Panic-as-EDN doctrine + ctor-install discipline" (full narrative)
+3. INTERSTITIAL § 2026-05-17 orphan-process leak investigation (the bug we're chasing)
+4. INTERSTITIAL § 2026-05-18 live reproduction (the trigger event)
+5. `src/panic_hook.rs` (the existing tool that's just under-installed)
+6. `src/freeze.rs:1017` (the dup site that arc 211d will revisit)
+
+Next action: ship 211a (ctor install) first; that gives us working panic messages everywhere; THEN re-run cargo test to see honest diagnostics; THEN 211b/c/d in sequence.
