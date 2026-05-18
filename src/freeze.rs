@@ -1332,6 +1332,9 @@ pub fn eval_signed_in_frozen(
 /// `typealias`, the three `load!` variants, and any
 /// `:wat::config::set-*!` setter.
 fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
+    // Walker-specific List-head logic — fire EvalForbidsMutationForm on
+    // mutation-form Keyword heads. Mutation form heads always appear
+    // in List position; this guard preserves the pre-arc-212 check.
     if let WatAST::List(items, list_span) = ast {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_form(head) {
@@ -1341,9 +1344,14 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
                 });
             }
         }
-        for child in items {
-            refuse_mutation_forms(child)?;
-        }
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector,
+    // and StructPattern uniformly. Pre-arc-212 this walker silently
+    // accepted mutation forms buried inside Vector (let-binding-vector
+    // RHSes) and StructPattern bracketed shapes — they slipped past
+    // freeze-time refusal. children() returns &[] for leaf nodes (no-op).
+    for child in ast.children() {
+        refuse_mutation_forms(child)?;
     }
     Ok(())
 }
