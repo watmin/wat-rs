@@ -178,3 +178,41 @@ Post-compaction orchestrator reading order:
 6. `src/freeze.rs:1017` (the dup site that arc 211d will revisit)
 
 Next action: ship 211a (ctor install) first; that gives us working panic messages everywhere; THEN re-run cargo test to see honest diagnostics; THEN 211b/c/d in sequence.
+
+---
+
+## Tooling-proven-by-use closure condition (added 2026-05-18 post-arc-211e)
+
+User direction 2026-05-18:
+
+> *"211 gave us the tooling - it is not closed until its tooling is proven to assist - we think it does - we do not know that it does until it does."*
+
+Arc 211's shipped work (a/b/c/d/e) IS complete in code. The panic-tooling foundation has been built:
+- 211a: `#[ctor]` auto-install of panic_hook
+- 211b: panic-as-EDN `#wat.kernel/AssertionFailure` envelope
+- 211c: panic_any! audit + per-failing-target diagnosis
+- 211d: revert dup-removal + Category D assertion updates
+- 211e: process_stdio module dedup (lend_ambient + emit_panic_envelope)
+
+But arc 211 cannot CLOSE until the tooling has demonstrably enabled real fixes elsewhere. **Tooling-proven-by-use, not tooling-assumed-working.**
+
+### The blocking dependency
+
+Arc 211 stays OPEN until both of the following close:
+
+- **Arc 212** — runtime quasiquote substitution inside Vector<WatAST> constructor. Uses arc 211's panic-EDN diagnostic to scope precisely (t6's failure message: `<entry>:11:61: unknown function: :wat::core::unquote`). Closes when t6 passes.
+- **Arc 213** — libc::fork mismanagement under workspace pressure. Investigates probe_lifeline_pipe_proof's pressure-flake. Closes when the test's disposition is honest (fixed or documented-as-known-intermittent).
+
+When both close, their SCORE docs will record whether arc 211's tooling was load-bearing for their fix work. That record is the validation evidence arc 211 needs. THEN arc 211 INSCRIPTION can ship.
+
+### Why this discipline matters
+
+`feedback_assertion_demands_evidence` applied to arc closure itself. We THINK the tooling works (visible structured EDN proves it superficially). We KNOW the tooling works when it has ENABLED real fix work to ship. Anything less is template-thinking ("we shipped code = tooling works"); the discipline says no.
+
+This is the closure-discipline doctrine extension. Future tooling arcs should adopt the same pattern: ship the tooling, then stay open until downstream consumers prove it. Closure-by-shipped-code becomes closure-by-validated-by-use.
+
+### Cross-references for closure tracking
+
+- `docs/arc/2026/05/212-runtime-quasiquote-vector-watast/DESIGN.md`
+- `docs/arc/2026/05/213-libc-fork-mismanagement/DESIGN.md`
+- INTERSTITIAL § 2026-05-18 (post-arc-211e) "Tooling proven by use" — the realization inscription
