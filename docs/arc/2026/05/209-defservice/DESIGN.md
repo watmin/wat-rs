@@ -388,3 +388,174 @@ Pre-flight greps land in BRIEF-STONE-2A drafting per FM 9 baseline-pre-flight di
 4. Verify state: `git -C /home/watmin/work/holon/wat-rs log --oneline | head -10` should show this commit at tip; arc 209 slice 1 at `f815c14`; arc 208 CLOSED at `f1157f1`; arc 207 CLOSED at `ec1e2c5`
 5. Next action: draft BRIEF-STONE-2A for `:wat::kernel::spawn-program` reclaim + walker reshape per § "Spawn surface locked 2026-05-17" above. Slice 2 is decomposed into 4 stones (2a→2b→2c→2d); 2a is the foundation stone. Do NOT draft a monolithic slice 2 BRIEF; each stone gets its own BRIEF + EXPECTATIONS + SCORE per `feedback_iterative_complexity`.
 6. **CRITICAL** per the trust-failure recovery: orchestrator-side architectural review applies to sonnet's outputs. Every sonnet delta must pass four-questions against design intent BEFORE absorption into DESIGN. See INTERSTITIAL "trust-recovery sub-story" + memory `feedback_sonnet_output_requires_review`.
+
+---
+
+## Surface settled 2026-05-18 — collapsed shape + state-as-self contract (FINAL LOCKED SURFACE)
+
+Today's conversation locked the final surface. Two prior surface-locking sections (yesterday's "Surface settled" + earlier-today "Spawn surface locked 2026-05-17") stay as historical record per `feedback_inscription_immutable`; THIS section supersedes them as the implementation target.
+
+### The collapsed form
+
+```scheme
+;; --- preceded by typealias + handler defns in declaration order ---
+
+(:wat::core::typealias :counter::State :wat::core::i64)
+
+(:wat::core::defn :counter::on-start
+  [s <- :counter::State]
+  -> (:wat::core::Tuple :counter::State)
+  (:wat::core::Tuple s))
+
+(:wat::core::defn :counter::on-stop
+  [s <- :counter::State]
+  -> (:wat::core::Tuple :counter::State :counter::State)
+  (:wat::core::Tuple s s))
+
+(:wat::core::defn :counter::on-grant
+  [s <- :counter::State]
+  -> (:wat::core::Tuple :counter::State :counter::User)
+  ...)
+
+(:wat::core::defn :counter::on-revoke
+  [s <- :counter::State  user <- :counter::User]
+  -> (:wat::core::Tuple :counter::State)
+  (:wat::core::Tuple s))
+
+(:wat::core::defn :counter::on-get
+  [s <- :counter::State]
+  -> (:wat::core::Tuple :counter::State :counter::State)
+  (:wat::core::Tuple s s))
+
+(:wat::core::defn :counter::on-increment
+  [s <- :counter::State  n <- :counter::State]
+  -> (:wat::core::Tuple :counter::State :counter::State)
+  (:wat::core::let [new (:wat::core::+ s n)]
+    (:wat::core::Tuple new new)))
+
+(:wat::core::defn :counter::on-reset
+  [s <- :counter::State]
+  -> (:wat::core::Tuple :counter::State :counter::State)
+  (:wat::core::Tuple 0 0))
+
+;; --- the collapsed defservice form ---
+
+(:wat::service::defservice :counter
+  :state :counter::State
+
+  :admin [Start  :counter::on-start
+          Stop   :counter::on-stop
+          Grant  :counter::on-grant
+          Revoke :counter::on-revoke]
+
+  :user  [Get       :counter::on-get
+          Increment :counter::on-increment
+          Reset     :counter::on-reset])
+```
+
+### What changed from prior surface-locking sections
+
+| Aspect | Prior (yesterday + earlier today) | Today (FINAL) |
+|---|---|---|
+| `:handlers` section | Separate; `[Start <fn> Stop <fn> ...]` flat alternating | **DISSOLVED** — collapsed into `:admin` / `:user` as `(OpName :handler-keyword)` pairs |
+| `:admin` / `:user` content | Operation signatures `[Op [args] -> RetType ...]` | **PAIR-LISTS** `[Op :handler-keyword ...]` — signatures derived from handlers via reflection |
+| Handler return shape | "State only OR Tuple<State, V>" (flexible Model B) | **UNIFORM** `(:Tuple :State ...rest-vals)` — always Tuple, state always first |
+| State framing | "the service's mutable state" | **STATE IS SELF** — Rust's `&mut self`; state monad's `s` explicit at type level |
+| Source-of-truth for signatures | Triple (admin/user/handlers + defn) | **SINGLE** (handler defn; defservice reflects via `signature-of-defn`) |
+| Substrate additions needed | TBD (predicted: validate_defservice_handlers helper) | **ZERO** — substrate already has every primitive needed |
+
+### The handler contract (LOCKED — uniform; every handler)
+
+```
+[s <- :State, ...args] -> (:Tuple :State ...rest-vals)
+```
+
+- First binder MUST be `s <- :State` (state is self; threaded forward)
+- Return MUST be `(:Tuple :State ...rest)` where rest is variable-arity (zero, one, or many)
+- Rest empty → operation returns `:nil`
+- Rest one type → operation returns that type
+- Rest multi-type → operation returns `(:Tuple ...rest)`
+
+defservice validates this at expand time via `:wat::runtime::signature-of-defn`. Violations panic at the defservice call_site_span with a teaching diagnostic.
+
+### Why uniform (the lesson from this exchange)
+
+Counter has the degenerate property that state == value (single i64). Earlier proposed a "Model B flexible" rule where state-only handlers could return just `:State` without Tuple-wrapping. The user corrected: **don't optimize the substrate's contract for the trivial case.** Real services have complex state and expose DERIVATIVES (nested fields, computed values, summaries) — never the whole state unless explicitly asked. The uniform `(:Tuple :State ...rest)` shape pays a small verbosity tax in Counter so the contract serves real services honestly.
+
+Per `feedback_simple_is_uniform_composition`: N identical compositions IS simple. The Tuple-always rule is the simplest possible composition for the handler contract.
+
+### State stays internal (transparency model)
+
+The dispatch loop owns the live state. Handlers are pure transforms (per yesterday's handlers-are-monadic recognition):
+- Caller sends Wire message → dispatch loop calls handler with current state → handler returns `(Tuple new-state ...rest)` → dispatch loop threads new-state forward + sends ...rest back to caller as the operation's response.
+
+**Caller never receives state UNLESS the service author explicitly puts state in rest.** State exposure is a per-handler choice via rest-vals shape. The substrate doesn't force exposure; the handler declares it.
+
+For Counter: state IS exposed (because state==value); on-get returns `(Tuple s s)`. For a real service: state stays internal because handlers expose only nested fields / derivatives via rest.
+
+### Substrate primitives defservice uses (all verified present)
+
+| Primitive | Purpose | Source |
+|---|---|---|
+| `:wat::runtime::signature-of-defn` | Look up handler's parsed signature at expand time | `src/check.rs:4859-4892` (arc 143) |
+| `:wat::runtime::extract-arg-types` | Extract arg types from a signature HolonAST | arc 201 slice 5 |
+| `:wat::runtime::extract-arg-names` | Extract arg names | `src/check.rs:4943` (arc 143 slice 3) |
+| `:wat::holon::Bundle/children` / `Bundle/first` | Walk reflected signatures | arc 201 slice 2 |
+| `:wat::core::atom-value` | Unwrap leaves | arc 057 |
+| `:wat::core::keyword/of` | Synthesize service-namespaced keywords at expand time | `src/macros.rs:602-677` (arc 170 gap A) |
+| Computed-unquote `~(:fn args)` | Evaluate helper fns at expand time | `src/macros.rs:1069-1097` (arc 143 slice 2) |
+| `:wat::core::Option/expect` | Panic with diagnostic when signature lookup fails | arc 107 |
+| `:wat::core::do` splice in macro expansion | Generate multiple top-level forms from one macro call | arc 170 Gap C + Gap J |
+
+**Production precedent**: `wat/runtime.wat:17-32` (the `define-alias` macro) uses signature-of-defn + extract-arg-names + rename-callable-name + computed-unquote + Option/expect in EXACTLY the pattern defservice needs. Zero substrate additions required.
+
+### The Rust convergence (eleventh great)
+
+State as `(:Tuple :State ...rest)` arrived at the same shape as:
+- Rust's `fn method(&mut self, args) -> Ret` — self threaded; return is Ret
+- Haskell's State monad `s -> (s, a)`
+- Erlang's `handle_call(Req, State) -> {reply, Reply, NewState}`
+
+Eleven greats now: Kay + Erlang/OTP + Trio/Loom + Akka + nginx + Capnp + Clojure protocols + Clojure Component + Ruby Parallel + Go + Rust. Each arrived via different constraints; substrate forces them to converge. See INTERSTITIAL § 2026-05-18 convergence #13.
+
+---
+
+## Stone decomposition (FINAL — supersedes prior 2a/2b/2c/2d framings)
+
+Per today's recognitions, the stones simplify because zero substrate Rust changes are needed for defservice itself (Stone C is pure wat). spawn-program defmacro + restricted_to application stay as substrate work; defservice is pure wat-side; counter migration is wat-tests authoring.
+
+| Stone | Scope | Substrate touchpoint |
+|---|---|---|
+| **A — mint `:wat::kernel::spawn-program` defmacro** | `:tier :service state` dispatch via keyword-concat (`keyword/of`) → calls substrate-internal `:service::-start-tier`. Walker reshape: legacy 2-arg form stays rejected per `BareLegacySpawnProgram` (`src/check.rs:2476-2504`); new 3-arg `:tier :service state` form accepted by adding a typed-pattern arm. | `wat/kernel/spawn_program.wat` (NEW) + `src/check.rs` walker update |
+| **B — apply `restricted_to :wat::kernel::` to raw spawn-*** | `:wat::kernel::spawn-thread` + `:wat::kernel::spawn-process` become substrate-internal. User code reaches them only via spawn-program (which lives in `:wat::kernel::` scope so the restriction permits the call). | `src/runtime.rs` eval-handler registrations + `#[restricted_to(...)]` proc-macro per arc 198 |
+| **C — mint `:wat::service::defservice` defmacro** | Pure wat in `wat/service.wat`. Uses arc 201 reflection at expand time. Generates: typealias-references; enums (Req/Resp + Wire); capability structs; dispatch loop; per-op wrappers; substrate-internal `:service::-start-thread`/`-start-process` entries (restricted_to `:wat::kernel::` so only spawn-program calls them); expand-time handler-contract validation. | `wat/service.wat` (NEW) + small `src/runtime.rs` stdlib-loader edit |
+| **D — counter migration proof** | Rewrite `wat-tests/counter-service-capability-N3.wat` as a defservice; verify the substrate-generated code passes the same tests the hand-rolled version did; ~75% line reduction expected. Becomes the canonical example for USER-GUIDE. | Pure wat-tests; no substrate touch |
+
+Order: A → B → C → D. B+C may pair-commit atomically if B's restriction temporarily breaks C's tests during ship; per recovery doc § atomic-commit.
+
+Each stone gets BRIEF + EXPECTATIONS + SCORE + atomic commit per protocol. Stone A is the foundation; drafting next.
+
+---
+
+## Compaction-recovery breadcrumb (2026-05-18 — supersedes 2026-05-17 breadcrumb above)
+
+**Tip after this commit on `arc-170-gap-j-v5-deadlock-state`.** Arc 209 status:
+- Slice 1: SHIPPED `f815c14` (audit + pure-defmacro decision)
+- Surface: FINAL LOCKED in § "Surface settled 2026-05-18" above (collapsed shape + state-as-self contract)
+- Substrate verified: zero additions needed for defservice itself (Stone C); Stones A + B touch substrate
+- Stone A BRIEF: NOT YET DRAFTED (next move)
+- Source of truth: this DESIGN (Surface settled 2026-05-18 section) + INTERSTITIAL § 2026-05-18 convergence #13
+
+**Recovery instructions for post-compaction orchestrator:**
+
+1. Read this DESIGN's § "Surface settled 2026-05-18" — the LOCKED surface
+2. Read INTERSTITIAL § 2026-05-18 convergence #13 — the architectural narrative
+3. Skim SCORE-SLICE-1.md for the audit's substrate-primitive verification
+4. Verify state: `git log --oneline | head -10` should show this commit at tip
+5. Next action: draft BRIEF-STONE-A for `:wat::kernel::spawn-program` defmacro mint + walker reshape. Stone A is foundation; spawn sonnet against the LOCKED surface (NOT the prior surface-locking sections which stay as historical record).
+6. **Discipline reminders (all load-bearing):**
+   - `feedback_sonnet_output_requires_review` — orchestrator-side architectural review on sonnet deltas
+   - `feedback_inscription_immutable` — prior surface-lockings stay as historical record; forward-correct via new sections
+   - `feedback_simple_is_uniform_composition` — Counter's verbosity is the right trade; substrate contract serves real services
+   - `feedback_assertion_demands_evidence` — every substrate-claim needs grep before assertion
+   - Pre-flight greps before drafting Stone A BRIEF
