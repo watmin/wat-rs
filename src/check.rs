@@ -12259,30 +12259,6 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // UUID — arc 206 slice 1 (v4) + slice 1.5 (v5). Substrate-level UUID
-    // minting; available without :wat::telemetry dep. v4 is arity-0 (random);
-    // v5 is arity-2 (namespace: String, name: String) → String (deterministic).
-    // NOTE: these are the arc 206 namespace-form verbs; retired in arc 207
-    // slice 3. Kept here through slice 2 for backward-compat (BRIEF constraint).
-    env.register(
-        ":wat::core::uuid::v4".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![],
-            ret: string_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::uuid::v5".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty(), string_ty()],
-            ret: string_ty(),
-            rest_param_type: None,
-        },
-    );
-
     // Arc 207 slice 2 — typed `:wat::core::Uuid` constructors + accessors.
     // Pattern B (opaque TypeExpr::Path) per keyword/Instant/Duration precedent.
     // Five verbs: v4 (random), v5 (deterministic SHA-1), from-string (parse),

@@ -12,9 +12,9 @@
 //!   the events it ships at scope-close. Folded in from the
 //!   retired wat-measure crate.
 //! - **uuid::v4** — backward-compat alias under `:wat::telemetry::*`
-//!   that delegates to the substrate-core `:wat::core::uuid::v4`
-//!   (arc 206 slice 3 retired the duplicate `:rust::telemetry::uuid::v4`
-//!   shim; new code uses the substrate path directly).
+//!   that delegates to the typed `:wat::core::Uuid/v4` constructor
+//!   (arc 206 slice 3 retired the duplicate Rust shim; arc 207 slice 3
+//!   retargeted to the typed constructor; new code uses `:wat::core::Uuid/v4` directly).
 //! - **Tag, Tags, SinkHandles** — the type aliases consumers
 //!   reference at every measurement scope.
 //!
@@ -31,7 +31,7 @@
 //!   Event, uuid, WorkUnit, WorkUnitLog).
 //! - [`register`] — wires the WorkUnit thread-owned cell Rust shim
 //!   into the deps builder. (UUID minting no longer needs a telemetry
-//!   shim — `:wat::core::uuid::v4` is substrate-level per arc 206.)
+//!   shim — `:wat::core::Uuid/v4` is the typed substrate primitive per arc 207.)
 
 pub mod workunit;
 
@@ -64,7 +64,7 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
             source: include_str!("../wat/telemetry/Event.wat"),
         },
         // uuid.wat — :wat::telemetry::uuid::v4 backward-compat alias
-        // that delegates to :wat::core::uuid::v4 (arc 206 slice 3).
+        // that delegates to :wat::core::Uuid/v4 (arc 207 slice 3).
         wat::WatSource {
             path: "wat-telemetry/telemetry/uuid.wat",
             source: include_str!("../wat/telemetry/uuid.wat"),
@@ -89,9 +89,9 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
 }
 
 /// Registrar — wires the `:rust::telemetry::WorkUnit` thread-owned
-/// cell shim into the deps builder. UUID minting retired here in
-/// arc 206 slice 3; `:wat::telemetry::uuid::v4` now delegates to the
-/// substrate-core `:wat::core::uuid::v4` at the wat layer.
+/// cell shim into the deps builder. UUID minting retired from Rust shim
+/// in arc 206 slice 3; `:wat::telemetry::uuid::v4` now delegates to the
+/// typed `:wat::core::Uuid/v4` constructor at the wat layer (arc 207 slice 3).
 pub fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
     workunit::register(builder);
 }

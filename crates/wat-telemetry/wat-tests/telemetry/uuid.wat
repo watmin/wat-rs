@@ -4,17 +4,19 @@
 ;; Two checks:
 ;;
 ;;   - test-distinct-pair — two consecutive calls produce different
-;;     strings. The minimum-meaningful uniqueness assertion: a
+;;     UUIDs. The minimum-meaningful uniqueness assertion: a
 ;;     constant-returning shim would fail this immediately.
 ;;
-;;   - test-many-distinct — three calls go into a wat::core::HashSet<String>;
+;;   - test-many-distinct — three calls go into a wat::core::HashSet<Uuid>;
 ;;     the set must have length 3. Belt-and-suspenders against
 ;;     short-period RNG drift.
 ;;
 ;; The rigorous uniqueness + canonical-form proofs live in arc 092's
 ;; `crates/wat-edn/tests/uuid_v4_mint.rs` (256 mints, 8-4-4-4-12
 ;; format check). These wat-tests verify the SUBSTRATE wiring —
-;; that the shim is registered, callable, and returns a `:wat::core::String`.
+;; that the shim is registered, callable, and returns a `:wat::core::Uuid`.
+;; Arc 207 slice 3 retargeted :wat::telemetry::uuid::v4 to the typed
+;; :wat::core::Uuid/v4 constructor; HashSet element type updated accordingly.
 
 ;; ─── Distinct pair ─────────────────────────────────────────────────
 
@@ -34,5 +36,5 @@
     [a (:wat::telemetry::uuid::v4)
      b (:wat::telemetry::uuid::v4)
      c (:wat::telemetry::uuid::v4)
-     s (:wat::core::HashSet :wat::core::String a b c)]
+     s (:wat::core::HashSet :wat::core::Uuid a b c)]
     (:wat::test::assert-eq (:wat::core::length s) 3)))

@@ -4271,13 +4271,6 @@ fn dispatch_keyword_head(
         ":wat::core::string::join" => crate::string_ops::eval_string_join(args, env, sym),
         ":wat::core::string::concat" => crate::string_ops::eval_string_concat(args, env, sym),
 
-        // UUID — arc 206 slice 1 (v4) + slice 1.5 (v5). Substrate-level UUID
-        // minting; no :wat::telemetry dep required. Both return canonical
-        // 8-4-4-4-12 String. v4 is random; v5 is deterministic (SHA-1).
-        // NOTE: namespace-form; retired in arc 207 slice 3.
-        ":wat::core::uuid::v4" => crate::string_ops::eval_uuid_v4(args, env, sym),
-        ":wat::core::uuid::v5" => crate::string_ops::eval_uuid_v5(args, env, sym),
-
         // Arc 207 slice 2 — typed `:wat::core::Uuid` constructors + accessors.
         // Five verbs: v4 (random), v5 (deterministic SHA-1 with typed namespace),
         // from-string (parse-safe, canonical-only → Option<Uuid>),
@@ -8828,6 +8821,9 @@ pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
             h.hash(&mut hasher);
             Ok(format!("H:{:x}", hasher.finish()))
         }
+        // Arc 207 slice 3 — Uuid is hashable as its canonical string form.
+        // UUIDs are identifiers; canonical-string key is unique (1:1 with value).
+        Value::wat__core__Uuid(u) => Ok(format!("U:{}", u)),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "hashable value (primitive or HolonAST)",
