@@ -148,6 +148,44 @@ impl WatAST {
     pub fn struct_pattern(items: Vec<WatAST>) -> Self {
         WatAST::StructPattern(items, Span::unknown())
     }
+
+    /// The children of this AST node. Compound shapes return their
+    /// `items`; leaves return an empty slice.
+    ///
+    /// Arc 212 (failure engineering applied at the walker layer).
+    /// Walkers that recurse generically through the AST MUST use
+    /// this method rather than pattern-matching on `WatAST::List`
+    /// specifically. The motivation:
+    ///
+    /// - When `WatAST::Vector` was added in arc 167 slice 1, the
+    ///   macro expand-time walker (`macros.rs::walk_template`) was
+    ///   correctly updated to recurse into Vector children. The
+    ///   runtime quasiquote walker (`runtime.rs::walk_quasiquote`)
+    ///   was NOT updated; it skipped Vectors silently. Latent
+    ///   substrate flaw for ~50 arcs; surfaced via t6 in arc 212.
+    ///
+    /// - The fix was tempting to ship per-walker (add a Vector arm
+    ///   to each function that was missing one). But that produces
+    ///   N copies of the same logic and N opportunities for the
+    ///   same bug when the next AST variant lands. The honest fix
+    ///   is at the substrate layer: own "what are the children of
+    ///   an AST node?" here, so walkers can't get it wrong.
+    ///
+    /// When a NEW compound `WatAST` variant lands, update this
+    /// method's match arm to include it. Every walker that descends
+    /// via `children()` automatically benefits without per-walker
+    /// audit.
+    ///
+    /// **The bug class is structurally eliminated** — failure
+    /// engineering at the walker layer.
+    pub fn children(&self) -> &[WatAST] {
+        match self {
+            WatAST::List(items, _)
+            | WatAST::Vector(items, _)
+            | WatAST::StructPattern(items, _) => items,
+            _ => &[],
+        }
+    }
 }
 
 // wat_ast_to_source / wat_ast_program_to_source — RETIRED in arc
