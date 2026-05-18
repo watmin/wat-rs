@@ -1,39 +1,33 @@
-//! `wat::panic_hook` — Rust-styled failure output for wat tests.
+//! `wat::panic_hook` — EDN-structured failure output for wat tests.
 //!
-//! Arc 016 slice 3. Replaces the old
-//! `install_silent_assertion_panic_hook` (which silently swallowed
-//! `AssertionPayload` panics, leaving the test runner to render a
-//! bare failure message) with a hook that prints **Rust-styled**
-//! failure output populated with **wat-level** content:
+//! Arc 016 slice 3 (text format). Arc 211b (EDN format). Replaces the
+//! old `install_silent_assertion_panic_hook` (which silently swallowed
+//! `AssertionPayload` panics) with a hook that prints structured EDN:
 //!
 //! ```text
-//! thread 'wat test' panicked at wat-tests/LocalCache.wat:12:5:
-//! assert-eq failed
-//!   actual:   -1
-//!   expected: 42
-//! note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+//! #wat.kernel/AssertionFailure {
+//!   :thread "wat-test::my-deftest"
+//!   :message "assert-eq failed"
+//!   :location {:file "wat-tests/foo.wat" :line 12 :col 5}
+//!   :actual "-1"
+//!   :expected "42"
+//!   :frames [{:callee :my.app/foo :at {:file "wat-tests/foo.wat" :line 12 :col 5}}]
+//!   :upstream-chain nil
+//! }
 //! ```
 //!
-//! The format mirrors `cargo test`'s own failure output line-for-
-//! line. Users running `cargo test` don't context-switch — same
-//! phrasing, same `note:` hint, same `stack backtrace:` block under
-//! `RUST_BACKTRACE=1`.
+//! The format is machine-parseable EDN. Mirrors the existing
+//! `#wat.kernel/ProcessPanics{...}` envelope from arc 170 slice 1i.
+//! Humans read EDN just fine.
 //!
 //! # Design
 //!
-//! - **Wat-level `file:line:col`**, not Rust-level. The hook reads
-//!   `AssertionPayload.location` populated by
-//!   [`crate::runtime::snapshot_call_stack`] at panic time (arc 016
-//!   slice 2). Rust-level panic locations (`src/runtime.rs:891`)
-//!   never surface to the user.
+//! - **`payload_to_edn`** builds an `OwnedValue` map from an `AssertionPayload`.
+//!   Called by `write_assertion_failure`.
 //!
-//! - **Frames are wat call-stack frames**, not Rust backtrace frames.
-//!   Each frame is `<callee_path> at <file>:<line>`. Matches what
-//!   the user reads in their own source.
-//!
-//! - **`RUST_BACKTRACE=1` gates frame rendering.** One env variable
-//!   the user already knows. Cached at hook install via `OnceLock`
-//!   — one lookup per process, not per panic.
+//! - **`:frames` always present** (empty vector when no frames). Consumer
+//!   decides display; no env-var gating. RUST_BACKTRACE is no longer
+//!   consulted (arc 211b removes the env-var gating).
 //!
 //! - **Non-assertion panics fall through** to the previous hook
 //!   (typically Rust's default). Plain `panic!("...")` from a wat
@@ -55,9 +49,10 @@
 use crate::assertion::AssertionPayload;
 use crate::runtime::FrameInfo;
 use crate::span::Span;
+use std::borrow::Cow;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
+use wat_edn::{Keyword, OwnedValue};
 
 /// Tracks whether the hook has been installed. First install wins;
 /// subsequent `install()` calls become idempotent no-ops (Arc 211a).
@@ -76,19 +71,7 @@ fn auto_install() {
     install();
 }
 
-/// Cached `RUST_BACKTRACE` env lookup — one env read per process,
-/// checked on every failure. `true` when set to any non-"0" value
-/// (matches Rust's own convention for this env var).
-static RUST_BACKTRACE_ENABLED: OnceLock<bool> = OnceLock::new();
-
-fn backtrace_enabled() -> bool {
-    *RUST_BACKTRACE_ENABLED.get_or_init(|| match std::env::var("RUST_BACKTRACE") {
-        Ok(v) => v != "0" && !v.is_empty(),
-        Err(_) => false,
-    })
-}
-
-/// Install the wat panic hook. Writes Rust-styled failure output
+/// Install the wat panic hook. Writes EDN-structured failure output
 /// for [`AssertionPayload`] panics; passes through to the previous
 /// hook for anything else.
 ///
@@ -122,8 +105,7 @@ pub fn is_installed() -> bool {
     INSTALLED.load(Ordering::SeqCst)
 }
 
-/// Render an [`AssertionPayload`] as Rust-styled failure text on
-/// stderr.
+/// Render an [`AssertionPayload`] as EDN on stderr.
 fn render_assertion_failure(payload: &AssertionPayload) {
     let mut out = Vec::new();
     write_assertion_failure(&mut out, payload);
@@ -131,76 +113,142 @@ fn render_assertion_failure(payload: &AssertionPayload) {
     let _ = std::io::stderr().write_all(&out);
 }
 
-/// Build the failure text. Separated from rendering so tests can
+/// Build the EDN failure output. Separated from rendering so tests can
 /// inspect the exact bytes produced.
 ///
 /// Arc 138 F-NAMES-1d — `thread_name` is read from the payload (captured
 /// at panic site on the worker thread) rather than queried via
 /// `thread::current()`. This survives `panic::resume_unwind` re-panicking
-/// the payload on the parent thread, which would otherwise return the
-/// parent's name or `None`.
+/// the payload on the parent thread.
+///
+/// Arc 211b — replaced text format with `#wat.kernel/AssertionFailure{...}`
+/// EDN envelope mirroring `#wat.kernel/ProcessPanics{...}`.
 fn write_assertion_failure<W: Write>(out: &mut W, payload: &AssertionPayload) {
-    // Arc 138 F-NAMES-1d: read name from payload (captured on panicking
-    // thread at construction time), not from thread::current() here.
-    // After resume_unwind the hook fires on the parent; the parent's
-    // thread::current().name() would differ (or be None) from the worker.
-    let thread_name = payload.thread_name.as_deref().unwrap_or("<unnamed>");
+    let edn_value = payload_to_edn(payload);
+    let line = format!("#wat.kernel/AssertionFailure {}\n", wat_edn::write(&edn_value));
+    let _ = out.write_all(line.as_bytes());
+}
 
-    // Line 1 — thread + file:line:col header.
-    match &payload.location {
-        Some(span) if !span.is_unknown() => {
-            let _ = writeln!(
-                out,
-                "thread '{}' panicked at {}:",
-                thread_name,
-                render_span(span)
-            );
+/// Build the `OwnedValue` map for an [`AssertionPayload`]. The map has
+/// exactly 7 keys in the `#wat.kernel/AssertionFailure` envelope.
+///
+/// Exported as `pub(crate)` so the `mod tests` block below can call it
+/// directly.
+pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
+    // ── :thread ──────────────────────────────────────────────────────
+    let thread_val = match &payload.thread_name {
+        Some(name) => OwnedValue::String(Cow::Owned(name.clone())),
+        None => OwnedValue::Nil,
+    };
+
+    // ── :message ─────────────────────────────────────────────────────
+    let message_val = OwnedValue::String(Cow::Owned(payload.message.clone()));
+
+    // ── :location ────────────────────────────────────────────────────
+    let location_val = match &payload.location {
+        Some(span) if !span.is_unknown() => span_to_map(span),
+        _ => OwnedValue::Nil,
+    };
+
+    // ── :actual / :expected ──────────────────────────────────────────
+    let actual_val = match &payload.actual {
+        Some(a) => OwnedValue::String(Cow::Owned(a.clone())),
+        None => OwnedValue::Nil,
+    };
+    let expected_val = match &payload.expected {
+        Some(e) => OwnedValue::String(Cow::Owned(e.clone())),
+        None => OwnedValue::Nil,
+    };
+
+    // ── :frames ──────────────────────────────────────────────────────
+    let frames_val = OwnedValue::Vector(
+        payload
+            .frames
+            .iter()
+            .map(frame_to_map)
+            .collect(),
+    );
+
+    // ── :upstream-chain ──────────────────────────────────────────────
+    let chain_val = match &payload.upstream_chain {
+        None => OwnedValue::Nil,
+        Some(chain) if chain.is_empty() => OwnedValue::Nil,
+        Some(chain) => {
+            let items = chain
+                .iter()
+                .map(|v| crate::edn_shim::value_to_edn_with(v, None))
+                .collect();
+            OwnedValue::Vector(items)
         }
-        _ => {
-            // Fall-back when we have no location — still say we panicked.
-            let _ = writeln!(out, "thread '{}' panicked:", thread_name);
-        }
-    }
+    };
 
-    // Line 2 — the assertion message (+ values when present).
-    let _ = writeln!(out, "{}", payload.message);
-    if let Some(a) = &payload.actual {
-        let _ = writeln!(out, "  actual:   {}", a);
-    }
-    if let Some(e) = &payload.expected {
-        let _ = writeln!(out, "  expected: {}", e);
-    }
+    // ── Assemble map ─────────────────────────────────────────────────
+    OwnedValue::Map(vec![
+        (OwnedValue::Keyword(Keyword::new("thread")), thread_val),
+        (OwnedValue::Keyword(Keyword::new("message")), message_val),
+        (OwnedValue::Keyword(Keyword::new("location")), location_val),
+        (OwnedValue::Keyword(Keyword::new("actual")), actual_val),
+        (OwnedValue::Keyword(Keyword::new("expected")), expected_val),
+        (OwnedValue::Keyword(Keyword::new("frames")), frames_val),
+        (OwnedValue::Keyword(Keyword::new("upstream-chain")), chain_val),
+    ])
+}
 
-    // Line 3 — note: or stack backtrace:
-    if backtrace_enabled() {
-        if !payload.frames.is_empty() {
-            let _ = writeln!(out, "stack backtrace:");
-            render_frames(out, &payload.frames);
+/// Convert a [`Span`] to `{:file "..." :line N :col N}`.
+fn span_to_map(span: &Span) -> OwnedValue {
+    OwnedValue::Map(vec![
+        (
+            OwnedValue::Keyword(Keyword::new("file")),
+            OwnedValue::String(Cow::Owned(span.file.as_str().to_owned())),
+        ),
+        (
+            OwnedValue::Keyword(Keyword::new("line")),
+            OwnedValue::Integer(span.line),
+        ),
+        (
+            OwnedValue::Keyword(Keyword::new("col")),
+            OwnedValue::Integer(span.col),
+        ),
+    ])
+}
+
+/// Convert a [`FrameInfo`] to `{:callee <keyword> :at <location-map>}`.
+///
+/// `frame.callee_path` is a string like `":my::app::foo"` (with leading `:`).
+/// Strip the `:` prefix, then use `keyword_from_callee_path` to build a
+/// proper EDN keyword using the same convention as `edn_shim::keyword_from_wat_path`.
+fn frame_to_map(frame: &FrameInfo) -> OwnedValue {
+    OwnedValue::Map(vec![
+        (
+            OwnedValue::Keyword(Keyword::new("callee")),
+            keyword_from_callee_path(&frame.callee_path),
+        ),
+        (
+            OwnedValue::Keyword(Keyword::new("at")),
+            span_to_map(&frame.call_span),
+        ),
+    ])
+}
+
+/// Convert a callee path string (like `":my::app::foo"`) to an EDN keyword.
+///
+/// Mirrors `edn_shim::keyword_from_wat_path`: strip the leading `:`, then
+/// split on the last `::` to extract namespace + name. Falls back to a
+/// string if the keyword construction fails validation.
+fn keyword_from_callee_path(path: &str) -> OwnedValue {
+    let stripped = path.strip_prefix(':').unwrap_or(path);
+    if let Some(idx) = stripped.rfind("::") {
+        let ns = stripped[..idx].replace("::", ".");
+        let name = &stripped[idx + 2..];
+        match Keyword::try_ns(&ns, name) {
+            Ok(kw) => OwnedValue::Keyword(kw),
+            Err(_) => OwnedValue::String(Cow::Owned(path.to_string())),
         }
     } else {
-        let _ = writeln!(
-            out,
-            "note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
-        );
-    }
-}
-
-/// Render a span as `file:line:col` — the Rust-standard format.
-fn render_span(span: &Span) -> String {
-    format!("{}:{}:{}", span.file, span.line, span.col)
-}
-
-/// Render the frames in `cargo test`'s `stack backtrace:` format —
-/// one line per frame, numbered from 0, with the callee path + span.
-fn render_frames<W: Write>(out: &mut W, frames: &[FrameInfo]) {
-    for (i, frame) in frames.iter().enumerate() {
-        let _ = writeln!(
-            out,
-            "   {}: {} at {}",
-            i,
-            frame.callee_path,
-            render_span(&frame.call_span)
-        );
+        match Keyword::try_new(stripped) {
+            Ok(kw) => OwnedValue::Keyword(kw),
+            Err(_) => OwnedValue::String(Cow::Owned(path.to_string())),
+        }
     }
 }
 
@@ -211,6 +259,34 @@ mod tests {
 
     fn mk_span(file: &str, line: i64, col: i64) -> Span {
         Span::new(Arc::new(file.to_string()), line, col)
+    }
+
+    /// Parse the written EDN bytes and return the tagged map.
+    /// Returns (tag_string, map_pairs) for convenient field inspection.
+    fn parse_envelope(bytes: &[u8]) -> (String, Vec<(OwnedValue, OwnedValue)>) {
+        let s = std::str::from_utf8(bytes).expect("utf8");
+        let val = wat_edn::parse_owned(s.trim()).expect("valid edn");
+        match val {
+            OwnedValue::Tagged(tag, body) => {
+                let tag_str = format!("{}/{}", tag.namespace(), tag.name());
+                match *body {
+                    OwnedValue::Map(pairs) => (tag_str, pairs),
+                    other => panic!("expected map body, got {:?}", other),
+                }
+            }
+            other => panic!("expected tagged value, got {:?}", other),
+        }
+    }
+
+    fn get_field<'a>(pairs: &'a [(OwnedValue, OwnedValue)], key: &str) -> &'a OwnedValue {
+        for (k, v) in pairs {
+            if let OwnedValue::Keyword(kw) = k {
+                if kw.name() == key && kw.namespace().is_none() {
+                    return v;
+                }
+            }
+        }
+        panic!("key :{} not found in map", key);
     }
 
     #[test]
@@ -229,17 +305,29 @@ mod tests {
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
-        let s = String::from_utf8(out).unwrap();
-        assert!(s.contains("wat-tests/foo.wat:12:5"), "has location: {}", s);
-        assert!(s.contains("assert-eq failed"), "has message: {}", s);
-        assert!(s.contains("actual:   -1"), "has actual: {}", s);
-        assert!(s.contains("expected: 42"), "has expected: {}", s);
-        // RUST_BACKTRACE unset by default in tests; note: line shows.
-        // (We can't set env in a cached OnceLock test reliably, so just
-        // assert the note happens when backtrace is off.)
-        if !backtrace_enabled() {
-            assert!(s.contains("note: run with"), "has note: {}", s);
-        }
+        let (tag, pairs) = parse_envelope(&out);
+
+        assert_eq!(tag, "wat.kernel/AssertionFailure", "tag: {}", tag);
+
+        // :message
+        let msg = get_field(&pairs, "message");
+        assert_eq!(msg.as_str(), Some("assert-eq failed"), "message: {:?}", msg);
+
+        // :location map with :file :line :col
+        let loc = get_field(&pairs, "location");
+        let loc_pairs = loc.as_map().expect("location is a map");
+        let file_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("file")).map(|(_, v)| v).expect(":file");
+        assert_eq!(file_val.as_str(), Some("wat-tests/foo.wat"), "file: {:?}", file_val);
+        let line_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("line")).map(|(_, v)| v).expect(":line");
+        assert_eq!(line_val.as_i64(), Some(12), "line: {:?}", line_val);
+        let col_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("col")).map(|(_, v)| v).expect(":col");
+        assert_eq!(col_val.as_i64(), Some(5), "col: {:?}", col_val);
+
+        // :actual and :expected
+        let actual = get_field(&pairs, "actual");
+        assert_eq!(actual.as_str(), Some("-1"), "actual: {:?}", actual);
+        let expected = get_field(&pairs, "expected");
+        assert_eq!(expected.as_str(), Some("42"), "expected: {:?}", expected);
     }
 
     #[test]
@@ -255,11 +343,23 @@ mod tests {
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
-        let s = String::from_utf8(out).unwrap();
-        assert!(s.starts_with("thread "), "starts with thread: {}", s);
-        assert!(s.contains("plain panic"), "has message: {}", s);
-        // No `at FILE:` when location is None.
-        assert!(!s.contains(" at <synthetic>:"), "no synthetic location: {}", s);
+        let (tag, pairs) = parse_envelope(&out);
+
+        assert_eq!(tag, "wat.kernel/AssertionFailure", "tag: {}", tag);
+
+        // :message
+        let msg = get_field(&pairs, "message");
+        assert_eq!(msg.as_str(), Some("plain panic"), "message: {:?}", msg);
+
+        // :location nil when absent
+        let loc = get_field(&pairs, "location");
+        assert_eq!(loc, &OwnedValue::Nil, "location should be nil: {:?}", loc);
+
+        // :actual nil, :expected nil
+        let actual = get_field(&pairs, "actual");
+        assert_eq!(actual, &OwnedValue::Nil, "actual should be nil: {:?}", actual);
+        let expected = get_field(&pairs, "expected");
+        assert_eq!(expected, &OwnedValue::Nil, "expected should be nil: {:?}", expected);
     }
 
     // Arc 138 F-NAMES-1d — verify thread_name field is used as-is, NOT
@@ -281,10 +381,15 @@ mod tests {
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
-        let s = String::from_utf8(out).unwrap();
-        assert!(
-            s.contains("thread 'wat-test:::my::deftest'"),
-            "renders payload thread_name verbatim: {}", s
+        let (tag, pairs) = parse_envelope(&out);
+
+        assert_eq!(tag, "wat.kernel/AssertionFailure", "tag: {}", tag);
+
+        let thread = get_field(&pairs, "thread");
+        assert_eq!(
+            thread.as_str(),
+            Some("wat-test:::my::deftest"),
+            "renders payload thread_name verbatim: {:?}", thread
         );
     }
 
@@ -301,10 +406,15 @@ mod tests {
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
-        let s = String::from_utf8(out).unwrap();
-        assert!(
-            s.contains("thread '<unnamed>'"),
-            "falls back to <unnamed> when field is None: {}", s
+        let (tag, pairs) = parse_envelope(&out);
+
+        assert_eq!(tag, "wat.kernel/AssertionFailure", "tag: {}", tag);
+
+        let thread = get_field(&pairs, "thread");
+        assert_eq!(
+            thread,
+            &OwnedValue::Nil,
+            "falls back to nil when field is None: {:?}", thread
         );
     }
 }
