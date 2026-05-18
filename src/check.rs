@@ -3205,30 +3205,31 @@ fn walk_for_def_restricted_call(
     env: &CheckEnv,
     errors: &mut Vec<CheckError>,
 ) {
-    match node {
-        WatAST::List(items, _) => {
-            if let Some(WatAST::Keyword(head, head_span)) = items.first() {
-                if let Some(prefixes) = env.get_defined_value_restriction(head) {
-                    if !caller_matches_prefix_list(enclosing_fn, prefixes) {
-                        errors.push(CheckError::DefRestrictedCallerNotAllowed {
-                            callee: head.clone(),
-                            enclosing_fn: enclosing_fn.into(),
-                            prefixes: prefixes.clone(),
-                            span: head_span.clone(),
-                        });
-                    }
+    // Walker-specific List-head logic — fire DefRestrictedCallerNotAllowed
+    // when a call head names a def-restricted binding whose whitelist
+    // excludes the enclosing fn FQDN. Call heads always appear in List
+    // position; this guard preserves the pre-arc-212 check.
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(head, head_span)) = items.first() {
+            if let Some(prefixes) = env.get_defined_value_restriction(head) {
+                if !caller_matches_prefix_list(enclosing_fn, prefixes) {
+                    errors.push(CheckError::DefRestrictedCallerNotAllowed {
+                        callee: head.clone(),
+                        enclosing_fn: enclosing_fn.into(),
+                        prefixes: prefixes.clone(),
+                        span: head_span.clone(),
+                    });
                 }
             }
-            for item in items {
-                walk_for_def_restricted_call(item, enclosing_fn, env, errors);
-            }
         }
-        WatAST::Vector(items, _) => {
-            for item in items {
-                walk_for_def_restricted_call(item, enclosing_fn, env, errors);
-            }
-        }
-        _ => {}
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector,
+    // and StructPattern uniformly. Pre-arc-212 this walker had explicit
+    // List + Vector arms but no StructPattern — call sites buried inside
+    // StructPattern slipped past restriction enforcement. children()
+    // returns &[] for leaf nodes (no-op).
+    for child in node.children() {
+        walk_for_def_restricted_call(child, enclosing_fn, env, errors);
     }
 }
 
