@@ -297,3 +297,108 @@ The depth-3 framing makes this MECHANICAL — a substrate spell/ward can fire on
 
 This eliminates the "I can't track my own parens" failure mode. Compose small, named, single-purpose helpers; the main function becomes a readable sequence.
 
+
+---
+
+## What arc 203 demands from upstream (state as of 2026-05-17 post-arc-207)
+
+User direction 2026-05-17 (post-arc-207-closure): *"get whatever docs you need in 203 for us to make forward progress - no new slices are warranted yet - just additional works that 203 is demanding."*
+
+This section consolidates what's named-but-scattered across the prior post-3e + post-3f + slice 3f SCORE sections. It's the load-bearing dependency picture for "what unblocks arc 203 closure."
+
+### Closed since slice 3f-naming
+
+| Gap | Status | How |
+|---|---|---|
+| String-as-UUID honesty in arc 203 demos (server-id + user-id were `:String` constants like `"server-counter-thread-0"`) | **CLOSED 2026-05-17** | Arc 207 SHIPPED at `ec1e2c5` — typed `:wat::core::Uuid` substrate primitive + slice 4 rippled all 3 arc 203 demos to typed Uuid; constant-string ids replaced with `Uuid/v4` mints at setup; secret-witness security model now type-honest in test setup |
+| ServiceError uses `:String` for chain (would have been dishonest per user 2026-05-17 *"we communicate data always; string is just a transmit issue hidden"*) | CLOSED at slice 3f | Typed `Vector<ThreadDiedError>` (thread) / `Vector<ProcessDiedError>` (process); no String anywhere; arc 113 chain semantics preserved |
+
+### Open demands
+
+Arc 203 will NOT close until both ship. Each is a separate concern; they can advance in parallel (no inter-demand dependency).
+
+#### Demand 1 — Protocols arc (defservice meta-form)
+
+**Status:** UNOPENED. Shape sketched in DESIGN § "Post-3f pivot" lines 220-278. No arc number assigned yet; opens with its own DESIGN.
+
+**What it ships:** substrate-level `:wat::service::defservice` meta-form that auto-synthesizes everything arc 203 hand-rolled:
+- Wire + WireResp enums (Admin/User tagged)
+- ServiceError enum (AccessDenied / PeerDied / ServerDied / Disconnected standard variants)
+- Admin + Client capability structs (struct-restricted)
+- Server dispatch loop (select + route + validate server-id + handler dispatch)
+- Client-side Result-bearing wrappers
+- Per-tier transport adapter (thread = crossbeam; process = stdio multiplex)
+
+**Why it blocks arc 203 closure:** slices 3g (wat-lru CacheService) + 3h (HologramCacheService) + 3i (stdio services) all need defservice to ship — without it, each service becomes a hand-rolled copy of the Counter demos with N× the boilerplate and N× the surface for inconsistency. Per `feedback_simple_is_uniform_composition`: N identical compositions IS simple; abstracting them into one form is the simplest possible composition. Per the depth-3 decomposition rule (line 281+): substrate-generated wrappers MUST follow depth-3 by construction; hand-rolling N services per the slice 3f pattern would propagate the depth problem.
+
+**Calibration signal:** the Clojure-protocols convergence (per `user_no_literature` + INTERSTITIAL § seven-greats). Independent arrival at a great's destination IS the validation; the protocols arc mechanizes what arc 203 already proved by construction.
+
+#### Demand 2 — Substrate Process I/O Result slice
+
+**Status:** UNOPENED. Inscribed in slice 3f SCORE delta lines 32-34; surfacing here in DESIGN as the load-bearing substrate concern.
+
+**The gap.** `:wat::kernel::Process/println` + `:wat::kernel::Process/readln` PANIC on subprocess death — no Result return path. Only `Process/drain-and-join` and `Process/join-result` (the latter `restricted_to :wat::`) return Result. Consequence at slice 3f: process-tier user wrappers (get-proc, increment-proc, reset-proc, deprovision-proc) can surface `AccessDenied` via Result but transport failure still panics; ServerDied is demonstrated only via a separately-crashed `crash-test-proc` helper + drain-and-join.
+
+**Why it blocks arc 203 closure:** the canonical wat service's load-bearing point #5 in DESIGN § "Why this is 'the one pattern'" is *"Honest error propagation — Result-bearing wrappers with typed-data errors (no String escapes)."* Process-tier transport panics violate this. The thread tier has clean Result returns (arc 110/111 send/recv → `Result<_, ThreadDiedError>`); the process tier needs equivalent honesty before "the one pattern" can claim parity.
+
+**What it ships:** mirror arc 110/111's substrate refactor at the Process tier:
+- `Process/println` returns `Result<nil, ProcessDiedError>` (currently `nil`, panics)
+- `Process/readln` returns `Result<Option<T>, ProcessDiedError>` (currently `Option<T>`, panics on disconnect)
+- Substrate walker rule: silent kernel-comm at process tier becomes illegal (per arc 110's pattern at thread tier)
+
+**Independence:** orthogonal to demand 1. Could ship before, after, or alongside. defservice (demand 1) USES whatever Process I/O the substrate vends; if Result-bearing, defservice's process-tier adapter handles error paths cleanly; if not, defservice has the same delta as slice 3f's hand-rolled process-tier wrappers.
+
+**Best ordering hypothesis:** demand 2 first (substrate honest first), then demand 1 (meta-form on top of honest substrate). But either order works; orchestrator's call when the arcs open.
+
+### What's NOT a demand (affirmatively)
+
+- **More tests at the demo level** — slices 3a-3f-naming proved the pattern at both tiers across happy + error paths. Coverage is sufficient.
+- **Comment-prose cleanup in demos** — arc 207 slice 4 already retired stale `:wat::telemetry::uuid::v4` prose; arc 203 demos are honest about the typed Uuid now.
+- **USER-GUIDE entry for "the one pattern"** — the pattern is canonical at the DEMO level; the USER-GUIDE entry ships at slice 3j closure (after defservice exists; doc the META-FORM, not the hand-rolled pattern).
+
+### Dependency chain forward (the visual)
+
+```
+                       ┌──────────────────────────────────────┐
+                       │ Demand 2 — substrate Process I/O      │
+                       │ Result slice (mirror arc 110/111      │
+                       │ at process tier)                      │
+                       └──────────────┬───────────────────────┘
+                                      │  (independent; either order)
+                       ┌──────────────┴───────────────────────┐
+                       │ Demand 1 — protocols arc (defservice  │
+                       │ meta-form; auto-synthesizes "the one  │
+                       │ pattern" per service declaration)     │
+                       └──────────────┬───────────────────────┘
+                                      ↓
+              ┌───────────────────────┴────────────────────────┐
+              │  Arc 203 slices 3g + 3h + 3i                    │
+              │  (apply defservice to wat-lru + holon-cache +   │
+              │  stdio services; current hand-rolled patterns   │
+              │  retire OR refactor to defservice)              │
+              └───────────────────────┬────────────────────────┘
+                                      ↓
+                       ┌──────────────┴───────────────────────┐
+                       │ Arc 203 slice 3j (closure paperwork)  │
+                       └──────────────┬───────────────────────┘
+                                      ↓
+                       ┌──────────────┴───────────────────────┐
+                       │ Arc 170 closure (bracket combinator   │
+                       │ family demonstrated via arc 203's     │
+                       │ canonical user pattern)               │
+                       └──────────────┬───────────────────────┘
+                                      ↓
+                       ┌──────────────┴───────────────────────┐
+                       │ Lab reconstruction (per               │
+                       │ project_lab_reconstruction memory)    │
+                       └──────────────────────────────────────┘
+```
+
+### Calibration
+
+Arc 203's slice 3f delta (Process I/O panic-not-Result) was the substrate-as-teacher signal: the hand-rolled pattern hit the substrate boundary and the substrate's response was "I don't give you what you need to make this honest." That's the cascade working — slice 3f shipped what it could honestly ship, named the substrate gap precisely, and demands the substrate close it before "the one pattern" claims parity across tiers.
+
+Demand 1 (protocols arc) is the OTHER substrate-as-teacher signal: the hand-rolled pattern's repetition across services would propagate boilerplate and depth-3 violations. The substrate's response should be "I'll absorb the meta-pattern so users compose at the operation level instead of re-implementing the dispatch shell every time." That's a substrate-level abstraction earning its place by removing N×repetition.
+
+When demand 1 and demand 2 both ship, arc 203 closes cleanly: the pattern exists as substrate primitive (defservice) + the substrate vends honest Result-bearing I/O at both tiers + every vended service uses the meta-form. The discipline carry-forward inscribed in arc 207's INSCRIPTION (*"before naming anything 'out of scope; no consumer demands it,' grep the substrate for arms/errors/panics that name the missing type"*) applies here: both demands are concrete consumer pressure already on disk (slice 3f's hand-rolled boilerplate is the consumer pressure for defservice; slice 3f's Process I/O delta is the consumer pressure for the substrate slice).
+
