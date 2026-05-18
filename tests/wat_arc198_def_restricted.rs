@@ -44,7 +44,7 @@ fn def_restricted_caller_inside_allowed_namespace_passes() {
     // allows the call site.
     let src = r#"
         (:wat::core::def-restricted :my::kernel::restricted-fn
-          [:my::kernel::]
+          :restricted-to [:my::kernel::]
           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x))
 
         (:wat::core::defn :my::kernel::caller [] -> :wat::core::i64
@@ -63,7 +63,7 @@ fn def_restricted_caller_outside_allowed_namespace_fails() {
     // `:user::app::caller` does NOT start with that prefix. Walker fires.
     let src = r#"
         (:wat::core::def-restricted :my::kernel::restricted-fn
-          [:my::kernel::]
+          :restricted-to [:my::kernel::]
           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x))
 
         (:wat::core::defn :user::app::caller [] -> :wat::core::i64
@@ -98,7 +98,7 @@ fn def_restricted_exact_fqdn_match_only_allows_named_caller() {
     // in the same namespace (`:my::kernel::other-caller`) fails.
     let allowed_src = r#"
         (:wat::core::def-restricted :my::kernel::restricted-fn
-          [:my::kernel::specific-caller]
+          :restricted-to [:my::kernel::specific-caller]
           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x))
 
         (:wat::core::defn :my::kernel::specific-caller [] -> :wat::core::i64
@@ -110,7 +110,7 @@ fn def_restricted_exact_fqdn_match_only_allows_named_caller() {
 
     let denied_src = r#"
         (:wat::core::def-restricted :my::kernel::restricted-fn
-          [:my::kernel::specific-caller]
+          :restricted-to [:my::kernel::specific-caller]
           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x))
 
         (:wat::core::defn :my::kernel::other-caller [] -> :wat::core::i64
@@ -140,7 +140,7 @@ fn def_restricted_multi_prefix_whitelist_admits_either_namespace() {
     // both pass.
     let src = r#"
         (:wat::core::def-restricted :my::kernel::restricted-fn
-          [:my::kernel:: :my::test::]
+          :restricted-to [:my::kernel:: :my::test::]
           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x))
 
         (:wat::core::defn :my::kernel::kernel-caller [] -> :wat::core::i64
@@ -158,15 +158,15 @@ fn def_restricted_multi_prefix_whitelist_admits_either_namespace() {
 
 #[test]
 fn defn_restricted_macro_expands_to_def_restricted_plus_fn() {
-    // The defmacro takes (name [prefixes] sig body) and expands to
-    // (def-restricted name [prefixes] (fn sig body)) — semantically
-    // equivalent to using def-restricted + fn directly. Both forms in
-    // this test exercise the same walker.
+    // The defmacro takes (name :restricted-to [prefixes] sig body) and expands
+    // to (def-restricted name :restricted-to [prefixes] (fn sig body)) —
+    // semantically equivalent to using def-restricted + fn directly. Both
+    // forms in this test exercise the same walker.
     //
     // Positive: caller in allowed namespace → startup succeeds.
     let positive_src = r#"
         (:wat::core::defn-restricted :my::kernel::restricted-fn
-          [:my::kernel::]
+          :restricted-to [:my::kernel::]
           [x <- :wat::core::i64] -> :wat::core::i64
           x)
 
@@ -182,7 +182,7 @@ fn defn_restricted_macro_expands_to_def_restricted_plus_fn() {
     // semantically equivalent to the primitive).
     let negative_src = r#"
         (:wat::core::defn-restricted :my::kernel::restricted-fn
-          [:my::kernel::]
+          :restricted-to [:my::kernel::]
           [x <- :wat::core::i64] -> :wat::core::i64
           x)
 

@@ -2286,20 +2286,21 @@ fn register_runtime_defs_form(
         }
         ":wat::core::def-restricted" => {
             // Arc 198 — runtime evaluation mirror of the `def` arm. The
-            // shape is `(:wat::core::def-restricted :name [prefixes] expr)`
-            // — 4 elements; the prefix vector at items[2] is purely a
-            // check-time concern (already recorded into
-            // `sym.defined_value_restrictions` by `register_defines` /
-            // `preregister_fn_defs_in_*`). Here we evaluate the expr and
-            // bind the runtime value the same way `def` does.
-            if items.len() != 4 {
+            // shape is `(:wat::core::def-restricted :name :restricted-to [prefixes] expr)`
+            // — 5 elements; the :restricted-to tag at items[2] and prefix
+            // vector at items[3] are purely a check-time concern (already
+            // recorded into `sym.defined_value_restrictions` by
+            // `register_defines` / `preregister_fn_defs_in_*`). Here we
+            // evaluate the expr and bind the runtime value the same way
+            // `def` does.
+            if items.len() != 5 {
                 return Ok(()); // malformed; type checker already caught it
             }
             let name = match &items[1] {
                 WatAST::Keyword(k, _) => k.clone(),
                 _ => return Ok(()),
             };
-            let expr = &items[3];
+            let expr = &items[4];
             if sym.runtime_def_values.contains_key(&name) && !sym.redef_allowed {
                 return Ok(());
             }
@@ -2847,7 +2848,8 @@ fn try_parse_fn_shape_def_restricted(
         WatAST::List(items, _) => items,
         _ => return None,
     };
-    if items.len() != 4 {
+    // items: [head, name, :restricted-to, prefix-vec, fn-expr] — 5 total.
+    if items.len() != 5 {
         return None;
     }
     match &items[0] {
@@ -2858,8 +2860,13 @@ fn try_parse_fn_shape_def_restricted(
         WatAST::Keyword(k, _) => k.clone(),
         _ => return None,
     };
-    // Arg 1 — prefix Vector of keywords.
-    let prefix_items = match &items[2] {
+    // items[2] — must be literal :restricted-to keyword tag.
+    match &items[2] {
+        WatAST::Keyword(k, _) if k == ":restricted-to" => {}
+        _ => return None,
+    }
+    // items[3] — prefix Vector of keywords.
+    let prefix_items = match &items[3] {
         WatAST::Vector(items, _) => items,
         _ => return None,
     };
@@ -2870,8 +2877,8 @@ fn try_parse_fn_shape_def_restricted(
             _ => return None,
         }
     }
-    // Arg 2 — must be `(:wat::core::fn ARGS-VECTOR -> :RET body...)`.
-    let fn_items = match &items[3] {
+    // items[4] — must be `(:wat::core::fn ARGS-VECTOR -> :RET body...)`.
+    let fn_items = match &items[4] {
         WatAST::List(fn_items, _) => fn_items,
         _ => return None,
     };

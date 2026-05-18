@@ -7465,14 +7465,15 @@ fn infer_def(
 }
 
 /// Arc 198 — type-check arm for
-/// `(:wat::core::def-restricted :name [<prefix-kw>...] expr)`.
+/// `(:wat::core::def-restricted :name :restricted-to [<prefix-kw>...] expr)`.
 ///
 /// Shape validation:
-/// 1. Exactly 3 args: name keyword + prefix vector + expression.
+/// 1. Exactly 4 args: name keyword + `:restricted-to` keyword tag + prefix vector + expression.
 /// 2. First arg must be a keyword (the bound name).
-/// 3. Second arg must be a Vector AST whose children are all keywords.
-/// 4. Infer the type of `expr`.
-/// 5. Redef collision check (same as `infer_def`).
+/// 3. Second arg must be the literal keyword `:restricted-to`.
+/// 4. Third arg must be a Vector AST whose children are all keywords.
+/// 5. Infer the type of `expr`.
+/// 6. Redef collision check (same as `infer_def`).
 ///
 /// The prefix vector is not "evaluated" — its children are extracted
 /// directly as keyword strings (entries ending in `::` become namespace
@@ -7496,11 +7497,11 @@ fn infer_def_restricted(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    if args.len() != 3 {
+    if args.len() != 4 {
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::def-restricted".into(),
             reason: format!(
-                "expected (:wat::core::def-restricted :name [<prefix-kw>...] expr); got {} args",
+                "expected (:wat::core::def-restricted :name :restricted-to [<prefix-kw>...] expr); got {} args",
                 args.len()
             ),
             span: head_span.clone(),
@@ -7527,13 +7528,28 @@ fn infer_def_restricted(
                 ),
                 span: head_span.clone(),
             });
-            let _ = infer(&args[2], env, locals, fresh, subst, errors);
+            let _ = infer(&args[3], env, locals, fresh, subst, errors);
             return Some(TypeExpr::Tuple(vec![]));
         }
     };
 
-    // Arg 1 — the prefix whitelist (Vector of Keyword entries).
+    // Arg 1 — must be the literal keyword `:restricted-to`.
     match &args[1] {
+        WatAST::Keyword(k, _) if k == ":restricted-to" => {}
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::def-restricted".into(),
+                reason: format!(
+                    "second arg must be the keyword tag `:restricted-to`; got {:?}",
+                    other
+                ),
+                span: other.span().clone(),
+            });
+        }
+    }
+
+    // Arg 2 — the prefix whitelist (Vector of Keyword entries).
+    match &args[2] {
         WatAST::Vector(prefix_items, _) => {
             for item in prefix_items {
                 if !matches!(item, WatAST::Keyword(_, _)) {
@@ -7552,7 +7568,7 @@ fn infer_def_restricted(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::def-restricted".into(),
                 reason: format!(
-                    "second arg must be a Vector of keyword prefixes (e.g. `[:wat::kernel::]`); got {:?}",
+                    "third arg must be a Vector of keyword prefixes (e.g. `[:wat::kernel::]`); got {:?}",
                     other
                 ),
                 span: other.span().clone(),
@@ -7560,8 +7576,8 @@ fn infer_def_restricted(
         }
     }
 
-    // Arg 2 — infer the type of the value expression.
-    let expr_ty = infer(&args[2], env, locals, fresh, subst, errors);
+    // Arg 3 — infer the type of the value expression.
+    let expr_ty = infer(&args[3], env, locals, fresh, subst, errors);
 
     // Redef gating — same shape as `infer_def`. The whitelist itself is
     // also subject to redef discipline: opt-in redef requires type-stability;
@@ -7800,7 +7816,7 @@ fn extract_def_binding(
 }
 
 /// Arc 198 — extract `(name, TypeExpr, Span, prefixes)` from a top-level
-/// `(:wat::core::def-restricted :name [<prefix-kw>...] expr)` form.
+/// `(:wat::core::def-restricted :name :restricted-to [<prefix-kw>...] expr)` form.
 ///
 /// Mirrors `extract_def_binding` but ALSO pulls the prefix whitelist
 /// out of the Vector AST. Returns `None` when the form is malformed
@@ -7819,7 +7835,8 @@ fn extract_def_restricted_binding(
         WatAST::List(items, _) => items,
         _ => return None,
     };
-    if items.len() != 4 {
+    // items: [head, name, :restricted-to, prefix-vec, expr] — 5 total.
+    if items.len() != 5 {
         return None;
     }
     match &items[0] {
@@ -7830,10 +7847,15 @@ fn extract_def_restricted_binding(
         WatAST::Keyword(k, _) => k.clone(),
         _ => return None,
     };
-    let prefixes = extract_prefix_vec(&items[2])?;
+    // items[2] must be :restricted-to keyword tag.
+    match &items[2] {
+        WatAST::Keyword(k, _) if k == ":restricted-to" => {}
+        _ => return None,
+    }
+    let prefixes = extract_prefix_vec(&items[3])?;
     let span = items[0].span().clone();
     let mut subst = Subst::new();
-    let ty = infer(&items[3], env, &HashMap::new(), fresh, &mut subst, errors)?;
+    let ty = infer(&items[4], env, &HashMap::new(), fresh, &mut subst, errors)?;
     let ty = apply_subst(&ty, &subst);
     Some((name, ty, span, prefixes))
 }
