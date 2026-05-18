@@ -1487,6 +1487,15 @@ fn encode_value_with_path(
             // function.
             Ok(WatAST::Keyword((**k).clone(), span))
         }
+        // Arc 207 — Uuid is portable: encode as a `Uuid/from-string` call
+        // on the canonical 8-4-4-4-12 hyphenated form. Round-trips cleanly.
+        Value::wat__core__Uuid(u) => Ok(WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::Uuid/from-string".into(), span.clone()),
+                WatAST::StringLit(u.to_string(), span.clone()),
+            ],
+            span,
+        )),
         Value::Unit => Ok(WatAST::Keyword(":wat::core::nil".into(), span)),
 
         // ─── containers ────────────────────────────────────────────────

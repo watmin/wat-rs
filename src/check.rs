@@ -12262,6 +12262,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // UUID — arc 206 slice 1 (v4) + slice 1.5 (v5). Substrate-level UUID
     // minting; available without :wat::telemetry dep. v4 is arity-0 (random);
     // v5 is arity-2 (namespace: String, name: String) → String (deterministic).
+    // NOTE: these are the arc 206 namespace-form verbs; retired in arc 207
+    // slice 3. Kept here through slice 2 for backward-compat (BRIEF constraint).
     env.register(
         ":wat::core::uuid::v4".to_string(),
         TypeScheme {
@@ -12277,6 +12279,71 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty(), string_ty()],
             ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 207 slice 2 — typed `:wat::core::Uuid` constructors + accessors.
+    // Pattern B (opaque TypeExpr::Path) per keyword/Instant/Duration precedent.
+    // Five verbs: v4 (random), v5 (deterministic SHA-1), from-string (parse),
+    // to-string (render), nil (zero-UUID sentinel).
+    // `uuid_ty` is an opaque Path; `opt_uuid_ty` is `Option<Uuid>` for
+    // `from-string`'s parse-safe interface.
+    let uuid_ty = || TypeExpr::Path(":wat::core::Uuid".into());
+    let opt_uuid_ty = || TypeExpr::Parametric {
+        head: "wat::core::Option".into(),
+        args: vec![uuid_ty()],
+    };
+    // Uuid/v4 — 0-arg constructor; produces a random UUID.
+    env.register(
+        ":wat::core::Uuid/v4".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: uuid_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Uuid/v5 — 2-arg deterministic constructor (SHA-1 namespaced).
+    // Namespace is now typed `:Uuid`, eliminating the runtime-panic
+    // foot-gun in arc 206's string-typed namespace param.
+    env.register(
+        ":wat::core::Uuid/v5".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![uuid_ty(), string_ty()],
+            ret: uuid_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Uuid/from-string — parse-safe; returns Option<Uuid>. Accepts only
+    // canonical 8-4-4-4-12 lowercase hyphenated form; None for all others.
+    env.register(
+        ":wat::core::Uuid/from-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: opt_uuid_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Uuid/to-string — renders as canonical 8-4-4-4-12 hyphenated form.
+    env.register(
+        ":wat::core::Uuid/to-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![uuid_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Uuid/nil — 0-arg; returns the nil UUID (all zeros).
+    env.register(
+        ":wat::core::Uuid/nil".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: uuid_ty(),
             rest_param_type: None,
         },
     );

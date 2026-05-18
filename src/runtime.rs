@@ -609,6 +609,13 @@ pub enum Value {
     /// arithmetic that would produce a negative duration panics.
     /// Constructed via `:wat::time::Hour`/`Minute`/`Second`/`Day`/etc.
     Duration(i64),
+    /// Arc 207 — `:wat::core::Uuid`. Typed UUID primitive. Distinct
+    /// runtime variant from `Value::String` so `(= some-uuid some-string)`
+    /// returns type-mismatch rather than comparing by content — UUIDs are
+    /// identifiers, not strings. Pattern B (opaque Value variant) per
+    /// `Instant`/`Duration`/`keyword` precedent. `uuid::Uuid` is `Copy`.
+    /// Constructed via `Uuid/v4`, `Uuid/v5`, `Uuid/from-string`, `Uuid/nil`.
+    wat__core__Uuid(uuid::Uuid),
 }
 
 /// The payload of a [`Value::Struct`] — the struct's fully-qualified
@@ -745,6 +752,7 @@ impl Value {
             Value::Hologram(_) => "wat::holon::Hologram",
             Value::Instant(_) => "wat::time::Instant",
             Value::Duration(_) => "wat::time::Duration",
+            Value::wat__core__Uuid(_) => "wat::core::Uuid",
         }
     }
 }
@@ -4266,8 +4274,19 @@ fn dispatch_keyword_head(
         // UUID — arc 206 slice 1 (v4) + slice 1.5 (v5). Substrate-level UUID
         // minting; no :wat::telemetry dep required. Both return canonical
         // 8-4-4-4-12 String. v4 is random; v5 is deterministic (SHA-1).
+        // NOTE: namespace-form; retired in arc 207 slice 3.
         ":wat::core::uuid::v4" => crate::string_ops::eval_uuid_v4(args, env, sym),
         ":wat::core::uuid::v5" => crate::string_ops::eval_uuid_v5(args, env, sym),
+
+        // Arc 207 slice 2 — typed `:wat::core::Uuid` constructors + accessors.
+        // Five verbs: v4 (random), v5 (deterministic SHA-1 with typed namespace),
+        // from-string (parse-safe, canonical-only → Option<Uuid>),
+        // to-string (canonical render), nil (zero-UUID sentinel).
+        ":wat::core::Uuid/v4" => crate::string_ops::eval_uuid_typed_v4(args, env, sym),
+        ":wat::core::Uuid/v5" => crate::string_ops::eval_uuid_typed_v5(args, env, sym),
+        ":wat::core::Uuid/from-string" => crate::string_ops::eval_uuid_typed_from_string(args, env, sym),
+        ":wat::core::Uuid/to-string" => crate::string_ops::eval_uuid_typed_to_string(args, env, sym),
+        ":wat::core::Uuid/nil" => crate::string_ops::eval_uuid_typed_nil(args, env, sym),
 
         // Regex — pattern matching. Lives in its own :wat::core::regex::*
         // namespace since the regex crate is a distinct concern.
@@ -6782,6 +6801,12 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         (Value::String(x), Value::String(y)) => Some(x == y),
         (Value::bool(x), Value::bool(y)) => Some(x == y),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x == y),
+        // Arc 207 — Uuid equality. `uuid::Uuid` implements `PartialEq`.
+        // Two Uuid values with the same content are equal; a Uuid and a
+        // String holding the same 36 chars are NOT equal (cross-type
+        // falls through to `_ => None`). UUIDs are identifiers, not ordinals;
+        // no `values_compare` arm is added (correct: same as keyword/Enum/Struct).
+        (Value::wat__core__Uuid(x), Value::wat__core__Uuid(y)) => Some(x == y),
         (Value::Unit, Value::Unit) => Some(true),
         (Value::Vec(xs), Value::Vec(ys)) => {
             if xs.len() != ys.len() {
@@ -14605,6 +14630,8 @@ fn render_value(v: &Value, depth: usize) -> String {
         Value::Hologram(_) => "<Hologram>".to_string(),
         Value::Instant(t) => format!("<Instant {}>", t.to_rfc3339()),
         Value::Duration(ns) => format!("<Duration {}ns>", ns),
+        // Arc 207 — Uuid renders as the EDN reader literal form.
+        Value::wat__core__Uuid(u) => format!("#uuid \"{}\"", u),
     }
 }
 

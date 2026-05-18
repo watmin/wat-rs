@@ -401,10 +401,9 @@ pub fn edn_to_value(
         }
         Edn::Inst(t) => Ok(Value::Instant(*t)),
         // arc 138: no span — edn_to_value walks an OwnedValue tree (already-parsed EDN); no WatAST available
-        Edn::Uuid(_) => Err(EdnReadError::Other(
-            "EDN Uuid — wat has no UUID value type yet".into(),
-            Span::unknown(),
-        )),
+        // Arc 207 slice 2: `#uuid "..."` EDN reader literal → typed `:wat::core::Uuid`.
+        // `uuid::Uuid` is `Copy`; mirrors `Edn::Inst(t) → Value::Instant(*t)` pattern.
+        Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
         Edn::Tagged(tag, body) => tagged_to_value(tag, body, types),
     }
 }
@@ -1607,6 +1606,11 @@ pub fn value_to_edn_with(
         Value::Hologram(_) => opaque_nil("wat-edn.opaque", "Hologram"),
         Value::Instant(t) => OwnedValue::Inst(*t),
         Value::Duration(ns) => OwnedValue::Integer(*ns),
+        // Arc 207 — typed Uuid → EDN `#uuid "..."` reader literal.
+        // Mirrors `Value::Instant → OwnedValue::Inst` pattern.
+        // `uuid::Uuid` is `Copy`; `OwnedValue::Uuid` already exists
+        // in wat-edn (no crates/wat-edn/ edits needed).
+        Value::wat__core__Uuid(u) => OwnedValue::Uuid(*u),
     }
 }
 

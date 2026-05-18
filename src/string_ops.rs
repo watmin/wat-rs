@@ -320,6 +320,204 @@ pub fn eval_uuid_v5(
     Ok(Value::String(Arc::new(id)))
 }
 
+// ─── typed uuid (arc 207 slice 2) ───────────────────────────────────────
+
+/// Returns `true` iff `s` is a canonical 8-4-4-4-12 lowercase hyphenated UUID.
+///
+/// Exactly matches what `uuid::Uuid::to_string()` produces (and what the
+/// `wat-edn` parser + `Uuid/to-string` emit). Rejects:
+/// - Uppercase hex chars
+/// - URN prefix (`urn:uuid:`)
+/// - Braced form (`{...}`)
+/// - Simple 32-char hex (no hyphens)
+/// - Any other non-canonical variant
+///
+/// Used by `eval_uuid_typed_from_string` to enforce parse strictness.
+fn is_canonical_uuid_string(s: &str) -> bool {
+    s.len() == 36
+        && s.as_bytes()[8] == b'-'
+        && s.as_bytes()[13] == b'-'
+        && s.as_bytes()[18] == b'-'
+        && s.as_bytes()[23] == b'-'
+        && s.chars().enumerate().all(|(i, c)| {
+            if matches!(i, 8 | 13 | 18 | 23) {
+                c == '-'
+            } else {
+                c.is_ascii_hexdigit() && (!c.is_alphabetic() || c.is_ascii_lowercase())
+            }
+        })
+}
+
+/// `(:wat::core::Uuid/v4)` → `:wat::core::Uuid`.
+///
+/// Mints a fresh v4 (random) UUID on every call. Returns a typed
+/// `:wat::core::Uuid` value — NOT a string. Arc 207 slice 2.
+pub fn eval_uuid_typed_v4(
+    args: &[WatAST],
+    _env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Uuid/v4";
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 0,
+            got: args.len(),
+            span: args[0].span().clone(),
+        });
+    }
+    Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v4()))
+}
+
+/// `(:wat::core::Uuid/v5 ns name)` → `:wat::core::Uuid`.
+///
+/// Deterministic SHA-1-based UUID. `ns` is `:wat::core::Uuid` (type-enforced,
+/// eliminating the runtime-panic foot-gun in arc 206's string-typed namespace).
+/// Returns a typed `:wat::core::Uuid`. Arc 207 slice 2.
+pub fn eval_uuid_typed_v5(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Uuid/v5";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: if args.is_empty() {
+                crate::span::Span::unknown()
+            } else {
+                args[0].span().clone()
+            },
+        });
+    }
+    let ns_val = eval(&args[0], env, sym)?;
+    let name_val = eval(&args[1], env, sym)?;
+    let ns_uuid = match &ns_val {
+        Value::wat__core__Uuid(u) => *u,
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::Uuid".into(),
+                got: ns_val.type_name().into(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let name_str = match &name_val {
+        Value::String(s) => s.as_str().to_string(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String".into(),
+                got: name_val.type_name().into(),
+                span: args[1].span().clone(),
+            });
+        }
+    };
+    Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v5(ns_uuid, &name_str)))
+}
+
+/// `(:wat::core::Uuid/from-string s)` → `:Option<:wat::core::Uuid>`.
+///
+/// Parse-safe constructor. Accepts ONLY canonical 8-4-4-4-12 lowercase
+/// hyphenated form; returns `None` for uppercase, URN prefix, braced,
+/// simple (no-hyphen), or otherwise non-canonical input. Arc 207 slice 2.
+pub fn eval_uuid_typed_from_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Uuid/from-string";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: if args.is_empty() {
+                crate::span::Span::unknown()
+            } else {
+                args[0].span().clone()
+            },
+        });
+    }
+    let s_val = eval(&args[0], env, sym)?;
+    let s = match &s_val {
+        Value::String(s) => s.as_str().to_string(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String".into(),
+                got: s_val.type_name().into(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let result = if is_canonical_uuid_string(&s) {
+        uuid::Uuid::parse_str(&s).ok().map(Value::wat__core__Uuid)
+    } else {
+        None
+    };
+    Ok(Value::Option(Arc::new(result)))
+}
+
+/// `(:wat::core::Uuid/to-string u)` → `:wat::core::String`.
+///
+/// Renders as canonical 8-4-4-4-12 lowercase hyphenated form. Arc 207 slice 2.
+pub fn eval_uuid_typed_to_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Uuid/to-string";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: if args.is_empty() {
+                crate::span::Span::unknown()
+            } else {
+                args[0].span().clone()
+            },
+        });
+    }
+    let u_val = eval(&args[0], env, sym)?;
+    let u = match &u_val {
+        Value::wat__core__Uuid(u) => *u,
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::Uuid".into(),
+                got: u_val.type_name().into(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    Ok(Value::String(Arc::new(u.to_string())))
+}
+
+/// `(:wat::core::Uuid/nil)` → `:wat::core::Uuid`.
+///
+/// Returns the nil UUID (`00000000-0000-0000-0000-000000000000`). Arc 207 slice 2.
+pub fn eval_uuid_typed_nil(
+    args: &[WatAST],
+    _env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Uuid/nil";
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 0,
+            got: args.len(),
+            span: args[0].span().clone(),
+        });
+    }
+    Ok(Value::wat__core__Uuid(uuid::Uuid::nil()))
+}
+
 // ─── regex ───────────────────────────────────────────────────────────────
 
 /// `(:wat::core::regex::matches? pattern haystack)` → `:bool`.
