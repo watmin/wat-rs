@@ -9057,7 +9057,20 @@ fn walk_quasiquote(
                 items.iter().map(|c| walk_quasiquote(c, env, sym, depth)).collect();
             Ok(WatAST::List(walked?, span.clone()))
         }
-        // Leaves are preserved verbatim.
+        // Arc 212: bracketed `[a b c]` Vector form (let-binding vectors,
+        // fn-signature parameter vectors, template-position vector
+        // literals). Walks children identically to Lists but preserves
+        // the Vector wrapper — without this, an unquote inside any
+        // bracketed shape stays literal and the child sees
+        // `:wat::core::unquote` as an unknown function.
+        WatAST::Vector(items, span) => {
+            let walked: Result<Vec<_>, _> =
+                items.iter().map(|c| walk_quasiquote(c, env, sym, depth)).collect();
+            Ok(WatAST::Vector(walked?, span.clone()))
+        }
+        // Leaves are preserved verbatim. (StructPattern admits only
+        // bare Symbols at parse time per `src/ast.rs:99`; cannot
+        // contain unquotes; treated as leaf.)
         other => Ok(other.clone()),
     }
 }
