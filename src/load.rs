@@ -753,31 +753,26 @@ fn reject_setters_in_loaded(forms: &[WatAST], path: &str) -> Result<(), LoadErro
 }
 
 fn scan_for_setter(form: &WatAST, path: &str) -> Result<(), LoadError> {
-    match form {
-        WatAST::List(items, _) => {
-            if let Some(WatAST::Keyword(k, _)) = items.first() {
-                if k.starts_with(":wat::config::set-") && k.ends_with('!') {
-                    return Err(LoadError::SetterInLoadedFile {
-                        loaded_path: path.to_string(),
-                        setter_head: k.clone(),
-                    });
-                }
-            }
-            for child in items {
-                scan_for_setter(child, path)?;
+    // Walker-specific List-head logic — fire SetterInLoadedFile on a
+    // :wat::config::set-*! keyword head. Setter heads always appear in
+    // List position; this guard preserves the pre-arc-212 check.
+    if let WatAST::List(items, _) = form {
+        if let Some(WatAST::Keyword(k, _)) = items.first() {
+            if k.starts_with(":wat::config::set-") && k.ends_with('!') {
+                return Err(LoadError::SetterInLoadedFile {
+                    loaded_path: path.to_string(),
+                    setter_head: k.clone(),
+                });
             }
         }
-        // Arc 167 slice 1 — also recurse into vector children so a
-        // setter buried in a (future) bracketed binding-position
-        // form would still be flagged. Vectors carry no head
-        // dispatch, so the keyword-prefix check applies to lists
-        // only.
-        WatAST::Vector(items, _) => {
-            for child in items {
-                scan_for_setter(child, path)?;
-            }
-        }
-        _ => {}
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector,
+    // and StructPattern uniformly. Pre-arc-212 this walker had List +
+    // Vector arms but no StructPattern arm — setters buried inside
+    // StructPattern slipped past load-time refusal. children() returns
+    // &[] for leaf nodes (no-op).
+    for child in form.children() {
+        scan_for_setter(child, path)?;
     }
     Ok(())
 }
