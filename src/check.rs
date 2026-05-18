@@ -3682,39 +3682,35 @@ fn collect_process_stdin_and_joins(
     joins: &mut Vec<(String, Span)>,
     stdin_procs: &mut Vec<String>,
 ) {
-    match node {
-        WatAST::List(items, span) => {
-            if let Some(WatAST::Keyword(k, _)) = items.first() {
-                match k.as_str() {
-                    ":wat::kernel::Process/join-result" => {
-                        if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                            joins.push((id.name.clone(), span.clone()));
-                        }
+    // Walker-specific List-head logic: classify Process/join-result and
+    // Process/stdin call sites; STOP descent at fn/lambda boundaries
+    // (separate scopes — descending would conflate inner-fn calls with
+    // outer scope tracking). The early-return is load-bearing.
+    if let WatAST::List(items, span) = node {
+        if let Some(WatAST::Keyword(k, _)) = items.first() {
+            match k.as_str() {
+                ":wat::kernel::Process/join-result" => {
+                    if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                        joins.push((id.name.clone(), span.clone()));
                     }
-                    ":wat::kernel::Process/stdin" => {
-                        if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                            stdin_procs.push(id.name.clone());
-                        }
-                    }
-                    // Do NOT recurse into nested fn bodies — separate scopes.
-                    ":wat::core::fn" | ":wat::core::lambda" => return,
-                    _ => {}
                 }
-            }
-            for child in items {
-                collect_process_stdin_and_joins(child, joins, stdin_procs);
-            }
-        }
-        WatAST::Vector(items, _) => {
-            // Binding vectors inside inner `let` forms: the RHS expressions
-            // (even-indexed elements at positions 1, 3, 5, ...) may contain
-            // `Process/stdin` or `Process/join-result` calls. Recurse into
-            // all children; the pattern-match above handles classification.
-            for child in items {
-                collect_process_stdin_and_joins(child, joins, stdin_procs);
+                ":wat::kernel::Process/stdin" => {
+                    if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                        stdin_procs.push(id.name.clone());
+                    }
+                }
+                // Do NOT recurse into nested fn bodies — separate scopes.
+                ":wat::core::fn" | ":wat::core::lambda" => return,
+                _ => {}
             }
         }
-        _ => {}
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly. children() returns &[] for leaf nodes (no-op).
+    // The fn/lambda early-return above ensures we never descend into nested
+    // fn bodies (separate scopes).
+    for child in node.children() {
+        collect_process_stdin_and_joins(child, joins, stdin_procs);
     }
 }
 

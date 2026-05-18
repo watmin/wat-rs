@@ -161,7 +161,7 @@ Both walkers can (and MUST) be made correct under children(). Neither earns exem
 | δ-bare-primitives | L1 | Migrate `walk_for_bare_primitives` (line 2705) | PENDING — sonnet |
 | δ-comm-positions | L1 | Sharpen `validate_comm_positions` with position-awareness (4th permitted slot: bound-name-later-matched) | PENDING — sonnet |
 | δ-process-scope | L1 | Sharpen `collect_process_calls` with scope-boundary tracking (RESET at nested let) | PENDING — sonnet |
-| ζ-newtype-wall | L2 | Private `Children` newtype; pattern-match + construction sites migrate across codebase | PENDING — sonnet (long sweep, substrate-as-teacher cascade) |
+| ζ-newtype-wall | L2 | Private `Children` newtype; pattern-match + construction sites migrate across codebase. **ALSO scope-binds:** `walk_for_bare_legacy_console` (src/check.rs:3170; no standalone stone — no wat-test gate exists because legacy `:wat::console::*` paths are fully retired; the L2 wall will refuse this walker's direct `items` iteration at compile time, forcing children() migration). NOT deferral per recovery doc § FM 11 — the closure mechanism is structurally inevitable when L2 ships. | PENDING — sonnet (long sweep, substrate-as-teacher cascade) |
 | η-visitor | L3 | Mint `walk_ast<F>` + `Action::{Descend,Skip,Stop}`; walker bodies refactor | PENDING — sonnet |
 | θ | — | SCORE + INSCRIPTION | PENDING — orchestrator |
 
