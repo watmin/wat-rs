@@ -98,9 +98,15 @@ fn stone_a_thread_drain_and_join_clean_exit_returns_ok() {
            tx <- :wat::kernel::Sender<wat::core::i64>]
           -> :wat::core::nil
           (:wat::core::let
-            [_ (:wat::kernel::send tx 1)
-             _ (:wat::kernel::send tx 2)
-             _ (:wat::kernel::send tx 3)]
+            [_ (:wat::core::Result/expect -> :wat::core::nil
+                 (:wat::kernel::send tx 1)
+                 "send 1 failed — receiver dropped before drain")
+             _ (:wat::core::Result/expect -> :wat::core::nil
+                 (:wat::kernel::send tx 2)
+                 "send 2 failed — receiver dropped before drain")
+             _ (:wat::core::Result/expect -> :wat::core::nil
+                 (:wat::kernel::send tx 3)
+                 "send 3 failed — receiver dropped before drain")]
             :wat::core::nil))
 
         (:wat::core::defn :my::test::drain-thread

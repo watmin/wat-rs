@@ -84,7 +84,9 @@ const BLOCKING_CHILD_SRC: &str = r#"
       -> :wat::core::nil
       (:wat::core::let
         [[tx rx] (:wat::kernel::make-unbounded-channel :wat::core::nil)
-         _       (:wat::kernel::recv rx)]
+         _       (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
+                   (:wat::kernel::recv rx)
+                   "recv failed — sender dropped before shutdown")]
         :wat::core::nil))
 "#;
 
