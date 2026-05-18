@@ -116,4 +116,86 @@ Arc 212's expanded scope also validates arc 211 at a NEW layer:
 - Original validation (slice α): the panic-EDN diagnostic for t6 enabled the fix
 - Extended validation (slices β-δ): the user's failure-engineering discipline + the substrate's audit pattern enabled CATCHING the class-level flaw (not just t6's instance)
 
-Both validations land in SCORE-212-AUDIT.md when slice ε ships. Arc 211 closes when slice ε ships AND arc 213 closes.
+Both validations land in INSCRIPTION when arc closes. Arc 211 closes when arc 212 INSCRIPTION ships AND arc 213 closes.
+
+---
+
+## Scope EXPANDED 2026-05-18 (post-L4-conversation) — substrate-imposed-not-followed at TWO layers
+
+**User direction:** *"i think 'uh.. you can use list because reasons' is absolute bullshit - there's always only one way / the need to be list specific must be justified strongly - extremely high bar to breach for being special"* + *"can we make mistakes for calling anything but children a panic?... how strict can we get here?..."*
+
+The convention-level discipline (L1: "everyone migrates to children() by hand") is the weakest layer. The substrate's existing discipline (`feedback_substrate_owns_not_callers_match`, `feedback_refuse_easy_solutions`) demands STRUCTURAL impossibility, not author discipline.
+
+### Strictness ladder
+
+| Level | Mechanism | Bug class eliminated |
+|---|---|---|
+| L0 | Spot-fix t6 (slice α shipped); mint children() (slice β shipped) | t6's specific bug |
+| L1 | Convention: every walker migrates to children() | Bug class via author discipline |
+| **L2** | Newtype wall: inner `Vec<WatAST>` private; only `children()` accessor public | Direct iteration STRUCTURALLY IMPOSSIBLE |
+| **L3** | Visitor primitive: `walk_ast<F>` + `Action::{Descend,Skip,Stop}`; walker bodies refactor to closure shape | Writing recursion outside the visitor STRUCTURALLY IMPOSSIBLE |
+| **L4** | L2 + L3 composed | Wrong becomes structurally impossible at BOTH access AND iteration layers |
+
+L4 IS the idealized endpoint. L2 alone leaves walker authors free to write custom recursion; L3 alone leaves consumers free to bypass via pattern-match. L4 closes both doors.
+
+### Single-shape-walker classification REJECTED
+
+Sonnet's initial audit (uncommitted dirty tree, partially shipped) classified two walkers as "Single-shape-walker — intentionally List-only":
+- `validate_comm_positions` — broke `arc112_slice2b_schemes_wire_through_typechecker` under naive children() migration
+- `collect_process_calls` — would break stdlib patterns in `wat/test.wat`, `wat/kernel/hermetic.wat`, `wat/kernel/sandbox.wat`
+
+This framing is REJECTED. The breakages are the substrate teaching that the WALKER RULES are incomplete:
+- `validate_comm_positions` lacks position-awareness — needs to recognize bound-name-later-matched as a fourth permitted slot
+- `collect_process_calls` lacks scope-boundary tracking — needs to RESET local-scope tracking at nested let boundaries
+
+Both walkers can (and MUST) be made correct under children(). Neither earns exemption. Sharpening targets are stones δ-comm-positions and δ-process-scope.
+
+### Locked stone chain (L0 → L4 trajectory)
+
+| Stone | Layer | What | Status |
+|---|---|---|---|
+| α | L0 | walk_quasiquote Vector arm (t6 fix) | SHIPPED `135607b` |
+| β | L0 | `WatAST::children()` primitive in src/ast.rs | SHIPPED `bc31342` |
+| γ-1 | L0 | Audit catalog (read-only); per-site Walker/Leaf/sharpening-target classification | PENDING — sonnet |
+| δ-bulk | L1 | 12 walker migrations already shipped on dirty tree (uncommitted at this DESIGN write); to be committed atomically with γ-1 BRIEF | DIRTY-TREE-RETAINED |
+| δ-bare-primitives | L1 | Migrate `walk_for_bare_primitives` (line 2705) | PENDING — sonnet |
+| δ-comm-positions | L1 | Sharpen `validate_comm_positions` with position-awareness (4th permitted slot: bound-name-later-matched) | PENDING — sonnet |
+| δ-process-scope | L1 | Sharpen `collect_process_calls` with scope-boundary tracking (RESET at nested let) | PENDING — sonnet |
+| ζ-newtype-wall | L2 | Private `Children` newtype; pattern-match + construction sites migrate across codebase | PENDING — sonnet (long sweep, substrate-as-teacher cascade) |
+| η-visitor | L3 | Mint `walk_ast<F>` + `Action::{Descend,Skip,Stop}`; walker bodies refactor | PENDING — sonnet |
+| θ | — | SCORE + INSCRIPTION | PENDING — orchestrator |
+
+### Stone discipline (sonnet briefing contract)
+
+Each δ/ζ/η stone is briefed under the failure-engineering operational mode + the slow-is-smooth-smooth-is-fast cadence. Per stone:
+
+- ONE concern (one walker, one named test, one rule)
+- ONE wat-test name as the proof gate
+- STOP triggers VERBATIM: "if anything outside this concern surfaces, retreat — do not investigate, do not theorize, do not open the file"
+- NO mention of "workspace failure count" (that framing invited arc 213 scope-creep when first attempted)
+- Wat-test green pre/post is the success signal; nothing else
+
+### Closure conditions (REVISED for L4 endpoint)
+
+1. ✅ `WatAST::children()` shipped (β)
+2. ✅ walk_quasiquote Vector arm shipped (α)
+3. Audit catalog produced (γ-1)
+4. 12 sonnet-shipped migrations atomically committed (δ-bulk)
+5. Remaining BRIEF walker (`walk_for_bare_primitives`) migrated (δ-bare-primitives)
+6. Both sharpening targets shipped with scope/position awareness (δ-comm-positions, δ-process-scope)
+7. **L2 newtype wall in place — inner `Vec<WatAST>` is private outside ast.rs (ζ-newtype-wall)**
+8. **L3 visitor primitive in place — `walk_ast<F>` is the only recursion site; walker bodies are closures (η-visitor)**
+9. Workspace tests green post-each-stone (per-stone proof; no aggregate "workspace count" framing)
+10. t6 still passes
+11. INSCRIPTION ships (θ) telling the full L0 → L4 story
+12. Arc 211 closure unblocks (one of two pre-conditions; arc 213 is the other)
+
+### Per-failure-engineering doctrine (extended for L4)
+
+| FE component | Application at L4 |
+|---|---|
+| 1. Failure is data | Sonnet's empirical breakages on `validate_comm_positions` + `collect_process_calls` are walker-rule-incompleteness data, NOT exemption justification |
+| 2. Stop immediately | Halted sonnet mid-spawn for scope-creep into arc 213; reframed Single-shape-walker classification as sharpening targets |
+| 3. Eliminate the CLASS | L4 closes both "miss Vector arm" (via L2 wall) AND "custom recursion shape" (via L3 visitor); bug class structurally extinct forever |
+
+The substrate ships the wall AND the visitor; walker layer is rebased on both; the bug class cannot return because the wrong shape cannot be expressed.

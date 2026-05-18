@@ -2137,6 +2137,28 @@ fn validate_comm_positions(
     ctx: CommCtx,
     errors: &mut Vec<CheckError>,
 ) {
+    // TEMPORARY List-only — walker RULE lacks position-awareness.
+    // NOT an exemption from arc 212's children() doctrine; a sharpening
+    // target. Arc 212 stone δ-comm-positions makes this walker correct
+    // under children() by teaching it the fourth permitted slot.
+    //
+    // The arc 110 comm-discipline currently recognizes three permitted
+    // slots for send/recv/process-send/process-recv/Process/readln/
+    // Process/println: match scrutinee, Result/expect value,
+    // Option/expect value. Migration to children() recursion produces
+    // false positives on this VALID pattern:
+    //
+    //   (:wat::core::let [recv-result (:wat::kernel::recv rx)
+    //                     _val (:wat::core::match recv-result -> ...)]
+    //     ...)
+    //
+    // where recv is bound to a name later matched/expected — a fourth
+    // permitted slot the walker rule must learn to recognize. Sharpening
+    // lands in arc 212 stone δ-comm-positions; this list-only fallback
+    // retires when the sharpened walker ships.
+    //
+    // Audit evidence: arc112_slice2b_schemes_wire_through_typechecker
+    // fires false positive under naive children() migration.
     let WatAST::List(items, _) = node else { return; };
     let (head_str, head_span) = match items.first() {
         Some(WatAST::Keyword(k, hs)) => (k.as_str(), hs),
@@ -2274,14 +2296,21 @@ fn validate_sandbox_scope_leak(
     sym: &SymbolTable,
     errors: &mut Vec<CheckError>,
 ) {
-    let WatAST::List(items, _) = node else { return; };
-
-    // Recurse first into all children — handles nested sandbox calls
-    // (e.g., a top-level form holding a deftest holding another
-    // sandbox primitive).
-    for child in items {
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly. Recurse first into all children — handles
+    // nested sandbox calls (e.g., a top-level form holding a deftest
+    // holding another sandbox primitive). children() returns &[] for leaf
+    // nodes (no-op).
+    for child in node.children() {
         validate_sandbox_scope_leak(child, sym, errors);
     }
+
+    // Walker-specific List-head logic: sandbox-primitive detection and
+    // inner-scope leak analysis apply only to List forms.
+    let items = match node {
+        WatAST::List(items, _) => items,
+        _ => return,
+    };
 
     // Check if THIS node is a sandbox-primitive call.
     let head_str = match items.first() {
@@ -2358,44 +2387,50 @@ fn check_calls_for_sandbox_leak(
     sym: &SymbolTable,
     errors: &mut Vec<CheckError>,
 ) {
-    let WatAST::List(items, _) = node else { return; };
-
-    if let Some(WatAST::Keyword(head, head_span)) = items.first() {
-        let head_str = head.as_str();
-        // Strip `<T,...>` for lookup (the symbol table key is the
-        // canonical name without type-parameter annotation; arc 139
-        // territory).
-        let canonical = match head_str.find('<') {
-            Some(i) => &head_str[..i],
-            None => head_str,
-        };
-        let reserved = canonical.starts_with(":wat::") || canonical.starts_with(":rust::");
-        if !reserved && !inner_names.contains(canonical) {
-            if let Some(outer_func) = sym.get(canonical) {
-                errors.push(CheckError::SandboxScopeLeak {
-                    offending_name: head_str.to_string(),
-                    call_span: head_span.clone(),
-                    outer_define_span: outer_func.body.span().clone(),
-                });
+    // Walker-specific List-head logic: call-head leak detection and
+    // sandbox-boundary guard apply only to List forms with a Keyword head.
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(head, head_span)) = items.first() {
+            let head_str = head.as_str();
+            // Strip `<T,...>` for lookup (the symbol table key is the
+            // canonical name without type-parameter annotation; arc 139
+            // territory).
+            let canonical = match head_str.find('<') {
+                Some(i) => &head_str[..i],
+                None => head_str,
+            };
+            let reserved = canonical.starts_with(":wat::") || canonical.starts_with(":rust::");
+            if !reserved && !inner_names.contains(canonical) {
+                if let Some(outer_func) = sym.get(canonical) {
+                    errors.push(CheckError::SandboxScopeLeak {
+                        offending_name: head_str.to_string(),
+                        call_span: head_span.clone(),
+                        outer_define_span: outer_func.body.span().clone(),
+                    });
+                }
             }
-        }
 
-        // Stop at nested sandbox boundaries — the outer caller's
-        // recursion handles those.
-        let is_nested_sandbox = matches!(
-            head_str,
-            ":wat::kernel::run-sandboxed-ast"
-                | ":wat::kernel::run-sandboxed-hermetic-ast"
-                | ":wat::kernel::fork-program-ast"
-                | ":wat::kernel::spawn-program-ast"
-        );
-        if is_nested_sandbox {
-            return;
+            // Stop at nested sandbox boundaries — the outer caller's
+            // recursion handles those.
+            let is_nested_sandbox = matches!(
+                head_str,
+                ":wat::kernel::run-sandboxed-ast"
+                    | ":wat::kernel::run-sandboxed-hermetic-ast"
+                    | ":wat::kernel::fork-program-ast"
+                    | ":wat::kernel::spawn-program-ast"
+            );
+            if is_nested_sandbox {
+                return;
+            }
         }
     }
 
-    // Recurse into all children for nested calls.
-    for child in items {
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly. Sandbox-leak detection fires on call-head
+    // positions (always List); the generic recursion ensures nested scope
+    // inside bracketed forms (let-binding vectors, fn-param vectors) is
+    // still traversed.
+    for child in node.children() {
         check_calls_for_sandbox_leak(child, inner_names, sym, errors);
     }
 }
@@ -2933,27 +2968,27 @@ const LEGACY_STREAM_PREFIX: &str = ":wat::std::stream::";
 const CANONICAL_STREAM_PREFIX: &str = ":wat::stream::";
 
 fn walk_for_legacy_stream(node: &WatAST, errors: &mut Vec<CheckError>) {
-    match node {
-        WatAST::Keyword(s, span) => {
-            if s.starts_with(LEGACY_STREAM_PREFIX) {
-                let new = format!(
-                    "{}{}",
-                    CANONICAL_STREAM_PREFIX,
-                    &s[LEGACY_STREAM_PREFIX.len()..]
-                );
-                errors.push(CheckError::BareLegacyStreamPath {
-                    old: s.clone(),
-                    new,
-                    span: span.clone(),
-                });
-            }
+    // Walker-specific Keyword-head logic: fire diagnostic when a legacy
+    // stream prefix is found.
+    if let WatAST::Keyword(s, span) = node {
+        if s.starts_with(LEGACY_STREAM_PREFIX) {
+            let new = format!(
+                "{}{}",
+                CANONICAL_STREAM_PREFIX,
+                &s[LEGACY_STREAM_PREFIX.len()..]
+            );
+            errors.push(CheckError::BareLegacyStreamPath {
+                old: s.clone(),
+                new,
+                span: span.clone(),
+            });
         }
-        WatAST::List(items, _) => {
-            for item in items {
-                walk_for_legacy_stream(item, errors);
-            }
-        }
-        _ => {}
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly so legacy stream keywords buried inside
+    // bracketed forms (let-binding vectors, fn-param vectors) are caught.
+    for child in node.children() {
+        walk_for_legacy_stream(child, errors);
     }
 }
 
@@ -2972,26 +3007,26 @@ const LEGACY_TELEMETRY_SERVICE_VERB_PREFIX: &str = ":wat::telemetry::Service/";
 const CANONICAL_TELEMETRY_PREFIX: &str = ":wat::telemetry::";
 
 fn walk_for_legacy_telemetry_service(node: &WatAST, errors: &mut Vec<CheckError>) {
-    match node {
-        WatAST::Keyword(s, span) => {
-            let stripped = s
-                .strip_prefix(LEGACY_TELEMETRY_SERVICE_TYPEALIAS_PREFIX)
-                .or_else(|| s.strip_prefix(LEGACY_TELEMETRY_SERVICE_VERB_PREFIX));
-            if let Some(tail) = stripped {
-                let new = format!("{}{}", CANONICAL_TELEMETRY_PREFIX, tail);
-                errors.push(CheckError::BareLegacyTelemetryServicePath {
-                    old: s.clone(),
-                    new,
-                    span: span.clone(),
-                });
-            }
+    // Walker-specific Keyword-head logic: fire diagnostic for legacy
+    // telemetry service path prefixes.
+    if let WatAST::Keyword(s, span) = node {
+        let stripped = s
+            .strip_prefix(LEGACY_TELEMETRY_SERVICE_TYPEALIAS_PREFIX)
+            .or_else(|| s.strip_prefix(LEGACY_TELEMETRY_SERVICE_VERB_PREFIX));
+        if let Some(tail) = stripped {
+            let new = format!("{}{}", CANONICAL_TELEMETRY_PREFIX, tail);
+            errors.push(CheckError::BareLegacyTelemetryServicePath {
+                old: s.clone(),
+                new,
+                span: span.clone(),
+            });
         }
-        WatAST::List(items, _) => {
-            for item in items {
-                walk_for_legacy_telemetry_service(item, errors);
-            }
-        }
-        _ => {}
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly so legacy telemetry keywords inside bracketed
+    // forms (let-binding vectors, fn-param vectors) are caught.
+    for child in node.children() {
+        walk_for_legacy_telemetry_service(child, errors);
     }
 }
 
@@ -3017,34 +3052,34 @@ fn canonical_lru_leaf(tail: &str) -> &str {
 }
 
 fn walk_for_legacy_lru_cache_service(node: &WatAST, errors: &mut Vec<CheckError>) {
-    match node {
-        WatAST::Keyword(s, span) => {
-            if let Some(tail) = s.strip_prefix(LEGACY_LRU_CACHE_SERVICE_TYPEALIAS_PREFIX) {
-                let new = format!(
-                    "{}{}",
-                    CANONICAL_LRU_PREFIX,
-                    canonical_lru_leaf(tail)
-                );
-                errors.push(CheckError::BareLegacyLruCacheServicePath {
-                    old: s.clone(),
-                    new,
-                    span: span.clone(),
-                });
-            } else if let Some(tail) = s.strip_prefix(LEGACY_LRU_CACHE_SERVICE_VERB_PREFIX) {
-                let new = format!("{}{}", CANONICAL_LRU_PREFIX, tail);
-                errors.push(CheckError::BareLegacyLruCacheServicePath {
-                    old: s.clone(),
-                    new,
-                    span: span.clone(),
-                });
-            }
+    // Walker-specific Keyword-head logic: fire diagnostic for legacy
+    // LRU cache service path prefixes.
+    if let WatAST::Keyword(s, span) = node {
+        if let Some(tail) = s.strip_prefix(LEGACY_LRU_CACHE_SERVICE_TYPEALIAS_PREFIX) {
+            let new = format!(
+                "{}{}",
+                CANONICAL_LRU_PREFIX,
+                canonical_lru_leaf(tail)
+            );
+            errors.push(CheckError::BareLegacyLruCacheServicePath {
+                old: s.clone(),
+                new,
+                span: span.clone(),
+            });
+        } else if let Some(tail) = s.strip_prefix(LEGACY_LRU_CACHE_SERVICE_VERB_PREFIX) {
+            let new = format!("{}{}", CANONICAL_LRU_PREFIX, tail);
+            errors.push(CheckError::BareLegacyLruCacheServicePath {
+                old: s.clone(),
+                new,
+                span: span.clone(),
+            });
         }
-        WatAST::List(items, _) => {
-            for item in items {
-                walk_for_legacy_lru_cache_service(item, errors);
-            }
-        }
-        _ => {}
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly so legacy LRU keywords inside bracketed forms
+    // (let-binding vectors, fn-param vectors) are caught.
+    for child in node.children() {
+        walk_for_legacy_lru_cache_service(child, errors);
     }
 }
 
@@ -3075,44 +3110,44 @@ const LEGACY_KERNEL_QUEUE_NAMES: &[(&str, &str)] = &[
 ];
 
 fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
-    match node {
-        WatAST::Keyword(s, span) => {
-            for (legacy, canonical) in LEGACY_KERNEL_QUEUE_NAMES {
-                // Match the legacy name as a prefix; type aliases
-                // can carry `<...>` parametrics tail so we strip-
-                // and-rebuild rather than equal-match.
-                if let Some(tail) = s.strip_prefix(legacy) {
-                    // Boundary check: the legacy name must be
-                    // followed by `<`, end-of-string, or a non-
-                    // identifier character. This prevents
-                    // `:wat::kernel::QueueSenderXYZ` from matching
-                    // `QueueSender` (theoretical; not present
-                    // today but a sane guard).
-                    let boundary_ok = tail.is_empty()
-                        || tail.starts_with('<')
-                        || !tail
-                            .chars()
-                            .next()
-                            .map(|c| c.is_alphanumeric() || c == '_' || c == '-')
-                            .unwrap_or(false);
-                    if boundary_ok {
-                        let new = format!("{}{}", canonical, tail);
-                        errors.push(CheckError::BareLegacyKernelQueuePath {
-                            old: s.clone(),
-                            new,
-                            span: span.clone(),
-                        });
-                        break;
-                    }
+    // Walker-specific Keyword-head logic: fire diagnostic for legacy
+    // kernel Queue* family names.
+    if let WatAST::Keyword(s, span) = node {
+        for (legacy, canonical) in LEGACY_KERNEL_QUEUE_NAMES {
+            // Match the legacy name as a prefix; type aliases
+            // can carry `<...>` parametrics tail so we strip-
+            // and-rebuild rather than equal-match.
+            if let Some(tail) = s.strip_prefix(legacy) {
+                // Boundary check: the legacy name must be
+                // followed by `<`, end-of-string, or a non-
+                // identifier character. This prevents
+                // `:wat::kernel::QueueSenderXYZ` from matching
+                // `QueueSender` (theoretical; not present
+                // today but a sane guard).
+                let boundary_ok = tail.is_empty()
+                    || tail.starts_with('<')
+                    || !tail
+                        .chars()
+                        .next()
+                        .map(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                        .unwrap_or(false);
+                if boundary_ok {
+                    let new = format!("{}{}", canonical, tail);
+                    errors.push(CheckError::BareLegacyKernelQueuePath {
+                        old: s.clone(),
+                        new,
+                        span: span.clone(),
+                    });
+                    break;
                 }
             }
         }
-        WatAST::List(items, _) => {
-            for item in items {
-                walk_for_legacy_kernel_queue(item, errors);
-            }
-        }
-        _ => {}
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly so legacy kernel queue keywords inside
+    // bracketed forms (let-binding vectors, fn-param vectors) are caught.
+    for child in node.children() {
+        walk_for_legacy_kernel_queue(child, errors);
     }
 }
 
@@ -3240,66 +3275,73 @@ fn walk_for_deadlock(
     types: &TypeEnv,
     errors: &mut Vec<CheckError>,
 ) {
-    let WatAST::List(items, _) = node else { return; };
-    let head = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
-        _ => {
-            for child in items {
+    // Walker-specific List-head logic: sandbox boundary and let-form
+    // special-case handling apply only to List forms with Keyword heads.
+    if let WatAST::List(items, _) = node {
+        let head = match items.first() {
+            Some(WatAST::Keyword(k, _)) => k.as_str(),
+            _ => {
+                // No keyword head — recurse generically via children() below.
+                for child in node.children() {
+                    walk_for_deadlock(child, types, errors);
+                }
+                return;
+            }
+        };
+
+        // Arc 128 — sandbox-boundary guard. The first argument to a
+        // sandbox-program primitive is a `(:wat::core::forms ...)` block
+        // representing an INNER program; the inner program has its own
+        // freeze cycle when the primitive fires at runtime. Outer freeze
+        // must not redundantly walk the inner forms — doing so conflates
+        // outer/inner scope and emits errors that belong to the inner
+        // program. Skip arg 0 (the forms block); recurse into trailing
+        // args (type-list, config arg).
+        if matches!(
+            head,
+            ":wat::kernel::run-sandboxed-ast"
+                | ":wat::kernel::run-sandboxed-hermetic-ast"
+                | ":wat::kernel::fork-program-ast"
+                | ":wat::kernel::spawn-program-ast"
+        ) {
+            for child in items.iter().skip(2) {
                 walk_for_deadlock(child, types, errors);
             }
             return;
         }
-    };
 
-    // Arc 128 — sandbox-boundary guard. The first argument to a
-    // sandbox-program primitive is a `(:wat::core::forms ...)` block
-    // representing an INNER program; the inner program has its own
-    // freeze cycle when the primitive fires at runtime. Outer freeze
-    // must not redundantly walk the inner forms — doing so conflates
-    // outer/inner scope and emits errors that belong to the inner
-    // program. Skip arg 0 (the forms block); recurse into trailing
-    // args (type-list, config arg).
-    if matches!(
-        head,
-        ":wat::kernel::run-sandboxed-ast"
-            | ":wat::kernel::run-sandboxed-hermetic-ast"
-            | ":wat::kernel::fork-program-ast"
-            | ":wat::kernel::spawn-program-ast"
-    ) {
-        for child in items.iter().skip(2) {
-            walk_for_deadlock(child, types, errors);
-        }
-        return;
-    }
-
-    // Arc 154 — sequential semantics moved under `:wat::core::let`
-    // (single-letform vocabulary). Pre-arc-154 this matched
-    // `:wat::core::let*`. Dead code (parent `walk_for_deadlock` is
-    // dead-code-allowed) — updated for substrate self-consistency.
-    if head == ":wat::core::let" && items.len() >= 3 {
-        let bindings = match &items[1] {
-            WatAST::List(xs, _) => xs.clone(),
-            _ => return,
-        };
-        let body_forms: Vec<WatAST> = items[2..].to_vec();
-        // Recurse into each binding's RHS first (catches nested lets).
-        for binding in &bindings {
-            if let WatAST::List(parts, _) = binding {
-                if parts.len() == 2 {
-                    walk_for_deadlock(&parts[1], types, errors);
+        // Arc 154 — sequential semantics moved under `:wat::core::let`
+        // (single-letform vocabulary). Pre-arc-154 this matched
+        // `:wat::core::let*`. Dead code (parent `walk_for_deadlock` is
+        // dead-code-allowed) — updated for substrate self-consistency.
+        if head == ":wat::core::let" && items.len() >= 3 {
+            let bindings = match &items[1] {
+                WatAST::List(xs, _) => xs.clone(),
+                _ => return,
+            };
+            let body_forms: Vec<WatAST> = items[2..].to_vec();
+            // Recurse into each binding's RHS first (catches nested lets).
+            for binding in &bindings {
+                if let WatAST::List(parts, _) = binding {
+                    if parts.len() == 2 {
+                        walk_for_deadlock(&parts[1], types, errors);
+                    }
                 }
             }
+            for body_form in &body_forms {
+                walk_for_deadlock(body_form, types, errors);
+            }
+            // Run the structural rule at THIS let's scope.
+            check_let_for_scope_deadlock(&bindings, &body_forms, types, errors);
+            return;
         }
-        for body_form in &body_forms {
-            walk_for_deadlock(body_form, types, errors);
-        }
-        // Run the structural rule at THIS let's scope.
-        check_let_for_scope_deadlock(&bindings, &body_forms, types, errors);
-        return;
     }
 
-    // For all other forms, descend.
-    for child in items {
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly. The walker-specific head checks above handle
+    // the sandbox-boundary and let-form special cases; all remaining compound
+    // nodes recurse here. children() returns &[] for leaf nodes (no-op).
+    for child in node.children() {
         walk_for_deadlock(child, types, errors);
     }
 }
@@ -3557,6 +3599,23 @@ fn collect_process_calls(
     joins: &mut Vec<(String, Span)>,
     accessors: &mut Vec<(String, String, Span)>,
 ) {
+    // TEMPORARY List-only — walker RULE lacks lexical-scope-boundary
+    // tracking. NOT an exemption from arc 212's children() doctrine;
+    // a sharpening target. Arc 212 stone δ-process-scope makes this
+    // walker correct under children() by teaching it to RESET local-
+    // scope tracking when descent crosses a nested let-form boundary.
+    //
+    // The arc 117 rule is "Process/join-result and Process/stdout|
+    // stderr|output in the SAME lexical scope = deadlock" (the
+    // find_process_join_before_drain framing). Migration to children()
+    // recursion is correct AT THE ITERATION LAYER, but the walker's
+    // current rule has no scope-boundary awareness — it would conflate
+    // inner-let scopes with the outer let's tracking.
+    //
+    // Audit evidence: naive children() migration produces false
+    // positives on stdlib patterns in wat/test.wat,
+    // wat/kernel/hermetic.wat, wat/kernel/sandbox.wat where inner-let
+    // scopes carry Process accessors independently of the outer scope.
     let WatAST::List(items, span) = node else { return };
     if let Some(WatAST::Keyword(k, _)) = items.first() {
         match k.as_str() {
@@ -3674,23 +3733,29 @@ fn collect_process_stdin_and_joins(
 /// retired in arc 114) where `thr` matches the given binding name.
 /// True iff such a call is found anywhere in the AST subtree.
 fn contains_join_on_thread(node: &WatAST, thread_binding: &str) -> bool {
-    let WatAST::List(items, _) = node else { return false; };
-    if let Some(WatAST::Keyword(k, _)) = items.first() {
-        if matches!(
-            k.as_str(),
-            ":wat::kernel::Thread/join-result"
-                | ":wat::kernel::Process/join-result"
-                | ":wat::kernel::join-result"
-                | ":wat::kernel::join"
-        ) {
-            if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                if id.name == thread_binding {
-                    return true;
+    // Walker-specific List-head logic: Thread/join-result detection
+    // applies only to List forms with a matching Keyword head.
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(k, _)) = items.first() {
+            if matches!(
+                k.as_str(),
+                ":wat::kernel::Thread/join-result"
+                    | ":wat::kernel::Process/join-result"
+                    | ":wat::kernel::join-result"
+                    | ":wat::kernel::join"
+            ) {
+                if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                    if id.name == thread_binding {
+                        return true;
+                    }
                 }
             }
         }
     }
-    items
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly so a join call inside a bracketed form is
+    // still detected. children() returns &[] for leaf nodes (no-op).
+    node.children()
         .iter()
         .any(|child| contains_join_on_thread(child, thread_binding))
 }
@@ -3768,151 +3833,161 @@ fn walk_for_pair_deadlock(
     binding_scope: &[PairScopeEntry],
     errors: &mut Vec<CheckError>,
 ) {
-    let WatAST::List(items, _) = node else { return; };
-    let head = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
-        _ => {
-            for child in items {
+    // Walker-specific List-head logic: sandbox boundary, let-form scope
+    // construction, comm-primitive exclusion, and call-site structural
+    // rule apply only to List forms with Keyword heads.
+    if let WatAST::List(items, _) = node {
+        let head = match items.first() {
+            Some(WatAST::Keyword(k, _)) => k.as_str(),
+            _ => {
+                // No keyword head — fall through to generic children() recursion.
+                for child in node.children() {
+                    walk_for_pair_deadlock(child, types, binding_scope, errors);
+                }
+                return;
+            }
+        };
+
+        // Arc 128 — sandbox-boundary guard. The first argument to a
+        // sandbox-program primitive is a `(:wat::core::forms ...)` block
+        // representing an INNER program; the inner program has its own
+        // freeze cycle when the primitive fires at runtime. Outer freeze
+        // must not redundantly walk the inner forms — doing so conflates
+        // outer/inner scope and emits errors that belong to the inner
+        // program. Skip arg 0 (the forms block); recurse into trailing
+        // args (type-list, config arg). Mirrors the guard in
+        // `walk_for_deadlock` so arc 126 inherits the boundary from
+        // inception.
+        if matches!(
+            head,
+            ":wat::kernel::run-sandboxed-ast"
+                | ":wat::kernel::run-sandboxed-hermetic-ast"
+                | ":wat::kernel::fork-program-ast"
+                | ":wat::kernel::spawn-program-ast"
+        ) {
+            for child in items.iter().skip(2) {
                 walk_for_pair_deadlock(child, types, binding_scope, errors);
             }
             return;
         }
-    };
 
-    // Arc 128 — sandbox-boundary guard. The first argument to a
-    // sandbox-program primitive is a `(:wat::core::forms ...)` block
-    // representing an INNER program; the inner program has its own
-    // freeze cycle when the primitive fires at runtime. Outer freeze
-    // must not redundantly walk the inner forms — doing so conflates
-    // outer/inner scope and emits errors that belong to the inner
-    // program. Skip arg 0 (the forms block); recurse into trailing
-    // args (type-list, config arg). Mirrors the guard in
-    // `walk_for_deadlock` so arc 126 inherits the boundary from
-    // inception.
-    if matches!(
-        head,
-        ":wat::kernel::run-sandboxed-ast"
-            | ":wat::kernel::run-sandboxed-hermetic-ast"
-            | ":wat::kernel::fork-program-ast"
-            | ":wat::kernel::spawn-program-ast"
-    ) {
-        for child in items.iter().skip(2) {
-            walk_for_pair_deadlock(child, types, binding_scope, errors);
-        }
-        return;
-    }
-
-    // Arc 154 — sequential semantics moved under `:wat::core::let`
-    // (single-letform vocabulary). Pre-arc-154 this matched
-    // `:wat::core::let*`. Active code: pair-deadlock walker; per-let
-    // scope construction unchanged (let is now sequential).
-    if head == ":wat::core::let" && items.len() >= 3 {
-        // Arc 168 slice 4 follow-up — outer is now flat-Vector
-        // `[name1 expr1 name2 expr2 ...]`. Desugar into `Vec<WatAST::List([binder, rhs])>`
-        // matching the legacy List-of-Lists shape this walker already
-        // consumes. Mirrors the `bindings_pairs` desugar in `infer_let`
-        // (src/check.rs:6275). The legacy List arm is preserved as a
-        // defensive safety net for any pre-arc-168 caller; arc 168 slice
-        // 3's substrate retirement made the canonical path Vector-only,
-        // but historical paths that still synthesize List bindings
-        // continue to flow cleanly.
-        let bindings: Vec<WatAST> = match &items[1] {
-            WatAST::Vector(items_v, _) => {
-                if items_v.len() % 2 != 0 {
-                    return;
+        // Arc 154 — sequential semantics moved under `:wat::core::let`
+        // (single-letform vocabulary). Pre-arc-154 this matched
+        // `:wat::core::let*`. Active code: pair-deadlock walker; per-let
+        // scope construction unchanged (let is now sequential).
+        if head == ":wat::core::let" && items.len() >= 3 {
+            // Arc 168 slice 4 follow-up — outer is now flat-Vector
+            // `[name1 expr1 name2 expr2 ...]`. Desugar into `Vec<WatAST::List([binder, rhs])>`
+            // matching the legacy List-of-Lists shape this walker already
+            // consumes. Mirrors the `bindings_pairs` desugar in `infer_let`
+            // (src/check.rs:6275). The legacy List arm is preserved as a
+            // defensive safety net for any pre-arc-168 caller; arc 168 slice
+            // 3's substrate retirement made the canonical path Vector-only,
+            // but historical paths that still synthesize List bindings
+            // continue to flow cleanly.
+            let bindings: Vec<WatAST> = match &items[1] {
+                WatAST::Vector(items_v, _) => {
+                    if items_v.len() % 2 != 0 {
+                        return;
+                    }
+                    items_v
+                        .chunks_exact(2)
+                        .map(|chunk| {
+                            WatAST::List(
+                                vec![chunk[0].clone(), chunk[1].clone()],
+                                Span::unknown(),
+                            )
+                        })
+                        .collect()
                 }
-                items_v
-                    .chunks_exact(2)
-                    .map(|chunk| {
-                        WatAST::List(
-                            vec![chunk[0].clone(), chunk[1].clone()],
-                            Span::unknown(),
-                        )
-                    })
-                    .collect()
+                WatAST::List(xs, _) => xs.clone(),
+                _ => return,
+            };
+            // Extend scope with this let's typed bindings (typed-name shape)
+            // AND with synthetic pair-scope entries for tuple-destructure
+            // bindings from make-bounded-channel / make-unbounded-channel
+            // (arc 133). Both shapes end up in the same scope vec; the
+            // trace logic is identical — it doesn't care whether the entry
+            // came from a typed-name or a synthetic expansion.
+            let mut extended: Vec<PairScopeEntry> = binding_scope.to_vec();
+            let mut synthetic_counter = 0usize;
+            for binding in &bindings {
+                if let Some((name, type_ann, rhs)) = parse_binding_for_pair_check(binding) {
+                    extended.push((name, type_ann, rhs));
+                } else {
+                    // Arc 133 — attempt to expand tuple-destructure bindings
+                    // from make-bounded-channel into synthetic pair-scope entries.
+                    extend_pair_scope_with_tuple_destructure(
+                        binding,
+                        &mut synthetic_counter,
+                        &mut extended,
+                    );
+                }
             }
-            WatAST::List(xs, _) => xs.clone(),
-            _ => return,
-        };
-        // Extend scope with this let's typed bindings (typed-name shape)
-        // AND with synthetic pair-scope entries for tuple-destructure
-        // bindings from make-bounded-channel / make-unbounded-channel
-        // (arc 133). Both shapes end up in the same scope vec; the
-        // trace logic is identical — it doesn't care whether the entry
-        // came from a typed-name or a synthetic expansion.
-        let mut extended: Vec<PairScopeEntry> = binding_scope.to_vec();
-        let mut synthetic_counter = 0usize;
-        for binding in &bindings {
-            if let Some((name, type_ann, rhs)) = parse_binding_for_pair_check(binding) {
-                extended.push((name, type_ann, rhs));
-            } else {
-                // Arc 133 — attempt to expand tuple-destructure bindings
-                // from make-bounded-channel into synthetic pair-scope entries.
-                extend_pair_scope_with_tuple_destructure(
-                    binding,
-                    &mut synthetic_counter,
-                    &mut extended,
-                );
-            }
-        }
-        // Recurse into each binding's RHS with the *prefix* scope
-        // available at that binding (let is sequential; later
-        // bindings see earlier ones, but a binding's own RHS is
-        // evaluated before that name enters scope).
-        let mut prefix: Vec<PairScopeEntry> = binding_scope.to_vec();
-        let mut synthetic_counter_prefix = 0usize;
-        for binding in &bindings {
-            if let WatAST::List(parts, _) = binding {
-                if parts.len() == 2 {
-                    walk_for_pair_deadlock(&parts[1], types, &prefix, errors);
-                    if let Some((name, type_ann, rhs)) =
-                        parse_binding_for_pair_check(binding)
-                    {
-                        prefix.push((name, type_ann, rhs));
-                    } else {
-                        // Arc 133 — same expansion for the prefix scope.
-                        extend_pair_scope_with_tuple_destructure(
-                            binding,
-                            &mut synthetic_counter_prefix,
-                            &mut prefix,
-                        );
+            // Recurse into each binding's RHS with the *prefix* scope
+            // available at that binding (let is sequential; later
+            // bindings see earlier ones, but a binding's own RHS is
+            // evaluated before that name enters scope).
+            let mut prefix: Vec<PairScopeEntry> = binding_scope.to_vec();
+            let mut synthetic_counter_prefix = 0usize;
+            for binding in &bindings {
+                if let WatAST::List(parts, _) = binding {
+                    if parts.len() == 2 {
+                        walk_for_pair_deadlock(&parts[1], types, &prefix, errors);
+                        if let Some((name, type_ann, rhs)) =
+                            parse_binding_for_pair_check(binding)
+                        {
+                            prefix.push((name, type_ann, rhs));
+                        } else {
+                            // Arc 133 — same expansion for the prefix scope.
+                            extend_pair_scope_with_tuple_destructure(
+                                binding,
+                                &mut synthetic_counter_prefix,
+                                &mut prefix,
+                            );
+                        }
                     }
                 }
             }
+            // Body forms see the full extended scope.
+            for body_form in &items[2..] {
+                walk_for_pair_deadlock(body_form, types, &extended, errors);
+            }
+            return;
         }
-        // Body forms see the full extended scope.
-        for body_form in &items[2..] {
-            walk_for_pair_deadlock(body_form, types, &extended, errors);
+
+        // Skip kernel comm primitives — those are governed by arc 117 /
+        // arc 110, not arc 126. Their argument-shape is well-formed by
+        // construction (one Sender or one Receiver per call).
+        // Arc 170 slice 3 Gap B — Sender/close is structurally a
+        // single-Sender call; exclude from pair-deadlock check.
+        if matches!(
+            head,
+            ":wat::kernel::send"
+                | ":wat::kernel::Sender/close"
+                | ":wat::kernel::recv"
+                | ":wat::kernel::try-recv"
+                | ":wat::kernel::select"
+                | ":wat::kernel::process-send"
+                | ":wat::kernel::process-recv"
+        ) {
+            for child in &items[1..] {
+                walk_for_pair_deadlock(child, types, binding_scope, errors);
+            }
+            return;
         }
-        return;
+
+        // Run the structural rule at THIS call site.
+        check_call_for_pair_deadlock(node, binding_scope, types, errors);
     }
 
-    // Skip kernel comm primitives — those are governed by arc 117 /
-    // arc 110, not arc 126. Their argument-shape is well-formed by
-    // construction (one Sender or one Receiver per call).
-    // Arc 170 slice 3 Gap B — Sender/close is structurally a
-    // single-Sender call; exclude from pair-deadlock check.
-    if matches!(
-        head,
-        ":wat::kernel::send"
-            | ":wat::kernel::Sender/close"
-            | ":wat::kernel::recv"
-            | ":wat::kernel::try-recv"
-            | ":wat::kernel::select"
-            | ":wat::kernel::process-send"
-            | ":wat::kernel::process-recv"
-    ) {
-        for child in &items[1..] {
-            walk_for_pair_deadlock(child, types, binding_scope, errors);
-        }
-        return;
-    }
-
-    // Run the structural rule at THIS call site.
-    check_call_for_pair_deadlock(node, binding_scope, types, errors);
-
-    // Descend into children — nested calls / bindings still get checked.
-    for child in items {
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly. Walker-specific special-case logic above
+    // handles sandbox boundaries, let-form scope, and comm-primitive
+    // exclusions; all remaining compound nodes (including List fall-through
+    // from check_call_for_pair_deadlock) recurse here. children() returns
+    // &[] for leaf nodes (no-op).
+    for child in node.children() {
         walk_for_pair_deadlock(child, types, binding_scope, errors);
     }
 }
@@ -8898,18 +8973,24 @@ fn rhs_spawn_fn_has_no_recv(rhs: &WatAST) -> bool {
 /// `(:wat::kernel::try-recv ...)`, or `(:wat::kernel::select ...)`
 /// call. Helper for arc 134's body-form narrowing.
 fn node_contains_recv(node: &WatAST) -> bool {
-    let WatAST::List(items, _) = node else { return false; };
-    if let Some(WatAST::Keyword(k, _)) = items.first() {
-        if matches!(
-            k.as_str(),
-            ":wat::kernel::recv"
-                | ":wat::kernel::try-recv"
-                | ":wat::kernel::select"
-        ) {
-            return true;
+    // Walker-specific List-head logic: recv detection applies only to
+    // List forms with matching Keyword heads.
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(k, _)) = items.first() {
+            if matches!(
+                k.as_str(),
+                ":wat::kernel::recv"
+                    | ":wat::kernel::try-recv"
+                    | ":wat::kernel::select"
+            ) {
+                return true;
+            }
         }
     }
-    items.iter().any(node_contains_recv)
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly so a recv call inside a bracketed form is
+    // still detected.
+    node.children().iter().any(node_contains_recv)
 }
 
 // Arc 154 — `infer_let_star` retired; sequential semantics moved

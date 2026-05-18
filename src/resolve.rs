@@ -158,6 +158,8 @@ fn check_form(
     use_decls: &crate::rust_deps::UseDeclarations,
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
+    // Walker-specific List-head logic: call-head resolution and quote-family
+    // boundary guards apply only to List forms with Keyword heads.
     if let WatAST::List(items, _) = form {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if !is_resolvable_call_head(head, sym, macros) {
@@ -225,10 +227,14 @@ fn check_form(
                 return;
             }
         }
-        // Recurse into all children.
-        for child in items {
-            check_form(child, sym, macros, use_decls, unresolved);
-        }
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly. Call-head resolution fires on List forms;
+    // the generic recursion ensures call forms nested inside bracketed
+    // shapes (e.g., let-binding vector RHSes) are still resolved.
+    // children() returns &[] for leaf nodes (no-op).
+    for child in form.children() {
+        check_form(child, sym, macros, use_decls, unresolved);
     }
 }
 
@@ -245,7 +251,8 @@ fn check_quasiquote_template(
     use_decls: &crate::rust_deps::UseDeclarations,
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
-    // Only list forms can be unquote/unquote-splicing escapes.
+    // Only List forms can be unquote/unquote-splicing escapes; check the
+    // head keyword for those special forms first.
     if let WatAST::List(items, _) = node {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing" {
@@ -259,12 +266,15 @@ fn check_quasiquote_template(
             // data — don't flag the call head, but DO recurse into children
             // looking for unquote/unquote-splicing escapes deeper in the tree.
         }
-        // Recurse into children to find nested unquote escapes.
-        for child in items {
-            check_quasiquote_template(child, sym, macros, use_decls, unresolved);
-        }
     }
-    // Atoms (symbols, keywords, literals) in the template are always data.
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly. Walkers that only recurse into List silently
+    // miss unquote escapes inside bracketed forms (e.g. let-binding vectors).
+    // children() returns &[] for leaf nodes so this is a no-op for atoms.
+    for child in node.children() {
+        check_quasiquote_template(child, sym, macros, use_decls, unresolved);
+    }
+    // Atoms (symbols, keywords, literals): children() → &[]; loop is a no-op.
 }
 
 /// True if `head` resolves as a call target.
