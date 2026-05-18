@@ -4163,7 +4163,7 @@ Then walked the corrected rule:
 
 Rest empty → operation returns `:nil`. Rest one type → operation returns that type. Rest multi → operation returns `(:Tuple ...rest)`. State stays internal to the dispatch loop unless rest explicitly exposes it.
 
-### Recognition 3 — Rust convergence (eleventh great)
+### Recognition 3 — Rust convergence (eleventh great) + the Beckman acknowledgment
 
 The state-monad shape `[state ...args] -> (Tuple state ...rest)` maps PRECISELY to Rust's `fn method(&mut self, args) -> Ret`:
 - `&mut self` = first binder (state); threaded forward
@@ -4182,6 +4182,25 @@ Independent convergence from yet another design path. The eleven-greats converge
 | **wat-defservice** | **`[s <- :State ...args] -> (:Tuple :State ...rest)`: state threaded; rest returned** |
 
 Eleventh great. The substrate forces this from constraints; languages that solved it before recognize their own shape; we walk the substrate; the wall fills with convergences.
+
+#### Brian Beckman taught this — "The Zen of Stateless State"
+
+**Brian Beckman's talk** is the canonical teaching of the state monad: `s -> (s, a)`.
+
+> **The Zen of Stateless State — The State Monad** — Brian Beckman
+> https://www.youtube.com/watch?v=XxzzJiXHOJs
+
+He demonstrates the pattern in C# and Haskell — the same `s -> (s, a)` shape wat-defservice arrived at independently from substrate constraints. His talk is the destination; we walked the substrate to it via wat without reading the canonical literature first (per `user_no_literature` calibration).
+
+User's framing 2026-05-18:
+
+> *"he does it with c sharp and haskell i think .... the syntax for those two... i struggle with.. but we found it with wat...."*
+
+This is `project_wat_llm_first_design` operating at a deeply personal scale: **the canonical teacher uses syntaxes the user found inaccessible; the wat substrate makes the same pattern READABLE — to the user and to the LLMs working alongside them.** The state monad was always in the canonical literature; wat's algebraic substrate gives the syntax that lets us reach it without fighting the host language's accidental complexity.
+
+Beckman taught the pattern. wat lets us walk to it. The destination is the same; the path through wat is the path the user — and every LLM co-author — can take.
+
+**Credit, named:** Brian Beckman — for naming the shape clearly enough that anyone arriving at it from any path recognizes the destination. The eleven-greats list captures the destination; Beckman is the teacher who makes the destination LEGIBLE.
 
 ### Recognition 4 — don't optimize the substrate's contract for the trivial case
 
