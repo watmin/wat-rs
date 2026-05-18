@@ -199,5 +199,4 @@ SCORE-212-AUDIT.md inscription should include a brief paragraph noting this doct
 - BRIEF-212.md — slice α's original BRIEF (preserved as historical record of the spot-fix that revealed the broader scope per `feedback_inscription_immutable`)
 - SCORE-212.md — slice α's SCORE (preserved)
 - Arc 211 DESIGN § "Tooling-proven-by-use closure condition"
-- `scratch/FAILURE-ENGINEERING.md` — the doctrine this slice embodies (component 3: eliminate the CLASS)
-- `feedback_substrate_owns_not_callers_match` — sister discipline
+- DESIGN.md § "Scope EXPANDED 2026-05-18 (post-slice-α)" — the failure-engineering doctrine inscribed in-scope (component 3: eliminate the CLASS; substrate owns the recursion pattern; consumers benefit; "missed Vector arm in walker" structurally impossible)
