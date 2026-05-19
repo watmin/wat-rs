@@ -221,25 +221,63 @@ These are progressive-disclosure tunables — added when a concrete substrate us
 
 **Naming follow-on:** if the thread tier ever surfaces tunables (channel queue depth for bounded channels?), it gets parallel naming: `:wat::config::set-thread-tier-*!`. The tier-prefix convention is the substrate-coherence shape.
 
+## Build approach — fresh files; rename later if needed
+
+Per user 2026-05-18: *"we'll figure the long term names after it works - we need it to work and to have caller flipped over... then we do a mass refactor to use the more correct names -- the names are self evident once they implement something that bears a name"*
+
+**Build NEW files; don't fight existing cruft.** The current substrate has historical organization that mixes concerns across multiple files. Building IN PLACE means every BRIEF for sonnet contains "modify X while keeping Y working" — exactly the bundled scope that's been blocking arc 170 closure for >1 week. New files mean each slice's BRIEF is small + focused.
+
+**Naming applied via gaze 2026-05-18** (names that speak; structure that mirrors the domain):
+
+```
+src/
+├── comms/                       ← arc 214 Slices 1-6 live here
+│   ├── mod.rs                   ← Slice 1: CommSender + CommReceiver traits;
+│   │                              HolonRepresentable; SelectOutcome; error types
+│   ├── thread.rs                ← Slice 2: thread tier (crossbeam underneath)
+│   └── process.rs               ← Slice 3: process tier (io_uring underneath)
+├── brackets.rs                  ← Slice 7 (parallel-each, parallel-map)
+├── services.rs                  ← Slice 8 (ServiceWithProvisioning rebuilt)
+├── ... (existing flat substrate files; retire in Slice 5/6 as callers migrate)
+```
+
+**Naming rationale (gazed):**
+- `comms` = communications; names the substrate's concern of "things that talk to each other across concurrency boundaries"; not utils/common/infra (which gaze flags)
+- `comms::thread` / `comms::process` = comms via thread/process; the name IS the definition
+- `brackets` = wat's Parallel; cultural-Lisp word for "bracket this work with concurrency"
+- `services` = Ruby's protected-state-OOP pattern; plural because the substrate hosts multiple
+
+**Acknowledged asymmetries** (gaze-honest):
+- Wat namespace `:wat::thread::*` (one level) ≠ Rust path `crate::comms::thread` (two levels). Wat-side serves program authors (flat is friendly); Rust-side serves substrate authors (grouped is honest). Different audiences, different organizations.
+- `comms::thread` may collide cognitively with `std::thread` in same-file use. Resolution: `use crate::comms::thread as comm_thread;` OR `use std::thread as std_thread;` per file. Most substrate code doesn't need both.
+
+**Migration discipline** (Slices 5 + 6):
+- Slice 5 caller-by-caller flips existing substrate sites to `crate::comms::*` paths; old files (`typed_channel.rs`, parts of `runtime.rs` / `thread_io.rs` / `spawn.rs`) stay in place during migration
+- Slice 6 retires the now-unused old code AND does any final rename/reorganization pass; the structural wall lands the final shape
+- Per `feedback_inscription_immutable` — renames are NEW commits, not retroactive edits; each rename move is explicit in git history
+
+**Future arcs** apply gaze again when adding to the domain (e.g., remote tier → `src/comms/remote.rs`; reactor tier → `src/comms/reactor.rs`; brackets/services might promote to subdirs if they grow).
+
 ## Slice decomposition
 
 Nine slices, sequenced for dependency + per-stone trust gates. Each slice = ONE coherent concern. Stepping stones within each slice designed orchestrator-side; sonnet sees one stepping stone per work unit (per `feedback_iterative_complexity` + per-stone trust gate discipline — arc 170 has been trying to close for >1 week because sonnet got confused on bundled scope; we don't repeat that here).
 
 ### Slice 1 — Foundation primitives (atomic; ~1 stepping stone)
 
-Mint the trait shapes + signatures + error types. NO implementations.
+Mint the trait shapes + signatures + error types in `src/comms/mod.rs`. NO implementations.
 
-- `HolonRepresentable` trait + blanket impl
+- `HolonRepresentable` trait + blanket impl (from HolonAST roundtrip)
 - `CommSender<T>` / `CommReceiver<T>` traits (tier-agnostic abstraction)
 - Error types: `SendError<T>` / `RecvError` / `TryRecvError` / `CloseError`
 - `SelectOutcome<T>` enum
 - Cascade contract documented (blocking ops MUST wake on substrate shutdown)
 - API signatures defined; no impls yet
+- Wire up `pub mod comms;` in `src/lib.rs`
 - Smoke probe: trait compiles + a smoke `impl HolonRepresentable for String` example
 
 ### Slice 2 — Thread tier (big; ~3-4 stepping stones likely)
 
-Implement `wat::thread::*` family using crossbeam underneath.
+Implement thread tier in `src/comms/thread.rs` (NEW file; doesn't touch existing typed_channel.rs / runtime.rs / thread_io.rs / spawn.rs). crossbeam underneath.
 
 - `Sender<T>` newtype wrapping `crossbeam_channel::Sender<T>`; private inner
 - `Receiver<T>` newtype with cascade-aware `recv()` via `select! { data, SHUTDOWN_RX }`
@@ -247,15 +285,15 @@ Implement `wat::thread::*` family using crossbeam underneath.
 - `Select<T>` cascade-aware fan-in
 - Factories: `pair<T>()`, `bounded<T>(n)`
 - Clone impls
-- `CommSender<T>` / `CommReceiver<T>` trait impls
+- `CommSender<T>` / `CommReceiver<T>` trait impls (from `comms::mod`)
 - Smoke probe: round-trip + sender-drop-Err + try_recv-empty + cascade-wakes-recv + Select fan-in
 
 ### Slice 3 — Process tier (big; ~5-6 stepping stones likely)
 
-Implement `wat::process::*` family using io_uring underneath. Largest slice (new dep, new substrate mechanism, HolonRepresentable serialization, config tunable).
+Implement process tier in `src/comms/process.rs` (NEW file). io_uring underneath. Largest slice (new dep, new substrate mechanism, HolonRepresentable serialization, config tunable).
 
 - Add `io-uring` crate to Cargo.toml
-- Per-tier io_uring instance setup (per-receiver ring; long-lived; epoll_create-style at construction; ring size read from config at construction time)
+- Per-receiver io_uring instance setup (long-lived ring per receiver; epoll_create-style at construction; ring size read from config at construction time)
 - `Sender<T: HolonRepresentable>` with io_uring write submission + EPIPE-cascade
 - `Receiver<T: HolonRepresentable>` with io_uring multi-arm read on [data_fd, broadcast_fd]
 - `try_recv()` + `len()`
@@ -263,6 +301,7 @@ Implement `wat::process::*` family using io_uring underneath. Largest slice (new
 - HolonRepresentable serialization (HolonAST → EDN bytes via wat-edn)
 - Manual `impl HolonRepresentable` for substrate-internal Rust types: StdInServiceEvent, SpawnOutcome, etc.
 - **Config tunable:** `:wat::config::set-process-tier-uring-depth!` (default 512; range [1, 4096]; must be power of 2). Atomic config storage; read at receiver/select construction; per-runtime semantics matching existing `set-*!` family.
+- `CommSender<T>` / `CommReceiver<T>` trait impls (from `comms::mod`)
 - Smoke probe: round-trip + sender-drop-Err + try_recv-empty + cascade-wakes-recv + Select fan-in + config-setter validation (rejects non-power-of-2, out-of-range)
 
 ### Slice 4 — Wat-level surface (big; ~3-4 stepping stones likely)
