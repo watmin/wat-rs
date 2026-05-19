@@ -144,12 +144,15 @@ fn probe_chi1_try_recv_empty_returns_empty() {
 ## Verification
 
 ```
-cargo build --release   # must be clean
-cargo test --release --test probe_channel_primitive   # 3/3 pass
-cargo test --release --test wat_arc170_program_contracts   # baseline unchanged
+cargo build --release                                  # must be clean
+cargo test --release --test probe_channel_primitive    # 3/3 pass
 ```
 
-Workspace baseline (broader cargo test --release --workspace) must be unchanged. χ-1 adds new types + a new probe; touches nothing existing.
+**That is the FULL verification. STOP here.**
+
+**DO NOT run `cargo test --release --test wat_arc170_program_contracts` or any other baseline cargo test.** That test is the EXACT hang vector χ exists to fix (it exercises t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero which hangs on the cascade-completeness gap). Re-running it as a "baseline" verification produces orphan processes + indefinite hangs.
+
+χ-1 is purely additive: ONLY adds new symbols in src/typed_channel.rs + a new test file. It does NOT modify any existing code path. Therefore "baseline unchanged" is true IN PRINCIPLE — cargo build --release succeeding is sufficient evidence that no existing code was perturbed.
 
 ## Out of scope (STOP triggers)
 

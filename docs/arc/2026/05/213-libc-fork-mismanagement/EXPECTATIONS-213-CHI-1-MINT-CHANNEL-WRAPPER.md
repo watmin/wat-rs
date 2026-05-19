@@ -71,7 +71,7 @@ Conservative: skip Debug derive on Sender/Receiver wrappers. Existing 35 sites l
 | 14 | No modifications to existing typed_send/typed_recv/SenderInner/ReceiverInner | YES |
 | 15 | Zero modifications outside src/typed_channel.rs + tests/probe_channel_primitive.rs + SCORE doc | YES |
 | 16 | Dirty tree intact (src/fork.rs + src/spawn_process.rs untouched) | YES |
-| 17 | cargo test --release --test wat_arc170_program_contracts result unchanged from pre-χ-1 baseline | YES |
+| 17 | RETIRED — original demand to re-run wat_arc170 was a BRIEF defect; that test IS the hang vector χ exists to fix. cargo build clean is sufficient evidence that χ-1's purely-additive mint perturbs no existing code path. | N/A |
 
 ## Mode classification
 
