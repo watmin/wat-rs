@@ -184,6 +184,43 @@ Per `scratch/DEPENDENCY-DOCTRINE.md` — we couple deeply when the dep is canoni
 - crossbeam_channel — thread tier's underlying mechanism (per existing DEPENDENCY-DOCTRINE precedent)
 - wat-edn — HolonRepresentable serialization
 
+## Tunables — substrate config exposed via `:wat::config::set-*!`
+
+Per user 2026-05-18: *"i think we use 512 as our internal queue depth.... we need to have it declared via a :wat::config::*-set! so users who know better can tweak it for their programs"*
+
+**Process tier io_uring SQ/CQ depth** — the size of each `wat::process::Receiver` / `Select`'s submission + completion ring buffers.
+
+- **Setter:** `:wat::config::set-process-tier-uring-depth!` (per `set-*!` family naming convention; matches arc 014 + arc 157 patterns)
+- **Default:** 512
+  - Power of 2 (io_uring requirement)
+  - Midpoint between tokio-uring (256) and monoio (1024)
+  - Enough for substantial batching of EDN-large messages
+  - Small enough that spawned processes don't bloat memory unnecessarily
+- **Validation:** must be a power of 2 in `[1, 4096]`. Out of range or non-power-of-2 → `RuntimeError` at the setter call site (per existing `:wat::config::set-*!` error discipline).
+- **Cap rationale:** >4096 begins hitting kernel ring memory limits + diminishing returns; the substrate caps at a sane upper bound.
+
+**Per-runtime semantics** (matches existing `set-*!` family per FM 7-ter):
+- Atomic config value owned by substrate
+- Read at `wat::process::{Receiver, Select}` CONSTRUCTION time
+- Each new instance gets a ring sized at current config value
+- Changing the config mid-runtime does NOT affect already-constructed rings
+- Typically called once at program startup, before any process-tier channels exist
+
+**Why this is parameter-tunability, not option-tangle** (per `feedback_options_are_tangle`):
+- ONE mechanism (io_uring; canonical; not optional)
+- ONE setter for the parameter (canonical)
+- Tweakability is SEPARATE from "which mechanism" — power users tune the parameter; the substrate's chokepoint discipline is unchanged
+
+**Future tunables** (NOT shipped in this arc; explicitly scoped out):
+- SQPOLL mode toggle (kernel polling thread; high-perf substrate variant)
+- SQ_THREAD_IDLE timeout
+- Registered buffer pool size
+- Linked operations enable/disable
+
+These are progressive-disclosure tunables — added when a concrete substrate use case justifies. For arc 214 close, only `set-process-tier-uring-depth!` ships. Future arcs add more as needed.
+
+**Naming follow-on:** if the thread tier ever surfaces tunables (channel queue depth for bounded channels?), it gets parallel naming: `:wat::config::set-thread-tier-*!`. The tier-prefix convention is the substrate-coherence shape.
+
 ## Slice decomposition
 
 Nine slices, sequenced for dependency + per-stone trust gates. Each slice = ONE coherent concern. Stepping stones within each slice designed orchestrator-side; sonnet sees one stepping stone per work unit (per `feedback_iterative_complexity` + per-stone trust gate discipline — arc 170 has been trying to close for >1 week because sonnet got confused on bundled scope; we don't repeat that here).
@@ -215,17 +252,18 @@ Implement `wat::thread::*` family using crossbeam underneath.
 
 ### Slice 3 — Process tier (big; ~5-6 stepping stones likely)
 
-Implement `wat::process::*` family using io_uring underneath. Largest slice (new dep, new substrate mechanism, HolonRepresentable serialization).
+Implement `wat::process::*` family using io_uring underneath. Largest slice (new dep, new substrate mechanism, HolonRepresentable serialization, config tunable).
 
 - Add `io-uring` crate to Cargo.toml
-- Per-tier io_uring instance setup (per-receiver ring; long-lived; epoll_create-style at construction)
+- Per-tier io_uring instance setup (per-receiver ring; long-lived; epoll_create-style at construction; ring size read from config at construction time)
 - `Sender<T: HolonRepresentable>` with io_uring write submission + EPIPE-cascade
 - `Receiver<T: HolonRepresentable>` with io_uring multi-arm read on [data_fd, broadcast_fd]
 - `try_recv()` + `len()`
 - `Select<T>` with io_uring multi-arm + auto-broadcast_fd registration
 - HolonRepresentable serialization (HolonAST → EDN bytes via wat-edn)
 - Manual `impl HolonRepresentable` for substrate-internal Rust types: StdInServiceEvent, SpawnOutcome, etc.
-- Smoke probe: round-trip + sender-drop-Err + try_recv-empty + cascade-wakes-recv + Select fan-in
+- **Config tunable:** `:wat::config::set-process-tier-uring-depth!` (default 512; range [1, 4096]; must be power of 2). Atomic config storage; read at receiver/select construction; per-runtime semantics matching existing `set-*!` family.
+- Smoke probe: round-trip + sender-drop-Err + try_recv-empty + cascade-wakes-recv + Select fan-in + config-setter validation (rejects non-power-of-2, out-of-range)
 
 ### Slice 4 — Wat-level surface (big; ~3-4 stepping stones likely)
 
