@@ -201,9 +201,34 @@ Plus α regression: `tests/probe_pidfd_primitive.rs`.
 
 Orchestrator records baseline pass/fail counts for ALL 20 binaries in the spawn prompt before sonnet runs. ANY post-γ-3 regression vs baseline IS γ-3's fault.
 
-**KNOWN pre-existing concerns to flag (NOT γ-3 regressions):**
-- `probe_lifeline_pipe_proof` — pre-existing 1/100 flake (arc 213 ε territory) — orthogonal; not in the 20-binary set above
-- `probe_pdeathsig_diagnostic` + `probe_pdeathsig_kills_orphan_child` — these test the RETIRED PDEATHSIG mechanism (Phase 1B retired it in favor of lifeline pipe). May be `#[ignore]`'d, may be artifacts. Orchestrator records actual baseline state in spawn prompt.
+**ALL 20 binaries verified GREEN (87 tests total):**
+
+| Binary | Baseline |
+|---|---|
+| probe_pidfd_primitive | 2/2 PASS |
+| arc112_scheme_probe | 1/1 PASS |
+| arc112_slice2b_process_send_recv | 1/1 PASS |
+| probe_closure_body_prelude_lift | 5/5 PASS |
+| probe_counter_actor_process_diag | 3/3 PASS |
+| probe_declaration_form_lift | 6/6 PASS |
+| probe_def_not_special | 5/5 PASS |
+| probe_lifeline_orphan_clean_via_fork_program | 1/1 PASS |
+| probe_lifeline_orphan_clean_via_substrate | 1/1 PASS |
+| **probe_pdeathsig_diagnostic** | **1/1 PASS** (active; not skipped) |
+| **probe_pdeathsig_kills_orphan_child** | **1/1 PASS** (active; not skipped) |
+| probe_run_hermetic_no_deadlock | 2/2 PASS |
+| probe_spawn_process_parent_type | 3/3 PASS |
+| probe_spawn_process_stdin | 1/1 PASS |
+| probe_spawn_process_stdio | 1/1 PASS |
+| wat_arc170_program_contracts | 24/24 PASS |
+| wat_arc170_stone_a_drain_and_join | 4/4 PASS |
+| wat_arc208_process_io_result | 7/7 PASS |
+| wat_process_peer_ipc_round_trip | 3/3 PASS |
+| wat-cli wat_cli | 15/15 PASS |
+
+**Total: 87/87 GREEN pre-γ-3.** ANY failure post-γ-3 IS regression.
+
+Pre-existing flake unrelated to γ-3's path: `probe_lifeline_pipe_proof` (1/100 ε territory; not in the 20-binary set).
 
 ### Verification protocol (post-migration)
 
@@ -224,7 +249,7 @@ Non-negotiable.
 
 3. **A test that PASSED on baseline FAILS post-migration.** STOP. Inscribe which test + diagnostic + your hypothesis.
 
-4. **A test that was already failing/ignored stays in same state.** That's NOT γ-3's concern — note in SCORE but do not investigate.
+4. **You see a failing test.** **ALL 87 baselines are GREEN pre-γ-3.** Any failure post-γ-3 IS γ-3's regression. STOP. Inscribe the test + diagnostic + your hypothesis.
 
 5. **cargo build FAILS.** STOP. Inscribe error. One syntactic-fix retry allowed.
 

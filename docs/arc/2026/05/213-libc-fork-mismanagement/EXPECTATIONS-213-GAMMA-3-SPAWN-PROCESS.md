@@ -23,9 +23,9 @@ spawn_process_child_branch's drop(lifeline_w) at line 303 carries explicit Phase
 
 γ-1 + γ-2 evidence: same setpgid + lifeline migration produced ZERO regressions in their test sets. γ-3 inherits that confidence — but pattern doesn't guarantee per-test outcome.
 
-### Risk 4 — `probe_pdeathsig_*` legacy tests
+### Risk 4 — `probe_pdeathsig_*` are ACTIVE (1/1 PASS each on baseline)
 
-Two `probe_pdeathsig_*` binaries test the RETIRED PDEATHSIG mechanism (Phase 1B retired it). They may be `#[ignore]`'d already, or they may be empty assertions. Orchestrator records baseline before spawn; sonnet does not investigate any pre-existing skips.
+Both `probe_pdeathsig_diagnostic` and `probe_pdeathsig_kills_orphan_child` are ACTIVE (1/1 PASS each) on baseline despite testing the retired PDEATHSIG-era diagnostics. They almost certainly test the LIFELINE replacement mechanism (Phase 1B/1C retired PDEATHSIG in favor of lifeline pipe; the probe names retain historical naming). γ-3's setpgid + spawn_lifelined change should preserve their behavior — but they're sensitive probes worth watching.
 
 ## Scorecard predictions
 
