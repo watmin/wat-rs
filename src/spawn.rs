@@ -178,7 +178,7 @@ fn spawn_with_world_into_result(
     // One-shot result channel — same shape kernel::spawn uses, so
     // the existing :wat::kernel::join / join-result primitives
     // work without modification on Process.join.
-    let (tx, rx) = crossbeam_channel::bounded::<SpawnOutcome>(1);
+    let (tx, rx) = crate::typed_channel::bounded::<SpawnOutcome>(1);
 
     // Arc 170 slice 1f-ζ — install the child-side pipes as the thread's
     // ambient stdio so `invoke_user_main`'s orchestrator picks them up

@@ -25,7 +25,7 @@ use std::cell::RefCell;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
-use crossbeam_channel::{Receiver, Sender};
+use crate::typed_channel::{Receiver, Sender};
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, EnumValue, Environment, RuntimeError, SymbolTable, Value};
@@ -408,11 +408,11 @@ pub fn eval_kernel_readln(
 #[derive(Clone)]
 pub struct RuntimeServices {
     /// `Sender<wat::kernel::services::StdInService::Event>` ControlTx.
-    pub stdin_ctrl: Sender<Value>,
+    pub stdin_ctrl: crossbeam_channel::Sender<Value>,
     /// `Sender<wat::kernel::services::StdOutService::Event>` ControlTx.
-    pub stdout_ctrl: Sender<Value>,
+    pub stdout_ctrl: crossbeam_channel::Sender<Value>,
     /// `Sender<wat::kernel::services::StdErrService::Event>` ControlTx.
-    pub stderr_ctrl: Sender<Value>,
+    pub stderr_ctrl: crossbeam_channel::Sender<Value>,
 }
 
 impl std::fmt::Debug for RuntimeServices {
@@ -430,7 +430,7 @@ impl std::fmt::Debug for RuntimeServices {
 /// caller passed something else or a tier-2 PipeFd variant (the
 /// services emit a tier-1 ControlTx by construction — anything else
 /// is a programmer error).
-fn unwrap_value_sender(v: Value, label: &'static str) -> Result<Sender<Value>, RuntimeError> {
+fn unwrap_value_sender(v: Value, label: &'static str) -> Result<crossbeam_channel::Sender<Value>, RuntimeError> {
     match v {
         Value::wat__kernel__Sender(inner) => match inner.as_ref() {
             SenderInner::Crossbeam { sender: s, .. } => Ok(s.clone()),
@@ -455,7 +455,7 @@ fn unwrap_value_sender(v: Value, label: &'static str) -> Result<Sender<Value>, R
 fn unwrap_value_receiver(
     v: Value,
     label: &'static str,
-) -> Result<Receiver<Value>, RuntimeError> {
+) -> Result<crossbeam_channel::Receiver<Value>, RuntimeError> {
     match v {
         Value::wat__kernel__Receiver(inner) => match inner.as_ref() {
             ReceiverInner::Crossbeam(r) => Ok(r.clone()),
@@ -479,13 +479,13 @@ fn unwrap_value_receiver(
 /// `crossbeam::Sender<Value>`. Mirrors
 /// [`crate::typed_channel::sender_from_crossbeam`] but takes the
 /// already-allocated Sender directly.
-fn sender_value(tx: Sender<Value>) -> Value {
+fn sender_value(tx: crossbeam_channel::Sender<Value>) -> Value {
     sender_from_crossbeam(tx)
 }
 
 /// Construct the wat-side Receiver Value wrapping an existing
 /// `crossbeam::Receiver<Value>`.
-fn receiver_value(rx: Receiver<Value>) -> Value {
+fn receiver_value(rx: crossbeam_channel::Receiver<Value>) -> Value {
     receiver_from_crossbeam(rx)
 }
 
@@ -561,9 +561,9 @@ pub fn register_thread_with_services(
     // to `String` (the raw EDN line). The substrate parses + coerces
     // to the caller's requested `T` in `eval_kernel_readln`.
     let (rust_stdin_tx, rust_stdin_rx) =
-        crossbeam_channel::bounded::<StdInServiceEvent>(1);
+        crate::typed_channel::bounded::<StdInServiceEvent>(1);
     let (rust_stdin_reply_tx, rust_stdin_reply_rx) =
-        crossbeam_channel::bounded::<String>(1);
+        crate::typed_channel::bounded::<String>(1);
     let (wat_stdin_data_tx, wat_stdin_data_rx) =
         crossbeam_channel::bounded::<Value>(1);
     let (wat_stdin_reply_tx, wat_stdin_reply_rx) =
@@ -579,8 +579,8 @@ pub fn register_thread_with_services(
 
     // ─── stdout pair (Rust + wat) + bridge ─────────────────────────
     let (rust_stdout_tx, rust_stdout_rx) =
-        crossbeam_channel::bounded::<StdOutServiceEvent>(1);
-    let (rust_stdout_ack_tx, rust_stdout_ack_rx) = crossbeam_channel::bounded::<()>(1);
+        crate::typed_channel::bounded::<StdOutServiceEvent>(1);
+    let (rust_stdout_ack_tx, rust_stdout_ack_rx) = crate::typed_channel::bounded::<()>(1);
     let (wat_stdout_data_tx, wat_stdout_data_rx) =
         crossbeam_channel::bounded::<Value>(1);
     let (wat_stdout_ack_tx, wat_stdout_ack_rx) = crossbeam_channel::bounded::<Value>(1);
@@ -596,8 +596,8 @@ pub fn register_thread_with_services(
 
     // ─── stderr pair (Rust + wat) + bridge ─────────────────────────
     let (rust_stderr_tx, rust_stderr_rx) =
-        crossbeam_channel::bounded::<StdErrServiceEvent>(1);
-    let (rust_stderr_ack_tx, rust_stderr_ack_rx) = crossbeam_channel::bounded::<()>(1);
+        crate::typed_channel::bounded::<StdErrServiceEvent>(1);
+    let (rust_stderr_ack_tx, rust_stderr_ack_rx) = crate::typed_channel::bounded::<()>(1);
     let (wat_stderr_data_tx, wat_stderr_data_rx) =
         crossbeam_channel::bounded::<Value>(1);
     let (wat_stderr_ack_tx, wat_stderr_ack_rx) = crossbeam_channel::bounded::<Value>(1);
@@ -720,8 +720,8 @@ fn spawn_stdin_bridge(
     thread_id: ThreadId,
     rust_rx: Receiver<StdInServiceEvent>,
     rust_reply_tx: Sender<String>,
-    wat_data_tx: Sender<Value>,
-    wat_reply_rx: Receiver<Value>,
+    wat_data_tx: crossbeam_channel::Sender<Value>,
+    wat_reply_rx: crossbeam_channel::Receiver<Value>,
 ) {
     let name = format!("wat-stdin-bridge::{}", thread_id);
     std::thread::Builder::new()
@@ -781,8 +781,8 @@ fn spawn_stdout_bridge(
     thread_id: ThreadId,
     rust_rx: Receiver<StdOutServiceEvent>,
     rust_ack_tx: Sender<()>,
-    wat_data_tx: Sender<Value>,
-    wat_ack_rx: Receiver<Value>,
+    wat_data_tx: crossbeam_channel::Sender<Value>,
+    wat_ack_rx: crossbeam_channel::Receiver<Value>,
     label: &'static str,
 ) {
     let name = format!("wat-{}-bridge::{}", label, thread_id);
@@ -825,8 +825,8 @@ fn spawn_stderr_bridge(
     thread_id: ThreadId,
     rust_rx: Receiver<StdErrServiceEvent>,
     rust_ack_tx: Sender<()>,
-    wat_data_tx: Sender<Value>,
-    wat_ack_rx: Receiver<Value>,
+    wat_data_tx: crossbeam_channel::Sender<Value>,
+    wat_ack_rx: crossbeam_channel::Receiver<Value>,
 ) {
     let name = format!("wat-stderr-bridge::{}", thread_id);
     std::thread::Builder::new()
@@ -869,7 +869,7 @@ fn spawn_stderr_bridge(
 pub fn extract_control_tx(
     spawn_result: Value,
     service_label: &'static str,
-) -> Result<(Value, Sender<Value>), RuntimeError> {
+) -> Result<(Value, crossbeam_channel::Sender<Value>), RuntimeError> {
     let tuple = match spawn_result {
         Value::Tuple(t) => t,
         other => {
@@ -905,7 +905,7 @@ pub fn extract_control_tx(
 pub fn unwrap_receiver_for_orchestrator(
     v: Value,
     label: &'static str,
-) -> Result<Receiver<Value>, RuntimeError> {
+) -> Result<crossbeam_channel::Receiver<Value>, RuntimeError> {
     unwrap_value_receiver(v, label)
 }
 

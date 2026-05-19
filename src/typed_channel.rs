@@ -538,6 +538,7 @@ pub use crossbeam_channel::{RecvError, SendError, TryRecvError};
 /// χ-1: T-typed Sender wrapper. Currently a thin newtype; cascade
 /// semantics are on the Receiver side. Mechanical migration parity
 /// with crossbeam_channel::Sender<T>::send signature.
+#[derive(Debug)]
 pub struct Sender<T> {
     inner: crossbeam_channel::Sender<T>,
 }
@@ -554,7 +555,9 @@ impl<T> Clone for Sender<T> {
     }
 }
 
-/// χ-1: T-typed Receiver wrapper. recv() routes through SHUTDOWN_RX
+/// χ-1: T-typed Receiver wrapper (arc 213 χ-2: added #[derive(Debug)] so
+/// migrated caller structs/enums that derive Debug continue to compile).
+/// recv() routes through SHUTDOWN_RX
 /// cascade-aware select — when substrate shutdown fires, parked recvs
 /// wake with Err(RecvError) instead of hanging indefinitely.
 ///
@@ -562,6 +565,7 @@ impl<T> Clone for Sender<T> {
 /// or test bypass), recv falls back to bare crossbeam recv. Production
 /// paths always have SHUTDOWN_RX initialized by freeze.rs:233 before any
 /// wat code executes.
+#[derive(Debug)]
 pub struct Receiver<T> {
     inner: crossbeam_channel::Receiver<T>,
 }

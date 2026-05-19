@@ -703,7 +703,7 @@ pub enum SpawnOutcome {
 /// the canonical Process wait path through Process/join-result.
 #[derive(Debug)]
 pub enum ProgramHandleInner {
-    InThread(crossbeam_channel::Receiver<SpawnOutcome>),
+    InThread(crate::typed_channel::Receiver<SpawnOutcome>),
     Forked(Arc<crate::fork::ChildHandleInner>),
 }
 
@@ -17541,7 +17541,7 @@ fn eval_kernel_spawn_thread(
     let (in_tx, in_rx) = crossbeam_channel::unbounded::<Value>();
     let (out_tx, out_rx) = crossbeam_channel::unbounded::<Value>();
     // SpawnOutcome channel — same one-shot shape ProgramHandle expects.
-    let (outcome_tx, outcome_rx) = crossbeam_channel::bounded::<SpawnOutcome>(1);
+    let (outcome_tx, outcome_rx) = crate::typed_channel::bounded::<SpawnOutcome>(1);
     let thread_sym = sym.clone();
     let span = crate::rust_caller_span!();
     // Derive the most informative name: prefer the keyword path from
