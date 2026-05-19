@@ -59,6 +59,7 @@ pub mod assertion;
 pub mod ast;
 pub mod check;
 pub mod closure_extract;
+pub mod comms;
 pub mod compose;
 pub mod config;
 pub mod diagnostic;
