@@ -4,14 +4,18 @@
 //! Slice 1 traits (`crate::comms::{SendError, RecvError}`) using
 //! `libc::pipe` for the transport and `io_uring` for the wake mechanism.
 //!
-//! ## Current scope (through Stone C)
+//! ## Current scope (through Stone D1)
 //!
 //! Generic `Sender<T: HolonRepresentable>` / `Receiver<T: HolonRepresentable>`
 //! with HolonAST ↔ EDN bytes via wat-edn (Stone C). Cascade-aware
 //! multi-arm POLL_ADD (Stone B). io_uring bytes foundation with
-//! newline framing (Stone A). Still NO try_recv / Select / Clone /
-//! close / len / trait impls (Stone D); NO persistent ring / config
-//! tunable (Stone E).
+//! newline framing (Stone A). Stone D1 adds: `try_recv` (non-blocking
+//! via libc::poll(timeout=0) + io_uring Read), `len` (accumulator
+//! newline count; documented approximation), `close` (consume self;
+//! OwnedFd Drop closes the fd), `Clone` (OwnedFd::try_clone duplicates
+//! the fd; receivers compete MPMC-style for frames), CommSender/CommReceiver
+//! trait impls. Still NO `Select<'a, T>` (Stone D2); NO persistent ring /
+//! config tunable (Stone E).
 //!
 //! ## Framing
 //!
@@ -53,7 +57,10 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 
 use io_uring::{opcode, types, IoUring};
 
-use crate::comms::{HolonRepresentable, RecvError, SendError};
+use crate::comms::{
+    CloseError, CommReceiver, CommSender, HolonRepresentable, RecvError,
+    SendError, TryRecvError,
+};
 
 // ─── Sender ──────────────────────────────────────────────────────────────────
 
@@ -62,8 +69,10 @@ use crate::comms::{HolonRepresentable, RecvError, SendError};
 /// `HolonRepresentable::to_holon_ast` → `write_holon_ast_tagged` →
 /// newline-framed bytes.
 ///
-/// NOT Clone (Stone D adds). NOT close-able (Stone D adds `close(self)`).
-/// Drop closes the fd automatically (OwnedFd Drop impl).
+/// Clone via `OwnedFd::try_clone` (Stone D1); cloned senders share the
+/// same kernel pipe (MPMC-style write fan-in). `close(self)` consumes
+/// the endpoint and drops the fd via OwnedFd Drop; peer sees EOF after
+/// ALL Sender clones close.
 #[derive(Debug)]
 pub struct Sender<T: HolonRepresentable> {
     write_fd: OwnedFd,
@@ -124,6 +133,52 @@ impl<T: HolonRepresentable> Sender<T> {
     }
 }
 
+impl<T: HolonRepresentable> Sender<T> {
+    /// Signal end-of-stream from this sender. Consumes self so the
+    /// endpoint is gone after close. Other cloned `Sender` handles
+    /// (if any) remain valid. Peer receivers see EOF on their next
+    /// recv only after ALL `Sender` clones close (the pipe's write
+    /// reference count hits zero; kernel signals EOF on the read-end).
+    ///
+    /// Process-tier close always succeeds — OwnedFd Drop handles
+    /// `libc::close(2)`; no fallible operation at this layer.
+    pub fn close(self) -> Result<(), CloseError> {
+        // self drops at end of scope; OwnedFd's Drop calls libc::close.
+        // No fallible operation; always Ok.
+        Ok(())
+    }
+}
+
+impl<T: HolonRepresentable> Clone for Sender<T> {
+    /// Clone the sender by duplicating its write-end fd via
+    /// `OwnedFd::try_clone` (which uses `libc::dup` internally). Both
+    /// clones reference the same kernel pipe; the pipe stays alive
+    /// as long as at least one fd to it exists.
+    ///
+    /// Panics on `libc::dup` failure — this only happens at EMFILE/
+    /// ENFILE (fd table exhaustion). A substrate-level fd-table
+    /// exhaustion is a fail-stop condition; panicking with a
+    /// diagnostic is honest reporting at this layer.
+    fn clone(&self) -> Self {
+        Self {
+            write_fd: self
+                .write_fd
+                .try_clone()
+                .expect("OwnedFd::try_clone (libc::dup) failed — fd table exhausted"),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: HolonRepresentable> CommSender<T> for Sender<T> {
+    fn send(&self, value: T) -> Result<(), SendError<T>> {
+        Sender::send(self, value)
+    }
+    fn close(self) -> Result<(), CloseError> {
+        Sender::close(self)
+    }
+}
+
 // ─── Receiver ────────────────────────────────────────────────────────────────
 
 /// Process-tier receive endpoint. Generic over the payload type T (Stone C).
@@ -131,9 +186,13 @@ impl<T: HolonRepresentable> Sender<T> {
 /// for cross-call frame splitting.
 ///
 /// Cascade-aware (Stone B): `recv` wakes on substrate shutdown via
-/// io_uring multi-arm POLL_ADD on `SHUTDOWN_BROADCAST_READ_FD`.
-/// NOT Clone (Stone D adds). Per-call `IoUring` instance (Stone E
-/// persistifies).
+/// io_uring multi-arm POLL_ADD on `SHUTDOWN_BROADCAST_READ_FD`. Stone D1
+/// adds: `try_recv` (non-blocking variant via libc::poll(timeout=0));
+/// `len` (accumulator-only frame count; kernel buffer not included);
+/// `close` (consume self; OwnedFd Drop closes the fd); Clone via
+/// `OwnedFd::try_clone` (cloned receivers compete for frames MPMC-style;
+/// each clone gets a FRESH empty accumulator). Per-call `IoUring`
+/// instance (Stone E persistifies).
 #[derive(Debug)]
 pub struct Receiver<T: HolonRepresentable> {
     read_fd: OwnedFd,
@@ -227,6 +286,185 @@ impl<T: HolonRepresentable> Receiver<T> {
             }
             // No complete frame yet; loop and poll/read more bytes.
         }
+    }
+}
+
+impl<T: HolonRepresentable> Receiver<T> {
+    /// Non-blocking recv. Returns the next complete `T` if a frame is
+    /// already buffered (in the accumulator) OR if the data fd has bytes
+    /// ready RIGHT NOW that complete a frame. Otherwise returns
+    /// `Err(TryRecvError::Empty)`. Returns `Err(TryRecvError::Disconnected)`
+    /// when the peer has closed the pipe (EOF) OR when substrate shutdown
+    /// has fired (broadcast arm).
+    ///
+    /// Per substrate convention (typed_channel.rs:407-470): broadcast wins
+    /// ties — shutdown overrides any pending Value (process going down;
+    /// honest reporting).
+    ///
+    /// Mechanism: `libc::poll(timeout=0)` on `[data_fd, broadcast_fd]`
+    /// for the non-blocking arm check (one syscall; sync). If data is
+    /// ready, do an io_uring Read to fetch and try to complete a frame.
+    /// If the Read produces partial bytes (no newline yet), accumulator
+    /// retains them and `try_recv` returns `Empty` — a subsequent call
+    /// may complete the frame.
+    pub fn try_recv(&self) -> Result<T, TryRecvError> {
+        // Fast path — accumulator already has a complete frame.
+        if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
+            return decode_frame::<T>(&frame).map_err(|_| TryRecvError::Disconnected);
+        }
+
+        let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
+            .load(std::sync::atomic::Ordering::SeqCst);
+        let read_fd = self.read_fd.as_raw_fd();
+
+        // Non-blocking poll on [data_fd] + [broadcast_fd if initialized].
+        // Mirrors typed_channel.rs:431-470 PipeFd typed_try_recv discipline.
+        let mut fds = [
+            libc::pollfd {
+                fd: read_fd,
+                events: libc::POLLIN | libc::POLLHUP,
+                revents: 0,
+            },
+            libc::pollfd {
+                fd: if broadcast_fd >= 0 { broadcast_fd } else { -1 },
+                events: libc::POLLHUP,
+                revents: 0,
+            },
+        ];
+        let nfds = if broadcast_fd >= 0 { 2 } else { 1 };
+
+        // SAFETY: fds is a stack-allocated array whose lifetime covers
+        // the poll call. libc::poll with timeout=0 returns immediately.
+        let n = unsafe { libc::poll(fds.as_mut_ptr(), nfds as libc::nfds_t, 0) };
+        if n < 0 {
+            return Err(TryRecvError::Disconnected);
+        }
+        if n == 0 {
+            return Err(TryRecvError::Empty);
+        }
+
+        // Broadcast wins ties — shutdown overrides any pending Value.
+        if nfds == 2 && fds[1].revents != 0 {
+            return Err(TryRecvError::Disconnected);
+        }
+        if fds[0].revents == 0 {
+            return Err(TryRecvError::Empty);
+        }
+
+        // Data is ready — do ONE io_uring Read. If a complete frame is
+        // produced, decode + return Ok(T). If partial bytes only,
+        // return Empty (accumulator retains the bytes for next call).
+        let mut ring = IoUring::new(2).map_err(|_| TryRecvError::Disconnected)?;
+        let mut buf = [0u8; 4096];
+        let read_e = opcode::Read::new(
+            types::Fd(read_fd),
+            buf.as_mut_ptr(),
+            buf.len() as _,
+        )
+        .build()
+        .user_data(1);
+
+        // SAFETY: read_e's buf pointer (buf) outlives submit_and_wait
+        // because buf is on this function's stack and not freed until
+        // after the wait completes.
+        unsafe {
+            ring.submission()
+                .push(&read_e)
+                .map_err(|_| TryRecvError::Disconnected)?;
+        }
+        ring.submit_and_wait(1)
+            .map_err(|_| TryRecvError::Disconnected)?;
+        let cqe = ring
+            .completion()
+            .next()
+            .ok_or(TryRecvError::Disconnected)?;
+        let result = cqe.result();
+        if result < 0 {
+            return Err(TryRecvError::Disconnected);
+        }
+        if result == 0 {
+            // EOF — peer closed the write-end.
+            return Err(TryRecvError::Disconnected);
+        }
+        let bytes_read = result as usize;
+        self.accumulator
+            .borrow_mut()
+            .extend_from_slice(&buf[..bytes_read]);
+
+        if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
+            decode_frame::<T>(&frame).map_err(|_| TryRecvError::Disconnected)
+        } else {
+            // Partial bytes; no complete frame yet. Caller can retry.
+            Err(TryRecvError::Empty)
+        }
+    }
+
+    /// Count of locally-buffered complete frames in the accumulator.
+    ///
+    /// APPROXIMATION — the kernel pipe buffer may hold additional bytes
+    /// (and additional frames) that aren't visible without consuming
+    /// them via `recv` or `try_recv`. Callers needing an exact count
+    /// should drain via `try_recv` until `Empty` first; the resulting
+    /// `len()` reflects the accumulator only.
+    ///
+    /// Non-blocking; cascade-irrelevant. Useful for capacity-tracking
+    /// callers (e.g., `wat::kernel::HandlePool`) that need a fast
+    /// "is anything immediately available?" check.
+    pub fn len(&self) -> usize {
+        // Count '\n' bytes in the accumulator — each marks the end of
+        // a complete frame ready for take_frame to consume.
+        self.accumulator.borrow().iter().filter(|&&b| b == b'\n').count()
+    }
+
+    /// Signal end-of-stream from this receiver. Consumes self so the
+    /// endpoint is gone after close. Other cloned `Receiver` handles
+    /// (if any) remain valid. Peer senders see EPIPE on their next
+    /// send only after ALL `Receiver` clones close (the pipe's read
+    /// reference count hits zero).
+    ///
+    /// Process-tier close always succeeds — OwnedFd Drop handles
+    /// `libc::close(2)`; no fallible operation.
+    pub fn close(self) -> Result<(), CloseError> {
+        Ok(())
+    }
+}
+
+impl<T: HolonRepresentable> Clone for Receiver<T> {
+    /// Clone the receiver by duplicating its read-end fd via
+    /// `OwnedFd::try_clone`. Both clones reference the same kernel
+    /// pipe and COMPETE for frames — a frame consumed by one clone
+    /// is gone from the pipe (MPMC-style read fan-out).
+    ///
+    /// The cloned receiver gets a FRESH empty accumulator — it does
+    /// NOT inherit the original's buffered bytes. Accumulator state
+    /// is per-endpoint; sharing it would create confusing partial-frame
+    /// behavior across clones.
+    ///
+    /// Panics on `libc::dup` failure (EMFILE/ENFILE; fd table exhausted).
+    fn clone(&self) -> Self {
+        Self {
+            read_fd: self
+                .read_fd
+                .try_clone()
+                .expect("OwnedFd::try_clone (libc::dup) failed — fd table exhausted"),
+            accumulator: RefCell::new(Vec::new()),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: HolonRepresentable> CommReceiver<T> for Receiver<T> {
+    fn recv(&self) -> Result<T, RecvError> {
+        Receiver::recv(self)
+    }
+    fn try_recv(&self) -> Result<T, TryRecvError> {
+        Receiver::try_recv(self)
+    }
+    fn len(&self) -> usize {
+        Receiver::len(self)
+    }
+    fn close(self) -> Result<(), CloseError> {
+        Receiver::close(self)
     }
 }
 
