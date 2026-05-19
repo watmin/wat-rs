@@ -199,3 +199,150 @@ Each δ/ζ/η stone is briefed under the failure-engineering operational mode + 
 | 3. Eliminate the CLASS | L4 closes both "miss Vector arm" (via L2 wall) AND "custom recursion shape" (via L3 visitor); bug class structurally extinct forever |
 
 The substrate ships the wall AND the visitor; walker layer is rebased on both; the bug class cannot return because the wrong shape cannot be expressed.
+
+---
+
+## ζ-newtype-wall scope (drafted 2026-05-18 post-arc-213-α-spawn)
+
+### The wall's mechanism
+
+Mint a `Children` newtype in `src/ast.rs` whose inner `Vec<WatAST>` is **module-private**. Public surface: iteration accessors only. The three compound `WatAST` variants flip their tuple-inner type:
+
+```rust
+// In src/ast.rs (the only module that can access Children's inner Vec)
+pub struct Children {
+    items: Vec<WatAST>,  // PRIVATE — only ast.rs can index/iter directly
+}
+
+impl Children {
+    pub fn new(items: Vec<WatAST>) -> Self { Self { items } }
+    pub fn iter(&self) -> std::slice::Iter<'_, WatAST> { self.items.iter() }
+    pub fn as_slice(&self) -> &[WatAST] { &self.items }
+    pub fn len(&self) -> usize { self.items.len() }
+    pub fn is_empty(&self) -> bool { self.items.is_empty() }
+    pub fn first(&self) -> Option<&WatAST> { self.items.first() }
+    pub fn get(&self, idx: usize) -> Option<&WatAST> { self.items.get(idx) }
+    pub fn into_vec(self) -> Vec<WatAST> { self.items }  // consumption-only escape hatch
+}
+
+pub enum WatAST {
+    // ... leaves unchanged ...
+    List(Children, Span),
+    Vector(Children, Span),
+    StructPattern(Children, Span),
+}
+
+impl WatAST {
+    pub fn children(&self) -> &[Children] {
+        // returns &[WatAST] via Children::as_slice on the inner;
+        // updated to dispatch through the newtype
+    }
+}
+```
+
+### Why this IS the L2 wall
+
+Today: pattern-match destructure `WatAST::List(items, span)` binds `items: &Vec<WatAST>`. The walker can call `items.iter()`, `&items[0]`, anything `Vec` offers. The wrong shape (recurse on List, forget Vector) is one match-arm away from happening.
+
+Post-ζ: pattern-match destructure `WatAST::List(children, span)` binds `children: &Children`. The walker can call `children.iter()` — same iteration surface, but the type signals "this is one variant's children; you are responsible for handling the other variants too." `Vec` surface is gone; direct indexing into a `Vec<WatAST>` outside `ast.rs` is **compile-time impossible**.
+
+This does NOT prevent "walker matches on List only and ignores Vector/StructPattern" by itself — that bug class needs L3 (η-visitor) to eliminate structurally. L2 raises the friction: the walker's natural shape becomes "ask the parent node for `children()` → iterate over all compound shapes uniformly." The "match on List specifically" shape becomes visibly suspicious.
+
+### Reference precedent: arc 213 α Pidfd
+
+Arc 213 stone α (BRIEF + EXPECTATIONS at commit `e8c2243`) mints the canonical `Pidfd` type with the **same shape of structural enforcement at the kernel-interface layer**:
+
+| Aspect | arc 213 α `Pidfd` | arc 212 ζ `Children` |
+|---|---|---|
+| Wrapped resource | `OwnedFd` (kernel-managed pidfd) | `Vec<WatAST>` (AST node children) |
+| Inner field | `fd: OwnedFd` — `Pidfd`-private | `items: Vec<WatAST>` — `Children`-private |
+| Public construction | NONE outside `spawn_lifelined` (typestate-equivalent for non-stale handle) | `Children::new(Vec<WatAST>)` (callable from anywhere; the wall is on ITERATION, not construction) |
+| Public surface | `poll_exit`, `wait_status`, `try_wait`, `send_signal`, `pid()` | `iter`, `as_slice`, `len`, `is_empty`, `first`, `get`, `into_vec` |
+| Wrong shape made impossible | `kill(pid)` by recovered PID (PID-reuse race) | Direct `Vec` indexing / methods outside the surface |
+| Doctrine source | `feedback_substrate_owns_not_callers_match` | Same |
+
+Both stones apply substrate-imposed-not-followed at their respective interface layers. Arc 213 α ships FIRST (per tractability tiebreaker — α's worked example informs ζ's design). When ζ ships, the DESIGN cites α as the precedent for the pattern.
+
+### Construction-vs-iteration asymmetry
+
+The wall lives on **iteration surface**, not construction. Anyone can call `Children::new(vec)` — the parser does this, the runtime quasiquote builder does this, macro expansion does this. That's correct: construction sites are bounded + well-known, and the inner `Vec` is OWNED by the newtype the moment construction completes; no caller retains a `&mut Vec<WatAST>`.
+
+The wall stops **consumers** from reaching past the surface. After construction, `Children`'s inner `Vec` is inaccessible outside `ast.rs`. Walkers, type-checkers, resolvers, runtime evaluators all interact via the public surface — `iter` for traversal, `len/is_empty/first/get` for query, `as_slice` for slice-API compatibility, `into_vec` when ownership is required (parser may need this for splice operations).
+
+### Migration scope (evidence-grounded 2026-05-18)
+
+```
+=== Pattern-match site count (RHS unaffected; pattern-match LHS migration only)
+List sites:    331
+Vector sites:   72
+StructPattern:  32
+TOTAL:         435 destructure sites + ~similar count construction sites
+
+=== Per-file concentration (List sites; representative of total)
+106  src/runtime.rs
+ 78  src/check.rs
+ 59  src/macros.rs
+ 42  src/closure_extract.rs
+ 17  src/types.rs
+  5  src/load.rs
+  4  src/parser.rs
+  4  src/dispatch.rs
+  3  src/resolve.rs
+  3  src/config.rs
+  3  src/ast.rs        ← internal; survives wall
+  2  src/lower.rs
+  2  src/form_match.rs
+  1  src/test_runner.rs
+  1  src/hash.rs
+```
+
+**Most site migrations are mechanical:**
+- `WatAST::List(items, span)` destructure → bind as `children`; replace `items.iter()` / `items.len()` / `items.first()` / `&items[idx]` (becomes `children.get(idx)`) etc. with `Children` surface
+- `WatAST::List(items_expr, span_expr)` construction → wrap RHS as `WatAST::List(Children::new(items_expr), span_expr)`; OR use existing convenience constructor `WatAST::list(items)` which can handle wrapping internally (extending this constructor is part of ζ-1)
+
+A small number of sites use `&items[..]` or `items.into_iter()` patterns that need slightly more care. The substrate-as-teacher cascade (per recovery doc § FM 15) will surface every site as a compile error; sonnet iterates per-error until cargo build clean.
+
+### Sub-stone decomposition (per `feedback_iterative_complexity`)
+
+| Sub-stone | What | Proof gate | Predicted runtime |
+|---|---|---|---|
+| ζ-1-mint | Mint `Children` in `src/ast.rs`; update `WatAST` variant inner types; update `children()` accessor; extend `WatAST::list/vector/struct_pattern` constructors to wrap | `cargo build --release` surfaces ~435 errors across consumer files; constructors compile clean | 15-30 min (substrate-internal only) |
+| ζ-2-runtime | Migrate `src/runtime.rs` (106 List + Vector/StructPattern siblings; biggest consumer) | `cargo build --release` clean for runtime.rs sites; cargo test affected modules green | 45-90 min |
+| ζ-3-check | Migrate `src/check.rs` (78 List + siblings) | Same shape; cargo build + tests | 45-60 min |
+| ζ-4-macros | Migrate `src/macros.rs` (59 List + siblings) | Same | 45-60 min |
+| ζ-5-closure-extract | Migrate `src/closure_extract.rs` (42 List + siblings) | Same | 30-45 min |
+| ζ-6-tail | Migrate remaining files (types/load/parser/dispatch/resolve/config/lower/form_match/test_runner/hash + any others surfaced by cargo) | `cargo build --release --workspace` clean; full workspace tests green | 30-60 min |
+| ζ-7-verify | Workspace cargo test; t6 still passes; baseline preserved | Workspace failure delta ≤ 0 vs pre-ζ baseline | 10-20 min orchestrator |
+
+**Total predicted:** 4-7 hours across 6 sonnet spawns (ζ-1 through ζ-6) + orchestrator verification (ζ-7). Per-stone trust gate: orchestrator commits ζ-N after independent verification before spawning ζ-(N+1).
+
+### Stone discipline per ζ-N spawn
+
+Each sub-stone follows the same contract as δ-stones:
+- ONE concern: ONE file's migration (ζ-2 through ζ-6) or the substrate mint (ζ-1)
+- ONE proof gate: `cargo build --release` clean for the migrated file's compile errors
+- STOP triggers VERBATIM: "If anything outside this file's migration surfaces, retreat — do not investigate, do not theorize, do not open another file"
+- NO mention of workspace failure count (per the δ-process-scope lesson)
+- Construction sites + pattern-match sites in the assigned file both migrate; nothing else
+
+ζ-7 (workspace verify) is orchestrator-side; no sonnet spawn.
+
+### Why this isn't FM-6 preemptive doc-update
+
+ζ scope detail drafts BEFORE ζ-1 ships, but:
+- ζ shape is DERIVED from the existing children() primitive (β shipped) + arc 213 α's worked precedent (BRIEF on disk)
+- The migration plan is DERIVED from grep evidence (435 sites; per-file breakdown above)
+- No code changes yet; no commitment to ship anything per this section until α SCORE returns
+- This section UPDATES the DESIGN with verified scope; per FM 6 the anti-pattern is "speculative DESIGN updates before work is proven"; here the work being designed-for is the L4 endpoint already named in the L0-L4 ladder
+
+Per `feedback_docs_when_confused`: scope is now obvious; the design has shape; future-me reads this and knows what ζ ships.
+
+### Cross-references
+
+- Arc 213 α BRIEF (`docs/arc/2026/05/213-libc-fork-mismanagement/BRIEF-213-ALPHA-MINT-PIDFD-PRIMITIVE.md`) — the worked precedent
+- `feedback_substrate_owns_not_callers_match` — the doctrine ζ extends to the AST layer
+- `feedback_tractability_tiebreaker` — why arc 213 α ships first (its Pidfd is the worked precedent ζ references)
+- recovery doc § FM 15 — substrate-as-teacher cascade is the iteration mechanism for ζ-2 through ζ-6
+- `feedback_iterative_complexity` — sub-stone decomposition (one file at a time)
+- INTERSTITIAL § 2026-05-18 (post-Linux-doctrine) "Tractability tiebreaker" — the sequencing discipline
+- INTERSTITIAL § 2026-05-18 "L4 endgame realized" — the doctrine commitment ζ implements at L2
