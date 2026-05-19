@@ -3751,44 +3751,43 @@ fn collect_process_calls(
     joins: &mut Vec<(String, Span)>,
     accessors: &mut Vec<(String, String, Span)>,
 ) {
-    // TEMPORARY List-only — walker RULE lacks lexical-scope-boundary
-    // tracking. NOT an exemption from arc 212's children() doctrine;
-    // a sharpening target. Arc 212 stone δ-process-scope makes this
-    // walker correct under children() by teaching it to RESET local-
-    // scope tracking when descent crosses a nested let-form boundary.
+    // Walker-specific List-head logic: classify Process/join-result and
+    // Process/<accessor> call sites. STOP descent at fn/lambda boundaries
+    // AND at :wat::core::let boundaries — both are separate lexical scopes.
     //
-    // The arc 117 rule is "Process/join-result and Process/stdout|
-    // stderr|output in the SAME lexical scope = deadlock" (the
-    // find_process_join_before_drain framing). Migration to children()
-    // recursion is correct AT THE ITERATION LAYER, but the walker's
-    // current rule has no scope-boundary awareness — it would conflate
-    // inner-let scopes with the outer let's tracking.
-    //
-    // Audit evidence: naive children() migration produces false
-    // positives on stdlib patterns in wat/test.wat,
-    // wat/kernel/hermetic.wat, wat/kernel/sandbox.wat where inner-let
-    // scopes carry Process accessors independently of the outer scope.
-    let WatAST::List(items, span) = node else { return };
-    if let Some(WatAST::Keyword(k, _)) = items.first() {
-        match k.as_str() {
-            ":wat::kernel::Process/join-result" => {
-                if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                    joins.push((id.name.clone(), span.clone()));
+    // Per arc 212 stone δ-process-scope: the walker stops at let-form
+    // boundaries because find_process_join_before_drain (this walker's
+    // caller) is invoked per-let-scope from infer_let. The type-checker's
+    // iteration over let-forms ensures each scope is checked independently
+    // — the walker must NOT descend across let boundaries or it would
+    // conflate inner-let Process accessors with the outer scope's tracking.
+    if let WatAST::List(items, span) = node {
+        if let Some(WatAST::Keyword(k, _)) = items.first() {
+            match k.as_str() {
+                ":wat::kernel::Process/join-result" => {
+                    if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                        joins.push((id.name.clone(), span.clone()));
+                    }
                 }
-            }
-            acc @ (":wat::kernel::Process/stdout"
-            | ":wat::kernel::Process/stderr"
-            | ":wat::kernel::Process/output") => {
-                if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                    accessors.push((id.name.clone(), acc.to_string(), span.clone()));
+                acc @ (":wat::kernel::Process/stdout"
+                | ":wat::kernel::Process/stderr"
+                | ":wat::kernel::Process/output") => {
+                    if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                        accessors.push((id.name.clone(), acc.to_string(), span.clone()));
+                    }
                 }
+                // Scope boundaries — stop descent. fn/lambda existed
+                // pre-arc-212; let added in stone δ-process-scope so the
+                // walker's RULE matches the caller's per-let-scope framing.
+                ":wat::core::fn" | ":wat::core::lambda" | ":wat::core::let" => return,
+                _ => {}
             }
-            // Do NOT recurse into nested fn bodies — they're separate scopes.
-            ":wat::core::fn" | ":wat::core::lambda" => return,
-            _ => {}
         }
     }
-    for child in items {
+    // Arc 212 — generic recursion via children() covers List, Vector, and
+    // StructPattern uniformly. Scope-boundary arms above return without
+    // descending. children() returns &[] for leaf nodes (no-op).
+    for child in node.children() {
         collect_process_calls(child, joins, accessors);
     }
 }
