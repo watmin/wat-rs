@@ -18,6 +18,10 @@
 //!   8. Receiver clone has fresh accumulator + shares pipe fd
 //!   9-10. CommSender / CommReceiver trait dispatch
 //!
+//! `probe_slice3d2_*` (2 tests; Stone D2 — Select<'a, T> cascade-aware fan-in):
+//!   1. select picks the fired receiver (correct ReceiverIndex + value)
+//!   2. ReceiverIndex matches registration order (0, 1, 2)
+//!
 //! The Stone C wire chain (T → HolonAST → tagged EDN string →
 //! newline-framed bytes → libc::write → io_uring Read → bytes → EDN →
 //! HolonAST → T) carries through all tests. Embedded `\n` in strings
@@ -27,8 +31,8 @@
 use std::thread;
 use std::time::Duration;
 
-use wat::comms::{CommReceiver, CommSender, RecvError, SendError, TryRecvError};
-use wat::comms::process::pair;
+use wat::comms::{CommReceiver, CommSender, ReceiverIndex, RecvError, SelectOutcome, SendError, TryRecvError};
+use wat::comms::process::{pair, Select};
 
 #[test]
 fn probe_slice3c_pair_constructs_successfully() {
@@ -252,4 +256,45 @@ fn probe_slice3d1_comm_receiver_trait_dispatch() {
     tx.send("via trait".to_string()).expect("send");
     let got = generic_recv(&rx).expect("recv via trait");
     assert_eq!(got, "via trait");
+}
+
+// ─── Stone D2 probes ──────────────────────────────────────────────────────────
+
+#[test]
+fn probe_slice3d2_select_picks_fired_receiver() {
+    // Verifies Select returns the correct ReceiverIndex + value when
+    // exactly one of two registered receivers has a queued frame.
+    let (tx_a, rx_a) = pair::<String>().expect("pair a");
+    let (_tx_b, rx_b) = pair::<String>().expect("pair b");
+    tx_a.send("hello-a".to_string()).expect("send to rx_a");
+    // Give the kernel a moment to deliver.
+    thread::sleep(Duration::from_millis(20));
+    let mut sel: Select<String> = Select::new();
+    let idx_a = sel.recv(&rx_a);
+    // Register rx_b too so Select genuinely has two arms;
+    // returned index intentionally unused.
+    let _idx_b = sel.recv(&rx_b);
+    match sel.select() {
+        SelectOutcome::Recv { index, result } => {
+            assert_eq!(index, idx_a, "fired index must match the receiver with data");
+            assert_eq!(result, Ok("hello-a".to_string()), "result must carry the sent value");
+        }
+        SelectOutcome::Shutdown => panic!("unexpected Shutdown"),
+    }
+}
+
+#[test]
+fn probe_slice3d2_select_indices_match_registration_order() {
+    // Verifies ReceiverIndex reflects registration order (0, 1, 2)
+    // independent of any io_uring internal token scheme.
+    let (_tx_a, rx_a) = pair::<String>().expect("pair a");
+    let (_tx_b, rx_b) = pair::<String>().expect("pair b");
+    let (_tx_c, rx_c) = pair::<String>().expect("pair c");
+    let mut sel: Select<String> = Select::new();
+    let idx_a = sel.recv(&rx_a);
+    let idx_b = sel.recv(&rx_b);
+    let idx_c = sel.recv(&rx_c);
+    assert_eq!(idx_a, ReceiverIndex(0), "first registered receiver must be index 0");
+    assert_eq!(idx_b, ReceiverIndex(1), "second registered receiver must be index 1");
+    assert_eq!(idx_c, ReceiverIndex(2), "third registered receiver must be index 2");
 }

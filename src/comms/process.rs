@@ -4,18 +4,17 @@
 //! Slice 1 traits (`crate::comms::{SendError, RecvError}`) using
 //! `libc::pipe` for the transport and `io_uring` for the wake mechanism.
 //!
-//! ## Current scope (through Stone D1)
+//! ## Current scope (through Stone D2)
 //!
+//! Full API surface matching the thread tier (`crate::comms::thread`).
 //! Generic `Sender<T: HolonRepresentable>` / `Receiver<T: HolonRepresentable>`
-//! with HolonAST ↔ EDN bytes via wat-edn (Stone C). Cascade-aware
-//! multi-arm POLL_ADD (Stone B). io_uring bytes foundation with
-//! newline framing (Stone A). Stone D1 adds: `try_recv` (non-blocking
-//! via libc::poll(timeout=0) + io_uring Read), `len` (accumulator
-//! newline count; documented approximation), `close` (consume self;
-//! OwnedFd Drop closes the fd), `Clone` (OwnedFd::try_clone duplicates
-//! the fd; receivers compete MPMC-style for frames), CommSender/CommReceiver
-//! trait impls. Still NO `Select<'a, T>` (Stone D2); NO persistent ring /
-//! config tunable (Stone E).
+//! with HolonAST ↔ EDN bytes via wat-edn (Stone C). Cascade-aware multi-arm
+//! POLL_ADD (Stone B). io_uring bytes foundation with newline framing
+//! (Stone A). Stone D1: try_recv + len + close + Clone + CommSender/
+//! CommReceiver trait impls. Stone D2: `Select<'a, T>` — cascade-aware
+//! fan-in over N receivers (generalizes Stone B's 2-arm POLL_ADD to
+//! N+1 arms; broadcast wins ties). Only NO persistent ring / config
+//! tunable (Stone E).
 //!
 //! ## Framing
 //!
@@ -58,8 +57,8 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use io_uring::{opcode, types, IoUring};
 
 use crate::comms::{
-    CloseError, CommReceiver, CommSender, HolonRepresentable, RecvError,
-    SendError, TryRecvError,
+    CloseError, CommReceiver, CommSender, HolonRepresentable, ReceiverIndex,
+    RecvError, SelectOutcome, SendError, TryRecvError,
 };
 
 // ─── Sender ──────────────────────────────────────────────────────────────────
@@ -587,6 +586,270 @@ fn take_frame(acc: &mut Vec<u8>) -> Option<Vec<u8>> {
     let mut frame = std::mem::replace(acc, suffix);
     frame.pop(); // remove trailing '\n'
     Some(frame)
+}
+
+// ─── Select ──────────────────────────────────────────────────────────────────
+
+/// Synthetic `SelectOutcome` for io_uring substrate-level failures inside
+/// `Select::select` (ring creation, SQE push, submit_and_wait, or CQE
+/// drained with `result < 0`).
+///
+/// `ReceiverIndex(0)` is an arbitrary sentinel — no user arm actually
+/// fired; the SUBSTRATE failed before any arm could complete. The result
+/// is `Err(RecvError)` so callers see "channel is unrecoverable for this
+/// call." This is distinct from arm-specific Read failures, where the
+/// fired `arm_idx` is meaningful and is used directly.
+///
+/// Centralizing this synthetic outcome in one helper keeps the WHY in
+/// one place; callers read `substrate_failure_outcome()` and the intent
+/// is clear from the name without per-site duplication.
+fn substrate_failure_outcome<T>() -> SelectOutcome<T> {
+    SelectOutcome::Recv {
+        index: ReceiverIndex(0),
+        result: Err(RecvError),
+    }
+}
+
+/// Cascade-aware fan-in over multiple process-tier receivers. Mirrors
+/// the thread-tier `Select` shape (`src/comms/thread.rs`) — same API
+/// surface, different transport underneath.
+///
+/// User-registered receivers get `ReceiverIndex`es in registration
+/// order (0, 1, 2, ...). The substrate's `SHUTDOWN_BROADCAST_READ_FD`
+/// is auto-polled on every `select()` call when initialized — the
+/// broadcast arm has no user-facing index; it surfaces as
+/// `SelectOutcome::Shutdown`.
+///
+/// On `select()`:
+///   - Broadcast arm fired → `SelectOutcome::Shutdown` (broadcast wins
+///     ties; substrate going down; honest reporting per
+///     typed_channel.rs:360-364 discipline).
+///   - One or more data arms fired → drain the first data CQE; do an
+///     io_uring Read on that receiver; accumulate; if a complete frame
+///     is decoded → `SelectOutcome::Recv { index, result }`; if partial
+///     → loop and re-poll all arms (broadcast can fire mid-drain).
+///
+/// Per-call IoUring sized for N+1 POLL_ADD entries (Stone E persistifies).
+pub struct Select<'a, T: HolonRepresentable> {
+    /// User-registered receivers in registration order. The index
+    /// into this Vec is the user-facing `ReceiverIndex`.
+    receivers: Vec<&'a Receiver<T>>,
+    /// Type marker for the payload type T. PhantomData<T> makes
+    /// `Select<'a, T>` invariant in T — consistent with `Sender<T>`
+    /// and `Receiver<T>`.
+    _phantom: PhantomData<T>,
+}
+
+impl<'a, T: HolonRepresentable> Select<'a, T> {
+    /// Construct a new cascade-aware Select. Empty until receivers
+    /// are registered via `recv`. The broadcast arm is NOT registered
+    /// here — it's polled per-`select()` call based on the current
+    /// `SHUTDOWN_BROADCAST_READ_FD` atomic value (idempotent-set per
+    /// substrate init).
+    pub fn new() -> Self {
+        Self {
+            receivers: Vec::new(),
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Register a receiver. Returns the `ReceiverIndex` the caller
+    /// will see in `SelectOutcome::Recv { index, .. }` when this
+    /// receiver fires. Index reflects registration order (0 for first
+    /// registered, 1 for second, etc.).
+    pub fn recv(&mut self, rx: &'a Receiver<T>) -> ReceiverIndex {
+        let user_idx = self.receivers.len();
+        self.receivers.push(rx);
+        ReceiverIndex(user_idx)
+    }
+
+    /// Block until any registered receiver has a complete frame OR
+    /// substrate shutdown fires. Returns the outcome.
+    ///
+    /// Fast path: check all receivers' accumulators for a buffered
+    /// complete frame; if found, return that immediately (no io_uring).
+    ///
+    /// Slow path: per-call IoUring; submit POLL_ADD for each data fd
+    /// + broadcast fd (when initialized); wait for any to fire; drain
+    /// CQEs; broadcast wins ties; if a data arm fired, Read from that
+    /// arm into its accumulator; if a complete frame is decoded,
+    /// return; if partial, loop.
+    pub fn select(&mut self) -> SelectOutcome<T> {
+        // Fast path — any accumulator already has a complete frame?
+        for (i, rx) in self.receivers.iter().enumerate() {
+            if let Some(frame) = take_frame(&mut rx.accumulator.borrow_mut()) {
+                return SelectOutcome::Recv {
+                    index: ReceiverIndex(i),
+                    result: decode_frame::<T>(&frame),
+                };
+            }
+        }
+
+        let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
+            .load(std::sync::atomic::Ordering::SeqCst);
+
+        loop {
+            // Per-call IoUring sized for N+1 POLL_ADD entries.
+            // user_data scheme: 0 = broadcast; 1..=N = data arms.
+            let arm_count = self.receivers.len() + if broadcast_fd >= 0 { 1 } else { 0 };
+            // io-uring crate requires power-of-2-or-greater capacity.
+            // Use next_power_of_two to round up; floor at 2.
+            let ring_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
+
+            let mut ring = match IoUring::new(ring_capacity) {
+                Ok(r) => r,
+                Err(_) => return substrate_failure_outcome(),
+            };
+
+            const BROADCAST_TOKEN: u64 = 0;
+
+            if broadcast_fd >= 0 {
+                let poll_broad = opcode::PollAdd::new(
+                    types::Fd(broadcast_fd),
+                    libc::POLLHUP as u32,
+                )
+                .build()
+                .user_data(BROADCAST_TOKEN);
+                // SAFETY: broadcast_fd is owned by the substrate worker
+                // and remains valid for the lifetime of submit_and_wait.
+                unsafe {
+                    if ring.submission().push(&poll_broad).is_err() {
+                        return substrate_failure_outcome();
+                    }
+                }
+            }
+
+            for (i, rx) in self.receivers.iter().enumerate() {
+                let poll_data = opcode::PollAdd::new(
+                    types::Fd(rx.read_fd.as_raw_fd()),
+                    (libc::POLLIN | libc::POLLHUP) as u32,
+                )
+                .build()
+                .user_data((i + 1) as u64);
+                // SAFETY: rx.read_fd is owned by the Receiver pointed to
+                // by 'a; remains valid for the lifetime of submit_and_wait.
+                unsafe {
+                    if ring.submission().push(&poll_data).is_err() {
+                        return substrate_failure_outcome();
+                    }
+                }
+            }
+
+            if ring.submit_and_wait(1).is_err() {
+                return substrate_failure_outcome();
+            }
+
+            // Drain ALL ready CQEs — both broadcast and data arms may
+            // fire simultaneously. Broadcast wins ties.
+            let mut fired_broadcast = false;
+            let mut first_data_arm: Option<usize> = None;
+            while let Some(cqe) = ring.completion().next() {
+                if cqe.result() < 0 {
+                    return substrate_failure_outcome();
+                }
+                let token = cqe.user_data();
+                if token == BROADCAST_TOKEN {
+                    fired_broadcast = true;
+                } else {
+                    // token in 1..=N; arm index is (token - 1).
+                    let arm = (token - 1) as usize;
+                    // First data arm wins; later ones ignored this call
+                    // (picked up on next select() iteration).
+                    if first_data_arm.is_none() {
+                        first_data_arm = Some(arm);
+                    }
+                }
+            }
+
+            // Broadcast wins ties — substrate going down.
+            if fired_broadcast {
+                return SelectOutcome::Shutdown;
+            }
+
+            let arm_idx = match first_data_arm {
+                Some(i) => i,
+                None => {
+                    // Defensive — submit_and_wait(1) returned but no
+                    // CQE drained. Should not happen; retry.
+                    continue;
+                }
+            };
+
+            // Read from the fired arm — do ONE io_uring Read.
+            let rx = self.receivers[arm_idx];
+            let read_fd = rx.read_fd.as_raw_fd();
+            let mut read_ring = match IoUring::new(2) {
+                Ok(r) => r,
+                Err(_) => {
+                    return SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: Err(RecvError),
+                    };
+                }
+            };
+            let mut buf = [0u8; 4096];
+            let read_e = opcode::Read::new(
+                types::Fd(read_fd),
+                buf.as_mut_ptr(),
+                buf.len() as _,
+            )
+            .build()
+            .user_data(1);
+            // SAFETY: read_e's buf pointer outlives submit_and_wait
+            // because buf is on this function's stack and not freed
+            // until after the wait completes.
+            unsafe {
+                if read_ring.submission().push(&read_e).is_err() {
+                    return SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: Err(RecvError),
+                    };
+                }
+            }
+            if read_ring.submit_and_wait(1).is_err() {
+                return SelectOutcome::Recv {
+                    index: ReceiverIndex(arm_idx),
+                    result: Err(RecvError),
+                };
+            }
+            let cqe = match read_ring.completion().next() {
+                Some(c) => c,
+                None => {
+                    return SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: Err(RecvError),
+                    };
+                }
+            };
+            let result = cqe.result();
+            if result <= 0 {
+                // Error (<0) or EOF (==0) → arm disconnected.
+                return SelectOutcome::Recv {
+                    index: ReceiverIndex(arm_idx),
+                    result: Err(RecvError),
+                };
+            }
+            let n = result as usize;
+            rx.accumulator
+                .borrow_mut()
+                .extend_from_slice(&buf[..n]);
+
+            if let Some(frame) = take_frame(&mut rx.accumulator.borrow_mut()) {
+                return SelectOutcome::Recv {
+                    index: ReceiverIndex(arm_idx),
+                    result: decode_frame::<T>(&frame),
+                };
+            }
+            // Partial bytes; no complete frame yet. Loop and re-poll
+            // all arms (broadcast can fire mid-drain).
+        }
+    }
+}
+
+impl<'a, T: HolonRepresentable> Default for Select<'a, T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ─── Factory ─────────────────────────────────────────────────────────────────
