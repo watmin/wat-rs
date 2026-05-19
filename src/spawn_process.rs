@@ -63,7 +63,7 @@
 
 use crate::ast::WatAST;
 use crate::config::Config;
-use crate::fork::{child_post_fork_init, make_pipe, ChildHandleInner};
+use crate::fork::{child_post_fork_init, make_pipe, spawn_lifelined, ChildHandleInner};
 use crate::freeze::{
     invoke_user_main, startup_from_forms, startup_from_forms_with_inherit,
     validate_user_main_signature,
@@ -74,7 +74,7 @@ use crate::runtime::{
     eval, Environment, ProgramHandleInner, RuntimeError, StructValue, SymbolTable, Value,
 };
 
-use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
 use std::sync::Arc;
 
 // Same exit-code convention `fork.rs` uses; spawn-process callers
@@ -150,32 +150,60 @@ pub fn eval_kernel_spawn_process(
     let (output_r, output_w) = make_pipe(":wat::kernel::spawn-process")?;
     let (stderr_r, stderr_w) = make_pipe(":wat::kernel::spawn-process")?;
 
+    // Convert ALL stdio OwnedFds to raw fd integers before spawn_lifelined.
+    // spawn_lifelined uses clone3 (like fork) — both parent and child inherit
+    // all open kernel file descriptors. We pass raw ints into the closure so
+    // the compiler does not enforce single-ownership on the OwnedFd wrappers:
+    // child reconstructs OwnedFds from raw ints; parent reconstructs
+    // parent-side OwnedFds after spawn_lifelined returns.
+    // into_raw_fd() disables OwnedFd::Drop (manual close required).
     let input_r_raw = input_r.as_raw_fd();
     let output_w_raw = output_w.as_raw_fd();
     let stderr_w_raw = stderr_w.as_raw_fd();
+    let input_r_fd = input_r.into_raw_fd();
+    let input_w_fd = input_w.into_raw_fd();
+    let output_r_fd = output_r.into_raw_fd();
+    let output_w_fd = output_w.into_raw_fd();
+    let stderr_r_fd = stderr_r.into_raw_fd();
+    let stderr_w_fd = stderr_w.into_raw_fd();
 
-    // Arc 170 FD-multiplex — lifeline pipe.
-    // Parent holds lifeline_w; never writes. Child polls lifeline_r_raw
-    // via the shutdown worker (registered in spawn_process_child_branch
-    // below). When parent dies for any reason, kernel closes lifeline_w
-    // → child's poll fires POLLHUP → shutdown cascade.
-    let (lifeline_r, lifeline_w) = make_pipe(":wat::kernel::spawn-process")?;
-    let lifeline_r_raw = lifeline_r.as_raw_fd();
-
-    // SAFETY: same conditions as fork-program-ast. The child
-    // restricts itself to syscalls and fresh-world wat eval.
-    let pid = unsafe { libc::fork() };
-    if pid < 0 {
-        let err = std::io::Error::last_os_error();
-        return Err(RuntimeError::MalformedForm {
-            head: OP.into(),
-            reason: format!("fork(2): {}", err),
-            span: crate::span::Span::unknown(),
-        });
-    }
-
-    if pid == 0 {
-        // ── CHILD BRANCH ─────────────────────────────────────────
+    // Arc 213 γ-3 — use spawn_lifelined (arc 213 α) instead of bare
+    // libc::fork(). spawn_lifelined handles: clone3+CLONE_PIDFD+
+    // CLONE_CLEAR_SIGHAND, setpgid(0,0), lifeline pipe creation, catch_unwind,
+    // _exit(0/1). The lifeline pipe is created INSIDE spawn_lifelined; the
+    // child receives its read-end as lifeline_r_raw; the parent receives
+    // LifelineWriter wrapping the write-end.
+    // Manual lifeline pipe creation (Phase 1B/1D) removed — spawn_lifelined
+    // owns lifeline pipe creation atomically.
+    //
+    // spawn_lifelined drops the child's inherited lifeline_w internally (before
+    // the closure body runs). spawn_process_child_branch therefore no longer
+    // needs a lifeline_w parameter — Arc 213 γ-3 owns "child is its own lifeline
+    // keeper" discipline at the spawn_lifelined level.
+    //
+    // forms: Vec<WatAST> and inherit_config: Option<Config> are both plain data
+    // with no interior mutability — they auto-satisfy UnwindSafe without any
+    // wrapper (contrast γ-2's Arc<dyn SourceLoader> which required LoaderWrap).
+    let (pidfd, lifeline_writer) = spawn_lifelined(move |lifeline_r_raw: i32| {
+        // ── CHILD BRANCH ────────────────────────────────────────
+        // Reconstruct OwnedFds from inherited raw fds. clone3 gave the
+        // child copies of all parent fd table entries — these are valid.
+        // SAFETY: these raw fds were created in the parent and inherited
+        // across clone3; reconstructing OwnedFd transfers ownership to
+        // spawn_process_child_branch's Drop discipline.
+        let input_r = unsafe { OwnedFd::from_raw_fd(input_r_fd) };
+        let input_w = unsafe { OwnedFd::from_raw_fd(input_w_fd) };
+        let output_r = unsafe { OwnedFd::from_raw_fd(output_r_fd) };
+        let output_w = unsafe { OwnedFd::from_raw_fd(output_w_fd) };
+        let stderr_r = unsafe { OwnedFd::from_raw_fd(stderr_r_fd) };
+        let stderr_w = unsafe { OwnedFd::from_raw_fd(stderr_w_fd) };
+        // Reconstruct OwnedFd wrapper for lifeline_r_raw. spawn_lifelined
+        // created this fd; it is valid in the child. child_post_fork_init
+        // (called inside spawn_process_child_branch) registers it with the
+        // shutdown worker; we pass the OwnedFd so spawn_process_child_branch
+        // can mem::forget it after registration (preventing Drop from
+        // closing the worker's fd).
+        let lifeline_r = unsafe { OwnedFd::from_raw_fd(lifeline_r_raw) };
         spawn_process_child_branch(
             forms,
             inherit_config,
@@ -187,19 +215,42 @@ pub fn eval_kernel_spawn_process(
             (output_r, output_w),
             (stderr_r, stderr_w),
             lifeline_r,
-            lifeline_w,
         );
-    }
+    })
+    .map_err(|err| RuntimeError::MalformedForm {
+        head: OP.into(),
+        reason: format!("spawn_lifelined: {}", err),
+        span: crate::span::Span::unknown(),
+    })?;
 
     // ── PARENT BRANCH ────────────────────────────────────────────
-    // Close child-side fds (our copies; child still has them).
-    drop(input_r);
-    drop(output_w);
-    drop(stderr_w);
-    // Drop the parent's copy of lifeline_r — only the child holds the
-    // read-end now. The parent retains lifeline_w (held in ChildHandleInner
-    // below) until parent process death closes it.
-    drop(lifeline_r);
+    // Close child-side fds (parent still holds kernel copies via raw fds;
+    // child has its own copies). We close parent's child-side ends manually
+    // since into_raw_fd() above consumed the OwnedFd wrappers.
+    // SAFETY: these raw fds are valid kernel fds the parent still holds;
+    // no OwnedFd wrapper is alive for them.
+    unsafe {
+        libc::close(input_r_fd);
+        libc::close(output_w_fd);
+        libc::close(stderr_w_fd);
+    }
+    // spawn_lifelined drops the parent's lifeline_r internally — no manual close.
+
+    // Reconstruct parent-side OwnedFds from raw fds.
+    // SAFETY: parent still holds these kernel fds; no other OwnedFd wraps them.
+    let input_w = unsafe { OwnedFd::from_raw_fd(input_w_fd) };
+    let output_r = unsafe { OwnedFd::from_raw_fd(output_r_fd) };
+    let stderr_r = unsafe { OwnedFd::from_raw_fd(stderr_r_fd) };
+
+    // Extract the lifeline OwnedFd from LifelineWriter (into_owned_fd added by
+    // γ-1; ChildHandleInner::lifeline_w field type stays Option<OwnedFd>).
+    let lifeline_w = lifeline_writer.into_owned_fd();
+
+    // γ-3: pidfd used only to retrieve pid. δ migrates ChildHandleInner
+    // to hold a Pidfd instead of raw pid_t. Drop pidfd here; it is
+    // kernel-reference-counted and closes safely.
+    let pid = pidfd.pid();
+    drop(pidfd);
 
     let handle = Arc::new(ChildHandleInner::new(pid, Some(lifeline_w)));
 
@@ -285,7 +336,6 @@ fn spawn_process_child_branch(
     output_pair: (OwnedFd, OwnedFd),
     stderr_pair: (OwnedFd, OwnedFd),
     lifeline_r: OwnedFd,
-    lifeline_w: OwnedFd,
 ) -> ! {
     // Drop parent-side pipe ends — close our inherited copies so
     // the parent's read-end EOFs cleanly when the child's last
@@ -293,14 +343,10 @@ fn spawn_process_child_branch(
     drop(input_pair.1);  // parent writes input
     drop(output_pair.0); // parent reads output
     drop(stderr_pair.0); // parent reads stderr
-    // Arc 170 Phase 1D fix: close the child's inherited copy of the
-    // lifeline write-end. The parent holds THE canonical lifeline_w
-    // (stored in ChildHandleInner). The child inherits a duplicate
-    // across fork(). If the child keeps this copy open, the lifeline
-    // pipe never EOFs from the child's perspective even after the
-    // parent dies — the child would be its own lifeline keeper.
-    // Closing it here ensures parent-death → POLLHUP on lifeline_r_raw.
-    drop(lifeline_w);
+    // Arc 213 γ-3: the child's inherited copy of the lifeline write-end is
+    // dropped by spawn_lifelined BEFORE this closure body runs. The "child is
+    // its own lifeline keeper" prevention discipline (Arc 170 Phase 1D) is now
+    // owned at the spawn_lifelined level — no manual drop(lifeline_w) needed here.
 
     // dup2 all three fds:
     //   fd 0 ← stdin pipe read end  (child reads from parent)
