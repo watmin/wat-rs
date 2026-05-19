@@ -70,3 +70,21 @@ inventory = "0.3"
 ctor = "1"
 
 [dev-dependencies]
+
+# ─── Integration tests organized to mirror src/ ──────────────────────────────
+# Convention (started 2026-05-19 with arc 214 Slice 3): tests/<module>/
+# mirrors src/<module>/. Each module group registers via ONE `[[test]]` entry
+# pointing at its `mod.rs` root; sub-files are picked up via standard Rust
+# `mod` declarations inside that root.
+#
+# Cargo intentionally does not auto-discover subdirectory files as test
+# binaries (subdirs are reserved for helper modules — the `tests/common/
+# mod.rs` idiom). The `[[test]]` per-module entry is the minimum honest
+# Cargo touch; ONE line per module group, no per-test boilerplate.
+#
+# Future test additions follow this pattern; flat `tests/*.rs` entries
+# coexist during the gradual reorganization.
+
+[[test]]
+name = "comms"
+path = "tests/comms/mod.rs"

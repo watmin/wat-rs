@@ -340,7 +340,7 @@ impl<'a, T: HolonRepresentable> Default for Select<'a, T> {
 }
 ```
 
-### 4. Extend `tests/probe_comms_process.rs` with Stone D2 tests
+### 4. Extend `tests/comms/process.rs` with Stone D2 tests
 
 KEEP all 6 existing `probe_slice3c_*` tests + all 10 existing `probe_slice3d1_*` tests unchanged.
 
@@ -399,11 +399,9 @@ fn probe_slice3d2_select_indices_match_registration_order() {
 
 ```
 cargo build --release                                       # MUST be clean
-cargo test --release --test probe_comms_process             # 18/18 PASS (6 + 10 + 2)
-cargo test --release --test probe_comms_thread              # 10/10 PASS unchanged
-cargo test --release --test probe_comms_foundation          # 3/3 PASS unchanged
-cargo test --release --test probe_channel_primitive         # 3/3 PASS unchanged
-cargo test --release --test probe_pidfd_primitive           # 2/2 PASS unchanged
+cargo test --release --test comms                           # 31 PASS total (foundation 3 + thread 10 + process 16 prior + 2 new D2)
+cargo test --release --test probe_channel_primitive         # 3/3 PASS unchanged (arc 213 χ-1; flat layout)
+cargo test --release --test probe_pidfd_primitive           # 2/2 PASS unchanged (arc 213 α; flat layout)
 ```
 
 Per `feedback_no_hang_vector_in_additive_scorecard`: **DO NOT** run `wat_arc170_program_contracts`.
@@ -416,7 +414,7 @@ Per `feedback_no_hang_vector_in_additive_scorecard`: **DO NOT** run `wat_arc170_
 - **DO NOT touch the dirty tree**
 - **DO NOT touch `src/typed_channel.rs`**, `src/edn_shim.rs`, `src/comms/mod.rs`, `Cargo.toml`
 - **DO NOT run** `wat_arc170_program_contracts`
-- **ZERO modifications** outside the 2-file scope (`src/comms/process.rs` adds Select struct + impl + Default; `tests/probe_comms_process.rs` adds 2 tests + Select/ReceiverIndex/SelectOutcome imports) + SCORE doc
+- **ZERO modifications** outside the 2-file scope (`src/comms/process.rs` adds Select struct + impl + Default; `tests/comms/process.rs` adds 2 tests + Select/ReceiverIndex/SelectOutcome imports) + SCORE doc
 
 ## Pre-emptive ward discipline (lessons from Slices 1+2 + Stones A+B+C+D1)
 
@@ -433,10 +431,10 @@ Per `feedback_no_hang_vector_in_additive_scorecard`: **DO NOT** run `wat_arc170_
 ## Concrete deliverables list
 
 1. **Edit** `src/comms/process.rs` — module-level doc updated; imports add `ReceiverIndex` + `SelectOutcome`; `Select<'a, T>` struct + impl with `new` + `recv` + `select` + `Default` impl appended at end of file
-2. **Edit** `tests/probe_comms_process.rs` — preserve 16 existing tests; add 2 new `probe_slice3d2_*` tests; add Select/ReceiverIndex/SelectOutcome imports
+2. **Edit** `tests/comms/process.rs` — preserve 16 existing tests; add 2 new `probe_slice3d2_*` tests; add Select/ReceiverIndex/SelectOutcome imports
 3. **New file** SCORE doc: `docs/arc/2026/05/214-concurrency-toolkit/SCORE-214-SLICE-3D2-SELECT.md`
 
-Estimated LOC: ~150-180 LOC added to `src/comms/process.rs`; ~70-90 LOC added to `tests/probe_comms_process.rs`. Total stone delta: ~220-270 LOC.
+Estimated LOC: ~150-180 LOC added to `src/comms/process.rs`; ~70-90 LOC added to `tests/comms/process.rs`. Total stone delta: ~220-270 LOC.
 
 ## Critical constraints
 

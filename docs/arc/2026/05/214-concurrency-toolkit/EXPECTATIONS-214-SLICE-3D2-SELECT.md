@@ -3,7 +3,7 @@
 ## Independent prediction
 
 - **Runtime band:** 20-30 min Mode A. Smaller than D1 because Stone D2 is focused on ONE new struct (Select<'a, T>) + 2 new tests. The implementation is novel substrate work (N+1-arm POLL_ADD) but the pattern generalizes Stone B's 2-arm case, which is well-established.
-- **LOC changed:** ~220-270 total (~150-180 in `src/comms/process.rs`; ~70-90 in `tests/probe_comms_process.rs`).
+- **LOC changed:** ~220-270 total (~150-180 in `src/comms/process.rs`; ~70-90 in `tests/comms/process.rs`).
 - **New files:** 1 (SCORE doc only).
 - **Surprises expected:** MEDIUM. The io_uring N+1-arm orchestration has multiple potential micro-bugs (ring sizing, user_data token scheme, CQE drain at scale, bail-out path semantics).
 
