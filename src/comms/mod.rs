@@ -62,6 +62,35 @@ pub trait HolonRepresentable: Send + 'static {
         Self: Sized;
 }
 
+/// First concrete `HolonRepresentable` impl (Slice 3 Stone C).
+///
+/// Encodes `String` as `HolonAST::String`. The roundtrip is exact —
+/// `String::from_holon_ast(s.to_holon_ast())` returns the original
+/// string (including any embedded `'\n'` which wat-edn escapes
+/// during serialization).
+///
+/// Used by Stone C's probe tests as the test type. Future arcs may
+/// add impls for other substrate types (StdInServiceEvent,
+/// SpawnOutcome, etc.) as Slice 4/5 consumers require.
+impl HolonRepresentable for String {
+    fn to_holon_ast(&self) -> holon::HolonAST {
+        holon::HolonAST::String(self.as_str().into())
+    }
+
+    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        match ast {
+            holon::HolonAST::String(s) => Ok(s.to_string()),
+            other => Err(WireError::new(format!(
+                "expected HolonAST::String, got {:?}",
+                other
+            ))),
+        }
+    }
+}
+
 // ─── Tier-agnostic sender / receiver traits ─────────────────────────────────
 
 /// Tier-agnostic send endpoint. Implemented by `comms::thread::Sender<T>` (Slice 2)

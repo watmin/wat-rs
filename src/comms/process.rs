@@ -4,27 +4,25 @@
 //! Slice 1 traits (`crate::comms::{SendError, RecvError}`) using
 //! `libc::pipe` for the transport and `io_uring` for the wake mechanism.
 //!
-//! ## Current scope (through Stone B)
+//! ## Current scope (through Stone C)
 //!
-//! Bytes-only with newline framing (Stone A). `Sender::send(&[u8])`
-//! writes newline-framed bytes; `Receiver::recv() -> Result<Vec<u8>,
-//! RecvError>` reads one newline-framed frame via io_uring with
-//! cascade-aware multi-arm POLL_ADD (Stone B). Still NOT generic over
-//! `T: HolonRepresentable` (Stone C); NO try_recv / Select / Clone /
+//! Generic `Sender<T: HolonRepresentable>` / `Receiver<T: HolonRepresentable>`
+//! with HolonAST ↔ EDN bytes via wat-edn (Stone C). Cascade-aware
+//! multi-arm POLL_ADD (Stone B). io_uring bytes foundation with
+//! newline framing (Stone A). Still NO try_recv / Select / Clone /
 //! close / len / trait impls (Stone D); NO persistent ring / config
 //! tunable (Stone E).
 //!
-//! ## Framing (Stone A)
+//! ## Framing
 //!
-//! Each `send` appends `'\n'` to its payload and writes the framed bytes
-//! to the pipe atomically (writes ≤ PIPE_BUF = 4096 are atomic per
-//! POSIX). The receiver reads bytes into an internal accumulator and
-//! splits on `'\n'`; any tail bytes after the first newline are kept
-//! for the next `recv` call.
-//!
-//! Payload bytes MUST NOT contain `'\n'` in Stone A (caller-enforced;
-//! Stone C migrates to length-prefixed EDN bytes which removes this
-//! constraint). Stone A test payloads are ASCII strings.
+//! Each `send` encodes `T` as a tagged-EDN single-line string via
+//! `write_holon_ast_tagged`, appends `'\n'`, and writes atomically
+//! (writes ≤ PIPE_BUF = 4096 are atomic per POSIX). The receiver
+//! reads bytes into an internal accumulator and splits on `'\n'`;
+//! the trailing newline does not appear in EDN output because
+//! wat-edn produces single-line text (embedded newlines escape as
+//! `\n` literal). Frames are decoded back via
+//! `read_holon_ast_tagged` + `T::from_holon_ast`.
 //!
 //! ## Cascade contract (Stone B)
 //!
@@ -50,40 +48,49 @@
 //! Slice 4's kernel dispatcher). User code does NOT touch this tier.
 
 use std::cell::RefCell;
+use std::marker::PhantomData;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 
 use io_uring::{opcode, types, IoUring};
 
-use crate::comms::{RecvError, SendError};
+use crate::comms::{HolonRepresentable, RecvError, SendError};
 
 // ─── Sender ──────────────────────────────────────────────────────────────────
 
-/// Stone-A process-tier send endpoint. Owns the pipe's write-end fd.
-/// Writes newline-framed bytes synchronously via `libc::write`.
+/// Process-tier send endpoint. Generic over the payload type T (Stone C).
+/// Owns the pipe's write-end fd. Encodes `T` via
+/// `HolonRepresentable::to_holon_ast` → `write_holon_ast_tagged` →
+/// newline-framed bytes.
 ///
-/// Stone A: NOT Clone (Stone D adds Clone). NOT close-able (Stone D adds
-/// `close(self)`). Drop closes the fd automatically (OwnedFd Drop impl).
+/// NOT Clone (Stone D adds). NOT close-able (Stone D adds `close(self)`).
+/// Drop closes the fd automatically (OwnedFd Drop impl).
 #[derive(Debug)]
-pub struct Sender {
+pub struct Sender<T: HolonRepresentable> {
     write_fd: OwnedFd,
+    /// Type marker — `T` doesn't appear in any field but constrains
+    /// what `send` accepts. `PhantomData<T>` makes `Sender<T>` invariant
+    /// in T which is correct for this use case.
+    _phantom: PhantomData<T>,
 }
 
-impl Sender {
-    /// Send `bytes` to the channel as a newline-framed frame. Writes
-    /// `bytes + '\n'` to the pipe via a `libc::write` retry loop.
+impl<T: HolonRepresentable> Sender<T> {
+    /// Send `value` to the channel. Encodes via
+    /// `T::to_holon_ast` → `edn_shim::write_holon_ast_tagged` →
+    /// newline-framed bytes → `libc::write` retry loop.
     ///
-    /// Returns `Err(SendError(bytes.to_vec()))` when the peer's read-end
-    /// is closed (EPIPE) or when the write fails for any other reason
-    /// (rare; non-EINTR I/O error). The error carries the bytes so the
-    /// caller can recover or re-send.
-    ///
-    /// Bytes MUST NOT contain `'\n'` in Stone A (caller-enforced framing
-    /// constraint; Stone C removes this when EDN serialization replaces
-    /// newline framing).
-    pub fn send(&self, bytes: &[u8]) -> Result<(), SendError<Vec<u8>>> {
-        // Frame: payload + '\n'. Single allocation; single contiguous write.
-        let mut framed: Vec<u8> = Vec::with_capacity(bytes.len() + 1);
-        framed.extend_from_slice(bytes);
+    /// Returns `Err(SendError(value))` when the peer's read-end is
+    /// closed (EPIPE) or when the write fails for any other reason.
+    /// The error carries the original `T` so the caller can recover
+    /// or re-send.
+    pub fn send(&self, value: T) -> Result<(), SendError<T>> {
+        // Encode T → HolonAST → tagged EDN string (single-line).
+        let ast = value.to_holon_ast();
+        let edn_str = crate::edn_shim::write_holon_ast_tagged(&ast);
+
+        // Frame: EDN bytes + '\n'. Single allocation; single contiguous write.
+        let edn_bytes = edn_str.as_bytes();
+        let mut framed: Vec<u8> = Vec::with_capacity(edn_bytes.len() + 1);
+        framed.extend_from_slice(edn_bytes);
         framed.push(b'\n');
 
         let fd = self.write_fd.as_raw_fd();
@@ -108,8 +115,8 @@ impl Sender {
                     continue;
                 }
                 // EPIPE (peer closed) or other write failure — caller
-                // gets the bytes back.
-                return Err(SendError(bytes.to_vec()));
+                // gets the original value back.
+                return Err(SendError(value));
             }
             written += n as usize;
         }
@@ -119,15 +126,16 @@ impl Sender {
 
 // ─── Receiver ────────────────────────────────────────────────────────────────
 
-/// Process-tier receive endpoint. Owns the pipe's read-end fd and a
-/// small internal byte accumulator for cross-call frame splitting.
+/// Process-tier receive endpoint. Generic over the payload type T (Stone C).
+/// Owns the pipe's read-end fd and a small internal byte accumulator
+/// for cross-call frame splitting.
 ///
 /// Cascade-aware (Stone B): `recv` wakes on substrate shutdown via
 /// io_uring multi-arm POLL_ADD on `SHUTDOWN_BROADCAST_READ_FD`.
-/// NOT Clone (Stone D adds). NOT generic over `T` (Stone C adds).
-/// Per-call `IoUring` instance (Stone E persistifies).
+/// NOT Clone (Stone D adds). Per-call `IoUring` instance (Stone E
+/// persistifies).
 #[derive(Debug)]
-pub struct Receiver {
+pub struct Receiver<T: HolonRepresentable> {
     read_fd: OwnedFd,
     /// Bytes read from the pipe but not yet returned to a caller.
     /// `RefCell` provides interior mutability so `recv(&self)` can
@@ -136,27 +144,28 @@ pub struct Receiver {
     /// model never shares a single Receiver across threads — clones
     /// (Stone D) create independent endpoints.
     accumulator: RefCell<Vec<u8>>,
+    /// Type marker — `T` doesn't appear in any field but constrains
+    /// what `recv` produces. `PhantomData<T>` makes `Receiver<T>`
+    /// invariant in T which is correct for this use case.
+    _phantom: PhantomData<T>,
 }
 
-impl Receiver {
-    /// Blocking recv. Returns the next complete newline-framed frame
-    /// from the pipe (without the trailing `'\n'`). Reads from the
-    /// internal accumulator first; if no complete frame is buffered,
-    /// drives io_uring single-arm Read until a `'\n'` is observed.
+impl<T: HolonRepresentable> Receiver<T> {
+    /// Blocking recv. Returns the next complete `T` decoded from the
+    /// pipe (newline-framed; EDN-encoded). Reads from the internal
+    /// accumulator first; if no complete frame is buffered, drives
+    /// the cascade-aware io_uring multi-arm POLL_ADD + Read loop
+    /// until a `'\n'` is observed; then decodes the frame via
+    /// `read_holon_ast_tagged` + `T::from_holon_ast`.
     ///
     /// Returns `Err(RecvError)` on peer-close (EOF; read returns 0),
-    /// on io_uring submission/completion failure, or on substrate
-    /// shutdown (cascade-arm fires; Stone B).
-    ///
-    /// Stone B: cascade-aware. `SHUTDOWN_BROADCAST_READ_FD` is polled
-    /// as a second POLL_ADD arm alongside the data fd. Broadcast wins
-    /// ties. Bootstrap fallback: when the broadcast fd is -1 (pre-init
-    /// or test bypass), falls back to bare io_uring Read (Stone A
-    /// behavior). Stone E persistifies the per-call IoUring.
-    pub fn recv(&self) -> Result<Vec<u8>, RecvError> {
+    /// on io_uring submission/completion failure, on substrate
+    /// shutdown (cascade-arm fires; Stone B), on UTF-8 decode failure,
+    /// on EDN parse failure, or on `T::from_holon_ast` failure.
+    pub fn recv(&self) -> Result<T, RecvError> {
         // Fast path — accumulator already has a complete frame.
         if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
-            return Ok(frame);
+            return decode_frame::<T>(&frame);
         }
 
         let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
@@ -167,7 +176,7 @@ impl Receiver {
             // Cascade-aware step — poll both arms (data + broadcast).
             // Bootstrap fallback: when broadcast_fd is -1 (pre-init or
             // test bypass), skip the poll and fall through to bare Read
-            // (same behavior as Stone A; no cascade available).
+            // (Stone A behavior; no cascade available).
             if broadcast_fd >= 0 {
                 match wait_for_data_or_cascade(read_fd, broadcast_fd)? {
                     PollOutcome::Shutdown => return Err(RecvError),
@@ -177,7 +186,7 @@ impl Receiver {
                 }
             }
 
-            // Read step — same as Stone A. Per-call IoUring; ring size 2.
+            // Read step — same as Stones A+B. Per-call IoUring; ring size 2.
             // (Stone E persistifies the ring.)
             let mut ring = IoUring::new(2).map_err(|_| RecvError)?;
             let mut buf = [0u8; 4096];
@@ -214,7 +223,7 @@ impl Receiver {
                 .extend_from_slice(&buf[..n]);
 
             if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
-                return Ok(frame);
+                return decode_frame::<T>(&frame);
             }
             // No complete frame yet; loop and poll/read more bytes.
         }
@@ -315,6 +324,20 @@ fn wait_for_data_or_cascade(
     }
 }
 
+/// Decode a newline-framed payload to `T` via the Stone C wire chain:
+/// UTF-8 bytes → tagged-EDN string → HolonAST → T.
+///
+/// Returns `Err(RecvError)` on any layer's failure (utf8, EDN parse,
+/// or `T::from_holon_ast`). The error type collapses all three causes
+/// because the caller cannot meaningfully distinguish them — wire
+/// failures all mean "the frame did not roundtrip cleanly; the channel
+/// is in an honest but unrecoverable state per this call".
+fn decode_frame<T: HolonRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
+    let s = std::str::from_utf8(bytes).map_err(|_| RecvError)?;
+    let ast_arc = crate::edn_shim::read_holon_ast_tagged(s).map_err(|_| RecvError)?;
+    T::from_holon_ast(&ast_arc).map_err(|_| RecvError)
+}
+
 /// Pull the first newline-terminated frame out of `acc` (consuming the
 /// frame bytes + the trailing `'\n'`). Returns `None` when no `'\n'`
 /// is present (caller should read more bytes).
@@ -330,12 +353,16 @@ fn take_frame(acc: &mut Vec<u8>) -> Option<Vec<u8>> {
 
 // ─── Factory ─────────────────────────────────────────────────────────────────
 
-/// Create a new process-tier channel pair (Stone A — bytes only).
+/// Create a new process-tier channel pair (Stone C — generic over T).
 ///
 /// Allocates an anonymous pipe via `libc::pipe(2)` and wraps the two
-/// file descriptors as `Sender` / `Receiver`. Returns the OS-level
-/// `io::Error` on `pipe(2)` failure (rare; out of fds or kernel OOM).
-pub fn pair() -> std::io::Result<(Sender, Receiver)> {
+/// file descriptors as `Sender<T>` / `Receiver<T>`. The type parameter
+/// `T` constrains what values flow through the channel; both endpoints
+/// must agree on `T` (typically inferred at call site).
+///
+/// Returns the OS-level `io::Error` on `pipe(2)` failure (rare; out
+/// of fds or kernel OOM).
+pub fn pair<T: HolonRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)> {
     let mut fds = [0i32; 2];
     // SAFETY: `fds` is a valid `[i32; 2]` stack allocation whose
     // lifetime covers this call; `libc::pipe` writes two file
@@ -350,10 +377,14 @@ pub fn pair() -> std::io::Result<(Sender, Receiver)> {
     let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
     let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
     Ok((
-        Sender { write_fd },
+        Sender {
+            write_fd,
+            _phantom: PhantomData,
+        },
         Receiver {
             read_fd,
             accumulator: RefCell::new(Vec::new()),
+            _phantom: PhantomData,
         },
     ))
 }

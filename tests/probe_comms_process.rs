@@ -1,60 +1,64 @@
-//! Arc 214 Slice 3 Stone A smoke probe — verify io_uring bytes round-trip.
+//! Arc 214 Slice 3 Stone C smoke probe — verify HolonRepresentable
+//! round-trip through io_uring pipe via String as the test type.
 //!
 //! Six tests:
 //!   1. pair() constructs successfully
-//!   2. single-frame round-trip preserves bytes
+//!   2. single-string round-trip preserves the string
 //!   3. FIFO ordering across multiple sends
 //!   4. sender drop wakes recv with Err(RecvError)
 //!   5. accumulator correctly splits two frames received in one read
-//!   6. large frame spans multiple io_uring reads
+//!   6. large string spans multiple io_uring reads
 //!
-//! Stone A is NOT cascade-aware (Stone B). Tests do NOT exercise
-//! substrate shutdown — they exercise io_uring + framing only.
+//! Stone C wires generic T: HolonRepresentable. The wire chain is
+//! T → HolonAST → tagged EDN string → newline-framed bytes →
+//! libc::write → io_uring Read → bytes → EDN → HolonAST → T.
+//!
+//! Embedded `\n` in strings escape during wat-edn serialization, so
+//! the Stone A "no newlines in payload" constraint no longer applies
+//! at the wire layer.
 
 use std::thread;
 use std::time::Duration;
 
-use wat::comms::process::pair;
 use wat::comms::RecvError;
+use wat::comms::process::pair;
 
 #[test]
-fn probe_slice3a_pair_constructs_successfully() {
-    // Verifies the libc::pipe → OwnedFd wrapping path works at all.
-    let result = pair();
+fn probe_slice3c_pair_constructs_successfully() {
+    // Verifies the libc::pipe → OwnedFd wrapping path works under
+    // the generic T parameter.
+    let result = pair::<String>();
     assert!(result.is_ok(), "pair() must return Ok; got {:?}", result.err());
     let (_tx, _rx) = result.expect("pair");
-    // Drop closes both fds; no fd leak. (Verified statically by OwnedFd
-    // Drop impl; not asserted at runtime.)
 }
 
 #[test]
-fn probe_slice3a_single_frame_round_trip() {
-    // Verifies the core contract: bytes sent are bytes received.
-    let (tx, rx) = pair().expect("pair");
-    tx.send(b"hello").expect("send must succeed on live channel");
-    let got = rx.recv().expect("recv must return the sent frame");
-    assert_eq!(got, b"hello", "received bytes must equal sent bytes");
+fn probe_slice3c_single_string_round_trip() {
+    // Verifies the core contract: a String sent is the exact same
+    // String received (after the EDN roundtrip).
+    let (tx, rx) = pair::<String>().expect("pair");
+    tx.send("hello".to_string()).expect("send must succeed on live channel");
+    let got = rx.recv().expect("recv must return the sent string");
+    assert_eq!(got, "hello", "received string must equal sent string");
 }
 
 #[test]
-fn probe_slice3a_fifo_ordering_preserved_across_sends() {
+fn probe_slice3c_fifo_ordering_preserved_across_sends() {
     // Verifies that N sends followed by N recvs preserve order.
-    let (tx, rx) = pair().expect("pair");
-    tx.send(b"first").expect("send 1");
-    tx.send(b"second").expect("send 2");
-    tx.send(b"third").expect("send 3");
-    assert_eq!(rx.recv().expect("recv 1"), b"first");
-    assert_eq!(rx.recv().expect("recv 2"), b"second");
-    assert_eq!(rx.recv().expect("recv 3"), b"third");
+    let (tx, rx) = pair::<String>().expect("pair");
+    tx.send("first".to_string()).expect("send 1");
+    tx.send("second".to_string()).expect("send 2");
+    tx.send("third".to_string()).expect("send 3");
+    assert_eq!(rx.recv().expect("recv 1"), "first");
+    assert_eq!(rx.recv().expect("recv 2"), "second");
+    assert_eq!(rx.recv().expect("recv 3"), "third");
 }
 
 #[test]
-fn probe_slice3a_sender_drop_wakes_recv_with_err() {
-    // Verifies that dropping the Sender causes recv to return Err(RecvError)
-    // (EOF on the pipe; io_uring Read returns 0). The Sender is dropped
-    // on a separate thread to ensure recv() is genuinely blocked when the
-    // drop happens.
-    let (tx, rx) = pair().expect("pair");
+fn probe_slice3c_sender_drop_wakes_recv_with_err() {
+    // Verifies that dropping the Sender causes recv to return
+    // Err(RecvError) (EOF on the pipe; io_uring Read returns 0).
+    let (tx, rx) = pair::<String>().expect("pair");
     let handle = thread::spawn(move || {
         thread::sleep(Duration::from_millis(50));
         drop(tx);
@@ -69,42 +73,38 @@ fn probe_slice3a_sender_drop_wakes_recv_with_err() {
 }
 
 #[test]
-fn probe_slice3a_accumulator_splits_two_frames_from_one_read() {
-    // Verifies the accumulator correctness: when the sender writes two
-    // newline-framed payloads in one libc::write call (kernel delivers
-    // both atomically), the first recv() returns frame 1 and the second
-    // recv() returns frame 2 WITHOUT another io_uring read.
-    //
-    // This exercises the take_frame fast path on the second call.
-    let (tx, rx) = pair().expect("pair");
-    // Two sends in quick succession; the kernel typically merges them
-    // into one available chunk on the read side (PIPE_BUF atomicity).
-    tx.send(b"alpha").expect("send 1");
-    tx.send(b"beta").expect("send 2");
+fn probe_slice3c_accumulator_splits_two_frames_from_one_read() {
+    // Verifies that when the sender writes two EDN frames in quick
+    // succession (kernel may deliver both atomically), the first
+    // recv() returns frame 1 and the second recv() returns frame 2
+    // WITHOUT another io_uring read.
+    let (tx, rx) = pair::<String>().expect("pair");
+    tx.send("alpha".to_string()).expect("send 1");
+    tx.send("beta".to_string()).expect("send 2");
     let first = rx.recv().expect("recv 1");
     let second = rx.recv().expect("recv 2");
-    assert_eq!(first, b"alpha", "first recv must return first frame");
-    assert_eq!(second, b"beta", "second recv must return second frame");
+    assert_eq!(first, "alpha", "first recv must return first string");
+    assert_eq!(second, "beta", "second recv must return second string");
 }
 
 #[test]
-fn probe_slice3a_large_frame_spans_multiple_io_uring_reads() {
-    // Verifies that a frame larger than the io_uring read buffer (4096)
-    // is correctly assembled across multiple loop iterations of recv().
-    // Build a 10_000-byte payload (no newlines per Stone A framing
-    // constraint).
-    let (tx, rx) = pair().expect("pair");
-    let payload: Vec<u8> = (0..10_000u32).map(|i| (i % 26) as u8 + b'a').collect();
-    // Sender on a separate thread because a 10001-byte write may block
-    // if the pipe buffer is full (typical pipe buffer = 64KB so this is
-    // fine; the thread split also exercises the recv-blocks-then-wakes
-    // path).
+fn probe_slice3c_large_string_spans_multiple_io_uring_reads() {
+    // Verifies that a String whose EDN encoding exceeds the io_uring
+    // read buffer (4096) is correctly assembled across multiple loop
+    // iterations of recv(). 10_000-char ASCII string — the EDN
+    // encoding is even bigger (tagged-EDN wraps it), guaranteeing
+    // multi-iteration reads.
+    let (tx, rx) = pair::<String>().expect("pair");
+    let payload: String = (0..10_000u32)
+        .map(|i| (i % 26) as u8 + b'a')
+        .map(|b| b as char)
+        .collect();
     let payload_clone = payload.clone();
     let send_handle = thread::spawn(move || {
-        tx.send(&payload_clone).expect("send large");
+        tx.send(payload_clone).expect("send large");
     });
     let got = rx.recv().expect("recv large");
     assert_eq!(got.len(), payload.len(), "received length must match sent");
-    assert_eq!(got, payload, "received bytes must equal sent bytes");
+    assert_eq!(got, payload, "received string must equal sent string");
     send_handle.join().expect("sender thread");
 }

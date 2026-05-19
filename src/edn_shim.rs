@@ -1989,6 +1989,19 @@ fn read_three_floats(
     Ok((value, min, max))
 }
 
+/// Render a HolonAST as a tagged-EDN string (single-line).
+///
+/// Inverse of [`read_holon_ast_tagged`]. The roundtrip `read . write`
+/// is an identity on valid HolonASTs.
+///
+/// Output is single-line per `wat_edn::write` guarantee — embedded
+/// newlines in payload strings escape as `\n` literal. This makes
+/// the output safe for newline-framed wire protocols (process-tier
+/// pipe framing per arc 214 Slice 3 Stone C).
+pub fn write_holon_ast_tagged(h: &holon::HolonAST) -> String {
+    wat_edn::write(&holon_ast_to_edn(h))
+}
+
 /// Public arc-093: parse an EDN string and reconstruct a
 /// `HolonAST` from its round-trip-safe tagged form. Inverse of
 /// the substrate's `:wat::edn::write` for HolonAST values; what
