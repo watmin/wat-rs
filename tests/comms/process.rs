@@ -29,7 +29,6 @@
 //! payload" constraint no longer applies at the wire layer.
 
 use std::thread;
-use std::time::Duration;
 
 use wat::comms::{CommReceiver, CommSender, ReceiverIndex, RecvError, SelectOutcome, SendError, TryRecvError};
 use wat::comms::process::{pair, Select};
@@ -66,21 +65,30 @@ fn probe_slice3c_fifo_ordering_preserved_across_sends() {
 }
 
 #[test]
-fn probe_slice3c_sender_drop_wakes_recv_with_err() {
-    // Verifies that dropping the Sender causes recv to return
-    // Err(RecvError) (EOF on the pipe; io_uring Read returns 0).
+fn probe_slice3c_recv_returns_err_after_sender_drop() {
+    // Verifies that recv returns Err(RecvError) when the sender side of
+    // the pipe has been closed (EOF; io_uring Read returns 0).
+    //
+    // Lock-step via the wire: drop(tx) is synchronous (libc::close(2)
+    // state-changes the pipe at close-time); the subsequent recv() sees
+    // EOF immediately via io_uring's POLL_ADD + Read sequence. No timing
+    // assumption involved.
+    //
+    // The earlier shape (spawn a thread, sleep 50ms, drop tx, recv on
+    // main) pretended to test "drop wakes a parked recv" but actually
+    // tested the same contract this simpler shape proves — the substrate
+    // doesn't expose kernel-side introspection for "is this recv parked",
+    // so the parked-then-woken scenario isn't deterministically testable
+    // at this layer. Per `feedback_lock_step_via_pipe`: sleep is a guess;
+    // we use the wire.
     let (tx, rx) = pair::<String>().expect("pair");
-    let handle = thread::spawn(move || {
-        thread::sleep(Duration::from_millis(50));
-        drop(tx);
-    });
+    drop(tx);
     let result = rx.recv();
     assert_eq!(
         result,
         Err(RecvError),
         "recv must return Err(RecvError) after sender drop (EOF)"
     );
-    handle.join().expect("sender-drop thread");
 }
 
 #[test]
@@ -138,18 +146,21 @@ fn probe_slice3d1_try_recv_disconnected_after_sender_drop() {
     // retry loops.
     let (tx, rx) = pair::<String>().expect("pair");
     drop(tx);
-    // Give the kernel a moment to propagate the close.
-    thread::sleep(Duration::from_millis(20));
+    // No sleep: libc::close(2) is synchronous; the kernel state-changes
+    // the pipe at close-time. The next poll on the read-end sees POLLHUP
+    // immediately. Per `feedback_lock_step_via_pipe`: sleep is a guess;
+    // we use the wire (close-then-poll is the lock-step).
     assert_eq!(rx.try_recv(), Err(TryRecvError::Disconnected));
 }
 
 #[test]
 fn probe_slice3d1_try_recv_succeeds_when_data_ready() {
     // Verifies try_recv returns the value when data is ready.
+    // No sleep: libc::write(2) is synchronous; bytes are in the kernel
+    // pipe buffer when send() returns. The next poll on the read-end
+    // sees POLLIN immediately. Lock-step via the wire.
     let (tx, rx) = pair::<String>().expect("pair");
     tx.send("hello".to_string()).expect("send");
-    // Give the kernel a moment to flush the write.
-    thread::sleep(Duration::from_millis(20));
     let result = rx.try_recv();
     assert_eq!(result, Ok("hello".to_string()));
 }
@@ -217,8 +228,9 @@ fn probe_slice3d1_receiver_clone_competes_for_frames() {
     // Send one frame. rx2 (the clone) receives it — proving it shares
     // the pipe. rx does NOT see the frame (it was consumed by rx2).
     tx.send("shared".to_string()).expect("send");
-    // Give the kernel a moment to flush the write.
-    thread::sleep(Duration::from_millis(20));
+    // No sleep: send() returns after libc::write(2) completes; bytes
+    // are in the kernel pipe buffer; the next recv on either clone
+    // sees them. Lock-step via the wire.
 
     // rx2 (clone) can recv the frame from the shared pipe.
     let got = rx2.recv().expect("recv via rx2 (clone)");
@@ -267,8 +279,10 @@ fn probe_slice3d2_select_picks_fired_receiver() {
     let (tx_a, rx_a) = pair::<String>().expect("pair a");
     let (_tx_b, rx_b) = pair::<String>().expect("pair b");
     tx_a.send("hello-a".to_string()).expect("send to rx_a");
-    // Give the kernel a moment to deliver.
-    thread::sleep(Duration::from_millis(20));
+    // No sleep: tx_a.send() returns after libc::write(2) completes;
+    // bytes are in the kernel pipe buffer. Select's submit_and_wait(1)
+    // BLOCKS on kernel events; POLL_ADD on rx_a's fd fires immediately
+    // (POLLIN already set). Lock-step via the wire.
     let mut sel: Select<String> = Select::new();
     let idx_a = sel.recv(&rx_a);
     // Register rx_b too so Select genuinely has two arms;

@@ -1,8 +1,18 @@
 //! # Process tier — cross-process comms via io_uring + anonymous pipes
 //!
-//! Layer 0a tier implementation per arc 214's `DESIGN.md`. Builds on the
-//! Slice 1 traits (`crate::comms::{SendError, RecvError}`) using
-//! `libc::pipe` for the transport and `io_uring` for the wake mechanism.
+//! Layer 0a tier implementation per arc 214 (the comms-layer redesign;
+//! full design at `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md`).
+//! Builds on the Slice 1 traits (`crate::comms::{SendError, RecvError}`)
+//! using `libc::pipe` for the transport and `io_uring` for the wake
+//! mechanism.
+//!
+//! Wire chain (Stone C onward): `T → HolonAST → tagged-EDN string →
+//! newline-framed bytes → libc::write → io_uring Read → bytes → EDN →
+//! HolonAST → T`. The HolonAST ↔ EDN-text conversion uses
+//! `crate::edn_shim::write_holon_ast_tagged` (encode) and
+//! `crate::edn_shim::read_holon_ast_tagged` (decode); both wrap
+//! `wat_edn::write` / `wat_edn::parse_owned` over the
+//! `holon::HolonAST` schema.
 //!
 //! ## Current scope (through Stone D2)
 //!

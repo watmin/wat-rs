@@ -32,25 +32,40 @@ fn probe_slice1_holon_representable_compiles() {
 }
 
 #[test]
-fn probe_slice1_error_types_construct_and_distinguish() {
+fn probe_slice1_send_error_carries_unsent_value() {
     // SendError holds the unsent value for caller recovery (crossbeam pattern).
     let s = wat::comms::SendError(42i64);
     assert_eq!(s.0, 42);
+}
 
+#[test]
+fn probe_slice1_recv_error_is_unit_struct() {
     // RecvError is a unit struct (no payload; senders dropped or shutdown fired).
     let _r = wat::comms::RecvError;
+}
 
-    // TryRecvError variants MUST be distinguishable — drives retry-vs-bail-out logic.
+#[test]
+fn probe_slice1_try_recv_error_variants_are_distinct() {
+    // TryRecvError variants MUST be distinguishable — drives retry-vs-bail-out
+    // logic at every try_recv site (Empty → may become ready; Disconnected →
+    // never will). Conflation is a deadlock vector.
     assert_ne!(
         wat::comms::TryRecvError::Empty,
         wat::comms::TryRecvError::Disconnected
     );
+}
 
-    // CloseError carries diagnostic text; field is private; constructed via new().
+#[test]
+fn probe_slice1_close_error_carries_diagnostic_text() {
+    // CloseError field is private; constructed via new(impl Into<String>);
+    // text retrieved via message() accessor.
     let c = wat::comms::CloseError::new("close-test");
     assert_eq!(c.message(), "close-test");
+}
 
-    // WireError carries diagnostic text; same pattern.
+#[test]
+fn probe_slice1_wire_error_carries_diagnostic_text() {
+    // WireError field is private; same new()/message() pattern as CloseError.
     let w = wat::comms::WireError::new("wire-test");
     assert_eq!(w.message(), "wire-test");
 }

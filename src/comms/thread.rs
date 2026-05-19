@@ -1,9 +1,10 @@
 //! # Thread tier — in-process comms via crossbeam_channel
 //!
-//! Layer 0a tier implementation per arc 214's `DESIGN.md`. Builds on the
-//! Slice 1 traits (`crate::comms::{CommSender, CommReceiver, SelectOutcome,
-//! ReceiverIndex, SendError, RecvError, TryRecvError, CloseError}`) with
-//! `crossbeam_channel` underneath.
+//! Layer 0a tier implementation per arc 214 (the comms-layer redesign;
+//! full design at `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md`).
+//! Builds on the Slice 1 traits (`crate::comms::{CommSender, CommReceiver,
+//! SelectOutcome, ReceiverIndex, SendError, RecvError, TryRecvError,
+//! CloseError}`) with `crossbeam_channel` underneath.
 //!
 //! ## Cascade contract (LOAD-BEARING)
 //!

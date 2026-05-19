@@ -1,9 +1,12 @@
 //! # Comms layer — substrate-internal tier primitives
 //!
-//! Layer 0a of arc 214's concurrency toolkit. This module defines the
-//! tier-agnostic abstractions (HolonRepresentable wire form, CommSender /
-//! CommReceiver traits, error types, SelectOutcome) shared by the thread
-//! tier (`comms::thread`) and process tier (`comms::process`) implementations.
+//! Layer 0a of arc 214's concurrency toolkit (the comms-layer redesign
+//! that unifies thread + process tier surfaces under shared traits; full
+//! design rationale at `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md`).
+//! This module defines the tier-agnostic abstractions (HolonRepresentable
+//! wire form, CommSender / CommReceiver traits, error types, SelectOutcome)
+//! shared by the thread tier (`comms::thread`) and process tier
+//! (`comms::process`) implementations.
 //!
 //! ## Cascade contract (LOAD-BEARING)
 //!
@@ -12,10 +15,16 @@
 //!
 //! - Thread tier: `crossbeam_channel::select! { recv(data), recv(SHUTDOWN_RX) }`
 //!   — substrate's shutdown cascade signals via crossbeam channel; tier recv
-//!   includes this in its select arm.
+//!   includes this in its select arm. `SHUTDOWN_RX:
+//!   OnceLock<crossbeam_channel::Receiver<()>>` lives at `crate::runtime`;
+//!   initialized by `init_shutdown_signal()` at `freeze.rs:233` before any
+//!   wat code executes. Pre-init the recv falls back to bare crossbeam recv.
 //! - Process tier: `io_uring` multi-arm submission on [data_fd, broadcast_fd]
 //!   — substrate's broadcast pipe acts as the wake signal; first completion
-//!   wins.
+//!   wins. `SHUTDOWN_BROADCAST_READ_FD: AtomicI32` lives at `crate::runtime`
+//!   (init at `freeze.rs:233`); the worker holds the write-end and drops it
+//!   on `trigger_shutdown()`, sending POLLHUP to all read-side receivers.
+//!   Pre-init (`fd == -1`) the recv falls back to bare io_uring Read.
 //!
 //! Callers cannot bypass the cascade because tier wrappers hide the underlying
 //! mechanism. Bare `crossbeam_channel::*` and bare `libc::pipe/read/write/
