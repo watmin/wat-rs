@@ -48,7 +48,7 @@ No test should change behavior. Document if observed deviation.
 | 6 | cargo build --release clean | YES |
 | 7 | α probe `probe_pidfd_primitive` still 2/2 PASS | YES |
 | 8 | `arc112_slice2b_process_send_recv` post-count == pre-count | YES |
-| 9 | `wat_arc170_program_contracts` post-count == pre-count (t6 + t14 stay failing as pre-existing) | YES |
+| 9 | `wat_arc170_program_contracts` post-count == 24/24 PASS (baseline is fully green; ANY failure is regression) | YES |
 | 10 | `probe_run_hermetic_ast_stdout_capture` post-count == pre-count | YES |
 | 11 | `probe_run_hermetic_no_deadlock` post-count == pre-count | YES |
 | 12 | `wat-cli wat_cli` post-count == pre-count | YES |

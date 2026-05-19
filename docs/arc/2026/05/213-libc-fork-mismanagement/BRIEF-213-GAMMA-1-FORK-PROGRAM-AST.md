@@ -164,24 +164,25 @@ The wat-level `:wat::kernel::fork-program-ast` is exercised by 5 test binaries:
 | Test binary | Owner |
 |---|---|
 | `tests/arc112_slice2b_process_send_recv.rs` | arc 112 Process send/recv suite |
-| `tests/wat_arc170_program_contracts.rs` | arc 170 program-entry-points contracts (CAUTION: t6 is pre-existing failure per arc 212; t14 was pre-existing failure pre-arc-211d; document if either changes state) |
+| `tests/wat_arc170_program_contracts.rs` | arc 170 program-entry-points contracts |
 | `tests/probe_run_hermetic_ast_stdout_capture.rs` | run-hermetic stdout capture |
 | `tests/probe_run_hermetic_no_deadlock.rs` | run-hermetic deadlock probe |
 | `crates/wat-cli/tests/wat_cli.rs` | wat-cli end-to-end |
 
-### Pre-flight baseline (orchestrator-verified post-β at commit `e44940d`)
+### Pre-flight baselines (orchestrator-verified at commit `2f10dbd`)
 
-You MUST verify these baselines BEFORE the migration:
-```bash
-cargo test --release --test arc112_slice2b_process_send_recv 2>&1 | tail -5
-cargo test --release --test wat_arc170_program_contracts 2>&1 | tail -10   # NOTE: t6 + t14 may be pre-existing failures
-cargo test --release --test probe_run_hermetic_ast_stdout_capture 2>&1 | tail -5
-cargo test --release --test probe_run_hermetic_no_deadlock 2>&1 | tail -5
-cargo test --release -p wat-cli --test wat_cli 2>&1 | tail -5
-cargo test --release --test probe_pidfd_primitive 2>&1 | tail -5   # α regression check
-```
+ALL of these are GREEN on baseline. ANY regression is γ-1's fault.
 
-Record each binary's pre-migration pass/fail count in your SCORE. Post-migration, the SAME counts must hold. Pre-existing failures stay failing (not your concern); previously-passing tests must still pass.
+| Binary | Pre-γ-1 baseline |
+|---|---|
+| `cargo test --release --test arc112_slice2b_process_send_recv` | **1/1 PASS** |
+| `cargo test --release --test wat_arc170_program_contracts` | **24/24 PASS** (t6 fixed by arc 212-α; t14 fixed by arc 211d; both now green) |
+| `cargo test --release --test probe_run_hermetic_ast_stdout_capture` | **1/1 PASS** |
+| `cargo test --release --test probe_run_hermetic_no_deadlock` | **2/2 PASS** |
+| `cargo test --release -p wat-cli --test wat_cli` | **15/15 PASS** |
+| `cargo test --release --test probe_pidfd_primitive` (α regression) | **2/2 PASS** |
+
+**Total: 45/45 GREEN pre-γ-1.** Post-migration must hold the same counts.
 
 ### Verification protocol (post-migration)
 
@@ -204,7 +205,7 @@ Non-negotiable.
 
 4. **A test that PASSED on baseline FAILS post-migration.** STOP. Inscribe which test + the diagnostic + your hypothesis. Do not iterate beyond what the test output tells you.
 
-5. **You see a failing test that was ALREADY failing on baseline.** That's not γ-1's concern — note it in SCORE (e.g., "t6 + t14 in arc170_program_contracts were pre-existing failures pre-γ-1; still failing post-γ-1") but DO NOT investigate beyond confirming pre-existing status.
+5. **You see a failing test.** **ALL 45 baselines are GREEN pre-γ-1.** Any failure post-γ-1 IS γ-1's regression. STOP. Inscribe the test + diagnostic + your hypothesis.
 
 6. **cargo build FAILS.** STOP. Inscribe the error. If obvious syntactic fix (typo, missing import), correct once + retry. Otherwise STOP.
 
