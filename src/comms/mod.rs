@@ -176,6 +176,11 @@ impl WireError {
 /// Substrate-internal; user code uses `:wat::kernel::*` verbs (Slice 4).
 pub mod thread;
 
+/// Process tier: cross-process comms via io_uring + anonymous pipes.
+/// Cascade-aware (Stone B). Substrate-internal; user code uses
+/// `:wat::kernel::*` verbs (Slice 4).
+pub mod process;
+
 // ─── Select outcome ───────────────────────────────────────────────────────────
 
 /// User-assigned index of a receiver registered with a tier-specific `Select`.
