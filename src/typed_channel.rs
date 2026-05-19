@@ -524,6 +524,88 @@ pub fn make_pipe_channel_pair(
     Ok((sender_from_pipe(writer), receiver_from_pipe(reader)))
 }
 
+// === Rust-level T-typed channel chokepoint (arc 213 χ) ===
+//
+// Wraps crossbeam_channel::{Sender<T>, Receiver<T>} for substrate-internal
+// T-typed plumbing. Recv routes through SHUTDOWN_RX cascade per arc 213
+// χ doctrine: "we are our own users — and i don't want to observe this
+// failure ever again." Bare crossbeam usage becomes restricted in χ-3.
+
+/// Error types re-exported for mechanical migration parity with
+/// crossbeam_channel. Callers see identical Result shapes.
+pub use crossbeam_channel::{RecvError, SendError, TryRecvError};
+
+/// χ-1: T-typed Sender wrapper. Currently a thin newtype; cascade
+/// semantics are on the Receiver side. Mechanical migration parity
+/// with crossbeam_channel::Sender<T>::send signature.
+pub struct Sender<T> {
+    inner: crossbeam_channel::Sender<T>,
+}
+
+impl<T> Sender<T> {
+    pub fn send(&self, value: T) -> Result<(), SendError<T>> {
+        self.inner.send(value)
+    }
+}
+
+impl<T> Clone for Sender<T> {
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone() }
+    }
+}
+
+/// χ-1: T-typed Receiver wrapper. recv() routes through SHUTDOWN_RX
+/// cascade-aware select — when substrate shutdown fires, parked recvs
+/// wake with Err(RecvError) instead of hanging indefinitely.
+///
+/// Bootstrap fallback: when SHUTDOWN_RX is not yet initialized (pre-init
+/// or test bypass), recv falls back to bare crossbeam recv. Production
+/// paths always have SHUTDOWN_RX initialized by freeze.rs:233 before any
+/// wat code executes.
+pub struct Receiver<T> {
+    inner: crossbeam_channel::Receiver<T>,
+}
+
+impl<T> Receiver<T> {
+    pub fn recv(&self) -> Result<T, RecvError> {
+        // Cascade-aware select — mirrors typed_recv's Crossbeam arm
+        // (src/typed_channel.rs:304-313). On SHUTDOWN_RX signal, recv
+        // returns Err(RecvError) — caller treats as channel-died and
+        // unwinds. Identical to crossbeam_channel's Disconnected.
+        let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
+        match shutdown_rx {
+            Some(srx) => {
+                crossbeam_channel::select! {
+                    recv(&self.inner) -> msg => msg,
+                    recv(srx) -> _ => Err(RecvError),
+                }
+            }
+            None => self.inner.recv(),  // bootstrap fallback
+        }
+    }
+
+    pub fn try_recv(&self) -> Result<T, TryRecvError> {
+        // Non-blocking; cascade-irrelevant (returns immediately).
+        self.inner.try_recv()
+    }
+}
+
+impl<T> Clone for Receiver<T> {
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone() }
+    }
+}
+
+pub fn unbounded<T>() -> (Sender<T>, Receiver<T>) {
+    let (tx, rx) = crossbeam_channel::unbounded();
+    (Sender { inner: tx }, Receiver { inner: rx })
+}
+
+pub fn bounded<T>(n: usize) -> (Sender<T>, Receiver<T>) {
+    let (tx, rx) = crossbeam_channel::bounded(n);
+    (Sender { inner: tx }, Receiver { inner: rx })
+}
+
 /// Arc 170 Stone C1 — substrate-internal test fixture. Constructs two
 /// cross-wired `:wat::kernel::ThreadPeer` struct Values backed by two
 /// crossbeam channel pairs.
