@@ -170,6 +170,12 @@ impl WireError {
     }
 }
 
+// ─── Tier modules ────────────────────────────────────────────────────────────
+
+/// Thread tier: in-process comms via crossbeam_channel. Cascade-aware.
+/// Substrate-internal; user code uses `:wat::kernel::*` verbs (Slice 4).
+pub mod thread;
+
 // ─── Select outcome ───────────────────────────────────────────────────────────
 
 /// User-assigned index of a receiver registered with a tier-specific `Select`.
