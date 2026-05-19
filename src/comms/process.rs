@@ -4,14 +4,15 @@
 //! Slice 1 traits (`crate::comms::{SendError, RecvError}`) using
 //! `libc::pipe` for the transport and `io_uring` for the wake mechanism.
 //!
-//! ## Stone A scope (this commit)
+//! ## Current scope (through Stone B)
 //!
-//! Bytes-only proof of life. `Sender::send(&[u8])` writes
-//! newline-framed bytes; `Receiver::recv() -> Result<Vec<u8>, RecvError>`
-//! reads one newline-framed frame via io_uring. NO cascade-aware
-//! multi-arm (Stone B); NO generic `T: HolonRepresentable` (Stone C);
-//! NO try_recv / Select / Clone / close / len / trait impls (Stone D);
-//! NO persistent ring / config tunable (Stone E).
+//! Bytes-only with newline framing (Stone A). `Sender::send(&[u8])`
+//! writes newline-framed bytes; `Receiver::recv() -> Result<Vec<u8>,
+//! RecvError>` reads one newline-framed frame via io_uring with
+//! cascade-aware multi-arm POLL_ADD (Stone B). Still NOT generic over
+//! `T: HolonRepresentable` (Stone C); NO try_recv / Select / Clone /
+//! close / len / trait impls (Stone D); NO persistent ring / config
+//! tunable (Stone E).
 //!
 //! ## Framing (Stone A)
 //!
@@ -25,13 +26,23 @@
 //! Stone C migrates to length-prefixed EDN bytes which removes this
 //! constraint). Stone A test payloads are ASCII strings.
 //!
-//! ## Cascade contract (NOT WIRED IN STONE A)
+//! ## Cascade contract (Stone B)
 //!
-//! Stone B wires `SHUTDOWN_BROADCAST_READ_FD` as a second POLL_ADD arm
-//! so that substrate shutdown wakes blocked recvs. Stone A's `recv`
-//! WILL hang if the substrate shuts down before a frame arrives — this
-//! is acceptable for Stone A because callers don't yet use this tier
-//! in production paths.
+//! `Receiver::recv` is cascade-aware: every blocking recv polls both the
+//! data fd and the substrate's `SHUTDOWN_BROADCAST_READ_FD` via io_uring
+//! multi-arm `POLL_ADD`. Broadcast wins ties (the process is going down;
+//! honest reporting). On shutdown, blocked recvs return `Err(RecvError)`
+//! rather than hanging.
+//!
+//! Event masks match the substrate's existing PipeFd convention
+//! (typed_channel.rs:329-368):
+//!   - data fd: `POLLIN | POLLHUP` (data ready OR EOF)
+//!   - broadcast fd: `POLLHUP` (worker dropped write-end on shutdown)
+//!
+//! Bootstrap fallback: when `SHUTDOWN_BROADCAST_READ_FD == -1` (pre-init
+//! or test bypass), the cascade-poll step is skipped and recv falls back
+//! to bare io_uring Read — same behavior as Stone A. Production paths
+//! always have the broadcast pipe initialized before user code runs.
 //!
 //! ## Audience
 //!
@@ -108,11 +119,13 @@ impl Sender {
 
 // ─── Receiver ────────────────────────────────────────────────────────────────
 
-/// Stone-A process-tier receive endpoint. Owns the pipe's read-end fd
-/// and a small internal byte accumulator for cross-call frame splitting.
+/// Process-tier receive endpoint. Owns the pipe's read-end fd and a
+/// small internal byte accumulator for cross-call frame splitting.
 ///
-/// Stone A: NOT Clone (Stone D). NOT cascade-aware (Stone B). NOT generic
-/// over `T` (Stone C). Per-call `IoUring` instance (Stone E persistifies).
+/// Cascade-aware (Stone B): `recv` wakes on substrate shutdown via
+/// io_uring multi-arm POLL_ADD on `SHUTDOWN_BROADCAST_READ_FD`.
+/// NOT Clone (Stone D adds). NOT generic over `T` (Stone C adds).
+/// Per-call `IoUring` instance (Stone E persistifies).
 #[derive(Debug)]
 pub struct Receiver {
     read_fd: OwnedFd,
@@ -131,29 +144,45 @@ impl Receiver {
     /// internal accumulator first; if no complete frame is buffered,
     /// drives io_uring single-arm Read until a `'\n'` is observed.
     ///
-    /// Returns `Err(RecvError)` on peer-close (EOF; read returns 0)
-    /// or on io_uring submission/completion failure.
+    /// Returns `Err(RecvError)` on peer-close (EOF; read returns 0),
+    /// on io_uring submission/completion failure, or on substrate
+    /// shutdown (cascade-arm fires; Stone B).
     ///
-    /// Stone A: NOT cascade-aware. If `SHUTDOWN_BROADCAST_READ_FD`
-    /// fires while a recv is blocked, this call WILL HANG until the
-    /// pipe also produces a frame or closes. Stone B wires the
-    /// broadcast arm.
+    /// Stone B: cascade-aware. `SHUTDOWN_BROADCAST_READ_FD` is polled
+    /// as a second POLL_ADD arm alongside the data fd. Broadcast wins
+    /// ties. Bootstrap fallback: when the broadcast fd is -1 (pre-init
+    /// or test bypass), falls back to bare io_uring Read (Stone A
+    /// behavior). Stone E persistifies the per-call IoUring.
     pub fn recv(&self) -> Result<Vec<u8>, RecvError> {
         // Fast path — accumulator already has a complete frame.
         if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
             return Ok(frame);
         }
 
-        // Slow path — io_uring loop: read more bytes; check accumulator;
-        // repeat until a complete frame is available OR EOF is reached.
+        let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
+            .load(std::sync::atomic::Ordering::SeqCst);
+        let read_fd = self.read_fd.as_raw_fd();
+
         loop {
-            // Per-call IoUring (Stone A simplification; Stone E persistifies).
-            // Ring size = 2 entries — we only ever have one Read in flight
-            // per loop iteration; 2 gives slack for the kernel's bookkeeping.
+            // Cascade-aware step — poll both arms (data + broadcast).
+            // Bootstrap fallback: when broadcast_fd is -1 (pre-init or
+            // test bypass), skip the poll and fall through to bare Read
+            // (same behavior as Stone A; no cascade available).
+            if broadcast_fd >= 0 {
+                match wait_for_data_or_cascade(read_fd, broadcast_fd)? {
+                    PollOutcome::Shutdown => return Err(RecvError),
+                    PollOutcome::DataReady => {
+                        // Data is ready; fall through to Read step.
+                    }
+                }
+            }
+
+            // Read step — same as Stone A. Per-call IoUring; ring size 2.
+            // (Stone E persistifies the ring.)
             let mut ring = IoUring::new(2).map_err(|_| RecvError)?;
             let mut buf = [0u8; 4096];
             let read_e = opcode::Read::new(
-                types::Fd(self.read_fd.as_raw_fd()),
+                types::Fd(read_fd),
                 buf.as_mut_ptr(),
                 buf.len() as _,
             )
@@ -173,7 +202,6 @@ impl Receiver {
             let cqe = ring.completion().next().ok_or(RecvError)?;
             let result = cqe.result();
             if result < 0 {
-                // I/O error.
                 return Err(RecvError);
             }
             if result == 0 {
@@ -185,12 +213,105 @@ impl Receiver {
                 .borrow_mut()
                 .extend_from_slice(&buf[..n]);
 
-            // Check whether we now have a complete frame.
             if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
                 return Ok(frame);
             }
-            // No complete frame yet; loop and read more bytes.
+            // No complete frame yet; loop and poll/read more bytes.
         }
+    }
+}
+
+/// Outcome of a cascade-aware multi-arm wait. Internal to the
+/// process-tier recv loop.
+enum PollOutcome {
+    /// Data fd's POLL_ADD fired (POLLIN or POLLHUP for EOF).
+    /// Caller follows with an io_uring Read on the data fd.
+    DataReady,
+    /// Broadcast fd's POLL_ADD fired (POLLHUP — worker dropped
+    /// the write-end on substrate shutdown). Caller returns
+    /// `Err(RecvError)`.
+    Shutdown,
+}
+
+/// Wait for either data readiness or substrate shutdown via io_uring
+/// multi-arm `POLL_ADD`. Returns when at least one arm fires; both
+/// arms may fire simultaneously, in which case broadcast wins
+/// (substrate-shutdown takes precedence over pending data).
+///
+/// Per-call `IoUring::new(4)` — Stone B uses 4 entries to hold
+/// 2 POLL_ADD SQEs plus headroom (Stone E persistifies the ring).
+/// Un-fired arms die with the ring at Drop; no explicit cancel
+/// needed.
+///
+/// Event masks match `src/typed_channel.rs:329-368` discipline:
+///   - data fd: POLLIN | POLLHUP (data ready OR peer-closed)
+///   - broadcast fd: POLLHUP (worker dropped write-end)
+///
+/// Returns `Err(RecvError)` on io_uring submission/wait failure or
+/// on a CQE error (`cqe.result() < 0`).
+fn wait_for_data_or_cascade(
+    read_fd: std::os::fd::RawFd,
+    broadcast_fd: std::os::fd::RawFd,
+) -> Result<PollOutcome, RecvError> {
+    const DATA_TOKEN: u64 = 1;
+    const BROADCAST_TOKEN: u64 = 2;
+
+    let mut ring = IoUring::new(4).map_err(|_| RecvError)?;
+
+    let poll_data = opcode::PollAdd::new(
+        types::Fd(read_fd),
+        (libc::POLLIN | libc::POLLHUP) as u32,
+    )
+    .build()
+    .user_data(DATA_TOKEN);
+
+    let poll_broad = opcode::PollAdd::new(
+        types::Fd(broadcast_fd),
+        libc::POLLHUP as u32,
+    )
+    .build()
+    .user_data(BROADCAST_TOKEN);
+
+    // SAFETY: both SQEs reference fds owned elsewhere
+    // (read_fd by the Receiver; broadcast_fd by the substrate worker).
+    // Both remain valid for the lifetime of this submit_and_wait call.
+    unsafe {
+        ring.submission()
+            .push(&poll_data)
+            .map_err(|_| RecvError)?;
+        ring.submission()
+            .push(&poll_broad)
+            .map_err(|_| RecvError)?;
+    }
+
+    ring.submit_and_wait(1).map_err(|_| RecvError)?;
+
+    // Drain ALL ready CQEs — both arms may fire simultaneously.
+    let mut got_data = false;
+    let mut got_broadcast = false;
+    while let Some(cqe) = ring.completion().next() {
+        if cqe.result() < 0 {
+            return Err(RecvError);
+        }
+        match cqe.user_data() {
+            DATA_TOKEN => got_data = true,
+            BROADCAST_TOKEN => got_broadcast = true,
+            // Unreachable: we only push two SQEs with these two tokens.
+            _ => return Err(RecvError),
+        }
+    }
+
+    // Broadcast wins ties — substrate is going down; honest reporting
+    // (mirrors typed_channel.rs:360-364 discipline).
+    if got_broadcast {
+        Ok(PollOutcome::Shutdown)
+    } else if got_data {
+        Ok(PollOutcome::DataReady)
+    } else {
+        // submit_and_wait(1) returned but no CQE drained — defensive.
+        // Should not happen with min_complete=1; if it does, treat as
+        // transient and let the caller retry via its loop.
+        Err(RecvError)
     }
 }
 
