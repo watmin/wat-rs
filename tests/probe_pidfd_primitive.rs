@@ -25,10 +25,14 @@ fn pidfd_observes_normal_exit() {
 #[test]
 fn pidfd_observes_signal_exit() {
     let (pidfd, lifeline) = wat::fork::spawn_lifelined(|_lifeline_r| {
-        // Child blocks forever (until signaled).
-        loop {
-            std::thread::sleep(std::time::Duration::from_secs(60));
-        }
+        // Child blocks until any signal arrives — libc::pause(2) is the
+        // honest event-wait. The old shape was `loop { sleep(60s) }`
+        // which was a mora L1 violation (chosen-duration mechanism; on a
+        // fast kernel SIGTERM could wait up to 60s for the next iter).
+        // pause() returns when the kernel delivers the signal — no
+        // duration; no race. SAFETY: pause(2) has no preconditions; it
+        // always returns -1 with errno=EINTR after a signal is handled.
+        unsafe { libc::pause(); }
     })
     .expect("spawn_lifelined succeeds");
 

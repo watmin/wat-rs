@@ -1,8 +1,9 @@
 //! Arc 170 — DIAGNOSTIC / leak-zero gate for orphan-cleanup mechanism.
 //!
-//! Same shape as `probe_pdeathsig_kills_orphan_child` BUT the supervisor's
-//! pre-`_exit` sleep is configurable via env var `WAT_PROBE_SUPERVISOR_DELAY_MS`
-//! (default 0).
+//! Same shape as `probe_pdeathsig_kills_orphan_child` but specifically wired
+//! to detect lifeline-mechanism regressions: if the grandchild's shutdown
+//! cascade ever stops firing on parent death, this probe leaks an orphan
+//! and the leak-zero gate observes it.
 //!
 //! # Rendezvous mechanism update (2026-05-13)
 //!
@@ -23,23 +24,25 @@
 //! grandchild's shutdown worker detects POLLHUP on the lifeline read-end →
 //! trigger_shutdown cascade fires → grandchild exits.
 //!
-//! The `WAT_PROBE_SUPERVISOR_DELAY_MS` env var was originally designed to ablate
-//! the PDEATHSIG race (supervisor exits before grandchild reaches prctl). With
-//! the lifeline mechanism the env var is vestigial: the lifeline write-end is
-//! inherited atomically at fork() — no subsequent registration, no race window.
-//! Both delay=0 and delay=10 should now produce 50/50 PASS.
+//! Earlier versions of this probe carried a `WAT_PROBE_SUPERVISOR_DELAY_MS` env
+//! var with a `libc::nanosleep` knob in the supervisor body — originally designed
+//! to ablate the PDEATHSIG race (supervisor exits before grandchild reaches prctl).
+//! That knob was retired 2026-05-19 per the `/mora` spell's inaugural sweep:
+//! lifeline inheritance is atomic at fork(), so the race window the knob exposed
+//! no longer exists. The leak-zero gate alone is the regression-detection mechanism
+//! now — if the lifeline ever stops working, the orphan check at the end of the
+//! probe fails directly. No timing knob needed.
 //!
 //! # Leak-zero gate
 //!
 //! This probe is now the empirical regression gate for the lifeline mechanism.
-//! Run with delay=0 (the previously-racy case):
 //!
-//!   WAT_PROBE_SUPERVISOR_DELAY_MS=0  cargo test --release --test probe_pdeathsig_diagnostic
-//!   WAT_PROBE_SUPERVISOR_DELAY_MS=10 cargo test --release --test probe_pdeathsig_diagnostic
+//!   cargo test --release --test probe_pdeathsig_diagnostic
 //!
-//! Pass criterion (Phase 1D): 50/50 PASS at delay=0. The Slice D baseline was
-//! 45/50 (10% race rate) with PDEATHSIG. Any regression back to orphan leaks at
-//! delay=0 indicates a Phase 1B/1C substrate defect.
+//! Pass criterion (Phase 1D and onward): 50/50 PASS. The Slice D baseline was
+//! 45/50 (10% race rate) with PDEATHSIG. Any regression back to orphan leaks
+//! indicates a Phase 1B/1C substrate defect (lifeline inheritance broken or
+//! shutdown cascade silenced).
 //!
 //! # Design
 //!
@@ -170,13 +173,6 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 /// 7. Verify grandchild process is gone (zombie or reaped).
 #[test]
 fn probe_pdeathsig_diagnostic() {
-    // Read supervisor-pre-exit delay from env (default 0 = original behaviour).
-    let delay_ms: u32 = std::env::var("WAT_PROBE_SUPERVISOR_DELAY_MS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
-    eprintln!("[diagnostic] WAT_PROBE_SUPERVISOR_DELAY_MS = {}", delay_ms);
-
     // Step 1: Build the world before forking. Supervisor inherits it via
     // fork's copy-on-write semantics. InMemoryLoader has no disk state.
     let world = freeze_ok(PARENT_SRC);
@@ -259,20 +255,6 @@ fn probe_pdeathsig_diagnostic() {
         // (which sends SIGKILL + waitpid) does NOT run.
         std::mem::forget(process);
         drop(pid_w);
-
-        // DIAGNOSTIC: optionally sleep before _exit to widen the gap
-        // between fork and supervisor death. If grandchild's prctl wins
-        // the race against supervisor's _exit, this sleep should give the
-        // grandchild plenty of time to call prctl before supervisor dies.
-        if delay_ms > 0 {
-            unsafe {
-                let ts = libc::timespec {
-                    tv_sec: (delay_ms / 1000) as libc::time_t,
-                    tv_nsec: ((delay_ms % 1000) * 1_000_000) as libc::c_long,
-                };
-                libc::nanosleep(&ts, std::ptr::null_mut());
-            }
-        }
 
         // Exit WITHOUT waiting for grandchild. This orphans the grandchild
         // whose PPID becomes 1 (init/subreaper). The kernel detects parent
