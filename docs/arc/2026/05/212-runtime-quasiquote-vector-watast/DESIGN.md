@@ -269,16 +269,22 @@ The wall lives on **iteration surface**, not construction. Anyone can call `Chil
 
 The wall stops **consumers** from reaching past the surface. After construction, `Children`'s inner `Vec` is inaccessible outside `ast.rs`. Walkers, type-checkers, resolvers, runtime evaluators all interact via the public surface — `iter` for traversal, `len/is_empty/first/get` for query, `as_slice` for slice-API compatibility, `into_vec` when ownership is required (parser may need this for splice operations).
 
-### Migration scope (evidence-grounded 2026-05-18)
+### Migration scope (evidence-grounded 2026-05-18; refined post-extended-audit)
+
+#### Pattern-match destructure sites (LHS — the WALL exposure point)
 
 ```
-=== Pattern-match site count (RHS unaffected; pattern-match LHS migration only)
 List sites:    331
 Vector sites:   72
 StructPattern:  32
-TOTAL:         435 destructure sites + ~similar count construction sites
+TOTAL:         435 destructure sites
+```
 
-=== Per-file concentration (List sites; representative of total)
+These bind `items: &Vec<WatAST>` (or `Vec<WatAST>` by value). Under ζ they bind `children: &Children` (or `Children` by value). Migration: rename binder + call Children surface methods instead of Vec methods. Most are mechanical.
+
+#### Per-file pattern-match concentration
+
+```
 106  src/runtime.rs
  78  src/check.rs
  59  src/macros.rs
@@ -296,25 +302,87 @@ TOTAL:         435 destructure sites + ~similar count construction sites
   1  src/hash.rs
 ```
 
-**Most site migrations are mechanical:**
-- `WatAST::List(items, span)` destructure → bind as `children`; replace `items.iter()` / `items.len()` / `items.first()` / `&items[idx]` (becomes `children.get(idx)`) etc. with `Children` surface
-- `WatAST::List(items_expr, span_expr)` construction → wrap RHS as `WatAST::List(Children::new(items_expr), span_expr)`; OR use existing convenience constructor `WatAST::list(items)` which can handle wrapping internally (extending this constructor is part of ζ-1)
+#### Construction sites (RHS — sites that BUILD compound variants)
 
-A small number of sites use `&items[..]` or `items.into_iter()` patterns that need slightly more care. The substrate-as-teacher cascade (per recovery doc § FM 15) will surface every site as a compile error; sonnet iterates per-error until cargo build clean.
+Direct construction `WatAST::List(items_expr, span_expr)` appears at ~20+ sites in `closure_extract.rs` alone (closure→AST emission), plus parser/form_match/check sites. Conservative estimate: ~50-100 construction sites total.
 
-### Sub-stone decomposition (per `feedback_iterative_complexity`)
+Construction site migration: each `WatAST::List(items_expr, span_expr)` becomes either:
+- `WatAST::List(Children::new(items_expr), span_expr)` (explicit), OR
+- `WatAST::list_with_span(items_expr, span_expr)` (NEW convenience constructor variant — currently only `WatAST::list(items)` with `Span::unknown()` exists; ζ-1 adds the span-bearing variant)
+
+**Existing convenience constructors are barely used:** `WatAST::list(...)` 2 call sites; `WatAST::vector(...)` 0; `WatAST::struct_pattern(...)` minimal. Construction is dominated by direct tuple-variant syntax. ζ-1 must extend convenience constructors AND update direct-construction sites.
+
+#### Non-mechanical patterns audit (post-extended-grep, NEW evidence)
+
+| Pattern | Count | Treatment |
+|---|---|---|
+| `items.iter()` | 46 | Mechanical — `children.iter()` (covered by Children surface) |
+| `items.len()` / `is_empty()` / `first()` / `get(idx)` | 287 | Mechanical — covered by Children surface |
+| `&items[..]` slice patterns | 192 | Mechanical — `children.as_slice()` covers most; some require `&children.as_slice()[..]` |
+| `items[idx]` direct indexing | 228 | **HALF are LOCAL Vec builders (false positives — naming overload).** True destructure-side indexing migrates to `children.get(idx).expect(...)` or equivalent (need to verify no `unwrap()`-eliding-bounds-check sites) |
+| `items.into_iter()` | 12 | **Children needs `IntoIterator<Item=WatAST>` impl** (my original DESIGN omitted this — known defect, now fixed) — OR sites use `children.into_vec().into_iter()` |
+| `items.clone()` | 5 | **Children needs `#[derive(Clone)]`** (my original DESIGN omitted — known defect, now fixed) |
+| `items.as_slice()` | 3 | Mechanical — covered |
+| `items.iter_mut()` | 3 | **CLASSIFY** — likely LOCAL Vec builder false positives. If real destructure-mut, those sites violate the immutable-pattern-match contract today; need per-site classification. **NO `iter_mut` on Children** (defeats wall) |
+| `items.push/extend/insert/remove/swap/sort` | 73 | **VAST MAJORITY are LOCAL Vec builders** (`do_items.push(...)` → `WatAST::List(do_items, ...)`). Sample-verified in `check.rs:7504-7540` and `closure_extract.rs:2092-2130` |
+
+#### `items` is an overloaded identifier
+
+Grep evidence shows `items` is used for two distinct things:
+1. **Destructured compound-variant inner** (LHS of pattern-match) — under the wall; migrates to `children` binding + Children surface
+2. **Locally-owned Vec being built up** (e.g., `let mut items = Vec::new(); items.push(...); WatAST::List(items, span)`) — NOT under the wall; the local Vec stays Vec; only the final construction wraps via Children::new
+
+Mutation patterns (73 push/extend/etc. sites) are overwhelmingly category 2. They survive ζ migration unchanged except for the final construction call.
+
+### Children surface (refined per audit — corrects original DESIGN omissions)
+
+```rust
+#[derive(Debug, Clone, PartialEq)]
+pub struct Children {
+    items: Vec<WatAST>,  // module-private to ast.rs
+}
+
+impl Children {
+    pub fn new(items: Vec<WatAST>) -> Self { Self { items } }
+    pub fn iter(&self) -> std::slice::Iter<'_, WatAST> { self.items.iter() }
+    pub fn as_slice(&self) -> &[WatAST] { &self.items }
+    pub fn len(&self) -> usize { self.items.len() }
+    pub fn is_empty(&self) -> bool { self.items.is_empty() }
+    pub fn first(&self) -> Option<&WatAST> { self.items.first() }
+    pub fn get(&self, idx: usize) -> Option<&WatAST> { self.items.get(idx) }
+    pub fn into_vec(self) -> Vec<WatAST> { self.items }  // escape hatch (minimize usage)
+}
+
+impl IntoIterator for Children {
+    type Item = WatAST;
+    type IntoIter = std::vec::IntoIter<WatAST>;
+    fn into_iter(self) -> Self::IntoIter { self.items.into_iter() }
+}
+
+impl<'a> IntoIterator for &'a Children {
+    type Item = &'a WatAST;
+    type IntoIter = std::slice::Iter<'a, WatAST>;
+    fn into_iter(self) -> Self::IntoIter { self.items.iter() }
+}
+```
+
+**NO `iter_mut()`, `push()`, `extend()`, etc.** — the wall stays up. Mutation patterns operate on local Vec<WatAST>; Children is constructed once when the local Vec is finalized.
+
+The `into_vec()` escape hatch exists for the rare case where a transformation genuinely needs owned `Vec<WatAST>` (e.g., consuming destructure into a different shape). ζ-1 should grep usage of `into_vec()` post-migration; if it exceeds ~10 sites, those sites are candidate refactors per `feedback_attack_foundation_cracks` (the wall is leaking; investigate).
+
+### Sub-stone decomposition (per `feedback_iterative_complexity`; refined runtime predictions)
 
 | Sub-stone | What | Proof gate | Predicted runtime |
 |---|---|---|---|
-| ζ-1-mint | Mint `Children` in `src/ast.rs`; update `WatAST` variant inner types; update `children()` accessor; extend `WatAST::list/vector/struct_pattern` constructors to wrap | `cargo build --release` surfaces ~435 errors across consumer files; constructors compile clean | 15-30 min (substrate-internal only) |
-| ζ-2-runtime | Migrate `src/runtime.rs` (106 List + Vector/StructPattern siblings; biggest consumer) | `cargo build --release` clean for runtime.rs sites; cargo test affected modules green | 45-90 min |
-| ζ-3-check | Migrate `src/check.rs` (78 List + siblings) | Same shape; cargo build + tests | 45-60 min |
-| ζ-4-macros | Migrate `src/macros.rs` (59 List + siblings) | Same | 45-60 min |
-| ζ-5-closure-extract | Migrate `src/closure_extract.rs` (42 List + siblings) | Same | 30-45 min |
-| ζ-6-tail | Migrate remaining files (types/load/parser/dispatch/resolve/config/lower/form_match/test_runner/hash + any others surfaced by cargo) | `cargo build --release --workspace` clean; full workspace tests green | 30-60 min |
-| ζ-7-verify | Workspace cargo test; t6 still passes; baseline preserved | Workspace failure delta ≤ 0 vs pre-ζ baseline | 10-20 min orchestrator |
+| ζ-1-mint | Mint `Children` in `src/ast.rs` with Clone + Debug + PartialEq derives + IntoIterator impls (owned + borrowed); flip `WatAST::List/Vector/StructPattern` variant inner type to `(Children, Span)`; update `children()` accessor; extend `WatAST::list/vector/struct_pattern` constructors to wrap; ADD `WatAST::list_with_span(Vec<WatAST>, Span)` (and vector/struct_pattern variants) for sites that pass an existing span | `cargo build --release` surfaces ~435+ errors across consumer files; ast.rs compiles clean | 15-30 min (substrate-internal only) |
+| ζ-2-closure-extract | Migrate `src/closure_extract.rs` FIRST (despite smaller pattern-match count) — heaviest CONSTRUCTION-site concentration (~20+ direct construction sites; closure→AST emission) | `cargo build --release` clean for closure_extract.rs scope; affected tests green | 60-90 min |
+| ζ-3-runtime | Migrate `src/runtime.rs` (106 List + Vector/StructPattern siblings; biggest pattern-match consumer) | Same shape; cargo build + tests | 60-90 min |
+| ζ-4-check | Migrate `src/check.rs` (78 List + siblings) | Same | 45-60 min |
+| ζ-5-macros | Migrate `src/macros.rs` (59 List + siblings; includes 2 `items.into_iter()` sites) | Same; verify IntoIterator path | 45-60 min |
+| ζ-6-tail | Migrate remaining files (types/load/parser/dispatch/resolve/config/lower/form_match/test_runner/hash + any others surfaced by cargo). Includes 5 remaining `into_iter()` sites + the 3 `iter_mut()` sites needing classification | `cargo build --release --workspace` clean; full workspace tests green | 30-60 min |
+| ζ-7-verify | Workspace cargo test; t6 still passes; baseline preserved; grep usage of `Children::into_vec()` (if >10 sites, investigate per `feedback_attack_foundation_cracks`) | Workspace failure delta ≤ 0 vs pre-ζ baseline | 10-20 min orchestrator |
 
-**Total predicted:** 4-7 hours across 6 sonnet spawns (ζ-1 through ζ-6) + orchestrator verification (ζ-7). Per-stone trust gate: orchestrator commits ζ-N after independent verification before spawning ζ-(N+1).
+**Total predicted (refined):** 5-8 hours across 6 sonnet spawns (ζ-1 through ζ-6) + orchestrator verification (ζ-7). Per-stone trust gate: orchestrator commits ζ-N after independent verification before spawning ζ-(N+1). Order change vs original DESIGN: closure_extract.rs migrates BEFORE runtime.rs because construction-site density is the higher-friction concern (sample evidence: closure_extract has ~20+ direct `WatAST::List(items_expr, span)` construction sites concentrated in one file).
 
 ### Stone discipline per ζ-N spawn
 
