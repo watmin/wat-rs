@@ -150,36 +150,22 @@ pub fn run_in_fork<F>(body: F)
 where
     F: FnOnce() + std::panic::UnwindSafe,
 {
-    let pid = unsafe { libc::fork() };
-    if pid < 0 {
-        panic!("fork failed: {}", std::io::Error::last_os_error());
-    }
-    if pid == 0 {
-        // Child — run body, exit 0 on success, 1 on panic. Use
-        // _exit so atexit handlers registered by the parent's
-        // cargo-test harness don't run (they'd flush / close
-        // duplicated resources the parent still owns).
-        let outcome = std::panic::catch_unwind(body);
-        match outcome {
-            Ok(()) => unsafe { libc::_exit(0) },
-            Err(_panic) => {
-                // Rust's default panic hook already wrote the
-                // payload to stderr before catch_unwind caught.
-                unsafe { libc::_exit(1) };
-            }
-        }
-    }
-    // Parent — wait + assert.
-    let mut status: libc::c_int = 0;
-    let waited = unsafe { libc::waitpid(pid, &mut status, 0) };
+    // Arc 213 β — use the canonical Pidfd + lifeline primitive instead of
+    // bare libc::fork(). spawn_lifelined handles: clone3+CLONE_PIDFD,
+    // setpgid(0,0), lifeline pipe, catch_unwind, and _exit(0/1).
+    // run_in_fork's body doesn't poll lifeline_r — the lifeline value is
+    // that if the parent dies before wait_status returns, the kernel closes
+    // _lifeline (LifelineWriter) and the child's lifeline_r EOFs.
+    let (pidfd, _lifeline) = spawn_lifelined(|_lifeline_r| {
+        body();
+    })
+    .expect("spawn_lifelined failed");
+
+    // Parent — wait via canonical Pidfd interface + assert clean exit.
+    let status = pidfd.wait_status().expect("wait_status failed");
     assert!(
-        waited >= 0,
-        "waitpid failed: {}",
-        std::io::Error::last_os_error()
-    );
-    assert!(
-        libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0,
-        "forked child exited with failure (status={:#x})",
+        matches!(status, ExitStatus::Exited(0)),
+        "forked child exited with failure: {:?}",
         status
     );
 }
