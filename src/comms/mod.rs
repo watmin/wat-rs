@@ -31,6 +31,29 @@
 //! poll/epoll/io_uring_*` are unreachable outside the tier wrapper modules
 //! (Slice 6 structural wall).
 //!
+//! ## Mini-TCP at depth 1 (universal discipline)
+//!
+//! Each tier vends EXACTLY ONE factory: `pair()`. The factory returns a
+//! capacity-1 channel pair (thread: crossbeam `bounded(1)`; process: OS
+//! pipe, kernel-bounded by `PIPE_BUF`). `send` blocks when the buffer
+//! holds one value; `recv` drains it.
+//!
+//! Capacity-1 is the structural enforcement of the mini-TCP usage
+//! discipline (per `docs/ZERO-MUTEX.md` § "Mini-TCP via paired channels"
+//! line 252+): each send pairs with a recv before the next send. The
+//! substrate doesn't enforce the pairing site-by-site, but capacity-1
+//! makes producers that try to outpace consumers block immediately
+//! rather than queuing up and amplifying drift.
+//!
+//! There is no `bounded(N)` factory at any tier. The trading-lab
+//! convergence (pre-wat-rs origin) proved N > 1 produces massive perf
+//! hits + entire categories of problems. See `docs/arc/2026/05/
+//! 214-concurrency-toolkit/DESIGN.md` § "Slice 2 forward-correction
+//! (2026-05-19) — Mini-TCP at depth 1 (universal symmetry)" for the
+//! four-questions verdict + universal symmetry table. Tier-specific
+//! detail in `crate::comms::thread` and `crate::comms::process` module
+//! docs.
+//!
 //! ## Audience
 //!
 //! - **Substrate authors** (building brackets, services, kernel-layer dispatch)

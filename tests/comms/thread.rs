@@ -1,8 +1,8 @@
 //! Arc 214 Slice 2 smoke probe — verify thread tier round-trip + cascade.
 //!
-//! Ten tests covering: round-trip (unbounded + bounded), sender-drop,
-//! try_recv (empty + disconnected), Clone semantics (sender + receiver),
-//! Select firing + index ordering, close multi-clone behavior.
+//! Nine tests covering: round-trip, sender-drop, try_recv (empty +
+//! disconnected), Clone semantics (sender + receiver), Select firing +
+//! index ordering, close multi-clone behavior.
 //!
 //! SHUTDOWN_RX is NOT initialized in these tests (bootstrap fallback path).
 //! The cascade-aware recv falls back to bare crossbeam recv, which is correct
@@ -12,26 +12,15 @@
 use std::thread;
 
 use wat::comms::{ReceiverIndex, RecvError, SelectOutcome, TryRecvError};
-use wat::comms::thread::{bounded, pair, Select};
+use wat::comms::thread::{pair, Select};
 
 #[test]
-fn probe_slice2_unbounded_round_trip() {
-    // Verifies the most basic contract: a value sent is a value received.
+fn probe_slice2_pair_round_trip() {
+    // Verifies the most basic contract: a value sent via mini-TCP depth-1 pair
+    // is a value received.
     let (tx, rx) = pair::<i64>();
     tx.send(42).expect("send must succeed on live channel");
     assert_eq!(rx.recv().expect("recv must return the sent value"), 42);
-}
-
-#[test]
-fn probe_slice2_bounded_round_trip() {
-    // Verifies bounded construction + len tracking across two enqueue/dequeue cycles.
-    let (tx, rx) = bounded::<i64>(4);
-    tx.send(1).expect("send 1");
-    tx.send(2).expect("send 2");
-    assert_eq!(rx.len(), 2, "two values enqueued; len must be 2");
-    assert_eq!(rx.recv().expect("recv 1"), 1, "FIFO: first value out is 1");
-    assert_eq!(rx.recv().expect("recv 2"), 2, "FIFO: second value out is 2");
-    assert_eq!(rx.len(), 0, "channel must be empty after consuming both values");
 }
 
 #[test]

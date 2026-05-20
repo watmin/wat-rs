@@ -56,7 +56,7 @@ The `'` (prime) on verb names is the development convention — during arc 214 t
 │   Multimethod dispatch over peer types (arc 146)                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ Layer 0a — Comms tier primitives (:wat::comms::*)                        │
-│   :wat::comms::thread::{Sender<T>, Receiver<T>, Select, pair, bounded}   │
+│   :wat::comms::thread::{Sender<T>, Receiver<T>, Select, pair}             │
 │   :wat::comms::process::{...}                                            │
 │   crossbeam underneath (thread) / io_uring underneath (process)          │
 │   SUBSTRATE-INTERNAL — users never touch this layer                      │
@@ -74,7 +74,7 @@ Tier-specific channel infrastructure. ONE mechanism per tier; no options:
 
 | Tier | Underlying | Wire form | Construction verb (substrate-internal wat) |
 |---|---|---|---|
-| `:wat::comms::thread::*` | crossbeam | T: Send + 'static | `pair`, `bounded` |
+| `:wat::comms::thread::*` | crossbeam | T: Send + 'static | `pair` |
 | `:wat::comms::process::*` | **io_uring** | T: HolonRepresentable (EDN over pipes) | `pair`, `from-inherited-fds` |
 | `:wat::comms::remote::*` (future) | TBD | T: HolonRepresentable | TBD |
 
@@ -93,17 +93,11 @@ impl<T> Receiver<T> {
     pub fn len(&self) -> usize;
 }
 
-pub fn pair<T>() -> (Sender<T>, Receiver<T>);
-pub fn bounded<T>(n: usize) -> (Sender<T>, Receiver<T>);  // thread tier ONLY — see § "Universe-residency + bounded() asymmetry" below
-
-// process tier — IDENTICAL method surface; T bound differs; io_uring underneath
-pub struct Sender<T: HolonRepresentable> { /* private inner: io_uring + fd */ }
-// ... (same method signatures as thread tier)
-// NOTE: pair() returns std::io::Result<...> on process tier (libc::pipe(2) can fail);
-// NOTE: bounded() factory NOT minted on process tier — kernel manages pipe-bound; see below
+pub fn pair<T>() -> (Sender<T>, Receiver<T>);  // capacity-1 mini-TCP (see DESIGN § "Mini-TCP at depth 1 — universal symmetry")
+// process tier — IDENTICAL surface; T bound differs; io_uring underneath; pair() returns io::Result<...> (libc::pipe(2) can fail)
 ```
 
-### Universe-residency + bounded() asymmetry (2026-05-19 architectural clarification)
+### Universe-residency + Mini-TCP at depth 1 (universal symmetry) (2026-05-19 architectural clarification)
 
 User direction 2026-05-19: *"what wat wants is 'i want to run this program in a {thread,process} and it just works.. i can comm to it by sending data and getting data — i don't care where its hosted' / the user must choose a hosting env but the programs never know what env their in — they exist in a universe and that universe has provided a comm channel to use."*
 
@@ -116,21 +110,35 @@ User direction 2026-05-19: *"what wat wants is 'i want to run this program in a 
 | **Program-facing** (what the program sees) | Trait `CommSender<T>` + `CommReceiver<T>` + (future Slice 4) peer types `Thread<I,O>` / `Process<I,O>` / `Remote<I,O>` | **MANDATORY identical** — program code does not vary by tier |
 | **Substrate-internal** (what the hosting env wires up) | Concrete `thread::Sender` / `process::Sender` etc. | Asymmetries permitted when STRUCTURALLY honest |
 
-**Three substrate-internal asymmetries — each verified honest:**
+**Two substrate-internal asymmetries — each verified honest:**
 
 1. **T bound:** `T: Send + 'static` (thread) vs `T: HolonRepresentable` (process). Transport requirements differ unavoidably; honest.
 
 2. **`pair()` return type:** infallible (thread) vs `std::io::Result<...>` (process). `libc::pipe(2)` can fail; failure mode IS exposed; honest.
 
-3. **`bounded()` factory:** present on thread tier; ABSENT on process tier (post Stone E-2 four-questions verdict).
+**Mini-TCP at depth 1 (universal symmetry)**
 
-**Four-questions on bounded() for process tier (verdict 2026-05-19):**
+User direction 2026-05-19 (pre-wat-rs trading-lab convergence): *"before wat-rs existed - we were in the holon-lab-trading and build mailboxes and whatever their opposite is - we found that only ever needed a depth of 1 for everything - this forces us into a lock step that has an organic nature to it... its breathes based on system load - its dynamic but predictable.. when we had the option to send N things and then block we have massive perf hits - i think the thread comms need to be like process comms - you may only send one thing and must immediately read back - either an ack or some data - this is the only supported pattern - mini-tcp everywhere - forcing us to be locked eliminates entire categories of problems"*
 
-- **(A) F_SETPIPE_SZ wrapper:** FAILS Obvious + Honest (frame-count vs byte-count semantic gap)
-- **(B) wat-level semaphore:** FAILS Simple (ZERO-MUTEX violation)
-- **(C) DON'T MINT; kernel manages bound (PIPE_BUF; F_SETPIPE_SZ if needed substrate-internal):** YES YES YES YES
+**Four-questions verdict on `pub fn bounded<T>(n: usize)` (thread tier):**
 
-Same shape as Stone E forward-correction's "no tunable" verdict on io_uring depth. Kernel manages what kernel manages; substrate doesn't expose what's already structural. Thread tier KEEPS `bounded()` because crossbeam exposes it as a first-class transport-mode choice (different code path than unbounded); process tier never gets one because pipes don't have an equivalent mode toggle the wat layer should expose.
+- **Obvious?** NO — asymmetric with process tier (which has ONE factory, kernel-bounded pipes).
+- **Simple?** NO — two factories; substrate-author choice carries semantic meaning; the meaning is "honor the discipline or violate it."
+- **Honest?** NO — exposes a knob the substrate's own practice proved harmful (trading-lab: N > 1 produces massive perf hits + entire categories of problems).
+- **Good UX?** NO — substrate-internal callers (brackets, services) could pick `bounded(64)` and break mini-TCP discipline; no structural guard.
+
+**FAILS YES YES YES YES.** Factory retired.
+
+**Four-questions verdict on `pub fn pair<T>()` returning bounded(1):**
+
+- **Obvious?** YES — symmetric with process tier; ONE factory per tier.
+- **Simple?** YES — N identical `pair()` call sites; no choice to make.
+- **Honest?** YES — capacity-1 IS the mini-TCP discipline structurally enforced; senders cannot "send N then block" because send blocks at depth 1.
+- **Good UX?** YES — substrate-author CANNOT pick wrong depth; lock-step by construction.
+
+**YES YES YES YES.** `pair()` flipped from unbounded to bounded(1).
+
+Universal symmetry restored: both tiers expose ONE factory (`pair()`) whose underlying transport enforces mini-TCP semantics structurally. Programs running in any universe see identical send/recv semantics. See § "Slice 2 forward-correction (2026-05-19) — Mini-TCP at depth 1 (universal symmetry)" at end of this DESIGN for full detail + cross-references.
 
 **Convergence:** the universe-residency principle composes with Convergence #13 (autoscaling of correctness):
 - Universe-residency (program/user layer): "programs don't know transport"
@@ -138,20 +146,20 @@ Same shape as Stone E forward-correction's "no tunable" verdict on io_uring dept
 
 Both compose into: users declare hosting env; nothing else. Programs run identically across thread/process/remote; substrate handles all the resource management invisibly. The discipline propagates up via Slice 4 (peer types absorb the substrate-internal asymmetries) + Slice 7 (brackets compose peers) + Slice 8 (services as universe-resident actors).
 
-Cross-references: memory `project_universe_residency.md`; memory `project_autoscaling_correctness.md`; INTERSTITIAL § "2026-05-19 — Universe-residency principle + bounded() four-questions verdict".
+Cross-references: memory `project_universe_residency`; memory `project_autoscaling_correctness`; INTERSTITIAL § "2026-05-19 — Universe-residency principle + bounded() four-questions verdict"; INTERSTITIAL § "2026-05-19 (post-compaction, Slice 2 forward-correction) — Mini-TCP at depth 1: the trading-lab origin returns"; § "Slice 2 forward-correction (2026-05-19) — Mini-TCP at depth 1 (universal symmetry)" at end of this DESIGN for the inscription-archival four-questions block.
 
 ### Shared traits (in `src/comms/mod.rs`)
 
 ```rust
 pub trait CommSender<T> {
-    fn send(&self, t: T) -> Result<(), SendError<T>>;
-    fn close(self) -> Result<(), CloseError>;
+    fn send(&self, value: T) -> Result<(), SendError<T>>;
+    fn close(self);   // infallible — consuming self IS the close (Drop handles OS cleanup); single-close enforced by move semantics
 }
 pub trait CommReceiver<T> {
     fn recv(&self) -> Result<T, RecvError>;
     fn try_recv(&self) -> Result<T, TryRecvError>;
     fn len(&self) -> usize;
-    fn close(self) -> Result<(), CloseError>;
+    fn close(self);   // infallible (same rationale as CommSender::close)
 }
 
 pub trait HolonRepresentable: Send + 'static {
@@ -159,16 +167,23 @@ pub trait HolonRepresentable: Send + 'static {
     fn from_holon_ast(ast: &HolonAST) -> Result<Self, WireError> where Self: Sized;
 }
 
-// Blanket impl — anything roundtrippable via HolonAST IS HolonRepresentable
-impl<T> HolonRepresentable for T 
-where T: Into<HolonAST> + TryFrom<HolonAST, Error = WireError> + Send + 'static {}
+// NO blanket impl. `Into<HolonAST>` consumes self while `to_holon_ast` takes
+// `&self`; a blanket would force `T: Clone` overhead at every send (silent
+// clone tax at call sites). Manual `impl HolonRepresentable for T` per
+// substrate-internal type is the honest form (see src/comms/mod.rs doc
+// comment for full rationale). Future arc may revisit if a zero-cost
+// reference-style conversion surfaces.
+
+pub struct ReceiverIndex(pub usize);   // newtype over usize so SelectOutcome::Recv index can't be confused with a count
 
 pub enum SelectOutcome<T> {
-    Recv(usize, Result<T, RecvError>),
+    Recv { index: ReceiverIndex, result: Result<T, RecvError> },   // named fields for read-once clarity
     Shutdown,
+    SubstrateError(std::io::Error),   // io_uring / SQE / submit_and_wait failure on process-tier Select; thread tier never produces this arm
 }
 
-// Error types: SendError<T>, RecvError, TryRecvError, CloseError
+// Error types: SendError<T>, RecvError, TryRecvError, WireError
+// (no CloseError — close is structurally infallible per move semantics)
 ```
 
 ### Cascade-by-construction (locked in this layer)
@@ -480,7 +495,10 @@ Implement thread tier in `src/comms/thread.rs`. NEW file; doesn't touch existing
 - `Receiver<T: Send + 'static>` newtype with cascade-aware `recv()` via `select! { data, SHUTDOWN_RX }`
 - `try_recv()` + `len()` (non-blocking)
 - `Select<T>` cascade-aware fan-in
-- Factories: `pair<T>()`, `bounded<T>(n)`
+- Factory: `pair<T>()` (capacity-1 mini-TCP; see § "Mini-TCP at depth 1 (universal symmetry)")
+
+**FORWARD-CORRECTED 2026-05-19 (Slice 2 forward-correction stone):** original Slice 2 ship listed two factories (`pair()` unbounded + `bounded(N)` opt-in); both retired into a single `pair()` at capacity 1. Trading-lab convergence + universal symmetry with process tier. See § "Slice 2 forward-correction (2026-05-19) — Mini-TCP at depth 1 (universal symmetry)" at end of this DESIGN for the inscription-archival four-questions block + INTERSTITIAL § "2026-05-19 (post-compaction, Slice 2 forward-correction) — Mini-TCP at depth 1: the trading-lab origin returns".
+
 - Clone impls
 - `CommSender<T>` / `CommReceiver<T>` trait impls (from `comms::mod`)
 - Smoke probe
@@ -690,3 +708,50 @@ The peer-oriented model is what Ruby's actor pattern aspires to and what Erlang 
 ---
 
 **Arc OPENED 2026-05-18; DESIGN revised 2026-05-19.** Slice 1 (foundation primitives) is the first stepping stone; orchestrator drafts BRIEF + EXPECTATIONS at slice-open time per per-stone trust gate discipline.
+
+### Slice 2 forward-correction (2026-05-19) — Mini-TCP at depth 1 (universal symmetry)
+
+Slice 4 prep surfaced that thread tier shipped two factories (`pair()` unbounded + `bounded(n)` opt-in) when the substrate's universal discipline is mini-TCP at depth 1. Grep evidence: 22 of 22 honest substrate callers use `bounded(1)` only; `comms::thread::bounded` had zero downstream callers; `comms::thread::pair` had zero downstream callers. Pure surface clean-up. Narrative inscribed in INTERSTITIAL § "2026-05-19 (post-compaction, Slice 2 forward-correction) — Mini-TCP at depth 1: the trading-lab origin returns" — this section is the architectural reference.
+
+**Four-questions verdict — `pub fn bounded<T>(n: usize)`:** FAILS YES YES YES YES.
+
+- Obvious? NO — asymmetric with process tier (one factory; kernel-bounded pipes)
+- Simple? NO — substrate-author can pick wrong N; pick carries semantic weight
+- Honest? NO — knob the substrate's own practice proved harmful (22/22 honest callers use `bounded(1)`; n vestigial)
+- Good UX? NO — `bounded(64)` silently breaks mini-TCP; no structural guard
+
+Retired.
+
+**Four-questions verdict — `pub fn pair<T>()` at `crossbeam_channel::bounded(1)`:** YES YES YES YES.
+
+- Obvious? YES — symmetric with process tier; one factory per tier
+- Simple? YES — N identical call sites; no choice
+- Honest? YES — capacity-1 IS the mini-TCP discipline structurally enforced
+- Good UX? YES — substrate-author cannot pick wrong depth; lock-step by construction
+
+pair() flipped from unbounded to bounded(1).
+
+**Universal symmetry (post-correction):**
+
+| Tier | Transport | Backpressure mechanism |
+|---|---|---|
+| Thread | crossbeam capacity-1 | send blocks when 1 value queued |
+| Process | OS pipe (kernel-bounded) | send blocks when `PIPE_BUF` fills (default 64KiB on Linux) |
+| Remote (future) | TBD; same shape | TBD; backpressure via network primitive |
+
+Units differ (frame-count vs bytes); shape is identical. Programs at any tier write `send(v)` / `recv()` and the substrate handles the transport. Composes with universe-residency principle + Convergence #13 (autoscaling of correctness): substrate manages all transport details invisibly; user picks hosting env at the outside; one supported communication pattern; entire categories of problems eliminated structurally.
+
+**Mechanism vs discipline:** depth-1 is the MECHANISM (send blocks at 1; recv drains). Mini-TCP is the usage DISCIPLINE (per `docs/ZERO-MUTEX.md` § "Mini-TCP via paired channels" line 252+) — each send pairs with a recv before the next send. Substrate doesn't enforce the pairing site-by-site; multiple producers can saturate at the same depth. But capacity-1 makes producers that try to outpace consumers block immediately rather than queuing up. The lock-step breathes with load.
+
+**Trading-lab origin (pre-wat-rs lineage):** the depth-1 convergence predates wat-rs. The user built mailboxes (and their opposite) in `holon-lab-trading` and found N > 1 produced massive perf hits + entire categories of problems. Thread tier now matches what process tier always had (kernel-bounded pipes) + what every load-bearing pattern in this substrate ships (arc 119 ack-tx, defservice Request/Reply, Counter actor, dispatch loops).
+
+**Three "shockingly stable" foundation pivots tallied in arc 214:** (1) Stone E tunable rejection (§ "Stone E forward-correction"); (2) bounded() process-tier rejection (§ "Universe-residency + Mini-TCP at depth 1"); (3) this — bounded(N) thread-tier rejection. Same discipline, three forms: substrate manages what substrate manages; wrong choice does not exist.
+
+**Cross-references:**
+- `docs/ZERO-MUTEX.md` § "Mini-TCP via paired channels" (line 252-415) — substrate-wide articulation
+- arc 119 `HologramCacheService Put ack-tx` — in-substrate naming
+- INTERSTITIAL § "2026-05-19 (post-compaction, Slice 2 forward-correction) — Mini-TCP at depth 1: the trading-lab origin returns" — narrative
+- INTERSTITIAL § "2026-05-16 (deeper) — Control channels: Shutdown/Final convention" — Counter actor at mini-TCP depth 1
+- INTERSTITIAL § "2026-05-19 — Universe-residency principle + bounded() four-questions verdict" — principle this discipline operationalizes
+- INTERSTITIAL § "2026-05-19 — Convergence #13" — sibling discipline at the resource layer
+- `feedback_options_are_tangle`, `feedback_refuse_easy_solutions`, `feedback_attack_foundation_cracks`, `feedback_any_defect_catastrophic`, `feedback_inscription_immutable`

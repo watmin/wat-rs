@@ -21,6 +21,36 @@
 //! Production paths always have `SHUTDOWN_RX` initialized by
 //! `freeze.rs:233` before any wat code executes.
 //!
+//! ## Mini-TCP at depth 1 (THE only pattern)
+//!
+//! Every channel constructed by `pair()` has capacity 1. `send` blocks
+//! when one value is queued; `recv` drains the buffer and unblocks the
+//! sender. There is no `bounded(N)` factory (retired by four-questions;
+//! see DESIGN § "Slice 2 forward-correction").
+//!
+//! Depth-1 is the MECHANISM that makes the mini-TCP usage DISCIPLINE
+//! organic under load. The discipline (per `docs/ZERO-MUTEX.md` §
+//! "Mini-TCP via paired channels" line 252+): each send pairs with a
+//! recv before the next send fires — an ack on a separate pair, or the
+//! next value on the same pair. The substrate doesn't enforce the
+//! pairing site-by-site (multiple senders can saturate the buffer at
+//! the same depth), but capacity-1 makes producers that try to outpace
+//! consumers block immediately rather than queuing up and amplifying
+//! drift. The lock-step breathes with system load.
+//!
+//! This matches the process tier's kernel-bounded pipes structurally:
+//! Linux blocks writers when the pipe buffer fills (default 64KiB per
+//! `PIPE_BUF`). The unit differs (bytes vs frame-count) but the
+//! backpressure shape is the same: substrate refuses to absorb work
+//! the consumer can't keep up with.
+//!
+//! Every load-bearing pattern this substrate ships (arc 119 ack-tx,
+//! defservice Request/Reply, Counter actor, dispatch loops) operates
+//! at this depth. The trading-lab convergence (pre-wat-rs origin)
+//! proved N > 1 produces massive perf hits + entire categories of
+//! problems; depth-1 is dynamic, predictable, organic. The substrate
+//! makes the wrong shape unavailable.
+//!
 //! ## Audience
 //!
 //! Substrate-internal Rust code (brackets, services, kernel layer
@@ -273,20 +303,17 @@ impl<'a, T: Send + 'static> Select<'a, T> {
 
 // ─── Factories ───────────────────────────────────────────────────────────────
 
-/// Create an unbounded thread-tier channel pair. Both endpoints are
-/// cascade-aware (Receiver's recv wakes on shutdown). Senders never block
-/// on `send` (unbounded queue absorbs all values). Use `bounded` when
-/// back-pressure is required.
+/// Construct a capacity-1 mini-TCP channel pair.
+///
+/// `send` blocks when the buffer holds one value; `recv` drains it.
+/// Capacity is structural, not a tunable: N > 1 eliminates the
+/// lock-step the substrate enforces. See module-level doc § "Mini-TCP
+/// at depth 1" for the why-this-not-N + cross-references to the
+/// trading-lab convergence and the four-questions verdict.
+///
+/// Both endpoints are cascade-aware (Receiver's recv wakes on substrate
+/// shutdown).
 pub fn pair<T: Send + 'static>() -> (Sender<T>, Receiver<T>) {
-    let (tx, rx) = crossbeam_channel::unbounded();
-    (Sender { inner: tx }, Receiver { inner: rx })
-}
-
-/// Create a bounded thread-tier channel pair with the given capacity.
-/// Senders block on `send` when the channel is full, providing back-pressure.
-/// Cascade-on-send for blocking sends is future arc work; cascade on recv
-/// is already wired.
-pub fn bounded<T: Send + 'static>(capacity: usize) -> (Sender<T>, Receiver<T>) {
-    let (tx, rx) = crossbeam_channel::bounded(capacity);
+    let (tx, rx) = crossbeam_channel::bounded(1);
     (Sender { inner: tx }, Receiver { inner: rx })
 }
