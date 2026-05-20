@@ -104,22 +104,42 @@ had been placed at `:wat::std::*` when they should have been at
 `:wat::core::*` (they reach Rust bucket internals; can't write in
 wat). `assoc` from arc 020 was already at core by this rule.
 
-### Type-placeholders (arc 215 stone 1)
+### Type-placeholders (arc 215 stone 1 + stone 2)
 
 The `:wat::core::*` namespace includes one type-placeholder that is
 NOT a value type:
 
 | Placeholder | Meaning | Appears in |
 |---|---|---|
-| `:wat::type::Infer` | "Infer this type from the values" | Type-arg slots of parametric constructors (`HashMap`, `HashSet`) |
+| `:wat::type::Infer` | "Infer this type from the values" | Type-arg slots of parametric constructors (`Vector`, `HashMap`, `HashSet`) |
 
 `:wat::type::Infer` is analogous to Rust's `_` in type position and
 Haskell's `_` wildcard. It signals to check.rs: "allocate a fresh HM
 unification variable here; resolve it from the actual values."
 
-The `{...}` and `#{...}` literal desugars use `Infer` for inferred
-type-arg positions. The checker concretizes the fresh variable from
-the first value; subsequent values must unify against it.
+All three collection literals use `Infer` for inferred type-arg positions
+(arc 215 stone 2 extended this to `[...]` and full-inference `{...}`):
+
+| Literal | Desugared form | Layers |
+|---|---|---|
+| `[...]` | `(:wat::core::Vector :wat::type::Infer ...)` at check time | T inferred from first element |
+| `{...}` | `(:wat::core::HashMap :wat::type::Infer :wat::type::Infer ...)` at parse time | K and V each inferred from first key/value |
+| `#{...}` | `(:wat::core::HashSet :wat::type::Infer ...)` at parse time | T inferred from first element |
+
+**Two-layer enforcement model** (arc 215 stone 2):
+
+1. **Literal coherence** (check time): within one literal, all keys must unify to K;
+   all values must unify to V; all elements must unify to T. Violation → `TypeMismatch`
+   diagnostic naming the offending position.
+
+2. **Function-signature unification** (call site): when a literal is passed to a
+   function expecting `HashMap<keyword, i64>`, the inferred K/V must unify with the
+   declared parameter type. This is where keyword-key conventions are enforced for
+   APIs that require them — not at the language parse layer.
+
+The checker concretizes the fresh variable from the first element; subsequent
+elements must unify against it. Empty literal → fresh type variable (resolves at
+first concrete use).
 
 `:wat::type::Infer` is NOT a valid user-facing type (you cannot
 declare a struct field or function parameter with this type). It is

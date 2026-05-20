@@ -240,21 +240,25 @@ impl<'a> Cursor<'a> {
                 // routing. We peek at the discriminator separately from
                 // the move into the helper so Rust's borrow checker
                 // doesn't see a simultaneous borrow-and-move on `items`.
-                enum BraceKind { MapLiteral, StructDestructure, Malformed(String) }
+                //
+                // Arc 215 stone 2 — keyword-key restriction lifted.
+                // Previously: non-keyword, non-symbol first child → Malformed.
+                // Now: bare Symbol head → struct destructure (arc 169);
+                //      everything else (keyword, integer, string, ...) → map
+                //      literal. K is :wat::type::Infer; check.rs infers from
+                //      actual keys. The keyword-key-only rule moves to the
+                //      function-signature unification layer where it belongs.
+                enum BraceKind { MapLiteral, StructDestructure }
                 let kind = match items.first() {
                     // Empty body → empty map literal (arc 214 P2).
                     // Arc 169's "degenerate empty" check retired from
                     // this branch; empty `{}` is a valid empty HashMap.
                     None => BraceKind::MapLiteral,
-                    // Keyword head → map literal.
-                    Some(WatAST::Keyword(_, _)) => BraceKind::MapLiteral,
                     // Bare Symbol head → struct destructure (arc 169).
                     Some(WatAST::Symbol(_, _)) => BraceKind::StructDestructure,
-                    // Anything else → malformed brace-literal.
-                    Some(other) => BraceKind::Malformed(format!(
-                        "brace-form first child must be a keyword (map literal `{{:k v ...}}`) or a bare symbol (struct-destructure `{{field ...}}`); got a {}",
-                        ast_variant_label(other)
-                    )),
+                    // Anything else (keyword, integer literal, string, ...) →
+                    // map literal. K inferred by check.rs from actual key types.
+                    Some(_) => BraceKind::MapLiteral,
                 };
                 match kind {
                     BraceKind::MapLiteral => {
@@ -262,9 +266,6 @@ impl<'a> Cursor<'a> {
                     }
                     BraceKind::StructDestructure => {
                         self.parse_struct_destructure_body(items, span)
-                    }
-                    BraceKind::Malformed(reason) => {
-                        Err(ParseError::MalformedBraceLiteral { span, reason })
                     }
                 }
             }
@@ -421,11 +422,16 @@ impl<'a> Cursor<'a> {
     /// Arc 215 stone 1 — replaces pinned `:wat::holon::HolonAST` V-type and
     /// Atom auto-wrap with `:wat::type::Infer`; values pass through as-is.
     ///
-    /// Synthesizes `(:wat::core::HashMap :wat::core::keyword :wat::type::Infer k0 v0 ...)`.
+    /// Arc 215 stone 2 — Synthesizes `(:wat::core::HashMap :wat::type::Infer :wat::type::Infer k0 v0 ...)`.
+    ///
+    /// Both K and V slots use `:wat::type::Infer`; check.rs infers concrete
+    /// types from the first key and first value respectively, and unifies all
+    /// subsequent keys/values against the inferred types.
     ///
     /// Validation rules:
     /// - Body length must be even (alternating key/value pairs).
-    /// - Every even-indexed child (key position) must be a Keyword.
+    /// - Any value shape is accepted as a key at parse time; check phase
+    ///   handles type uniformity (K-inference + unification).
     /// - Odd-indexed children (value positions) pass through as-is.
     fn parse_map_literal_body(
         &self,
@@ -437,39 +443,30 @@ impl<'a> Cursor<'a> {
             return Err(ParseError::MalformedBraceLiteral {
                 span: open_span,
                 reason: format!(
-                    "map-literal body must alternate keyword-key + value pairs; got {} forms",
+                    "map-literal body must alternate key + value pairs; got {} forms",
                     items.len()
                 ),
             });
         }
 
-        // Validate key positions (even indices) are all Keywords.
-        for (i, item) in items.iter().enumerate() {
-            if i % 2 == 0 && !matches!(item, WatAST::Keyword(_, _)) {
-                return Err(ParseError::MalformedBraceLiteral {
-                    span: item.span().clone(),
-                    reason: format!(
-                        "map-literal key must be a keyword (got {}); pinned key type is :wat::core::keyword",
-                        ast_variant_label(item)
-                    ),
-                });
-            }
-        }
+        // Arc 215 stone 2 — keyword-key restriction dropped.
+        // Previously: keys at even indices must be WatAST::Keyword.
+        // Now: any key shape is accepted at parse time; check.rs
+        //      infers K from the actual keys and rejects mixed-K literals
+        //      at check time with a TypeMismatch diagnostic.
 
-        // Synthesize `(:wat::core::HashMap :wat::core::keyword
-        // :wat::type::Infer k0 v0 ...)`.
-        // K is always :wat::core::keyword (structural rule, validated above).
-        // V is :wat::type::Infer — check.rs infers the concrete type
-        // from the first value and unifies subsequent values against it.
+        // Synthesize `(:wat::core::HashMap :wat::type::Infer :wat::type::Infer k0 v0 ...)`.
+        // K is :wat::type::Infer — check.rs infers K from actual key types.
+        // V is :wat::type::Infer — check.rs infers V from actual value types.
         let mut list_items: Vec<WatAST> = Vec::with_capacity(3 + items.len());
         list_items.push(WatAST::Keyword(
             ":wat::core::HashMap".to_string(),
             open_span.clone(),
         ));
-        // Pinned key type: `:wat::core::keyword` (lowercase — matches
-        // the substrate's canonical type name per check.rs:4633).
+        // Arc 215 stone 2 — K is now :wat::type::Infer (was :wat::core::keyword).
+        // Inferred K from the actual key types at check time.
         list_items.push(WatAST::Keyword(
-            ":wat::core::keyword".to_string(),
+            ":wat::type::Infer".to_string(),
             open_span.clone(),
         ));
         // Arc 215 stone 1 — V is :wat::type::Infer; check.rs infers from values.

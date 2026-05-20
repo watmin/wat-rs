@@ -218,31 +218,63 @@ Appears in type-arg slots of parametric constructor calls; tells check.rs
 (:wat::core::HashSet :wat::type::Infer 1 2 3)
 ;; T inferred as :wat::core::i64 from elements 1, 2, 3
 
+(:wat::core::Vector :wat::type::Infer 1 2 3)
+;; T inferred as :wat::core::i64; equivalent to [1 2 3]
+
 (:wat::core::HashMap :wat::type::Infer :wat::type::Infer :foo 1 :bar 2)
 ;; K inferred as :wat::core::keyword; V inferred as :wat::core::i64
+
+(:wat::core::HashMap :wat::type::Infer :wat::type::Infer "a" 1 "b" 2)
+;; K inferred as :wat::core::String; V inferred as :wat::core::i64
 ```
 
 Empty constructor with `Infer` → fresh type variable (resolves on first use).
 Mismatch between inferred type and subsequent values → `TypeMismatch` diagnostic.
 
-### Map literal syntax (arc 214 P2, arc 215 stone 1)
+### Three-literal unification (arc 215 stone 2)
 
-`{...}` is a map literal sugar using type inference for V:
+After arc 215 stone 2, all three collection literals share the `:wat::type::Infer`
+machinery. Mental model: **first-unit inference + uniform unification**.
+
+```
+[...]  desugars at check time  → (:wat::core::Vector :wat::type::Infer ...)
+{...}  desugars at parse time  → (:wat::core::HashMap :wat::type::Infer :wat::type::Infer ...)
+#{...} desugars at parse time  → (:wat::core::HashSet :wat::type::Infer ...)
+```
+
+Type is inferred from the first element/key/value; all subsequent items must unify.
+Mixed types → `TypeMismatch` at check time, position-named.
+
+Escape hatch (power-user explicit form): use the verb form with concrete types:
+```wat
+(:wat::core::Vector :wat::core::i64 1 2 3)        ;; explicit T
+(:wat::core::HashMap :wat::core::keyword :wat::core::i64 :a 1 :b 2)  ;; explicit K, V
+(:wat::core::HashSet :wat::core::String "a" "b")  ;; explicit T
+```
+
+### Map literal syntax (arc 214 P2, arc 215 stone 1+2)
+
+`{...}` is a map literal sugar with unified K and V inference:
 
 ```wat
 {:k0 v0 :k1 v1 ...}    ;; desugars at parse time to:
-                        ;; (:wat::core::HashMap :wat::core::keyword :wat::type::Infer
+                        ;; (:wat::core::HashMap :wat::type::Infer :wat::type::Infer
                         ;;   :k0 v0 :k1 v1 ...)
-                        ;; V inferred from first value; all values must unify
+                        ;; K and V both inferred from first key/value
 
-{}                      ;; empty map literal — length-0 HashMap<keyword, fresh-T>
+{}                      ;; empty map literal — HashMap<fresh-K, fresh-V>
 
 {:outer {:inner 42}}    ;; nested: outer V inferred as HashMap<keyword, i64>
                         ;; values pass through as-is (no Atom auto-wrap)
+
+{1 "v" 2 "w"}           ;; arc 215 stone 2: non-keyword keys accepted
+                        ;; K inferred as :wat::core::i64; V as :wat::core::String
+{"a" 1 "b" 2}           ;; K inferred as :wat::core::String; V as :wat::core::i64
 ```
 
-K is always `:wat::core::keyword` (structural rule; non-keyword keys → `MalformedBraceLiteral`).
-V is `:wat::type::Infer`; check.rs infers it from the first value. All values must have the same type.
+K and V are both `:wat::type::Infer` (arc 215 stone 2 lifted the keyword-key restriction).
+All keys must have the same type; all values must have the same type.
+Mixed K or mixed V → `TypeMismatch` at check time, position-named.
 For explicit K/V types, use the verb form: `(:wat::core::HashMap :K :V ...)`.
 
 ### Set literal syntax: `#{...}` (arc 215 stone 1)
@@ -261,19 +293,39 @@ For explicit K/V types, use the verb form: `(:wat::core::HashMap :K :V ...)`.
 Duplicate elements collapse at construction (dedup). All elements must have the same type.
 For an explicit T, use the verb form: `(:wat::core::HashSet :T ...)`.
 
-**Position discipline** (arc 214 P2 + arc 215 stone 1 + arc 169):
+### Vector literal syntax: `[...]` (arc 167 + arc 215 stone 2)
+
+`[...]` is a vector literal. Since arc 215 stone 2 it routes through the unified
+`:wat::type::Infer` machinery at expression position:
+
+```wat
+[1 2 3]         ;; Vec<i64>; T inferred as :wat::core::i64 from element 1
+[1.5 2.5]       ;; Vec<f64>; T inferred as :wat::core::f64
+["a" "b"]       ;; Vec<String>
+[true false]    ;; Vec<bool>
+[]              ;; empty Vec<fresh-T>
+```
+
+At binder position (let/fn/match), `[...]` continues to act as a tuple-destructure
+binder (arc 169 / arc 167 binder semantics; unchanged by arc 215 stone 2).
+
+**Position discipline** (arc 214 P2 + arc 215 stone 1+2 + arc 169):
 
 | Position | Form | Routes to |
 |---|---|---|
-| Expression | `{:k v ...}` — keyword head | map literal → desugared HashMap verb-call (V inferred) |
+| Expression | `[x y ...]` | vector literal → `infer_list_constructor` (T inferred) |
+| Expression | `[]` — empty | empty vector literal (T fresh) |
+| Expression | `{k v ...}` — any non-symbol head | map literal → desugared HashMap verb-call (K, V inferred) |
 | Expression | `{}` — empty | empty map literal |
 | Expression | `#{x y ...}` | set literal → desugared HashSet verb-call (T inferred) |
 | Expression | `#{}` — empty | empty set literal |
+| Binding LHS in `let` | `[x 1 y 2]` — alternating binder/expr pairs | tuple-destructure binder (arc 169/167) |
 | Binding LHS in `let` | `{field1 field2 ...}` — bare-symbol head | struct destructure → `WatAST::StructPattern` (arc 169) |
 
 Content-shape dispatch for `{...}`: parser reads first child's shape.
-A keyword head → map literal. A bare Symbol head → struct destructure. Anything else → `MalformedBraceLiteral`.
+A bare Symbol head → struct destructure. Anything else (keyword, integer, string, ...) → map literal.
 `#{...}` always routes to set literal (the `#` prefix is the discriminator).
+`[...]` always routes to vector literal at expression position; binder position handled separately.
 
 ## 9. Common verb signatures
 

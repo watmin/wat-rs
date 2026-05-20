@@ -4633,23 +4633,30 @@ fn infer(
         WatAST::Keyword(_, _) => Some(TypeExpr::Path(":wat::core::keyword".into())),
         WatAST::Symbol(ident, _) => locals.get(&ident.name).cloned(),
         WatAST::List(items, _) => infer_list(items, env, locals, fresh, subst, errors),
-        // Arc 167 slice 1 — vector literals at value position are
-        // not supported. Vectors are consumed only in
-        // `:wat::core::fn` / `:wat::core::defn` signature positions
-        // (slice 2 wires those consumers). A future arc enables
-        // vector literals as `Value::Vec` values.
-        WatAST::Vector(_, span) => {
-            errors.push(CheckError::MalformedForm {
-                head: "<vector literal>".into(),
-                reason: "vector literals at value position are not supported \
-                         in arc 167. Vectors are currently consumed only in \
-                         :wat::core::fn / :wat::core::defn signature positions \
-                         (slice 2 wires those consumers). A future arc enables \
-                         vector literals as `Value::Vec` values."
-                    .into(),
-                span: span.clone(),
-            });
-            None
+        // Arc 215 stone 2 — `[...]` vector literals at expression position
+        // route through `infer_list_constructor` with `:wat::type::Infer`
+        // synthesized as the type-arg. T is inferred from the first element;
+        // subsequent elements unify against T. This is the unified path shared
+        // with `(:wat::core::Vector :wat::type::Infer x y z)` explicit form.
+        //
+        // The parser keeps `WatAST::Vector` for expression-position literals
+        // (not rewritten to a verb-call form). Here we synthesize the
+        // `:wat::type::Infer` keyword node and prepend it to the items slice
+        // so `infer_list_constructor` sees the uniform `[T, x1, x2, ...]`
+        // argument layout it expects.
+        //
+        // Binder-position `WatAST::Vector` uses (let binder, fn params, match
+        // patterns) are handled by their own arms and are not affected here.
+        WatAST::Vector(items, span) => {
+            // Synthesize `:wat::type::Infer` as the first arg (type-position).
+            let infer_kw = WatAST::Keyword(
+                crate::types::INFER_TYPE_PATH.to_string(),
+                span.clone(),
+            );
+            let mut args: Vec<WatAST> = Vec::with_capacity(1 + items.len());
+            args.push(infer_kw);
+            args.extend_from_slice(items);
+            infer_list_constructor(&args, span, env, locals, fresh, subst, errors)
         }
         // Arc 169 slice 1 — struct-pattern brace-forms are
         // consumed only in `:wat::core::let` binding-position
@@ -11093,8 +11100,12 @@ fn infer_list_constructor(
 ) -> Option<TypeExpr> {
     // :wat::core::vec / :wat::core::list — `(vec :T x1 x2 ...) -> Vec<T>`.
     // First arg is a type keyword (read, not inferred); remaining args
-    // must unify with T. Explicit typing is required even for non-empty
-    // literals — the shape never depends on content or context.
+    // must unify with T.
+    //
+    // Arc 215 stone 2 — also accepts `:wat::type::Infer` for T.
+    // When T is :wat::type::Infer, elem_ty is a fresh type variable;
+    // the unification loop below concretizes it from the first element.
+    // This is the path used by `[...]` expression-position literals.
     if args.is_empty() {
         errors.push(CheckError::ArityMismatch {
             callee: ":wat::core::vec".into(),
@@ -11109,17 +11120,26 @@ fn infer_list_constructor(
         });
     }
     let elem_ty = match &args[0] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(_) => {
-                errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::vec".into(),
-                    reason: format!("first argument {} is not a valid type keyword", k),
-                    span: args[0].span().clone(),
-                });
+        WatAST::Keyword(k, _) => {
+            // Arc 215 stone 2 — :wat::type::Infer means "infer T from
+            // the elements." Route to a fresh type variable; the unification
+            // loop below concretizes it from the first element.
+            if k == crate::types::INFER_TYPE_PATH {
                 fresh.fresh()
+            } else {
+                match crate::types::parse_type_expr(k) {
+                    Ok(t) => t,
+                    Err(_) => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::vec".into(),
+                            reason: format!("first argument {} is not a valid type keyword", k),
+                            span: args[0].span().clone(),
+                        });
+                        fresh.fresh()
+                    }
+                }
             }
-        },
+        }
         _ => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::vec".into(),

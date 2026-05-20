@@ -178,24 +178,43 @@ fn probe_5_map_of_map_resolved_by_arc215() {
     );
 }
 
-// ─── Probe 6: Non-keyword key ─────────────────────────────────────────────────
+// ─── Probe 6: Non-keyword key accepted (arc 215 stone 2) ─────────────────────
 
-/// `{42 :v}` — integer in key position. Parser rejects with `MalformedBraceLiteral`
-/// naming "integer literal" in key position.
+/// `{42 :v}` — integer in key position.
+///
+/// HISTORICAL NOTE: This probe previously asserted `MalformedBraceLiteral` at
+/// parse (probe name was `probe_6_non_keyword_key_rejected_at_parse`). Arc 215
+/// stone 2 lifts the keyword-key restriction: the parser now routes any
+/// non-symbol first child to map literal; K is `:wat::type::Infer`; check.rs
+/// infers K from the actual key types. `{42 :v}` parses cleanly and
+/// type-checks as `HashMap<i64, keyword>`.
+///
+/// ProgramEnv's keyword-key convention moves to function-signature unification
+/// at the spawn-program call site — not language restriction at parse.
 #[test]
-fn probe_6_non_keyword_key_rejected_at_parse() {
+fn probe_6_non_keyword_key_accepted_with_inferred_k() {
+    // Parse check: `{42 :v}` must parse cleanly (no MalformedBraceLiteral).
     let result = wat::parse_one!("{42 :v}");
     assert!(
-        matches!(result, Err(ParseError::MalformedBraceLiteral { .. })),
-        "non-keyword key must produce MalformedBraceLiteral; got: {:?}",
+        result.is_ok(),
+        "non-keyword key must parse cleanly after arc 215 stone 2; got: {:?}",
         result
     );
-    let err = format!("{}", result.unwrap_err());
-    assert!(
-        err.contains("keyword") || err.contains("integer literal"),
-        "error must name key-position violation; got: {}",
-        err
-    );
+
+    // Type-check + runtime: HashMap<i64, keyword>; length 1.
+    let src = r#"
+        (:wat::core::define (:user::compute -> :wat::core::i64)
+          (:wat::core::length {42 :v}))
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .expect("int-keyed map must type-check successfully");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        Value::i64(n) => assert_eq!(n, 1, "int-keyed map must have length 1"),
+        other => panic!("expected i64; got {:?}", other),
+    }
 }
 
 // ─── Probe 7: Odd count ───────────────────────────────────────────────────────

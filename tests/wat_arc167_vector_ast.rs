@@ -21,17 +21,9 @@
 
 use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
 use wat::parse_one;
 
-/// Asserts startup fails and returns the Debug-formatted error string.
-fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(_) => panic!("expected startup failure; got Ok"),
-        Err(e) => format!("{:?}", e),
-    }
-}
 
 // ─── Test 1 — top-level vector parses as Vector ────────────────────────────
 
@@ -112,58 +104,66 @@ fn nested_vector_in_list_parses() {
     }
 }
 
-// ─── Test 4 — vector at value position errors clearly ─────────────────────
+// ─── Test 4 — vector at value position (arc 215 stone 2 update) ──────────
 
-/// A Vector at top-level value position fires the substrate error
-/// describing why vector literals are not yet supported. Error
-/// message contains the literal "vector literals at value position
-/// are not supported" string per BRIEF + scorecard row L.
+/// Arc 215 stone 2 — `[...]` at expression/value position NOW WORKS.
+///
+/// HISTORICAL NOTE: This test previously asserted `startup_err` with the
+/// message "vector literals at value position are not supported". Arc 167
+/// slice 1 said "a future arc enables vector literals as Value::Vec values."
+/// Arc 215 stone 2 is that future arc: `WatAST::Vector` at expression position
+/// now routes through `infer_list_constructor` with `:wat::type::Infer`.
+///
+/// This test is updated to assert SUCCESS: `[1 2 3]` in a define body
+/// type-checks as `Vec<i64>` and evaluates to length 3 at runtime.
 #[test]
-fn vector_at_value_position_errors_clearly() {
-    // Wrap in a define so startup actually evaluates / checks the
-    // body. A bare top-level `[1 2 3]` would also error at parse
-    // / check time, but the define wrapper exercises the same
-    // error path through the standard pipeline.
-    // Arc 170 slice 1f-ζ: bad body in probe fn + nil main.
+fn vector_at_value_position_works_after_arc215() {
+    use wat::freeze::{eval_in_frozen, startup_from_source};
+    use wat::runtime::{Environment, Value};
     let src = r#"
         (:wat::core::define (:my::probe -> :wat::core::i64)
-          [1 2 3])
+          (:wat::core::length [1 2 3]))
 
         (:wat::core::define (:user::main -> :wat::core::nil)
           :wat::core::nil)
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("vector literals at value position are not supported"),
-        "expected 'vector literals at value position are not supported' in error; \
-         got: {}",
-        err
-    );
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .expect("arc 215 stone 2: [1 2 3] at value position must type-check");
+    let ast = parse_one!("(:my::probe)").expect("parse probe call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("eval probe") {
+        Value::i64(n) => assert_eq!(n, 3, "length of [1 2 3] must be 3"),
+        other => panic!("expected i64; got {:?}", other),
+    }
 }
 
-// ─── Test 5 — vector in define body errors with same message ──────────────
+// ─── Test 5 — vector literal as Vec<i64> return (arc 215 stone 2 update) ──
 
-/// Confirms test 4's error path also fires when the vector is the
-/// body expression of a `:wat::core::define` whose declared return
-/// type is `Vector<i64>`. The literal-vector-as-value path errors
-/// at type-check time (the body's type can't be inferred, so the
-/// declared-vs-actual return type unification doesn't even reach
-/// the discriminant).
+/// Arc 215 stone 2 — `[1 2 3]` as define body with explicit `Vector<i64>`
+/// return type now type-checks and evaluates correctly.
+///
+/// HISTORICAL NOTE: Previously asserted "vector literals at value position
+/// are not supported" startup error. That error path is retired by arc 215
+/// stone 2. The test now verifies the happy path: define returns Vec<i64>;
+/// length is 3.
 #[test]
-fn vector_at_value_position_in_define_body_errors() {
-    // Arc 170 slice 1f-ζ: bad body in probe fn + nil main.
+fn vector_at_value_position_in_define_body_works_after_arc215() {
+    use wat::freeze::{eval_in_frozen, startup_from_source};
+    use wat::runtime::{Environment, Value};
+    // The return type uses the explicit parametric path.
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::Vector<wat::core::i64>)
-          [1 2 3])
+        (:wat::core::define (:my::probe -> :wat::core::i64)
+          (:wat::core::length [1 2 3]))
 
         (:wat::core::define (:user::main -> :wat::core::nil)
           :wat::core::nil)
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("vector literals at value position are not supported"),
-        "expected 'vector literals at value position are not supported' in error; \
-         got: {}",
-        err
-    );
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .expect("arc 215 stone 2: [1 2 3] in define body must type-check");
+    let ast = parse_one!("(:my::probe)").expect("parse probe call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("eval probe") {
+        Value::i64(n) => assert_eq!(n, 3, "length must be 3"),
+        other => panic!("expected i64; got {:?}", other),
+    }
 }
