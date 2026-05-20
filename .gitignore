@@ -1,2 +1,5 @@
 /target
 Cargo.lock
+
+# Harness state — never operate on. See docs/COMPACTION-AMNESIA-RECOVERY.md § FM 7-bis.
+.claude/worktrees/
