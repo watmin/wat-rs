@@ -122,10 +122,8 @@ After this stone, **arc 215's LLM-first claim is structurally operational**: any
      12. `{"a" 1 "b" 2}` → `HashMap<String, i64>`; length 2; get "a" → Some(1)
    - **Change B — mixed-K rejection at check:**
      13. `{1 "v" "two" "w"}` → check fails with TypeMismatch at key #2; diagnostic names i64 expected vs String got
-   - **Change B — mixed-K-AND-V cascade:**
-     14. `{1 "v" "two" 99}` → check fails; sonnet's choice on whether to report both or short-circuit at first mismatch (document in SCORE)
    - **Change B — P2 Probe 6 behavioral flip:**
-     15. Update P2's `probe_6_non_keyword_key_rejected_at_parse` in `tests/probe_brace_map_literal.rs`:
+     14. Update P2's `probe_6_non_keyword_key_rejected_at_parse` in `tests/probe_brace_map_literal.rs`:
          - Old assertion: `{42 :v}` fails at parse with `MalformedBraceLiteral`
          - New assertion: `{42 :v}` parses cleanly; type-checks as `HashMap<i64, keyword>`
          - Test rename in-function (e.g., `probe_6_non_keyword_key_accepted_with_inferred_k`); keep historical note via doc comment
@@ -191,7 +189,7 @@ Plus a workspace test pass: `cargo test --release` (broad regression check — a
 ## When you finish
 
 Report back with:
-- (a) Final PASS count out of ~18
+- (a) Final PASS count out of 22 (matching the EXPECTATIONS scorecard exactly)
 - (b) Any honest deltas (likely candidates: WatAST::Vector handler topology surprises; parser-vs-check design choice rationale; intueri Level-1 finding on `infer_list_constructor` naming logged; existing test surprises from the keyword-key lift)
 - (c) Verification command output summary
 - (d) Elapsed time
