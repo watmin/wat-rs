@@ -393,6 +393,171 @@ These are NOT directly callable from wat code (substrate-internal only); the wat
 
 This is not new substrate work; it extends arc 170's existing sandbox-scope walker to handle the unified spawn-program's `:tier` parameter.
 
+## Slice 4 forward-correction (2026-05-20) — ProgramEnv + accessor surface
+
+Arc 215's literal-flexibility work (Stone 1: `:wat::type::Infer` minted + `{...}`/`#{...}` literal completion; Stone 2: `[...]` Vector unification + `{...}` keyword-key lift) is the prerequisite for this section. With three Clojure-style collection literals now routing through unified inference, ProgramEnv has a clean construction surface — `{:k v}` literal at the call site, HM unification at the function signature, zero parser-layer restrictions blocking the LLM-first delivery claim.
+
+This forward-correction inscribes the design conversation that landed 2026-05-20 between arc 215 closure and Slice 4 implementation. Eight design questions resolved with four-questions verdicts. The Layer 0c surface (peer types + unified spawn) extends with ProgramEnv as a load-bearing third parameter; the new `:wat::program::Env` namespace gains its accessor verb family.
+
+### Why a forward-correction (not a rewrite)
+
+Per `feedback_inscription_immutable`. The original Layer 0c + Unified spawn primitive sections (above) inscribed the spawn surface before arc 215 ratified literal flexibility. With literals now Clojure-fluent, the spawn surface gains a third param (env) naturally — but rewriting the prior section would hide the design evolution. This forward-correction extends, surfaces the new verdicts explicitly, and preserves the historical record of how the design grew.
+
+### Design verdicts — eight questions, four-questions discipline applied
+
+#### Q1 — spawn-program signature
+
+**Verdict:** `(:wat::kernel::spawn-program' :tier env program)` — three positional args; reads "WHERE-WITH-DOING."
+
+Four-questions: Obvious YES (positional order matches natural-language reading); Simple YES (three args, no optional flags, no keyword args); Honest YES (each arg has a single semantic; tier picks transport, env carries config, program carries work); Good UX YES (no overloading; no sentinel forms).
+
+The legacy alternative `(spawn-program' :tier program)` (no env) was rejected because env is load-bearing — even when empty, it should be explicit at the call site. Verbose IS honest (per `feedback_verbose_is_honest`); callers who don't need env pass `{}`.
+
+#### Q2 — tier-config vs ProgramEnv
+
+**Verdict:** tier-config IS ProgramEnv. One map; one truth.
+
+Substrate-internal concerns (mTLS keys for `:remote`; pipe sizes; whatever) live in the same map as user-facing app config. The program reads its own env; the substrate reads what it needs from the same map. No split.
+
+Four-questions: Obvious YES (one map per spawn; no "two maps that look alike but mean different things"); Simple YES (single ingestion path; single type at the signature); Honest YES (no artificial split between "what the substrate cares about" and "what the user cares about" — both are config); Good UX YES (caller writes one literal).
+
+For `:remote` tier specifically: the function signature mandates minimum-required-keys via the arc 215 two-layer enforcement model. The literal must satisfy the signature; signature satisfaction is the contract. Example shape (Slice 4 implementation will mint the concrete signature):
+
+```wat
+;; Spawning a remote program with required mTLS config
+(:wat::kernel::spawn-program' :remote
+  {:client-key   (:wat::holon::Atom "...bytes...")
+   :remote-url   (:wat::holon::Atom "https://...")
+   :app-setting  (:wat::holon::Atom 42)}
+  my-program)
+
+;; Mandatory keys enforced at call-site via function signature unification.
+;; Missing :client-key → check fails with "expected key :client-key in ProgramEnv"
+```
+
+For `:thread` and `:process` tiers: no mandatory keys; users can decorate with whatever (`{:brackets-id 7}`, `{}`, etc.).
+
+#### Q3 — Per-tier config shape
+
+**Verdict:** Moot per Q2. All tiers see the same env type; per-tier-specific keys live in the same map.
+
+#### Q4 — Namespace separation
+
+**Verdict:** Two parallel namespaces for two genuinely different kinds of env:
+
+- **`:wat::program::Env`** — wat-level program env; type is `HashMap<:wat::core::keyword, :wat::holon::HolonAST>` at the surface; internally a `HolonAST::Bundle` (holon all the way down). **In scope for Slice 4.**
+- **`:wat::process::Env`** — OS-level process env vars; type is `HashMap<:wat::core::String, :wat::core::String>`; the equivalent of `$HOME`, `$PATH`, `getenv()`/`setenv()`. **Out of scope for Slice 4; separate concern.** May share design pattern with `:wat::program::Env` (similar accessor verbs) but is distinct namespace.
+
+The two never collide — different namespaces, different types, different semantics. Process env vars are the OS's contract; program env is wat's. Reserving the `:wat::process::Env` name now prevents future namespace squatting.
+
+Four-questions on namespace separation: Obvious YES (the two have orthogonal semantics; conflating them would be a Level-1 lie per intueri); Simple YES (one namespace per concept); Honest YES (different types, different lifecycle, different ownership); Good UX YES (callers reach for the right namespace based on what they're talking about).
+
+#### Q5 — Polymorphic `get` dispatch
+
+**Verdict:** Per arc 146 dispatch mechanism. The polymorphic verb `:wat::core::get` dispatches on container type; per-type implementations live under each container's namespace.
+
+```wat
+:wat::core::get                   ;; polymorphic dispatcher
+:wat::core::HashMap/get           ;; HashMap impl (existing)
+:wat::core::Vector/get            ;; Vector impl (existing)
+:wat::program::Env/get            ;; Env impl (new in Slice 4)
+```
+
+Callers can use the short polymorphic form (`(:wat::core::get coll key)`) or the typed explicit form (`(:wat::program::Env/get env key)`). Both work; dispatch table grows by one entry.
+
+Sets terminal: `:wat::core::HashSet` does not implement `/get` (sets have no key→value mapping; member presence is a different verb). Dig into a set returns `None` (treated as "no further navigation possible" — matches Ruby's `dig` behavior).
+
+#### Q6 — Error model
+
+**Verdict:** Option<T> uniformly for `/get` and `/dig`; expect-variants panic with KeyError-flavored diagnostic; default-variants return supplied fallback.
+
+| Verb | Returns | Use case |
+|---|---|---|
+| `:wat::program::Env/get env key` | `:wat::core::Option<T>` | "might be present" |
+| `:wat::program::Env/expect-get env key` | `T` (panic on miss/wrong-type) | "must be there; honest crash if not" (Ruby's `fetch`) |
+| `:wat::program::Env/get-default env key default` | `T` (return default on miss) | "missing is OK; here's the fallback" (Ruby's `fetch(k, default)`) |
+| `:wat::program::Env/dig env path` | `:wat::core::Option<T>` | chained version |
+| `:wat::program::Env/expect-dig env path` | `T` | chained panic-variant |
+| `:wat::program::Env/dig-default env path default` | `T` | chained default-variant |
+
+Six verbs; the Option accessor triad × single-vs-chained.
+
+None on both miss AND wrong-type (Ruby semantics): keeps the API uniform; matches Ruby's `dig` exactly. If a caller needs to distinguish miss from type-mismatch, that's a future arc — mint `/try-get` returning `Result<T, KeyError>` where `KeyError ∈ {NotFound, TypeMismatch}`. **Default: Option semantics; richer Result variant minted only if a real use case emerges.**
+
+The panic in `/expect-*` carries KeyError-flavored diagnostic: position-named per arc 138; matches arc 107's typed-expect pattern.
+
+#### Q7 — Path terminology
+
+**Verdict:** **`path`** — the arg name for `/dig`'s navigation parameter. A `Vector<HolonAST>` whose elements are successive lookup keys.
+
+```wat
+(:wat::program::Env/dig env path -> :wat::core::Option<T>)
+```
+
+Rationale: `path` is communicative across communities (Clojure's `get-in`, Python's dict-paths, JSON paths, dotted-notation traditions); not over-indexed to any one language; matches the chain-navigation metaphor honestly. One word, terse, honest.
+
+If intueri pushes back at Slice 4 implementation time (the spell may find a better name when staring at the actual code), revisit; for now `path` is the working name.
+
+#### Q7-lifecycle — ProgramEnv mutability
+
+**Verdict:** **Frozen at spawn.** Once passed to `spawn-program'`, the env is immutable for the program's lifetime. Mutability requires respawn.
+
+Matches arc 119's frozen-world discipline + Arc-everywhere immutability + zero-Mutex architecture. No "update env at runtime" semantic; no "mutable env handle." The env is a value, not a reference.
+
+Four-questions: Obvious YES (immutability is the substrate's default); Simple YES (no mutation API); Honest YES (the env you read at runtime IS the env you spawned with); Good UX YES (no synchronization concerns; threads can read freely).
+
+#### Q9 — Empty env case
+
+**Verdict:** Empty `{}` works directly. No nil sentinel needed.
+
+After arc 215 Stone 2:
+- Literal type at construction: `HashMap<fresh_K, fresh_V>` (both type variables fresh)
+- spawn-program's param type: `HashMap<:wat::core::keyword, :wat::holon::HolonAST>`
+- Call-site HM unification: `fresh_K ↦ :wat::core::keyword`; `fresh_V ↦ :wat::holon::HolonAST`
+- Resolved type: matches param ✓
+
+Empty `{}` IS a valid empty env at any call site that expects `<Keyword, HolonAST>`. The arc 215 inference machinery handles type resolution; no sentinel forms needed.
+
+```wat
+;; Empty env for a thread that doesn't need config
+(:wat::kernel::spawn-program' :thread {} my-program)
+```
+
+Four-questions on `{}` vs nil sentinel: `{}` wins YES×4 (Obvious + Simple + Honest + Good UX); nil sentinel loses on all four (introduces hidden semantic, requires conversion logic, lies about being a map). Reject sentinel; canonical empty env is the empty literal.
+
+#### Q10 — spawn-program short-forms
+
+**Verdict:** **Reject.** No `spawn-thread'` / `spawn-process'` sugar verbs. The verbose unified form `(spawn-program' :tier env program)` is canonical.
+
+Rationale: users will rarely call `spawn-program'` directly — they'll go through `:wat::brackets::*` (parallel-each / parallel-map) for compute concurrency or `:wat::services::*` for stateful peers. The raw spawn verb is for substrate authors and edge cases. Verbose IS honest (per `feedback_verbose_is_honest`); one verb per concept matches LLM-first one-canonical-path discipline (per `project_wat_llm_first_design`).
+
+### Implementation surface for Slice 4 stones
+
+With verdicts inscribed, Slice 4's stones become tractable. Likely decomposition (intueri-runs-here for naming at brief time):
+
+1. **Stone 4.1** — Mint `:wat::program::Env` type + Rust-side internal representation (HolonAST::Bundle of binds; arc 057 slice 3 supports HolonAST keys directly).
+2. **Stone 4.2** — Mint the six accessor verbs (`/get`, `/expect-get`, `/get-default`, `/dig`, `/expect-dig`, `/dig-default`); wire to arc 146 polymorphic dispatch.
+3. **Stone 4.3** — Mint unified `(spawn-program' :tier env program)` verb; dispatch on `:tier` to existing per-tier substrate spawns; ingest env at spawn site.
+4. **Stone 4.4** — Mint polymorphic kernel verbs (`send'`, `recv'`, `try-recv'`, `select'`, `close'`); dispatch on peer type; the peer-types-already-exist work from arc 170 Stone C3 makes this mostly wiring.
+5. **Stone 4.5** — Integration tests + sandbox-compatibility walker extension (per existing Layer 0c sandbox-compatibility-constraint section).
+
+Each stone is atomic; sonnet ships clean; orchestrator scores per arc 215's calibrated pattern.
+
+### Cross-references
+
+- arc 215 (Stone 1 + Stone 2) — literal-flexibility prerequisite; ProgramEnv construction surface lands cleanly via `{...}` literal
+- arc 057 slice 3 — `hashmap_key accepts HolonAST`; substrate-truth for ProgramEnv's surface/internal mapping
+- arc 119 — frozen-world discipline; lifecycle precedent
+- arc 146 — multimethod dispatch; polymorphic `get` mechanism
+- arc 107 — typed-expect pattern; matches expect-get error model
+- arc 138 — position-named diagnostics; KeyError flavor
+- `project_universe_residency` — programs are universe-resident; tier-config (now env) is part of the universe at spawn time
+- `feedback_verbose_is_honest` — sugar verbs rejected; verbose form is canonical
+- `project_wat_llm_first_design` — one canonical path per task; six accessor verbs (no synonyms)
+- `feedback_inscription_immutable` — this section is a forward-correction; the original Layer 0c content stays
+
+*The literal IS the env. The signature IS the contract. The substrate IS the algebra. Everything composes.*
+
 ## Layer 1 — Brackets (wat's Parallel)
 
 ```
