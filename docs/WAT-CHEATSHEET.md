@@ -80,6 +80,31 @@ orthogonal — `:wat::core::nil` is the unit type (singleton),
 enforces the split. No "null pointer exception" semantics; no
 sentinel-value lies.
 
+### `:wat::program::Env` — wat-level program environment (arc 214 Slice 4)
+
+`:wat::program::Env` is a registered typealias for `HashMap<:wat::core::keyword, :wat::holon::HolonAST>`.
+It is the second positional argument to `spawn-program'` — the map of configuration
+that a spawned program sees as its startup environment.
+
+```wat
+;; Pass a program env at spawn time:
+(:wat::kernel::spawn-program' :thread {} my-program)
+(:wat::kernel::spawn-program' :thread {:config-key (:wat::holon::Atom "value")} my-program)
+
+;; A function accepting a program env:
+(:wat::core::define (:user::run-with-env (env :wat::program::Env) -> :wat::core::nil)
+  :wat::core::nil)
+```
+
+**Namespace separation (arc 214 Slice 4 forward-correction Q4):**
+
+| Name | Alias for | Scope |
+|---|---|---|
+| `:wat::program::Env` | `HashMap<keyword, HolonAST>` | wat-level program config (Slice 4) |
+| `:wat::process::Env` | `HashMap<String, String>` | OS-level process env vars (`$HOME`, `$PATH`, …) — separate concern; out of scope Slice 4 |
+
+The two namespaces are orthogonal: program env carries wat-typed config; process env mirrors the OS contract (`getenv`/`setenv`). Callers reach for the right namespace based on what they are talking about.
+
 ### `:wat::core::do` — sequential evaluation (arc 136)
 
 `(:wat::core::do form_1 form_2 ... form_N)` evaluates each form

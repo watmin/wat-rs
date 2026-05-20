@@ -446,6 +446,30 @@ fn register_builtin_types(env: &mut TypeEnv) {
         },
     }));
 
+    // :wat::program::Env — arc 214 Slice 4 forward-correction Q4.
+    // The wat-level program environment: a map from keyword to HolonAST,
+    // passed as the second positional arg to `spawn-program'`. Distinct
+    // from `:wat::process::Env` (OS env vars; `HashMap<String,String>`),
+    // which is a separate namespace and out of scope for Slice 4.
+    //
+    // Per `feedback_no_new_types`: typealias, not wrapper struct. The
+    // underlying type IS `HashMap<keyword, HolonAST>`; the alias gives
+    // that shape a registered name for use in function signatures and
+    // the unified spawn-program' surface.
+    //
+    //   typealias :wat::program::Env = :HashMap<:wat::core::keyword, :wat::holon::HolonAST>
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::program::Env".into(),
+        type_params: vec![],
+        expr: TypeExpr::Parametric {
+            head: "wat::core::HashMap".into(),
+            args: vec![
+                TypeExpr::Path(":wat::core::keyword".into()),
+                TypeExpr::Path(":wat::holon::HolonAST".into()),
+            ],
+        },
+    }));
+
     // :wat::core::nil — arc 153. Renamed from `:wat::core::unit`
     // (which arc 109 slice 1d minted). Same type-theoretic role as
     // Rust's `()`: singleton type, one inhabitant, "no meaningful
