@@ -20,6 +20,7 @@ with `length`'s polymorphism.
 | Slice | Module | LOC | Tests | Status |
 |-------|--------|-----|-------|--------|
 | 1 | `src/check.rs` — 4 dispatch arms + 4 `infer_*` functions (`infer_dissoc`, `infer_keys`, `infer_values`, `infer_empty_q`); the fixed `:wat::core::empty?` Vec-only scheme registration retired. `src/runtime.rs` — 3 dispatch arms (`dissoc`/`keys`/`values`); `eval_vec_empty` rewritten as `eval_empty_q` (polymorphic). `docs/USER-GUIDE.md` — the polymorphism table gains `dissoc`/`keys`/`values`/`empty?` rows; the surface-table flat list gains four entries. | ~330 Rust + ~10 doc | 18 new (5 dissoc, 5 keys, 5 values, 3 empty?) | shipped |
+| arc 214 P2 | `src/parser.rs` — LBrace content-shape dispatch; `parse_map_literal_body` + `parse_struct_destructure_body` helpers; `ParseError::MalformedBraceLiteral` variant. `src/check.rs` — `process_let_binding` "anything else" branch emits `MalformedForm` for non-binder shapes (arc 214 P2 fix). `docs/WAT-CHEATSHEET.md` — § 8 map-literal syntax + position-discipline table. `tests/probe_brace_map_literal.rs` — 9 probes. | ~180 Rust + ~40 doc | 9 new | shipped 2026-05-20 |
 
 **wat-rs unit-test count: 612 → 630. +18. Workspace: 0 failing.**
 

@@ -205,6 +205,32 @@ Rules:
 Arc 214 P1 retired the old `(:wat::core::HashMap :(K,V) ...)` tuple-keyword
 shape; the two-separate-keywords shape `:K :V` mirrors Vector's `:T` exactly.
 
+### Map literal syntax (arc 214 P2)
+
+`{...}` is a map literal sugar for the pinned `HashMap<keyword, HolonAST>` shape:
+
+```wat
+{:k0 v0 :k1 v1 ...}    ;; desugars at parse time to:
+                        ;; (:wat::core::HashMap :wat::core::keyword :wat::holon::HolonAST
+                        ;;   :k0 (:wat::holon::Atom v0) :k1 (:wat::holon::Atom v1) ...)
+
+{}                      ;; empty map literal — length-0 HashMap<keyword, HolonAST>
+```
+
+Values are unconditionally auto-wrapped in `(:wat::holon::Atom v)` at parse time.
+For non-pinned shapes (arbitrary K/V types), use the explicit verb form.
+
+**Position discipline** (arc 214 P2 + arc 169):
+
+| Position | Brace form | Routes to |
+|---|---|---|
+| Expression (any value position) | `{:k v ...}` — keyword head | map literal → desugared HashMap verb-call |
+| Expression (any value position) | `{}` — empty | empty map literal (length-0 HashMap) |
+| Binding LHS in `let` | `{field1 field2 ...}` — bare-symbol head | struct destructure → `WatAST::StructPattern` (arc 169) |
+
+Content-shape dispatch: the parser reads the brace body and examines the first child's shape.
+A keyword head → map literal. A bare Symbol head → struct destructure. Anything else → `MalformedBraceLiteral`.
+
 ## 9. Common verb signatures
 
 | Verb | Returns |

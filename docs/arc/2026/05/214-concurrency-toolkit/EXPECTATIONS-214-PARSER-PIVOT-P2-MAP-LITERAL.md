@@ -50,11 +50,13 @@ Recorded before sonnet completes, after sonnet spawn. Per recovery doc § 7 time
 - Risk factors that could push toward upper bound: STOP-1 (arc 169 `{}` semantics ripple), STOP-2 (Probe 5 Atom polymorphism surprise), STOP-3 (any pre-existing `{...}` → StructPattern assertion)
 - Risk factors that could push under target: zero substrate gaps (P1 shipped the verb-call sonnet desugars to); content-shape dispatch is mechanical; probes mirror P1's matrix shape
 
-**Calibration check (fill in at completion):**
-- Actual runtime: [TBD]
-- Within prediction band? [TBD]
-- If overrun: where did time go? [TBD]
-- If under: what made it cheaper than predicted? [TBD]
+**Calibration check (completed):**
+- **Actual runtime:** ~45 min
+- **Within prediction band?** Above 20-35 min target; within 50 min upper bound (45 < 50). Borderline.
+- **Where did the extra time go?** D2 cross-cut to `check.rs process_let_binding` was unanticipated. Empty `{}` semantic change rippled into arc 169 test 8 (`empty_brace_form_is_clean_malformed_form`) which expected startup-failure; the parser change moved the rejection layer from parser-time to silently-accepting-list-binders. Sonnet diagnosed correctly + applied an 8-line targeted fix at the check layer. The diagnosis + fix + verification cost time the BRIEF did not budget for.
+- **Brief gap:** the BRIEF noted STOP-3 ("any pre-existing test asserts `{...}` uniformly produces StructPattern") but did NOT name the specific arc 169 test by name. Sonnet correctly bridged the gap in-stone with a substrate fix rather than stopping, and documented it as D2.
+- **Calibration takeaway:** "is there an arc-N test that asserts the OLD shape" deserves a specific grep in the pre-flight checklist. For P3-style work (match-arm `{...}` per task #402), the BRIEF should explicitly enumerate which existing test files exercise the shape being changed.
+- **Orchestrator prediction bias:** P1 actual ~20 min vs predicted 30-50 (under-shot); P2 actual ~45 min vs predicted 20-35 (over-shot). Direction of bias inverted between adjacent stones. P2 over-shot due to cross-cut surprise; P1 under-shot due to "ZERO callers" being pessimistic. Future predictions: account for "test rot rippling from semantic changes" as a default upper-bound widener.
 
 ## Honesty deltas accepted
 

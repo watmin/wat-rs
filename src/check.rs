@@ -9673,10 +9673,26 @@ fn process_let_binding(
         return;
     }
 
-    // Anything else — runtime parser surfaces the canonical shape
-    // error (Symbol or Vector-of-Symbols or StructPattern). Arc 168
-    // slice 3 retired the legacy typed-single `(name :T)` and
-    // legacy List destructure binder arms.
+    // Anything else — malformed binder shape. Arc 168 slice 3
+    // retired the legacy typed-single `(name :T)` and legacy List
+    // destructure binder arms.
+    //
+    // Arc 214 P2 note: `{}` in expression position now parses as a
+    // `WatAST::List` (the desugared HashMap call) rather than an
+    // error. If that List lands in a let binder position (e.g.
+    // `[{} p]`), it is structurally invalid as a binder. Emit a
+    // MalformedForm here so the type-checker surfaces a diagnostic
+    // at startup rather than silently accepting and letting the
+    // runtime catch it.
+    let binder = &kv[0];
+    errors.push(CheckError::MalformedForm {
+        head: form.into(),
+        reason: format!(
+            "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a {} in binder position",
+            ast_variant_name_check(binder)
+        ),
+        span: binder.span().clone(),
+    });
 }
 
 /// Type-check `(:wat::core::HashSet :T x1 x2 ...)`. First arg is a

@@ -44,12 +44,29 @@ pub enum ParseError {
     /// An opening `{` was never closed before end of input. Arc 169
     /// slice 1.
     UnclosedBrace(Span),
-    /// A struct-destructure brace-form was empty (`{}`) or carried a
-    /// non-Symbol child. Arc 169 slice 1 — parse-time shape rule:
-    /// every child of `{}` must be a bare Symbol, and at least one
-    /// child is required. Field-name semantics are validated later
-    /// (check time / runtime); the parser only enforces shape.
+    /// A struct-destructure brace-form carried a non-Symbol child.
+    /// Arc 169 slice 1 — parse-time shape rule: every child of `{}`
+    /// in struct-destructure position must be a bare Symbol, and at
+    /// least one child is required. Field-name semantics are validated
+    /// later (check time / runtime); the parser only enforces shape.
+    ///
+    /// Arc 214 P2 — empty `{}` is now an empty map literal; this
+    /// variant fires only when the struct-destructure branch (bare
+    /// Symbol head) encounters a non-Symbol inside the brace-form.
     MalformedStructPattern {
+        /// The `{` opening span.
+        span: Span,
+        /// Diagnostic naming the offending shape.
+        reason: String,
+    },
+    /// A brace-form `{...}` was used as a map literal but violated
+    /// the pinned `HashMap<Keyword, HolonAST>` shape. Arc 214 P2:
+    ///
+    /// - Key in even-indexed position was not a Keyword.
+    /// - Body had an odd number of forms (must alternate key/value).
+    /// - First child was neither Keyword (map literal) nor bare Symbol
+    ///   (struct destructure) — i.e., an integer, list, etc.
+    MalformedBraceLiteral {
         /// The `{` opening span.
         span: Span,
         /// Diagnostic naming the offending shape.
@@ -75,6 +92,11 @@ impl fmt::Display for ParseError {
             ParseError::MalformedStructPattern { span, reason } => write!(
                 f,
                 "malformed struct-destructure brace-form at {}: {}",
+                span, reason
+            ),
+            ParseError::MalformedBraceLiteral { span, reason } => write!(
+                f,
+                "malformed brace-literal at {}: {}",
                 span, reason
             ),
             ParseError::TrailingContent(span) => {
@@ -198,36 +220,53 @@ impl<'a> Cursor<'a> {
             }
             Token::RBracket => Err(ParseError::UnexpectedRBracket(span)),
             Token::LBrace => {
-                // Arc 169 slice 1 — brace-forms parse as
-                // `WatAST::StructPattern`. Parse-time shape rules:
-                //   * every child must be a bare Symbol
-                //   * at least one child required (empty `{}` is
-                //     degenerate; no use case)
-                // Both rules surface as `MalformedStructPattern`
-                // naming the offending position; field-name
-                // semantics are validated later by the let
-                // consumer at check / runtime.
+                // Arc 214 P2 — content-shape dispatch. The parser
+                // reads the body content-agnostically, then branches
+                // on the FIRST child's shape:
+                //
+                //   * Empty body    → empty map literal
+                //     `(:wat::core::HashMap :wat::core::Keyword :wat::holon::HolonAST)`
+                //   * Keyword head  → map literal; validate alternating
+                //     key/value pairs; auto-wrap values in
+                //     `(:wat::holon::Atom v)`. Pinned type:
+                //     `HashMap<Keyword, HolonAST>`.
+                //   * Symbol head   → struct-destructure (arc 169)
+                //     `WatAST::StructPattern`. At least one bare
+                //     Symbol required; non-Symbol children rejected.
+                //   * Anything else → `MalformedBraceLiteral` naming
+                //     the actual child kind.
                 let items = self.parse_brace_body(span.clone())?;
-                if items.is_empty() {
-                    return Err(ParseError::MalformedStructPattern {
-                        span,
-                        reason:
-                            "struct-destructure brace-form `{}` is empty; at least one bare-symbol field name is required (e.g. `{outcome residue}`)"
-                                .into(),
-                    });
-                }
-                for item in &items {
-                    if !matches!(item, WatAST::Symbol(_, _)) {
-                        return Err(ParseError::MalformedStructPattern {
-                            span: item.span().clone(),
-                            reason: format!(
-                                "struct-destructure brace-form must contain only bare symbols (field names); got a {} — write `{{field1 field2 ...}}` with bare names only",
-                                ast_variant_label(item)
-                            ),
-                        });
+                // Dispatch on the FIRST child's shape — content-shape
+                // routing. We peek at the discriminator separately from
+                // the move into the helper so Rust's borrow checker
+                // doesn't see a simultaneous borrow-and-move on `items`.
+                enum BraceKind { MapLiteral, StructDestructure, Malformed(String) }
+                let kind = match items.first() {
+                    // Empty body → empty map literal (arc 214 P2).
+                    // Arc 169's "degenerate empty" check retired from
+                    // this branch; empty `{}` is a valid empty HashMap.
+                    None => BraceKind::MapLiteral,
+                    // Keyword head → map literal.
+                    Some(WatAST::Keyword(_, _)) => BraceKind::MapLiteral,
+                    // Bare Symbol head → struct destructure (arc 169).
+                    Some(WatAST::Symbol(_, _)) => BraceKind::StructDestructure,
+                    // Anything else → malformed brace-literal.
+                    Some(other) => BraceKind::Malformed(format!(
+                        "brace-form first child must be a keyword (map literal `{{:k v ...}}`) or a bare symbol (struct-destructure `{{field ...}}`); got a {}",
+                        ast_variant_label(other)
+                    )),
+                };
+                match kind {
+                    BraceKind::MapLiteral => {
+                        self.parse_map_literal_body(items, span)
+                    }
+                    BraceKind::StructDestructure => {
+                        self.parse_struct_destructure_body(items, span)
+                    }
+                    BraceKind::Malformed(reason) => {
+                        Err(ParseError::MalformedBraceLiteral { span, reason })
                     }
                 }
-                Ok(Some(WatAST::StructPattern(items, span)))
             }
             Token::RBrace => Err(ParseError::UnexpectedRBrace(span)),
             Token::Int(n) => Ok(Some(WatAST::IntLit(*n, span))),
@@ -337,6 +376,11 @@ impl<'a> Cursor<'a> {
     /// EOF arrives before a matching `}`. Cross-delimiter mismatches
     /// (`)` or `]` inside a `{...}` body) surface as the corresponding
     /// `Unexpected*` errors. Arc 169 slice 1.
+    ///
+    /// Arc 214 P2 — this method is content-agnostic; it accumulates all
+    /// child forms and returns them. The LBrace arm in `parse_form`
+    /// dispatches the result to either `parse_map_literal_body` or
+    /// `parse_struct_destructure_body` based on the first child's shape.
     fn parse_brace_body(&mut self, open_span: Span) -> Result<Vec<WatAST>, ParseError> {
         let mut children = Vec::new();
         loop {
@@ -362,6 +406,111 @@ impl<'a> Cursor<'a> {
                 None => return Err(ParseError::UnclosedBrace(open_span)),
             }
         }
+    }
+
+    /// Arc 214 P2 — map literal semantic path. Called when the brace
+    /// body is empty (empty map) or begins with a Keyword (map literal).
+    ///
+    /// Synthesizes `(:wat::core::HashMap :wat::core::Keyword
+    /// :wat::holon::HolonAST k0 (:wat::holon::Atom v0) k1 ...)` at
+    /// parse time. Pinned type: `HashMap<Keyword, HolonAST>`.
+    ///
+    /// Validation:
+    ///   * Body length must be even (alternating key/value pairs).
+    ///   * Every even-indexed child (key position) must be a Keyword.
+    ///   * Every odd-indexed child (value position) is wrapped in
+    ///     `(:wat::holon::Atom v)` unconditionally.
+    fn parse_map_literal_body(
+        &self,
+        items: Vec<WatAST>,
+        open_span: Span,
+    ) -> Result<Option<WatAST>, ParseError> {
+        // Even-count rule: body must alternate key/value pairs.
+        if !items.len().is_multiple_of(2) {
+            return Err(ParseError::MalformedBraceLiteral {
+                span: open_span,
+                reason: format!(
+                    "map-literal body must alternate keyword-key + value pairs; got {} forms",
+                    items.len()
+                ),
+            });
+        }
+
+        // Validate key positions (even indices) are all Keywords.
+        for (i, item) in items.iter().enumerate() {
+            if i % 2 == 0 && !matches!(item, WatAST::Keyword(_, _)) {
+                return Err(ParseError::MalformedBraceLiteral {
+                    span: item.span().clone(),
+                    reason: format!(
+                        "map-literal key must be a keyword (got {}); pinned key type is :wat::core::Keyword",
+                        ast_variant_label(item)
+                    ),
+                });
+            }
+        }
+
+        // Synthesize `(:wat::core::HashMap :wat::core::Keyword
+        // :wat::holon::HolonAST k0 (:wat::holon::Atom v0) ...)`.
+        let mut list_items: Vec<WatAST> = Vec::with_capacity(3 + items.len());
+        list_items.push(WatAST::Keyword(
+            ":wat::core::HashMap".to_string(),
+            open_span.clone(),
+        ));
+        // Pinned key type: `:wat::core::keyword` (lowercase — matches
+        // the substrate's canonical type name per check.rs:4633).
+        list_items.push(WatAST::Keyword(
+            ":wat::core::keyword".to_string(),
+            open_span.clone(),
+        ));
+        list_items.push(WatAST::Keyword(
+            ":wat::holon::HolonAST".to_string(),
+            open_span.clone(),
+        ));
+        // Alternating key / auto-wrapped value pairs.
+        let mut i = 0;
+        while i < items.len() {
+            let key = items[i].clone();
+            let val = items[i + 1].clone();
+            let val_span = val.span().clone();
+            let wrapped_val = WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::holon::Atom".to_string(), val_span.clone()),
+                    val,
+                ],
+                val_span,
+            );
+            list_items.push(key);
+            list_items.push(wrapped_val);
+            i += 2;
+        }
+        Ok(Some(WatAST::List(list_items, open_span)))
+    }
+
+    /// Arc 214 P2 — struct-destructure semantic path (arc 169 preserved).
+    /// Called when the brace body begins with a bare Symbol.
+    ///
+    /// Every child must be a bare Symbol; at least one child is
+    /// required. Non-Symbol children → `MalformedStructPattern`.
+    fn parse_struct_destructure_body(
+        &self,
+        items: Vec<WatAST>,
+        open_span: Span,
+    ) -> Result<Option<WatAST>, ParseError> {
+        // At least one bare-symbol required (arc 169 rule).
+        // NOTE: `items` is non-empty here — the dispatch in parse_form
+        // ensures `Some(WatAST::Symbol(_, _))` is the first child.
+        for item in &items {
+            if !matches!(item, WatAST::Symbol(_, _)) {
+                return Err(ParseError::MalformedStructPattern {
+                    span: item.span().clone(),
+                    reason: format!(
+                        "struct-destructure brace-form must contain only bare symbols (field names); got a {} — write `{{field1 field2 ...}}` with bare names only",
+                        ast_variant_label(item)
+                    ),
+                });
+            }
+        }
+        Ok(Some(WatAST::StructPattern(items, open_span)))
     }
 }
 
