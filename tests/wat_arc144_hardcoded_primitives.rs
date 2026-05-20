@@ -175,8 +175,8 @@ fn signature_of_defn_tuple_returns_some() {
 
 #[test]
 fn signature_of_defn_hashmap_returns_some() {
-    // 2-arg fingerprint per arc 144 slice 3 limitation; the runtime
-    // accepts `:(K,V) k1 v1 k2 v2 ...`.
+    // 2-arg fingerprint per arc 109 slice 1f; the runtime
+    // accepts `:K :V k1 v1 k2 v2 ...` (Vector-symmetric shape).
     assert_eq!(
         assert_signature_of_defn_some(":wat::core::HashMap"),
         true

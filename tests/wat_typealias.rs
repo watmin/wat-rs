@@ -136,20 +136,21 @@ fn alias_preserves_type_mismatches() {
 // ─── Alias at shape-inspection sites (post-reduce) ────────────────────
 
 #[test]
-fn tuple_alias_works_at_hashmap_constructor_arg() {
-    // `:my::KV` aliases the K,V tuple `:(wat::core::String,wat::core::i64)`. The HashMap
-    // constructor's first-arg check expands aliases before its
-    // Tuple-shape match, so `(:wat::core::HashMap :my::KV ...)` is
-    // accepted exactly as if the literal `:(wat::core::String,wat::core::i64)` were
-    // written. Mirrors `:wat::core::Bytes ≡ :wat::core::Vector<wat::core::u8>` resolving
-    // structurally at call sites.
+fn type_alias_works_at_hashmap_k_and_v_args() {
+    // Arc 214 P1 — old test tested `:(K,V)` tuple-keyword alias at arg 0;
+    // that shape is retired (arc 109 slice 1f). This test validates that
+    // per-type-arg aliases still work: `:my::Key` aliases :wat::core::String
+    // and `:my::Val` aliases :wat::core::i64. The constructor now takes
+    // two separate type-keyword args `:my::Key :my::Val` — aliases expand
+    // individually at each arg site.
     let src = r#"
-        (:wat::core::typealias :my::KV :(wat::core::String,wat::core::i64))
+        (:wat::core::typealias :my::Key :wat::core::String)
+        (:wat::core::typealias :my::Val :wat::core::i64)
 
         (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
             [row
-              (:wat::core::HashMap :my::KV "a" 1 "b" 2)
+              (:wat::core::HashMap :my::Key :my::Val "a" 1 "b" 2)
              got (:wat::core::get row "b")]
             (:wat::core::match got -> :wat::core::i64
               ((:wat::core::Some v) v)
@@ -170,7 +171,7 @@ fn alias_over_hashmap_passes_through_std_get() {
 
         (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
-            [row (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 10 "b" 20)
+            [row (:wat::core::HashMap :wat::core::String :wat::core::i64 "a" 10 "b" 20)
              got (:wat::core::get row "a")]
             (:wat::core::match got -> :wat::core::i64
               ((:wat::core::Some v) v)

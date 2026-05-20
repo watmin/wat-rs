@@ -182,7 +182,30 @@ types — `Atom<wat::core::String>`, `Atom<wat::holon::HolonAST>`,
 etc. No `AtomLiteral` enum or `AtomValue` trait. Rust types ARE
 wat types.
 
-## 8. Common verb signatures
+## 8. Collection constructors (verb-equals-type)
+
+Per arc 109 slice 1f — the verb IS the type. Parametric containers take
+leading type-keyword args (one per type parameter) followed by values;
+heterogeneous `Tuple` takes positional values only (element types inferred
+from each position).
+
+```wat
+(:wat::core::Vector :T x0 x1 ...)              ;; Vector<T>          (1 type-keyword)
+(:wat::core::HashMap :K :V k0 v0 k1 v1 ...)    ;; HashMap<K,V>       (2 type-keywords)
+(:wat::core::HashSet :T x0 x1 ...)             ;; HashSet<T>         (mirror of Vector)
+(:wat::core::Tuple x0 x1 x2 ...)               ;; Tuple<T0,T1,T2>    (no type-keywords; types inferred per position)
+```
+
+Rules:
+- For parametric containers (Vector/HashMap/HashSet): type-keyword args come FIRST and are mandatory (arity error if missing); value args come after.
+- For HashMap: value-arg count after `:K :V` must be even (alternating key/value pairs).
+- For Tuple: every arg is a value; element types are inferred per position; no leading type-keywords (heterogeneous structural type).
+- Type keywords accept aliases (`:my::Key` expands at call site; FQDN also works).
+
+Arc 214 P1 retired the old `(:wat::core::HashMap :(K,V) ...)` tuple-keyword
+shape; the two-separate-keywords shape `:K :V` mirrors Vector's `:T` exactly.
+
+## 9. Common verb signatures
 
 | Verb | Returns |
 |---|---|
@@ -199,7 +222,7 @@ Arc 113 widened every Err arm to `:Vec<*DiedError>` (chain).
 Arc 114 retired `:wat::kernel::spawn` / `join` / `join-result`
 in favor of `spawn-thread` + `Thread/join-result`.
 
-## 9. Test verbs
+## 10. Test verbs
 
 Tests use `:wat::test::*`, NOT `:user::*`:
 
@@ -212,7 +235,7 @@ Tests use `:wat::test::*`, NOT `:user::*`:
 
 See USER-GUIDE.md § 13 "Testing".
 
-## 10. Scope-deadlock rule
+## 11. Scope-deadlock rule
 
 Outer scope holds the Thread; inner scope owns every Sender
 clone. The compiler refuses programs where a `Channel` /
@@ -274,7 +297,7 @@ loop on its input pipe, can still deadlock at runtime; arc
 accept the runtime hang as the cost. See arc 134's INSCRIPTION
 for the full failure-engineering record.
 
-## 11. Channel-pair-deadlock rule
+## 12. Channel-pair-deadlock rule
 
 A function call MUST NOT receive both halves of one
 `make-bounded-channel` pair as arguments. Holding both ends
@@ -313,7 +336,7 @@ the pair-anchor binding and points at `ZERO-MUTEX.md § "Routing
 acks"` for the canonical fix patterns. Same trace machinery as
 arc 117; different rule arm.
 
-## 12. Discovery loop
+## 13. Discovery loop
 
 When you trip a rule:
 

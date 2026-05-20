@@ -1532,18 +1532,30 @@ fn encode_value_with_path(
             Ok(WatAST::List(out, span))
         }
         Value::wat__std__HashMap(map) => {
-            // `(:wat::core::HashMap :(K,V) k1 v1 k2 v2 ...)`. Determine K, V
-            // from first entry; empty map falls back to `:(:wat::core::nil,:wat::core::nil)`.
-            let pair_kw = if let Some((_canon, (k, vv))) = map.iter().next() {
+            // Closure-capture round-trip: re-encode a runtime HashMap<K,V> Value
+            // back to the corresponding `(:wat::core::HashMap :K :V k1 v1 k2 v2 ...)`
+            // constructor AST, so the captured env can be replayed in a fresh
+            // world. Verb-equals-type per arc 109 slice 1f; mirrors Vector's
+            // single `:T` with two type-args for K + V (arc 214 P1 retired the
+            // earlier `:(K,V)` tuple-keyword shape).
+            //
+            // Determine K, V from the first entry. LIMITATION: empty HashMaps
+            // have no entries to sample, so K + V fall back to `:wat::core::nil`
+            // sentinels. A re-evaluated empty-capture will type-check as
+            // `HashMap<nil,nil>` and accept any contents only at recipient
+            // contexts expecting that exact shape. Non-empty captures infer
+            // K + V honestly from the first entry's value types.
+            let (k_kw, v_kw) = if let Some((_canon, (k, vv))) = map.iter().next() {
                 let kkw = value_static_type_keyword(k, state)?;
                 let vkw = value_static_type_keyword(vv, state)?;
-                format!(":({},{})", kkw, vkw)
+                (kkw, vkw)
             } else {
-                ":(:wat::core::nil,:wat::core::nil)".to_string()
+                (":wat::core::nil".to_string(), ":wat::core::nil".to_string())
             };
-            let mut out = Vec::with_capacity(map.len() * 2 + 2);
+            let mut out = Vec::with_capacity(map.len() * 2 + 3);
             out.push(WatAST::Keyword(":wat::core::HashMap".into(), span.clone()));
-            out.push(WatAST::Keyword(pair_kw, span.clone()));
+            out.push(WatAST::Keyword(k_kw, span.clone()));
+            out.push(WatAST::Keyword(v_kw, span.clone()));
             // Iterate by sorted canonical key for determinism.
             let mut entries: Vec<(&String, &(Value, Value))> = map.iter().collect();
             entries.sort_by(|a, b| a.0.cmp(b.0));
@@ -1769,6 +1781,13 @@ fn value_static_type_keyword(
             ensure_type_extracted(state, &ev.type_path);
             ev.type_path.clone()
         }
+        // rune:purgare(safety-margin) — bare `:wat::core::HashMap` keyword emitted
+        // when HashMap is nested as a container element (e.g., Vec<HashMap<K,V>>).
+        // Arc 214 P1 changed the constructor to require two separate type-keywords
+        // `:K :V`; this static-tag path emits only the head. No current production
+        // path exercises nested-HashMap-in-container through closure extraction;
+        // if one arises, the K/V keywords must be derived here (sample first entry
+        // like the encode arm above) or emit via a richer type-tag mechanism.
         Value::wat__std__HashMap(_) => ":wat::core::HashMap".to_string(),
         Value::wat__std__HashSet(_) => ":wat::core::HashSet".to_string(),
         // Non-portable types — they should not be reaching here through

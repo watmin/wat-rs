@@ -8841,37 +8841,50 @@ pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
     }
 }
 
-/// `(:wat::core::HashMap :(K,V) k1 v1 k2 v2 ...)` — first arg is a
-/// tuple-type keyword read by the checker; remaining args are
-/// alternating key/value pairs. Odd pair count errors. Duplicate
-/// keys: later entries overwrite earlier.
+/// `(:wat::core::HashMap :K :V k1 v1 k2 v2 ...)` — verb-equals-type
+/// constructor. First two args are separate type-keywords `:K` and
+/// `:V` (one per type parameter); arc 214 P1 retired the earlier
+/// `:(K,V)` tuple-keyword form in favor of this Vector-symmetric
+/// shape (Vector takes `:T`; HashMap takes `:K :V`; same pattern,
+/// one keyword per type-param).
+///
+/// Remaining args are alternating key/value pairs. Odd pair count
+/// emits MalformedForm. Duplicate keys: later entries overwrite
+/// earlier.
 fn eval_hashmap_ctor(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    if args.is_empty() {
+    if args.len() < 2 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::core::HashMap".into(),
-            expected: 1,
-            got: 0,
+            expected: 2,
+            got: args.len(),
             span: list_span.clone(),
         });
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::HashMap".into(),
-            reason: "first argument must be a tuple type keyword :(K,V)".into(),
+            reason: "first two arguments must be type keywords (K, V); first argument is not a keyword".into(),
             span: args[0].span().clone(),
         });
     }
-    let pairs = &args[1..];
+    if !matches!(&args[1], WatAST::Keyword(_, _)) {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::HashMap".into(),
+            reason: "first two arguments must be type keywords (K, V); second argument is not a keyword".into(),
+            span: args[1].span().clone(),
+        });
+    }
+    let pairs = &args[2..];
     if !pairs.len().is_multiple_of(2) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::HashMap".into(),
             reason: format!(
-                "arity after :(K,V) must be even (alternating key/value pairs); got {}",
+                "arity after :K :V type args must be even (alternating key/value pairs); got {}",
                 pairs.len()
             ),
             span: list_span.clone(),
@@ -24063,7 +24076,7 @@ mod tests {
 
     #[test]
     fn hashmap_constructor_even_arity() {
-        let v = eval_expr(r#"(:wat::core::HashMap :(String,i64) "a" 1 "b" 2)"#).unwrap();
+        let v = eval_expr(r#"(:wat::core::HashMap :String :i64 "a" 1 "b" 2)"#).unwrap();
         match v {
             Value::wat__std__HashMap(m) => {
                 assert_eq!(m.len(), 2);
@@ -24074,7 +24087,7 @@ mod tests {
 
     #[test]
     fn hashmap_constructor_odd_arity_errors() {
-        let err = eval_expr(r#"(:wat::core::HashMap :(String,i64) "a" 1 "b")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::HashMap :String :i64 "a" 1 "b")"#).unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
@@ -24082,7 +24095,7 @@ mod tests {
     fn hashmap_get_hit_returns_some() {
         let src = r#"
             (:wat::core::let
-              [m (:wat::core::HashMap :(String,i64) "a" 10 "b" 20)]
+              [m (:wat::core::HashMap :String :i64 "a" 10 "b" 20)]
               (:wat::core::match (:wat::core::get m "a") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None 0)))
@@ -24097,7 +24110,7 @@ mod tests {
     fn hashmap_get_miss_returns_none() {
         let src = r#"
             (:wat::core::let
-              [m (:wat::core::HashMap :(String,i64) "a" 10)]
+              [m (:wat::core::HashMap :String :i64 "a" 10)]
               (:wat::core::match (:wat::core::get m "missing") -> :i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
@@ -24112,13 +24125,13 @@ mod tests {
     fn hashmap_contains_tracks_membership() {
         let src = r#"
             (:wat::core::let
-              [m (:wat::core::HashMap :(String,i64) "a" 10)]
+              [m (:wat::core::HashMap :String :i64 "a" 10)]
               (:wat::core::contains? m "a"))
         "#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
         let src_missing = r#"
             (:wat::core::let
-              [m (:wat::core::HashMap :(String,i64) "a" 10)]
+              [m (:wat::core::HashMap :String :i64 "a" 10)]
               (:wat::core::contains? m "b"))
         "#;
         assert!(matches!(eval_expr(src_missing).unwrap(), Value::bool(false)));
@@ -24131,7 +24144,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [m
-                (:wat::core::HashMap :(String,i64) "42" 100)]
+                (:wat::core::HashMap :String :i64 "42" 100)]
               (:wat::core::contains? m 42))
         "#;
         // Map has one entry under String "42". Contains? with i64 key 42
@@ -24145,7 +24158,7 @@ mod tests {
     #[test]
     fn hashmap_composite_key_errors() {
         // Keys restricted to primitives in this slice.
-        let err = eval_expr(r#"(:wat::core::HashMap :(Vec<i64>,String) (:wat::core::Vector :i64 1 2) "x")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::HashMap :Vec<i64> :String (:wat::core::Vector :i64 1 2) "x")"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -24170,7 +24183,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [m0
-                (:wat::core::HashMap :(String,i64))
+                (:wat::core::HashMap :String :i64)
                m1
                 (:wat::core::assoc m0 "count" 1)]
               (:wat::core::match (:wat::core::get m1 "count") -> :i64
@@ -24188,7 +24201,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [m0
-                (:wat::core::HashMap :(String,i64) "count" 1)
+                (:wat::core::HashMap :String :i64 "count" 1)
                m1
                 (:wat::core::assoc m0 "count" 2)]
               (:wat::core::match (:wat::core::get m1 "count") -> :i64
@@ -24207,7 +24220,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [m0
-                (:wat::core::HashMap :(String,i64) "a" 10)
+                (:wat::core::HashMap :String :i64 "a" 10)
                m1
                 (:wat::core::assoc m0 "b" 20)]
               (:wat::core::match (:wat::core::get m0 "b") -> :i64
@@ -24231,7 +24244,7 @@ mod tests {
     #[test]
     fn assoc_arity_mismatch() {
         let err = eval_expr(
-            r#"(:wat::core::assoc (:wat::core::HashMap :(String,i64)) "k")"#,
+            r#"(:wat::core::assoc (:wat::core::HashMap :String :i64) "k")"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
@@ -24352,7 +24365,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [m0
-                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2)
+                (:wat::core::HashMap :String :i64 "a" 1 "b" 2)
                m1
                 (:wat::core::dissoc m0 "a")]
               (:wat::core::match (:wat::core::get m1 "a") -> :i64
@@ -24370,7 +24383,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [m0
-                (:wat::core::HashMap :(String,i64) "a" 1)
+                (:wat::core::HashMap :String :i64 "a" 1)
                m1
                 (:wat::core::dissoc m0 "missing")]
               (:wat::core::match (:wat::core::get m1 "a") -> :i64
@@ -24389,7 +24402,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [m0
-                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2)
+                (:wat::core::HashMap :String :i64 "a" 1 "b" 2)
                _m1
                 (:wat::core::dissoc m0 "a")]
               (:wat::core::match (:wat::core::get m0 "a") -> :i64
@@ -24411,7 +24424,7 @@ mod tests {
     #[test]
     fn dissoc_arity_mismatch() {
         let err = eval_expr(
-            r#"(:wat::core::dissoc (:wat::core::HashMap :(String,i64)))"#,
+            r#"(:wat::core::dissoc (:wat::core::HashMap :String :i64))"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
@@ -24422,7 +24435,7 @@ mod tests {
         let src = r#"
             (:wat::core::length
               (:wat::core::keys
-                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2 "c" 3)))
+                (:wat::core::HashMap :String :i64 "a" 1 "b" 2 "c" 3)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(3) => {}
@@ -24435,7 +24448,7 @@ mod tests {
         let src = r#"
             (:wat::core::length
               (:wat::core::keys
-                (:wat::core::HashMap :(String,i64))))
+                (:wat::core::HashMap :String :i64)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(0) => {}
@@ -24453,7 +24466,7 @@ mod tests {
             (:wat::core::let
               [ks
                 (:wat::core::keys
-                  (:wat::core::HashMap :(String,i64) "alpha" 1 "beta" 2))]
+                  (:wat::core::HashMap :String :i64 "alpha" 1 "beta" 2))]
               (:wat::core::and
                 (:wat::core::contains? ks "alpha")
                 (:wat::core::contains? ks "beta")))
@@ -24473,7 +24486,7 @@ mod tests {
     #[test]
     fn keys_arity_mismatch() {
         let err = eval_expr(
-            r#"(:wat::core::keys (:wat::core::HashMap :(String,i64)) "extra")"#,
+            r#"(:wat::core::keys (:wat::core::HashMap :String :i64) "extra")"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
@@ -24484,7 +24497,7 @@ mod tests {
         let src = r#"
             (:wat::core::length
               (:wat::core::values
-                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2 "c" 3)))
+                (:wat::core::HashMap :String :i64 "a" 1 "b" 2 "c" 3)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(3) => {}
@@ -24497,7 +24510,7 @@ mod tests {
         let src = r#"
             (:wat::core::length
               (:wat::core::values
-                (:wat::core::HashMap :(String,i64))))
+                (:wat::core::HashMap :String :i64)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(0) => {}
@@ -24511,7 +24524,7 @@ mod tests {
         let src = r#"
             (:wat::core::foldl
               (:wat::core::values
-                (:wat::core::HashMap :(String,i64) "a" 10 "b" 20 "c" 30))
+                (:wat::core::HashMap :String :i64 "a" 10 "b" 20 "c" 30))
               0
               (:wat::core::fn [acc <- :i64 v <- :i64] -> :i64
                 (:wat::core::i64::+'2 acc v)))
@@ -24531,7 +24544,7 @@ mod tests {
     #[test]
     fn values_arity_mismatch() {
         let err = eval_expr(
-            r#"(:wat::core::values (:wat::core::HashMap :(String,i64)) "extra")"#,
+            r#"(:wat::core::values (:wat::core::HashMap :String :i64) "extra")"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
@@ -24542,7 +24555,7 @@ mod tests {
     #[test]
     fn empty_q_hashmap_true_when_empty() {
         let src = r#"
-            (:wat::core::empty? (:wat::core::HashMap :(String,i64)))
+            (:wat::core::empty? (:wat::core::HashMap :String :i64))
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -24553,7 +24566,7 @@ mod tests {
     #[test]
     fn empty_q_hashmap_false_when_populated() {
         let src = r#"
-            (:wat::core::empty? (:wat::core::HashMap :(String,i64) "a" 1))
+            (:wat::core::empty? (:wat::core::HashMap :String :i64 "a" 1))
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(false) => {}
@@ -24909,7 +24922,7 @@ mod tests {
     fn hashmap_length_returns_entry_count() {
         let src = r#"(:wat::core::let
             [m
-              (:wat::core::HashMap :(String,i64) "a" 1 "b" 2 "c" 3)]
+              (:wat::core::HashMap :String :i64 "a" 1 "b" 2 "c" 3)]
             (:wat::core::length m))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
     }
@@ -24918,7 +24931,7 @@ mod tests {
     fn hashmap_length_empty_returns_zero() {
         let src = r#"(:wat::core::let
             [m
-              (:wat::core::HashMap :(String,i64))]
+              (:wat::core::HashMap :String :i64)]
             (:wat::core::length m))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(0)));
     }

@@ -565,9 +565,9 @@ fn hashmap_ord_raises_type_mismatch() {
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [m1
-              (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 1)
+              (:wat::core::HashMap :wat::core::String :wat::core::i64 "a" 1)
              m2
-              (:wat::core::HashMap :(wat::core::String,wat::core::i64) "b" 2)]
+              (:wat::core::HashMap :wat::core::String :wat::core::i64 "b" 2)]
             (:wat::core::< m1 m2)))
     "#;
     let err = run_expecting_runtime_error(src);

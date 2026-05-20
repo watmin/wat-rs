@@ -361,7 +361,7 @@ fn length_canary_hashmap_via_define_alias() {
 
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:user::size
-            (:wat::core::HashMap :(wat::core::String,wat::core::i64)
+            (:wat::core::HashMap :wat::core::String :wat::core::i64
               "a" 1 "b" 2 "c" 3)))
     "##;
     let n = run_i64(src);

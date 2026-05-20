@@ -10556,11 +10556,15 @@ fn infer_polymorphic_holon_to_i64(
 // above: Dispatch entity routes the polymorphic surface name to
 // per-Type rank-1 impls.
 
-/// Type-check `(:wat::core::HashMap :(K,V) k1 v1 k2 v2 ...)`. First arg
-/// is a tuple-type keyword `:(K,V)` encoding both parameters; the
-/// remaining args are alternating key/value pairs. Keys unify with K,
-/// values with V. Explicit typing required (matches vec/list / make-queue
-/// resource-constructor discipline).
+/// Type-check `(:wat::core::HashMap :K :V k1 v1 k2 v2 ...)`. First two
+/// args are separate type-keywords `:K` and `:V` (one per type parameter);
+/// arc 214 P1 retired the earlier `:(K,V)` tuple-keyword form in favor of
+/// this Vector-symmetric shape (Vector takes `:T`; HashMap takes `:K :V`).
+///
+/// Remaining args are alternating key/value pairs. Keys unify with K,
+/// values with V. K and V must be declared explicitly — the checker
+/// cannot infer them from pair contents because the constructor may be
+/// called with zero pairs (empty HashMap).
 fn infer_hashmap_constructor(
     args: &[WatAST],
     head_span: &Span,
@@ -10570,11 +10574,11 @@ fn infer_hashmap_constructor(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    if args.is_empty() {
+    if args.len() < 2 {
         errors.push(CheckError::ArityMismatch {
             callee: ":wat::core::HashMap".into(),
-            expected: 1,
-            got: 0,
+            expected: 2,
+            got: args.len(),
             span: head_span.clone(),
         });
         return Some(TypeExpr::Parametric {
@@ -10582,54 +10586,62 @@ fn infer_hashmap_constructor(
             args: vec![fresh.fresh(), fresh.fresh()],
         });
     }
-    let (k_ty, v_ty) = match &args[0] {
+    let k_ty = match &args[0] {
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            // Expand typealiases before the Tuple-shape check so users
-            // can name `:(K,V)` once at top level and reuse the alias
-            // at every HashMap construction site. Mirrors the
-            // "aliases resolve structurally at call sites" rule
-            // documented in CONVENTIONS.md (e.g. `:wat::core::Bytes ≡
-            // :Vec<u8>`). Without this, a tuple-shaped alias parses
-            // as `TypeExpr::Path(...)` and fails the Tuple match
-            // before ever being unwrapped — even though every other
-            // site treats the alias as its expansion.
-            Ok(parsed) => match crate::types::expand_alias(&parsed, env.types()) {
-                TypeExpr::Tuple(ts) if ts.len() == 2 => (ts[0].clone(), ts[1].clone()),
-                other => {
-                    errors.push(CheckError::MalformedForm {
-                        head: ":wat::core::HashMap".into(),
-                        reason: format!(
-                            "first argument must be a tuple type :(K,V); got {}",
-                            format_type(&other)
-                        ),
-                        span: args[0].span().clone(),
-                    });
-                    (fresh.fresh(), fresh.fresh())
-                }
-            },
+            Ok(parsed) => {
+                let expanded = crate::types::expand_alias(&parsed, env.types());
+                expanded
+            }
             Err(_) => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::HashMap".into(),
-                    reason: format!("first argument {} is not a valid type keyword", k),
+                    reason: format!("first type argument {} is not a valid type keyword", k),
                     span: args[0].span().clone(),
                 });
-                (fresh.fresh(), fresh.fresh())
+                fresh.fresh()
             }
         },
         _ => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::HashMap".into(),
-                reason: "first argument must be a tuple type keyword :(K,V)".into(),
+                reason: "first two arguments must be type keywords (K, V); first argument is not a keyword".into(),
                 span: args[0].span().clone(),
             });
-            (fresh.fresh(), fresh.fresh())
+            fresh.fresh()
         }
     };
-    let pairs = &args[1..];
+    let v_ty = match &args[1] {
+        WatAST::Keyword(v, _) => match crate::types::parse_type_expr(v) {
+            Ok(parsed) => {
+                let expanded = crate::types::expand_alias(&parsed, env.types());
+                expanded
+            }
+            Err(_) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::HashMap".into(),
+                    reason: format!("second type argument {} is not a valid type keyword", v),
+                    span: args[1].span().clone(),
+                });
+                fresh.fresh()
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::HashMap".into(),
+                reason: "first two arguments must be type keywords (K, V); second argument is not a keyword".into(),
+                span: args[1].span().clone(),
+            });
+            fresh.fresh()
+        }
+    };
+    let pairs = &args[2..];
     if !pairs.len().is_multiple_of(2) {
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::HashMap".into(),
-            reason: "arity after :(K,V) must be even (alternating key/value)".into(),
+            reason: format!(
+                "arity after :K :V type args must be even (alternating key/value pairs); got {}",
+                pairs.len()
+            ),
             span: head_span.clone(),
         });
     }
@@ -15547,13 +15559,13 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // :wat::core::HashMap — variadic at runtime (accepts a leading
-    // `:(K,V)` tuple-keyword followed by alternating key/value
-    // pairs; infer_hashmap_constructor at check.rs:7904). The
-    // fingerprint registers a 2-arg `:K, :V` sentinel since
-    // TypeScheme has no variadic shape today AND no
-    // tuple-type-keyword shape. Real shape checking lives in the
-    // handler. Per arc 144 slice 3 limitation.
+    // :wat::core::HashMap — variadic constructor at runtime (accepts
+    // `:K :V k0 v0 k1 v1 ...`, 2+ args; infer_hashmap_constructor at
+    // check.rs:10564). Verb-equals-type per arc 109 slice 1f;
+    // mirrors :wat::core::Vector :T x0 x1 ... with two type-args
+    // for HashMap's K + V. The 2-arg fingerprint matches the call
+    // shape directly. Real arity + pair-parity + per-element checking
+    // lives in the handler.
     env.register(
         ":wat::core::HashMap".into(),
         TypeScheme {
