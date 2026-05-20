@@ -168,34 +168,52 @@ fn probe_slice3d1_try_recv_succeeds_when_data_ready() {
 #[test]
 fn probe_slice3d1_len_reports_accumulator_frames() {
     // Verifies len() returns the count of complete frames in the
-    // accumulator. We don't assert exact intermediate len values
-    // (kernel-scheduling dependent) — we verify recv values are
-    // correct and len observably tracks consumption.
+    // accumulator.
+    //
+    // Intermediate len after ONE try_recv:
+    // After send("one") + send("two"), one try_recv is issued. try_recv
+    // does one libc::poll (non-blocking) then one io_uring Read. If the
+    // kernel delivered both frames in the pipe buffer before the Read (very
+    // likely for small sends — both writes complete before our Read syscall),
+    // the accumulator after take_frame holds frame 2 → len == 1.
+    // If the kernel only has frame 1's bytes in the buffer at Read time,
+    // accumulator is empty after take_frame → len == 0.
+    // The invariant we CAN assert: len <= 1 (at most one leftover frame)
+    // and len >= 0 (trivially). The exact value is kernel-scheduling
+    // dependent. We assert the bound and verify correct consumption below.
     let (tx, rx) = pair::<String>().expect("pair");
     assert_eq!(rx.len(), 0, "fresh receiver has empty accumulator");
     tx.send("one".to_string()).expect("send 1");
     tx.send("two".to_string()).expect("send 2");
-    // After both recvs, accumulator is drained → len 0.
-    assert_eq!(rx.recv().expect("recv 1"), "one");
+    // One try_recv — consume frame 1; frame 2 may or may not be in accumulator.
+    assert_eq!(
+        rx.try_recv().expect("try_recv must succeed — frame 1 is in the kernel pipe"),
+        "one",
+        "first frame must be 'one'"
+    );
+    assert!(rx.len() <= 1, "accumulator holds at most one leftover frame after one try_recv");
+    // After the second recv, accumulator must be fully drained.
     assert_eq!(rx.recv().expect("recv 2"), "two");
-    assert_eq!(rx.len(), 0, "accumulator empty after both recvs");
+    assert_eq!(rx.len(), 0, "accumulator empty after consuming both frames");
 }
 
 #[test]
 fn probe_slice3d1_sender_close_consumes_endpoint() {
-    // Verifies Sender::close consumes self and returns Ok(()).
+    // Verifies Sender::close consumes self (infallible; no Result to check).
+    // The contract: move semantics enforce single-close at compile time;
+    // Drop closes the OwnedFd; no runtime error path exists.
     let (tx, rx) = pair::<String>().expect("pair");
-    let result = tx.close();
-    assert!(result.is_ok(), "Sender::close must return Ok(())");
+    tx.close(); // consumes tx; if this compiles, the contract holds
     drop(rx);
 }
 
 #[test]
 fn probe_slice3d1_receiver_close_consumes_endpoint() {
-    // Verifies Receiver::close consumes self and returns Ok(()).
+    // Verifies Receiver::close consumes self (infallible; no Result to check).
+    // The contract: move semantics enforce single-close at compile time;
+    // Drop closes the OwnedFd; no runtime error path exists.
     let (tx, rx) = pair::<String>().expect("pair");
-    let result = rx.close();
-    assert!(result.is_ok(), "Receiver::close must return Ok(())");
+    rx.close(); // consumes rx; if this compiles, the contract holds
     drop(tx);
 }
 
@@ -294,6 +312,7 @@ fn probe_slice3d2_select_picks_fired_receiver() {
             assert_eq!(result, Ok("hello-a".to_string()), "result must carry the sent value");
         }
         SelectOutcome::Shutdown => panic!("unexpected Shutdown"),
+        SelectOutcome::SubstrateError(e) => panic!("unexpected SubstrateError: {e}"),
     }
 }
 

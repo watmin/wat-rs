@@ -67,8 +67,8 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use io_uring::{opcode, types, IoUring};
 
 use crate::comms::{
-    CloseError, CommReceiver, CommSender, HolonRepresentable, ReceiverIndex,
-    RecvError, SelectOutcome, SendError, TryRecvError,
+    CommReceiver, CommSender, HolonRepresentable, ReceiverIndex, RecvError, SelectOutcome,
+    SendError, TryRecvError,
 };
 
 // ─── Sender ──────────────────────────────────────────────────────────────────
@@ -149,12 +149,10 @@ impl<T: HolonRepresentable> Sender<T> {
     /// recv only after ALL `Sender` clones close (the pipe's write
     /// reference count hits zero; kernel signals EOF on the read-end).
     ///
-    /// Process-tier close always succeeds — OwnedFd Drop handles
-    /// `libc::close(2)`; no fallible operation at this layer.
-    pub fn close(self) -> Result<(), CloseError> {
-        // self drops at end of scope; OwnedFd's Drop calls libc::close.
-        // No fallible operation; always Ok.
-        Ok(())
+    /// Infallible: self drops at end of scope; OwnedFd's Drop calls
+    /// libc::close(2). Move semantics make double-close a compile error.
+    pub fn close(self) {
+        // Drop happens at end of scope.
     }
 }
 
@@ -183,7 +181,7 @@ impl<T: HolonRepresentable> CommSender<T> for Sender<T> {
     fn send(&self, value: T) -> Result<(), SendError<T>> {
         Sender::send(self, value)
     }
-    fn close(self) -> Result<(), CloseError> {
+    fn close(self) {
         Sender::close(self)
     }
 }
@@ -236,17 +234,17 @@ impl<T: HolonRepresentable> Receiver<T> {
             return decode_frame::<T>(&frame);
         }
 
-        // rune:sequi(ambient-context) — SHUTDOWN_BROADCAST_READ_FD is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
-        let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
-            .load(std::sync::atomic::Ordering::Acquire);
         let read_fd = self.read_fd.as_raw_fd();
+        // current_broadcast_fd() encapsulates the atomic-load + sentinel-check;
+        // see helper's rune:sequi(ambient-context) for rationale.
+        let broadcast_opt = current_broadcast_fd();
 
         loop {
             // Cascade-aware step — poll both arms (data + broadcast).
-            // Bootstrap fallback: when broadcast_fd is -1 (pre-init or
+            // Bootstrap fallback: when broadcast_opt is None (pre-init or
             // test bypass), skip the poll and fall through to bare Read
             // (Stone A behavior; no cascade available).
-            if broadcast_fd >= 0 {
+            if let Some(broadcast_fd) = broadcast_opt {
                 match wait_for_data_or_cascade(read_fd, broadcast_fd)? {
                     PollOutcome::Shutdown => return Err(RecvError),
                     PollOutcome::DataReady => {
@@ -255,42 +253,14 @@ impl<T: HolonRepresentable> Receiver<T> {
                 }
             }
 
-            // Read step — same as Stones A+B. Per-call IoUring; ring size 2.
-            // (Stone E persistifies the ring.)
-            // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
-            let mut ring = IoUring::new(2).map_err(|_| RecvError)?;
-            let mut buf = [0u8; 4096];
-            let read_e = opcode::Read::new(
-                types::Fd(read_fd),
-                buf.as_mut_ptr(),
-                buf.len() as _,
-            )
-            .build()
-            .user_data(1);
-
-            // SAFETY: read_e's buf pointer (buf) outlives submit_and_wait
-            // because buf is on this function's stack and not freed until
-            // after the wait completes.
-            unsafe {
-                ring.submission()
-                    .push(&read_e)
-                    .map_err(|_| RecvError)?;
-            }
-
-            ring.submit_and_wait(1).map_err(|_| RecvError)?;
-            let cqe = ring.completion().next().ok_or(RecvError)?;
-            let result = cqe.result();
-            if result < 0 {
-                return Err(RecvError);
-            }
-            if result == 0 {
+            // Read step — uring_read_into_acc encapsulates the IoUring::new +
+            // SQE push + submit_and_wait + CQE drain sequence; see helper's
+            // rune:temperare(no-reactor) for rationale.
+            let n = uring_read_into_acc(read_fd, &self.accumulator).map_err(|_| RecvError)?;
+            if n == 0 {
                 // EOF — peer closed the write-end.
                 return Err(RecvError);
             }
-            let n = result as usize;
-            self.accumulator
-                .borrow_mut()
-                .extend_from_slice(&buf[..n]);
 
             if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
                 return decode_frame::<T>(&frame);
@@ -324,9 +294,9 @@ impl<T: HolonRepresentable> Receiver<T> {
             return decode_frame::<T>(&frame).map_err(|_| TryRecvError::Disconnected);
         }
 
-        // rune:sequi(ambient-context) — SHUTDOWN_BROADCAST_READ_FD is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
-        let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
-            .load(std::sync::atomic::Ordering::Acquire);
+        // current_broadcast_fd() encapsulates the atomic-load + sentinel-check;
+        // see helper's rune:sequi(ambient-context) for rationale.
+        let broadcast_opt = current_broadcast_fd();
         let read_fd = self.read_fd.as_raw_fd();
 
         // Non-blocking poll on [data_fd] + [broadcast_fd if initialized].
@@ -338,12 +308,12 @@ impl<T: HolonRepresentable> Receiver<T> {
                 revents: 0,
             },
             libc::pollfd {
-                fd: if broadcast_fd >= 0 { broadcast_fd } else { -1 },
+                fd: broadcast_opt.unwrap_or(-1),
                 events: libc::POLLHUP,
                 revents: 0,
             },
         ];
-        let nfds = if broadcast_fd >= 0 { 2 } else { 1 };
+        let nfds = if broadcast_opt.is_some() { 2 } else { 1 };
 
         // SAFETY: fds is a stack-allocated array whose lifetime covers
         // the poll call. libc::poll with timeout=0 returns immediately.
@@ -363,46 +333,15 @@ impl<T: HolonRepresentable> Receiver<T> {
             return Err(TryRecvError::Empty);
         }
 
-        // Data is ready — do ONE io_uring Read. If a complete frame is
-        // produced, decode + return Ok(T). If partial bytes only,
-        // return Empty (accumulator retains the bytes for next call).
-        // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
-        let mut ring = IoUring::new(2).map_err(|_| TryRecvError::Disconnected)?;
-        let mut buf = [0u8; 4096];
-        let read_e = opcode::Read::new(
-            types::Fd(read_fd),
-            buf.as_mut_ptr(),
-            buf.len() as _,
-        )
-        .build()
-        .user_data(1);
-
-        // SAFETY: read_e's buf pointer (buf) outlives submit_and_wait
-        // because buf is on this function's stack and not freed until
-        // after the wait completes.
-        unsafe {
-            ring.submission()
-                .push(&read_e)
-                .map_err(|_| TryRecvError::Disconnected)?;
-        }
-        ring.submit_and_wait(1)
+        // Data is ready — uring_read_into_acc encapsulates the IoUring::new +
+        // SQE push + submit_and_wait + CQE drain sequence; see helper's
+        // rune:temperare(no-reactor) for rationale.
+        let n = uring_read_into_acc(read_fd, &self.accumulator)
             .map_err(|_| TryRecvError::Disconnected)?;
-        let cqe = ring
-            .completion()
-            .next()
-            .ok_or(TryRecvError::Disconnected)?;
-        let result = cqe.result();
-        if result < 0 {
-            return Err(TryRecvError::Disconnected);
-        }
-        if result == 0 {
+        if n == 0 {
             // EOF — peer closed the write-end.
             return Err(TryRecvError::Disconnected);
         }
-        let bytes_read = result as usize;
-        self.accumulator
-            .borrow_mut()
-            .extend_from_slice(&buf[..bytes_read]);
 
         if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
             decode_frame::<T>(&frame).map_err(|_| TryRecvError::Disconnected)
@@ -435,10 +374,10 @@ impl<T: HolonRepresentable> Receiver<T> {
     /// send only after ALL `Receiver` clones close (the pipe's read
     /// reference count hits zero).
     ///
-    /// Process-tier close always succeeds — OwnedFd Drop handles
-    /// `libc::close(2)`; no fallible operation.
-    pub fn close(self) -> Result<(), CloseError> {
-        Ok(())
+    /// Infallible: OwnedFd Drop handles libc::close(2). Move semantics
+    /// make double-close a compile error.
+    pub fn close(self) {
+        // Drop happens at end of scope.
     }
 }
 
@@ -476,7 +415,7 @@ impl<T: HolonRepresentable> CommReceiver<T> for Receiver<T> {
     fn len(&self) -> usize {
         Receiver::len(self)
     }
-    fn close(self) -> Result<(), CloseError> {
+    fn close(self) {
         Receiver::close(self)
     }
 }
@@ -526,7 +465,7 @@ fn wait_for_data_or_cascade(
     .build()
     .user_data(DATA_TOKEN);
 
-    let poll_broad = opcode::PollAdd::new(
+    let poll_broadcast = opcode::PollAdd::new(
         types::Fd(broadcast_fd),
         libc::POLLHUP as u32,
     )
@@ -541,7 +480,7 @@ fn wait_for_data_or_cascade(
             .push(&poll_data)
             .map_err(|_| RecvError)?;
         ring.submission()
-            .push(&poll_broad)
+            .push(&poll_broadcast)
             .map_err(|_| RecvError)?;
     }
 
@@ -603,27 +542,60 @@ fn take_frame(acc: &mut Vec<u8>) -> Option<Vec<u8>> {
     Some(frame)
 }
 
-// ─── Select ──────────────────────────────────────────────────────────────────
+// ─── Decomplected helpers ────────────────────────────────────────────────────
 
-/// Synthetic `SelectOutcome` for io_uring substrate-level failures inside
-/// `Select::select` (ring creation, SQE push, submit_and_wait, or CQE
-/// drained with `result < 0`).
+/// Returns `Some(fd)` if the substrate's broadcast cascade pipe is initialized,
+/// `None` otherwise.
 ///
-/// `ReceiverIndex(0)` is an arbitrary sentinel — no user arm actually
-/// fired; the SUBSTRATE failed before any arm could complete. The result
-/// is `Err(RecvError)` so callers see "channel is unrecoverable for this
-/// call." This is distinct from arm-specific Read failures, where the
-/// fired `arm_idx` is meaningful and is used directly.
-///
-/// Centralizing this synthetic outcome in one helper keeps the WHY in
-/// one place; callers read `substrate_failure_outcome()` and the intent
-/// is clear from the name without per-site duplication.
-fn substrate_failure_outcome<T>() -> SelectOutcome<T> {
-    SelectOutcome::Recv {
-        index: ReceiverIndex(0),
-        result: Err(RecvError),
-    }
+/// rune:sequi(ambient-context) — SHUTDOWN_BROADCAST_READ_FD is the substrate
+/// cascade signal; explicit threading would bloat every recv signature in the
+/// codebase. This helper encapsulates the atomic-load + sentinel-check so the
+/// rune has a single point of truth rather than three scattered call sites.
+fn current_broadcast_fd() -> Option<std::os::fd::RawFd> {
+    let raw = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(std::sync::atomic::Ordering::Acquire);
+    if raw >= 0 { Some(raw) } else { None }
 }
+
+/// Issues one io_uring Read on `fd` into `acc`. Returns `Ok(n)` where `n` is
+/// the number of bytes appended (0 means EOF / peer closed write end), or
+/// `Err(())` on io_uring ring creation, SQE submission, or CQE error.
+///
+/// Callers map `Err(())` to their domain error (RecvError, TryRecvError, etc.)
+/// at the call site.
+///
+/// rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394)
+/// will persistify this ring per Receiver/Select; per-call construction is the
+/// pre-Stone-E placeholder.
+fn uring_read_into_acc(fd: std::os::fd::RawFd, acc: &std::cell::RefCell<Vec<u8>>) -> Result<usize, ()> {
+    let mut ring = IoUring::new(2).map_err(|_| ())?;
+    let mut buf = [0u8; 4096];
+    let read_e = opcode::Read::new(
+        types::Fd(fd),
+        buf.as_mut_ptr(),
+        buf.len() as _,
+    )
+    .build()
+    .user_data(1);
+
+    // SAFETY: read_e's buf pointer (buf) outlives submit_and_wait because
+    // buf is on this function's stack and is not freed until after the wait
+    // completes.
+    unsafe {
+        ring.submission().push(&read_e).map_err(|_| ())?;
+    }
+
+    ring.submit_and_wait(1).map_err(|_| ())?;
+    let cqe = ring.completion().next().ok_or(())?;
+    let result = cqe.result();
+    if result < 0 {
+        return Err(());
+    }
+    let n = result as usize;
+    acc.borrow_mut().extend_from_slice(&buf[..n]);
+    Ok(n)
+}
+
+// ─── Select ──────────────────────────────────────────────────────────────────
 
 /// Cascade-aware fan-in over multiple process-tier receivers. Mirrors
 /// the thread-tier `Select` shape (`src/comms/thread.rs`) — same API
@@ -700,14 +672,15 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
             }
         }
 
-        // rune:sequi(ambient-context) — SHUTDOWN_BROADCAST_READ_FD is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
-        let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
-            .load(std::sync::atomic::Ordering::Acquire);
+        // Group L hoist: current_broadcast_fd() is invariant across loop iterations
+        // (cascade fd doesn't change once initialized). Call once before the loop;
+        // see helper's rune:sequi(ambient-context) for rationale.
+        let broadcast_opt = current_broadcast_fd();
 
         loop {
             // Per-call IoUring sized for N+1 POLL_ADD entries.
             // user_data scheme: 0 = broadcast; 1..=N = data arms.
-            let arm_count = self.receivers.len() + if broadcast_fd >= 0 { 1 } else { 0 };
+            let arm_count = self.receivers.len() + if broadcast_opt.is_some() { 1 } else { 0 };
             // io-uring crate requires power-of-2-or-greater capacity.
             // Use next_power_of_two to round up; floor at 2.
             let ring_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
@@ -715,13 +688,13 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
             // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
             let mut ring = match IoUring::new(ring_capacity) {
                 Ok(r) => r,
-                Err(_) => return substrate_failure_outcome(),
+                Err(e) => return SelectOutcome::SubstrateError(e),
             };
 
             const BROADCAST_TOKEN: u64 = 0;
 
-            if broadcast_fd >= 0 {
-                let poll_broad = opcode::PollAdd::new(
+            if let Some(broadcast_fd) = broadcast_opt {
+                let poll_broadcast = opcode::PollAdd::new(
                     types::Fd(broadcast_fd),
                     libc::POLLHUP as u32,
                 )
@@ -730,8 +703,10 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                 // SAFETY: broadcast_fd is owned by the substrate worker
                 // and remains valid for the lifetime of submit_and_wait.
                 unsafe {
-                    if ring.submission().push(&poll_broad).is_err() {
-                        return substrate_failure_outcome();
+                    if ring.submission().push(&poll_broadcast).is_err() {
+                        return SelectOutcome::SubstrateError(
+                            std::io::Error::other("io_uring SQE push (broadcast POLL_ADD) failed: submission queue full"),
+                        );
                     }
                 }
             }
@@ -747,13 +722,15 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                 // by 'a; remains valid for the lifetime of submit_and_wait.
                 unsafe {
                     if ring.submission().push(&poll_data).is_err() {
-                        return substrate_failure_outcome();
+                        return SelectOutcome::SubstrateError(
+                            std::io::Error::other("io_uring SQE push (data POLL_ADD) failed: submission queue full"),
+                        );
                     }
                 }
             }
 
-            if ring.submit_and_wait(1).is_err() {
-                return substrate_failure_outcome();
+            if let Err(e) = ring.submit_and_wait(1) {
+                return SelectOutcome::SubstrateError(e);
             }
 
             // Drain ALL ready CQEs — both broadcast and data arms may
@@ -762,7 +739,9 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
             let mut first_data_arm: Option<usize> = None;
             while let Some(cqe) = ring.completion().next() {
                 if cqe.result() < 0 {
-                    return substrate_failure_outcome();
+                    return SelectOutcome::SubstrateError(
+                        std::io::Error::from_raw_os_error(-cqe.result()),
+                    );
                 }
                 let token = cqe.user_data();
                 if token == BROADCAST_TOKEN {
@@ -792,65 +771,20 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                 }
             };
 
-            // Read from the fired arm — do ONE io_uring Read.
+            // Read from the fired arm — uring_read_into_acc encapsulates the
+            // IoUring::new + SQE push + submit_and_wait + CQE drain sequence;
+            // see helper's rune:temperare(no-reactor) for rationale.
             let rx = self.receivers[arm_idx];
-            let read_fd = rx.read_fd.as_raw_fd();
-            // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
-            let mut read_ring = match IoUring::new(2) {
-                Ok(r) => r,
-                Err(_) => {
+            match uring_read_into_acc(rx.read_fd.as_raw_fd(), &rx.accumulator) {
+                Err(_) | Ok(0) => {
+                    // io_uring failure or EOF — arm disconnected.
                     return SelectOutcome::Recv {
                         index: ReceiverIndex(arm_idx),
                         result: Err(RecvError),
                     };
                 }
-            };
-            let mut buf = [0u8; 4096];
-            let read_e = opcode::Read::new(
-                types::Fd(read_fd),
-                buf.as_mut_ptr(),
-                buf.len() as _,
-            )
-            .build()
-            .user_data(1);
-            // SAFETY: read_e's buf pointer outlives submit_and_wait
-            // because buf is on this function's stack and not freed
-            // until after the wait completes.
-            unsafe {
-                if read_ring.submission().push(&read_e).is_err() {
-                    return SelectOutcome::Recv {
-                        index: ReceiverIndex(arm_idx),
-                        result: Err(RecvError),
-                    };
-                }
+                Ok(_) => {}
             }
-            if read_ring.submit_and_wait(1).is_err() {
-                return SelectOutcome::Recv {
-                    index: ReceiverIndex(arm_idx),
-                    result: Err(RecvError),
-                };
-            }
-            let cqe = match read_ring.completion().next() {
-                Some(c) => c,
-                None => {
-                    return SelectOutcome::Recv {
-                        index: ReceiverIndex(arm_idx),
-                        result: Err(RecvError),
-                    };
-                }
-            };
-            let result = cqe.result();
-            if result <= 0 {
-                // Error (<0) or EOF (==0) → arm disconnected.
-                return SelectOutcome::Recv {
-                    index: ReceiverIndex(arm_idx),
-                    result: Err(RecvError),
-                };
-            }
-            let n = result as usize;
-            rx.accumulator
-                .borrow_mut()
-                .extend_from_slice(&buf[..n]);
 
             if let Some(frame) = take_frame(&mut rx.accumulator.borrow_mut()) {
                 return SelectOutcome::Recv {

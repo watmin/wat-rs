@@ -3,8 +3,8 @@
 //! Layer 0a tier implementation per arc 214 (the comms-layer redesign;
 //! full design at `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md`).
 //! Builds on the Slice 1 traits (`crate::comms::{CommSender, CommReceiver,
-//! SelectOutcome, ReceiverIndex, SendError, RecvError, TryRecvError,
-//! CloseError}`) with `crossbeam_channel` underneath.
+//! SelectOutcome, ReceiverIndex, SendError, RecvError, TryRecvError}`)
+//! with `crossbeam_channel` underneath.
 //!
 //! ## Cascade contract (LOAD-BEARING)
 //!
@@ -28,8 +28,7 @@
 //! `:wat::kernel::*` verbs (Slice 4) that internally dispatch here.
 
 use crate::comms::{
-    CloseError, CommReceiver, CommSender, ReceiverIndex, RecvError, SelectOutcome, SendError,
-    TryRecvError,
+    CommReceiver, CommSender, ReceiverIndex, RecvError, SelectOutcome, SendError, TryRecvError,
 };
 
 // ─── Sender ──────────────────────────────────────────────────────────────────
@@ -56,14 +55,11 @@ impl<T> Sender<T> {
     /// valid. Peer receivers will see `RecvError` / `TryRecvError::Disconnected`
     /// on their next operation only after ALL `Sender` clones close.
     ///
-    /// Thread-tier close always succeeds (crossbeam channels don't fail at
-    /// close — the Drop impl handles cleanup). Returns `Ok(())` after
-    /// consuming self.
-    pub fn close(self) -> Result<(), CloseError> {
-        // self is dropped at end of scope; crossbeam decrements its
-        // internal sender count; when count hits zero, receivers see
-        // Disconnected. No fallible operation; always Ok.
-        Ok(())
+    /// Infallible: self is dropped at end of scope; crossbeam decrements its
+    /// internal sender count; when count hits zero, receivers see Disconnected.
+    /// No fallible operation; move semantics make double-close a compile error.
+    pub fn close(self) {
+        // Drop happens at end of scope.
     }
 }
 
@@ -80,7 +76,7 @@ impl<T: Send + 'static> CommSender<T> for Sender<T> {
         Sender::send(self, value)
     }
 
-    fn close(self) -> Result<(), CloseError> {
+    fn close(self) {
         Sender::close(self)
     }
 }
@@ -139,12 +135,12 @@ impl<T> Receiver<T> {
     /// Signal end-of-stream from this receiver. Consumes self so the
     /// endpoint is gone after close. Other cloned `Receiver` handles (if
     /// any) remain valid. Peer senders will see `SendError` on their next
-    /// `send` only after ALL `Receiver` clones close. Thread-tier close
-    /// always succeeds.
-    pub fn close(self) -> Result<(), CloseError> {
-        // Drop happens at end of scope; crossbeam decrements receiver count.
-        // When count hits zero, senders see SendError. Always Ok.
-        Ok(())
+    /// `send` only after ALL `Receiver` clones close.
+    ///
+    /// Infallible: Drop decrements receiver count; when count hits zero,
+    /// senders see SendError. Move semantics make double-close a compile error.
+    pub fn close(self) {
+        // Drop happens at end of scope.
     }
 }
 
@@ -169,7 +165,7 @@ impl<T: Send + 'static> CommReceiver<T> for Receiver<T> {
         Receiver::len(self)
     }
 
-    fn close(self) -> Result<(), CloseError> {
+    fn close(self) {
         Receiver::close(self)
     }
 }

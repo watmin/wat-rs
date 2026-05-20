@@ -56,16 +56,9 @@ fn probe_slice1_try_recv_error_variants_are_distinct() {
 }
 
 #[test]
-fn probe_slice1_close_error_carries_diagnostic_text() {
-    // CloseError field is private; constructed via new(impl Into<String>);
-    // text retrieved via message() accessor.
-    let c = wat::comms::CloseError::new("close-test");
-    assert_eq!(c.message(), "close-test");
-}
-
-#[test]
 fn probe_slice1_wire_error_carries_diagnostic_text() {
-    // WireError field is private; same new()/message() pattern as CloseError.
+    // WireError field is private; constructed via new(impl Into<String>);
+    // text retrieved via message() accessor.
     let w = wat::comms::WireError::new("wire-test");
     assert_eq!(w.message(), "wire-test");
 }
@@ -85,6 +78,7 @@ fn probe_slice1_select_outcome_constructs() {
             assert_eq!(result, Ok(42));
         }
         SelectOutcome::Shutdown => panic!("expected Recv"),
+        SelectOutcome::SubstrateError(e) => panic!("expected Recv, got SubstrateError: {e}"),
     }
 
     // Disconnected recv (the fired receiver's senders all dropped).
@@ -98,6 +92,7 @@ fn probe_slice1_select_outcome_constructs() {
             assert_eq!(result, Err(RecvError));
         }
         SelectOutcome::Shutdown => panic!("expected Recv"),
+        SelectOutcome::SubstrateError(e) => panic!("expected Recv, got SubstrateError: {e}"),
     }
 
     // Substrate-shutdown cascade fired before any data receiver.

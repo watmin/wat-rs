@@ -111,7 +111,11 @@ pub trait CommSender<T> {
     /// is gone after close. Other cloned `Sender` handles (if any) remain
     /// valid. Peer receivers will see `RecvError` / `TryRecvError::Disconnected`
     /// on their next operation only after ALL `Sender` clones close.
-    fn close(self) -> Result<(), CloseError>;
+    ///
+    /// Infallible: consuming `self` IS the close (Drop handles OS cleanup).
+    /// The type system enforces single-close via move semantics — calling
+    /// `close` twice is a compile error, not a runtime error.
+    fn close(self);
 }
 
 /// Tier-agnostic receive endpoint. Implemented by `comms::thread::Receiver<T>` (Slice 2)
@@ -139,7 +143,11 @@ pub trait CommReceiver<T> {
     /// is gone after close. Other cloned `Receiver` handles (if any) remain
     /// valid. Peer senders will see `SendError` on their next `send` only after
     /// ALL `Receiver` clones close.
-    fn close(self) -> Result<(), CloseError>;
+    ///
+    /// Infallible: consuming `self` IS the close (Drop handles OS cleanup).
+    /// The type system enforces single-close via move semantics — calling
+    /// `close` twice is a compile error, not a runtime error.
+    fn close(self);
 }
 
 // ─── Error types ─────────────────────────────────────────────────────────────
@@ -169,23 +177,6 @@ pub enum TryRecvError {
     Empty,
     /// All senders dropped; channel will never produce another value.
     Disconnected,
-}
-
-/// Close failed (rare; e.g., FD already closed at the OS level).
-///
-/// Field is private so callers cannot inject arbitrary close errors;
-/// only tier-specific `Sender` / `Receiver` impls construct via `new()`.
-#[derive(Debug)]
-pub struct CloseError(String);
-
-impl CloseError {
-    pub fn new(msg: impl Into<String>) -> Self {
-        Self(msg.into())
-    }
-
-    pub fn message(&self) -> &str {
-        &self.0
-    }
 }
 
 /// HolonAST roundtrip failure during wire serialization/deserialization.
@@ -247,4 +238,10 @@ pub enum SelectOutcome<T> {
     },
     /// Substrate shutdown fired before any data receiver. Caller should unwind.
     Shutdown,
+    /// Substrate-level failure in the Select machinery itself (e.g., io_uring
+    /// ring creation, SQE submission, or submit_and_wait failure). Distinct
+    /// from any user-arm firing — `ReceiverIndex` is meaningless when the
+    /// substrate itself failed. Callers matching exhaustively will see this
+    /// arm and can report the error or treat it as fatal.
+    SubstrateError(std::io::Error),
 }

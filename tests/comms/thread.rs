@@ -92,9 +92,11 @@ fn probe_slice2_clone_sender_multi_producer() {
 }
 
 #[test]
-fn probe_slice2_clone_receiver_multi_consumer() {
+fn probe_slice2_clone_receiver_exactly_one_gets_frame() {
     // Verifies that cloned receivers compete for messages: exactly ONE of the
     // two clones gets the value; the other sees Empty (not a duplicate recv).
+    // Test shape is serial (non-blocking try_recv competition) — the name
+    // reflects the actual contract exercised, not multi-threaded concurrency.
     let (tx, rx) = pair::<i64>();
     let rx2 = rx.clone();
     tx.send(99).expect("send");
@@ -126,6 +128,7 @@ fn probe_slice2_select_picks_fired_receiver() {
             assert_eq!(result, Ok(7), "result must carry the sent value");
         }
         SelectOutcome::Shutdown => panic!("unexpected Shutdown — SHUTDOWN_RX not initialized in tests"),
+        SelectOutcome::SubstrateError(e) => panic!("unexpected SubstrateError: {e}"),
     }
 }
 
@@ -154,7 +157,8 @@ fn probe_slice2_close_idempotent_with_clones() {
     let (tx, rx) = pair::<i64>();
     let tx2 = tx.clone();
     // Close the first clone; channel stays alive because tx2 still exists.
-    CommSender::close(tx).expect("close of first clone must succeed");
+    // close() is infallible (returns ()); no .expect() needed.
+    CommSender::close(tx);
     tx2.send(5).expect("remaining clone must still be able to send");
     assert_eq!(
         rx.recv().expect("recv after partial close"),
