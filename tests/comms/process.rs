@@ -24,9 +24,9 @@
 //!
 //! The Stone C wire chain (T → HolonAST → tagged EDN string →
 //! newline-framed bytes → libc::write → io_uring Read → bytes → EDN →
-//! HolonAST → T) carries through all tests. Embedded `\n` in strings
-//! escape during wat-edn serialization, so the Stone A "no newlines in
-//! payload" constraint no longer applies at the wire layer.
+//! HolonAST → T) carries through all tests. Embedded `\n` characters
+//! in strings are escaped by wat-edn serialization; the wire layer never
+//! sees a literal newline except as a frame delimiter.
 
 use std::thread;
 

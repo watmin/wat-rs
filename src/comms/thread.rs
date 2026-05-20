@@ -105,8 +105,7 @@ impl<T> Receiver<T> {
     /// bare crossbeam recv. Production paths always have SHUTDOWN_RX
     /// initialized before wat code executes.
     pub fn recv(&self) -> Result<T, RecvError> {
-        // rune:forge(escape) — SHUTDOWN_RX is the substrate cascade signal;
-        // global access is the cascade contract (module-level doc § Cascade contract).
+        // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
         let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
         match shutdown_rx {
             Some(srx) => {
@@ -205,8 +204,7 @@ impl<'a, T: Send + 'static> Select<'a, T> {
     /// internally so callers don't manually wire shutdown into every Select.
     pub fn new() -> Self {
         let mut inner = crossbeam_channel::Select::new();
-        // rune:forge(escape) — SHUTDOWN_RX is the substrate cascade signal;
-        // global access is the cascade contract (module-level doc § Cascade contract).
+        // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
         // Register SHUTDOWN_RX first (arm 0) when available so the cascade
         // is always present regardless of how many user arms are added later.
         let shutdown_arm = crate::runtime::SHUTDOWN_RX
@@ -253,8 +251,7 @@ impl<'a, T: Send + 'static> Select<'a, T> {
         // Shutdown arm takes priority: if the substrate signaled shutdown,
         // consume the operation and return Shutdown so callers unwind cleanly.
         if self.shutdown_arm == Some(arm_idx) {
-            // rune:forge(escape) — SHUTDOWN_RX is the substrate cascade signal;
-            // global access is the cascade contract (module-level doc § Cascade contract).
+            // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
             let srx = crate::runtime::SHUTDOWN_RX
                 .get()
                 .expect("shutdown_arm was Some so SHUTDOWN_RX must be initialized");
@@ -275,12 +272,6 @@ impl<'a, T: Send + 'static> Select<'a, T> {
             index: ReceiverIndex(user_pos),
             result,
         }
-    }
-}
-
-impl<'a, T: Send + 'static> Default for Select<'a, T> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

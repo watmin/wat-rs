@@ -236,8 +236,9 @@ impl<T: HolonRepresentable> Receiver<T> {
             return decode_frame::<T>(&frame);
         }
 
+        // rune:sequi(ambient-context) — SHUTDOWN_BROADCAST_READ_FD is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
         let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
-            .load(std::sync::atomic::Ordering::SeqCst);
+            .load(std::sync::atomic::Ordering::Acquire);
         let read_fd = self.read_fd.as_raw_fd();
 
         loop {
@@ -256,6 +257,7 @@ impl<T: HolonRepresentable> Receiver<T> {
 
             // Read step — same as Stones A+B. Per-call IoUring; ring size 2.
             // (Stone E persistifies the ring.)
+            // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
             let mut ring = IoUring::new(2).map_err(|_| RecvError)?;
             let mut buf = [0u8; 4096];
             let read_e = opcode::Read::new(
@@ -322,8 +324,9 @@ impl<T: HolonRepresentable> Receiver<T> {
             return decode_frame::<T>(&frame).map_err(|_| TryRecvError::Disconnected);
         }
 
+        // rune:sequi(ambient-context) — SHUTDOWN_BROADCAST_READ_FD is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
         let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
-            .load(std::sync::atomic::Ordering::SeqCst);
+            .load(std::sync::atomic::Ordering::Acquire);
         let read_fd = self.read_fd.as_raw_fd();
 
         // Non-blocking poll on [data_fd] + [broadcast_fd if initialized].
@@ -363,6 +366,7 @@ impl<T: HolonRepresentable> Receiver<T> {
         // Data is ready — do ONE io_uring Read. If a complete frame is
         // produced, decode + return Ok(T). If partial bytes only,
         // return Empty (accumulator retains the bytes for next call).
+        // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
         let mut ring = IoUring::new(2).map_err(|_| TryRecvError::Disconnected)?;
         let mut buf = [0u8; 4096];
         let read_e = opcode::Read::new(
@@ -512,6 +516,7 @@ fn wait_for_data_or_cascade(
     const DATA_TOKEN: u64 = 1;
     const BROADCAST_TOKEN: u64 = 2;
 
+    // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
     let mut ring = IoUring::new(4).map_err(|_| RecvError)?;
 
     let poll_data = opcode::PollAdd::new(
@@ -695,8 +700,9 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
             }
         }
 
+        // rune:sequi(ambient-context) — SHUTDOWN_BROADCAST_READ_FD is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
         let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
-            .load(std::sync::atomic::Ordering::SeqCst);
+            .load(std::sync::atomic::Ordering::Acquire);
 
         loop {
             // Per-call IoUring sized for N+1 POLL_ADD entries.
@@ -706,6 +712,7 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
             // Use next_power_of_two to round up; floor at 2.
             let ring_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
 
+            // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
             let mut ring = match IoUring::new(ring_capacity) {
                 Ok(r) => r,
                 Err(_) => return substrate_failure_outcome(),
@@ -788,6 +795,7 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
             // Read from the fired arm — do ONE io_uring Read.
             let rx = self.receivers[arm_idx];
             let read_fd = rx.read_fd.as_raw_fd();
+            // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
             let mut read_ring = match IoUring::new(2) {
                 Ok(r) => r,
                 Err(_) => {
@@ -853,12 +861,6 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
             // Partial bytes; no complete frame yet. Loop and re-poll
             // all arms (broadcast can fire mid-drain).
         }
-    }
-}
-
-impl<'a, T: HolonRepresentable> Default for Select<'a, T> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
