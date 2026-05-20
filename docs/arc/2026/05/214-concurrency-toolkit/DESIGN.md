@@ -94,12 +94,51 @@ impl<T> Receiver<T> {
 }
 
 pub fn pair<T>() -> (Sender<T>, Receiver<T>);
-pub fn bounded<T>(n: usize) -> (Sender<T>, Receiver<T>);
+pub fn bounded<T>(n: usize) -> (Sender<T>, Receiver<T>);  // thread tier ONLY — see § "Universe-residency + bounded() asymmetry" below
 
-// process tier — IDENTICAL surface; T bound differs; io_uring underneath
+// process tier — IDENTICAL method surface; T bound differs; io_uring underneath
 pub struct Sender<T: HolonRepresentable> { /* private inner: io_uring + fd */ }
 // ... (same method signatures as thread tier)
+// NOTE: pair() returns std::io::Result<...> on process tier (libc::pipe(2) can fail);
+// NOTE: bounded() factory NOT minted on process tier — kernel manages pipe-bound; see below
 ```
+
+### Universe-residency + bounded() asymmetry (2026-05-19 architectural clarification)
+
+User direction 2026-05-19: *"what wat wants is 'i want to run this program in a {thread,process} and it just works.. i can comm to it by sending data and getting data — i don't care where its hosted' / the user must choose a hosting env but the programs never know what env their in — they exist in a universe and that universe has provided a comm channel to use."*
+
+**The discipline:** programs are universe-resident; the universe provides comm channels; the program never knows its transport. Hosting env chosen at the OUTSIDE; program inside writes `peer.send(v)` / `peer.recv()` and runs identically across tiers.
+
+**Two-layer honesty:**
+
+| Layer | Surface | Identical-across-tiers requirement |
+|---|---|---|
+| **Program-facing** (what the program sees) | Trait `CommSender<T>` + `CommReceiver<T>` + (future Slice 4) peer types `Thread<I,O>` / `Process<I,O>` / `Remote<I,O>` | **MANDATORY identical** — program code does not vary by tier |
+| **Substrate-internal** (what the hosting env wires up) | Concrete `thread::Sender` / `process::Sender` etc. | Asymmetries permitted when STRUCTURALLY honest |
+
+**Three substrate-internal asymmetries — each verified honest:**
+
+1. **T bound:** `T: Send + 'static` (thread) vs `T: HolonRepresentable` (process). Transport requirements differ unavoidably; honest.
+
+2. **`pair()` return type:** infallible (thread) vs `std::io::Result<...>` (process). `libc::pipe(2)` can fail; failure mode IS exposed; honest.
+
+3. **`bounded()` factory:** present on thread tier; ABSENT on process tier (post Stone E-2 four-questions verdict).
+
+**Four-questions on bounded() for process tier (verdict 2026-05-19):**
+
+- **(A) F_SETPIPE_SZ wrapper:** FAILS Obvious + Honest (frame-count vs byte-count semantic gap)
+- **(B) wat-level semaphore:** FAILS Simple (ZERO-MUTEX violation)
+- **(C) DON'T MINT; kernel manages bound (PIPE_BUF; F_SETPIPE_SZ if needed substrate-internal):** YES YES YES YES
+
+Same shape as Stone E forward-correction's "no tunable" verdict on io_uring depth. Kernel manages what kernel manages; substrate doesn't expose what's already structural. Thread tier KEEPS `bounded()` because crossbeam exposes it as a first-class transport-mode choice (different code path than unbounded); process tier never gets one because pipes don't have an equivalent mode toggle the wat layer should expose.
+
+**Convergence:** the universe-residency principle composes with Convergence #13 (autoscaling of correctness):
+- Universe-residency (program/user layer): "programs don't know transport"
+- Autoscaling-of-correctness (substrate/resource layer): "substrate manages resources reflexively; users don't pick"
+
+Both compose into: users declare hosting env; nothing else. Programs run identically across thread/process/remote; substrate handles all the resource management invisibly. The discipline propagates up via Slice 4 (peer types absorb the substrate-internal asymmetries) + Slice 7 (brackets compose peers) + Slice 8 (services as universe-resident actors).
+
+Cross-references: memory `project_universe_residency.md`; memory `project_autoscaling_correctness.md`; INTERSTITIAL § "2026-05-19 — Universe-residency principle + bounded() four-questions verdict".
 
 ### Shared traits (in `src/comms/mod.rs`)
 
