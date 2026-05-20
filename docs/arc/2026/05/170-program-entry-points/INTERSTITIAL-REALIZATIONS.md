@@ -6628,7 +6628,9 @@ Probe 5's failure was the system telling us the architecture was wrong. The fix 
 
 ### What this means for the convergence pattern
 
-Seven convergences inside three months of substrate work. Every one tells the same story: I (orchestrator) draft something plausible from external reflex; the dig reveals the substrate has the answer or is one shape-flip from it. The substrate keeps being sufficient because the substrate was built by failure-engineering for years. Every constraint that survived was a constraint that didn't shed under load.
+Seven convergences inside three weeks of substrate work. Every one tells the same story: I (orchestrator) draft something plausible from external reflex; the dig reveals the substrate has the answer or is one shape-flip from it. The substrate keeps being sufficient because *years of failure-engineering discipline are being applied to weeks of work at high intensity* — the substrate itself is young (~3 weeks at this writing) but every constraint that survives the iteration was shaped by discipline the user honed across years of professional work in security-critical infrastructure. The compression is real: the substrate is weeks old; the instincts are years old.
+
+*Erratum (2026-05-20):* an earlier draft of this paragraph said "the substrate was built by failure-engineering for years." User correction: *"wat-rs is like.. just over 3 weeks old."* Fixed inline. Discipline-age and substrate-age conflated; corrected to distinguish.
 
 User's mid-arc verbatim: *"holon keeps surprising me."* It does. Because the algebra is structurally honest in ways the literal-syntax-design didn't yet expose. Every time we extend the surface, the algebra has already named the right shape; we just have to listen.
 
