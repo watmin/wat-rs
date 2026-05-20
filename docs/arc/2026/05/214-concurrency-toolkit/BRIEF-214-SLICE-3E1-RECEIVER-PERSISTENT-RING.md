@@ -74,8 +74,8 @@ Update the struct definition at `src/comms/process.rs:204-217`:
 /// each clone gets a FRESH empty accumulator AND a fresh ring
 /// (rings are `Send` but `!Sync`; never share across clones).
 /// Stone E-1: ring is persistent for the Receiver's lifetime;
-/// capacity 4 covers both Read (2 SQEs) and POLL_ADD pair (4
-/// SQEs) operations with headroom.
+/// capacity 4 covers Read (1 SQE) and POLL_ADD pair (2 SQEs)
+/// operations with headroom.
 #[derive(Debug)]
 pub struct Receiver<T: HolonRepresentable> {
     read_fd: OwnedFd,

@@ -14,7 +14,7 @@
 //! `wat_edn::write` / `wat_edn::parse_owned` over the
 //! `holon::HolonAST` schema.
 //!
-//! ## Current scope (through Stone D2)
+//! ## Current scope (through Stone E-1)
 //!
 //! Full API surface matching the thread tier (`crate::comms::thread`).
 //! Generic `Sender<T: HolonRepresentable>` / `Receiver<T: HolonRepresentable>`
@@ -23,8 +23,18 @@
 //! (Stone A). Stone D1: try_recv + len + close + Clone + CommSender/
 //! CommReceiver trait impls. Stone D2: `Select<'a, T>` — cascade-aware
 //! fan-in over N receivers (generalizes Stone B's 2-arm POLL_ADD to
-//! N+1 arms; broadcast wins ties). Only NO persistent ring / config
-//! tunable (Stone E).
+//! N+1 arms; broadcast wins ties). Stone E-1: Receiver owns persistent
+//! IoUring (capacity 4) for its lifetime; helpers operate on the
+//! Receiver's ring instead of per-call construction. Select's POLL_ADD
+//! ring remains per-call — Stone E-2 territory (reflexive rebuild-on-
+//! mismatch with grow OR shrink).
+//!
+//! The underlying principle (FDs are the persistent state; io_urings are
+//! ephemeral frames sized to the current operation set; substrate maintains
+//! the invariant `cap == next_power_of_two(structural_need + 1)` reflexively
+//! at every operation entry) is detailed in
+//! `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md` §
+//! "Stone E forward-correction (2026-05-19) — TCO discipline + reflexive rebuild".
 //!
 //! ## Framing
 //!
@@ -57,8 +67,9 @@
 //!
 //! ## Audience
 //!
-//! Substrate-internal Rust code (Stone D's `Select`, Stone E's tunable,
-//! Slice 4's kernel dispatcher). User code does NOT touch this tier.
+//! Substrate-internal Rust code (Stone D's `Select`, Stone E-2's reflexive-
+//! rebuild ring persistification, Slice 4's kernel dispatcher). User code
+//! does NOT touch this tier.
 
 use std::cell::RefCell;
 use std::marker::PhantomData;
@@ -70,6 +81,15 @@ use crate::comms::{
     CommReceiver, CommSender, HolonRepresentable, ReceiverIndex, RecvError, SelectOutcome,
     SendError, TryRecvError,
 };
+
+/// Byte accumulator for newline-framed pipe reads. `RefCell` provides
+/// interior mutability so `recv(&self)` + `try_recv(&self)` can extend
+/// the buffer without `&mut self`. Per `perspicere` (Stone E-1 ward
+/// pass 2026-05-19): the field and helper signatures both wrap
+/// `RefCell<Vec<u8>>`; the noun the type is ABOUT is "accumulator,"
+/// and this alias surfaces it at the type level rather than burying
+/// it under 2 layers of generics.
+type Accumulator = RefCell<Vec<u8>>;
 
 // ─── Sender ──────────────────────────────────────────────────────────────────
 
@@ -188,32 +208,57 @@ impl<T: HolonRepresentable> CommSender<T> for Sender<T> {
 
 // ─── Receiver ────────────────────────────────────────────────────────────────
 
-/// Process-tier receive endpoint. Generic over the payload type T (Stone C).
-/// Owns the pipe's read-end fd and a small internal byte accumulator
-/// for cross-call frame splitting.
+/// Receive process-tier values. Wraps the read-end of an
+/// `OwnedFd` pipe; decodes newline-framed EDN payloads to `T`.
+/// `Clone` competes for frames via `try_clone` (Stone D1);
+/// each clone gets a FRESH empty accumulator AND a fresh ring
+/// (rings are `Send` but `!Sync`; never share across clones).
+/// Stone E-1: ring is persistent for the Receiver's lifetime;
+/// capacity 4 covers Read (1 SQE) and POLL_ADD pair (2 SQEs)
+/// operations with headroom.
 ///
-/// Cascade-aware (Stone B): `recv` wakes on substrate shutdown via
-/// io_uring multi-arm POLL_ADD on `SHUTDOWN_BROADCAST_READ_FD`. Stone D1
-/// adds: `try_recv` (non-blocking variant via libc::poll(timeout=0));
-/// `len` (accumulator-only frame count; kernel buffer not included);
-/// `close` (consume self; OwnedFd Drop closes the fd); Clone via
-/// `OwnedFd::try_clone` (cloned receivers compete for frames MPMC-style;
-/// each clone gets a FRESH empty accumulator). Per-call `IoUring`
-/// instance (Stone E persistifies).
-#[derive(Debug)]
+/// `Debug` is implemented manually because `IoUring` does not
+/// implement `Debug`; the ring field is shown as an opaque
+/// `"IoUring"` placeholder.
 pub struct Receiver<T: HolonRepresentable> {
     read_fd: OwnedFd,
     /// Bytes read from the pipe but not yet returned to a caller.
-    /// `RefCell` provides interior mutability so `recv(&self)` can
-    /// update the accumulator without `&mut self`. `Receiver` is `!Sync`
-    /// by construction (RefCell is !Sync); the substrate's threading
-    /// model never shares a single Receiver across threads — clones
-    /// (Stone D) create independent endpoints.
-    accumulator: RefCell<Vec<u8>>,
+    /// `RefCell` (via the `Accumulator` alias) provides interior
+    /// mutability so `recv(&self)` can update the accumulator without
+    /// `&mut self`. `Receiver` is `!Sync` by construction (RefCell is
+    /// !Sync); the substrate's threading model never shares a single
+    /// Receiver across threads — clones (Stone D) create independent
+    /// endpoints.
+    accumulator: Accumulator,
+    /// Persistent io_uring (Stone E-1) — capacity 4 covers Read
+    /// (1 SQE) and POLL_ADD pair (2 SQEs) operations with headroom.
+    /// `RefCell` for the same `&self` interior-mutability reason as
+    /// the accumulator. Constructed at `pair()` and at `Clone`; dropped
+    /// at Receiver Drop (kernel resource cleaned up via IoUring's own
+    /// Drop impl).
+    ring: RefCell<IoUring>,
     /// Type marker — `T` doesn't appear in any field but constrains
     /// what `recv` produces. `PhantomData<T>` makes `Receiver<T>`
     /// invariant in T which is correct for this use case.
     _phantom: PhantomData<T>,
+}
+
+// rune:purgare(public-api) — Debug impl mirrors Sender<T>'s derive (line 87);
+// required for downstream structs that derive Debug over (Sender<T>, Receiver<T>)
+// pairs; IoUring is !Debug so manual impl is load-bearing even though no current
+// codebase struct exercises it. Per purgare ward (Stone E-1 ward pass 2026-05-19).
+impl<T: HolonRepresentable> std::fmt::Debug for Receiver<T> {
+    /// Manual Debug impl — `IoUring` does not implement `Debug`;
+    /// the ring field is shown as an opaque placeholder. All other
+    /// fields are shown via their own Debug impls.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Receiver")
+            .field("read_fd", &self.read_fd)
+            .field("accumulator", &self.accumulator)
+            .field("ring", &"IoUring")
+            .field("_phantom", &self._phantom)
+            .finish()
+    }
 }
 
 impl<T: HolonRepresentable> Receiver<T> {
@@ -245,7 +290,7 @@ impl<T: HolonRepresentable> Receiver<T> {
             // test bypass), skip the poll and fall through to bare Read
             // (Stone A behavior; no cascade available).
             if let Some(broadcast_fd) = broadcast_opt {
-                match wait_for_data_or_cascade(read_fd, broadcast_fd)? {
+                match wait_for_data_or_cascade(read_fd, broadcast_fd, &self.ring)? {
                     PollOutcome::Shutdown => return Err(RecvError),
                     PollOutcome::DataReady => {
                         // Data is ready; fall through to Read step.
@@ -253,10 +298,8 @@ impl<T: HolonRepresentable> Receiver<T> {
                 }
             }
 
-            // Read step — uring_read_into_acc encapsulates the IoUring::new +
-            // SQE push + submit_and_wait + CQE drain sequence; see helper's
-            // rune:temperare(no-reactor) for rationale.
-            let n = uring_read_into_acc(read_fd, &self.accumulator).map_err(|_| RecvError)?;
+            // Read step — uses the Receiver's persistent ring (Stone E-1).
+            let n = uring_read_into_acc(read_fd, &self.accumulator, &self.ring).map_err(|_| RecvError)?;
             if n == 0 {
                 // EOF — peer closed the write-end.
                 return Err(RecvError);
@@ -333,10 +376,8 @@ impl<T: HolonRepresentable> Receiver<T> {
             return Err(TryRecvError::Empty);
         }
 
-        // Data is ready — uring_read_into_acc encapsulates the IoUring::new +
-        // SQE push + submit_and_wait + CQE drain sequence; see helper's
-        // rune:temperare(no-reactor) for rationale.
-        let n = uring_read_into_acc(read_fd, &self.accumulator)
+        // Data is ready — uses the Receiver's persistent ring (Stone E-1).
+        let n = uring_read_into_acc(read_fd, &self.accumulator, &self.ring)
             .map_err(|_| TryRecvError::Disconnected)?;
         if n == 0 {
             // EOF — peer closed the write-end.
@@ -392,7 +433,13 @@ impl<T: HolonRepresentable> Clone for Receiver<T> {
     /// is per-endpoint; sharing it would create confusing partial-frame
     /// behavior across clones.
     ///
-    /// Panics on `libc::dup` failure (EMFILE/ENFILE; fd table exhausted).
+    /// Stone E-1: the cloned receiver also gets a FRESH IoUring
+    /// (capacity 4) — rings are `Send` but `!Sync`; each clone owns
+    /// its own ring so clones operating on different threads do not
+    /// race on the ring's submission/completion queues.
+    ///
+    /// Panics on `libc::dup` failure (EMFILE/ENFILE; fd table exhausted)
+    /// or `IoUring::new(4)` failure (kernel resource exhaustion; rare).
     fn clone(&self) -> Self {
         Self {
             read_fd: self
@@ -400,6 +447,10 @@ impl<T: HolonRepresentable> Clone for Receiver<T> {
                 .try_clone()
                 .expect("OwnedFd::try_clone (libc::dup) failed — fd table exhausted"),
             accumulator: RefCell::new(Vec::new()),
+            ring: RefCell::new(
+                IoUring::new(4)
+                    .expect("IoUring::new(4) failed — kernel io_uring resource exhausted"),
+            ),
             _phantom: PhantomData,
         }
     }
@@ -437,10 +488,8 @@ enum PollOutcome {
 /// arms may fire simultaneously, in which case broadcast wins
 /// (substrate-shutdown takes precedence over pending data).
 ///
-/// Per-call `IoUring::new(4)` — Stone B uses 4 entries to hold
-/// 2 POLL_ADD SQEs plus headroom (Stone E persistifies the ring).
-/// Un-fired arms die with the ring at Drop; no explicit cancel
-/// needed.
+/// Stone E-1: ring is now a persistent kernel resource borrowed from
+/// the calling Receiver. Per-call `IoUring::new(4)` is retired.
 ///
 /// Event masks match `src/typed_channel.rs:329-368` discipline:
 ///   - data fd: POLLIN | POLLHUP (data ready OR peer-closed)
@@ -451,12 +500,12 @@ enum PollOutcome {
 fn wait_for_data_or_cascade(
     read_fd: std::os::fd::RawFd,
     broadcast_fd: std::os::fd::RawFd,
+    ring: &RefCell<IoUring>,
 ) -> Result<PollOutcome, RecvError> {
     const DATA_TOKEN: u64 = 1;
     const BROADCAST_TOKEN: u64 = 2;
 
-    // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
-    let mut ring = IoUring::new(4).map_err(|_| RecvError)?;
+    let mut ring = ring.borrow_mut();
 
     let poll_data = opcode::PollAdd::new(
         types::Fd(read_fd),
@@ -556,18 +605,23 @@ fn current_broadcast_fd() -> Option<std::os::fd::RawFd> {
     if raw >= 0 { Some(raw) } else { None }
 }
 
-/// Issues one io_uring Read on `fd` into `acc`. Returns `Ok(n)` where `n` is
-/// the number of bytes appended (0 means EOF / peer closed write end), or
-/// `Err(())` on io_uring ring creation, SQE submission, or CQE error.
+/// Issues one io_uring Read on `fd` into `acc` using the supplied
+/// persistent ring `ring`. Returns `Ok(n)` where `n` is the number
+/// of bytes appended (0 means EOF / peer closed write end), or
+/// `Err(())` on SQE submission, submit_and_wait, or CQE error.
 ///
-/// Callers map `Err(())` to their domain error (RecvError, TryRecvError, etc.)
-/// at the call site.
+/// Stone E-1: ring is now a persistent kernel resource borrowed from
+/// the calling Receiver (or, in Select's Read-step, from the fired
+/// Receiver). Per-call `IoUring::new(2)` is retired.
 ///
-/// rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394)
-/// will persistify this ring per Receiver/Select; per-call construction is the
-/// pre-Stone-E placeholder.
-fn uring_read_into_acc(fd: std::os::fd::RawFd, acc: &std::cell::RefCell<Vec<u8>>) -> Result<usize, ()> {
-    let mut ring = IoUring::new(2).map_err(|_| ())?;
+/// Callers map `Err(())` to their domain error (RecvError, TryRecvError,
+/// etc.) at the call site.
+fn uring_read_into_acc(
+    fd: std::os::fd::RawFd,
+    acc: &Accumulator,
+    ring: &RefCell<IoUring>,
+) -> Result<usize, ()> {
+    let mut ring = ring.borrow_mut();
     let mut buf = [0u8; 4096];
     let read_e = opcode::Read::new(
         types::Fd(fd),
@@ -685,7 +739,10 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
             // Use next_power_of_two to round up; floor at 2.
             let ring_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
 
-            // rune:temperare(no-reactor) — Stone E (arc 214 slice 3 stone E, task #394) will persistify this ring per Receiver/Select; per-call construction is the pre-Stone-E placeholder
+            // rune:temperare(no-reactor) — Receiver's ring was persistified in
+            // Stone E-1; Select's ring persistifies in Stone E-2 (task #394) with
+            // reflexive rebuild-on-mismatch (grow OR shrink). Per-call
+            // construction here is the pre-E-2 placeholder.
             let mut ring = match IoUring::new(ring_capacity) {
                 Ok(r) => r,
                 Err(e) => return SelectOutcome::SubstrateError(e),
@@ -771,11 +828,11 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                 }
             };
 
-            // Read from the fired arm — uring_read_into_acc encapsulates the
-            // IoUring::new + SQE push + submit_and_wait + CQE drain sequence;
-            // see helper's rune:temperare(no-reactor) for rationale.
+            // Read from the fired arm — uses the fired Receiver's persistent
+            // ring (Stone E-1); Select's own POLL_ADD ring stays per-call
+            // until Stone E-2.
             let rx = self.receivers[arm_idx];
-            match uring_read_into_acc(rx.read_fd.as_raw_fd(), &rx.accumulator) {
+            match uring_read_into_acc(rx.read_fd.as_raw_fd(), &rx.accumulator, &rx.ring) {
                 Err(_) | Ok(0) => {
                     // io_uring failure or EOF — arm disconnected.
                     return SelectOutcome::Recv {
@@ -809,6 +866,13 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
 ///
 /// Returns the OS-level `io::Error` on `pipe(2)` failure (rare; out
 /// of fds or kernel OOM).
+// rune:perspicere(read-once) — factory return shape
+// `Result<(Sender<T>, Receiver<T>)>` is 3 logical layers; a `ChannelPair<T>`
+// typealias would surface the noun but callers immediately destructure the
+// tuple at the single construction site. The alias would be read-once-then-
+// forgotten at each call site; current depth is acceptable. If/when a SECOND
+// consumer surfaces or `thread.rs` mints the same alias for symmetry, revisit.
+// Per perspicere ward (Stone E-1 ward pass 2026-05-19).
 pub fn pair<T: HolonRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)> {
     let mut fds = [0i32; 2];
     // SAFETY: `fds` is a valid `[i32; 2]` stack allocation whose
@@ -823,15 +887,21 @@ pub fn pair<T: HolonRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)
     // fd twice (would double-close).
     let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
     let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    let receiver = Receiver {
+        read_fd,
+        accumulator: RefCell::new(Vec::new()),
+        ring: RefCell::new(
+            IoUring::new(4)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other,
+                    format!("IoUring::new(4) failed at Receiver construction: {}", e)))?,
+        ),
+        _phantom: PhantomData,
+    };
     Ok((
         Sender {
             write_fd,
             _phantom: PhantomData,
         },
-        Receiver {
-            read_fd,
-            accumulator: RefCell::new(Vec::new()),
-            _phantom: PhantomData,
-        },
+        receiver,
     ))
 }
