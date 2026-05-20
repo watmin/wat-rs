@@ -155,6 +155,8 @@ Per `scratch/DEPENDENCY-DOCTRINE.md`:
 
 ### Tunable — `:wat::config::set-process-tier-uring-depth!`
 
+> **SUPERSEDED 2026-05-19.** This section's tunable was rejected by the four-questions during Stone E design. See § "Stone E forward-correction (2026-05-19) — TCO discipline + reflexive rebuild" below for the architectural reframe. Original text preserved per `feedback_inscription_immutable`.
+
 io_uring SQ/CQ ring size per process-tier `Receiver` / `Select`:
 
 - **Default:** 512 (power of 2; midpoint between tokio-uring's 256 and monoio's 1024)
@@ -164,6 +166,78 @@ io_uring SQ/CQ ring size per process-tier `Receiver` / `Select`:
 **Parameter-tunability, not option-tangle** (per `feedback_options_are_tangle`): ONE mechanism (io_uring; canonical); ONE setter (canonical); power users tune the parameter; the chokepoint discipline is unchanged.
 
 **Future tunables** (SQPOLL, registered buffers, linked operations) explicitly scoped OUT — progressive disclosure as concrete substrate use cases justify.
+
+### Stone E forward-correction (2026-05-19) — TCO discipline + reflexive rebuild
+
+Stone E's pre-implementation walk surfaced that the Tunable section above was the option-tangle pattern disguised as discipline. Inscribed forward per `feedback_inscription_immutable`.
+
+**Four-questions verdict on `:wat::config::set-process-tier-uring-depth!`:**
+
+- **Obvious?** NO — what does 512 ENABLE that 4 doesn't? Three sites in `src/comms/process.rs`: `uring_read_into_acc` uses 2 SQEs (one Read); `wait_for_data_or_cascade` uses 4 SQEs (two POLL_ADDs + headroom); `Select::select` uses `arm_count.next_power_of_two()`. None care about 512. The knob tunes nothing observable.
+- **Simple?** NO — adds setter + atomic + bounds-validation + wiring for a value with no honest effect.
+- **Honest?** NO — claims "parameter tunability" but the parameter isn't actually tunable in any meaningful sense. Capacity is determined by what the ring *does*, not by what the user *picks*.
+- **Good UX?** NO — users tune it; observe no behavior change; or worse, tune to 4096 and waste kernel resources for nothing. FOOTGUN.
+
+**FAILS YES YES YES YES.** Tunable rejected; setter not minted.
+
+**The substrate-architectural truth — capacity is structural, not policy.** Ring capacity emerges from what the ring *does* at each layer. Every capacity at every layer can be derived from a user-visible structural declaration:
+
+| Site | Capacity | Why |
+|------|----------|-----|
+| Receiver's persistent ring | 4 (covers Read + POLL_ADD pair) | Receiver's operation set is fixed for its lifetime |
+| Select's persistent ring | `next_power_of_two(arm_count + 1)`; reflexive rebuild on mismatch | User declares arms via `select.recv(&rx)`; substrate matches |
+| Bracket's internal Select (fan-in over N replies; future Slice 7) | `next_power_of_two(N + 1)` derived from bracket's N | User declares N positionally: `(parallel-for-each :tier N items fn)` |
+| Defservice's dispatch-loop Select (over M users + broadcast; future Slice 8) | derived from Grant calls | User declares concurrency via Grant pattern |
+
+Every capacity emerges from a user-visible declaration. Substrate computes; user never sees an io_uring entry count; user cannot pick wrong.
+
+**The TCO discipline — FDs persist; io_urings are ephemeral frames.**
+
+The substrate manages io_uring resources reflexively, analogous to tail-call optimization at the stack frame:
+
+- **FDs are the stack** — persistent state; the real resource (pipe ends, `OwnedFd`); allocated once, owned by the Receiver/Sender, dropped only at the owning struct's `Drop`.
+- **io_urings are the frames** — ephemeral; sized for current structural need; replaced when need changes. The kernel resource the substrate manages invisibly.
+
+| Layer | What persists | What's replaceable |
+|------|---|---|
+| Receiver | `read_fd: OwnedFd` (the pipe end) | `ring: IoUring` (sized for current operations) |
+| Select | `receivers: Vec<&Receiver>` (registration set) | `ring: IoUring` (sized for current arm_count) |
+| Service dispatch loop (future) | user registry | the Select ring serving the N+1 arms |
+| Bracket fan-in (future) | the N child Process handles | the Select ring across N replies |
+
+**Reflexive correctness — the invariant the substrate proves at every operation.**
+
+At every operation entry on a structure with a ring, the substrate maintains:
+
+> **invariant:** `current_capacity == next_power_of_two(structural_need + 1)`
+
+If the invariant holds: reuse the ring. If it doesn't (structural need grew OR shrank): rebuild the ring at the right capacity. The replacement IS the tail call — old ring drops; new ring constructs; FDs untouched; structural state untouched.
+
+**Symmetric grow + shrink** — the substrate proves correctness by scaling DOWN when over-capacity, not just up. "Approximately correct" isn't testable; "always correct" is. Long-running services + brackets + remote layers don't stockpile over-capacity rings across hours of execution. Memory + kernel resources stay MATCHED to current need at every moment.
+
+**The substrate proves itself reflexively.** Per `feedback_attack_foundation_cracks` + `feedback_any_defect_catastrophic`: the foundation is binary-correct or it isn't. The reflexive-rebuild discipline IS the foundation arc 214 is building toward — not "fast enough" or "correct enough" but *provably always correct by construction*. Every higher layer (brackets, services, remote) inherits "always exactly right-sized" without re-establishing the discipline.
+
+**Why this deepens "no tunable" from option-tangle to logical incoherence:**
+
+A global `set-uring-depth!` would say "use N forever." But N is wrong the moment the structure changes. The substrate already KNOWS the right N at every moment by inspection of its own structure. The user "knowing better" is impossible — they don't see the structure the substrate sees. The dragon dies not just because the tunable is dishonest; it dies because the tunable is logically incoherent with how io_uring is being used.
+
+**If/when an honest tunable emerges** (SQPOLL mode actually delivers measurable benefit for a real workload; bounded channel capacity for backpressure; etc.), THAT tunable gets minted at THAT moment with its own four-questions verdict — at the right layer, not buried in a HashMap or a global setter. Per `feedback_realizations_open_directions`: don't pre-mint slots; mint when the honest need arrives.
+
+**Stone E decomposition (revised; two stones, not three):**
+
+- **E-1 — Receiver persistent ring (capacity 4).** Add field; helpers operate on `&self.ring`; Clone gets fresh ring; migrate 2 Receiver runes (`uring_read_into_acc` + `wait_for_data_or_cascade`) from `temperare(no-reactor)` to cold. Static-need case (Receiver's operation set is fixed). 34/34 still pass.
+
+- **E-2 — Select persistent ring (reflexive rebuild-on-mismatch).** Add field with lazy + grow-OR-shrink-on-mismatch; Select's Read-step delegates to fired Receiver's E-1 ring; invariant `cap == next_power_of_two(arm_count + 1)` at every select() entry; migrate Select rune to cold. 34/34 still pass.
+
+- **E-3 (originally: config tunable) DIES.** Disqualified by four-questions, not deferred.
+
+**Cross-references for the reframe:**
+
+- `feedback_options_are_tangle` — the pattern the tunable was; rejected here
+- `feedback_inscription_immutable` — original Tunable section preserved as historical record
+- `feedback_attack_foundation_cracks` + `feedback_any_defect_catastrophic` — the foundation discipline reflexive-rebuild embodies
+- `feedback_realizations_open_directions` — when honest tunables emerge, mint at the right layer then
+- `feedback_refuse_easy_solutions` — "grow eagerly; never shrink" was the L2 default; rejected for the L4 symmetric discipline
 
 ### The structural wall (Slice 6)
 
@@ -384,7 +458,7 @@ Implement process tier in `src/comms/process.rs`. NEW file. io_uring underneath.
 - `Select<T>` with io_uring multi-arm + auto-broadcast_fd registration
 - HolonRepresentable serialization (HolonAST → EDN bytes via wat-edn)
 - Manual `impl HolonRepresentable` for substrate-internal Rust types: StdInServiceEvent, SpawnOutcome, etc.
-- **Config tunable:** `:wat::config::set-process-tier-uring-depth!` (default 512; range [1, 4096]; must be power of 2)
+- **Config tunable:** `:wat::config::set-process-tier-uring-depth!` (default 512; range [1, 4096]; must be power of 2) **— SUPERSEDED 2026-05-19; rejected by four-questions during Stone E walk; see § "Stone E forward-correction (2026-05-19) — TCO discipline + reflexive rebuild"**
 - `CommSender<T>` / `CommReceiver<T>` trait impls
 - Smoke probe
 
