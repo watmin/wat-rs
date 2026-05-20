@@ -34,6 +34,28 @@ Mode A target: 20/20 PASS.
 - WARD-PASS (out-of-zone)
 - INTERSTITIAL entry (orchestrator-direct)
 
+## Independent prediction (calibration record)
+
+Recorded before sonnet completes, after sonnet spawn. Per recovery doc § 7 time-boxing.
+
+**Target runtime:** 20-35 min Mode A
+**Upper bound:** 50 min
+**2× upper-bound cap:** 100 min (would clamp to 60 min via ScheduleWakeup runtime ceiling)
+**Confidence:** medium-high
+
+**Rationale:**
+- P1 calibration record — predicted 30-50 min, actual ~20 min (orchestrator tends to overestimate)
+- P2 surface is narrower than P1's: parser refactor lives in one file region (`src/parser.rs:200-230` + new helper), new ParseError variant + Display, one new probe file (9 probes mirroring P1's probe shape), small doc updates
+- P1 touched 4+ production files + 4 test migration files; P2 touches ~1 production file + 1 new test file + 3 docs
+- Risk factors that could push toward upper bound: STOP-1 (arc 169 `{}` semantics ripple), STOP-2 (Probe 5 Atom polymorphism surprise), STOP-3 (any pre-existing `{...}` → StructPattern assertion)
+- Risk factors that could push under target: zero substrate gaps (P1 shipped the verb-call sonnet desugars to); content-shape dispatch is mechanical; probes mirror P1's matrix shape
+
+**Calibration check (fill in at completion):**
+- Actual runtime: [TBD]
+- Within prediction band? [TBD]
+- If overrun: where did time go? [TBD]
+- If under: what made it cheaper than predicted? [TBD]
+
 ## Honesty deltas accepted
 
 Sonnet may surface deltas if encountered:
