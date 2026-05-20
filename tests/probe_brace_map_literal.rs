@@ -1,20 +1,25 @@
 //! Arc 214 P2 — `{...}` map literal in expression position.
 //!
 //! Verifies that the content-shape brace dispatch added in P2 correctly:
-//! - Routes empty `{}` to an empty `HashMap<keyword, HolonAST>`
+//! - Routes empty `{}` to an empty `HashMap<keyword, Infer>`
 //! - Routes keyword-headed `{:k v ...}` to a desugared HashMap verb-call
 //! - Preserves arc 169 bare-symbol struct-destructure path
 //! - Rejects malformed shapes at parse time with `MalformedBraceLiteral`
 //!
+//! Arc 215 stone 1 amendment — Probe 5's LIMITATION is resolved.
+//! The `{...}` desugar no longer uses `:wat::holon::HolonAST` + Atom
+//! auto-wrap; it uses `:wat::type::Infer` instead, and values pass
+//! through without wrapping. `{:outer {:inner 42}}` now type-checks
+//! AND executes correctly at runtime.
+//!
 //! ## The 9 probes
 //!
 //! 1. Empty `{}` → empty HashMap (length 0); arc 169 degeneracy retired
-//! 2. Single pair `{:foo 42}` → length 1, contains :foo; proves auto-wrap
+//! 2. Single pair `{:foo 42}` → length 1, contains :foo; proves inferred V
 //! 3. Multi pair `{:a 1 :b 2 :c 3}` → length 3, contains :b; alternation proven
 //! 4. Nested in expression `(:wat::core::length {:a 1 :b 2})` → 2; expression composability
-//! 5. Map-literal-of-map-literal `{:outer {:inner 42}}` — LIMITATION: auto-wrap of
-//!    an inner HashMap value via `(:wat::holon::Atom <HashMap>)` fails at RUNTIME
-//!    with TypeMismatch; HashMap is not a primitive / HolonAST / WatAST.
+//! 5. Map-literal-of-map-literal `{:outer {:inner 42}}` — RESOLVED by arc 215
+//!    stone 1: V inferred as HashMap<keyword,i64>; no Atom wrap; succeeds at runtime.
 //! 6. Non-keyword key `{42 :v}` → `MalformedBraceLiteral` at parse
 //! 7. Odd count `{:foo}` → `MalformedBraceLiteral` at parse
 //! 8. Bare symbols still parse as struct pattern in let-binding position
@@ -73,7 +78,8 @@ fn startup_err(src: &str) -> String {
 
 // ─── Probe 1: Empty `{}` → empty HashMap ────────────────────────────────────
 
-/// Empty `{}` desugars to `(:wat::core::HashMap :wat::core::keyword :wat::holon::HolonAST)`.
+/// Empty `{}` desugars to `(:wat::core::HashMap :wat::core::keyword :wat::type::Infer)`.
+/// Arc 215 stone 1: V is `:wat::type::Infer`; type-checker uses a fresh variable.
 /// Must produce a HashMap of length 0. Proves arc 169 degeneracy-check retirement.
 #[test]
 fn probe_1_empty_brace_is_empty_hashmap() {
@@ -86,9 +92,9 @@ fn probe_1_empty_brace_is_empty_hashmap() {
 
 // ─── Probe 2: Single pair `{:foo 42}` ────────────────────────────────────────
 
-/// `{:foo 42}` → `(:wat::core::HashMap :wat::core::keyword :wat::holon::HolonAST
-/// :foo (:wat::holon::Atom 42))` — length 1; key :foo present.
-/// Proves auto-wrap of value positions.
+/// `{:foo 42}` → `(:wat::core::HashMap :wat::core::keyword :wat::type::Infer
+/// :foo 42)` — length 1; key :foo present.
+/// Arc 215 stone 1: no Atom auto-wrap; V inferred as :wat::core::i64.
 #[test]
 fn probe_2_single_pair_length_and_contains() {
     // Length check.
@@ -145,48 +151,30 @@ fn probe_4_nested_in_expression_position() {
 
 // ─── Probe 5: Map-literal-of-map-literal ─────────────────────────────────────
 
-/// `{:outer {:inner 42}}` — the inner `{:inner 42}` evaluates to a
-/// `HashMap<keyword, HolonAST>` value. The outer auto-wrap produces
-/// `(:wat::holon::Atom <HashMap-value>)` at parse/eval time.
+/// `{:outer {:inner 42}}` — arc 215 stone 1 resolves the P2 LIMITATION.
 ///
-/// LIMITATION: `value_to_atom` in runtime.rs handles primitives, HolonAST,
-/// and WatAST — but not HashMap values. The `other =>` branch returns
-/// `RuntimeError::TypeMismatch { expected: "primitive, HolonAST, or quoted wat form",
-/// got: "HashMap" }`. This failure happens at EVAL time (not parse/check time)
-/// because the type checker admits `Atom<T>` for any T (polymorphic).
+/// The desugar no longer auto-wraps values in `(:wat::holon::Atom v)`.
+/// Instead, V slot is `:wat::type::Infer` and values pass through as-is.
+/// The outer map literal desugars to:
+///   `(:wat::core::HashMap :wat::core::keyword :wat::type::Infer
+///     :outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer
+///              :inner 42))`
 ///
-/// The probe captures this actual behavior. A future arc could extend
-/// `value_to_atom` to support HashMap → HolonAST lowering if needed.
+/// The inner map evaluates to `HashMap<keyword, i64>`. The type-checker
+/// infers outer V = `HashMap<keyword, i64>`. No Atom wrap; runtime succeeds.
+/// `length` on the outer map returns 1.
 #[test]
-fn probe_5_map_of_map_auto_wrap_limitation() {
-    // The outer map literal desugars at parse time to:
-    //   (:wat::core::HashMap :wat::core::keyword :wat::holon::HolonAST
-    //     :outer (:wat::holon::Atom
-    //               (:wat::core::HashMap :wat::core::keyword :wat::holon::HolonAST
-    //                 :inner (:wat::holon::Atom 42))))
-    // The inner map evaluates fine. The outer Atom wrapping fails at runtime.
+fn probe_5_map_of_map_resolved_by_arc215() {
+    // Arc 215 stone 1 — P2 limitation resolved. Nested map now succeeds at
+    // both type-check and runtime. Length of the outer map = 1.
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::length {:outer {:inner 42}}))
     "#;
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed — type-check admits Atom<HashMap<keyword,HolonAST>> polymorphically");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let result = eval_in_frozen(&ast, &world, &env);
-    // LIMITATION: fails at runtime with TypeMismatch — HashMap is not
-    // a primitive / HolonAST / WatAST so value_to_atom rejects it.
-    assert!(
-        result.is_err(),
-        "map-of-map auto-wrap must fail at runtime (HashMap not atomizable); got: {:?}",
-        result
-    );
-    let err = format!("{:?}", result.unwrap_err());
-    assert!(
-        err.to_lowercase().contains("mismatch") || err.to_lowercase().contains("type"),
-        "probe 5 runtime error must be a TypeMismatch; got: {}",
-        err
+    assert_eq!(
+        run_i64(src),
+        1,
+        "nested map literal must have outer length 1 (arc 215 resolves P2 Probe 5 limitation)"
     );
 }
 

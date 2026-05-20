@@ -1,18 +1,18 @@
-# EXPECTATIONS — Arc 215 Stone 1 — `_infer` + literal completion
+# EXPECTATIONS — Arc 215 Stone 1 — `Infer` + literal completion
 
 Mode A target: 22/22 PASS.
 
 | # | Row | Expectation |
 |---|---|---|
-| 1 | `:wat::core::_infer` registered | New type-keyword in registered list; `parse_type_expr(":wat::core::_infer")` returns Ok |
-| 2 | `_infer` resolves to fresh type variable | TypeExpr-level representation that integrates with HM unification (either a dedicated `TypeExpr::Infer` variant or direct fresh-variable substitution) |
-| 3 | `infer_hashmap_constructor` accepts `_infer` for K | Detects `:wat::core::_infer` in `args[0]`; sets `k_ty = fresh.fresh()`; doesn't error |
-| 4 | `infer_hashmap_constructor` accepts `_infer` for V | Detects `:wat::core::_infer` in `args[1]`; sets `v_ty = fresh.fresh()`; doesn't error |
-| 5 | `infer_hashset_constructor` accepts `_infer` for T | Detects `:wat::core::_infer` in `args[0]`; sets `t_ty = fresh.fresh()`; doesn't error |
-| 6 | `{...}` desugar updated | Parser emits `(:wat::core::HashMap :wat::core::keyword :wat::core::_infer :k v)` — no `:wat::holon::Atom` wrap on values |
-| 7 | `#{...}` parser dispatch added | New rule produces `(:wat::core::HashSet :wat::core::_infer x y z ...)`; `#{` token discriminator |
-| 8 | Empty `{}` works | Desugars to `(:wat::core::HashMap :wat::core::keyword :wat::core::_infer)`; type-check accepts; length-0 at runtime |
-| 9 | Empty `#{}` works | Desugars to `(:wat::core::HashSet :wat::core::_infer)`; type-check accepts; length-0 at runtime |
+| 1 | `:wat::type::Infer` registered | New type-keyword in registered list; `parse_type_expr(":wat::type::Infer")` returns Ok |
+| 2 | `Infer` resolves to fresh type variable | TypeExpr-level representation that integrates with HM unification (either a dedicated `TypeExpr::Infer` variant or direct fresh-variable substitution) |
+| 3 | `infer_hashmap_constructor` accepts `Infer` for K | Detects `:wat::type::Infer` in `args[0]`; sets `k_ty = fresh.fresh()`; doesn't error |
+| 4 | `infer_hashmap_constructor` accepts `Infer` for V | Detects `:wat::type::Infer` in `args[1]`; sets `v_ty = fresh.fresh()`; doesn't error |
+| 5 | `infer_hashset_constructor` accepts `Infer` for T | Detects `:wat::type::Infer` in `args[0]`; sets `t_ty = fresh.fresh()`; doesn't error |
+| 6 | `{...}` desugar updated | Parser emits `(:wat::core::HashMap :wat::core::keyword :wat::type::Infer :k v)` — no `:wat::holon::Atom` wrap on values |
+| 7 | `#{...}` parser dispatch added | New rule produces `(:wat::core::HashSet :wat::type::Infer x y z ...)`; `#{` token discriminator |
+| 8 | Empty `{}` works | Desugars to `(:wat::core::HashMap :wat::core::keyword :wat::type::Infer)`; type-check accepts; length-0 at runtime |
+| 9 | Empty `#{}` works | Desugars to `(:wat::core::HashSet :wat::type::Infer)`; type-check accepts; length-0 at runtime |
 | 10 | Probe 1 — `{:foo 42}` single-pair inference | length 1; get :foo → Some(42) as i64 (NOT HolonAST-wrapped) |
 | 11 | Probe 2 — `{:a 1 :b 2 :c 3}` multi-pair | length 3; get :b → Some(2); all values share inferred i64 V |
 | 12 | Probe 3 — `{:a "hello" :b "world"}` string-valued | length 2; get :a → Some("hello"); V inferred as String |
@@ -24,7 +24,7 @@ Mode A target: 22/22 PASS.
 | 18 | Probe 9 — `#{1 1 2 2 3}` dedup | length 3 (construction dedups); same T inference |
 | 19 | Probe 10 — mixed-element-type set rejection | `#{1 :foo "x"}` fails at check with TypeMismatch |
 | 20 | Probe 11 — map of sets | `{:a #{1 2} :b #{3 4}}` — outer V = HashSet<i64>; both inner length 2 |
-| 21 | WAT-CHEATSHEET § 8 updated | New `{...}` / `#{...}` desugar rows; `_infer` row added; explicit verb-form continues |
+| 21 | WAT-CHEATSHEET § 8 updated | New `{...}` / `#{...}` desugar rows; `Infer` row added; explicit verb-form continues |
 | 22 | P2 SCORE retroactive amendment | Probe 5 LIMITATION resolution section appended (historical record preserved) |
 
 ## Independent prediction (calibration record)
@@ -40,7 +40,7 @@ Recorded before sonnet completes; pre-spawn.
 - P1 calibration: predicted 30-50 min, actual ~20 min (under)
 - P2 calibration: predicted 20-35 min, actual ~45 min (over due to D2 cross-cut)
 - This stone is BIGGER than both — substrate change (new type-placeholder) + two inference-function extensions + parser desugar adjustment + new `#{...}` dispatch + 12-probe matrix + retroactive amendment + 3 doc updates
-- The `_infer` integration with HM unification could surface subtleties (STOP-1 territory)
+- The `Infer` integration with HM unification could surface subtleties (STOP-1 territory)
 - Risk factors widening the band: TypeExpr integration with apply_subst / format_type / parse_type_expr / type registry; cross-cutting ripples in walkers
 
 **Calibration check (fill in at completion):**
@@ -56,12 +56,12 @@ Recorded before sonnet completes; pre-spawn.
 - WARD-PASS (out-of-zone)
 - INTERSTITIAL (orchestrator-direct)
 - Atom signature changes
-- Backporting Vector to `_infer` form
+- Backporting Vector to `Infer` form
 
 ## Honesty deltas accepted
 
 Sonnet may surface deltas if encountered:
-- `_infer` integration requires more substrate changes than anticipated (e.g., TypeExpr variant addition rippling across N walkers). Surface honestly; deliver what's feasible; flag the rest.
-- HM unification interaction with `_infer` surprises. Honest deltas in SCORE.
+- `Infer` integration requires more substrate changes than anticipated (e.g., TypeExpr variant addition rippling across N walkers). Surface honestly; deliver what's feasible; flag the rest.
+- HM unification interaction with `Infer` surprises. Honest deltas in SCORE.
 - Probe 5's update (success vs LIMITATION) may need probe-file rename or test-name update.
 - Cross-cuts to other check.rs paths that depend on the old desugar shape. Document; fix if scoped; defer if not.

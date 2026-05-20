@@ -90,6 +90,10 @@ pub enum Token {
     LBrace,
     /// `}`
     RBrace,
+    /// `#{` — opens a set literal. Arc 215 stone 1: `#{x y z ...}`
+    /// desugars to `(:wat::core::HashSet :wat::type::Infer x y z ...)`
+    /// at parse time; T is inferred from the element types by check.rs.
+    LHashBrace,
     /// Integer literal.
     Int(i64),
     /// Floating-point literal.
@@ -236,6 +240,15 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
 
         // Braces — arc 169 slice 1. Emit `LBrace` / `RBrace` tokens
         // which the parser turns into `WatAST::StructPattern`.
+        //
+        // Arc 215 stone 1 — `#{` two-character prefix emits `LHashBrace`
+        // (set literal). Must check BEFORE plain `{` so `#{` is not
+        // split into `Symbol("#")` + `LBrace`.
+        if c == '#' && i + 1 < bytes.len() && bytes[i + 1] as char == '{' {
+            tokens.push(SpannedToken { token: Token::LHashBrace, span: span_at(i) });
+            i += 2;
+            continue;
+        }
         if c == '{' {
             tokens.push(SpannedToken { token: Token::LBrace, span: span_at(i) });
             i += 1;

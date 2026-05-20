@@ -269,6 +269,13 @@ impl<'a> Cursor<'a> {
                 }
             }
             Token::RBrace => Err(ParseError::UnexpectedRBrace(span)),
+            Token::LHashBrace => {
+                // Arc 215 stone 1 — `#{x y z ...}` set literal.
+                // Desugars to `(:wat::core::HashSet :wat::type::Infer x y z ...)`.
+                // T inferred by check.rs from element types.
+                let items = self.parse_brace_body(span.clone())?;
+                self.parse_hashset_literal_body(items, span)
+            }
             Token::Int(n) => Ok(Some(WatAST::IntLit(*n, span))),
             Token::Float(x) => Ok(Some(WatAST::FloatLit(*x, span))),
             Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b, span))),
@@ -411,15 +418,15 @@ impl<'a> Cursor<'a> {
     /// Arc 214 P2 — map literal semantic path. Called when the brace
     /// body is empty (empty map) or begins with a Keyword (map literal).
     ///
-    /// Synthesizes `(:wat::core::HashMap :wat::core::Keyword
-    /// :wat::holon::HolonAST k0 (:wat::holon::Atom v0) k1 ...)` at
-    /// parse time. Pinned type: `HashMap<Keyword, HolonAST>`.
+    /// Arc 215 stone 1 — replaces pinned `:wat::holon::HolonAST` V-type and
+    /// Atom auto-wrap with `:wat::type::Infer`; values pass through as-is.
     ///
-    /// Validation:
-    ///   * Body length must be even (alternating key/value pairs).
-    ///   * Every even-indexed child (key position) must be a Keyword.
-    ///   * Every odd-indexed child (value position) is wrapped in
-    ///     `(:wat::holon::Atom v)` unconditionally.
+    /// Synthesizes `(:wat::core::HashMap :wat::core::keyword :wat::type::Infer k0 v0 ...)`.
+    ///
+    /// Validation rules:
+    /// - Body length must be even (alternating key/value pairs).
+    /// - Every even-indexed child (key position) must be a Keyword.
+    /// - Odd-indexed children (value positions) pass through as-is.
     fn parse_map_literal_body(
         &self,
         items: Vec<WatAST>,
@@ -442,15 +449,18 @@ impl<'a> Cursor<'a> {
                 return Err(ParseError::MalformedBraceLiteral {
                     span: item.span().clone(),
                     reason: format!(
-                        "map-literal key must be a keyword (got {}); pinned key type is :wat::core::Keyword",
+                        "map-literal key must be a keyword (got {}); pinned key type is :wat::core::keyword",
                         ast_variant_label(item)
                     ),
                 });
             }
         }
 
-        // Synthesize `(:wat::core::HashMap :wat::core::Keyword
-        // :wat::holon::HolonAST k0 (:wat::holon::Atom v0) ...)`.
+        // Synthesize `(:wat::core::HashMap :wat::core::keyword
+        // :wat::type::Infer k0 v0 ...)`.
+        // K is always :wat::core::keyword (structural rule, validated above).
+        // V is :wat::type::Infer — check.rs infers the concrete type
+        // from the first value and unifies subsequent values against it.
         let mut list_items: Vec<WatAST> = Vec::with_capacity(3 + items.len());
         list_items.push(WatAST::Keyword(
             ":wat::core::HashMap".to_string(),
@@ -462,27 +472,52 @@ impl<'a> Cursor<'a> {
             ":wat::core::keyword".to_string(),
             open_span.clone(),
         ));
+        // Arc 215 stone 1 — V is :wat::type::Infer; check.rs infers from values.
+        // Retired: `:wat::holon::HolonAST` + `(:wat::holon::Atom v)` wrap.
         list_items.push(WatAST::Keyword(
-            ":wat::holon::HolonAST".to_string(),
+            ":wat::type::Infer".to_string(),
             open_span.clone(),
         ));
-        // Alternating key / auto-wrapped value pairs.
+        // Alternating key / raw-value pairs (no Atom wrap).
         let mut i = 0;
         while i < items.len() {
             let key = items[i].clone();
             let val = items[i + 1].clone();
-            let val_span = val.span().clone();
-            let wrapped_val = WatAST::List(
-                vec![
-                    WatAST::Keyword(":wat::holon::Atom".to_string(), val_span.clone()),
-                    val,
-                ],
-                val_span,
-            );
             list_items.push(key);
-            list_items.push(wrapped_val);
+            list_items.push(val);
             i += 2;
         }
+        Ok(Some(WatAST::List(list_items, open_span)))
+    }
+
+    /// Arc 215 stone 1 — `#{x y z ...}` set literal. Desugars to
+    /// `(:wat::core::HashSet :wat::type::Infer x y z ...)`.
+    ///
+    /// T is inferred by check.rs from the first element; subsequent
+    /// elements must unify against T. Empty `#{}` produces
+    /// `(:wat::core::HashSet :wat::type::Infer)` — T stays as a fresh
+    /// type variable until the set is used in a typed context.
+    ///
+    /// All elements are values; there is no key/value structure in a
+    /// set. Every body child is an element.
+    fn parse_hashset_literal_body(
+        &self,
+        items: Vec<WatAST>,
+        open_span: Span,
+    ) -> Result<Option<WatAST>, ParseError> {
+        // Synthesize `(:wat::core::HashSet :wat::type::Infer x y z ...)`.
+        let mut list_items: Vec<WatAST> = Vec::with_capacity(2 + items.len());
+        list_items.push(WatAST::Keyword(
+            ":wat::core::HashSet".to_string(),
+            open_span.clone(),
+        ));
+        // T is :wat::type::Infer — check.rs infers from the first element.
+        list_items.push(WatAST::Keyword(
+            ":wat::type::Infer".to_string(),
+            open_span.clone(),
+        ));
+        // All body children are set elements (no key/value structure).
+        list_items.extend(items);
         Ok(Some(WatAST::List(list_items, open_span)))
     }
 

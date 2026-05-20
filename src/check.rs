@@ -9721,17 +9721,26 @@ fn infer_hashset_constructor(
         });
     }
     let t_ty = match &args[0] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(_) => {
-                errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::HashSet".into(),
-                    reason: format!("first argument {} is not a valid type keyword", k),
-                    span: args[0].span().clone(),
-                });
+        WatAST::Keyword(k, _) => {
+            // Arc 215 stone 1 — :wat::type::Infer means "infer T from
+            // the elements." Route to a fresh type variable; the
+            // unification loop below concretizes it from the first element.
+            if k == crate::types::INFER_TYPE_PATH {
                 fresh.fresh()
+            } else {
+                match crate::types::parse_type_expr(k) {
+                    Ok(t) => t,
+                    Err(_) => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::HashSet".into(),
+                            reason: format!("first argument {} is not a valid type keyword", k),
+                            span: args[0].span().clone(),
+                        });
+                        fresh.fresh()
+                    }
+                }
             }
-        },
+        }
         _ => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::HashSet".into(),
@@ -10603,20 +10612,29 @@ fn infer_hashmap_constructor(
         });
     }
     let k_ty = match &args[0] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(parsed) => {
-                let expanded = crate::types::expand_alias(&parsed, env.types());
-                expanded
-            }
-            Err(_) => {
-                errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::HashMap".into(),
-                    reason: format!("first type argument {} is not a valid type keyword", k),
-                    span: args[0].span().clone(),
-                });
+        WatAST::Keyword(k, _) => {
+            // Arc 215 stone 1 — :wat::type::Infer means "infer K from
+            // the keys." Route to a fresh type variable; the unification
+            // loop below concretizes it from the first key.
+            if k == crate::types::INFER_TYPE_PATH {
                 fresh.fresh()
+            } else {
+                match crate::types::parse_type_expr(k) {
+                    Ok(parsed) => {
+                        let expanded = crate::types::expand_alias(&parsed, env.types());
+                        expanded
+                    }
+                    Err(_) => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::HashMap".into(),
+                            reason: format!("first type argument {} is not a valid type keyword", k),
+                            span: args[0].span().clone(),
+                        });
+                        fresh.fresh()
+                    }
+                }
             }
-        },
+        }
         _ => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::HashMap".into(),
@@ -10627,20 +10645,29 @@ fn infer_hashmap_constructor(
         }
     };
     let v_ty = match &args[1] {
-        WatAST::Keyword(v, _) => match crate::types::parse_type_expr(v) {
-            Ok(parsed) => {
-                let expanded = crate::types::expand_alias(&parsed, env.types());
-                expanded
-            }
-            Err(_) => {
-                errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::HashMap".into(),
-                    reason: format!("second type argument {} is not a valid type keyword", v),
-                    span: args[1].span().clone(),
-                });
+        WatAST::Keyword(v, _) => {
+            // Arc 215 stone 1 — :wat::type::Infer means "infer V from
+            // the values." Route to a fresh type variable; the unification
+            // loop below concretizes it from the first value.
+            if v == crate::types::INFER_TYPE_PATH {
                 fresh.fresh()
+            } else {
+                match crate::types::parse_type_expr(v) {
+                    Ok(parsed) => {
+                        let expanded = crate::types::expand_alias(&parsed, env.types());
+                        expanded
+                    }
+                    Err(_) => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::HashMap".into(),
+                            reason: format!("second type argument {} is not a valid type keyword", v),
+                            span: args[1].span().clone(),
+                        });
+                        fresh.fresh()
+                    }
+                }
             }
-        },
+        }
         _ => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::HashMap".into(),

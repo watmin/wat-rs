@@ -6,18 +6,18 @@
 
 ## What this arc declares
 
-The `{...}` and `#{...}` literals desugar to Rust collection-constructor verb-calls with **type inference** delegated to the type-checker via a new substrate primitive: `:wat::core::_infer`.
+The `{...}` and `#{...}` literals desugar to Rust collection-constructor verb-calls with **type inference** delegated to the type-checker via a new substrate primitive: `:wat::type::Infer`.
 
 Concretely:
 
 ```
 [2 5 6]                       → existing arc 167 WatAST::Vector path (unchanged)
-{:foo 42 :bar 43}             → (:wat::core::HashMap :wat::core::keyword :wat::core::_infer :foo 42 :bar 43)
-{:outer {:inner 42}}          → (:wat::core::HashMap :wat::core::keyword :wat::core::_infer :outer {:inner 42})
+{:foo 42 :bar 43}             → (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :foo 42 :bar 43)
+{:outer {:inner 42}}          → (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :outer {:inner 42})
                                  — recursion: inner {...} desugars same way; V infers to HashMap<keyword, i64>
-{:foo "x" :bar "y"}           → (:wat::core::HashMap :wat::core::keyword :wat::core::_infer :foo "x" :bar "y")
+{:foo "x" :bar "y"}           → (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :foo "x" :bar "y")
                                  — V inferred to :wat::core::String
-#{1 2 3}                      → (:wat::core::HashSet :wat::core::_infer 1 2 3)
+#{1 2 3}                      → (:wat::core::HashSet :wat::type::Infer 1 2 3)
                                  — T inferred to :wat::core::i64
 ```
 
@@ -37,7 +37,7 @@ V (HashMap) and T (HashSet) are inferred from the first value/element; mismatche
 - P2's D2 fix: `process_let_binding` rejects List binders at check time
 - P1's HashMap explicit verb form: `(:wat::core::HashMap :K :V k v ...)` continues to work for callers wanting explicit types
 
-## Substrate primitive: `:wat::core::_infer`
+## Substrate primitive: `:wat::type::Infer`
 
 A type-placeholder. Rust's `_` in type position; Haskell's `_`. Documented semantics:
 
@@ -50,21 +50,21 @@ Mint as a registered keyword-type in `types.rs`; parse_type_expr returns it; the
 
 **User-facing benefit beyond literals:** writers can use the explicit verb form with inference:
 ```
-(:wat::core::Vector :wat::core::_infer 1 2 3)         ; same as [1 2 3]
-(:wat::core::HashMap :wat::core::_infer :wat::core::_infer :foo 1 :bar 2)  ; full inference
+(:wat::core::Vector :wat::type::Infer 1 2 3)         ; same as [1 2 3]
+(:wat::core::HashMap :wat::type::Infer :wat::type::Infer :foo 1 :bar 2)  ; full inference
 ```
 
 ## Inference rules
 
 **HashMap** `(:wat::core::HashMap K V k1 v1 k2 v2 ...)`:
-- K is `:wat::core::_infer` → infer from first key; verify all subsequent keys unify
+- K is `:wat::type::Infer` → infer from first key; verify all subsequent keys unify
 - K is a real type → use it; verify all keys unify (existing P1 behavior)
-- V is `:wat::core::_infer` → infer from first value; verify all subsequent values unify
+- V is `:wat::type::Infer` → infer from first value; verify all subsequent values unify
 - V is a real type → use it (existing P1 behavior)
 - Empty literal `{}` → K, V both fresh type variables (acceptable; concrete-type unification happens at first use)
 
 **HashSet** `(:wat::core::HashSet T x1 x2 ...)`:
-- T is `:wat::core::_infer` → infer from first element; verify all subsequent unify
+- T is `:wat::type::Infer` → infer from first element; verify all subsequent unify
 - T is a real type → use it (existing behavior)
 - Empty literal `#{}` → T is fresh type variable
 - Dedup happens at construction (existing HashSet behavior); duplicates in source are not an error
@@ -83,7 +83,7 @@ Mint as a registered keyword-type in `types.rs`; parse_type_expr returns it; the
 ## Out of scope (deferred)
 
 - **`'(...)` list literal** — substrate `:wat::core::List<T>` (task #283) must land first; reader macro then mechanical
-- **`[...]` retarget to `_infer` form** — existing `WatAST::Vector` path stays; future arc may unify all literal paths through verb-call + `_infer`
+- **`[...]` retarget to `Infer` form** — existing `WatAST::Vector` path stays; future arc may unify all literal paths through verb-call + `Infer`
 - **`(:wat::holon::*)` constructions from literals** — algebra opt-in via explicit conversion verbs; not literal default per user direction "literals are data; holon is the algebraic view"
 - **Match-arm patterns** for `{...}` / `[...]` / `#{...}` — task #402 remains separate
 - **WARD-PASS** — parser + check + types out-of-zone per `feedback_ward_zone_comms_only`
@@ -102,7 +102,7 @@ Convergence #7 inside this lineage. The substrate has the answer; the literal su
 
 Single stone covers the full pivot. Substrate change is small (one new placeholder type + inference detection in two existing handlers); parser change is mechanical; probe matrix is parallel to P1/P2.
 
-- **Stone 215.1** — mint `_infer` + extend inference mode + adjust `{...}` parser + add `#{...}` parser dispatch + probes + docs + retroactively amend P2's SCORE to mark Probe 5's LIMITATION resolved.
+- **Stone 215.1** — mint `Infer` + extend inference mode + adjust `{...}` parser + add `#{...}` parser dispatch + probes + docs + retroactively amend P2's SCORE to mark Probe 5's LIMITATION resolved.
 
 Estimated 60-90 min Mode A.
 

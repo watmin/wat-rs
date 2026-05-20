@@ -40,6 +40,28 @@ use crate::span::Span;
 use std::collections::HashMap;
 use std::fmt;
 
+/// Arc 215 stone 1 — type-placeholder path for HM-style inference.
+///
+/// Appears in type-arg slots of parametric constructor calls to signal
+/// "infer this type from the values." Used by:
+///
+/// - `{...}` map literals (V slot) — desugar emits `:wat::type::Infer`
+///   as V; `infer_hashmap_constructor` detects it and uses `fresh.fresh()`.
+/// - `#{...}` set literals (T slot) — desugar emits `:wat::type::Infer`
+///   as T; `infer_hashset_constructor` detects it and uses `fresh.fresh()`.
+/// - Explicit verb-form with inference: `(:wat::core::HashMap :wat::core::keyword
+///   :wat::type::Infer :k v)` — K is explicit, V is inferred.
+///
+/// `parse_type_expr(":wat::type::Infer")` returns
+/// `Ok(TypeExpr::Path(":wat::type::Infer"))` — no special registration
+/// needed. The constructors in `check.rs` match on this sentinel path
+/// and route to `fresh.fresh()` for the inference variable.
+///
+/// Analogous to Rust's `_` in type position and Haskell's `_` wildcard.
+/// NOT a valid user-level type (callers cannot unify against it directly;
+/// it dissolves into a concrete type during constructor inference).
+pub const INFER_TYPE_PATH: &str = ":wat::type::Infer";
+
 /// A type expression — the shape that appears after `:` in a keyword.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeExpr {

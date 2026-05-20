@@ -83,4 +83,35 @@ The type-checker admits `Atom<T>` for any T (including `HashMap<keyword, HolonAS
 
 ---
 
-*Reads as a map. Becomes the verb form. Stays honest about the pinned shape.*
+## Retroactive amendment — Arc 215 stone 1 (2026-05-20)
+
+**Probe 5 LIMITATION resolved.**
+
+Arc 215 stone 1 eliminates the entire class of failure that Probe 5 captured.
+
+The root cause: the `{...}` desugar pinned V to `:wat::holon::HolonAST` and
+unconditionally wrapped every value in `(:wat::holon::Atom v)`. This caused
+the runtime failure for nested maps because `value_to_atom` in `runtime.rs`
+accepts primitives, `HolonAST`, and `WatAST` but NOT HashMap values.
+
+The fix: drop the pinned type and Atom auto-wrap entirely. The desugar now
+uses `:wat::type::Infer` as the V type-arg, and values pass through as-is.
+The type-checker infers V from the first value; subsequent values must unify
+against it. Nested HashMap values (`{:outer {:inner 42}}`) type-check as
+`HashMap<keyword, HashMap<keyword, i64>>` and execute correctly at runtime.
+
+Changes shipped in arc 215 stone 1:
+- `src/parser.rs` — `parse_map_literal_body`: V changed from `:wat::holon::HolonAST`
+  to `:wat::type::Infer`; Atom auto-wrap removed.
+- `src/check.rs` — `infer_hashmap_constructor`: accepts `:wat::type::Infer`
+  for K or V; routes to `fresh.fresh()` instead of erroring.
+- `src/lexer.rs` + `src/parser.rs` — `#{...}` set literal added; same
+  `Infer`-based inference pattern.
+- `src/types.rs` — `INFER_TYPE_PATH` const documents the placeholder.
+
+P2's Probe 5 test was renamed to `probe_5_map_of_map_resolved_by_arc215`
+and converted from asserting `result.is_err()` to asserting `run_i64() == 1`.
+The original SCORE rows above are historical record; this amendment is
+appended per `feedback_inscription_immutable`.
+
+*The rows above are historical. The limitation was real. Arc 215 eliminated the class.*

@@ -205,31 +205,75 @@ Rules:
 Arc 214 P1 retired the old `(:wat::core::HashMap :(K,V) ...)` tuple-keyword
 shape; the two-separate-keywords shape `:K :V` mirrors Vector's `:T` exactly.
 
-### Map literal syntax (arc 214 P2)
+### Type-inference placeholder: `:wat::type::Infer` (arc 215 stone 1)
 
-`{...}` is a map literal sugar for the pinned `HashMap<keyword, HolonAST>` shape:
+`:wat::type::Infer` is a type-placeholder for HM-style type inference.
+Appears in type-arg slots of parametric constructor calls; tells check.rs
+"infer this type from the values." Analogous to Rust's `_` in type position.
+
+```wat
+(:wat::core::HashMap :wat::core::keyword :wat::type::Infer :foo 42 :bar 99)
+;; V inferred as :wat::core::i64 from the values 42 and 99
+
+(:wat::core::HashSet :wat::type::Infer 1 2 3)
+;; T inferred as :wat::core::i64 from elements 1, 2, 3
+
+(:wat::core::HashMap :wat::type::Infer :wat::type::Infer :foo 1 :bar 2)
+;; K inferred as :wat::core::keyword; V inferred as :wat::core::i64
+```
+
+Empty constructor with `Infer` → fresh type variable (resolves on first use).
+Mismatch between inferred type and subsequent values → `TypeMismatch` diagnostic.
+
+### Map literal syntax (arc 214 P2, arc 215 stone 1)
+
+`{...}` is a map literal sugar using type inference for V:
 
 ```wat
 {:k0 v0 :k1 v1 ...}    ;; desugars at parse time to:
-                        ;; (:wat::core::HashMap :wat::core::keyword :wat::holon::HolonAST
-                        ;;   :k0 (:wat::holon::Atom v0) :k1 (:wat::holon::Atom v1) ...)
+                        ;; (:wat::core::HashMap :wat::core::keyword :wat::type::Infer
+                        ;;   :k0 v0 :k1 v1 ...)
+                        ;; V inferred from first value; all values must unify
 
-{}                      ;; empty map literal — length-0 HashMap<keyword, HolonAST>
+{}                      ;; empty map literal — length-0 HashMap<keyword, fresh-T>
+
+{:outer {:inner 42}}    ;; nested: outer V inferred as HashMap<keyword, i64>
+                        ;; values pass through as-is (no Atom auto-wrap)
 ```
 
-Values are unconditionally auto-wrapped in `(:wat::holon::Atom v)` at parse time.
-For non-pinned shapes (arbitrary K/V types), use the explicit verb form.
+K is always `:wat::core::keyword` (structural rule; non-keyword keys → `MalformedBraceLiteral`).
+V is `:wat::type::Infer`; check.rs infers it from the first value. All values must have the same type.
+For explicit K/V types, use the verb form: `(:wat::core::HashMap :K :V ...)`.
 
-**Position discipline** (arc 214 P2 + arc 169):
+### Set literal syntax: `#{...}` (arc 215 stone 1)
 
-| Position | Brace form | Routes to |
+`#{...}` is a set literal sugar:
+
+```wat
+#{1 2 3}        ;; desugars to: (:wat::core::HashSet :wat::type::Infer 1 2 3)
+                ;; T inferred as :wat::core::i64 from element 1
+
+#{}             ;; empty set — HashSet<fresh-T>
+
+#{:a :b :c}     ;; T inferred as :wat::core::keyword
+```
+
+Duplicate elements collapse at construction (dedup). All elements must have the same type.
+For an explicit T, use the verb form: `(:wat::core::HashSet :T ...)`.
+
+**Position discipline** (arc 214 P2 + arc 215 stone 1 + arc 169):
+
+| Position | Form | Routes to |
 |---|---|---|
-| Expression (any value position) | `{:k v ...}` — keyword head | map literal → desugared HashMap verb-call |
-| Expression (any value position) | `{}` — empty | empty map literal (length-0 HashMap) |
+| Expression | `{:k v ...}` — keyword head | map literal → desugared HashMap verb-call (V inferred) |
+| Expression | `{}` — empty | empty map literal |
+| Expression | `#{x y ...}` | set literal → desugared HashSet verb-call (T inferred) |
+| Expression | `#{}` — empty | empty set literal |
 | Binding LHS in `let` | `{field1 field2 ...}` — bare-symbol head | struct destructure → `WatAST::StructPattern` (arc 169) |
 
-Content-shape dispatch: the parser reads the brace body and examines the first child's shape.
+Content-shape dispatch for `{...}`: parser reads first child's shape.
 A keyword head → map literal. A bare Symbol head → struct destructure. Anything else → `MalformedBraceLiteral`.
+`#{...}` always routes to set literal (the `#` prefix is the discriminator).
 
 ## 9. Common verb signatures
 

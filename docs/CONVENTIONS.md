@@ -104,6 +104,27 @@ had been placed at `:wat::std::*` when they should have been at
 `:wat::core::*` (they reach Rust bucket internals; can't write in
 wat). `assoc` from arc 020 was already at core by this rule.
 
+### Type-placeholders (arc 215 stone 1)
+
+The `:wat::core::*` namespace includes one type-placeholder that is
+NOT a value type:
+
+| Placeholder | Meaning | Appears in |
+|---|---|---|
+| `:wat::type::Infer` | "Infer this type from the values" | Type-arg slots of parametric constructors (`HashMap`, `HashSet`) |
+
+`:wat::type::Infer` is analogous to Rust's `_` in type position and
+Haskell's `_` wildcard. It signals to check.rs: "allocate a fresh HM
+unification variable here; resolve it from the actual values."
+
+The `{...}` and `#{...}` literal desugars use `Infer` for inferred
+type-arg positions. The checker concretizes the fresh variable from
+the first value; subsequent values must unify against it.
+
+`:wat::type::Infer` is NOT a valid user-facing type (you cannot
+declare a struct field or function parameter with this type). It is
+a parse-and-check-time placeholder only.
+
 ### External wat crates (arcs 013 + 036)
 
 The `:wat::*` and `:user::*` prefixes split along a single

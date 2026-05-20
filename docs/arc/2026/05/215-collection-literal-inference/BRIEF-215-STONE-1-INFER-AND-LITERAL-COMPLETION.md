@@ -1,6 +1,6 @@
-# BRIEF — Arc 215 Stone 1 — `_infer` placeholder + literal completion
+# BRIEF — Arc 215 Stone 1 — `Infer` placeholder + literal completion
 
-**Stone:** mint `:wat::core::_infer` type-placeholder + extend HashMap/HashSet inference + adjust `{...}` desugar + add `#{...}` literal.
+**Stone:** mint `:wat::type::Infer` type-placeholder + extend HashMap/HashSet inference + adjust `{...}` desugar + add `#{...}` literal.
 **Type:** Sonnet Mode A.
 **Time budget:** 60-90 min target; 120 min STOP.
 **Depends on:** P1 (#403, commit 564d5e6) + P2 (#404, commit 3230a9d). Both shipped.
@@ -12,14 +12,14 @@ Pivot literal desugaring from "auto-wrap everything in Atom" to "infer the concr
 
 ## Pre-flight verified
 
-- `:wat::core::_infer` doesn't exist anywhere in `src/types.rs` or `src/check.rs` (confirmed via grep).
+- `:wat::type::Infer` doesn't exist anywhere in `src/types.rs` or `src/check.rs` (confirmed via grep).
 - Existing tests green pre-spawn:
   - `cargo test --release --test probe_brace_map_literal` → 9/9 PASS
   - `cargo test --release --test probe_hashmap_ctor_vector_symmetric` → 9/9 PASS
   - `cargo test --release --test wat_arc169_struct_destructure` → 11/11 PASS
 - `infer_hashmap_constructor` at `src/check.rs:10584` — currently emits MalformedForm if `args[0]` or `args[1]` isn't a type-keyword
 - `infer_hashset_constructor` at `src/check.rs:9702` — currently emits MalformedForm if `args[0]` isn't a type-keyword
-- Both already fall back to `fresh.fresh()` for the malformed path — the HM machinery is THERE; we just need to route `_infer` to it instead of erroring
+- Both already fall back to `fresh.fresh()` for the malformed path — the HM machinery is THERE; we just need to route `Infer` to it instead of erroring
 
 ## Working dir + constraints
 
@@ -33,32 +33,32 @@ Pivot literal desugaring from "auto-wrap everything in Atom" to "infer the concr
 
 ## Your scope (sonnet ships)
 
-1. **Mint `:wat::core::_infer`** in `src/types.rs` (or wherever registered keyword-types live)
+1. **Mint `:wat::type::Infer`** in `src/types.rs` (or wherever registered keyword-types live)
    - Add it to the registered-keyword-types list so `parse_type_expr` accepts it without errors
    - Represent at the TypeExpr level as a fresh type variable (or a dedicated `TypeExpr::Infer` variant that immediately translates to a fresh during inference)
    - Document at the definition site: "Placeholder for HM-style type inference; appears in type-arg slots of parametric constructor calls to delegate type to check.rs"
 
 2. **Extend `infer_hashmap_constructor` (`src/check.rs:10584`)**
-   - Before the MalformedForm path: if `args[0]` is `:wat::core::_infer`, set `k_ty = fresh.fresh()` (don't error)
-   - If `args[1]` is `:wat::core::_infer`, set `v_ty = fresh.fresh()` (don't error)
+   - Before the MalformedForm path: if `args[0]` is `:wat::type::Infer`, set `k_ty = fresh.fresh()` (don't error)
+   - If `args[1]` is `:wat::type::Infer`, set `v_ty = fresh.fresh()` (don't error)
    - The existing unification loop (lines 10664+) handles the rest — verifies all keys unify against `k_ty`, all values unify against `v_ty`, substitution resolves the fresh variables to concrete types
-   - When both are `_infer` AND the literal is empty (no pairs), `k_ty` and `v_ty` stay as fresh variables — that's the existing HM-correct behavior
+   - When both are `Infer` AND the literal is empty (no pairs), `k_ty` and `v_ty` stay as fresh variables — that's the existing HM-correct behavior
 
 3. **Extend `infer_hashset_constructor` (`src/check.rs:9702`)**
-   - Same pattern: if `args[0]` is `:wat::core::_infer`, set `t_ty = fresh.fresh()`
+   - Same pattern: if `args[0]` is `:wat::type::Infer`, set `t_ty = fresh.fresh()`
    - Existing unification loop verifies element types
    - Empty `#{}` → `t_ty` stays fresh
 
 4. **Adjust `{...}` parser desugar** (`src/parser.rs`)
    - Currently emits `(:wat::core::HashMap :wat::core::keyword :wat::holon::HolonAST :k (:wat::holon::Atom v))`
-   - Change to emit `(:wat::core::HashMap :wat::core::keyword :wat::core::_infer :k v)` — V slot is `_infer`; values pass through without Atom wrap
+   - Change to emit `(:wat::core::HashMap :wat::core::keyword :wat::type::Infer :k v)` — V slot is `Infer`; values pass through without Atom wrap
    - K remains `:wat::core::keyword` explicitly (structural rule; non-keyword keys still rejected at parse via `MalformedBraceLiteral`)
-   - Empty `{}` desugars to `(:wat::core::HashMap :wat::core::keyword :wat::core::_infer)` — both K and V "concrete" but V infers fresh
+   - Empty `{}` desugars to `(:wat::core::HashMap :wat::core::keyword :wat::type::Infer)` — both K and V "concrete" but V infers fresh
 
 5. **Add `#{...}` parser dispatch** (`src/parser.rs`)
-   - New parser rule: `#{x y z ...}` → `(:wat::core::HashSet :wat::core::_infer x y z ...)`
+   - New parser rule: `#{x y z ...}` → `(:wat::core::HashSet :wat::type::Infer x y z ...)`
    - The `#` prefix before `{` is the discriminator; existing `{...}` brace-form parser stays
-   - Empty `#{}` desugars to `(:wat::core::HashSet :wat::core::_infer)`
+   - Empty `#{}` desugars to `(:wat::core::HashSet :wat::type::Infer)`
    - Errors:
      - `#{...` (unclosed) → existing brace-unclosed error
      - `#{:k v}` with key/value pairs → treat as set (no key/value distinction); user wanted a set, gets a set; no special diagnostic
@@ -82,9 +82,9 @@ Pivot literal desugaring from "auto-wrap everything in Atom" to "infer the concr
      12. Map of sets: `{:a #{1 2} :b #{3 4}}` → outer V = HashSet<i64>; both inner sets have length 2
 
 7. **Documentation:**
-   - **`docs/WAT-CHEATSHEET.md` § 8** — update to reflect the new `{...}` / `#{...}` desugar shapes; add a row for `_infer`; note that explicit verb-form with `:T` types still works
-   - **arc 058 row** — find the live arc-058 spec file (most-recently-touched row is the model); add a row for `_infer` mint + literal completion
-   - **`docs/CONVENTIONS.md`** — if it has a "type-placeholders" section, add `_infer`; if not, add a brief mention near the type-keyword namespace docs
+   - **`docs/WAT-CHEATSHEET.md` § 8** — update to reflect the new `{...}` / `#{...}` desugar shapes; add a row for `Infer`; note that explicit verb-form with `:T` types still works
+   - **arc 058 row** — find the live arc-058 spec file (most-recently-touched row is the model); add a row for `Infer` mint + literal completion
+   - **`docs/CONVENTIONS.md`** — if it has a "type-placeholders" section, add `Infer`; if not, add a brief mention near the type-keyword namespace docs
 
 8. **Retroactive amendment to P2's SCORE:**
    - File: `docs/arc/2026/05/214-concurrency-toolkit/SCORE-214-PARSER-PIVOT-P2-MAP-LITERAL.md`
@@ -106,12 +106,12 @@ Pivot literal desugaring from "auto-wrap everything in Atom" to "infer the concr
 - **WARD-PASS** — parser + check + types out-of-zone per `feedback_ward_zone_comms_only`
 - **INTERSTITIAL entry** — orchestrator-direct post-ship per `feedback_sonnet_no_realization_voice`
 - **`Atom` signature changes** — the Atom polymorphism stays load-bearing for explicit-construction use cases; we just stop forcing literals through it
-- **Backporting `[...]` to use `_infer`** — design choice deferred; not in this stone
+- **Backporting `[...]` to use `Infer`** — design choice deferred; not in this stone
 
 ## STOP triggers
 
-- **STOP-1** — `_infer` integration with HM unification breaks something subtle. The fresh-variable approach should be clean (existing fall-back in the same functions uses `fresh.fresh()`), but if you discover the unifier has special-case handling that interacts poorly with the new path, STOP, surface the interaction, ask for direction.
-- **STOP-2** — `parse_type_expr` rejects `:wat::core::_infer` even after adding it to the registered list. STOP, surface what's missing.
+- **STOP-1** — `Infer` integration with HM unification breaks something subtle. The fresh-variable approach should be clean (existing fall-back in the same functions uses `fresh.fresh()`), but if you discover the unifier has special-case handling that interacts poorly with the new path, STOP, surface the interaction, ask for direction.
+- **STOP-2** — `parse_type_expr` rejects `:wat::type::Infer` even after adding it to the registered list. STOP, surface what's missing.
 - **STOP-3** — existing tests fail after the `{...}` desugar change (other than the expected P2-probe updates). Some downstream consumer may depend on the old `HolonAST` V shape. STOP, surface the failure, ask for direction.
 - **STOP-4** — time hits 120 min with any deliverable incomplete. STOP, report what shipped, defer remainder.
 
