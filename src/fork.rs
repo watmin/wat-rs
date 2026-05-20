@@ -182,6 +182,10 @@ where
 /// Arc is going away).
 #[derive(Debug)]
 pub struct ChildHandleInner {
+    /// Diagnostic + libc interop until δ-3 retires this field.
+    /// Libc paths (wait_or_cached, Drop, eval_kernel_wait_child) use this
+    /// directly via libc::waitpid / libc::kill. δ-2 migrates those paths
+    /// to use self.pidfd methods; δ-3 removes this field.
     pub pid: libc::pid_t,
     pub reaped: AtomicBool,
     pub cached_exit: OnceLock<i64>,
@@ -198,15 +202,21 @@ pub struct ChildHandleInner {
     /// a lifeline. Once Phase 1C ships, fork-program-ast also wires
     /// one and this is always Some for forked children.
     pub lifeline_w: Option<std::os::fd::OwnedFd>,
+    /// δ-1: substrate-canonical pidfd for this forked child. Owned by
+    /// ChildHandleInner; Drop fires when the last Arc<ChildHandleInner>
+    /// drops (matches lifeline_w lifetime exactly). δ-2 routes wait/kill
+    /// paths through this; δ-3 retires the libc fallback + pid field.
+    pub pidfd: Pidfd,
 }
 
 impl ChildHandleInner {
-    pub fn new(pid: libc::pid_t, lifeline_w: Option<std::os::fd::OwnedFd>) -> Self {
+    pub fn new(pidfd: Pidfd, lifeline_w: Option<std::os::fd::OwnedFd>) -> Self {
         Self {
-            pid,
+            pid: pidfd.pid(),
             reaped: AtomicBool::new(false),
             cached_exit: OnceLock::new(),
             lifeline_w,
+            pidfd,
         }
     }
 
@@ -671,13 +681,8 @@ pub fn eval_kernel_fork_program_ast(
     // field type stays Option<OwnedFd> — no changes to spawn_process.rs).
     let lifeline_w = lifeline_writer.into_owned_fd();
 
-    // γ-1: pidfd used only to retrieve pid. δ migrates ChildHandleInner
-    // to hold a Pidfd instead of raw pid_t. Drop pidfd here; it is
-    // kernel-reference-counted and closes safely.
-    let pid = pidfd.pid();
-    drop(pidfd);
-
-    let handle = Arc::new(ChildHandleInner::new(pid, Some(lifeline_w)));
+    // δ-1: pidfd stored in handle; δ-2 will route waits through it.
+    let handle = Arc::new(ChildHandleInner::new(pidfd, Some(lifeline_w)));
 
     let stdin_writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(stdin_w));
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stdout_r));
@@ -1075,14 +1080,9 @@ pub fn fork_program_from_source(
     // stays Option<OwnedFd> — no changes to spawn_process.rs).
     let lifeline_w = lifeline_writer.into_owned_fd();
 
-    // γ-2: pidfd used only to retrieve pid. δ migrates ChildHandleInner
-    // to hold a Pidfd instead of raw pid_t. Drop pidfd here; it is
-    // kernel-reference-counted and closes safely.
-    let pid = pidfd.pid();
-    drop(pidfd);
-
+    // δ-1: pidfd stored in handle; δ-2 will route waits through it.
     Ok(ForkedProgramHandles {
-        child_handle: Arc::new(ChildHandleInner::new(pid, Some(lifeline_w))),
+        child_handle: Arc::new(ChildHandleInner::new(pidfd, Some(lifeline_w))),
         stdin_w,
         stdout_r,
         stderr_r,
@@ -1471,6 +1471,15 @@ pub enum ExitStatus {
 pub struct Pidfd {
     fd: OwnedFd,
     pid: libc::pid_t, // retained for diagnostic + cascade interop
+}
+
+impl std::fmt::Debug for Pidfd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Pidfd")
+            .field("fd", &self.fd.as_raw_fd())
+            .field("pid", &self.pid)
+            .finish()
+    }
 }
 
 // SAFETY: OwnedFd is Send + Sync; libc::pid_t (i32) is Copy; both are

@@ -246,13 +246,8 @@ pub fn eval_kernel_spawn_process(
     // γ-1; ChildHandleInner::lifeline_w field type stays Option<OwnedFd>).
     let lifeline_w = lifeline_writer.into_owned_fd();
 
-    // γ-3: pidfd used only to retrieve pid. δ migrates ChildHandleInner
-    // to hold a Pidfd instead of raw pid_t. Drop pidfd here; it is
-    // kernel-reference-counted and closes safely.
-    let pid = pidfd.pid();
-    drop(pidfd);
-
-    let handle = Arc::new(ChildHandleInner::new(pid, Some(lifeline_w)));
+    // δ-1: pidfd stored in handle; δ-2 will route waits through it.
+    let handle = Arc::new(ChildHandleInner::new(pidfd, Some(lifeline_w)));
 
     // Build parent-side handles (Stone C — 4-field Process).
     //   stdin field  = IOWriter over input_w  (parent writes → child fd 0)
