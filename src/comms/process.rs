@@ -14,7 +14,7 @@
 //! `wat_edn::write` / `wat_edn::parse_owned` over the
 //! `holon::HolonAST` schema.
 //!
-//! ## Current scope (through Stone E-1)
+//! ## Current scope (through Stone E-2)
 //!
 //! Full API surface matching the thread tier (`crate::comms::thread`).
 //! Generic `Sender<T: HolonRepresentable>` / `Receiver<T: HolonRepresentable>`
@@ -25,13 +25,15 @@
 //! fan-in over N receivers (generalizes Stone B's 2-arm POLL_ADD to
 //! N+1 arms; broadcast wins ties). Stone E-1: Receiver owns persistent
 //! IoUring (capacity 4) for its lifetime; helpers operate on the
-//! Receiver's ring instead of per-call construction. Select's POLL_ADD
-//! ring remains per-call — Stone E-2 territory (reflexive rebuild-on-
-//! mismatch with grow OR shrink).
+//! Receiver's ring instead of per-call construction. Stone E-2: Select
+//! owns a persistent IoUring with reflexive rebuild-on-capacity-mismatch
+//! (grow OR shrink); Receiver gains `read_into_acc` + `take_buffered_frame`
+//! methods so Select composes via Receiver's surface instead of reaching
+//! into its fields.
 //!
 //! The underlying principle (FDs are the persistent state; io_urings are
 //! ephemeral frames sized to the current operation set; substrate maintains
-//! the invariant `cap == next_power_of_two(structural_need + 1)` reflexively
+//! the invariant `cap == next_power_of_two(arm_count).max(2)` reflexively
 //! at every operation entry) is detailed in
 //! `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md` §
 //! "Stone E forward-correction (2026-05-19) — TCO discipline + reflexive rebuild".
@@ -67,9 +69,8 @@
 //!
 //! ## Audience
 //!
-//! Substrate-internal Rust code (Stone D's `Select`, Stone E-2's reflexive-
-//! rebuild ring persistification, Slice 4's kernel dispatcher). User code
-//! does NOT touch this tier.
+//! Substrate-internal Rust code (Stone D's `Select`, Slice 4's kernel
+//! dispatcher). User code does NOT touch this tier.
 
 use std::cell::RefCell;
 use std::marker::PhantomData;
@@ -90,6 +91,35 @@ use crate::comms::{
 /// and this alias surfaces it at the type level rather than burying
 /// it under 2 layers of generics.
 type Accumulator = RefCell<Vec<u8>>;
+
+/// Lazy persistent ring + its capacity, as a single noun.
+///
+/// `Select<'a, T>` stores `RefCell<RingSlot>` rather than the bare
+/// `RefCell<Option<(IoUring, u32)>>`; the alias surfaces the noun
+/// the substrate's vocabulary already uses (the borrow variable in
+/// `Select::select` is `ring_slot`) at the type level. Per
+/// `perspicere` (Stone E-2 ward pass 2026-05-19).
+///
+/// `None` = ring not yet constructed (lazy init); `Some((ring, cap))`
+/// = ring exists at the recorded capacity. The capacity is stored
+/// alongside to avoid re-introspecting the io-uring crate's internal
+/// state on every `select()` call — the reflexive rebuild discipline
+/// compares the stored value against the structural need at every
+/// entry.
+type RingSlot = Option<(IoUring, u32)>;
+
+/// A complete newline-stripped payload extracted from a Receiver's
+/// accumulator. The substrate's vocabulary calls these "frames"
+/// throughout (module doc § Framing; function names `take_frame` +
+/// `take_buffered_frame`; local variable `frame` at multiple sites);
+/// this alias surfaces the noun at the type level instead of leaving
+/// it under 2 layers of generics in return types. Per `perspicere`
+/// (Stone E-2 ward pass 2026-05-19).
+///
+/// `decode_frame` accepts `&[u8]` rather than `&Frame` — any byte
+/// slice can be decoded; the alias names the SHAPE the substrate's
+/// framing produces, not a constraint on what decode accepts.
+type Frame = Vec<u8>;
 
 // ─── Sender ──────────────────────────────────────────────────────────────────
 
@@ -120,6 +150,11 @@ impl<T: HolonRepresentable> Sender<T> {
     /// closed (EPIPE) or when the write fails for any other reason.
     /// The error carries the original `T` so the caller can recover
     /// or re-send.
+    // rune:perspicere(mumble-alias) — return type `Result<(), SendError<T>>` is
+    // 2 levels nested but `SendError<T>` already carries the noun; a hypothetical
+    // `SendResult<T>` alias would not be more pronounceable than reading
+    // `SendError` at the bottom of the existing standard-idiom Result. Per
+    // perspicere ward (Stone E-2 ward pass 2026-05-19); judgment to NOT mint.
     pub fn send(&self, value: T) -> Result<(), SendError<T>> {
         // Encode T → HolonAST → tagged EDN string (single-line).
         let ast = value.to_holon_ast();
@@ -275,7 +310,7 @@ impl<T: HolonRepresentable> Receiver<T> {
     /// on EDN parse failure, or on `T::from_holon_ast` failure.
     pub fn recv(&self) -> Result<T, RecvError> {
         // Fast path — accumulator already has a complete frame.
-        if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
+        if let Some(frame) = self.take_buffered_frame() {
             return decode_frame::<T>(&frame);
         }
 
@@ -299,13 +334,13 @@ impl<T: HolonRepresentable> Receiver<T> {
             }
 
             // Read step — uses the Receiver's persistent ring (Stone E-1).
-            let n = uring_read_into_acc(read_fd, &self.accumulator, &self.ring).map_err(|_| RecvError)?;
+            let n = self.read_into_acc().map_err(|_| RecvError)?;
             if n == 0 {
                 // EOF — peer closed the write-end.
                 return Err(RecvError);
             }
 
-            if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
+            if let Some(frame) = self.take_buffered_frame() {
                 return decode_frame::<T>(&frame);
             }
             // No complete frame yet; loop and poll/read more bytes.
@@ -333,7 +368,7 @@ impl<T: HolonRepresentable> Receiver<T> {
     /// may complete the frame.
     pub fn try_recv(&self) -> Result<T, TryRecvError> {
         // Fast path — accumulator already has a complete frame.
-        if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
+        if let Some(frame) = self.take_buffered_frame() {
             return decode_frame::<T>(&frame).map_err(|_| TryRecvError::Disconnected);
         }
 
@@ -377,19 +412,60 @@ impl<T: HolonRepresentable> Receiver<T> {
         }
 
         // Data is ready — uses the Receiver's persistent ring (Stone E-1).
-        let n = uring_read_into_acc(read_fd, &self.accumulator, &self.ring)
-            .map_err(|_| TryRecvError::Disconnected)?;
+        let n = self.read_into_acc().map_err(|_| TryRecvError::Disconnected)?;
         if n == 0 {
             // EOF — peer closed the write-end.
             return Err(TryRecvError::Disconnected);
         }
 
-        if let Some(frame) = take_frame(&mut self.accumulator.borrow_mut()) {
+        if let Some(frame) = self.take_buffered_frame() {
             decode_frame::<T>(&frame).map_err(|_| TryRecvError::Disconnected)
         } else {
             // Partial bytes; no complete frame yet. Caller can retry.
             Err(TryRecvError::Empty)
         }
+    }
+
+    /// Issue one io_uring Read on `self.read_fd` into `self.accumulator`
+    /// using `self.ring`. Returns `Ok(n)` where `n` is bytes appended
+    /// (0 means EOF / peer closed write end), or `Err(())` on io_uring
+    /// SQE submission, submit_and_wait, or CQE error.
+    ///
+    /// Encapsulates the field access pattern `(self.read_fd.as_raw_fd(),
+    /// &self.accumulator, &self.ring)` so callers — including
+    /// `Select::select`'s Read step — compose via this surface instead of
+    /// reaching into the Receiver's private fields. Closes the Solvere
+    /// ward finding from E-1 ward pass 2026-05-19 (Select was braiding
+    /// into Receiver internals; deferred to E-2 for resolution; E-2 mints
+    /// this method + Select calls it).
+    pub(crate) fn read_into_acc(&self) -> Result<usize, ()> {
+        uring_read_into_acc(self.read_fd.as_raw_fd(), &self.accumulator, &self.ring)
+    }
+
+    /// Pull the first newline-terminated frame out of `self.accumulator`
+    /// if one is buffered. Returns `None` when no `'\n'` is present
+    /// (caller should read more bytes via `read_into_acc`).
+    ///
+    /// Encapsulates the accumulator borrow + `take_frame` call pattern
+    /// so callers — including `Select::select`'s fast-path scan and
+    /// partial-frame post-Read check — compose via this surface instead
+    /// of reaching into the Receiver's accumulator field. Closes the
+    /// Solvere ward finding from E-1 ward pass 2026-05-19 (deferred to
+    /// E-2 for resolution; E-2 mints this method + Select calls it).
+    pub(crate) fn take_buffered_frame(&self) -> Option<Frame> {
+        take_frame(&mut self.accumulator.borrow_mut())
+    }
+
+    /// Return the read-end raw file descriptor for poll registration.
+    ///
+    /// `Select::select`'s POLL_ADD construction needs an `RawFd` to
+    /// build the SQE; this method exposes the fd without exposing the
+    /// owning `OwnedFd`. Composition via Receiver's surface closes the
+    /// FINAL strand of Solvere ward's E-1 finding (Select previously
+    /// reached into `rx.read_fd` directly at the POLL_ADD construction
+    /// site). Per Solvere ward Stone E-2 follow-up 2026-05-19.
+    pub(crate) fn poll_fd(&self) -> std::os::fd::RawFd {
+        self.read_fd.as_raw_fd()
     }
 
     /// Count of locally-buffered complete frames in the accumulator.
@@ -581,7 +657,7 @@ fn decode_frame<T: HolonRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
 /// Pull the first newline-terminated frame out of `acc` (consuming the
 /// frame bytes + the trailing `'\n'`). Returns `None` when no `'\n'`
 /// is present (caller should read more bytes).
-fn take_frame(acc: &mut Vec<u8>) -> Option<Vec<u8>> {
+fn take_frame(acc: &mut Vec<u8>) -> Option<Frame> {
     let pos = acc.iter().position(|&b| b == b'\n')?;
     // Split acc: [0..=pos] becomes the frame (with trailing \n);
     // [pos+1..] becomes the new accumulator content.
@@ -670,15 +746,57 @@ fn uring_read_into_acc(
 ///     is decoded → `SelectOutcome::Recv { index, result }`; if partial
 ///     → loop and re-poll all arms (broadcast can fire mid-drain).
 ///
-/// Per-call IoUring sized for N+1 POLL_ADD entries (Stone E persistifies).
+/// Stone E-2: Select owns a persistent IoUring with reflexive
+/// rebuild-on-capacity-mismatch (grow OR shrink). Invariant:
+/// `cap == next_power_of_two(arm_count).max(2)` at every `select()`
+/// entry, where `arm_count = receivers.len() + (broadcast ? 1 : 0)`
+/// — i.e., arm_count already includes the broadcast slot when active.
 pub struct Select<'a, T: HolonRepresentable> {
     /// User-registered receivers in registration order. The index
     /// into this Vec is the user-facing `ReceiverIndex`.
     receivers: Vec<&'a Receiver<T>>,
+    /// Persistent io_uring (Stone E-2) — lazy-initialized on first
+    /// `select()` call; reflexively rebuilt on capacity mismatch
+    /// (grow OR shrink) when the registered receiver set's structural
+    /// need changes. Stored alongside its capacity as a tuple to
+    /// avoid crate-internal introspection per call.
+    ///
+    /// The invariant `cap == next_power_of_two(arm_count).max(2)` holds
+    /// at every `select()` entry, where `arm_count` already includes
+    /// the broadcast slot when active. See DESIGN.md § "Stone E forward-
+    /// correction (2026-05-19) — TCO discipline + reflexive rebuild".
+    ring: RefCell<RingSlot>,
     /// Type marker for the payload type T. PhantomData<T> makes
     /// `Select<'a, T>` invariant in T — consistent with `Sender<T>`
     /// and `Receiver<T>`.
     _phantom: PhantomData<T>,
+}
+
+// rune:purgare(public-api) — Debug impl symmetric with Receiver<T>'s manual
+// Debug (line ~251); Stone E-2 adds an IoUring inside Select.ring, so
+// #[derive(Debug)] would fail to compile (IoUring is !Debug). The ring slot
+// renders as an opaque placeholder showing whether the slot is initialized
+// and its capacity; the underlying IoUring is hidden. Required by structural
+// symmetry — any downstream struct that derives Debug over a Select<'a, T>
+// field needs this impl. Per the user's red flag during E-2 ward pass
+// 2026-05-19 — known defect closed inline rather than deferred to a future
+// purgare pass.
+impl<'a, T: HolonRepresentable> std::fmt::Debug for Select<'a, T> {
+    /// Manual Debug impl — `IoUring` does not implement `Debug`; the ring
+    /// slot is rendered as `None` or `Some(IoUring, cap)` showing only the
+    /// recorded capacity. All other fields are shown via their own Debug
+    /// impls.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ring_display: String = match self.ring.borrow().as_ref() {
+            None => "None".to_string(),
+            Some((_, cap)) => format!("Some(IoUring, cap={})", cap),
+        };
+        f.debug_struct("Select")
+            .field("receivers", &self.receivers)
+            .field("ring", &ring_display)
+            .field("_phantom", &self._phantom)
+            .finish()
+    }
 }
 
 impl<'a, T: HolonRepresentable> Select<'a, T> {
@@ -690,6 +808,7 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
     pub fn new() -> Self {
         Self {
             receivers: Vec::new(),
+            ring: RefCell::new(None),
             _phantom: PhantomData,
         }
     }
@@ -710,15 +829,15 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
     /// Fast path: check all receivers' accumulators for a buffered
     /// complete frame; if found, return that immediately (no io_uring).
     ///
-    /// Slow path: per-call IoUring; submit POLL_ADD for each data fd
-    /// + broadcast fd (when initialized); wait for any to fire; drain
-    /// CQEs; broadcast wins ties; if a data arm fired, Read from that
-    /// arm into its accumulator; if a complete frame is decoded,
-    /// return; if partial, loop.
+    /// Slow path: persistent IoUring (Stone E-2 reflexive rebuild); submit
+    /// POLL_ADD for each data fd + broadcast fd (when initialized); wait
+    /// for any to fire; drain CQEs; broadcast wins ties; if a data arm
+    /// fired, Read from that arm via `rx.read_into_acc()`; if a complete
+    /// frame is decoded, return; if partial, loop.
     pub fn select(&mut self) -> SelectOutcome<T> {
         // Fast path — any accumulator already has a complete frame?
         for (i, rx) in self.receivers.iter().enumerate() {
-            if let Some(frame) = take_frame(&mut rx.accumulator.borrow_mut()) {
+            if let Some(frame) = rx.take_buffered_frame() {
                 return SelectOutcome::Recv {
                     index: ReceiverIndex(i),
                     result: decode_frame::<T>(&frame),
@@ -732,94 +851,113 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
         let broadcast_opt = current_broadcast_fd();
 
         loop {
-            // Per-call IoUring sized for N+1 POLL_ADD entries.
-            // user_data scheme: 0 = broadcast; 1..=N = data arms.
-            let arm_count = self.receivers.len() + if broadcast_opt.is_some() { 1 } else { 0 };
+            // Compute the structural need: N data arms + 1 broadcast arm (if init).
             // io-uring crate requires power-of-2-or-greater capacity.
-            // Use next_power_of_two to round up; floor at 2.
-            let ring_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
+            let arm_count = self.receivers.len() + if broadcast_opt.is_some() { 1 } else { 0 };
+            let needed_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
 
-            // rune:temperare(no-reactor) — Receiver's ring was persistified in
-            // Stone E-1; Select's ring persistifies in Stone E-2 (task #394) with
-            // reflexive rebuild-on-mismatch (grow OR shrink). Per-call
-            // construction here is the pre-E-2 placeholder.
-            let mut ring = match IoUring::new(ring_capacity) {
-                Ok(r) => r,
-                Err(e) => return SelectOutcome::SubstrateError(e),
-            };
+            // Reflexive rebuild discipline (Stone E-2) — at every loop entry,
+            // ensure cap == needed_capacity. Lazy init on first call; rebuild
+            // on capacity mismatch (grow OR shrink). The replacement IS the
+            // tail call: old ring drops; new ring constructs; receivers + FDs
+            // untouched. Substrate maintains the invariant reflexively; users
+            // never see the io_uring entry count.
+            {
+                let mut ring_slot = self.ring.borrow_mut();
+                let needs_rebuild = match ring_slot.as_ref() {
+                    None => true,
+                    Some((_, current_cap)) => *current_cap != needed_capacity,
+                };
+                if needs_rebuild {
+                    match IoUring::new(needed_capacity) {
+                        Ok(r) => *ring_slot = Some((r, needed_capacity)),
+                        Err(e) => return SelectOutcome::SubstrateError(e),
+                    }
+                }
+            }
+            // Select-ring borrow released; safe to call Receiver methods below
+            // (Receiver borrows its own ring; different RefCell).
 
             const BROADCAST_TOKEN: u64 = 0;
 
-            if let Some(broadcast_fd) = broadcast_opt {
-                let poll_broadcast = opcode::PollAdd::new(
-                    types::Fd(broadcast_fd),
-                    libc::POLLHUP as u32,
-                )
-                .build()
-                .user_data(BROADCAST_TOKEN);
-                // SAFETY: broadcast_fd is owned by the substrate worker
-                // and remains valid for the lifetime of submit_and_wait.
-                unsafe {
-                    if ring.submission().push(&poll_broadcast).is_err() {
+            // Scope-bounded borrow for SQE pushes + submit_and_wait + CQE drain.
+            // arm_idx_opt is determined inside this scope; the Read step happens
+            // AFTER the borrow releases.
+            let arm_idx_opt: Option<usize> = {
+                let mut ring_slot = self.ring.borrow_mut();
+                // SAFETY of unwrap: reflexive rebuild above guarantees Some(_).
+                let ring = &mut ring_slot.as_mut().unwrap().0;
+
+                if let Some(broadcast_fd) = broadcast_opt {
+                    let poll_broadcast = opcode::PollAdd::new(
+                        types::Fd(broadcast_fd),
+                        libc::POLLHUP as u32,
+                    )
+                    .build()
+                    .user_data(BROADCAST_TOKEN);
+                    // SAFETY: broadcast_fd is owned by the substrate worker
+                    // and remains valid for the lifetime of submit_and_wait.
+                    unsafe {
+                        if ring.submission().push(&poll_broadcast).is_err() {
+                            return SelectOutcome::SubstrateError(
+                                std::io::Error::other("io_uring SQE push (broadcast POLL_ADD) failed: submission queue full"),
+                            );
+                        }
+                    }
+                }
+
+                for (i, rx) in self.receivers.iter().enumerate() {
+                    let poll_data = opcode::PollAdd::new(
+                        types::Fd(rx.poll_fd()),
+                        (libc::POLLIN | libc::POLLHUP) as u32,
+                    )
+                    .build()
+                    .user_data((i + 1) as u64);
+                    // SAFETY: rx.read_fd is owned by the Receiver pointed to
+                    // by 'a; remains valid for the lifetime of submit_and_wait.
+                    unsafe {
+                        if ring.submission().push(&poll_data).is_err() {
+                            return SelectOutcome::SubstrateError(
+                                std::io::Error::other("io_uring SQE push (data POLL_ADD) failed: submission queue full"),
+                            );
+                        }
+                    }
+                }
+
+                if let Err(e) = ring.submit_and_wait(1) {
+                    return SelectOutcome::SubstrateError(e);
+                }
+
+                // Drain ALL ready CQEs — both broadcast and data arms may
+                // fire simultaneously. Broadcast wins ties.
+                let mut fired_broadcast = false;
+                let mut first_data_arm: Option<usize> = None;
+                while let Some(cqe) = ring.completion().next() {
+                    if cqe.result() < 0 {
                         return SelectOutcome::SubstrateError(
-                            std::io::Error::other("io_uring SQE push (broadcast POLL_ADD) failed: submission queue full"),
+                            std::io::Error::from_raw_os_error(-cqe.result()),
                         );
                     }
-                }
-            }
-
-            for (i, rx) in self.receivers.iter().enumerate() {
-                let poll_data = opcode::PollAdd::new(
-                    types::Fd(rx.read_fd.as_raw_fd()),
-                    (libc::POLLIN | libc::POLLHUP) as u32,
-                )
-                .build()
-                .user_data((i + 1) as u64);
-                // SAFETY: rx.read_fd is owned by the Receiver pointed to
-                // by 'a; remains valid for the lifetime of submit_and_wait.
-                unsafe {
-                    if ring.submission().push(&poll_data).is_err() {
-                        return SelectOutcome::SubstrateError(
-                            std::io::Error::other("io_uring SQE push (data POLL_ADD) failed: submission queue full"),
-                        );
+                    let token = cqe.user_data();
+                    if token == BROADCAST_TOKEN {
+                        fired_broadcast = true;
+                    } else {
+                        let arm = (token - 1) as usize;
+                        if first_data_arm.is_none() {
+                            first_data_arm = Some(arm);
+                        }
                     }
                 }
-            }
 
-            if let Err(e) = ring.submit_and_wait(1) {
-                return SelectOutcome::SubstrateError(e);
-            }
-
-            // Drain ALL ready CQEs — both broadcast and data arms may
-            // fire simultaneously. Broadcast wins ties.
-            let mut fired_broadcast = false;
-            let mut first_data_arm: Option<usize> = None;
-            while let Some(cqe) = ring.completion().next() {
-                if cqe.result() < 0 {
-                    return SelectOutcome::SubstrateError(
-                        std::io::Error::from_raw_os_error(-cqe.result()),
-                    );
+                // Broadcast wins ties — substrate going down.
+                if fired_broadcast {
+                    return SelectOutcome::Shutdown;
                 }
-                let token = cqe.user_data();
-                if token == BROADCAST_TOKEN {
-                    fired_broadcast = true;
-                } else {
-                    // token in 1..=N; arm index is (token - 1).
-                    let arm = (token - 1) as usize;
-                    // First data arm wins; later ones ignored this call
-                    // (picked up on next select() iteration).
-                    if first_data_arm.is_none() {
-                        first_data_arm = Some(arm);
-                    }
-                }
-            }
+                first_data_arm
+            };
+            // Select-ring borrow released here.
 
-            // Broadcast wins ties — substrate going down.
-            if fired_broadcast {
-                return SelectOutcome::Shutdown;
-            }
-
-            let arm_idx = match first_data_arm {
+            let arm_idx = match arm_idx_opt {
                 Some(i) => i,
                 None => {
                     // Defensive — submit_and_wait(1) returned but no
@@ -828,13 +966,20 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                 }
             };
 
-            // Read from the fired arm — uses the fired Receiver's persistent
-            // ring (Stone E-1); Select's own POLL_ADD ring stays per-call
-            // until Stone E-2.
+            // Read from the fired arm via Receiver's surface method —
+            // Stone E-2 + Solvere finding closure. The Receiver borrows
+            // ITS OWN ring (different RefCell from Select's); no conflict
+            // with the Select-ring borrow released above.
             let rx = self.receivers[arm_idx];
-            match uring_read_into_acc(rx.read_fd.as_raw_fd(), &rx.accumulator, &rx.ring) {
-                Err(_) | Ok(0) => {
-                    // io_uring failure or EOF — arm disconnected.
+            match rx.read_into_acc() {
+                Err(_) => {
+                    return SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: Err(RecvError),
+                    };
+                }
+                Ok(0) => {
+                    // EOF — peer closed write end.
                     return SelectOutcome::Recv {
                         index: ReceiverIndex(arm_idx),
                         result: Err(RecvError),
@@ -843,7 +988,7 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                 Ok(_) => {}
             }
 
-            if let Some(frame) = take_frame(&mut rx.accumulator.borrow_mut()) {
+            if let Some(frame) = rx.take_buffered_frame() {
                 return SelectOutcome::Recv {
                     index: ReceiverIndex(arm_idx),
                     result: decode_frame::<T>(&frame),
