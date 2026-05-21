@@ -106,3 +106,68 @@ arc 218 Stone 218.5 (re-cast vigilia + INSCRIPTION + arc 218 closure) — UNBLOC
 The smallest substrate arc in arc 170+'s history (one substantive stone + this paperwork). Narrow, sharp, complete. Arc 218.5 now unblocked; arc 217 builds on a clean strict-EDN foundation.
 
 *The dialect tightened. The boundary held. The substrate is honest.*
+
+---
+
+## Forward-correction 2026-05-21 — empirical cross-language verification
+
+The original INSCRIPTION above claimed *"clojure.edn/read can consume output without extension"* and *"Standard clojure.edn/read can consume wat-edn output without extension"* but did NOT run `interop-tests/` to prove it. The proof infrastructure existed (`crates/wat-edn/interop-tests/` is a separate Cargo project with 4 documented handshakes per its README; USER-GUIDE.md §11 documents the same) but it wasn't wired into the wat-edn touch discipline, so arc 219 closed on a theoretical claim.
+
+Practitioner surfaced the gap: *"we have local clojure code we can use to prove this?... we should update our tests to prove this?... something we do only when we touch wat-edn?"*
+
+**Empirical verification (post-closure):**
+
+```sh
+cd crates/wat-edn/interop-tests
+cargo build --release
+
+# Handshake 1 — wat-edn → pure clojure.edn/read (trade signal)
+cargo run --release --bin wat-edn-interop-tests | clojure -M clj/consume.clj
+# → ✓ Clojure read wat-edn output cleanly.
+
+# Handshake 2 — Pure Clojure pr-str → wat-edn (size-adjust fixture)
+clojure -M clj/produce.clj | cargo run --release --bin reader
+# → ✓ wat-edn parsed Clojure-emitted EDN cleanly.
+
+# Handshake 3 — Shape matrix wat-edn → Clojure (23 shapes)
+cargo run --release --bin shape_matrix | clojure -M clj/consume_shapes.clj
+# → ✓ All 23 shapes parsed cleanly through clojure.edn/read.
+
+# Handshake 4 — Shape matrix Clojure → wat-edn (reverse, 23 shapes)
+clojure -M clj/produce_shapes.clj | cargo run --release --bin shape_matrix_reader
+# → ✓ All 23 shapes parsed cleanly through wat-edn.
+```
+
+**All four handshakes pass. The strict-EDN claim is empirically proven, not just theoretical.**
+
+**Shape matrix coverage (23 shapes, both directions):**
+- Primitives (i64, string, namespaced keyword, bool, nil, f64)
+- Collections (vector, set, map)
+- Nested collections (vec-of-vecs, map-of-vec)
+- EDN-spec built-ins (`#inst` → DateTime/Date, `#uuid` → Uuid/UUID)
+- FQDN tagged literals (`#wat.core/Some`, `#wat.core/None nil`, `#wat.core/Ok`, `#wat.core/Err`, `#wat.time/Duration`) — per 2026-05-21b doctrine
+- Nested complex (`#wat.core/Some #{{:foo "baz"}}`, `Ok<Vec<Map>>`, `Some<Some<i64>>`, `Vec<Some, None, Some>`)
+- Composite keys (`Map<Atom<:role>, Atom<:filler>>`) — proves arc 216.5b/c antidote (Value: Hash + Eq) survives cross-language
+
+**What this retroactively validates across arcs:**
+- Arc 219 — strict-EDN compliance is real, not aspirational
+- Arc 218.1-218.4 — write_keyword_body extraction + naming sweep + contract precision + UUID strictness all compose without breaking the wire
+- Arc 216 — collections + composite keys + encoding doctrine FQDN tags
+- Arc 217 (Clojure-IPC bridge — still pending) — the IPC foundation is now empirically ready; arc 217 layers streaming primitives + Clojure namespace on top of an IPC contract that already works
+
+**Discipline wired going forward:**
+- `feedback_wat_edn_touch_runs_interop_tests` memory inscribed — every wat-edn substrate touch MUST run the four handshakes before INSCRIPTION
+- `crates/wat-edn/README.md` "Verification (cross-language)" section added — one hop from the spec-conformance claim to the proof commands
+- Shape matrix (`shape_matrix.rs`, `consume_shapes.clj`, `shape_matrix_reader.rs`, `produce_shapes.clj`) inscribed in `interop-tests/` — permanent proof artifact that future arcs run before claiming wat-edn compliance
+
+**Root failure named (per `feedback_no_pre_existing_excuse`):**
+- Orchestrator failure (primary): never read `crates/wat-edn/README.md` before opening arc 218 or 219; never read USER-GUIDE.md §11. `feedback_docs_when_confused` violation.
+- README signposting gap: README claimed spec-conformance + mentioned 39 Clojure tests but didn't loudly direct readers to interop-tests/ as the one-hop proof path. Fixed via the new Verification section.
+- Discipline gap: no standing rule tying wat-edn touches to interop-tests runs. Fixed via the new feedback memory.
+- Interop-tests "out of workspace" by design — invisible to `cargo test`. The discipline must surface it on touch.
+
+This is the SAME visibility-gap pattern as the arc 216 test rot (`c3a27cf` fix). Both surfaced via the same forcing function: an external audit demanding the proof. Both fixed by wiring the discipline that should have been there.
+
+**Inscription stays inscribed (per `feedback_inscription_immutable`).** The original INSCRIPTION above is the record of what shipped at closure time. This forward-correction appends the post-closure empirical verification + discipline wiring; it does not edit history. Future arcs that touch wat-edn run the four handshakes; the README points one hop from claim to proof; the memory enforces the gate.
+
+*The claim was made before the proof. The audit demanded both. The proof landed. The discipline wired. What was inscribed stays inscribed; what is proven joins the record.*

@@ -92,6 +92,42 @@ Documented extensions (Clojure-aligned, all round-trip-symmetric):
 `#wat-edn.float/{nan,inf,neg-inf}` sentinels for `f64` round-trip.
 See [§9 Spec extensions](docs/USER-GUIDE.md#9-spec-extensions).
 
+## Verification (cross-language)
+
+Self round-trip is `cargo test -p wat-edn` (342/342 passing). The
+spec-conformance claim above — *"peer to Clojure's reference reader"* —
+is empirically verified by piping wat-edn output through stock
+`clojure.edn/read` (no helpers, no extensions):
+
+```sh
+cd interop-tests
+cargo build --release
+
+# Handshake 1: wat-edn → pure Clojure (trade signal fixture)
+cargo run --release --bin wat-edn-interop-tests | clojure -M clj/consume.clj
+
+# Handshake 2: Pure Clojure → wat-edn (Clojure pr-str fixture)
+clojure -M clj/produce.clj | cargo run --release --bin reader
+
+# Handshake 3: Shape matrix — 23 named shapes, wat-edn → Clojure
+cargo run --release --bin shape_matrix | clojure -M clj/consume_shapes.clj
+
+# Handshake 4: Shape matrix — Clojure → wat-edn (reverse direction)
+clojure -M clj/produce_shapes.clj | cargo run --release --bin shape_matrix_reader
+```
+
+The shape matrix exercises: primitives, collections (vec/set/map),
+nested collections, EDN-spec built-in tags (`#inst`/`#uuid`), FQDN
+tagged literals (`#wat.core/Some`, `#wat.core/None nil`, `#wat.core/Ok`,
+`#wat.core/Err`, `#wat.time/Duration`), nested complex
+(`#wat.core/Some #{{:foo "baz"}}`, `Ok<Vec<Map>>`, `Some<Some<i64>>`),
+and composite keys (tagged values as map keys via arc 216's
+`impl Hash for Value`).
+
+**Discipline:** every wat-edn substrate touch must run these four
+handshakes before INSCRIPTION. See `interop-tests/README.md` for the
+full pipeline matrix.
+
 ## License
 
 MIT OR Apache-2.0
