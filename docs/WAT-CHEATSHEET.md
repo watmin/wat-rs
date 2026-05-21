@@ -133,6 +133,31 @@ The `-> :T` annotation sits at TAIL position (after env + key args). The verb lo
     :wat::core::nil))
 ```
 
+**Dig trio — multi-step path accessors (arc 214 Slice 4 Stone 4.3):**
+
+| Verb | Args | Returns | Miss / wrong-type |
+|---|---|---|---|
+| `:wat::program::Env/dig` | `env path -> :T` | `Option<T>` | `None` |
+| `:wat::program::Env/expect-dig` | `env path -> :T` | `T` | panic with KeyError diagnostic |
+| `:wat::program::Env/dig-default` | `env path default -> :T` | `T` | `default` |
+
+`path` is a `Vector<keyword>` — each element is a navigation step (keyword key for HashMap lookup).  The walk starts at `env` and follows each key in sequence.
+
+**STOP-1 (arc 215 atomizable-set limitation):** Multi-step traversal through nested HashMaps requires intermediate values to be `HashMap` entries.  Since `HolonAST` has no HashMap variant and `(:wat::holon::Atom {...})` rejects HashMap inputs, multi-step behaves as single-step on well-typed Envs.  This limitation is documented in the probe file.  Future arcs may introduce a nested-env storage model.
+
+Single-step paths (`[:key]`) are equivalent to the `/get` trio and always work.
+
+```wat
+;; /dig — Option<T> on miss or early termination
+(:wat::program::Env/dig env [:port] -> :wat::core::i64)         ;; → Option<i64>
+
+;; /expect-dig — T directly; panics if path misses
+(:wat::program::Env/expect-dig env [:host] -> :wat::core::String)  ;; → String
+
+;; /dig-default — T; returns default on miss
+(:wat::program::Env/dig-default env [:port] 8080 -> :wat::core::i64)  ;; → i64
+```
+
 ### `:wat::core::do` — sequential evaluation (arc 136)
 
 `(:wat::core::do form_1 form_2 ... form_N)` evaluates each form

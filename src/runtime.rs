@@ -4466,6 +4466,10 @@ fn dispatch_keyword_head(
         ":wat::program::Env/get" => eval_program_env_get(args, env, sym),
         ":wat::program::Env/expect-get" => eval_program_env_expect_get(args, env, sym),
         ":wat::program::Env/get-default" => eval_program_env_get_default(args, env, sym),
+        // Arc 214 Slice 4 Stone 4.3 — :wat::program::Env multi-step dig trio.
+        ":wat::program::Env/dig" => eval_program_env_dig(args, env, sym),
+        ":wat::program::Env/expect-dig" => eval_program_env_expect_dig(args, env, sym),
+        ":wat::program::Env/dig-default" => eval_program_env_dig_default(args, env, sym),
         ":wat::core::Vector/conj" => eval_vector_conj(args, env, sym),
         ":wat::core::HashSet/conj" => eval_hashset_conj(args, env, sym),
         // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat.
@@ -8056,6 +8060,285 @@ fn eval_program_env_get_default(
     let env_val = eval(&args[0], env, sym)?;
     let key_val = eval(&args[1], env, sym)?;
     match program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())? {
+        Some(v) => Ok(v),
+        None => eval(&args[2], env, sym),
+    }
+}
+
+// ─── :wat::program::Env dig trio — arc 214 Slice 4 Stone 4.3 ────────────────
+//
+// Three multi-step accessors over `:wat::program::Env`
+// (typealias: `HashMap<keyword, HolonAST>`):
+//
+//   `(:wat::program::Env/dig       env path        -> :T)` → `:Option<T>`
+//   `(:wat::program::Env/expect-dig env path       -> :T)` → `:T`  (panic on miss)
+//   `(:wat::program::Env/dig-default env path dflt -> :T)` → `:T`  (default on miss)
+//
+// Call-site arg layout (post-head):
+//   /dig          → args[0]=env  args[1]=path  args[2]=->  args[3]=:T
+//   /expect-dig   → args[0]=env  args[1]=path  args[2]=->  args[3]=:T
+//   /dig-default  → args[0]=env  args[1]=path  args[2]=dflt args[3]->  args[4]=:T
+//
+// Path is a `Vector<keyword>`; each step is a single-key
+// lookup in the current HashMap.  Multi-step traversal works only when
+// intermediate stored values are themselves `Value::wat__std__HashMap` (another
+// Env level).  Since `HolonAST` has no HashMap variant and the Atom constructor
+// rejects HashMap inputs (STOP-1, arc 215 atomizable-set limitation), nested
+// HashMap traversal is only possible if the intermediate level was constructed
+// programmatically as a raw HashMap value — which cannot happen via the WAT
+// surface.  In practice, multi-step reduces to single-step on well-typed Envs.
+// This limitation is documented honestly in the probe file and SCORE.
+
+/// Inner: walk `path` through nested HashMap values starting from `env_val`.
+///
+/// Walk semantics:
+///  - Empty path → Ok(None) (no-op; caller documents)
+///  - Each step must be `Value::wat__core__keyword`; non-keyword → Ok(None)
+///  - Lookup step in current HashMap → None on miss
+///  - If more steps remain and value is `Value::wat__std__HashMap` → recurse
+///  - If more steps remain and value is not a HashMap → Ok(None) (early termination)
+///  - Final step → `holon_ast_extract` to `target_ty`
+///
+/// Returns the final extracted `Option<Value>` or a `RuntimeError` for type errors
+/// on the env/path args.
+fn program_env_dig_walk(
+    op: &str,
+    current: &std::collections::HashMap<String, (Value, Value)>,
+    path: &[Value],
+    target_ty: &crate::types::TypeExpr,
+    path_span: &Span,
+) -> Result<Option<Value>, RuntimeError> {
+    if path.is_empty() {
+        // Empty path: defined as "no steps → no result"
+        return Ok(None);
+    }
+    // We need ownership to traverse; collect current's reference chain manually.
+    // For multi-step: we'll shadow `current` step-by-step using a temporary map ref.
+    // Since Rust can't hold a reference to an Arc-owned map across iterations without
+    // storing the Arc, we use an owned Vec to carry intermediate maps.
+    let mut owned_map: Option<std::sync::Arc<std::collections::HashMap<String, (Value, Value)>>> =
+        None;
+
+    for (step_idx, step_val) in path.iter().enumerate() {
+        let last_step = step_idx == path.len() - 1;
+        // Each step must be a keyword (design call: Vector<keyword> is the WAT path type).
+        // Non-keyword path step: treat as early termination → None.
+        // Use `hashmap_key` to produce the canonical HashMap lookup key (e.g. "K:foo").
+        let map_key = match hashmap_key(op, step_val) {
+            Ok(k) => k,
+            Err(_) => return Ok(None), // non-hashable step → None
+        };
+        // Look up in current map
+        let stored_v = {
+            // Use the map we're currently traversing
+            let map_to_use: &std::collections::HashMap<String, (Value, Value)> =
+                if let Some(ref a) = owned_map {
+                    a.as_ref()
+                } else {
+                    current
+                };
+            match map_to_use.get(&map_key) {
+                Some((_sk, v)) => v.clone(),
+                None => return Ok(None),
+            }
+        };
+        if last_step {
+            // Final step: extract to T
+            return match &stored_v {
+                Value::holon__HolonAST(h) => Ok(holon_ast_extract(h, target_ty)),
+                _ => Ok(None),
+            };
+        } else {
+            // Intermediate step: must be a HashMap to continue walking
+            match stored_v {
+                Value::wat__std__HashMap(next_map) => {
+                    owned_map = Some(next_map);
+                }
+                _ => {
+                    // Intermediate value is not a HashMap → can't continue
+                    return Ok(None);
+                }
+            }
+        }
+    }
+    // Unreachable: the loop covers all cases (we always return from last_step
+    // or on termination conditions). But needed for exhaustiveness.
+    let _ = (op, path_span);
+    Ok(None)
+}
+
+/// `(:wat::program::Env/dig env path -> :T)` — arc 214 Slice 4 Stone 4.3.
+///
+/// Walks `path` (a `Vector<HolonAST>` of keywords) through nested HashMap
+/// levels in `env`.  Returns `Some(v)` when the full path resolves to a
+/// HolonAST leaf that extracts cleanly to T; `None` on miss, early termination,
+/// or type mismatch.
+///
+/// STOP-1 note: multi-step traversal requires intermediate values to be stored
+/// as `Value::wat__std__HashMap`.  Since `HolonAST` has no HashMap variant and
+/// the Atom constructor rejects HashMap inputs (arc 215 atomizable-set
+/// limitation), multi-step behaves as single-step on well-typed Envs.
+fn eval_program_env_dig(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::program::Env/dig";
+    // args layout: [env, path, ->, :T]
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 4,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
+    let env_val = eval(&args[0], env, sym)?;
+    let path_val = eval(&args[1], env, sym)?;
+    // Extract the map from env
+    let map = match &env_val {
+        Value::wat__std__HashMap(m) => m.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    // Extract the path elements from the Vector
+    let path_items = match &path_val {
+        Value::Vec(xs) => (**xs).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector<HolonAST> path",
+                got: other.type_name(),
+                span: args[1].span().clone(),
+            });
+        }
+    };
+    let result = program_env_dig_walk(OP, &map, &path_items, &target_ty, args[1].span())?;
+    Ok(Value::Option(Arc::new(result)))
+}
+
+/// `(:wat::program::Env/expect-dig env path -> :T)` — arc 214 Slice 4 Stone 4.3.
+///
+/// Like `/dig` but panics with a KeyError-flavored diagnostic on miss or
+/// HolonAST → T mismatch.  The diagnostic names the full path.
+fn eval_program_env_expect_dig(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::program::Env/expect-dig";
+    // args layout: [env, path, ->, :T]
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 4,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
+    let env_val = eval(&args[0], env, sym)?;
+    let path_val = eval(&args[1], env, sym)?;
+    let path_str = format!("{:?}", &args[1]); // source-level path for diagnostic
+    let map = match &env_val {
+        Value::wat__std__HashMap(m) => m.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let path_items = match &path_val {
+        Value::Vec(xs) => (**xs).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector<HolonAST> path",
+                got: other.type_name(),
+                span: args[1].span().clone(),
+            });
+        }
+    };
+    match program_env_dig_walk(OP, &map, &path_items, &target_ty, args[1].span())? {
+        Some(v) => Ok(v),
+        None => {
+            let frames = snapshot_call_stack();
+            let message = format!(
+                "{}: path {} not found in Env or type mismatch (expected :{})",
+                OP,
+                path_str,
+                crate::check::format_type(&target_ty)
+            );
+            let payload = crate::assertion::AssertionPayload {
+                message,
+                actual: None,
+                expected: None,
+                location: Some(args[1].span().clone()),
+                frames,
+                upstream_chain: None,
+                thread_name: std::thread::current().name().map(String::from),
+            };
+            std::panic::panic_any(payload);
+        }
+    }
+}
+
+/// `(:wat::program::Env/dig-default env path default -> :T)` — arc 214 Slice 4 Stone 4.3.
+///
+/// Like `/dig` but returns `default` (already evaluated) on miss or
+/// HolonAST → T mismatch.  The default's type must unify with T (enforced at
+/// check time via `infer_program_env_dig_default`).
+fn eval_program_env_dig_default(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::program::Env/dig-default";
+    // args layout: [env, path, default, ->, :T]
+    if args.len() != 5 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 5,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let target_ty = parse_arrow_ty(OP, args, 3, 4)?;
+    let env_val = eval(&args[0], env, sym)?;
+    let path_val = eval(&args[1], env, sym)?;
+    let map = match &env_val {
+        Value::wat__std__HashMap(m) => m.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let path_items = match &path_val {
+        Value::Vec(xs) => (**xs).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector<HolonAST> path",
+                got: other.type_name(),
+                span: args[1].span().clone(),
+            });
+        }
+    };
+    match program_env_dig_walk(OP, &map, &path_items, &target_ty, args[1].span())? {
         Some(v) => Ok(v),
         None => eval(&args[2], env, sym),
     }
