@@ -381,11 +381,14 @@ determines which types are accepted; non-atomizable types fail at check time
 
 ```
 atomizable(T) :=
-  T ∈ {i64, f64, bool, String, keyword, HolonAST, WatAST}   -- arc 215 baseline
-  OR T = HashSet<T'>  ∧ atomizable(T')                        -- arc 216 Stone 1
-  OR T = Vector<T'>   ∧ atomizable(T')                        -- arc 216 Stone 2
-  OR T = HashMap<K,V> ∧ atomizable(K) ∧ atomizable(V)         -- arc 216 Stone 3
+  T ∈ {i64, f64, bool, String, keyword, HolonAST, WatAST, Uuid}  -- primitives (arc 215 baseline)
+  OR T = HashSet<T'>  ∧ atomizable(T')                             -- arc 216 Stone 1 (shipped)
+  OR T = Vector<T'>   ∧ atomizable(T')                             -- arc 216 Stone 2 (shipped)
+  OR T = HashMap<K,V> ∧ atomizable(K) ∧ atomizable(V)             -- arc 216 Stone 3 (shipped)
 ```
+
+Canonical implementation: `fn is_atomizable(ty: &TypeExpr) -> bool` at `src/check.rs:3623`.
+Called from the `:wat::holon::Atom | :wat::holon::leaf` arm in `infer_list`.
 
 **Encoding shape (DESIGN Q2):**
 
@@ -452,17 +455,38 @@ atomizable(T) :=
 ;; PASSES: HashMap<keyword, Vec<i64>> — composes Stone 2 + Stone 3
 (:wat::holon::Atom {:data [1 2 3]})
 
+;; PASSES: HashMap<keyword, Vector<HashSet<i64>>> — all three collections nested
+;; (triple-nested composition; arc 216 Stone 4 composite)
+(:wat::holon::Atom complex-nested-map)
+
 ;; FAILS at check: Fn(...)->... is not atomizable
 (:wat::holon::Atom my-fn)
 ;; TypeMismatch: :wat::holon::Atom #1 expected atomizable type, got Fn([i64])->i64
+
+;; FAILS at check: Vector<Fn(...)-> ...> — non-atomizable element T
+;; TypeMismatch: :wat::holon::Atom #1 expected atomizable type, got Vector<Fn(...)>
+;; (:wat::holon::Atom vec-of-fns)  -- rejects at check time
+
+;; FAILS at check: HashMap<Fn(...), i64> — non-atomizable K
+;; TypeMismatch: :wat::holon::Atom #1 expected atomizable type, got HashMap<Fn(...),...>
 ```
+
+Atomizable composition examples:
+
+| Expression | Passes? | Reason |
+|---|---|---|
+| `Atom<HashMap<keyword, Vector<HashSet<i64>>>>` | YES | all three collections; T = i64 (primitive) |
+| `Atom<Vector<HashSet<i64>>>` | YES | Vector-of-HashSet; T = i64 (primitive) |
+| `Atom<HashSet<Vector<i64>>>` | YES | HashSet-of-Vector; T = i64 (primitive) |
+| `Atom<HashMap<keyword, Function<...>>>` | NO | V = Function; not atomizable |
+| `Atom<Vector<Function<...>>>` | NO | T = Function; not atomizable |
 
 Non-atomizable T (e.g., function values, Thread handles, user structs not in the set)
 fails at check with `TypeMismatch` naming `:wat::holon::Atom` and the offending type.
 
 Reference: arc 216 DESIGN `docs/arc/2026/05/216-collections-as-holons/DESIGN.md`.
-Stone 3 shipped: STOP-1 note retired — HashMap is now fully atomizable.
-(HashSet: Stone 1 done; Vector: Stone 2 done; HashMap: Stone 3 done.)
+Arc 216 Stones 1/2/3 all shipped. All three collection types fully atomizable.
+(HashSet: Stone 1; Vector: Stone 2; HashMap: Stone 3; composite verification: Stone 4.)
 
 ### Vector literal syntax: `[...]` (arc 167 + arc 215 stone 2)
 

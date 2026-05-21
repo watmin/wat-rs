@@ -3597,19 +3597,24 @@ fn type_is_thread_kind(ty: &TypeExpr, types: &TypeEnv) -> bool {
     }
 }
 
-/// Arc 216 Stone 1 — recursive atomizable predicate (DESIGN Q6).
+/// Arc 216 — canonical recursive atomizable predicate (DESIGN Q6).
 ///
-/// ```
+/// All four categories that `(:wat::holon::Atom T)` accepts:
+///
+/// ```text
 /// atomizable(T) :=
-///   T ∈ {primitives, HolonAST, WatAST}     // arc 215 baseline
-///   OR T = HashSet<T'>  ∧ atomizable(T')    // arc 216 Stone 1
-///   OR T = Vector<T'>   ∧ atomizable(T')    // arc 216 Stone 2 (future)
-///   OR T = HashMap<K,V> ∧ atomizable(K) ∧ atomizable(V)  // arc 216 Stone 3 (future)
+///   T ∈ {i64, f64, bool, String, keyword, HolonAST, WatAST, Uuid}   // primitives (arc 215 baseline)
+///   OR T = HashSet<T'>  ∧ atomizable(T')                             // arc 216 Stone 1 (shipped)
+///   OR T = Vector<T'>   ∧ atomizable(T')                             // arc 216 Stone 2 (shipped)
+///   OR T = HashMap<K,V> ∧ atomizable(K) ∧ atomizable(V)             // arc 216 Stone 3 (shipped)
 /// ```
+///
+/// This is the single canonical site for the atomizable predicate.
+/// Referenced by: `src/check.rs` — `infer_list` `:wat::holon::Atom | :wat::holon::leaf` arm.
 ///
 /// Used by the `:wat::holon::Atom` special-case in `infer_list` to validate
 /// that the argument's type T is in the atomizable set at check time.
-/// Non-atomizable T (e.g., `HashSet<Function<...>>`) is caught here before
+/// Non-atomizable T (e.g., a function type) is caught here before
 /// it reaches the runtime, which would fail with a TypeMismatch.
 ///
 /// Note: type variables (Var) and unknowns (None-resolved paths) return `true`
@@ -3638,9 +3643,9 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
         TypeExpr::Parametric { head, args } => match head.as_str() {
             // Arc 216 Stone 1 — HashSet<T'> is atomizable iff T' is atomizable
             "wat::core::HashSet" => args.len() == 1 && is_atomizable(&args[0]),
-            // Arc 216 Stone 2 (future) — Vector<T'> atomizable iff T' atomizable
+            // Arc 216 Stone 2 — Vector<T'> atomizable iff T' atomizable
             "wat::core::Vector" => args.len() == 1 && is_atomizable(&args[0]),
-            // Arc 216 Stone 3 (future) — HashMap<K,V> atomizable iff K and V are atomizable
+            // Arc 216 Stone 3 — HashMap<K,V> atomizable iff K and V are atomizable
             "wat::core::HashMap" => {
                 args.len() == 2 && is_atomizable(&args[0]) && is_atomizable(&args[1])
             }
