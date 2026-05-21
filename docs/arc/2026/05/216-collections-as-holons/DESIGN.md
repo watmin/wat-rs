@@ -367,3 +367,91 @@ Backward-compatible reading during migration: substrate accepts both old and new
 **What does NOT change:** the arc 216 thesis (class elimination) holds; the antidote sequence (216.5a-d) is permanent value; the process-tier validation (216.6) confirms the cascade. The doctrine inscription EXTENDS the class definition from "collections" to "structured values" — broader, more honest, structurally complete.
 
 *The substrate keeps having the answer. The user keeps asking the next question. The doctrine emerged. Arc 216 closes on the encoding contract, not just the collection types.*
+
+---
+
+## Forward-correction 2026-05-21b — FQDN tags supersede bare
+
+**Trigger:** Stone 218.2 (arc 218 wat-edn IMPECCABLE) brought the orchestrator through `crates/wat-edn/src/writer.rs`. The user noted: *"check out the writer.rs wat-edn file ... we have precedent for our own namespaced tags - we should have #wat.core/none nil and similar? ... we abide by wat's 'always fully namespaced' here?..."*
+
+The bare-tags ratification at "Bare tags vs namespaced tags" (above) is HISTORICAL RECORD per `feedback_inscription_immutable`. This section supersedes it for the prospective stones (216.8 / 216.9). The reasoning has evolved with substrate evidence.
+
+### The precedent (what writer.rs + the wat-edn ecosystem already do)
+
+| Site | Form |
+|---|---|
+| `crates/wat-edn/src/writer.rs:230,235,237` | `#wat-edn.float/nan nil`, `#wat-edn.float/neg-inf nil`, `#wat-edn.float/inf nil` (the crate's own f64 sentinels) |
+| `crates/wat-edn/examples/bench.rs:15` | `#wat.core/Vec<wat.holon.HolonAST>` |
+| `crates/wat-edn/examples/bench.rs:16-18` | `#wat.holon/Atom`, `#wat.holon/Bind` |
+| `crates/wat-edn/interop-tests/src/bin/reader.rs:77` | `#wat.holon/Atom {body}` |
+| `crates/wat-edn/wat-edn-clj/README.md:40,43,52` | `#wat.core/Vec<i64> [1 2 3]`, `#wat.core/Some<f64> 3.14`, `#wat.core/Some #inst "..."` |
+| `crates/wat-edn/tests/round_trip.rs:52` | `#wat.holon/Bind [#wat.holon/Atom :role #wat.holon/Atom :filler]` |
+| `crates/wat-edn/docs/IPC-BRIDGE.md:292` | `#wat.ipc/Schema {...}` |
+
+**Every wat-coined tag in the codebase is namespaced.** The bare `#some`/`#none`/`#ok`/`#err`/`#duration` proposed above would be the lone anomaly. The wat-edn-clj README already shows `#wat.core/Some<f64>` as the expected form for downstream Clojure consumers.
+
+### Four-questions on bare vs FQDN (re-run with the precedent in hand)
+
+| | Bare (`#some`/`#none`/`#ok`/`#err`/`#duration`) | FQDN (`#wat.core/Some` etc) |
+|---|---|---|
+| Obvious? | NO — reader sees `#wat.holon/Atom` then `#some` and asks which namespace owns it | YES — namespace declares origin uniformly |
+| Simple? | YES — shorter | YES — verbose-but-uniform per `feedback_verbose_is_honest` |
+| Honest? | NO — violates `feedback_fqdn_is_the_namespace`; pretends to be standard like `#inst`/`#uuid` when wat-coined | YES — declares wat origin; doesn't impersonate EDN standard |
+| Good UX? | NO — namespace collision risk; downstream Clojure-handlers expect dispatch on namespace | YES — Clojure tagged-literal handlers route on namespace cleanly; wat-edn-clj README already expects this |
+
+**YES × 4 for FQDN.** The bare-tags ratification rested on `project_wat_llm_first_design` (one canonical path) — but uniformity with the rest of wat-edn IS the canonical path. Bare tags would be the inconsistency.
+
+### Locked tagged shapes (FQDN — supersedes the bare table above)
+
+| Type | EDN form | HolonAST |
+|---|---|---|
+| `Option<T>::Some(v)` | `#wat.core/Some v` | `Bind(Atom(String("#wat.core/Some")), v_holon)` |
+| `Option<T>::None` | `#wat.core/None nil` | `Bind(Atom(String("#wat.core/None")), Atom(Symbol("nil")))` |
+| `Result<T,E>::Ok(v)` | `#wat.core/Ok v` | `Bind(Atom(String("#wat.core/Ok")), v_holon)` |
+| `Result<T,E>::Err(e)` | `#wat.core/Err e` | `Bind(Atom(String("#wat.core/Err")), e_holon)` |
+| `Instant(t)` | `#inst "..."` | `Bind(Atom(String("#inst")), Atom(String(iso8601(t))))` — **EDN standard; unchanged** |
+| `Uuid(u)` | `#uuid "..."` | `Bind(Atom(String("#uuid")), Atom(String(u.to_string())))` — **EDN standard; unchanged** |
+| `Duration(d)` | `#wat.time/Duration "..."` | `Bind(Atom(String("#wat.time/Duration")), Atom(String(iso8601_dur(d))))` — **mints `wat.time` namespace** |
+| `Value::Unit` (= wat nil) | `nil` | `Atom(Symbol("nil"))` — bare nil, no tag |
+| `Tuple(a,b,c)` | `[a b c]` | `Bundle([Bind(I64(0), a_h), Bind(I64(1), b_h), Bind(I64(2), c_h)])` — collection-category, no tag |
+
+### Capitalization convention
+
+`Some` / `None` / `Ok` / `Err` / `Duration` are **capitalized** because they are types or variant constructors. This matches the existing wat-edn convention:
+
+- `#wat.core/Vec<i64>` — type, capitalized
+- `#wat.core/Some<f64>` — variant constructor, capitalized
+- `#wat.holon/Atom` / `#wat.holon/Bind` — types, capitalized
+- `#wat-edn.float/nan` / `#wat-edn.float/inf` / `#wat-edn.float/neg-inf` — sentinels, lowercase
+
+The capitalization carries semantic distinction: TYPES get caps, SENTINEL-VALUES (lone-singleton with no associated data) get lowercase. `None` IS a variant constructor (not a sentinel-by-itself; it's `Option::None` parametrically), so it stays capitalized.
+
+### `#inst` and `#uuid` stay bare
+
+These are EDN-standard tags (RFC-shaped EDN spec): every Clojure/EDN reader knows them by name. Renaming them to `#wat.time/Instant` or `#wat.core/Uuid` would impersonate-and-supersede a standard — the wrong move per `feedback_verbose_is_honest`'s converse: when an existing canonical form is honest, don't rename it. We honor EDN spec.
+
+### `#wat.time` namespace minting
+
+Stone 216.9's `#wat.time/Duration` mints the `wat.time` namespace. Future temporal extensions (Period, TimeOfDay, ZoneOffset, if any) would live here. `#inst` is EDN-standard and stays in the un-namespaced (EDN-spec) space — it's not "in" wat.time.
+
+### Wire-form migration (Stone 216.8 carries the cost — UPDATED)
+
+Current wat-edn substrate encoding (per `src/edn_shim.rs` doc-table):
+- `Some(v)` → `v` (TRANSPARENT) → migrates to `#wat.core/Some v` (TAGGED-NAMESPACED)
+- `None` → `nil` (TRANSPARENT; conflates with Unit) → migrates to `#wat.core/None nil` (TAGGED-NAMESPACED; structurally distinct from Unit)
+- `Ok(v)` → `#wat-edn.result/ok v` (NAMESPACED; legacy crate-name) → migrates to `#wat.core/Ok v` (NAMESPACED; substrate-aligned)
+- `Err(e)` → `#wat-edn.result/err e` (NAMESPACED; legacy crate-name) → migrates to `#wat.core/Err e` (NAMESPACED; substrate-aligned)
+
+Backward-compatible reading during migration: substrate accepts both old and new forms; writing uses new form exclusively. Old persistent data still readable.
+
+### What this changes downstream
+
+- **Stone 216.8** scope clarification: migrate Option from transparent to FQDN-tagged; migrate Result from legacy `wat-edn.result` namespace to substrate-aligned `wat.core` namespace
+- **Stone 216.9** scope clarification: Duration mints `wat.time` namespace; Instant + Uuid verify EDN-standard integration (no rename)
+- **Stone 216.10** closure: INSCRIPTION cites the forward-correction history
+
+### Why this forward-correction is honest
+
+Per `feedback_inscription_immutable`: I keep the bare-tags ratification ABOVE as historical record. The "fuck 'em - i'll patch their libs" quote stays — it was honest reasoning at that moment, when the EDN-spec collision was the only concern in view. Stone 218.2 brought the wat-edn ecosystem precedent into view; the four-questions changed sign on Honest + Good UX. The doctrine evolves; the record stays.
+
+*The substrate had the precedent. The audit surfaced it. The doctrine corrects forward.*

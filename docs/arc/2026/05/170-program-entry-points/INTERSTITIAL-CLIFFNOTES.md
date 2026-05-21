@@ -27,7 +27,7 @@ Arc 170 started with *"I want to add argv to main."* What surfaced across the su
 14. Comms tier unification + universe-residency + bounded(1) mini-TCP (arc 214) — § 2026-05-19 (Universe-residency + four-questions mandated)
 15. Clojure data literals + `:wat::type::Infer` + holon as escape hatch (arc 215) — § 2026-05-20 (Arc 215: side-quest + Stone 2 closure)
 16. Collections-as-holons + `impl Hash for Value` mirroring HolonAST + `hashmap_key` purged (arc 216 + antidote 216.5a-d) — § 2026-05-20 (later, arc 216 antidote + FM 17 worked example)
-17. Encoding doctrine surfaced via dialogue: 3 categories (Primitives / Collections / Tagged); locked tagged shapes for Option/Result/Instant/Uuid/Duration; Unit-vs-None distinction restored (arc 216.7-216.10) — § 2026-05-21 (mid arc 216 closure expansion, encoding doctrine emerges)
+17. Encoding doctrine surfaced via dialogue: 3 categories (Primitives / Collections / Tagged); locked tagged shapes for Option/Result/Instant/Uuid/Duration; Unit-vs-None distinction restored (arc 216.7-216.10) — § 2026-05-21 (mid arc 216 closure expansion, encoding doctrine emerges); FQDN-tags forward-corrected via writer.rs precedent audit — § 2026-05-21b (mid arc 218 Stone 218.2 wake, substrate-audit-supersedes-doctrine pattern)
 
 Each step followed honestly from the previous. None anticipated the next. The substrate forced each one by surfacing its own incompleteness.
 
@@ -58,7 +58,7 @@ These ARE the substrate's identity. Memory entries auto-load; pointer per doctri
 | Inscription immutable | `feedback_inscription_immutable` | Historical INSCRIPTIONs forever; forward-correct, never edit |
 | Zero Mutex | `feedback_zero_mutex` + `docs/ZERO-MUTEX.md` | Immutable Arc + ThreadOwnedCell + program-with-mailbox |
 | Wat disciplines designers | INTERSTITIAL § 2026-05-13 | The substrate forces the right answer because wrong answers are structurally unavailable. Four rules (ZERO-MUTEX, lock-step, structural-enforcement, substrate-imposed) collapse design space to one viable shape. |
-| Encoding doctrine | DESIGN-216 § "Encoding doctrine (Stone 216.7 onward)" + INTERSTITIAL § 2026-05-21 | 3 categories: Primitives (`Atom`) / Collections (`Bundle`) / Tagged (`Bind(Atom("#tag"), payload)`). Two HolonAST primitives carry the full encoding surface. Tagged covers Option (`#some`/`#none nil`), Result (`#ok`/`#err`), Instant (`#inst`), Uuid (`#uuid`), Duration (`#duration`). Wat-first stance: bare tags over namespaced. |
+| Encoding doctrine | DESIGN-216 § "Encoding doctrine (Stone 216.7 onward)" + § "Forward-correction 2026-05-21b" + INTERSTITIAL §§ 2026-05-21 + 2026-05-21b | 3 categories: Primitives (`Atom`) / Collections (`Bundle`) / Tagged (`Bind(Atom("#tag"), payload)`). Two HolonAST primitives carry the full encoding surface. **Tagged shapes FQDN per writer.rs precedent + `feedback_fqdn_is_the_namespace`:** Option (`#wat.core/Some` / `#wat.core/None nil`), Result (`#wat.core/Ok` / `#wat.core/Err`), Instant (`#inst` — EDN-standard, bare), Uuid (`#uuid` — EDN-standard, bare), Duration (`#wat.time/Duration` — mints wat.time namespace). Wat-coined tags namespaced; EDN-standard tags honored bare. Capitalized for types/variants; lowercase for sentinels. |
 
 Other key references: `feedback_compaction_protocols`, `feedback_docs_when_confused`, `feedback_iterative_complexity`, `feedback_simple_is_uniform_composition`, `feedback_verbose_is_honest`, `feedback_ward_zone_comms_only`, `feedback_collapse_to_llm_in_loop`, `feedback_tractability_tiebreaker`, `feedback_defect_fix_or_panic_never_revert`.
 
@@ -158,13 +158,13 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 ## Currently (2026-05-21 — arc 218 opened; 216 + 217 BLOCKED)
 
 - **Arc 216 substrate work complete (collections + doctrine)** — 216.1/.2/.3 HolonRepresentable + 216.4 predicate + 216.5 hashmap_key bridge + 216.5a-d antidote (impl Hash for Value + native storage + DELETE hashmap_key) + 216.6 process-tier cascade + 216.7 encoding doctrine + Tuple round-trip. All shipped + pushed.
-- **Encoding doctrine LOCKED** in DESIGN-216 — 3 categories (Primitives `Atom` / Collections `Bundle` / Tagged `Bind(Atom("#tag"), payload)`); tagged shapes for Option (`#some`/`#none nil`) / Result (`#ok`/`#err`) / Instant (`#inst`) / Uuid (`#uuid`) / Duration (`#duration`); Unit-vs-None distinction restored
+- **Encoding doctrine LOCKED** in DESIGN-216 — 3 categories (Primitives `Atom` / Collections `Bundle` / Tagged `Bind(Atom("#tag"), payload)`); tagged shapes (FQDN per 2026-05-21b forward-correction): Option (`#wat.core/Some` / `#wat.core/None nil`) / Result (`#wat.core/Ok` / `#wat.core/Err`) / Instant (`#inst` — EDN-standard bare) / Uuid (`#uuid` — EDN-standard bare) / Duration (`#wat.time/Duration` — mints wat.time namespace); Unit-vs-None distinction restored
 - **Arc 218 OPENED 2026-05-21** (`2c47b93`) — wat-edn IMPECCABLE. First production vigilia cast (7 spells in parallel) returned **DIVERGES (2 L1 + 26 L2)**. sequi CONVERGED — substrate-level state-threading discipline intact. Findings inscribed in `docs/arc/2026/05/218-wat-edn-impeccable/VIGILIA-REPORT-2026-05-21.md`. 5-stone decomposition in DESIGN.md. Stone 218.1 next (L1 fixes + cross-spell `write_keyword_body` extraction).
 - **Blocking chain locked:**
   ```
   arc 218 (wat-edn IMPECCABLE)
     → arc 217 (Clojure-IPC bridge per crates/wat-edn/docs/IPC-BRIDGE.md)
-    → arc 216 stones 216.8 (#some/#none/#ok/#err migration) / 216.9 (Duration mint + Instant/Uuid verify) / 216.10 (INSCRIPTION + arc closure)
+    → arc 216 stones 216.8 (#wat.core/Some/None/Ok/Err migration) / 216.9 (#wat.time/Duration mint + Instant/Uuid verify) / 216.10 (INSCRIPTION + arc closure)
     → arc 214 Slice 4 (kernel layer + ProgramEnv)
   ```
 - **Workspace state** — concurrency primitives correct; literals are data; holon is the algebraic view (opt-in); `hashmap_key` doesn't exist; `Value: Hash + Eq` is canonical; encoding doctrine inscribed
