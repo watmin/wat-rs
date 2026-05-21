@@ -437,35 +437,11 @@ impl fmt::Display for Keyword {
         // them as byte-identical.
         f.write_str(":")?;
         if let Some(ns) = self.namespace() {
-            write_keyword_segment(ns, f)?;
+            crate::escapes::write_keyword_body_to(ns, f)?;
             f.write_str("/")?;
         }
-        write_keyword_segment(self.name(), f)
+        crate::escapes::write_keyword_body_to(self.name(), f)
     }
-}
-
-/// Write a keyword body segment with the position-aware `,` → `_`
-/// swap at bracket depth ≥ 1. Mirror of
-/// `crate::writer::write_keyword_body`. See arc 170
-/// REALIZATIONS-SLICE-1.md pass 14.
-fn write_keyword_segment(seg: &str, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let mut depth: u32 = 0;
-    for b in seg.bytes() {
-        if depth > 0 && b == b',' {
-            f.write_str("_")?;
-        } else {
-            // Keyword body is all-ASCII (lexer enforces; constructors
-            // route through validate_first_char on first byte and
-            // is_symbol_continue on the rest, both ASCII-only).
-            f.write_str(std::str::from_utf8(&[b]).expect("ascii"))?;
-        }
-        if b == b'<' {
-            depth = depth.saturating_add(1);
-        } else if b == b'>' {
-            depth = depth.saturating_sub(1);
-        }
-    }
-    Ok(())
 }
 
 impl fmt::Display for Tag {

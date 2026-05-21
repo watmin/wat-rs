@@ -209,8 +209,12 @@ below.
 
 EDN forms are self-delimiting (paren-balanced); a streaming
 reader knows when a form ends without external markers. Both
-clojure.edn's `read` and wat-edn's `Parser::parse_next` work
-this way.
+clojure.edn's `read` and wat-edn's `Parser::parse_all` work
+this way — accumulate a complete EDN form in a buffer, then
+call `Parser::new(buf).parse_all()` (or `parse_top()` for a
+single form). The `Parser` API surface: `new` / `new_wire` /
+`parse_top` / `parse_all`. There is no `parse_next` method;
+any incremental behavior comes from upstream buffering.
 
 **Option A — newline-delimited (one EDN form per line).**
 Parent and child agree: every form ends with `\n`. Simpler to

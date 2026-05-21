@@ -17,7 +17,7 @@
 //! `_` stays `_` (preserves `:rust::*` Rust-mirror convention; no
 //! `,` is legal at depth 0 because EDN treats `,` as whitespace).
 
-use crate::escapes::{char_to_name, encode_string_escape};
+use crate::escapes::{char_to_name, encode_string_escape, write_keyword_body_to};
 use crate::value::{Keyword, Symbol, Tag, Value};
 use chrono::SecondsFormat;
 use std::fmt::Write;
@@ -160,39 +160,10 @@ fn write_symbol(s: &Symbol, out: &mut String) {
 fn write_keyword(k: &Keyword, out: &mut String) {
     out.push(':');
     if let Some(ns) = k.namespace() {
-        write_keyword_body(ns, out);
+        write_keyword_body_to(ns, out).expect("String fmt::Write is infallible");
         out.push('/');
     }
-    write_keyword_body(k.name(), out);
-}
-
-/// Write a keyword namespace or name segment with the position-aware
-/// `,` → `_` swap at bracket depth ≥ 1. See module rustdoc + arc 170
-/// REALIZATIONS-SLICE-1.md pass 14.
-///
-/// Walks chars once: `<` increments depth, `>` decrements, `,` at
-/// depth ≥ 1 emits `_`. Hot-path-friendly: no allocation, single
-/// pass over the segment bytes.
-#[inline]
-fn write_keyword_body(seg: &str, out: &mut String) {
-    let mut depth: u32 = 0;
-    for b in seg.bytes() {
-        if depth > 0 && b == b',' {
-            out.push('_');
-        } else {
-            // `seg` is &str (valid UTF-8); bytes < 0x80 are ASCII —
-            // and the only legal keyword body bytes are ASCII per
-            // is_symbol_continue + the depth-aware comma rule.
-            // Multi-byte UTF-8 is rejected by the lexer before
-            // construction, so push as ASCII char is safe.
-            out.push(b as char);
-        }
-        if b == b'<' {
-            depth = depth.saturating_add(1);
-        } else if b == b'>' {
-            depth = depth.saturating_sub(1);
-        }
-    }
+    write_keyword_body_to(k.name(), out).expect("String fmt::Write is infallible");
 }
 
 #[inline]

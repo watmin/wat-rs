@@ -153,14 +153,12 @@ let v: OwnedValue = parse_owned("#myapp/Order {:id 1}")?;
 // All top-level forms (whitespace + comments between them)
 let vs: Vec<Value<'_>> = parse_all("1 2 3")?;
 
-// For streaming consumption, drive Parser directly
-let mut p = Parser::new(input);
-loop {
-    match p.parse_next()? {
-        None => break,
-        Some(v) => /* process v */,
-    }
-}
+// Drive Parser directly when you need stricter control:
+//   parse_top  — one form then expect EOF (rejects trailing junk)
+//   parse_all  — all forms until EOF (same as the free function)
+//   new_wire   — wire-mode: `_` inside `<…>` decodes to `,`
+let v: Value<'_> = Parser::new(input).parse_top()?;
+let vs: Vec<Value<'_>> = Parser::new_wire(wire_input).parse_all()?;
 ```
 
 ### Parse rules

@@ -342,9 +342,12 @@ impl<'a> Lexer<'a> {
             })?;
             return Ok(Token::Char(c));
         }
-        // 3. Single character? (`\a`, `\1`, etc.)
-        if body_str.chars().count() == 1 {
-            return Ok(Token::Char(body_str.chars().next().unwrap()));
+        // 3. Single character? (`\a`, `\1`, etc.) — one iterator walk.
+        let mut it = body_str.chars();
+        if let Some(c) = it.next() {
+            if it.next().is_none() {
+                return Ok(Token::Char(c));
+            }
         }
         Err(Error::at(start, ErrorKind::InvalidChar(body_str.into())))
     }
