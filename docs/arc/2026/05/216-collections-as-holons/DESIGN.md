@@ -259,3 +259,32 @@ The thesis is only honored when the predicate→runtime contract holds: every at
 **What does NOT change:** the arc's mission, the four-questions verdicts, the Q1-Q9 design conclusions, the prior stones' shipped work. The forward-correction adds a stone; it does not retract any.
 
 *The arc surfaced its own hole. We don't hide our faults — we learn from them. Stone 216.5 makes the thesis true.*
+
+---
+
+## Antidote stones (216.5a-d) — 2026-05-20
+
+**Surfaced post-216.5 ship.** Stone 216.5 closed the predicate→runtime gap by extending `hashmap_key` with three new arms (Vec, HashMap, WatAST). The thesis is true on the branch. But the user surfaced a deeper question: *why does `hashmap_key` exist at all?*
+
+**The poison.** `hashmap_key` is a String-canonical-key serialization scheme used because `Value` doesn't implement `Hash`. `Value::wat__std__HashSet` stores as `Arc<HashMap<String, Value>>` and `Value::wat__std__HashMap` as `Arc<HashMap<String, (Value, Value)>>`. Every insert allocates a canonical String, recursively for nested collections. Every new Value variant requires extending `hashmap_key`. Stone 216.5 itself is evidence of this fragility — the runtime drifted because `hashmap_key` wasn't updated when Value got new variants. **The crutch has metastasized through 18 call sites.**
+
+**The antidote.** `holon-rs/src/kernel/holon_ast.rs:196-232` already solves this: `impl Hash for HolonAST` with per-variant payload hashing, `std::mem::discriminant` tagging, f64 via `to_bits()`. Zero allocation per hash. Compose recursively for free via std lib's `Vec<T>: Hash` and `HashSet<T>: Hash`. The wat-rs Value enum can mirror this exactly. Then `HashSet<Value>` and `HashMap<Value, Value>` become natural and `hashmap_key` disappears.
+
+**impl Hash strategy verdict (four-questions):** Option A — `unreachable!()` on non-atomizable variants — wins. The `is_atomizable` predicate at check time is the static guarantee; `unreachable!()` is the runtime assertion of the same invariant. If the panic ever fires, the predicate has drifted; failure-engineering pattern says surface that loudly.
+
+**Stepping stones (each verifiable, each purges more poison):**
+
+| # | Stone | Scope |
+|---|---|---|
+| **216.5a** | `impl Hash for Value` + `impl PartialEq + Eq` (the antidote molecule) | Mirror HolonAST. Per-variant payload hash; discriminant tagging; f64 via `to_bits()`; non-atomizable variants → `unreachable!()` with predicate citation. NO callers touched. Rust-level probes only. |
+| **216.5b** | `Value::wat__std__HashSet` storage refactor | `Arc<HashMap<String, Value>>` → `Arc<HashSet<Value>>`. Touches constructor + accessors + polymorphic dispatch sites (contains?, conj, dissoc, get for HashSet). `hashmap_key` still exists; HashSet stops using it internally. 216.5 probe matrix is the gate. |
+| **216.5c** | `Value::wat__std__HashMap` storage refactor | `Arc<HashMap<String, (Value, Value)>>` → `Arc<HashMap<Value, Value>>`. Constructor + accessors + dispatch (assoc, dissoc, keys, values, get, contains-key?). `hashmap_key` still exists. Same probe gate. |
+| **216.5d** | Delete `hashmap_key` | After 216.5a-c land, audit remaining `hashmap_key` callers (any besides HashSet/HashMap internals?); refactor to native `Value: Hash`; delete `hashmap_key` + its 9 arms; delete the three throw-away arms added in 216.5. **Poison purged.** |
+| 216.6 | sandbox-walker validation (unchanged) | Per Q7 |
+| 216.7 | INSCRIPTION + closure (unchanged) | Arc 216 closes only after 216.5d. |
+
+**Why stepping stones, not one-shot:** per `feedback_iterative_complexity` — when refactoring N independent pieces, decompose. Each antidote stone has a separate STOP condition (probe gate, caller count). 216.5a is foundation-only (no callers); 216.5b and 216.5c are storage-only (parallel patterns); 216.5d is the deletion. If any stone surfaces a hidden constraint, we stop at that stone, not mid-refactor.
+
+**What does NOT change:** 216.5's probe matrix + caller audit remain permanent value. They become the regression suite for 216.5a-d. The throw-away in 216.5 (3 arms + 1 diagnostic) is paid forward through 216.5d's deletion.
+
+*The crutch metastasized through 18 sites. The antidote works systemically. Substrate becomes impeccable. Arc 216 closes clean.*

@@ -618,6 +618,320 @@ pub enum Value {
     wat__core__Uuid(uuid::Uuid),
 }
 
+/// Arc 216 Stone 216.5a — `impl PartialEq for Value`.
+///
+/// Manual impl mirroring `HolonAST`'s pattern (`holon-rs/src/kernel/holon_ast.rs:158-192`).
+/// Structural per-variant; f64 via `to_bits()` (NaN-safe). Non-atomizable variants
+/// use `Arc::ptr_eq` where identity is pointer-based (opaque handles, ML types, IO
+/// handles); the cross-variant arm returns `false`.
+///
+/// ## Variant classification (per `is_atomizable` at `src/check.rs:3623`)
+///
+/// **Atomizable** (may appear as HashSet elements / HashMap keys):
+/// `bool`, `i64`, `f64`, `String`, `wat__core__keyword`, `holon__HolonAST`,
+/// `wat__WatAST`, `wat__core__Uuid`, `Vec` (recursive), `wat__std__HashSet`
+/// (recursive), `wat__std__HashMap` (recursive).
+///
+/// **Structurally-equal but NOT atomizable** (natural equality; not predicate-admitted):
+/// `u8`, `Unit`, `Tuple`, `Option`, `Result`, `Struct`, `Enum`, `Vector`
+/// (holon::Vector), `Instant`, `Duration`.
+///
+/// **Opaque handles** (pointer equality; not atomizable; never in HashSet/HashMap keys):
+/// `wat__core__fn`, `wat__kernel__Sender`, `wat__kernel__Receiver`,
+/// `wat__kernel__ProgramHandle`, `wat__kernel__HandlePool`, `wat__kernel__ChildHandle`,
+/// `RustOpaque`, `io__IOReader`, `io__IOWriter`,
+/// `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`, `Hologram`.
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        use std::sync::Arc;
+        match (self, other) {
+            // --- Atomizable primitives ---
+            (Value::bool(a), Value::bool(b)) => a == b,
+            (Value::i64(a), Value::i64(b)) => a == b,
+            (Value::f64(a), Value::f64(b)) => a.to_bits() == b.to_bits(),
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::wat__core__keyword(a), Value::wat__core__keyword(b)) => a == b,
+            (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => a == b,
+            (Value::wat__WatAST(a), Value::wat__WatAST(b)) => a == b,
+            (Value::wat__core__Uuid(a), Value::wat__core__Uuid(b)) => a == b,
+            (Value::Vec(a), Value::Vec(b)) => a == b,
+            // HashSet: two HashSets are equal iff they contain the same elements.
+            // Storage is Arc<HashMap<canonical_key, Value>>; keys are the canonical
+            // string representation. Equal iff key-sets are equal AND values match.
+            (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => {
+                if a.len() != b.len() {
+                    return false;
+                }
+                for (k, v) in a.iter() {
+                    match b.get(k) {
+                        Some(bv) => {
+                            if v != bv {
+                                return false;
+                            }
+                        }
+                        None => return false,
+                    }
+                }
+                true
+            }
+            // HashMap: two HashMaps are equal iff they contain the same key-value pairs.
+            (Value::wat__std__HashMap(a), Value::wat__std__HashMap(b)) => {
+                if a.len() != b.len() {
+                    return false;
+                }
+                for (k, (ak, av)) in a.iter() {
+                    match b.get(k) {
+                        Some((bk, bv)) => {
+                            if ak != bk || av != bv {
+                                return false;
+                            }
+                        }
+                        None => return false,
+                    }
+                }
+                true
+            }
+            // --- Structurally-equal but NOT atomizable ---
+            (Value::u8(a), Value::u8(b)) => a == b,
+            (Value::Unit, Value::Unit) => true,
+            (Value::Tuple(a), Value::Tuple(b)) => a == b,
+            (Value::Option(a), Value::Option(b)) => a == b,
+            (Value::Result(a), Value::Result(b)) => a == b,
+            (Value::Struct(a), Value::Struct(b)) => {
+                a.type_name == b.type_name && a.fields == b.fields
+            }
+            (Value::Enum(a), Value::Enum(b)) => {
+                a.type_path == b.type_path
+                    && a.variant_name == b.variant_name
+                    && a.fields == b.fields
+            }
+            // holon::Vector: bit-exact (PartialEq impl in holon-rs compares data slices)
+            (Value::Vector(a), Value::Vector(b)) => a == b,
+            // chrono::DateTime implements PartialEq
+            (Value::Instant(a), Value::Instant(b)) => a == b,
+            // Duration is stored as i64 nanoseconds
+            (Value::Duration(a), Value::Duration(b)) => a == b,
+            // --- Opaque handles: pointer equality ---
+            // These are never atomizable; pointer identity is the only meaningful equality.
+            (Value::wat__core__fn(a), Value::wat__core__fn(b)) => Arc::ptr_eq(a, b),
+            (Value::wat__kernel__Sender(a), Value::wat__kernel__Sender(b)) => Arc::ptr_eq(a, b),
+            (Value::wat__kernel__Receiver(a), Value::wat__kernel__Receiver(b)) => {
+                Arc::ptr_eq(a, b)
+            }
+            (Value::wat__kernel__ProgramHandle(a), Value::wat__kernel__ProgramHandle(b)) => {
+                Arc::ptr_eq(a, b)
+            }
+            (Value::wat__kernel__HandlePool { rx: a, .. }, Value::wat__kernel__HandlePool { rx: b, .. }) => {
+                Arc::ptr_eq(a, b)
+            }
+            (Value::wat__kernel__ChildHandle(a), Value::wat__kernel__ChildHandle(b)) => {
+                Arc::ptr_eq(a, b)
+            }
+            (Value::RustOpaque(a), Value::RustOpaque(b)) => Arc::ptr_eq(a, b),
+            // dyn trait objects: pointer equality on the data pointer
+            (Value::io__IOReader(a), Value::io__IOReader(b)) => Arc::ptr_eq(a, b),
+            (Value::io__IOWriter(a), Value::io__IOWriter(b)) => Arc::ptr_eq(a, b),
+            // ML types: per-thread-owned; pointer identity is the only meaningful equality
+            (Value::OnlineSubspace(a), Value::OnlineSubspace(b)) => Arc::ptr_eq(a, b),
+            (Value::Reckoner(a), Value::Reckoner(b)) => Arc::ptr_eq(a, b),
+            (Value::Engram(a), Value::Engram(b)) => Arc::ptr_eq(a, b),
+            (Value::EngramLibrary(a), Value::EngramLibrary(b)) => Arc::ptr_eq(a, b),
+            (Value::Hologram(a), Value::Hologram(b)) => Arc::ptr_eq(a, b),
+            // Cross-variant pairs are always unequal
+            _ => false,
+        }
+    }
+}
+
+/// Arc 216 Stone 216.5a — `impl Eq for Value`.
+/// Marker trait. Safe per NaN-bit-pattern equality in `PartialEq::eq`.
+impl Eq for Value {}
+
+/// Arc 216 Stone 216.5a — `impl Hash for Value`.
+///
+/// Mirrors `HolonAST`'s pattern (`holon-rs/src/kernel/holon_ast.rs:196-232`):
+/// `std::mem::discriminant` tagging first (prevents `bool(true) == i64(1)`
+/// cross-variant collisions), then per-variant payload hashing.
+///
+/// f64 uses `to_bits()` (NaN-safe). Recursive variants (HashSet, HashMap, Vec,
+/// HolonAST, WatAST) compose for free via std lib's `Hash` impls.
+///
+/// **HashSet/HashMap arms bypass the canonical-key crutch entirely** (BRIEF § Part C):
+/// - `HashSet`: collect element hash values as `u64`s, sort, hash the sorted list.
+///   Sort-then-hash gives determinism (set semantics: {a,b} == {b,a} → same hash).
+/// - `HashMap`: collect (key_hash, val_hash) pairs as `(u64,u64)`, sort by key_hash,
+///   hash the sorted list. Map semantics: {a→1, b→2} == {b→2, a→1} → same hash.
+///
+/// **Non-atomizable variants → `unreachable!()`** with predicate-citation message.
+/// The `is_atomizable` predicate at `src/check.rs:3623` is the static guarantee that
+/// only atomizable Values reach hashing contexts (HashSet/HashMap key positions).
+/// If this panic ever fires, the predicate has drifted from the Hash impl.
+///
+/// **Structural-but-not-atomizable variants** (`u8`, `Unit`, `Tuple`, `Option`,
+/// `Result`, `Struct`, `Enum`, `Vector`, `Instant`, `Duration`) receive structural
+/// Hash impls rather than `unreachable!()`. Per STOP-4: these variants ARE reachable
+/// in Rust code (e.g., as HashMap values or as elements of an outer Tuple) and have
+/// well-defined structural hash semantics. They are NOT currently atomizable (not in
+/// the `is_atomizable` predicate), but their hash implementations are honest. If the
+/// predicate is extended to admit them in a future arc, the Hash impl is already
+/// correct.
+impl std::hash::Hash for Value {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            // --- Atomizable primitives ---
+            Value::bool(b) => b.hash(state),
+            Value::i64(n) => n.hash(state),
+            Value::f64(x) => x.to_bits().hash(state),
+            Value::String(s) => s.hash(state),
+            Value::wat__core__keyword(k) => k.hash(state),
+            Value::holon__HolonAST(h) => h.hash(state),
+            Value::wat__WatAST(ast) => ast.hash(state),
+            Value::wat__core__Uuid(u) => u.hash(state),
+            // Vec: std lib Vec<T>: Hash composes recursively
+            Value::Vec(xs) => xs.hash(state),
+            // HashSet: sort element hashes for set semantics (order-independent)
+            Value::wat__std__HashSet(s) => {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::Hasher;
+                let mut elem_hashes: Vec<u64> = s.values().map(|v| {
+                    let mut h = DefaultHasher::new();
+                    v.hash(&mut h);
+                    h.finish()
+                }).collect();
+                elem_hashes.sort_unstable();
+                elem_hashes.hash(state);
+            }
+            // HashMap: sort (key_hash, val_hash) pairs for map semantics (order-independent)
+            Value::wat__std__HashMap(m) => {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::Hasher;
+                let mut pair_hashes: Vec<(u64, u64)> = m.values().map(|(k_val, v_val)| {
+                    let mut kh = DefaultHasher::new();
+                    k_val.hash(&mut kh);
+                    let mut vh = DefaultHasher::new();
+                    v_val.hash(&mut vh);
+                    (kh.finish(), vh.finish())
+                }).collect();
+                pair_hashes.sort_unstable();
+                pair_hashes.hash(state);
+            }
+            // --- Structural but NOT atomizable: honest hash impls (STOP-4 surface) ---
+            Value::u8(n) => n.hash(state),
+            Value::Unit => {
+                // Unit has no payload; discriminant alone is the hash
+            }
+            Value::Tuple(xs) => xs.hash(state),
+            Value::Option(opt) => match opt.as_ref() {
+                None => 0u8.hash(state),
+                Some(v) => {
+                    1u8.hash(state);
+                    v.hash(state);
+                }
+            },
+            Value::Result(res) => match res.as_ref() {
+                Ok(v) => {
+                    0u8.hash(state);
+                    v.hash(state);
+                }
+                Err(e) => {
+                    1u8.hash(state);
+                    e.hash(state);
+                }
+            },
+            Value::Struct(s) => {
+                s.type_name.hash(state);
+                s.fields.hash(state);
+            }
+            Value::Enum(e) => {
+                e.type_path.hash(state);
+                e.variant_name.hash(state);
+                e.fields.hash(state);
+            }
+            // holon::Vector: hash the underlying i8 data slice
+            Value::Vector(v) => v.data().hash(state),
+            // chrono::DateTime<Utc>: hash via timestamp_nanos (i64, unique per instant)
+            Value::Instant(dt) => dt.timestamp_nanos_opt().hash(state),
+            // Duration: stored as i64 nanoseconds
+            Value::Duration(ns) => ns.hash(state),
+            // --- Non-atomizable variants: unreachable!() with predicate citation ---
+            // The is_atomizable predicate at src/check.rs:3623 is the static guarantee
+            // that these variants never reach hashing contexts (HashSet/HashMap key positions).
+            // If this panic fires, the predicate has drifted from this Hash impl.
+            Value::wat__core__fn(_) => unreachable!(
+                "Value::wat__core__fn is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::wat__kernel__Sender(_) => unreachable!(
+                "Value::wat__kernel__Sender is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::wat__kernel__Receiver(_) => unreachable!(
+                "Value::wat__kernel__Receiver is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::wat__kernel__ProgramHandle(_) => unreachable!(
+                "Value::wat__kernel__ProgramHandle is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::wat__kernel__HandlePool { .. } => unreachable!(
+                "Value::wat__kernel__HandlePool is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::wat__kernel__ChildHandle(_) => unreachable!(
+                "Value::wat__kernel__ChildHandle is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::RustOpaque(_) => unreachable!(
+                "Value::RustOpaque is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::io__IOReader(_) => unreachable!(
+                "Value::io__IOReader is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::io__IOWriter(_) => unreachable!(
+                "Value::io__IOWriter is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::OnlineSubspace(_) => unreachable!(
+                "Value::OnlineSubspace is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::Reckoner(_) => unreachable!(
+                "Value::Reckoner is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::Engram(_) => unreachable!(
+                "Value::Engram is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::EngramLibrary(_) => unreachable!(
+                "Value::EngramLibrary is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+            Value::Hologram(_) => unreachable!(
+                "Value::Hologram is not atomizable; is_atomizable predicate at \
+                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
+        }
+    }
+}
+
 /// The payload of a [`Value::Struct`] — the struct's fully-qualified
 /// declared type name plus its positional field values in declaration
 /// order. Cheap to clone (stored in an `Arc` at the Value level).

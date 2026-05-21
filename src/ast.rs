@@ -196,3 +196,40 @@ impl WatAST {
 // Zero remaining callers. If a future use case surfaces (pretty-
 // printer, REPL history, or a :wat::core::ast-to-source stdlib
 // primitive), reintroduce with that caller's concrete shape.
+
+/// Arc 216 Stone 216.5a — `impl Hash for WatAST`.
+///
+/// Decision D1: direct structural impl mirroring `HolonAST`'s pattern in
+/// holon-rs (`src/kernel/holon_ast.rs:196-232`). WatAST derives `PartialEq`
+/// which is span-agnostic (Span's PartialEq is a no-op that always returns
+/// true — see `span.rs`). The Hash impl mirrors that: `Span` contributes
+/// nothing (its Hash is a no-op, `span.rs:128`). Discriminant tagging via
+/// `std::mem::discriminant` prevents cross-variant collisions.
+///
+/// `FloatLit(f64, Span)` uses `f64::to_bits()` (NaN-safe; mirrors
+/// `HolonAST::F64` arm). All other variants compose cleanly via std
+/// lib's `Hash` impls on `i64`, `bool`, `String`, `Identifier`, and
+/// `Vec<WatAST>` (recursive).
+///
+/// WHY D1 over D2 (Debug-string DefaultHasher): D1 is structurally honest.
+/// Span already has a no-op Hash; Identifier already derives Hash; the
+/// recursive Vec<WatAST> is straightforward. D2 would be a workaround
+/// for a gap that doesn't actually exist — WatAST's fields all implement
+/// Hash once f64 is handled via `to_bits()`.
+impl std::hash::Hash for WatAST {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            WatAST::IntLit(n, _) => n.hash(state),
+            WatAST::FloatLit(x, _) => x.to_bits().hash(state),
+            WatAST::BoolLit(b, _) => b.hash(state),
+            WatAST::StringLit(s, _) => s.hash(state),
+            WatAST::Keyword(k, _) => k.hash(state),
+            WatAST::Symbol(ident, _) => ident.hash(state),
+            WatAST::List(items, _) => items.hash(state),
+            WatAST::Vector(items, _) => items.hash(state),
+            WatAST::StructPattern(items, _) => items.hash(state),
+        }
+        // Span: no-op — Span's Hash impl contributes nothing (span.rs:128).
+    }
+}
