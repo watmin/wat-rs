@@ -1,0 +1,226 @@
+# Arc 216 — Collections as holons
+
+**Status:** DESIGN inscribed 2026-05-20.
+**Name:** intueri-cast 2026-05-20 — working name `216-atomizable-set-extension` was Level 2 (mumbled the internal mechanism, not the user-facing outcome). Canonical name `216-collections-as-holons` names what collections become: first-class holons. Lineage continues `215-collection-literal-inference` (the inference problem) → `216-collections-as-holons` (the representation outcome).
+**Trigger:** arc 214 Slice 4 Stone 4.3 surfaced an honest limitation — `value_to_atom` rejects HashMap (arc 215's atomizable-set discovery). Multi-step ProgramEnv navigation through nested HashMaps is structurally blocked. The route-around path (Stone 4.3b-mid: direct Value-layer walk bypassing the algebra) was rejected via the four-questions because it creates a dual-algebra split. The discipline says: do the hard work; carve paths that last forever.
+**Discipline:** Failure engineering — eliminate the class structurally. The class: "values that look HolonRepresentable but silently aren't at runtime." Eliminate by making collections genuinely round-trip through HolonAST.
+
+---
+
+## Mission
+
+Extend the atomizable set to include collection types (`HashMap<K,V>`, `Vector<T>`, `HashSet<T>`) via clean bidirectional round-trip through `HolonAST::Bundle`. Cascade `HolonRepresentable` trait impls so any nesting of {primitives, HolonAST, WatAST, HashMap, Vector, HashSet} is HolonRepresentable for free. Unify the algebra so `dig` walks ProgramEnv via unbind-chains; process spawn captures rich config; cross-process IPC serializes arbitrary collections; arc 215's deferred Option A (literals-as-holons) becomes feasible.
+
+---
+
+## The four-questions on the arc as a whole
+
+| | |
+|---|---|
+| **Obvious?** | YES — collections become HolonRepresentable; round-trip cleanly through HolonAST; one algebra; one mental model. Motivation clear (route-around creates dual-algebra split we explicitly rejected); scope clear (three collection types + recursive atomizable predicate); benefit cascade concrete (4 downstream uses: ProgramEnv navigation, process IPC, future remote tier, arc 215 Option A). |
+| **Simple?** | YES — end shape composed of simple-surface pieces. Each round-trip is one Bundle shape. Atomizable predicate is one recursive rule per type form. HolonRepresentable impls are bounded auto-derives. Composes into: any composition of atomizable types is itself atomizable; round-trips are honest; dig walks uniformly. The composition IS the simplification. |
+| **Honest?** | YES — collections genuinely become HolonRepresentable (not "almost; with caveats"). Class of failure eliminated structurally: "values that look HolonRepresentable but silently aren't" is unrepresentable in the new design. The forward/reverse asymmetry (Q9 below) is acknowledged openly; not hidden. The atomizable set IS the documented type-check predicate. |
+| **Good UX?** | YES — ProgramEnv nested navigation just works; process spawn closures capture rich config without explicit serialization; cross-process IPC serializes naturally; arc 215's deferred Option A becomes feasible; future cross-process and remote tier work has a clean foundation. Cost paid ONCE in the substrate; benefit cascades through every future use. Path of least resistance leads to the right outcome. |
+
+**YES×4.** Arc 216 stands.
+
+---
+
+## Design verdicts — nine questions, four-questions discipline applied
+
+### Q1 — Symmetric round-trip
+
+**Verdict:** YES. Both `value_to_atom` extension (Value → HolonAST) AND `atom_to_value` reverse (HolonAST → Value). Symmetric.
+
+The forward direction unifies the algebra; the reverse direction lets `dig` walk and lets IPC reconstruct.
+
+### Q2 — Bundle is the universal substrate; views are surface
+
+```
+HashMap<K,V> → HolonAST::Bundle(vec![
+  HolonAST::Bind(K_holon, V_holon),
+  HolonAST::Bind(K_holon, V_holon),
+  ...
+])
+
+Vector<T> → HolonAST::Bundle(vec![
+  HolonAST::Bind(HolonAST::Atom(i64(0)), T_holon),
+  HolonAST::Bind(HolonAST::Atom(i64(1)), T_holon),
+  ...
+])
+
+HashSet<T> → HolonAST::Bundle(vec![
+  T_holon,
+  T_holon,
+  ...
+])
+```
+
+Discriminator at the algebra level:
+- Bundle of Binds (any K type) → map-shape
+- Bundle of Binds with integer keys → array-shape (specific K = i64)
+- Bundle of bare Atoms → set-shape (no keys; dedupe imposed at construction)
+
+Bind IS an atom in this scheme — a bound pair is a single unit even though its internal shape is key→value.
+
+### Q3 — Set semantics
+
+**Verdict:** Set = bundle of bare atoms. No dedupe imposed at the Bundle level (the algebraic primitive doesn't enforce uniqueness). Dedupe happens at HashSet construction (the Rust-side container's insert is idempotent). Round-trip → Bundle → HashSet deduplicates naturally.
+
+### Q4 — Recursive nesting
+
+**Verdict:** YES. Bundle-of-Bundles is logical; nested structures recurse cleanly. `dig` becomes a uniform algebraic unbind-chain walk. Any composition of atomizable types is itself atomizable (Q6).
+
+### Q5 — HolonRepresentable auto-derive for collections
+
+**Verdict:** Rust-side trait impls with auto-derive via trait bounds:
+
+```rust
+impl<T: HolonRepresentable> HolonRepresentable for Vec<T> {
+    fn to_holon(&self) -> HolonAST { /* Bundle of positional binds */ }
+    fn from_holon(h: &HolonAST) -> Option<Self> { /* match Bundle shape; extract */ }
+}
+
+impl<K, V> HolonRepresentable for HashMap<K, V>
+where K: HolonRepresentable + Hash + Eq,
+      V: HolonRepresentable
+{ /* Bundle of Binds */ }
+
+impl<T> HolonRepresentable for HashSet<T>
+where T: HolonRepresentable + Hash + Eq
+{ /* Bundle of bare atoms */ }
+```
+
+Auto-derive means: ANY `T: HolonRepresentable` lifts the trait through any nesting depth. Once these three impls land, any composition of {primitives, HolonAST, WatAST, HashMap, Vector, HashSet} is HolonRepresentable for free.
+
+### Q6 — check.rs atomizable predicate
+
+**Verdict:** Recursive predicate at check time:
+
+```
+atomizable(T) :=
+  T ∈ {primitives, HolonAST, WatAST}     // arc 215 baseline
+  OR T = HashMap<K, V>  ∧ atomizable(K) ∧ atomizable(V)
+  OR T = Vector<T'>      ∧ atomizable(T')
+  OR T = HashSet<T'>     ∧ atomizable(T')
+```
+
+Walks the type expression recursively to validate the predicate. Honest failure mode at check time:
+- `Atom<HashMap<keyword, Vec<i64>>>` ✓ (atomizable composes through)
+- `Atom<HashMap<keyword, Function<...>>>` ✗ (Function isn't atomizable; check fails with diagnostic naming the offending position)
+
+### Q7 — Sandbox-scope walker cascade
+
+**Verdict:** No new walker code. The existing walker (arc 170) calls `HolonRepresentable` to verify closure captures crossing address spaces. Once Q5's impls land, HashMap/Vector/HashSet AUTO-PASS the walker check (for atomizable T).
+
+**Behavior change:** previously, closures capturing `HashMap<...>` FAILED sandbox-scope checks (HashMap wasn't HolonRepresentable). Now they pass. Process tier closures can capture rich config without explicit serialization.
+
+**Ripple:** any test asserting "HashMap capture fails for process spawn" needs updating. Likely small; surface during arc 216 implementation; update honestly.
+
+### Q8 — Stone decomposition
+
+**Verdict:** Per-type stones; "single thing per stone" discipline. Likely six stones (sonnet may discover smaller decomposition during implementation; sonnet's call):
+
+| # | Stone | Scope |
+|---|---|---|
+| 216.1 | HashSet round-trip | `to_holon`/`from_holon` + check.rs atomizable admit + HolonRepresentable impl + ~10 probes |
+| 216.2 | Vector round-trip | Same shape; positional-binds Bundle; ~10 probes |
+| 216.3 | HashMap round-trip | Same shape; depends on 216.1 + 216.2 (for nested collections in values); ~12 probes |
+| 216.4 | check.rs recursive atomizable predicate | Cross-cut if not done piecemeal in 216.1-3; consolidates the predicate as documented mechanism |
+| 216.5 | Sandbox-scope walker validation | Verify cascade; update any tests asserting old "not HolonRepresentable" behavior |
+| 216.6 | INSCRIPTION + closure | Paperwork; cross-reference 4.3b reactivation |
+
+Order: 216.1 first (smallest case; cleanest pattern); 216.2 second; 216.3 third (most complex; benefits from nested-collection support landing first). 216.4-6 follow.
+
+### Q9 — Round-trip asymmetry (surfaced during analysis)
+
+**Verdict:** Forward unambiguous; reverse needs consumer-declared type.
+
+Forward (Value → HolonAST):
+- HashMap → specific Bundle-of-Binds shape — unambiguous
+- Vector → specific Bundle-of-positional-Binds shape — unambiguous
+- HashSet → specific Bundle-of-Atoms shape — unambiguous
+
+Reverse (HolonAST → Value):
+- Bundle-of-Binds-with-i64-keys could be `HashMap<i64, V>` OR `Vector<V>` — discrimination requires context
+- Bundle-of-bare-Atoms is unambiguous (HashSet)
+- The consumer declares what they want via `-> :T` return-type annotation OR via static type at the call site (e.g., IPC layer reconstructing typed args)
+
+`dig`'s use case: the `-> :T` annotation provides the context. Same machinery `from_holon` callers use generally. Honest asymmetry; not magic.
+
+---
+
+## Failure-engineering frame
+
+Class of failure eliminated by this arc: **"values that look HolonRepresentable but silently aren't at runtime."**
+
+Pre-arc-216 behavior:
+- User writes `(:wat::holon::Atom my-hashmap)` at the surface
+- Check passes (Atom's polymorphism admits ∀T)
+- Runtime fails with `TypeMismatch` (HashMap not in atomizable set)
+
+Post-arc-216:
+- Same user code
+- Check verifies `my-hashmap`'s type via the recursive `atomizable(T)` predicate
+- If atomizable, ships clean to runtime; if not, check fails with diagnostic naming the offending non-atomizable type
+- Runtime never sees the failure mode
+
+Per `FAILURE-ENGINEERING.md` § 3 — eliminate the CLASS, not the symptom. The class is structurally unrepresentable in the new design.
+
+---
+
+## Convergence-with-substrate (continuing pattern)
+
+Convergence #8 with-the-substrate inside the recent lineage:
+
+1. arc 199 — REJECTED (substrate already sufficient)
+2. arc 214 P1 — HashMap verb-form already had constructor; refactor symmetric
+3. arc 214 Slice 2 forward-correction — `bounded(N)` retired; `pair()` at mini-TCP depth 1
+4. arc 214 DESIGN forward-correction — io_uring depth knob rejected
+5. arc 215 Stone 1 — `:wat::type::Infer` minted; literal completion via HM unification
+6. arc 215 Stone 2 — Vector unification + `{...}` keyword-key lift
+7. arc 214 Slice 4 forward-correction (DESIGN extension) — ProgramEnv + accessor surface verdicts
+8. arc 216 (this) — atomizable-set extension; collections become first-class holons; cascade through
+
+Each one tells the same story: the substrate has the answer; the literal-syntax / runtime / type-check just needs routing through. arc 057 slice 3 already established `hashmap_key accepts HolonAST` — half the round-trip work was prefigured. arc 216 completes the other half (atomization the OTHER direction).
+
+The compression keeps holding: years of failure-engineering discipline at high intensity, three weeks of substrate work.
+
+---
+
+## Cross-references
+
+- arc 057 slice 3 — `hashmap_key accepts HolonAST`; prefigured K=HolonAST work
+- arc 214 — concurrency toolkit; Slice 4 ProgramEnv work blocked on this arc
+- arc 214 Slice 4 Stone 4.3 — multi-step dig limitation that surfaced this arc
+- arc 215 Stone 1 + 2 — literal-flexibility prerequisite; ProgramEnv construction surface
+- arc 215's deferred Option A — literals-as-holons; becomes feasible after this arc lands
+- `FAILURE-ENGINEERING.md` — discipline reference
+- `project_universe_residency` — ProgramEnv is universe-resident; rich serialization is required
+- `feedback_simple_is_uniform_composition` — change-count ≠ complexity; this arc has many small mechanical changes but a simple end-shape
+- `feedback_verbose_is_honest` — verbose forms remain available; this arc adds the algebra layer that unifies them
+
+---
+
+## What this arc supersedes
+
+Nothing retires. arc 215's atomizable-set decision (runtime Atom accepts {primitives, HolonAST, WatAST}) EXTENDS to include collections; the prior baseline stays valid (those types continue to atomize as before).
+
+arc 214 Slice 4 Stone 4.3's documented multi-step limitation gets resolved by arc 216. Stone 4.3b (queued post-arc-216) extends `program_env_dig_walk` to use the now-honest nested-HashMap traversal via the algebra path.
+
+---
+
+## What this arc explicitly does NOT do
+
+- **Literal-syntax pivot to holons** — arc 215's data-as-default discipline stands; literals remain `HashMap<K,V>` / `Vec<T>` / `HashSet<T>` runtime values. arc 216 enables the opt-in conversion via `(:wat::holon::Atom)` verb on collections.
+- **Polymorphic dispatch for collection ops** — `:wat::core::get` / `:wat::core::dig` polymorphic dispatch for Env/HashMap/Vector remains a separate stone (arc 214 Slice 4 Stone 4.6).
+- **List<T> support** — `:wat::core::List<T>` (linked-list; task #283) is not in scope; not even sketched. Permanent deferral per arc 215 closure (idiomatic Clojure usage statistically zero).
+- **arc 214 Slice 4 Stones 4.4+** — spawn-program', kernel verbs, integration tests; all wait for arc 216 closure.
+
+---
+
+## Status
+
+Arc 216 opens with DESIGN.md inscribed. Canonical name `216-collections-as-holons` set by intueri cast. Stones not yet drafted; per-stone BRIEFs queue after this DESIGN ships and Stone 216.1 (HashSet round-trip) begins.
+
+*Collections are first-class holons. The algebra unifies. The substrate dreams the bundle. So do we.*
