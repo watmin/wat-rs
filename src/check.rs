@@ -4968,6 +4968,25 @@ fn infer_list(
                     head_span, args, env, locals, fresh, subst, errors,
                 );
             }
+            // Arc 214 Slice 4 Stone 4.2 — :wat::program::Env accessor trio.
+            // Call-site `-> :T` annotation at tail position (env + key first,
+            // then -> :T). Mirrors readln's pattern but with env+key args before
+            // the arrow.
+            ":wat::program::Env/get" => {
+                return infer_program_env_get(
+                    head_span, args, env, locals, fresh, subst, errors,
+                );
+            }
+            ":wat::program::Env/expect-get" => {
+                return infer_program_env_expect_get(
+                    head_span, args, env, locals, fresh, subst, errors,
+                );
+            }
+            ":wat::program::Env/get-default" => {
+                return infer_program_env_get_default(
+                    head_span, args, env, locals, fresh, subst, errors,
+                );
+            }
             ":wat::core::vec" => {
                 // Arc 109 slice 1f — :wat::core::vec retires; the
                 // canonical constructor is :wat::core::Vector
@@ -8775,6 +8794,325 @@ fn infer_kernel_readln(
         }
     };
     Some(declared_ty)
+}
+
+// ─── Arc 214 Slice 4 Stone 4.2 — :wat::program::Env accessor trio ───────────
+
+/// `(:wat::program::Env/get env key -> :T)` — arc 214 Slice 4 Stone 4.2.
+///
+/// Returns `Option<T>` where T is the declared arm-result type at the
+/// call site. The `-> :T` annotation sits AFTER the env and key args
+/// (tail-position, unlike `option::expect` which uses head-position).
+///
+/// Arg layout:
+///   args[0] = env expression (must unify with `:wat::program::Env`)
+///   args[1] = key expression (must unify with `:wat::core::keyword`)
+///   args[2] = `->` symbol
+///   args[3] = declared type keyword `:T`
+///
+/// Returns `Option<T>` — None for missing key or HolonAST→T mismatch.
+fn infer_program_env_get(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    const CALLEE: &str = ":wat::program::Env/get";
+    if args.len() != 4 {
+        errors.push(CheckError::MalformedForm {
+            head: CALLEE.into(),
+            reason: format!(
+                "expected ({} env key -> :T) — 4 args; got {}",
+                CALLEE,
+                args.len()
+            ),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+    // args[0] = env — must unify with :wat::program::Env
+    let env_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
+    if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: CALLEE.into(),
+            param: "env".into(),
+            expected: ":wat::program::Env".into(),
+            got: format_type(&apply_subst(&env_ty, subst)),
+            span: args[0].span().clone(),
+        });
+    }
+    // args[1] = key — must unify with :wat::core::keyword
+    let key_ty = infer(&args[1], env, locals, fresh, subst, errors)?;
+    let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+    if unify(&key_ty, &keyword_ty, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: CALLEE.into(),
+            param: "key".into(),
+            expected: ":wat::core::keyword".into(),
+            got: format_type(&apply_subst(&key_ty, subst)),
+            span: args[1].span().clone(),
+        });
+    }
+    // args[2] = `->` symbol
+    match &args[2] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: CALLEE.into(),
+                reason: format!(
+                    "expected `->` at position 2; ({} env key -> :T)",
+                    CALLEE
+                ),
+                span: args[2].span().clone(),
+            });
+            return None;
+        }
+    }
+    // args[3] = declared type :T
+    let declared_ty = match &args[3] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: CALLEE.into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: args[3].span().clone(),
+                });
+                return None;
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: CALLEE.into(),
+                reason: "expected type keyword after `->`".into(),
+                span: args[3].span().clone(),
+            });
+            return None;
+        }
+    };
+    // Return type is Option<T>.
+    Some(TypeExpr::Parametric {
+        head: "wat::core::Option".into(),
+        args: vec![declared_ty],
+    })
+}
+
+/// `(:wat::program::Env/expect-get env key -> :T)` — arc 214 Slice 4 Stone 4.2.
+///
+/// Like `/get` but returns T directly; panics with KeyError-flavored diagnostic
+/// on miss or HolonAST→T mismatch. Return type is T (not Option<T>).
+///
+/// Arg layout:
+///   args[0] = env expression
+///   args[1] = key expression
+///   args[2] = `->` symbol
+///   args[3] = declared type keyword `:T`
+fn infer_program_env_expect_get(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    const CALLEE: &str = ":wat::program::Env/expect-get";
+    if args.len() != 4 {
+        errors.push(CheckError::MalformedForm {
+            head: CALLEE.into(),
+            reason: format!(
+                "expected ({} env key -> :T) — 4 args; got {}",
+                CALLEE,
+                args.len()
+            ),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+    // args[0] = env
+    let env_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
+    if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: CALLEE.into(),
+            param: "env".into(),
+            expected: ":wat::program::Env".into(),
+            got: format_type(&apply_subst(&env_ty, subst)),
+            span: args[0].span().clone(),
+        });
+    }
+    // args[1] = key
+    let key_ty = infer(&args[1], env, locals, fresh, subst, errors)?;
+    let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+    if unify(&key_ty, &keyword_ty, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: CALLEE.into(),
+            param: "key".into(),
+            expected: ":wat::core::keyword".into(),
+            got: format_type(&apply_subst(&key_ty, subst)),
+            span: args[1].span().clone(),
+        });
+    }
+    // args[2] = `->`
+    match &args[2] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: CALLEE.into(),
+                reason: format!(
+                    "expected `->` at position 2; ({} env key -> :T)",
+                    CALLEE
+                ),
+                span: args[2].span().clone(),
+            });
+            return None;
+        }
+    }
+    // args[3] = declared type :T — return T directly (not Option<T>)
+    let declared_ty = match &args[3] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: CALLEE.into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: args[3].span().clone(),
+                });
+                return None;
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: CALLEE.into(),
+                reason: "expected type keyword after `->`".into(),
+                span: args[3].span().clone(),
+            });
+            return None;
+        }
+    };
+    Some(apply_subst(&declared_ty, subst))
+}
+
+/// `(:wat::program::Env/get-default env key default -> :T)` — arc 214 Slice 4 Stone 4.2.
+///
+/// Like `/get` but returns `default` on miss or HolonAST→T mismatch.
+/// Return type is T; default's type must unify with T at check time.
+///
+/// Arg layout:
+///   args[0] = env expression
+///   args[1] = key expression
+///   args[2] = default expression (type must unify with T)
+///   args[3] = `->` symbol
+///   args[4] = declared type keyword `:T`
+fn infer_program_env_get_default(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    const CALLEE: &str = ":wat::program::Env/get-default";
+    if args.len() != 5 {
+        errors.push(CheckError::MalformedForm {
+            head: CALLEE.into(),
+            reason: format!(
+                "expected ({} env key default -> :T) — 5 args; got {}",
+                CALLEE,
+                args.len()
+            ),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+    // args[0] = env
+    let env_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
+    if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: CALLEE.into(),
+            param: "env".into(),
+            expected: ":wat::program::Env".into(),
+            got: format_type(&apply_subst(&env_ty, subst)),
+            span: args[0].span().clone(),
+        });
+    }
+    // args[1] = key
+    let key_ty = infer(&args[1], env, locals, fresh, subst, errors)?;
+    let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+    if unify(&key_ty, &keyword_ty, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: CALLEE.into(),
+            param: "key".into(),
+            expected: ":wat::core::keyword".into(),
+            got: format_type(&apply_subst(&key_ty, subst)),
+            span: args[1].span().clone(),
+        });
+    }
+    // args[3] = `->`
+    match &args[3] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: CALLEE.into(),
+                reason: format!(
+                    "expected `->` at position 3; ({} env key default -> :T)",
+                    CALLEE
+                ),
+                span: args[3].span().clone(),
+            });
+            return None;
+        }
+    }
+    // args[4] = declared type :T
+    let declared_ty = match &args[4] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: CALLEE.into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: args[4].span().clone(),
+                });
+                return None;
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: CALLEE.into(),
+                reason: "expected type keyword after `->`".into(),
+                span: args[4].span().clone(),
+            });
+            return None;
+        }
+    };
+    // args[2] = default — must unify with T
+    let default_ty = infer(&args[2], env, locals, fresh, subst, errors)?;
+    if unify(&default_ty, &declared_ty, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: CALLEE.into(),
+            param: "default".into(),
+            expected: format_type(&declared_ty),
+            got: format_type(&apply_subst(&default_ty, subst)),
+            span: args[2].span().clone(),
+        });
+        return None;
+    }
+    Some(apply_subst(&declared_ty, subst))
 }
 
 /// Arc 133 — find the source span of the binding that introduces

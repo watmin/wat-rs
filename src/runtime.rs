@@ -4462,6 +4462,10 @@ fn dispatch_keyword_head(
         ":wat::core::HashSet/contains?" => eval_hashset_contains_q(args, env, sym),
         ":wat::core::Vector/get" => eval_vector_get(args, env, sym),
         ":wat::core::HashMap/get" => eval_hashmap_get(args, env, sym),
+        // Arc 214 Slice 4 Stone 4.2 — :wat::program::Env accessor trio.
+        ":wat::program::Env/get" => eval_program_env_get(args, env, sym),
+        ":wat::program::Env/expect-get" => eval_program_env_expect_get(args, env, sym),
+        ":wat::program::Env/get-default" => eval_program_env_get_default(args, env, sym),
         ":wat::core::Vector/conj" => eval_vector_conj(args, env, sym),
         ":wat::core::HashSet/conj" => eval_hashset_conj(args, env, sym),
         // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat.
@@ -7826,6 +7830,235 @@ fn eval_hashmap_get(
     let container = eval(&args[0], env, sym)?;
     let key = eval(&args[1], env, sym)?;
     hashmap_get_inner(&container, &key)
+}
+
+// ─── :wat::program::Env accessor trio — arc 214 Slice 4 Stone 4.2 ───────────
+//
+// Three single-step accessors over `:wat::program::Env`
+// (typealias: `HashMap<keyword, HolonAST>`):
+//
+//   `(:wat::program::Env/get       env key        -> :T)` → `:Option<T>`
+//   `(:wat::program::Env/expect-get env key       -> :T)` → `:T`  (panic on miss/wrong-type)
+//   `(:wat::program::Env/get-default env key dflt -> :T)` → `:T`  (default on miss/wrong-type)
+//
+// Call-site arg layout (post-head):
+//   /get          → args[0]=env  args[1]=key  args[2]=->  args[3]=:T
+//   /expect-get   → args[0]=env  args[1]=key  args[2]=->  args[3]=:T
+//   /get-default  → args[0]=env  args[1]=key  args[2]=dflt args[3]->  args[4]=:T
+//
+// The `-> :T` annotation is consumed at check time (infer_program_env_*
+// in check.rs) AND at runtime to validate the extraction type.
+
+/// Inner: extract a `Value::holon__HolonAST` to a primitive Value, returning
+/// `None` for composite HolonAST variants or type-mismatch with `target_ty`.
+///
+/// Mirrors the leaf-extraction logic of `eval_atom_value` but returns
+/// `Option<Value>` (None = composite / wrong-type) rather than `Result`.
+/// The `target_ty` is the caller's declared `:T` from the `-> :T` annotation;
+/// `None` on type_name mismatch (wrong-type signal for get/get-default).
+fn holon_ast_extract(
+    h: &HolonAST,
+    target_ty: &crate::types::TypeExpr,
+) -> Option<Value> {
+    let candidate = match h {
+        HolonAST::Symbol(s) => Value::wat__core__keyword(Arc::new(s.to_string())),
+        HolonAST::String(s) => Value::String(Arc::new(s.to_string())),
+        HolonAST::I64(n) => Value::i64(*n),
+        HolonAST::F64(x) => Value::f64(*x),
+        HolonAST::Bool(b) => Value::bool(*b),
+        // Atom(inner) unwraps one layer — the inner HolonAST becomes a HolonAST Value.
+        HolonAST::Atom(inner) => Value::holon__HolonAST(inner.clone()),
+        // Composite variants (Bind, Bundle, Permute, Thermometer, Blend) → None.
+        _ => return None,
+    };
+    // Type-mismatch check: the extracted Value must satisfy the declared :T.
+    if value_matches_type_pattern(&candidate, target_ty) {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
+/// Shared: look up `key` in `env` (must be `HashMap<keyword, HolonAST>`),
+/// extract the stored HolonAST to type T, return `Option<Value>`.
+/// `op` is the calling verb name for error messages.
+fn program_env_lookup(
+    op: &str,
+    env_val: &Value,
+    key_val: &Value,
+    target_ty: &crate::types::TypeExpr,
+    key_span: &Span,
+) -> Result<Option<Value>, RuntimeError> {
+    let map = match env_val {
+        Value::wat__std__HashMap(m) => m,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
+                got: other.type_name(),
+                span: key_span.clone(),
+            });
+        }
+    };
+    let k = hashmap_key(op, key_val)?;
+    let stored_v = match map.get(&k) {
+        Some((_sk, v)) => v,
+        None => return Ok(None),
+    };
+    // The stored value must be a HolonAST (Env always stores HolonAST).
+    // If it's not (e.g. a mis-typed env was constructed), return None
+    // as a wrong-type signal.
+    let holon = match stored_v {
+        Value::holon__HolonAST(h) => h,
+        // Non-HolonAST stored value (shouldn't happen in well-typed code,
+        // but treat as wrong-type rather than hard error).
+        _ => return Ok(None),
+    };
+    Ok(holon_ast_extract(holon, target_ty))
+}
+
+/// Parse the `-> :T` tail from args at positions `arrow_pos` and `type_pos`.
+/// Returns `(TypeExpr, Span_of_arrow)` or a `RuntimeError`.
+fn parse_arrow_ty(
+    op: &str,
+    args: &[WatAST],
+    arrow_pos: usize,
+    type_pos: usize,
+) -> Result<crate::types::TypeExpr, RuntimeError> {
+    match &args[arrow_pos] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "expected `->` at position {}; got {}",
+                    arrow_pos,
+                    crate::runtime::ast_variant_name(other)
+                ),
+                span: other.span().clone(),
+            });
+        }
+    }
+    let target_ty = match &args[type_pos] {
+        WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|e| {
+            RuntimeError::MalformedForm {
+                head: op.into(),
+                reason: format!("declared type {:?} failed to parse: {}", k, e),
+                span: args[type_pos].span().clone(),
+            }
+        })?,
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: op.into(),
+                reason: "expected type keyword after `->`".into(),
+                span: other.span().clone(),
+            });
+        }
+    };
+    Ok(target_ty)
+}
+
+/// `(:wat::program::Env/get env key -> :T)` — arc 214 Slice 4 Stone 4.2.
+///
+/// Looks up `key` in `env` (HashMap<keyword, HolonAST>). If found and the
+/// stored HolonAST leaf extracts cleanly to the declared type T, returns
+/// `Some(v)`. Returns `None` for missing key or HolonAST → T mismatch.
+fn eval_program_env_get(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::program::Env/get";
+    // args layout: [env, key, ->, :T]
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 4,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
+    let env_val = eval(&args[0], env, sym)?;
+    let key_val = eval(&args[1], env, sym)?;
+    let result = program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())?;
+    Ok(Value::Option(Arc::new(result)))
+}
+
+/// `(:wat::program::Env/expect-get env key -> :T)` — arc 214 Slice 4 Stone 4.2.
+///
+/// Like `/get` but panics with a KeyError-flavored diagnostic on miss or
+/// HolonAST → T mismatch. The diagnostic names the key and env context.
+fn eval_program_env_expect_get(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::program::Env/expect-get";
+    // args layout: [env, key, ->, :T]
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 4,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
+    let env_val = eval(&args[0], env, sym)?;
+    let key_val = eval(&args[1], env, sym)?;
+    let key_str = format!("{:?}", &args[1]); // source-level key name for diagnostic
+    match program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())? {
+        Some(v) => Ok(v),
+        None => {
+            let frames = snapshot_call_stack();
+            let message = format!(
+                "{}: key {} not found in Env or type mismatch (expected :{})",
+                OP,
+                key_str,
+                crate::check::format_type(&target_ty)
+            );
+            let payload = crate::assertion::AssertionPayload {
+                message,
+                actual: None,
+                expected: None,
+                location: Some(args[1].span().clone()),
+                frames,
+                upstream_chain: None,
+                thread_name: std::thread::current().name().map(String::from),
+            };
+            std::panic::panic_any(payload);
+        }
+    }
+}
+
+/// `(:wat::program::Env/get-default env key default -> :T)` — arc 214 Slice 4 Stone 4.2.
+///
+/// Like `/get` but returns `default` (already evaluated) on miss or
+/// HolonAST → T mismatch. The default's type must unify with T (enforced at
+/// check time via `infer_program_env_get_default`).
+fn eval_program_env_get_default(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::program::Env/get-default";
+    // args layout: [env, key, default, ->, :T]
+    if args.len() != 5 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 5,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let target_ty = parse_arrow_ty(OP, args, 3, 4)?;
+    let env_val = eval(&args[0], env, sym)?;
+    let key_val = eval(&args[1], env, sym)?;
+    match program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())? {
+        Some(v) => Ok(v),
+        None => eval(&args[2], env, sym),
+    }
 }
 
 // ─── conj — append element to growing collection ────────────────────────────

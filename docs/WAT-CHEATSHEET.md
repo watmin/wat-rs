@@ -105,6 +105,34 @@ that a spawned program sees as its startup environment.
 
 The two namespaces are orthogonal: program env carries wat-typed config; process env mirrors the OS contract (`getenv`/`setenv`). Callers reach for the right namespace based on what they are talking about.
 
+**Accessor trio (arc 214 Slice 4 Stone 4.2):**
+
+| Verb | Args | Returns | Miss / wrong-type |
+|---|---|---|---|
+| `:wat::program::Env/get` | `env key -> :T` | `Option<T>` | `None` |
+| `:wat::program::Env/expect-get` | `env key -> :T` | `T` | panic with KeyError diagnostic |
+| `:wat::program::Env/get-default` | `env key default -> :T` | `T` | `default` |
+
+The `-> :T` annotation sits at TAIL position (after env + key args). The verb looks up `key` in `env`, extracts the stored `HolonAST` leaf to the declared type T, and returns Some(v) / v / default on hit or None / panic / default on miss or type-mismatch.
+
+```wat
+;; /get — Option<T> on miss
+(:wat::program::Env/get env :port -> :wat::core::i64)     ;; → Option<i64>
+
+;; /expect-get — T directly; panics if missing or wrong type
+(:wat::program::Env/expect-get env :port -> :wat::core::i64)  ;; → i64
+
+;; /get-default — T; returns default on miss or wrong type
+(:wat::program::Env/get-default env :port 8080 -> :wat::core::i64)  ;; → i64
+
+;; Typical startup pattern:
+(:wat::core::define (:user::run (env :wat::program::Env) -> :wat::core::nil)
+  (:wat::core::let
+    [port (:wat::program::Env/get-default env :port 8080 -> :wat::core::i64)]
+    ;; ... use port
+    :wat::core::nil))
+```
+
 ### `:wat::core::do` — sequential evaluation (arc 136)
 
 `(:wat::core::do form_1 form_2 ... form_N)` evaluates each form
