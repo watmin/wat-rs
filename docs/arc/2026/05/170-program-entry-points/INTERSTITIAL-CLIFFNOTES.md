@@ -155,18 +155,26 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-21 — arc 216 doctrine expansion mid-flight)
+## Currently (2026-05-21 — arc 218 opened; 216 + 217 BLOCKED)
 
-- **Arc 216 substrate work complete (collections)** — 216.1/216.2/216.3 (HolonRepresentable for HashSet/Vec/HashMap) + 216.4 (predicate consolidation; surfaced gap) + 216.5 (hashmap_key extension; bridge) + 216.5a-d antidote (impl Hash for Value mirroring HolonAST + native storage + DELETE hashmap_key) + 216.6 (process-tier cascade validation)
-- **Arc 216 expanded mid-closure** — user surfaced *"what about Tuple/Option/Result/Instant/Uuid/Duration?"* — variant audit deferrals from 216.5a now absorbed; encoding doctrine emerged through 13 user questions
-- **Encoding doctrine LOCKED** — 3 categories (Primitives `Atom` / Collections `Bundle` / Tagged `Bind(Atom("#tag"), payload)`); tagged shapes locked for Option (`#some`/`#none nil`) / Result (`#ok`/`#err`) / Instant (`#inst`) / Uuid (`#uuid`) / Duration (`#duration`); Unit-vs-None distinction restored; bare tags over namespaced per *"fuck 'em - i'll patch their libs"*
-- **Arc 216 Stone 216.7 IN FLIGHT** (`a50697ff2d569b048`) — Tuple round-trip (collection-category positional Bundle); orchestrator already inscribed DESIGN forward-correction + touched up holon-rs Symbol docstring (dual-use acknowledgment); sonnet handles substrate routing + probes + SCORE
-- **Arc 216 Stones pending** — 216.8 sum-type tagged literals (substrate migration: transparent Option → `#some`/`#none`; namespaced Result → bare `#ok`/`#err`); 216.9 EDN-tagged scalars (Instant/Uuid verify + Duration mint with wat-edn extension); 216.10 INSCRIPTION + arc closure
-- **Arc 214 Slice 4 resumes after 216 closes** — kernel layer: peer types + polymorphic verbs + unified spawn-program with ProgramEnv (built on the literal sugar + encoding doctrine)
-- **Workspace state** — concurrency primitives correct; literals are data; holon is the algebraic view (opt-in); `hashmap_key` doesn't exist; `Value: Hash + Eq` is canonical; encoding doctrine inscribed in DESIGN-216
-- **9-ward pass** is standard for kernel additions per kernel-impeccability protocol (zone: `{src,tests}/comms/*`)
-- **Substrate-already-sufficient convergence count** — 11 inside arc 214-216 (arc 216 antidote = #8; arc 216.7 doctrine emergence rippled through #9-11 — `holon-rs HolonAST::Symbol` already accommodated dual-use; wat-edn already thoughtfully tag-vs-transparent per type; Uuid already integrated)
-- **Recent worked examples** — Stone 216.6 first attempt FM 17 slip + recovery (2026-05-20); Stone 216.7 doctrine emergence through 13 user questions (2026-05-21). Both demonstrate: the dialogue IS the discipline; the substrate IS sufficient; the dig produces the answer
+- **Arc 216 substrate work complete (collections + doctrine)** — 216.1/.2/.3 HolonRepresentable + 216.4 predicate + 216.5 hashmap_key bridge + 216.5a-d antidote (impl Hash for Value + native storage + DELETE hashmap_key) + 216.6 process-tier cascade + 216.7 encoding doctrine + Tuple round-trip. All shipped + pushed.
+- **Encoding doctrine LOCKED** in DESIGN-216 — 3 categories (Primitives `Atom` / Collections `Bundle` / Tagged `Bind(Atom("#tag"), payload)`); tagged shapes for Option (`#some`/`#none nil`) / Result (`#ok`/`#err`) / Instant (`#inst`) / Uuid (`#uuid`) / Duration (`#duration`); Unit-vs-None distinction restored
+- **Arc 218 OPENED 2026-05-21** (`2c47b93`) — wat-edn IMPECCABLE. First production vigilia cast (7 spells in parallel) returned **DIVERGES (2 L1 + 26 L2)**. sequi CONVERGED — substrate-level state-threading discipline intact. Findings inscribed in `docs/arc/2026/05/218-wat-edn-impeccable/VIGILIA-REPORT-2026-05-21.md`. 5-stone decomposition in DESIGN.md. Stone 218.1 next (L1 fixes + cross-spell `write_keyword_body` extraction).
+- **Blocking chain locked:**
+  ```
+  arc 218 (wat-edn IMPECCABLE)
+    → arc 217 (Clojure-IPC bridge per crates/wat-edn/docs/IPC-BRIDGE.md)
+    → arc 216 stones 216.8 (#some/#none/#ok/#err migration) / 216.9 (Duration mint + Instant/Uuid verify) / 216.10 (INSCRIPTION + arc closure)
+    → arc 214 Slice 4 (kernel layer + ProgramEnv)
+  ```
+- **Workspace state** — concurrency primitives correct; literals are data; holon is the algebraic view (opt-in); `hashmap_key` doesn't exist; `Value: Hash + Eq` is canonical; encoding doctrine inscribed
+- **9-ward pass** standard for kernel additions; vigilia ZONE extended to `crates/wat-edn/*` after 2026-05-21 cast (first wat-edn ward; pre-arc-218 baseline). Comms zone remains `{src,tests}/comms/*`.
+- **Datamancy grimoire** at `~/work/holon/datamancy/` — 16 Latin spells; vigilia is the aggregator. Casting protocol: orchestrator spawns Agent (model: sonnet) per spell per target with SKILL.md embedded verbatim; one agent per spell per file/target; no cross-talk
+- **Substrate-already-sufficient convergence count** — 11 inside arc 214-216 (#8 = arc 216 antidote; #9-11 = encoding doctrine dig); pattern continues
+- **Recent worked examples** —
+  - Stone 216.6 FM 17 slip + recovery (2026-05-20)
+  - Stone 216.7 doctrine emergence through 13 user questions (2026-05-21)
+  - Vigilia-on-wat-edn first production cast 2026-05-21 — orchestrator initially tried to delegate to single vigilia agent; user corrected: *"protocol violation - one spell per agent"*. Re-cast as 7 parallel orchestrator-spawned agents (one per spell). Aggregate: 2 L1 + 26 L2; sequi CONVERGED. Worked example of `feedback_ward_isolation`.
 - **Branch** `arc-170-gap-j-v5-deadlock-state`
 
 Update this section each session-end. Past breadcrumbs live in INTERSTITIAL "compaction breadcrumb" entries (stale).
