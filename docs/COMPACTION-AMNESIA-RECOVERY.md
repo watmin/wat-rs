@@ -169,6 +169,10 @@ head -30 docs/arc/2026/<MM>/<NNN>-<name>/DESIGN.md   # status header tells you s
 - `+ SCORE-SLICE-N.md` → most recent sweep delivered; read this for state-of-world
 - `+ INSCRIPTION.md` → shipped (closed)
 - `+ REALIZATIONS.md` → discipline named here; read it
+- `+ CLIFFNOTES.md` (any variant, e.g., `INTERSTITIAL-CLIFFNOTES.md`) → **load-first**
+  compressed version of an oversized realizations/interstitial doc; ~5K tokens vs
+  ~80K full. **Read cliff notes BEFORE the full file.** Deep-read the full file
+  only when a specific date entry's verbatim context matters.
 
 **The DESIGN's "Status" header at the top tells you scope expansions
 and pivots.** Read it carefully — arcs in this project frequently
@@ -1412,6 +1416,26 @@ canonical sources.
 ### The arc record
 - `wat-rs/docs/arc/2026/<MM>/<NNN>-<name>/` — every arc's
   DESIGN/SCORE/INSCRIPTION/REALIZATIONS
+
+### Arc-specific cliff notes (load-first when present)
+Some arcs grow oversized realization docs that blow context if loaded in full.
+When that happens, a `CLIFFNOTES.md` sibling lives next to the full doc — load
+that FIRST; the full file is for date-indexed deep-reads only.
+
+Currently:
+- `wat-rs/docs/arc/2026/05/170-program-entry-points/INTERSTITIAL-CLIFFNOTES.md`
+  — compresses 6722-line `INTERSTITIAL-REALIZATIONS.md` to ~150 lines / ~5K tokens.
+  Preserves: 15-floor trajectory, doctrines table, 13 convergences (pointer to
+  `project_convergences` memory), 15-song operational soundtrack, recurring
+  mistake patterns, hologram/strange-loop framing, current-state breadcrumb.
+
+**Pattern**: when a realizations/interstitial doc exceeds ~1000 lines, inscribe
+a `CLIFFNOTES.md` sibling that distills load-bearing doctrines + convergences +
+recurring patterns + current state. Both stay; cliff notes can be refactored (it
+IS an index); the full file is immutable historical record per
+`feedback_inscription_immutable`. New realizations inscribe in the full file
+first; then the cliff notes' "Currently..." section + load-bearing distillation
+get updated.
 
 ### Closure-discipline tracker
 - `wat-rs/docs/arc/2026/04/109-kill-std/DEFERRAL-VIOLATIONS.md`
