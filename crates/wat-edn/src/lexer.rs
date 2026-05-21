@@ -210,7 +210,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn lex_string_escaped(&mut self, open_pos: usize, body_start: usize) -> Result<Token<'a>> {
-        let mut out = String::with_capacity(self.input.len() - body_start);
+        let mut out = String::with_capacity(self.pos - body_start);
         let prefix = std::str::from_utf8(&self.input[body_start..self.pos])
             .map_err(|e| Error::at(body_start, ErrorKind::Utf8(e.to_string())))?;
         out.push_str(prefix);

@@ -108,11 +108,10 @@ fn write_pretty_indented(v: &Value, out: &mut String, level: usize) {
                 out.push_str("{}");
             } else {
                 out.push('{');
+                out.push('\n');
                 let inner = level + 1;
                 for (i, (k, val)) in entries.iter().enumerate() {
-                    if i > 0 {
-                        push_indent(out, inner);
-                    }
+                    push_indent(out, inner);
                     write_pretty_indented(k, out, inner);
                     out.push(' ');
                     write_pretty_indented(val, out, inner);
@@ -120,6 +119,8 @@ fn write_pretty_indented(v: &Value, out: &mut String, level: usize) {
                         out.push('\n');
                     }
                 }
+                out.push('\n');
+                push_indent(out, level);
                 out.push('}');
             }
         }

@@ -155,9 +155,10 @@ impl<'a> Parser<'a> {
             Token::LBrace => self.parse_map(),
             Token::HashLBrace => self.parse_set(),
             Token::HashUnderscore => unreachable!("skip_discards consumed it"),
-            Token::RParen | Token::RBracket | Token::RBrace | Token::Eof => {
-                Err(Error::at(pos, ErrorKind::UnexpectedEof))
-            }
+            Token::Eof => Err(Error::at(pos, ErrorKind::UnexpectedEof)),
+            Token::RParen => Err(Error::at(pos, ErrorKind::UnexpectedToken(")"))),
+            Token::RBracket => Err(Error::at(pos, ErrorKind::UnexpectedToken("]"))),
+            Token::RBrace => Err(Error::at(pos, ErrorKind::UnexpectedToken("}"))),
         }
     }
 
@@ -379,24 +380,31 @@ fn parse_namespaced(
         }
     }
 
-    if let Some(idx) = body.find('/') {
-        let ns = &body[..idx];
-        let name = &body[idx + 1..];
-        if ns.is_empty() {
-            return Err(wrap(format!("empty prefix in {}", body)));
+    let mut parts = body.splitn(3, '/');
+    let first = parts.next().unwrap(); // body always has at least one char
+    match (parts.next(), parts.next()) {
+        (None, _) => {
+            // No '/': bare name.
+            validate_first_char(first).map_err(|m| wrap(format!("{}: {}", body, m)))?;
+            Ok((None, first))
         }
-        if name.is_empty() {
-            return Err(wrap(format!("empty name in {}", body)));
+        (Some(name), None) => {
+            // Exactly one '/': namespaced.
+            let ns = first;
+            if ns.is_empty() {
+                return Err(wrap(format!("empty prefix in {}", body)));
+            }
+            if name.is_empty() {
+                return Err(wrap(format!("empty name in {}", body)));
+            }
+            validate_first_char(ns).map_err(|m| wrap(format!("prefix in {}: {}", body, m)))?;
+            validate_first_char(name).map_err(|m| wrap(format!("name in {}: {}", body, m)))?;
+            Ok((Some(ns), name))
         }
-        if name.contains('/') {
-            return Err(wrap(format!("more than one / in {}", body)));
+        (Some(_), Some(_)) => {
+            // Two or more '/': illegal.
+            Err(wrap(format!("more than one / in {}", body)))
         }
-        validate_first_char(ns).map_err(|m| wrap(format!("prefix in {}: {}", body, m)))?;
-        validate_first_char(name).map_err(|m| wrap(format!("name in {}: {}", body, m)))?;
-        Ok((Some(ns), name))
-    } else {
-        validate_first_char(body).map_err(|m| wrap(format!("{}: {}", body, m)))?;
-        Ok((None, body))
     }
 }
 

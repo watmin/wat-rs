@@ -14,6 +14,7 @@ pub enum Error {
 pub enum ErrorKind {
     UnexpectedEof,
     UnexpectedByte(u8),
+    UnexpectedToken(&'static str),
     InvalidEscape(u8),
     InvalidUnicode(String),
     InvalidNumber(String),
@@ -41,6 +42,7 @@ impl std::fmt::Display for ErrorKind {
         match self {
             UnexpectedEof => f.write_str("unexpected end of input"),
             UnexpectedByte(b) => write!(f, "unexpected byte 0x{:02x}", b),
+            UnexpectedToken(t) => write!(f, "unexpected token '{}'", t),
             InvalidEscape(b) => write!(f, "invalid string escape \\{}", *b as char),
             InvalidUnicode(s) => write!(f, "invalid unicode escape: {}", s),
             InvalidNumber(s) => write!(f, "invalid number: {}", s),

@@ -83,6 +83,9 @@ pub enum JsonError {
 
     #[error("invalid map: {0}")]
     InvalidMap(String),
+
+    #[error("invalid map key '{key}': {reason}")]
+    InvalidMapKey { key: String, reason: String },
 }
 
 pub type JsonResult<T> = std::result::Result<T, JsonError>;
@@ -160,11 +163,21 @@ pub fn edn_to_json(v: &Value<'_>) -> JV {
 
 /// Convert an EDN `Value` to a JSON string.
 pub fn to_json_string(v: &Value<'_>) -> String {
+    // rune:struere(invariant-coupling) — serde_json::to_string cannot
+    // fail here because edn_to_json's closed construction emits only
+    // well-formed serde_json::Value graphs (no NaN-in-Number). The
+    // .expect() panic is structurally unreachable; the coupling is
+    // the invariant.
     serde_json::to_string(&edn_to_json(v)).expect("serde_json::to_string on Value")
 }
 
 /// Convert an EDN `Value` to a pretty-printed JSON string.
 pub fn to_json_string_pretty(v: &Value<'_>) -> String {
+    // rune:struere(invariant-coupling) — serde_json::to_string_pretty
+    // cannot fail here because edn_to_json's closed construction emits
+    // only well-formed serde_json::Value graphs (no NaN-in-Number). The
+    // .expect() panic is structurally unreachable; the coupling is
+    // the invariant.
     serde_json::to_string_pretty(&edn_to_json(v))
         .expect("serde_json::to_string_pretty on Value")
 }
@@ -286,8 +299,14 @@ fn parse_map_key(k: &str) -> JsonResult<OwnedValue> {
         .map(|c| matches!(c, ':' | '[' | '{' | '(' | '#' | '"'))
         .unwrap_or(false);
     if looks_like_edn {
-        if let Ok(v) = crate::parse(k) {
-            return Ok(v.into_owned());
+        match crate::parse(k) {
+            Ok(v) => return Ok(v.into_owned()),
+            Err(e) => {
+                return Err(JsonError::InvalidMapKey {
+                    key: k.to_string(),
+                    reason: e.to_string(),
+                })
+            }
         }
     }
     Ok(Value::String(k.to_string().into()))
@@ -542,5 +561,20 @@ mod tests {
         round_trip("[]");
         round_trip("#{}");
         round_trip("{}");
+    }
+
+    #[test]
+    fn parse_map_key_strict_edn_looking_invalid_returns_error() {
+        // An EDN-looking key (starts with ':') that fails to parse must
+        // return JsonError::InvalidMapKey, not silently fall through to
+        // Value::String. Probe: ":" is an EDN-looking key (colon prefix)
+        // that the EDN parser rejects (bare colon is not a valid keyword).
+        let json = r#"{":": 1}"#;
+        let result = from_json_string(json);
+        assert!(
+            matches!(result, Err(JsonError::InvalidMapKey { .. })),
+            "expected InvalidMapKey, got {:?}",
+            result
+        );
     }
 }
