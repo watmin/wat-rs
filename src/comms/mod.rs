@@ -174,6 +174,103 @@ where
     }
 }
 
+/// Arc 216 Stone 2 — `HolonRepresentable` for `Vec<T>`.
+///
+/// Mirrors the `HashSet<T>` impl pattern (Stone 1). Encodes as
+/// `HolonAST::Bundle(vec![Bind(I64(0), T_holon), Bind(I64(1), T_holon), ...])` —
+/// the array-shape per DESIGN Q2 (positional-Bind keys 0..n-1). Order is
+/// preserved — index 0 maps to Bind key 0, preserving element sequence.
+///
+/// `from_holon_ast` reconstructs the Vec by matching `Bundle` shape,
+/// verifying all children are `Bind(I64(_), _)` with sequential keys 0..n-1,
+/// and converting each Bind's value via `T::from_holon_ast` in key order.
+///
+/// Bounds: `T: HolonRepresentable + Send + 'static` — no `Hash + Eq`
+/// required (unlike HashSet) because Vec elements need not be hashable.
+impl<T> HolonRepresentable for Vec<T>
+where
+    T: HolonRepresentable + Send + 'static,
+{
+    fn to_holon_ast(&self) -> holon::HolonAST {
+        let children: Vec<holon::HolonAST> = self
+            .iter()
+            .enumerate()
+            .map(|(i, v)| holon::HolonAST::bind(holon::HolonAST::i64(i as i64), v.to_holon_ast()))
+            .collect();
+        holon::HolonAST::bundle(children)
+    }
+
+    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        match ast {
+            holon::HolonAST::Bundle(items) => {
+                // Validate all children are Bind(I64(_), _).
+                for (pos, item) in items.iter().enumerate() {
+                    match item {
+                        holon::HolonAST::Bind(k, _) => {
+                            if !matches!(k.as_ref(), holon::HolonAST::I64(_)) {
+                                return Err(WireError::new(format!(
+                                    "Vec element #{} Bind key is not I64 (expected positional integer key)",
+                                    pos
+                                )));
+                            }
+                        }
+                        other => {
+                            return Err(WireError::new(format!(
+                                "Vec element #{} is not a Bind (expected positional-Bind vector-shape); got {:?}",
+                                pos, other
+                            )));
+                        }
+                    }
+                }
+                // Collect (key, value_ast) pairs, sort by key, validate 0..n-1 sequential.
+                let n = items.len();
+                let mut pairs: Vec<(i64, &holon::HolonAST)> = Vec::with_capacity(n);
+                for item in items.iter() {
+                    match item {
+                        holon::HolonAST::Bind(k, v) => {
+                            let idx = match k.as_ref() {
+                                holon::HolonAST::I64(i) => *i,
+                                _ => unreachable!("already validated"),
+                            };
+                            pairs.push((idx, v.as_ref()));
+                        }
+                        _ => unreachable!("already validated"),
+                    }
+                }
+                pairs.sort_by_key(|(k, _)| *k);
+                for (expected, (actual, _)) in pairs.iter().enumerate() {
+                    if *actual != expected as i64 {
+                        return Err(WireError::new(format!(
+                            "Vec positional invariant violated: expected key {} at position {}, got {}",
+                            expected, expected, actual
+                        )));
+                    }
+                }
+                // Reconstruct in order.
+                let mut out: Vec<T> = Vec::with_capacity(n);
+                for (pos, (_, v_ast)) in pairs.iter().enumerate() {
+                    let v = T::from_holon_ast(v_ast).map_err(|e| {
+                        WireError::new(format!(
+                            "Vec element #{} failed HolonRepresentable::from_holon_ast: {}",
+                            pos,
+                            e.message()
+                        ))
+                    })?;
+                    out.push(v);
+                }
+                Ok(out)
+            }
+            other => Err(WireError::new(format!(
+                "expected HolonAST::Bundle (vector-shape), got {:?}",
+                other
+            ))),
+        }
+    }
+}
+
 // ─── Tier-agnostic sender / receiver traits ─────────────────────────────────
 
 /// Tier-agnostic send endpoint. Implemented by `comms::thread::Sender<T>` (Slice 2)

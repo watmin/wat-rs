@@ -12690,13 +12690,13 @@ fn try_match_pattern(
     }
 }
 
-/// Arc 216 Stone 1 — Reverse one HolonAST item back to a `Value`.
+/// Arc 216 Stone 1 + 2 — Reverse one HolonAST item back to a `Value`.
 ///
-/// Used by the `atom-value` Bundle→HashSet extraction path. Handles
-/// the six primitive leaf variants and recursively handles nested
-/// `Bundle` (for `HashSet<HashSet<T>>` round-trips). Returns `Err`
-/// when the item is a non-leaf composite (`Bind`/`Permute`/
-/// `Thermometer`/`Blend`/`SlotMarker`); those shapes have no
+/// Used by the `atom-value` Bundle extraction path. Handles the six
+/// primitive leaf variants and recursively handles nested `Bundle`
+/// (dispatching on shape: bare-atom set-shape → HashSet; positional-Bind
+/// vector-shape → Vec). Returns `Err` for other composite shapes
+/// (`Permute`/`Thermometer`/`Blend`/`SlotMarker`) that have no
 /// unambiguous Value reconstruction without consumer-declared T.
 fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, RuntimeError> {
     match item {
@@ -12706,20 +12706,65 @@ fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, Runtime
         HolonAST::F64(x) => Ok(Value::f64(*x)),
         HolonAST::Bool(b) => Ok(Value::bool(*b)),
         HolonAST::Bundle(inner_items) => {
-            // Nested set — reconstruct HashSet<T> recursively.
-            let mut set: std::collections::HashMap<String, Value> =
-                std::collections::HashMap::with_capacity(inner_items.len());
-            for inner in inner_items.iter() {
-                let v = holon_item_to_value(inner, op_span)?;
-                let key = hashmap_key(":wat::core::atom-value", &v)?;
-                set.insert(key, v);
+            // Shape dispatch: positional-Bind (Vector) vs bare-atom (HashSet).
+            // Arc 216 Stone 2 — if all children are Bind(I64(_), _) → vector-shape.
+            let all_i64_binds = inner_items.iter().all(|child| {
+                matches!(child, HolonAST::Bind(k, _) if matches!(k.as_ref(), HolonAST::I64(_)))
+            });
+            if all_i64_binds && !inner_items.is_empty() {
+                // Vector path: extract (key, value) pairs, validate sequential 0..n-1,
+                // sort by key, collect into Vec.
+                let n = inner_items.len();
+                let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
+                for child in inner_items.iter() {
+                    match child {
+                        HolonAST::Bind(k, v) => {
+                            let idx = match k.as_ref() {
+                                HolonAST::I64(i) => *i,
+                                _ => unreachable!("already checked all_i64_binds"),
+                            };
+                            let elem = holon_item_to_value(v, op_span)?;
+                            pairs.push((idx, elem));
+                        }
+                        _ => unreachable!("already checked all_i64_binds"),
+                    }
+                }
+                // Sort by key then validate sequential invariant 0..n-1.
+                pairs.sort_by_key(|(k, _)| *k);
+                for (expected_idx, (actual_idx, _)) in pairs.iter().enumerate() {
+                    if *actual_idx != expected_idx as i64 {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: ":wat::core::atom-value".into(),
+                            expected: "Vector positional-Bind Bundle with sequential i64 keys 0..n-1",
+                            got: "Bundle with non-sequential or missing i64 keys",
+                            span: op_span.clone(),
+                        });
+                    }
+                }
+                let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
+                Ok(Value::Vec(Arc::new(elems)))
+            } else if inner_items.is_empty() {
+                // Empty bundle — ambiguous between empty Vec and empty HashSet.
+                // Conservatively return empty HashSet (set-shape, no keys present).
+                Ok(Value::wat__std__HashSet(Arc::new(
+                    std::collections::HashMap::new(),
+                )))
+            } else {
+                // Bare-atom set-shape → HashSet<T> (Stone 1).
+                let mut set: std::collections::HashMap<String, Value> =
+                    std::collections::HashMap::with_capacity(inner_items.len());
+                for inner in inner_items.iter() {
+                    let v = holon_item_to_value(inner, op_span)?;
+                    let key = hashmap_key(":wat::core::atom-value", &v)?;
+                    set.insert(key, v);
+                }
+                Ok(Value::wat__std__HashSet(Arc::new(set)))
             }
-            Ok(Value::wat__std__HashSet(Arc::new(set)))
         }
         _ => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::atom-value".into(),
-            expected: "primitive atom or Bundle (bare-atom set-shape)",
-            got: "composite HolonAST variant (Bind/Permute/Thermometer/Blend/SlotMarker)",
+            expected: "primitive atom, Bundle (bare-atom set-shape), or Bundle (positional-Bind vector-shape)",
+            got: "composite HolonAST variant (Permute/Thermometer/Blend/SlotMarker)",
             span: op_span.clone(),
         }),
     }
@@ -12774,25 +12819,69 @@ fn eval_atom_value(
         HolonAST::F64(x) => Ok(Value::f64(*x)),
         HolonAST::Bool(b) => Ok(Value::bool(*b)),
         HolonAST::Atom(inner) => Ok(Value::holon__HolonAST(inner.clone())),
-        // Arc 216 Stone 1 — Bundle of bare atoms → HashSet<T>.
-        // DESIGN Q2/Q3: Bundle-of-bare-Atoms is the set-shape; reverse trip
-        // reconstructs a Value::wat__std__HashSet from the bundle's children.
-        // Each child is converted via holon_item_to_value (primitive leaf or
-        // nested Bundle for HashSet<HashSet<T>>). Dedupe is natural: HashSet
-        // insert is idempotent for duplicate atoms.
+        // Arc 216 Stone 1 + 2 — Bundle shape dispatch:
+        // - Positional-Bind (all children are Bind(I64(_), _)) → Vec (Stone 2)
+        // - Bare-atom shape → HashSet (Stone 1)
+        // DESIGN Q2: discriminator is the child shape; Bind(I64, _) = array-shape;
+        // bare Atom = set-shape.
         HolonAST::Bundle(items) => {
-            let mut set: std::collections::HashMap<String, Value> =
-                std::collections::HashMap::with_capacity(items.len());
-            for item in items.iter() {
-                let v = holon_item_to_value(item, args[0].span())?;
-                let key = hashmap_key(":wat::core::atom-value", &v)?;
-                set.insert(key, v);
+            // Shape dispatch: check if all children are Bind(I64(_), _).
+            let all_i64_binds = items.iter().all(|child| {
+                matches!(child, HolonAST::Bind(k, _) if matches!(k.as_ref(), HolonAST::I64(_)))
+            });
+            if all_i64_binds && !items.is_empty() {
+                // Vector path: extract (i64 key, value) pairs, validate sequential
+                // positional invariant 0..n-1, reconstruct Vec.
+                let n = items.len();
+                let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
+                for child in items.iter() {
+                    match child {
+                        HolonAST::Bind(k, v) => {
+                            let idx = match k.as_ref() {
+                                HolonAST::I64(i) => *i,
+                                _ => unreachable!("already checked all_i64_binds"),
+                            };
+                            let elem = holon_item_to_value(v, args[0].span())?;
+                            pairs.push((idx, elem));
+                        }
+                        _ => unreachable!("already checked all_i64_binds"),
+                    }
+                }
+                // Sort by key, then validate sequential invariant 0..n-1.
+                pairs.sort_by_key(|(k, _)| *k);
+                for (expected_idx, (actual_idx, _)) in pairs.iter().enumerate() {
+                    if *actual_idx != expected_idx as i64 {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: ":wat::core::atom-value".into(),
+                            expected: "Vector positional-Bind Bundle with sequential i64 keys 0..n-1",
+                            got: "Bundle with non-sequential or missing i64 keys (positional invariant violated)",
+                            span: args[0].span().clone(),
+                        });
+                    }
+                }
+                let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
+                Ok(Value::Vec(Arc::new(elems)))
+            } else if items.is_empty() {
+                // Empty Bundle — conservatively HashSet (set-shape; no keys to discriminate).
+                Ok(Value::wat__std__HashSet(Arc::new(
+                    std::collections::HashMap::new(),
+                )))
+            } else {
+                // Bare-atom set-shape → HashSet<T> (Stone 1).
+                // Each child converted via holon_item_to_value (handles primitives + nested bundles).
+                let mut set: std::collections::HashMap<String, Value> =
+                    std::collections::HashMap::with_capacity(items.len());
+                for item in items.iter() {
+                    let v = holon_item_to_value(item, args[0].span())?;
+                    let key = hashmap_key(":wat::core::atom-value", &v)?;
+                    set.insert(key, v);
+                }
+                Ok(Value::wat__std__HashSet(Arc::new(set)))
             }
-            Ok(Value::wat__std__HashSet(Arc::new(set)))
         }
         _ => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::atom-value".into(),
-            expected: "Atom, primitive leaf, or Bundle (bare-atom set-shape)",
+            expected: "Atom, primitive leaf, or Bundle (bare-atom set-shape or positional-Bind vector-shape)",
             got: "composite HolonAST variant (Bind/Permute/Thermometer/Blend)",
             span: args[0].span().clone(),
         }),
@@ -12864,10 +12953,27 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
             }
             return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
         }
+        // Arc 216 Stone 2 — Vec<T> (wat::core::Vector) atomizes to Bundle of
+        // positional-Binds (DESIGN Q2: array-shape = Bundle of Bind(I64(i), T_holon)).
+        // Each element is recursively atomized via value_to_atom; index i becomes
+        // the Bind key as HolonAST::I64(i). Order is preserved — index 0 first.
+        Value::Vec(v) => {
+            let mut items: Vec<HolonAST> = Vec::with_capacity(v.len());
+            for (i, elem) in v.iter().enumerate() {
+                let atom_val = value_to_atom(elem.clone(), arg_span)?;
+                let elem_holon = match atom_val {
+                    Value::holon__HolonAST(h) => (*h).clone(),
+                    _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
+                };
+                let key = HolonAST::i64(i as i64);
+                items.push(HolonAST::bind(key, elem_holon));
+            }
+            return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
+        }
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Atom".into(),
-                expected: "primitive, HolonAST, quoted wat form, or HashSet<T>",
+                expected: "primitive, HolonAST, quoted wat form, HashSet<T>, or Vec<T>",
                 got: other.type_name(),
                 span: arg_span.clone(),
             });
