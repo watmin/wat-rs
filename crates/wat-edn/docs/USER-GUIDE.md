@@ -139,10 +139,10 @@ unchanged.
 
 ## 3. Parsing
 
-Three entry points:
+Four free-function entry points and a `Parser` builder:
 
 ```rust
-use wat_edn::{parse, parse_owned, parse_all, Parser};
+use wat_edn::{parse, parse_owned, parse_all, parse_wire, parse_wire_owned, Parser};
 
 // Single top-level form, zero-copy where possible
 let v: Value<'_> = parse("#myapp/Order {:id 1}")?;
@@ -153,10 +153,16 @@ let v: OwnedValue = parse_owned("#myapp/Order {:id 1}")?;
 // All top-level forms (whitespace + comments between them)
 let vs: Vec<Value<'_>> = parse_all("1 2 3")?;
 
+// Wire-mode parsers: inside parametric type arglists (`:Foo<A,B>`),
+// the `,` is swapped to `_` on the wire so commas survive EDN's
+// whitespace rule. These free functions undo that swap at parse time.
+let v: Value<'_>     = parse_wire(wire_input)?;   // zero-copy where possible
+let v: OwnedValue    = parse_wire_owned(wire_input)?; // materializes to 'static
+
 // Drive Parser directly when you need stricter control:
 //   parse_top  — one form then expect EOF (rejects trailing junk)
 //   parse_all  — all forms until EOF (same as the free function)
-//   new_wire   — wire-mode: `_` inside `<…>` decodes to `,`
+//   new_wire   — wire-mode equivalent of the free functions above
 let v: Value<'_> = Parser::new(input).parse_top()?;
 let vs: Vec<Value<'_>> = Parser::new_wire(wire_input).parse_all()?;
 ```
@@ -224,12 +230,13 @@ Compact, no-extra-whitespace:
 
 ```text
 [1 2]
-{:asset :BTC, :side :Buy}
+{:asset :BTC :side :Buy}
 #myapp/Order {:id 1}
 ```
 
-Maps emit `key value` pairs separated by `, ` (commas are
-whitespace per spec; the comma is purely visual). Tagged values
+Maps emit `key value` pairs separated by a single space. EDN treats
+commas as whitespace, so a reader will accept `{:a 1, :b 2}` and
+`{:a 1 :b 2}` identically — the writer chooses the compact form. Tagged values
 emit `#ns/name <body>` with one space between tag and body. For
 indented multi-line output, use [`write_pretty`](#8-pretty-print).
 
@@ -289,7 +296,7 @@ let order = Value::Tagged(
     ])),
 );
 
-assert_eq!(write(&order), r#"#myapp/Order {:id 1, :name "Alice"}"#);
+assert_eq!(write(&order), r#"#myapp/Order {:id 1 :name "Alice"}"#);
 ```
 
 ### Collections

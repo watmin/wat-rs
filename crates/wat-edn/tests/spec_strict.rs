@@ -224,6 +224,13 @@ fn accepts_canonical_uuid() {
     assert!(matches!(v, Value::Uuid(_)));
 }
 
+#[test]
+fn rejects_uuid_uppercase_hex() {
+    // Canonical form requires lowercase hex digits (8-4-4-4-12).
+    // Uppercase letters like 'E', 'B', 'D' must be rejected.
+    assert!(parse(r#"#uuid "550E8400-E29B-41D4-A716-446655440000""#).is_err());
+}
+
 // ─── Spec example heterogeneous map ─────────────────────────────
 
 #[test]

@@ -452,7 +452,7 @@ fn reject_underscore_in_brackets(body: &str, body_start: usize) -> Result<()> {
 ///
 /// `uuid::Uuid::parse_str` is more lenient (accepts simple-form,
 /// URN-form, and braced-form). Strict EDN means strict canonical.
-fn is_canonical_uuid(s: &str) -> bool {
+pub(crate) fn is_canonical_uuid(s: &str) -> bool {
     if s.len() != 36 {
         return false;
     }
@@ -463,7 +463,7 @@ fn is_canonical_uuid(s: &str) -> bool {
         if expect_dash != is_dash {
             return false;
         }
-        if !is_dash && !b.is_ascii_hexdigit() {
+        if !(is_dash || b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
             return false;
         }
     }

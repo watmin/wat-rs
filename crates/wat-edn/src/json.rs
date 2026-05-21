@@ -33,6 +33,7 @@
 //!
 //! Round-trip identity holds for every spec EDN type.
 
+use crate::parser::is_canonical_uuid;
 use crate::value::{Keyword, Symbol, Tag, Value};
 use crate::OwnedValue;
 use bigdecimal::BigDecimal;
@@ -391,6 +392,12 @@ fn decode_uuid(v: &JV) -> JsonResult<OwnedValue> {
     let s = v
         .as_str()
         .ok_or_else(|| JsonError::InvalidUuid(v.to_string()))?;
+    if !is_canonical_uuid(s) {
+        return Err(JsonError::InvalidUuid(format!(
+            "{}: not canonical 8-4-4-4-12 lowercase form",
+            s
+        )));
+    }
     let u = uuid::Uuid::parse_str(s).map_err(|e| JsonError::InvalidUuid(format!("{}: {}", s, e)))?;
     Ok(Value::Uuid(u))
 }
@@ -574,6 +581,21 @@ mod tests {
         assert!(
             matches!(result, Err(JsonError::InvalidMapKey { .. })),
             "expected InvalidMapKey, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn decode_uuid_rejects_uppercase_via_json_bridge() {
+        // The JSON bridge must apply the same canonical-strict check as the
+        // EDN path. Uppercase hex (e.g., "550E8400-...") must return
+        // JsonError::InvalidUuid — not silently parse via uuid::Uuid::parse_str
+        // which accepts both cases.
+        let json = "{\"#uuid\": \"550E8400-E29B-41D4-A716-446655440000\"}";
+        let result = from_json_string(json);
+        assert!(
+            matches!(result, Err(JsonError::InvalidUuid(_))),
+            "expected InvalidUuid for uppercase UUID via JSON bridge, got {:?}",
             result
         );
     }
