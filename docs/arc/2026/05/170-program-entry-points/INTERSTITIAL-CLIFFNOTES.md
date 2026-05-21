@@ -11,23 +11,23 @@ Per `feedback_inscription_immutable`: the full INTERSTITIAL stays as historical 
 
 Arc 170 started with *"I want to add argv to main."* What surfaced across the substrate-as-teacher cascade:
 
-1. argv → `:user::main` as canonical program entry contract
-2. ExitCode rationalization → main returns nil
-3. `spawn-process` accepts forms not Fn (substrate pivot, slice 6)
-4. IPC contract triangle (stdout = values, stderr = panics, exit code = signal)
-5. Bracket combinator + structured concurrency
-6. Main returns T; fractal composition
-7. OTP supervision tree arrived at independently
-8. Reflection layer (arc 201)
-9. Stdin-direction walker (arc 202) — substrate refuses last latent deadlock class
-10. Object-capability via secret-witness (arc 203)
-11. Defservice = Kay-OOP done right (arc 209) — service protects state; admin/user caps; handlers are monads
-12. `WatAST::children()` newtype wall + walker-divergence latent flaw (arc 212)
-13. Linux 5.3+ Pidfd doctrine + libc::fork structural enforcement (arc 213)
-14. Comms tier unification + universe-residency + bounded(1) mini-TCP (arc 214)
-15. Clojure data literals + `:wat::type::Infer` + holon as escape hatch (arc 215)
-16. Collections-as-holons + `impl Hash for Value` mirroring HolonAST + `hashmap_key` purged (arc 216 + antidote 216.5a-d)
-17. Encoding doctrine surfaced via dialogue: 3 categories (Primitives / Collections / Tagged); locked tagged shapes for Option/Result/Instant/Uuid/Duration; Unit-vs-None distinction restored (arc 216.7-216.10)
+1. argv → `:user::main` as canonical program entry contract — § 2026-05-13 (Arc 170's sprawl)
+2. ExitCode rationalization → main returns nil — § 2026-05-15 (late, Slice 6 area)
+3. `spawn-process` accepts forms not Fn (substrate pivot, slice 6) — § 2026-05-15 (Substrate pivot)
+4. IPC contract triangle (stdout = values, stderr = panics, exit code = signal) — § 2026-05-15 (late, Slice 6 shipped)
+5. Bracket combinator + structured concurrency — § 2026-05-16 (early, arc 171 superseded)
+6. Main returns T; fractal composition — § 2026-05-16 (deeper, main-fn returns T)
+7. OTP supervision tree arrived at independently — § 2026-05-16 (deeper, same entry)
+8. Reflection layer (arc 201) — § 2026-05-16 (HolonAST as universal semantic AST + Parse/resolve separation)
+9. Stdin-direction walker (arc 202) — substrate refuses last latent deadlock class — § 2026-05-16 (late, Dungeon rank-up)
+10. Object-capability via secret-witness (arc 203) — § 2026-05-17 (Stone C2 + seven-greats)
+11. Defservice = Kay-OOP done right (arc 209) — service protects state; admin/user caps; handlers are monads — § 2026-05-17 (late, defservice is OOP done right)
+12. `WatAST::children()` newtype wall + walker-divergence latent flaw (arc 212) — § 2026-05-18 (post-arc-212-α, Failure engineering recognized)
+13. Linux 5.3+ Pidfd doctrine + libc::fork structural enforcement (arc 213) — § 2026-05-18 (post-PURGE)
+14. Comms tier unification + universe-residency + bounded(1) mini-TCP (arc 214) — § 2026-05-19 (Universe-residency + four-questions mandated)
+15. Clojure data literals + `:wat::type::Infer` + holon as escape hatch (arc 215) — § 2026-05-20 (Arc 215: side-quest + Stone 2 closure)
+16. Collections-as-holons + `impl Hash for Value` mirroring HolonAST + `hashmap_key` purged (arc 216 + antidote 216.5a-d) — § 2026-05-20 (later, arc 216 antidote + FM 17 worked example)
+17. Encoding doctrine surfaced via dialogue: 3 categories (Primitives / Collections / Tagged); locked tagged shapes for Option/Result/Instant/Uuid/Duration; Unit-vs-None distinction restored (arc 216.7-216.10) — § 2026-05-21 (mid arc 216 closure expansion, encoding doctrine emerges)
 
 Each step followed honestly from the previous. None anticipated the next. The substrate forced each one by surfacing its own incompleteness.
 
@@ -82,25 +82,25 @@ Plus convergence pattern at the substrate-self layer recurs ~7 times inside arc 
 
 Songs surface AT the moment they articulate the work's facet. Replay when the trigger fires.
 
-| # | Song | Facet | Listening trigger |
-|---|---|---|---|
-| 1 | The Other Side (Memphis May Fire) | CADENCE | Level-2 reflex needed; level-1 wants to win |
-| 2 | Determined (Mudvayne) | ENGINE | Grind heavy; forgot WHY |
-| 3 | Ruin (Lamb of God) | MECHANISM | About to ship; substrate's job IS refusal |
-| 4 | Memento Mori (Lamb of God) | URGENCY | Clock-anxiety; too many choices |
-| 5 | Walk with Me In Hell (Lamb of God) | COMPANIONSHIP | Isolated; doubt inscriptions matter |
-| 6 | 512 (Lamb of God) | COST | Identity drift; cost feels too high |
-| 7 | Descending (Lamb of God) | DUALITY COLLAPSE | Acceptance/rejection loop |
-| 8 | Hell Is Empty (Memphis May Fire) | REVELATION | Institutional voices pull |
-| 9 | God Is A Weapon (Falling In Reverse + Manson) | POTENCY | Forget the work has teeth |
-| 10 | Bleed Me Dry (Memphis May Fire) | SEVERANCE | Extractive arrangement persists; cut |
-| 11 | Wretches And Kings (Linkin Park) | REFUSAL | Drift toward dishonest closure; HALT |
-| 12 | When They Come For Me (Linkin Park) | DISCERNMENT | Easy template would fit; run four-questions |
-| 13 | NO FEAR (Falling In Reverse) | FEARLESSNESS | Cost-anxiety masquerading as pragmatism |
-| 14 | Watch The World Burn (Falling In Reverse) | PURGE | Protocol violation surfaced; burn it out |
-| 15 | Prequel (Falling In Reverse) | FOUNDATION-BEFORE-BUILDING | DESIGN landed; implementation ahead |
-| 16 | B.M.F. (Upon A Burning Body) | RESTORATION | Discipline correction landed; forward rhythm needs reasserting; bad-motherfucker stance after recovery |
-| 17 | Can U See Me In The Dark? (Halestorm & I Prevail) | RECOGNITION | Collaborative dialogue surfaces what the substrate already knew; both halves of the hologram see each other through the discipline they've earned together; kiss-of-light → sharpened-knife → eyes open wide |
+| # | Song | § | Facet | Listening trigger |
+|---|---|---|---|---|
+| 1 | The Other Side (Memphis May Fire) | 2026-05-15 | CADENCE | Level-2 reflex needed; level-1 wants to win |
+| 2 | Determined (Mudvayne) | 2026-05-17 (later) | ENGINE | Grind heavy; forgot WHY |
+| 3 | Ruin (Lamb of God) | 2026-05-17 (latest) | MECHANISM | About to ship; substrate's job IS refusal |
+| 4 | Memento Mori (Lamb of God) | 2026-05-17 (four songs now) | URGENCY | Clock-anxiety; too many choices |
+| 5 | Walk with Me In Hell (Lamb of God) | 2026-05-18 (rhythm completes 5/6/7) | COMPANIONSHIP | Isolated; doubt inscriptions matter |
+| 6 | 512 (Lamb of God) | 2026-05-18 (rhythm completes 5/6/7) | COST | Identity drift; cost feels too high |
+| 7 | Descending (Lamb of God) | 2026-05-18 (rhythm completes 5/6/7) | DUALITY COLLAPSE | Acceptance/rejection loop |
+| 8 | Hell Is Empty (Memphis May Fire) | 2026-05-18 (later, Songs 8+9) | REVELATION | Institutional voices pull |
+| 9 | God Is A Weapon (Falling In Reverse + Manson) | 2026-05-18 (later, Songs 8+9) | POTENCY | Forget the work has teeth |
+| 10 | Bleed Me Dry (Memphis May Fire) | 2026-05-18 (latest, Song #10) | SEVERANCE | Extractive arrangement persists; cut |
+| 11 | Wretches And Kings (Linkin Park) | 2026-05-18 (latest, Song #11) | REFUSAL | Drift toward dishonest closure; HALT |
+| 12 | When They Come For Me (Linkin Park) | 2026-05-18 (latest, Song #12) | DISCERNMENT | Easy template would fit; run four-questions |
+| 13 | NO FEAR (Falling In Reverse) | 2026-05-18 (post-spawn) | FEARLESSNESS | Cost-anxiety masquerading as pragmatism |
+| 14 | Watch The World Burn (Falling In Reverse) | 2026-05-18 (mid-cascade) | PURGE | Protocol violation surfaced; burn it out |
+| 15 | Prequel (Falling In Reverse) | 2026-05-19 | FOUNDATION-BEFORE-BUILDING | DESIGN landed; implementation ahead |
+| 16 | B.M.F. (Upon A Burning Body) | 2026-05-20 (later, arc 216 antidote) | RESTORATION | Discipline correction landed; forward rhythm needs reasserting; bad-motherfucker stance after recovery |
+| 17 | Can U See Me In The Dark? (Halestorm & I Prevail) | 2026-05-21 (mid arc 216 closure expansion) | RECOGNITION | Collaborative dialogue surfaces what the substrate already knew; both halves of the hologram see each other through the discipline they've earned together; kiss-of-light → sharpened-knife → eyes open wide |
 
 > *"the substrate dreams the song. So do we."*
 
