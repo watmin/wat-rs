@@ -123,6 +123,57 @@ impl HolonRepresentable for String {
     }
 }
 
+/// Arc 216 Stone 1 — `HolonRepresentable` for `HashSet<T>`.
+///
+/// Mirrors the `String` impl pattern (line 107). Encodes as
+/// `HolonAST::Bundle(vec![T_holon, T_holon, ...])` — the set-shape per
+/// DESIGN Q2/Q3 (bare atoms, no Bind keys). Dedupe is enforced at
+/// construction time (HashSet insert is idempotent); the Bundle carries
+/// one child per unique element.
+///
+/// `from_holon_ast` reconstructs the HashSet by matching `Bundle` shape,
+/// converting each child via `T::from_holon_ast`, and inserting into the set.
+/// Duplicate atoms (if any were in the Bundle) dedup naturally.
+///
+/// Bounds: `T: HolonRepresentable + std::hash::Hash + Eq + Send + 'static`
+/// mirrors the BRIEF's `impl<T> HolonRepresentable for HashSet<T>` shape.
+/// `Hash + Eq` are required for the inner `HashSet<T>` type; `Send + 'static`
+/// are required by the `HolonRepresentable` supertrait.
+impl<T> HolonRepresentable for std::collections::HashSet<T>
+where
+    T: HolonRepresentable + std::hash::Hash + Eq + Send + 'static,
+{
+    fn to_holon_ast(&self) -> holon::HolonAST {
+        let children: Vec<holon::HolonAST> = self.iter().map(|v| v.to_holon_ast()).collect();
+        holon::HolonAST::bundle(children)
+    }
+
+    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        match ast {
+            holon::HolonAST::Bundle(items) => {
+                let mut set = std::collections::HashSet::with_capacity(items.len());
+                for (i, item) in items.iter().enumerate() {
+                    let v = T::from_holon_ast(item).map_err(|e| {
+                        WireError::new(format!(
+                            "HashSet element #{} failed HolonRepresentable::from_holon_ast: {}",
+                            i, e.message()
+                        ))
+                    })?;
+                    set.insert(v);
+                }
+                Ok(set)
+            }
+            other => Err(WireError::new(format!(
+                "expected HolonAST::Bundle (set-shape), got {:?}",
+                other
+            ))),
+        }
+    }
+}
+
 // ─── Tier-agnostic sender / receiver traits ─────────────────────────────────
 
 /// Tier-agnostic send endpoint. Implemented by `comms::thread::Sender<T>` (Slice 2)

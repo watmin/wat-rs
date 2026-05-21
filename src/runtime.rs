@@ -9344,9 +9344,18 @@ pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
         // Arc 207 slice 3 — Uuid is hashable as its canonical string form.
         // UUIDs are identifiers; canonical-string key is unique (1:1 with value).
         Value::wat__core__Uuid(u) => Ok(format!("U:{}", u)),
+        // Arc 216 Stone 1 — HashSet<T> is hashable as its sorted canonical key list.
+        // Each element's canonical key is computed recursively; sorted for determinism
+        // (HashSet has no order; sort produces a stable composite key). Nested sets
+        // (HashSet<HashSet<...>>) compose via this recursive descent.
+        Value::wat__std__HashSet(s) => {
+            let mut element_keys: Vec<String> = s.keys().cloned().collect();
+            element_keys.sort();
+            Ok(format!("Set:{{{}}}", element_keys.join(",")))
+        }
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: "hashable value (primitive or HolonAST)",
+            expected: "hashable value (primitive, HolonAST, or HashSet<T>)",
             got: other.type_name(),
             // arc 138: no span — public helper takes &Value, not &WatAST; no source coordinates available
             span: Span::unknown(),
@@ -12681,6 +12690,41 @@ fn try_match_pattern(
     }
 }
 
+/// Arc 216 Stone 1 — Reverse one HolonAST item back to a `Value`.
+///
+/// Used by the `atom-value` Bundle→HashSet extraction path. Handles
+/// the six primitive leaf variants and recursively handles nested
+/// `Bundle` (for `HashSet<HashSet<T>>` round-trips). Returns `Err`
+/// when the item is a non-leaf composite (`Bind`/`Permute`/
+/// `Thermometer`/`Blend`/`SlotMarker`); those shapes have no
+/// unambiguous Value reconstruction without consumer-declared T.
+fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, RuntimeError> {
+    match item {
+        HolonAST::Symbol(s) => Ok(Value::wat__core__keyword(Arc::new(s.to_string()))),
+        HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
+        HolonAST::I64(n) => Ok(Value::i64(*n)),
+        HolonAST::F64(x) => Ok(Value::f64(*x)),
+        HolonAST::Bool(b) => Ok(Value::bool(*b)),
+        HolonAST::Bundle(inner_items) => {
+            // Nested set — reconstruct HashSet<T> recursively.
+            let mut set: std::collections::HashMap<String, Value> =
+                std::collections::HashMap::with_capacity(inner_items.len());
+            for inner in inner_items.iter() {
+                let v = holon_item_to_value(inner, op_span)?;
+                let key = hashmap_key(":wat::core::atom-value", &v)?;
+                set.insert(key, v);
+            }
+            Ok(Value::wat__std__HashSet(Arc::new(set)))
+        }
+        _ => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::atom-value".into(),
+            expected: "primitive atom or Bundle (bare-atom set-shape)",
+            got: "composite HolonAST variant (Bind/Permute/Thermometer/Blend/SlotMarker)",
+            span: op_span.clone(),
+        }),
+    }
+}
+
 /// `(:wat::core::atom-value <holon>)` — extract the wrapped value from a
 /// HolonAST leaf or from an opaque-identity `Atom` wrap.
 ///
@@ -12730,10 +12774,26 @@ fn eval_atom_value(
         HolonAST::F64(x) => Ok(Value::f64(*x)),
         HolonAST::Bool(b) => Ok(Value::bool(*b)),
         HolonAST::Atom(inner) => Ok(Value::holon__HolonAST(inner.clone())),
+        // Arc 216 Stone 1 — Bundle of bare atoms → HashSet<T>.
+        // DESIGN Q2/Q3: Bundle-of-bare-Atoms is the set-shape; reverse trip
+        // reconstructs a Value::wat__std__HashSet from the bundle's children.
+        // Each child is converted via holon_item_to_value (primitive leaf or
+        // nested Bundle for HashSet<HashSet<T>>). Dedupe is natural: HashSet
+        // insert is idempotent for duplicate atoms.
+        HolonAST::Bundle(items) => {
+            let mut set: std::collections::HashMap<String, Value> =
+                std::collections::HashMap::with_capacity(items.len());
+            for item in items.iter() {
+                let v = holon_item_to_value(item, args[0].span())?;
+                let key = hashmap_key(":wat::core::atom-value", &v)?;
+                set.insert(key, v);
+            }
+            Ok(Value::wat__std__HashSet(Arc::new(set)))
+        }
         _ => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::atom-value".into(),
-            expected: "Atom or primitive leaf",
-            got: "composite HolonAST variant (Bind/Bundle/Permute/Thermometer/Blend)",
+            expected: "Atom, primitive leaf, or Bundle (bare-atom set-shape)",
+            got: "composite HolonAST variant (Bind/Permute/Thermometer/Blend)",
             span: args[0].span().clone(),
         }),
     }
@@ -12787,10 +12847,27 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         Value::holon__HolonAST(h) => HolonAST::Atom(h),
         // Structural lowering of a captured wat form ────────────────
         Value::wat__WatAST(a) => watast_to_holon(&a),
+        // Arc 216 Stone 1 — HashSet<T> atomizes to Bundle of bare atoms
+        // (DESIGN Q2/Q3: set-shape = bundle of bare atoms; no Bind keys).
+        // Each element is recursively atomized via value_to_atom; T must
+        // already be atomizable. Dedupe is not re-applied here — the
+        // HashSet's internal HashMap<canonical-key, Value> already enforces
+        // uniqueness; the Bundle carries one atom per unique element.
+        Value::wat__std__HashSet(s) => {
+            let mut items: Vec<HolonAST> = Vec::with_capacity(s.len());
+            for elem in s.values() {
+                let atom_val = value_to_atom(elem.clone(), arg_span)?;
+                match atom_val {
+                    Value::holon__HolonAST(h) => items.push((*h).clone()),
+                    _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
+                }
+            }
+            return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
+        }
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Atom".into(),
-                expected: "primitive, HolonAST, or quoted wat form",
+                expected: "primitive, HolonAST, quoted wat form, or HashSet<T>",
                 got: other.type_name(),
                 span: arg_span.clone(),
             });

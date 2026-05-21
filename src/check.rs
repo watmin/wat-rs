@@ -3597,6 +3597,60 @@ fn type_is_thread_kind(ty: &TypeExpr, types: &TypeEnv) -> bool {
     }
 }
 
+/// Arc 216 Stone 1 — recursive atomizable predicate (DESIGN Q6).
+///
+/// ```
+/// atomizable(T) :=
+///   T ∈ {primitives, HolonAST, WatAST}     // arc 215 baseline
+///   OR T = HashSet<T'>  ∧ atomizable(T')    // arc 216 Stone 1
+///   OR T = Vector<T'>   ∧ atomizable(T')    // arc 216 Stone 2 (future)
+///   OR T = HashMap<K,V> ∧ atomizable(K) ∧ atomizable(V)  // arc 216 Stone 3 (future)
+/// ```
+///
+/// Used by the `:wat::holon::Atom` special-case in `infer_list` to validate
+/// that the argument's type T is in the atomizable set at check time.
+/// Non-atomizable T (e.g., `HashSet<Function<...>>`) is caught here before
+/// it reaches the runtime, which would fail with a TypeMismatch.
+///
+/// Note: type variables (Var) and unknowns (None-resolved paths) return `true`
+/// — we cannot prove they're non-atomizable without more context, and the
+/// runtime is the honest fallback for unresolved generics.
+fn is_atomizable(ty: &TypeExpr) -> bool {
+    match ty {
+        TypeExpr::Path(p) => matches!(
+            p.as_str(),
+            // Primitives (arc 215 baseline)
+            ":wat::core::i64"
+                | ":wat::core::f64"
+                | ":wat::core::bool"
+                | ":wat::core::String"
+                | ":wat::core::keyword"
+                // HolonAST and WatAST (arc 215 baseline)
+                | ":wat::holon::HolonAST"
+                | ":wat::WatAST"
+                // Uuid — hashable primitive (arc 207)
+                | ":wat::core::Uuid"
+                // Type variables and inference sentinels — can't prove non-atomizable
+                | ":wat::type::Infer"
+        ),
+        // Type variables (Var) — unresolved; conservatively allow
+        TypeExpr::Var(_) => true,
+        TypeExpr::Parametric { head, args } => match head.as_str() {
+            // Arc 216 Stone 1 — HashSet<T'> is atomizable iff T' is atomizable
+            "wat::core::HashSet" => args.len() == 1 && is_atomizable(&args[0]),
+            // Arc 216 Stone 2 (future) — Vector<T'> atomizable iff T' atomizable
+            "wat::core::Vector" => args.len() == 1 && is_atomizable(&args[0]),
+            // Arc 216 Stone 3 (future) — HashMap<K,V> atomizable iff K and V are atomizable
+            "wat::core::HashMap" => {
+                args.len() == 2 && is_atomizable(&args[0]) && is_atomizable(&args[1])
+            }
+            _ => false,
+        },
+        // Function types, Tuple types — not atomizable
+        TypeExpr::Fn { .. } | TypeExpr::Tuple(_) => false,
+    }
+}
+
 /// Does this type, after alias resolution and recursive descent into
 /// arguments and tuple elements, contain a `:wat::kernel::QueueSender<T>`
 /// ANYWHERE in its structure? Returns "QueueSender" on hit.
@@ -5247,6 +5301,42 @@ fn infer_list(
                     head: "wat::core::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
                 });
+            }
+            ":wat::holon::Atom" | ":wat::holon::leaf" => {
+                // Arc 216 Stone 1 — atomizable-predicate check at call time.
+                //
+                // `Atom` and `leaf` are ∀T. T → :wat::holon::HolonAST. After
+                // inferring T from the argument, validate `is_atomizable(T)`.
+                // Non-atomizable T (e.g., `HashSet<Function<...>>`) is caught
+                // here with a diagnostic naming the offending type.
+                //
+                // Special-case over the generic scheme path because the scheme
+                // is `∀T` (it accepts anything at the type level); the predicate
+                // is a VALUE-DOMAIN constraint, not a type-unification constraint.
+                // We need to fire AFTER inference resolves T, then apply the
+                // predicate as a post-unification check.
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.clone(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                    return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
+                }
+                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                    let resolved = apply_subst(&arg_ty, subst);
+                    if !is_atomizable(&resolved) {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: k.clone(),
+                            param: "#1".into(),
+                            expected: "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)".into(),
+                            got: format_type(&resolved),
+                            span: args[0].span().clone(),
+                        });
+                    }
+                }
+                return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
             ":wat::holon::Bundle/children" => {
                 // Arc 201 slice 2 — Bundle/children.
