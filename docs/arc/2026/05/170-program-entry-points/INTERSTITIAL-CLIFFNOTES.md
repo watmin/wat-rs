@@ -156,26 +156,31 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-21 — arc 218 opened; 216 + 217 BLOCKED)
+## Currently (2026-05-21 — arc 219 CLOSED; arc 218.5 unblocked; 217 + 216 closure BLOCKED on 218.5)
 
 - **Arc 216 substrate work complete (collections + doctrine)** — 216.1/.2/.3 HolonRepresentable + 216.4 predicate + 216.5 hashmap_key bridge + 216.5a-d antidote (impl Hash for Value + native storage + DELETE hashmap_key) + 216.6 process-tier cascade + 216.7 encoding doctrine + Tuple round-trip. All shipped + pushed.
 - **Encoding doctrine LOCKED** in DESIGN-216 — 3 categories (Primitives `Atom` / Collections `Bundle` / Tagged `Bind(Atom("#tag"), payload)`); tagged shapes (FQDN per 2026-05-21b forward-correction): Option (`#wat.core/Some` / `#wat.core/None nil`) / Result (`#wat.core/Ok` / `#wat.core/Err`) / Instant (`#inst` — EDN-standard bare) / Uuid (`#uuid` — EDN-standard bare) / Duration (`#wat.time/Duration` — mints wat.time namespace); Unit-vs-None distinction restored
-- **Arc 218 OPENED 2026-05-21** (`2c47b93`) — wat-edn IMPECCABLE. First production vigilia cast (7 spells in parallel) returned **DIVERGES (2 L1 + 26 L2)**. sequi CONVERGED — substrate-level state-threading discipline intact. Findings inscribed in `docs/arc/2026/05/218-wat-edn-impeccable/VIGILIA-REPORT-2026-05-21.md`. 5-stone decomposition in DESIGN.md. Stone 218.1 next (L1 fixes + cross-spell `write_keyword_body` extraction).
-- **Blocking chain locked:**
+- **Arc 218 in progress** — Stones 218.1 / 218.2 / 218.3 / 218.4 SHIPPED (L1 fixes + cross-spell; naming sweep; contract precision; UUID strictness + USER-GUIDE docs). Stone 218.5 (re-cast vigilia + INSCRIPTION + arc closure) **UNBLOCKED post-arc-219**.
+- **Arc 219 CLOSED 2026-05-21** (`331cfb9` + INSCRIPTION) — wat-edn strict-EDN keyword namespace compliance. Smallest substrate arc in arc 170+'s history (1 substantive stone + paperwork). vocab.rs drops `:` and `#` from `is_symbol_continue`; value.rs adds `translate_wat_to_strict` at 6 constructor sites; wat-rs callers' `::`-form literals auto-translated at the boundary. `cargo test --release -p wat-edn` 342/342 PASS; `cargo test --release --lib -p wat` 824/0 PASS post-test-rot-fix.
+- **Arc 216 test rot fixed** (`c3a27cf`) — Stone 219.1's STOP-4 verification surfaced 2 `runtime::tests::*` failures asserting the pre-216.5 composite-rejection contract. Independently verified pre-existing via stash round-trip + fixture grep. Flipped to positive-contract tests (`hashmap_accepts_composite_key` + `hashset_accepts_composite_element`). Visibility gap named: arc 216 stones verified via dedicated probes, didn't run full lib tests.
+- **Blocking chain updated:**
   ```
-  arc 218 (wat-edn IMPECCABLE)
-    → arc 217 (Clojure-IPC bridge per crates/wat-edn/docs/IPC-BRIDGE.md)
+  arc 218 Stone 218.5 (re-cast vigilia + INSCRIPTION + arc 218 closure) — UNBLOCKED
+    → arc 217 (Clojure-IPC bridge per crates/wat-edn/docs/IPC-BRIDGE.md — natural forcing function for strict-EDN now satisfied)
     → arc 216 stones 216.8 (#wat.core/Some/None/Ok/Err migration) / 216.9 (#wat.time/Duration mint + Instant/Uuid verify) / 216.10 (INSCRIPTION + arc closure)
     → arc 214 Slice 4 (kernel layer + ProgramEnv)
   ```
-- **Workspace state** — concurrency primitives correct; literals are data; holon is the algebraic view (opt-in); `hashmap_key` doesn't exist; `Value: Hash + Eq` is canonical; encoding doctrine inscribed
-- **9-ward pass** standard for kernel additions; vigilia ZONE extended to `crates/wat-edn/*` after 2026-05-21 cast (first wat-edn ward; pre-arc-218 baseline). Comms zone remains `{src,tests}/comms/*`.
+- **Workspace state** — concurrency primitives correct; literals are data; holon is the algebraic view (opt-in); `hashmap_key` doesn't exist; `Value: Hash + Eq` is canonical; encoding doctrine inscribed; **wat-edn is now strict-EDN — round-trippable through `clojure.edn/read`**
+- **9-ward pass** standard for kernel additions; vigilia ZONE extended to `crates/wat-edn/*` after 2026-05-21 cast (first wat-edn ward; pre-arc-218 baseline). Comms zone remains `{src,tests}/comms/*`. Stone 218.5's re-cast vigilia will audit the post-arc-219 substrate.
 - **Datamancy grimoire** at `~/work/holon/datamancy/` — 16 Latin spells; vigilia is the aggregator. Casting protocol: orchestrator spawns Agent (model: sonnet) per spell per target with SKILL.md embedded verbatim; one agent per spell per file/target; no cross-talk
 - **Substrate-already-sufficient convergence count** — 11 inside arc 214-216 (#8 = arc 216 antidote; #9-11 = encoding doctrine dig); pattern continues
+- **Calibration trend across five stones (218.1 / 218.2 / 218.3 / 218.4 / 219.1)** — all at-or-below lower prediction band. Substrate-pre-grep + locked-decisions + mechanical edits = predictable below-floor execution.
 - **Recent worked examples** —
   - Stone 216.6 FM 17 slip + recovery (2026-05-20)
   - Stone 216.7 doctrine emergence through 13 user questions (2026-05-21)
   - Vigilia-on-wat-edn first production cast 2026-05-21 — orchestrator initially tried to delegate to single vigilia agent; user corrected: *"protocol violation - one spell per agent"*. Re-cast as 7 parallel orchestrator-spawned agents (one per spell). Aggregate: 2 L1 + 26 L2; sequi CONVERGED. Worked example of `feedback_ward_isolation`.
+  - Arc 219 audit + decisive doctrine pivot via writer.rs precedent grep (2026-05-21): user's *"open 219 and do it now"* opened smallest substrate arc ever; one stone shipped end-to-end. Constructor-translation Option β confirmed correct (`cargo test --release --lib -p wat` 824/0 PASS proves the boundary hides cleanly).
+  - Arc 216 test rot surfaced via 219.1 STOP-4 (2026-05-21); independently verified pre-existing per `feedback_pre_existing_verification`; fixed onto green tree before 219.1 landed per `feedback_no_broken_commits`.
 - **Branch** `arc-170-gap-j-v5-deadlock-state`
 
 Update this section each session-end. Past breadcrumbs live in INTERSTITIAL "compaction breadcrumb" entries (stale).
