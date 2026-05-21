@@ -1,7 +1,7 @@
 //! Strict-rejection tests: every spec-mandated `MUST NOT` exercised.
 //! Locks in the conformance fixes from the /ignorant ward audit.
 
-use wat_edn::{parse, Value};
+use wat_edn::{parse, Keyword, Value};
 
 // ─── CRIT-1: discard at end of collection ───────────────────────
 
@@ -279,4 +279,40 @@ fn signed_bigint() {
 fn signed_bigdec() {
     let v = parse("-1.5e-3M").unwrap();
     assert!(matches!(v, Value::BigDec(_)));
+}
+
+// ─── Arc-219: strict-EDN keyword bodies ─────────────────────────
+
+#[test]
+fn is_symbol_continue_rejects_colon() {
+    // Arc 219 Option β: `:` and `#` are NOT valid in strict-EDN
+    // symbol bodies. The lexer enforces this at the byte level.
+    assert!(!wat_edn::vocab::is_symbol_continue(b':'));
+    assert!(!wat_edn::vocab::is_symbol_continue(b'#'));
+}
+
+#[test]
+fn parser_rejects_double_colon_in_keyword() {
+    // After removing `:` from `is_symbol_continue`, the lexer stops
+    // reading at the first `:` inside a keyword body, producing a
+    // parse error on the remaining `::core::HashMap` fragment.
+    assert!(
+        parse(":wat::core::HashMap").is_err(),
+        "expected parse to fail on `::` in keyword body"
+    );
+}
+
+#[test]
+fn keyword_ns_translates_wat_to_strict() {
+    // Constructor-level boundary translation: `Keyword::ns("wat::core", "HashMap")`
+    // translates the `::` separator to `.` on construction so storage
+    // is canonical strict-EDN. The `namespace()` accessor returns the
+    // translated form.
+    let k = Keyword::ns("wat::core", "HashMap");
+    assert_eq!(
+        k.namespace(),
+        Some("wat.core"),
+        "namespace should be translated from `::` to `.` on construction"
+    );
+    assert_eq!(k.name(), "HashMap");
 }

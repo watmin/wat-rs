@@ -100,12 +100,14 @@ fn source_rejects_underscore_inside_nested_brackets() {
 
 #[test]
 fn source_accepts_underscore_outside_brackets() {
-    // The `:rust::*` Rust-mirror convention has underscores at
-    // depth 0. These MUST keep parsing.
+    // Post-arc-219: `::` is illegal in strict-EDN keyword bodies.
+    // Rust-mirror paths use `.` as the namespace separator in the
+    // strict-EDN layer (the wat source syntax still uses `::`, but
+    // wat-edn enforces strict EDN on parsed input).
     let cases = &[
-        ":rust::crossbeam_channel::Sender",
-        ":rust::sqlite::Db::execute_ddl",
-        ":wat__internal::foo",
+        ":rust.crossbeam_channel.Sender",
+        ":rust.sqlite.Db.execute_ddl",
+        ":wat__internal.foo",
         ":foo_bar_baz",
     ];
     for s in cases {
@@ -161,18 +163,19 @@ fn writer_swaps_namespaced_keyword_with_brackets() {
 
 #[test]
 fn writer_preserves_underscore_outside_brackets() {
-    // The `:rust::*` Rust-mirror convention's underscores stay
-    // verbatim — they're at depth 0.
-    let k = kw("rust::crossbeam_channel::Sender");
-    assert_eq!(write(&k), ":rust::crossbeam_channel::Sender");
+    // Post-arc-219: strict-EDN keyword bodies use `.` not `::`.
+    // Underscores at depth 0 stay verbatim; dots are the namespace
+    // separator in the strict-EDN layer.
+    let k = kw("rust.crossbeam_channel.Sender");
+    assert_eq!(write(&k), ":rust.crossbeam_channel.Sender");
 }
 
 #[test]
 fn writer_preserves_underscore_with_brackets_outside() {
-    // Underscore at depth 0, brackets later: depth-0 underscore is
-    // preserved; comma inside brackets is swapped.
-    let k = kw("rust::sync::Mutex<i64>");
-    assert_eq!(write(&k), ":rust::sync::Mutex<i64>");
+    // Post-arc-219: `.` as separator at depth 0; underscore stays verbatim;
+    // no comma inside `<i64>` — nothing to swap.
+    let k = kw("rust.sync.Mutex<i64>");
+    assert_eq!(write(&k), ":rust.sync.Mutex<i64>");
 }
 
 // ─── Row F — Parser swaps `_` → `,` inside `<>` (wire mode) ─────
@@ -194,13 +197,14 @@ fn wire_decode_swaps_underscore_to_comma() {
 #[test]
 fn wire_decode_preserves_underscore_outside_brackets() {
     // Wire mode does NOT touch underscores outside `<...>`.
-    // Note: `::` is not a namespace separator at the EDN layer
-    // (only `/` is), so the entire body lands in `name()`.
-    let v = parse_wire(":rust::crossbeam_channel::Sender").unwrap();
+    // Post-arc-219: strict-EDN keyword bodies use `.` not `::`;
+    // the entire dot-separated body lands in `name()` (only `/`
+    // is the namespace separator at the EDN layer).
+    let v = parse_wire(":rust.crossbeam_channel.Sender").unwrap();
     match v {
         Value::Keyword(k) => {
             assert_eq!(k.namespace(), None);
-            assert_eq!(k.name(), "rust::crossbeam_channel::Sender");
+            assert_eq!(k.name(), "rust.crossbeam_channel.Sender");
         }
         other => panic!("expected Keyword, got {:?}", other),
     }
@@ -243,12 +247,13 @@ fn roundtrip_two_arg_parametric() {
 
 #[test]
 fn roundtrip_namespaced_parametric() {
-    let k = kw("wat::core::HashMap<wat::core::String,wat::core::i64>");
+    // Post-arc-219: strict-EDN keyword bodies use `.` not `::`.
+    let k = kw("wat.core.HashMap<wat.core.String,wat.core.i64>");
     roundtrip_wire(&k);
     // Wire form has `_` for the comma.
     assert_eq!(
         write(&k),
-        ":wat::core::HashMap<wat::core::String_wat::core::i64>"
+        ":wat.core.HashMap<wat.core.String_wat.core.i64>"
     );
 }
 
@@ -288,16 +293,16 @@ fn roundtrip_empty_brackets() {
 
 #[test]
 fn rust_mirror_underscore_forms_still_parse() {
-    // Smoke set covering the `project_wat_rust_interop.md` doctrine:
-    // `:rust::*` paths mirror real Rust paths and may contain
-    // underscores in module/identifier names. ALL are at depth 0.
+    // Post-arc-219: strict-EDN keyword bodies use `.` not `::`.
+    // Rust-mirror paths at the wat-edn boundary are spelled with `.`;
+    // underscores in identifier names remain valid at depth 0.
     let cases = &[
-        ":rust::crossbeam_channel::Sender",
-        ":rust::crossbeam_channel::Receiver",
-        ":rust::std::sync::atomic::AtomicU64",
-        ":rust::sqlite::Db::execute_ddl",
+        ":rust.crossbeam_channel.Sender",
+        ":rust.crossbeam_channel.Receiver",
+        ":rust.std.sync.atomic.AtomicU64",
+        ":rust.sqlite.Db.execute_ddl",
         ":wat__WatAST",
-        ":wat__internal::probe",
+        ":wat__internal.probe",
     ];
     for s in cases {
         parse(s).unwrap_or_else(|e| {
@@ -326,15 +331,16 @@ fn source_with_comma_inside_brackets_parses() {
 
 #[test]
 fn source_namespaced_with_comma_parses() {
-    // `::` is NOT the EDN namespace separator (`/` is). The whole
-    // body lands in `name()`, including the brackets and comma.
-    let v = parse(":wat::core::HashMap<wat::core::String,wat::core::i64>").unwrap();
+    // Post-arc-219: strict-EDN uses `.` not `::` in keyword bodies.
+    // `/` is the only EDN namespace separator; the whole dot-separated
+    // path lands in `name()`, including the brackets and comma.
+    let v = parse(":wat.core.HashMap<wat.core.String,wat.core.i64>").unwrap();
     match v {
         Value::Keyword(k) => {
             assert_eq!(k.namespace(), None);
             assert_eq!(
                 k.name(),
-                "wat::core::HashMap<wat::core::String,wat::core::i64>"
+                "wat.core.HashMap<wat.core.String,wat.core.i64>"
             );
         }
         other => panic!("expected Keyword, got {:?}", other),

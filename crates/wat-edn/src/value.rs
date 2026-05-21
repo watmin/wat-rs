@@ -209,6 +209,16 @@ pub struct Tag {
     name: CompactString,
 }
 
+// ─── Boundary translation ────────────────────────────────────────
+
+/// Translate wat-rs `::` namespace separators to strict-EDN `.` form.
+/// One-pass; idempotent (`.` input passes through unchanged).
+/// Called at construction time by the checked constructors (`ns`, `try_ns`)
+/// so callers may pass either form and get canonical strict-EDN storage.
+fn translate_wat_to_strict(ns: &str) -> String {
+    ns.replace("::", ".")
+}
+
 // ─── Symbol ─────────────────────────────────────────────────────
 
 impl Symbol {
@@ -229,16 +239,18 @@ impl Symbol {
     /// Build a namespaced symbol. Panics if either segment fails
     /// the spec first-character rule. See [`Symbol::new`] for
     /// guidance on panic-vs-Result.
+    /// Translates wat-rs `::` namespace separators to strict-EDN `.` form
+    /// on construction so callers may pass either form.
     #[track_caller]
     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
-        let namespace = namespace.as_ref();
+        let ns_translated = translate_wat_to_strict(namespace.as_ref());
         let name = name.as_ref();
-        crate::vocab::validate_first_char(namespace)
-            .unwrap_or_else(|m| panic!("invalid symbol namespace {:?}: {}", namespace, m));
+        crate::vocab::validate_first_char(&ns_translated)
+            .unwrap_or_else(|m| panic!("invalid symbol namespace {:?}: {}", ns_translated, m));
         crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid symbol name {:?}: {}", name, m));
         Self {
-            namespace: Some(CompactString::from(namespace)),
+            namespace: Some(CompactString::from(ns_translated)),
             name: CompactString::from(name),
         }
     }
@@ -254,16 +266,18 @@ impl Symbol {
     }
 
     /// Fallible namespaced symbol constructor.
+    /// Translates wat-rs `::` namespace separators to strict-EDN `.` form
+    /// on construction; validation runs against the translated form.
     pub fn try_ns(
         namespace: impl AsRef<str>,
         name: impl AsRef<str>,
     ) -> std::result::Result<Self, &'static str> {
-        let namespace = namespace.as_ref();
+        let ns_translated = translate_wat_to_strict(namespace.as_ref());
         let name = name.as_ref();
-        crate::vocab::validate_first_char(namespace)?;
+        crate::vocab::validate_first_char(&ns_translated)?;
         crate::vocab::validate_first_char(name)?;
         Ok(Self {
-            namespace: Some(CompactString::from(namespace)),
+            namespace: Some(CompactString::from(ns_translated)),
             name: CompactString::from(name),
         })
     }
@@ -302,16 +316,18 @@ impl Keyword {
     }
 
     /// Build a namespaced keyword. Panics on invalid name or namespace.
+    /// Translates wat-rs `::` namespace separators to strict-EDN `.` form
+    /// on construction so callers may pass either form.
     #[track_caller]
     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
-        let namespace = namespace.as_ref();
+        let ns_translated = translate_wat_to_strict(namespace.as_ref());
         let name = name.as_ref();
-        crate::vocab::validate_first_char(namespace)
-            .unwrap_or_else(|m| panic!("invalid keyword namespace {:?}: {}", namespace, m));
+        crate::vocab::validate_first_char(&ns_translated)
+            .unwrap_or_else(|m| panic!("invalid keyword namespace {:?}: {}", ns_translated, m));
         crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid keyword name {:?}: {}", name, m));
         Self {
-            namespace: Some(CompactString::from(namespace)),
+            namespace: Some(CompactString::from(ns_translated)),
             name: CompactString::from(name),
         }
     }
@@ -325,16 +341,18 @@ impl Keyword {
     }
 
     /// Fallible namespaced keyword constructor.
+    /// Translates wat-rs `::` namespace separators to strict-EDN `.` form
+    /// on construction; validation runs against the translated form.
     pub fn try_ns(
         namespace: impl AsRef<str>,
         name: impl AsRef<str>,
     ) -> std::result::Result<Self, &'static str> {
-        let namespace = namespace.as_ref();
+        let ns_translated = translate_wat_to_strict(namespace.as_ref());
         let name = name.as_ref();
-        crate::vocab::validate_first_char(namespace)?;
+        crate::vocab::validate_first_char(&ns_translated)?;
         crate::vocab::validate_first_char(name)?;
         Ok(Self {
-            namespace: Some(CompactString::from(namespace)),
+            namespace: Some(CompactString::from(ns_translated)),
             name: CompactString::from(name),
         })
     }
@@ -364,16 +382,18 @@ impl Tag {
     /// Build a namespaced tag. Per the EDN spec, user tags MUST be
     /// namespaced — there is no `Tag::new(name)` because a no-namespace
     /// tag is invalid input. Panics on invalid name or namespace.
+    /// Translates wat-rs `::` namespace separators to strict-EDN `.` form
+    /// on construction so callers may pass either form.
     #[track_caller]
     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
-        let namespace = namespace.as_ref();
+        let ns_translated = translate_wat_to_strict(namespace.as_ref());
         let name = name.as_ref();
-        crate::vocab::validate_first_char(namespace)
-            .unwrap_or_else(|m| panic!("invalid tag namespace {:?}: {}", namespace, m));
+        crate::vocab::validate_first_char(&ns_translated)
+            .unwrap_or_else(|m| panic!("invalid tag namespace {:?}: {}", ns_translated, m));
         crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid tag name {:?}: {}", name, m));
         Self {
-            namespace: CompactString::from(namespace),
+            namespace: CompactString::from(ns_translated),
             name: CompactString::from(name),
         }
     }
@@ -382,16 +402,18 @@ impl Tag {
     /// diagnostic string on rejection (not for programmatic
     /// dispatch — use [`crate::ErrorKind`] from the parser path
     /// when you need typed errors).
+    /// Translates wat-rs `::` namespace separators to strict-EDN `.` form
+    /// on construction; validation runs against the translated form.
     pub fn try_ns(
         namespace: impl AsRef<str>,
         name: impl AsRef<str>,
     ) -> std::result::Result<Self, &'static str> {
-        let namespace = namespace.as_ref();
+        let ns_translated = translate_wat_to_strict(namespace.as_ref());
         let name = name.as_ref();
-        crate::vocab::validate_first_char(namespace)?;
+        crate::vocab::validate_first_char(&ns_translated)?;
         crate::vocab::validate_first_char(name)?;
         Ok(Self {
-            namespace: CompactString::from(namespace),
+            namespace: CompactString::from(ns_translated),
             name: CompactString::from(name),
         })
     }

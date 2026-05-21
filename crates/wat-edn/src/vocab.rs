@@ -97,6 +97,11 @@ pub fn is_symbol_start(b: u8) -> bool {
 }
 
 /// True if `b` may continue a symbol body (after the first byte).
+/// Strict EDN character set: alphanumeric + `. * + ! - _ ? $ % & = < > /`.
+/// The `:` and `#` bytes are NOT permitted in symbol bodies per EDN spec;
+/// wat-rs uses `::` as its internal namespace separator but the wat-edn
+/// substrate enforces strict-EDN on input. Constructors (`::ns`, `::try_ns`)
+/// translate `::` → `.` at the boundary before storage.
 #[inline]
 pub fn is_symbol_continue(b: u8) -> bool {
     b.is_ascii_alphanumeric()
@@ -114,8 +119,6 @@ pub fn is_symbol_continue(b: u8) -> bool {
                 | b'='
                 | b'<'
                 | b'>'
-                | b':'
-                | b'#'
                 | b'/'
         )
 }
