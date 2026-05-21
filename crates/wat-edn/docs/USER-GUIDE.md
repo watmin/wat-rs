@@ -501,6 +501,8 @@ strictly defines, all Clojure-aligned and round-trip-symmetric:
 | `\formfeed` | U+000C | wat-edn extension |
 | `\backspace` | U+0008 | wat-edn extension |
 
+**wat-edn char literals are BMP-only** (Unicode U+0000 through U+FFFF). Supplementary-plane codepoints (e.g. emoji such as `😀`) are rejected by both the parser and the writer for Clojure/EDN cross-language interop honesty — `clojure.edn/read` does not support `\😀`-style literals. Encode supplementary-plane content as strings instead.
+
 ### Non-finite floats
 
 EDN doesn't define NaN or ±Infinity. wat-edn emits namespaced

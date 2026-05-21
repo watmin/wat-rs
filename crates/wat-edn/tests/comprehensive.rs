@@ -359,9 +359,12 @@ fn char_unicode_escape() {
 
 #[test]
 fn char_multibyte_utf8() {
+    // BMP non-ASCII chars parse correctly.
     assert_eq!(parse("\\é").unwrap(), Value::Char('é'));
     assert_eq!(parse("\\日").unwrap(), Value::Char('日'));
-    assert_eq!(parse("\\🦀").unwrap(), Value::Char('🦀'));
+    // Supplementary-plane chars (e.g. 🦀 U+1F980) are rejected:
+    // wat-edn char literals are BMP-only for Clojure/EDN cross-language interop.
+    assert!(parse("\\🦀").is_err());
 }
 
 #[test]

@@ -67,7 +67,7 @@ fn main() {
     assert_shape(&parsed, "primitive-nil",
         |v| matches!(v, Value::Nil), "nil");
     assert_shape(&parsed, "primitive-f64",
-        |v| matches!(v, Value::Float(f) if (*f - 3.14).abs() < 1e-10), "3.14");
+        |v| matches!(v, Value::Float(f) if (*f - 2.5).abs() < 1e-10), "2.5");
 
     println!();
     println!("─── Collections ───");

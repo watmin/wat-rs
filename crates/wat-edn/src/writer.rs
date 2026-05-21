@@ -311,20 +311,30 @@ fn write_char(c: char, out: &mut String) {
         return;
     }
     let cp = c as u32;
+    // wat-edn aligns to BMP-only chars for cross-language interop
+    // (clojure.edn/read rejects supplementary-plane char literals).
+    // Surface the constraint at write time rather than emitting a form
+    // downstream readers can't consume.
+    if cp > 0xFFFF {
+        panic!(
+            "wat-edn char literal U+{:X} is supplementary-plane; \
+             wat-edn aligns to BMP-only (U+0000..=U+FFFF) for \
+             cross-language EDN interop",
+            cp
+        );
+    }
     // BMP control bytes (< 0x20) and DEL (0x7F) → \uXXXX (exactly 4
-    // hex digits per spec). BMP non-control non-printable also fits
-    // within 4 hex digits.
+    // hex digits per spec).
     if cp < 0x20 || cp == 0x7F {
         write!(out, "u{:04X}", cp).unwrap();
         return;
     }
-    if cp <= 0xFFFF && !(0x20..=0x7E).contains(&cp) {
+    // BMP non-control non-printable still fits in 4 digits.
+    if !(0x20..=0x7E).contains(&cp) {
         write!(out, "u{:04X}", cp).unwrap();
         return;
     }
-    // Printable ASCII + supplementary-plane → literal. Supplementary-
-    // plane codepoints MUST be literal: EDN's \uXXXX is BMP-only (4
-    // hex digits). A 5-digit form (e.g. ὠ0) is not valid EDN.
+    // Printable ASCII → literal.
     out.push(c);
 }
 

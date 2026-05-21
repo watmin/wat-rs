@@ -7,7 +7,7 @@
 use chrono::{TimeZone, Utc};
 use std::io::Write;
 use uuid::Uuid;
-use wat_edn::{write, Keyword, Symbol, Tag, Value};
+use wat_edn::{write, Keyword, Tag, Value};
 
 fn build_trade_signal() -> Value<'static> {
     // Mirror of consumer-bridge.md's TradeSignal struct shape.

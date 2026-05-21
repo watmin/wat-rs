@@ -34,7 +34,7 @@ fn build_shape_matrix() -> Value<'static> {
         (kw("primitive-keyword"), kw_ns("asset", "BTC")),
         (kw("primitive-bool"), Value::Bool(true)),
         (kw("primitive-nil"), Value::Nil),
-        (kw("primitive-f64"), Value::Float(3.14)),
+        (kw("primitive-f64"), Value::Float(2.5)),
 
         // ─── Collections ──────────────────────────────────────────
         (kw("collection-vector"), Value::Vector(vec![

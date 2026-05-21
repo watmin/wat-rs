@@ -84,26 +84,24 @@ fn deep_nesting_round_trips() {
 }
 
 #[test]
-fn supplementary_plane_char_round_trips() {
-    // U+1F600 (😀) is a supplementary-plane codepoint. EDN's \uXXXX
-    // escape is BMP-only (exactly 4 hex digits). The writer MUST emit
-    // the literal char, not overflow to 5 hex digits. Clojure parses
-    // the literal form correctly (verified via shape-matrix interop).
-    let original = Value::Char('😀');
-    let written = write(&original);
-    // The writer must emit the literal char (not ὠ0 which is 5 digits).
+#[should_panic(expected = "supplementary-plane")]
+fn writer_panics_on_supplementary_plane_char() {
+    // wat-edn aligns to BMP-only chars for Clojure/EDN cross-language
+    // interop. The writer refuses to emit forms downstream readers
+    // can't consume; see also lexer rejection probe.
+    let _ = write(&Value::Char('😀'));
+}
+
+#[test]
+fn parser_rejects_supplementary_plane_char_literal() {
+    // Symmetric strictness: source authors writing \😀 in EDN text
+    // get a clear InvalidChar diagnostic. wat-edn char literals are
+    // BMP-only (U+0000..=U+FFFF).
+    let err = parse("\\😀").expect_err("supplementary-plane char must reject");
+    let msg = format!("{}", err);
     assert!(
-        !written.contains("\\u1F600"),
-        "writer must not emit 5-digit \\uXXXX for supplementary-plane: got {:?}",
-        written
-    );
-    let reparsed = parse(&written)
-        .unwrap_or_else(|e| panic!("parse failed on writer output {:?}: {:?}", written, e))
-        .into_owned();
-    assert_eq!(
-        original.into_owned(),
-        reparsed,
-        "supplementary-plane char must survive write→parse round-trip; wire={:?}",
-        written
+        msg.contains("supplementary-plane") || msg.contains("BMP"),
+        "diagnostic must surface the BMP constraint; got: {}",
+        msg
     );
 }

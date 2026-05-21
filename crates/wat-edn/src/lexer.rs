@@ -310,6 +310,16 @@ impl<'a> Lexer<'a> {
         if !first.is_ascii_alphanumeric() {
             let (c, byte_len) = decode_utf8_char(&self.input[self.pos..])
                 .map_err(|e| Error::at(self.pos, ErrorKind::Utf8(e)))?;
+            if (c as u32) > 0xFFFF {
+                return Err(Error::at(
+                    start,
+                    ErrorKind::InvalidChar(format!(
+                        "\\{}: supplementary-plane (U+{:X}) not supported; \
+                         wat-edn char literals are BMP-only",
+                        c, c as u32
+                    )),
+                ));
+            }
             self.pos += byte_len;
             return Ok(Token::Char(c));
         }
@@ -346,6 +356,16 @@ impl<'a> Lexer<'a> {
         let mut it = body_str.chars();
         if let Some(c) = it.next() {
             if it.next().is_none() {
+                if (c as u32) > 0xFFFF {
+                    return Err(Error::at(
+                        start,
+                        ErrorKind::InvalidChar(format!(
+                            "\\{}: supplementary-plane (U+{:X}) not supported; \
+                             wat-edn char literals are BMP-only",
+                            body_str, c as u32
+                        )),
+                    ));
+                }
                 return Ok(Token::Char(c));
             }
         }

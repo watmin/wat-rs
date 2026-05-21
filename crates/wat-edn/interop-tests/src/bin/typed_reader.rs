@@ -2,7 +2,7 @@
 //! shared.wat. Confirms wat-edn parses the typed output cleanly.
 
 use std::io::Read;
-use wat_edn::{parse, Value};
+use wat_edn::parse;
 
 fn main() {
     let mut input = String::new();

@@ -28,7 +28,7 @@
 (assert-shape :primitive-keyword #(= % :asset/BTC) "keyword should be :asset/BTC")
 (assert-shape :primitive-bool    #(= % true) "bool should be true")
 (assert-shape :primitive-nil     nil? "nil should be nil")
-(assert-shape :primitive-f64     #(= % 3.14) "f64 should be 3.14")
+(assert-shape :primitive-f64     #(= % 2.5) "f64 should be 2.5")
 
 (println)
 (println "─── Collections ───")

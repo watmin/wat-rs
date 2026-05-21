@@ -9,7 +9,7 @@
        :primitive-keyword       :asset/BTC
        :primitive-bool          true
        :primitive-nil           nil
-       :primitive-f64           3.14
+       :primitive-f64           2.5
 
        :collection-vector       [1 2 3]
        :collection-set          #{:a :b :c}
