@@ -25397,10 +25397,14 @@ mod tests {
     }
 
     #[test]
-    fn hashmap_composite_key_errors() {
-        // Keys restricted to primitives in this slice.
-        let err = eval_expr(r#"(:wat::core::HashMap :Vec<i64> :String (:wat::core::Vector :i64 1 2) "x")"#).unwrap_err();
-        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    fn hashmap_accepts_composite_key() {
+        // Arc 216.5a + 216.5c: Value: Hash + Eq is canonical; HashMap
+        // storage is Arc<HashMap<Value, Value>>. Composite keys (Vec,
+        // HashSet, Tuple, etc.) are accepted natively — the
+        // "primitives-only" restriction of the pre-antidote substrate is
+        // gone.
+        let result = eval_expr(r#"(:wat::core::HashMap :Vec<i64> :String (:wat::core::Vector :i64 1 2) "x")"#);
+        assert!(result.is_ok(), "composite key should construct HashMap; got {:?}", result);
     }
 
     #[test]
@@ -25989,9 +25993,12 @@ mod tests {
     }
 
     #[test]
-    fn hashset_rejects_composite_element() {
-        let err = eval_expr(r#"(:wat::core::HashSet :Vec<i64> (:wat::core::Vector :i64 1 2))"#).unwrap_err();
-        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    fn hashset_accepts_composite_element() {
+        // Arc 216.5a + 216.5b: Value: Hash + Eq is canonical; HashSet
+        // storage is Arc<HashSet<Value>>. Composite elements are accepted
+        // natively — the pre-antidote "primitives-only" restriction is gone.
+        let result = eval_expr(r#"(:wat::core::HashSet :Vec<i64> (:wat::core::Vector :i64 1 2))"#);
+        assert!(result.is_ok(), "composite element should construct HashSet; got {:?}", result);
     }
 
     // LocalCache runtime tests retired in arc 013 slice 4b — the
