@@ -3651,8 +3651,13 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
             }
             _ => false,
         },
-        // Function types, Tuple types — not atomizable
-        TypeExpr::Fn { .. } | TypeExpr::Tuple(_) => false,
+        // Function types — not atomizable
+        TypeExpr::Fn { .. } => false,
+        // Arc 216 Stone 7 — Tuple<T1, T2, ...> is atomizable iff ALL element types are atomizable.
+        // Encoding: positional-Bind Bundle (same shape as Vector<T>). Empty tuple = unit; unit
+        // is Value::Unit, not Value::Tuple — but conservatively allow Tuple([]) since the 0-tuple
+        // is handled elsewhere and an empty is_atomizable call should not panic.
+        TypeExpr::Tuple(elements) => elements.iter().all(is_atomizable),
     }
 }
 

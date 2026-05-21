@@ -13471,6 +13471,25 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
             }
             return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
         }
+        // Arc 216 Stone 7 — Tuple (wat::core::Tuple) atomizes to Bundle of positional-Binds
+        // (DESIGN Q2 / encoding doctrine: collection-category; same shape as Vector<T>).
+        // Heterogeneous element types — each element recursively atomized via value_to_atom.
+        // Index i becomes the Bind key as HolonAST::I64(i). Order preserved — index 0 first.
+        // Encoding is IDENTICAL to Vec; the consumer's declared type is the discriminator on
+        // the reverse trip (same honest asymmetry as DESIGN Q9 for Vec vs HashMap).
+        Value::Tuple(t) => {
+            let mut items: Vec<HolonAST> = Vec::with_capacity(t.len());
+            for (i, elem) in t.iter().enumerate() {
+                let atom_val = value_to_atom(elem.clone(), arg_span)?;
+                let elem_holon = match atom_val {
+                    Value::holon__HolonAST(h) => (*h).clone(),
+                    _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
+                };
+                let key = HolonAST::i64(i as i64);
+                items.push(HolonAST::bind(key, elem_holon));
+            }
+            return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
+        }
         // Arc 216 Stone 3 — HashMap<K, V> atomizes to Bundle of arbitrary-K Binds.
         // DESIGN Q2: map-shape = Bundle of Bind(K_holon, V_holon) pairs.
         // K and V are each recursively atomized via value_to_atom; both must be atomizable.
@@ -13498,7 +13517,7 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Atom".into(),
-                expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, or HashMap<K,V>",
+                expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, Tuple<T1,...>, or HashMap<K,V>",
                 got: other.type_name(),
                 span: arg_span.clone(),
             });

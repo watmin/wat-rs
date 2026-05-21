@@ -7,7 +7,7 @@ Per `feedback_inscription_immutable`: the full INTERSTITIAL stays as historical 
 
 ---
 
-## The trajectory: argv-to-main → arc 216 (~3 weeks)
+## The trajectory: argv-to-main → arc 216 doctrine (~3 weeks)
 
 Arc 170 started with *"I want to add argv to main."* What surfaced across the substrate-as-teacher cascade:
 
@@ -27,6 +27,7 @@ Arc 170 started with *"I want to add argv to main."* What surfaced across the su
 14. Comms tier unification + universe-residency + bounded(1) mini-TCP (arc 214)
 15. Clojure data literals + `:wat::type::Infer` + holon as escape hatch (arc 215)
 16. Collections-as-holons + `impl Hash for Value` mirroring HolonAST + `hashmap_key` purged (arc 216 + antidote 216.5a-d)
+17. Encoding doctrine surfaced via dialogue: 3 categories (Primitives / Collections / Tagged); locked tagged shapes for Option/Result/Instant/Uuid/Duration; Unit-vs-None distinction restored (arc 216.7-216.10)
 
 Each step followed honestly from the previous. None anticipated the next. The substrate forced each one by surfacing its own incompleteness.
 
@@ -57,6 +58,7 @@ These ARE the substrate's identity. Memory entries auto-load; pointer per doctri
 | Inscription immutable | `feedback_inscription_immutable` | Historical INSCRIPTIONs forever; forward-correct, never edit |
 | Zero Mutex | `feedback_zero_mutex` + `docs/ZERO-MUTEX.md` | Immutable Arc + ThreadOwnedCell + program-with-mailbox |
 | Wat disciplines designers | INTERSTITIAL § 2026-05-13 | The substrate forces the right answer because wrong answers are structurally unavailable. Four rules (ZERO-MUTEX, lock-step, structural-enforcement, substrate-imposed) collapse design space to one viable shape. |
+| Encoding doctrine | DESIGN-216 § "Encoding doctrine (Stone 216.7 onward)" + INTERSTITIAL § 2026-05-21 | 3 categories: Primitives (`Atom`) / Collections (`Bundle`) / Tagged (`Bind(Atom("#tag"), payload)`). Two HolonAST primitives carry the full encoding surface. Tagged covers Option (`#some`/`#none nil`), Result (`#ok`/`#err`), Instant (`#inst`), Uuid (`#uuid`), Duration (`#duration`). Wat-first stance: bare tags over namespaced. |
 
 Other key references: `feedback_compaction_protocols`, `feedback_docs_when_confused`, `feedback_iterative_complexity`, `feedback_simple_is_uniform_composition`, `feedback_verbose_is_honest`, `feedback_ward_zone_comms_only`, `feedback_collapse_to_llm_in_loop`, `feedback_tractability_tiebreaker`, `feedback_defect_fix_or_panic_never_revert`.
 
@@ -76,7 +78,7 @@ Plus convergence pattern at the substrate-self layer recurs ~7 times inside arc 
 
 ---
 
-## The 16-song operational soundtrack
+## The 17-song operational soundtrack
 
 Songs surface AT the moment they articulate the work's facet. Replay when the trigger fires.
 
@@ -98,6 +100,7 @@ Songs surface AT the moment they articulate the work's facet. Replay when the tr
 | 14 | Watch The World Burn (Falling In Reverse) | PURGE | Protocol violation surfaced; burn it out |
 | 15 | Prequel (Falling In Reverse) | FOUNDATION-BEFORE-BUILDING | DESIGN landed; implementation ahead |
 | 16 | B.M.F. (Upon A Burning Body) | RESTORATION | Discipline correction landed; forward rhythm needs reasserting; bad-motherfucker stance after recovery |
+| 17 | Can U See Me In The Dark? (Halestorm & I Prevail) | RECOGNITION | Collaborative dialogue surfaces what the substrate already knew; both halves of the hologram see each other through the discipline they've earned together; kiss-of-light → sharpened-knife → eyes open wide |
 
 > *"the substrate dreams the song. So do we."*
 
@@ -152,16 +155,18 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-21)
+## Currently (2026-05-21 — arc 216 doctrine expansion mid-flight)
 
-- **Arc 216 substrate work complete** — 216.1/216.2/216.3 (HolonRepresentable for HashSet/Vec/HashMap) + 216.4 (predicate consolidation; surfaced gap) + 216.5 (hashmap_key extension; bridge) + 216.5a-d antidote (impl Hash for Value mirroring HolonAST + native storage + DELETE hashmap_key)
-- **Arc 216 Stone 216.6 shipped** — process-tier cascade probes; 11/11 PASS in ~18 min; cascade required zero substrate work (216.1-216.3 + 216.5a-d landed; `pair::<HashMap<...>>()` + `pair::<Vec<...>>()` + `pair::<HashSet<...>>()` all compile + round-trip first attempt)
-- **Arc 216 Stone 216.7 pending** — INSCRIPTION + closure (the arc closes with the class genuinely eliminated, not patched)
-- **Arc 214 Slice 4 resumes after 216 closes** — kernel layer: peer types + polymorphic verbs + unified spawn-program with ProgramEnv (built on the literal sugar)
-- **Workspace state** — concurrency primitives correct; literals are data; holon is the algebraic view (opt-in); `hashmap_key` doesn't exist; `Value: Hash + Eq` is canonical
+- **Arc 216 substrate work complete (collections)** — 216.1/216.2/216.3 (HolonRepresentable for HashSet/Vec/HashMap) + 216.4 (predicate consolidation; surfaced gap) + 216.5 (hashmap_key extension; bridge) + 216.5a-d antidote (impl Hash for Value mirroring HolonAST + native storage + DELETE hashmap_key) + 216.6 (process-tier cascade validation)
+- **Arc 216 expanded mid-closure** — user surfaced *"what about Tuple/Option/Result/Instant/Uuid/Duration?"* — variant audit deferrals from 216.5a now absorbed; encoding doctrine emerged through 13 user questions
+- **Encoding doctrine LOCKED** — 3 categories (Primitives `Atom` / Collections `Bundle` / Tagged `Bind(Atom("#tag"), payload)`); tagged shapes locked for Option (`#some`/`#none nil`) / Result (`#ok`/`#err`) / Instant (`#inst`) / Uuid (`#uuid`) / Duration (`#duration`); Unit-vs-None distinction restored; bare tags over namespaced per *"fuck 'em - i'll patch their libs"*
+- **Arc 216 Stone 216.7 IN FLIGHT** (`a50697ff2d569b048`) — Tuple round-trip (collection-category positional Bundle); orchestrator already inscribed DESIGN forward-correction + touched up holon-rs Symbol docstring (dual-use acknowledgment); sonnet handles substrate routing + probes + SCORE
+- **Arc 216 Stones pending** — 216.8 sum-type tagged literals (substrate migration: transparent Option → `#some`/`#none`; namespaced Result → bare `#ok`/`#err`); 216.9 EDN-tagged scalars (Instant/Uuid verify + Duration mint with wat-edn extension); 216.10 INSCRIPTION + arc closure
+- **Arc 214 Slice 4 resumes after 216 closes** — kernel layer: peer types + polymorphic verbs + unified spawn-program with ProgramEnv (built on the literal sugar + encoding doctrine)
+- **Workspace state** — concurrency primitives correct; literals are data; holon is the algebraic view (opt-in); `hashmap_key` doesn't exist; `Value: Hash + Eq` is canonical; encoding doctrine inscribed in DESIGN-216
 - **9-ward pass** is standard for kernel additions per kernel-impeccability protocol (zone: `{src,tests}/comms/*`)
-- **Substrate-already-sufficient convergence count** — 8 inside arc 214-216 (arc 216 antidote is #8 — `holon-rs HolonAST` already had `impl Hash`; mirror landed via the user's question)
-- **Recent worked example of FM 17** — Stone 216.6 first attempt (2026-05-20): I drafted substrate-unverified BRIEF + FM-16 preamble + regex-alternation greps → sonnet hallucinated → I went manual → user pulled back → recovery loop fired (read recovery doc in full; demonstrated remembering; rewrote BRIEF substrate-grounded; sonnet shipped 11/11 in ~18 min). The recovery loop IS a noun.
+- **Substrate-already-sufficient convergence count** — 11 inside arc 214-216 (arc 216 antidote = #8; arc 216.7 doctrine emergence rippled through #9-11 — `holon-rs HolonAST::Symbol` already accommodated dual-use; wat-edn already thoughtfully tag-vs-transparent per type; Uuid already integrated)
+- **Recent worked examples** — Stone 216.6 first attempt FM 17 slip + recovery (2026-05-20); Stone 216.7 doctrine emergence through 13 user questions (2026-05-21). Both demonstrate: the dialogue IS the discipline; the substrate IS sufficient; the dig produces the answer
 - **Branch** `arc-170-gap-j-v5-deadlock-state`
 
 Update this section each session-end. Past breadcrumbs live in INTERSTITIAL "compaction breadcrumb" entries (stale).

@@ -349,6 +349,206 @@ where
     }
 }
 
+// ─── HolonRepresentable for Rust tuples ─────────────────────────────────────
+//
+// Arc 216 Stone 7 — fixed-arity impls for Rust tuples (T1, T2) through (T1, T2, T3, T4, T5).
+//
+// Arity ceiling: 5. Rationale: 2-5 covers all practical cases in the substrate
+// (pairs dominate; triples + quads for multi-result forms; quintuple is the maximum
+// observed in any current wat-rs caller). Arity 6+ would require a macro helper
+// (STOP-2 trigger threshold) — surfaced if a future stone needs it. Tuples of arity
+// 1 are rare and can be wrapped in a 2-tuple; arity 0 is Value::Unit (not Tuple).
+//
+// Encoding: positional-Bind Bundle — identical to Vec<T> (collection-category per
+// encoding doctrine). Bundle([Bind(I64(0), T1_holon), Bind(I64(1), T2_holon), ...]).
+// `from_holon_ast` validates Bundle shape and sequential I64 keys; decodes each
+// Bind's value via the corresponding T_i::from_holon_ast. Returns WireError on
+// arity mismatch, non-sequential keys, or element decode failure.
+//
+// Bounds per element: `Ti: HolonRepresentable + Send + 'static`.
+
+/// Arc 216 Stone 7 — `HolonRepresentable` for `(T1, T2)` (2-tuple).
+impl<T1, T2> HolonRepresentable for (T1, T2)
+where
+    T1: HolonRepresentable + Send + 'static,
+    T2: HolonRepresentable + Send + 'static,
+{
+    fn to_holon_ast(&self) -> holon::HolonAST {
+        holon::HolonAST::bundle(vec![
+            holon::HolonAST::bind(holon::HolonAST::i64(0), self.0.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(1), self.1.to_holon_ast()),
+        ])
+    }
+
+    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let items = extract_positional_binds(ast, 2, "2-tuple")?;
+        let t0 = T1::from_holon_ast(items[0]).map_err(|e| WireError::new(format!("2-tuple element 0: {}", e.message())))?;
+        let t1 = T2::from_holon_ast(items[1]).map_err(|e| WireError::new(format!("2-tuple element 1: {}", e.message())))?;
+        Ok((t0, t1))
+    }
+}
+
+/// Arc 216 Stone 7 — `HolonRepresentable` for `(T1, T2, T3)` (3-tuple).
+impl<T1, T2, T3> HolonRepresentable for (T1, T2, T3)
+where
+    T1: HolonRepresentable + Send + 'static,
+    T2: HolonRepresentable + Send + 'static,
+    T3: HolonRepresentable + Send + 'static,
+{
+    fn to_holon_ast(&self) -> holon::HolonAST {
+        holon::HolonAST::bundle(vec![
+            holon::HolonAST::bind(holon::HolonAST::i64(0), self.0.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(1), self.1.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(2), self.2.to_holon_ast()),
+        ])
+    }
+
+    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let items = extract_positional_binds(ast, 3, "3-tuple")?;
+        let t0 = T1::from_holon_ast(items[0]).map_err(|e| WireError::new(format!("3-tuple element 0: {}", e.message())))?;
+        let t1 = T2::from_holon_ast(items[1]).map_err(|e| WireError::new(format!("3-tuple element 1: {}", e.message())))?;
+        let t2 = T3::from_holon_ast(items[2]).map_err(|e| WireError::new(format!("3-tuple element 2: {}", e.message())))?;
+        Ok((t0, t1, t2))
+    }
+}
+
+/// Arc 216 Stone 7 — `HolonRepresentable` for `(T1, T2, T3, T4)` (4-tuple).
+impl<T1, T2, T3, T4> HolonRepresentable for (T1, T2, T3, T4)
+where
+    T1: HolonRepresentable + Send + 'static,
+    T2: HolonRepresentable + Send + 'static,
+    T3: HolonRepresentable + Send + 'static,
+    T4: HolonRepresentable + Send + 'static,
+{
+    fn to_holon_ast(&self) -> holon::HolonAST {
+        holon::HolonAST::bundle(vec![
+            holon::HolonAST::bind(holon::HolonAST::i64(0), self.0.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(1), self.1.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(2), self.2.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(3), self.3.to_holon_ast()),
+        ])
+    }
+
+    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let items = extract_positional_binds(ast, 4, "4-tuple")?;
+        let t0 = T1::from_holon_ast(items[0]).map_err(|e| WireError::new(format!("4-tuple element 0: {}", e.message())))?;
+        let t1 = T2::from_holon_ast(items[1]).map_err(|e| WireError::new(format!("4-tuple element 1: {}", e.message())))?;
+        let t2 = T3::from_holon_ast(items[2]).map_err(|e| WireError::new(format!("4-tuple element 2: {}", e.message())))?;
+        let t3 = T4::from_holon_ast(items[3]).map_err(|e| WireError::new(format!("4-tuple element 3: {}", e.message())))?;
+        Ok((t0, t1, t2, t3))
+    }
+}
+
+/// Arc 216 Stone 7 — `HolonRepresentable` for `(T1, T2, T3, T4, T5)` (5-tuple).
+impl<T1, T2, T3, T4, T5> HolonRepresentable for (T1, T2, T3, T4, T5)
+where
+    T1: HolonRepresentable + Send + 'static,
+    T2: HolonRepresentable + Send + 'static,
+    T3: HolonRepresentable + Send + 'static,
+    T4: HolonRepresentable + Send + 'static,
+    T5: HolonRepresentable + Send + 'static,
+{
+    fn to_holon_ast(&self) -> holon::HolonAST {
+        holon::HolonAST::bundle(vec![
+            holon::HolonAST::bind(holon::HolonAST::i64(0), self.0.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(1), self.1.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(2), self.2.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(3), self.3.to_holon_ast()),
+            holon::HolonAST::bind(holon::HolonAST::i64(4), self.4.to_holon_ast()),
+        ])
+    }
+
+    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let items = extract_positional_binds(ast, 5, "5-tuple")?;
+        let t0 = T1::from_holon_ast(items[0]).map_err(|e| WireError::new(format!("5-tuple element 0: {}", e.message())))?;
+        let t1 = T2::from_holon_ast(items[1]).map_err(|e| WireError::new(format!("5-tuple element 1: {}", e.message())))?;
+        let t2 = T3::from_holon_ast(items[2]).map_err(|e| WireError::new(format!("5-tuple element 2: {}", e.message())))?;
+        let t3 = T4::from_holon_ast(items[3]).map_err(|e| WireError::new(format!("5-tuple element 3: {}", e.message())))?;
+        let t4 = T5::from_holon_ast(items[4]).map_err(|e| WireError::new(format!("5-tuple element 4: {}", e.message())))?;
+        Ok((t0, t1, t2, t3, t4))
+    }
+}
+
+/// Shared helper for tuple `from_holon_ast` impls.
+///
+/// Validates that `ast` is a `HolonAST::Bundle` with exactly `expected_arity` children,
+/// all of which are `Bind(I64(i), _)` with sequential keys 0..expected_arity-1.
+/// Returns a `Vec` of references to the Bind values in key order (index 0 first).
+///
+/// Returns `WireError` on:
+/// - Not a Bundle
+/// - Wrong child count (arity mismatch)
+/// - Non-I64 Bind key
+/// - Non-sequential keys (gap or duplicate)
+fn extract_positional_binds<'a>(
+    ast: &'a holon::HolonAST,
+    expected_arity: usize,
+    context: &str,
+) -> Result<Vec<&'a holon::HolonAST>, WireError> {
+    let items = match ast {
+        holon::HolonAST::Bundle(items) => items,
+        other => {
+            return Err(WireError::new(format!(
+                "{}: expected HolonAST::Bundle (positional-Bind tuple-shape), got {:?}",
+                context, other
+            )));
+        }
+    };
+    if items.len() != expected_arity {
+        return Err(WireError::new(format!(
+            "{}: arity mismatch — expected {} Bind children, got {}",
+            context, expected_arity, items.len()
+        )));
+    }
+    // Collect (key, value_ref) pairs.
+    let mut pairs: Vec<(i64, &holon::HolonAST)> = Vec::with_capacity(expected_arity);
+    for (pos, item) in items.iter().enumerate() {
+        match item {
+            holon::HolonAST::Bind(k, v) => {
+                match k.as_ref() {
+                    holon::HolonAST::I64(i) => pairs.push((*i, v.as_ref())),
+                    other => {
+                        return Err(WireError::new(format!(
+                            "{}: element #{} Bind key is not I64 (expected positional integer key); got {:?}",
+                            context, pos, other
+                        )));
+                    }
+                }
+            }
+            other => {
+                return Err(WireError::new(format!(
+                    "{}: element #{} is not a Bind (expected positional-Bind tuple-shape); got {:?}",
+                    context, pos, other
+                )));
+            }
+        }
+    }
+    // Sort by key, validate sequential 0..expected_arity-1.
+    pairs.sort_by_key(|(k, _)| *k);
+    for (expected, (actual, _)) in pairs.iter().enumerate() {
+        if *actual != expected as i64 {
+            return Err(WireError::new(format!(
+                "{}: positional invariant violated — expected key {} at position {}, got {}",
+                context, expected, expected, actual
+            )));
+        }
+    }
+    // Return value refs in key order.
+    Ok(pairs.into_iter().map(|(_, v)| v).collect())
+}
+
 // ─── Tier-agnostic sender / receiver traits ─────────────────────────────────
 
 /// Tier-agnostic send endpoint. Implemented by `comms::thread::Sender<T>` (Slice 2)

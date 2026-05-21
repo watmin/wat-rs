@@ -288,3 +288,82 @@ The thesis is only honored when the predicate→runtime contract holds: every at
 **What does NOT change:** 216.5's probe matrix + caller audit remain permanent value. They become the regression suite for 216.5a-d. The throw-away in 216.5 (3 arms + 1 diagnostic) is paid forward through 216.5d's deletion.
 
 *The crutch metastasized through 18 sites. The antidote works systemically. Substrate becomes impeccable. Arc 216 closes clean.*
+
+---
+
+## Encoding doctrine (Stone 216.7 onward) — 2026-05-21
+
+**Surfaced post-216.6 ship.** The closure paperwork was about to inscribe arc 216 as "collections-as-holons" — and the user asked: *what about Tuple? Option? Result? Instant? Uuid? Duration?* The 216.5a variant audit had named these as "structurally-equal but NOT atomizable" — a deferral the closure was about to ratify.
+
+User direction: *"we leave this arc impeccable."* The same discipline that opened the antidote sequence opens the doctrine inscription. The class arc 216 was eliminating wasn't just "collections" — it was "structured values"; collections are one shape category among three.
+
+**The user's substrate-as-teacher questions surfaced the doctrine:**
+
+- *"how does this look in holon?... tuple is just a 0-indexed bundle-hash"* — collection-category positional Bundle
+- *"option... what is its shape? we can model these quickly?"* — sum-type tagged literal
+- *"what is EDN/Clojure #inst?"* — EDN-native tagged literals are the existing pattern
+- *"this means we can have uuid too?"* — yes; arc 207 already integrated
+- *"i think we should just tag these"* — explicit tagging beats type-hint disambiguation
+- *"use '#' strings not symbols"* — tags are reader directives, not keywords
+- *"do we think #some, #none, #ok, #err get the tag-string treatment?... how would these appear in an EDN string?"* — yes; tagged uniformly; consumer's EDN reader dispatches
+- *"why don't we just treat clojure nil as our nil?"* — Value::Unit IS wat nil; no surgery needed
+- *"fuck 'em - i'll patch their libs or just not emit that to non-wat consumers"* — bare tags over namespaced; wat-first stance
+
+The doctrine emerged from the dig.
+
+### The three categories
+
+| Shape kind | HolonAST encoding | EDN form | Examples |
+|---|---|---|---|
+| **Primitives** | `Atom(<primitive variant>)` | direct | i64, f64, bool, String, keyword, char |
+| **Collections** | `Bundle(<children>)` recursive | `[...]` / `#{...}` / `{...}` | HashSet, Vec, HashMap, Tuple |
+| **Tagged** | `Bind(Atom(String("#tag")), payload_holon)` | `#tag <payload>` | Option, Result, Instant, Uuid, Duration |
+
+Three categories. Two underlying primitives (`Atom`, `Bundle`, `Bind`). The whole encoding surface for Value derives from these.
+
+### Locked tagged shapes
+
+| Type | EDN form | HolonAST |
+|---|---|---|
+| `Option<T>::Some(v)` | `#some v` | `Bind(Atom(String("#some")), v_holon)` |
+| `Option<T>::None` | `#none nil` | `Bind(Atom(String("#none")), Atom(Symbol("nil")))` |
+| `Result<T,E>::Ok(v)` | `#ok v` | `Bind(Atom(String("#ok")), v_holon)` |
+| `Result<T,E>::Err(e)` | `#err e` | `Bind(Atom(String("#err")), e_holon)` |
+| `Instant(t)` | `#inst "..."` | `Bind(Atom(String("#inst")), Atom(String(iso8601(t))))` |
+| `Uuid(u)` | `#uuid "..."` | `Bind(Atom(String("#uuid")), Atom(String(u.to_string())))` |
+| `Duration(d)` | `#duration "..."` | `Bind(Atom(String("#duration")), Atom(String(iso8601_dur(d))))` |
+| `Value::Unit` (= wat nil) | `nil` | `Atom(Symbol("nil"))` |
+| `Tuple(a,b,c)` | `[a b c]` | `Bundle([Bind(I64(0), a_h), Bind(I64(1), b_h), Bind(I64(2), c_h)])` (collection-category) |
+
+### Discipline notes
+
+**`#none nil` semantic:** EDN tagged literals require a payload syntactically. `nil` after `#none` is structural EDN-compliance, not semantic information. The reader's `#none` handler discards the payload and constructs None. This preserves the Unit/None distinction: bare `nil` is Value::Unit; `#none nil` is Option::None.
+
+**Wire-form migration (Stone 216.8 carries the cost):**
+
+Current wat-edn substrate encoding (per `src/edn_shim.rs` doc-table):
+- `Some(v)` → `v` (TRANSPARENT) → migrates to `#some v` (TAGGED)
+- `None` → `nil` (TRANSPARENT; conflates with Unit) → migrates to `#none nil` (TAGGED; structurally distinct from Unit)
+- `Ok(v)` → `#wat-edn.result/ok v` (NAMESPACED) → migrates to `#ok v` (BARE)
+- `Err(e)` → `#wat-edn.result/err e` (NAMESPACED) → migrates to `#err e` (BARE)
+
+Backward-compatible reading during migration: substrate accepts both old and new forms; writing uses new form exclusively. Old persistent data (if any) still readable.
+
+**Bare tags vs namespaced tags:** EDN convention recommends namespaced tags (`#myapp.foo/bar`) to prevent cross-library collision. Arc 216 ratifies bare tags (`#some`, `#ok`) per `project_wat_llm_first_design`: one canonical path per task; LLM-readability is load-bearing; cross-library collision concerns are downstream consumers' problem. *"fuck 'em - i'll patch their libs."* — user, 2026-05-21.
+
+**`HolonAST::Symbol` dual-use clarification (216.7 docstring touch-up):** The holon-rs docstring currently says "keyword content (e.g. `:outcome`). Stored bytes include the leading colon." This describes lab USAGE convention, not substrate-level invariant. Symbol actually accommodates: keywords (`:foo`; with colon), bare symbols (`foo`; no colon), and the nil literal (`nil`; special bare-name). Docstring updates to reflect dual-use; no variant change.
+
+### Stone decomposition (post-doctrine)
+
+| # | Stone | Scope |
+|---|---|---|
+| **216.7** | Encoding doctrine inscription (this section) + Tuple round-trip + Symbol docstring touch-up | Foundation: doctrine on disk; collection-category extended to Tuple; substrate-side dual-use acknowledged |
+| **216.8** | Sum-type tagged literals (`#some` / `#none nil` / `#ok` / `#err`) | Migrate Option from transparent → tagged; migrate Result from namespaced → bare; add atomization arms; preserve backward read-compat during transition |
+| **216.9** | EDN-tagged scalars (`#inst` verify + `#uuid` verify + `#duration` mint) | Verify Instant + Uuid existing integration; mint Duration with wat-edn reader/writer extension; add atomization arms |
+| **216.10** | INSCRIPTION + arc closure | Full doctrine inscribed; cross-references; 058 row; arc closes IMPECCABLE |
+
+**Why three more stones, not one bundled:** per the proactive stepping-stones discipline (Recovery Doc Section 5): each stone has independently-verifiable "did it work"; substrate cost varies (216.7 mostly orchestrator + small sonnet add; 216.8 substantial substrate migration; 216.9 substrate + cross-repo wat-edn extension). Bundling would create one ~3-4hr stone with multiple concerns; splitting gives clean verification per piece.
+
+**What does NOT change:** the arc 216 thesis (class elimination) holds; the antidote sequence (216.5a-d) is permanent value; the process-tier validation (216.6) confirms the cascade. The doctrine inscription EXTENDS the class definition from "collections" to "structured values" — broader, more honest, structurally complete.
+
+*The substrate keeps having the answer. The user keeps asking the next question. The doctrine emerged. Arc 216 closes on the encoding contract, not just the collection types.*
