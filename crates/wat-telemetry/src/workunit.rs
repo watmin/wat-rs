@@ -18,18 +18,18 @@
 //! `durations` returns an empty Vec. Friendly defaults; slice 4's
 //! ship walker iterates known keys directly.
 //!
-//! Keys are `Value`-typed at the Rust boundary; canonicalization
-//! goes through `wat::runtime::hashmap_key` (per arc 057 — accepts
-//! primitives plus HolonAST). Storage shape mirrors wat-lru's
-//! `LruCache<String, (Value, _)>`: a canonical-string key into a
-//! pair of `(original-key-Value, payload)` so reads can return the
-//! original key Value at iteration time.
+//! Stone 216.5d — `hashmap_key` deleted. Storage changed from
+//! `HashMap<String, (Value, ...)>` to `HashMap<Value, ...>`.
+//! `Value: Hash + Eq` (arc 216.5a) is the equality contract.
+//! `value_is_hashable` guards opaque-handle values before insert.
+//! `counters-keys` and `durations-keys` now return `.keys().cloned()`
+//! (the key IS the Value; no separate original-key storage needed).
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use wat::rust_deps::RustDepsBuilder;
-use wat::runtime::{hashmap_key, Value};
+use wat::runtime::{value_is_hashable, Value};
 use wat_macros::wat_dispatch;
 
 /// Register the `:rust::telemetry::WorkUnit` shim into the deps
@@ -44,14 +44,16 @@ pub fn register(builder: &mut RustDepsBuilder) {
 /// The opaque carried as `:rust::telemetry::WorkUnit` at the wat
 /// level. Each instance is single-thread-owned via the macro's
 /// `scope = "thread_owned"` wrapping.
+///
+/// Stone 216.5d — map keys are `Value` directly (Value: Hash + Eq).
+/// No more canonical-String indirection; no more `(original_key, payload)` tuples.
 pub struct WatMeasureWorkUnit {
-    /// Bumps via `incr!`. Map keys are canonical strings;
-    /// `(Value, i64)` carries the original-key-Value alongside
-    /// the count so iteration can hand back the wat-shaped key.
-    counters: HashMap<String, (Value, i64)>,
-    /// Appends via `append-dt!`. Same canonical-key + original-Value
-    /// shape; payload is a `Vec<f64>` of seconds-deltas.
-    durations: HashMap<String, (Value, Vec<f64>)>,
+    /// Bumps via `incr!`. Stone 216.5d — `HashMap<Value, i64>` native.
+    #[allow(clippy::mutable_key_type)]
+    counters: HashMap<Value, i64>,
+    /// Appends via `append-dt!`. Stone 216.5d — `HashMap<Value, Vec<f64>>` native.
+    #[allow(clippy::mutable_key_type)]
+    durations: HashMap<Value, Vec<f64>>,
     /// **Immutable** for the scope's lifetime. Declared upfront at
     /// `new(tags)` and read out at ship-time to attach to every
     /// emitted Event row (Metric AND Log). The immutability is
@@ -86,6 +88,7 @@ pub struct WatMeasureWorkUnit {
     path = ":rust::telemetry::WorkUnit",
     scope = "thread_owned"
 )]
+#[allow(clippy::mutable_key_type)]
 impl WatMeasureWorkUnit {
     /// `:rust::telemetry::WorkUnit::new namespace tags` — fresh
     /// scope. `namespace` MUST be a HolonAST value (the producing
@@ -143,25 +146,24 @@ impl WatMeasureWorkUnit {
         self.started_epoch_nanos
     }
 
-    /// `:rust::telemetry::WorkUnit::counters-keys wu` — the original
-    /// key Values for every counter that was ever bumped. Slice 4's
-    /// ship walker iterates this to emit one Event::Metric row per
-    /// counter (CloudWatch model: each counter is a single data
-    /// point, value = leaf(count)).
+    /// `:rust::telemetry::WorkUnit::counters-keys wu` — the key Values
+    /// for every counter that was ever bumped. Stone 216.5d — keys
+    /// are `Value` directly; no separate original-key storage needed.
+    /// Slice 4's ship walker iterates this to emit one Event::Metric
+    /// row per counter (CloudWatch model: each counter is a single
+    /// data point, value = leaf(count)).
     pub fn counters_keys(&self) -> Vec<Value> {
-        self.counters.values().map(|(k, _)| k.clone()).collect()
+        self.counters.keys().cloned().collect()
     }
 
-    /// `:rust::telemetry::WorkUnit::durations-keys wu` — the original
-    /// key Values for every duration name that ever had a sample
-    /// appended. Slice 4's ship walker pairs this with
-    /// `WorkUnit/durations` to emit ONE Event::Metric row PER
-    /// SAMPLE — N rows for a name with N samples (CloudWatch
-    /// model). metric_value stays a primitive HolonAST leaf this
-    /// way; Bundle/operator-tag preservation in NoTag (per arc 086)
-    /// never enters the picture.
+    /// `:rust::telemetry::WorkUnit::durations-keys wu` — the key Values
+    /// for every duration name that ever had a sample appended.
+    /// Stone 216.5d — keys are `Value` directly. Slice 4's ship
+    /// walker pairs this with `WorkUnit/durations` to emit ONE
+    /// Event::Metric row PER SAMPLE — N rows for a name with N
+    /// samples (CloudWatch model).
     pub fn durations_keys(&self) -> Vec<Value> {
-        self.durations.values().map(|(k, _)| k.clone()).collect()
+        self.durations.keys().cloned().collect()
     }
 
     /// `:rust::telemetry::WorkUnit::tags wu` — the immutable tag map
@@ -183,72 +185,64 @@ impl WatMeasureWorkUnit {
     }
 
     /// `:rust::telemetry::WorkUnit::incr wu name` — bumps
-    /// `counters[name]` by 1. If the key is absent, initializes
-    /// to 1 with the original-key-Value stored alongside.
-    ///
-    /// Panics if `name` is not a hashable Value (fn, channel,
-    /// opaque handle). HolonAST + primitives all hash; this is the
-    /// arc-057 contract.
+    /// `counters[name]` by 1. If the key is absent, initializes to 1.
+    /// Stone 216.5d — native `HashMap<Value, i64>` insert via `Value: Hash + Eq`.
+    /// `value_is_hashable` guards opaque-handle keys before insert.
     pub fn incr(&mut self, name: Value) {
-        let key = hashmap_key(":rust::telemetry::WorkUnit::incr", &name).unwrap_or_else(|_| {
+        if !value_is_hashable(&name) {
             panic!(
                 ":rust::telemetry::WorkUnit::incr: name must be a hashable Value \
                  (primitive or HolonAST); got {}",
                 name.type_name()
-            )
-        });
-        let entry = self.counters.entry(key).or_insert_with(|| (name.clone(), 0));
-        entry.1 += 1;
+            );
+        }
+        *self.counters.entry(name).or_insert(0) += 1;
     }
 
     /// `:rust::telemetry::WorkUnit::append-dt wu name secs` — appends
     /// `secs` to `durations[name]`. Initializes to a single-element
     /// Vec on first append for a given key.
+    /// Stone 216.5d — native `HashMap<Value, Vec<f64>>`.
     pub fn append_dt(&mut self, name: Value, secs: f64) {
-        let key = hashmap_key(":rust::telemetry::WorkUnit::append-dt", &name).unwrap_or_else(|_| {
+        if !value_is_hashable(&name) {
             panic!(
                 ":rust::telemetry::WorkUnit::append-dt: name must be a hashable Value \
                  (primitive or HolonAST); got {}",
                 name.type_name()
-            )
-        });
-        let entry = self
-            .durations
-            .entry(key)
-            .or_insert_with(|| (name.clone(), Vec::new()));
-        entry.1.push(secs);
+            );
+        }
+        self.durations.entry(name).or_default().push(secs);
     }
 
     /// `:rust::telemetry::WorkUnit::counter wu name` — returns the
     /// current count for `name`, or 0 if the key is absent. The
     /// "absent → 0" default is intentional: callers that want
     /// presence-aware behavior can pair with `counters-keys`.
+    /// Stone 216.5d — native `HashMap<Value, i64>` lookup.
     pub fn counter(&self, name: Value) -> i64 {
-        let key = hashmap_key(":rust::telemetry::WorkUnit::counter", &name).unwrap_or_else(|_| {
+        if !value_is_hashable(&name) {
             panic!(
                 ":rust::telemetry::WorkUnit::counter: name must be a hashable Value \
                  (primitive or HolonAST); got {}",
                 name.type_name()
-            )
-        });
-        self.counters.get(&key).map(|(_, n)| *n).unwrap_or(0)
+            );
+        }
+        self.counters.get(&name).copied().unwrap_or(0)
     }
 
     /// `:rust::telemetry::WorkUnit::durations wu name` — returns a
     /// cloned Vec of the duration samples for `name`. Empty Vec
     /// for absent keys. Slice 4's ship walker iterates this at
     /// scope-end to build the metric rows.
+    /// Stone 216.5d — native `HashMap<Value, Vec<f64>>` lookup.
     pub fn durations(&self, name: Value) -> Vec<f64> {
-        let key = hashmap_key(":rust::telemetry::WorkUnit::durations", &name).unwrap_or_else(|_| {
+        if !value_is_hashable(&name) {
             panic!(
                 ":rust::telemetry::WorkUnit::durations: name must be a hashable Value \
                  (primitive or HolonAST); got {}",
                 name.type_name()
-            )
-        });
-        self.durations
-            .get(&key)
-            .map(|(_, v)| v.clone())
-            .unwrap_or_default()
+            );
+        }
+        self.durations.get(&name).cloned().unwrap_or_default()
     }
 }

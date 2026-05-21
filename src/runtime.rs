@@ -7933,18 +7933,11 @@ fn eval_hashset_empty_q(
 fn vector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, RuntimeError> {
     match container {
         Value::Vec(xs) => {
-            // Element membership via canonical-key equality (same
-            // mechanism HashSet uses). This corrects the pre-arc-146
-            // Vec×i64 valid-index check.
-            let item_key = hashmap_key(":wat::core::Vector/contains?", item)?;
-            for x in xs.iter() {
-                if let Ok(x_key) = hashmap_key(":wat::core::Vector/contains?", x) {
-                    if x_key == item_key {
-                        return Ok(Value::bool(true));
-                    }
-                }
-            }
-            Ok(Value::bool(false))
+            // Stone 216.5d — native Value::PartialEq (impl PartialEq for Value, arc 216.5a).
+            // hashmap_key canonical-key crutch removed; Value: PartialEq + Eq is the contract.
+            // This corrects the pre-arc-146 Vec×i64 valid-index check.
+            let found = xs.iter().any(|x| x == item);
+            Ok(Value::bool(found))
         }
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::Vector/contains?".into(),
@@ -9677,36 +9670,6 @@ fn eval_list_remove_at(
     Ok(Value::Vec(Arc::new(out)))
 }
 
-/// Canonicalize a Value to a type-tagged String key for HashMap
-/// storage. Type-tags prevent cross-type collision (`42` vs `"42"`).
-/// Accepts every value type whose identity has a well-defined
-/// structural hash — primitives plus `HolonAST` (per arc 057's closed
-/// algebra; structural Hash + Eq derive), `WatAST`, `Vec<T>`,
-/// `HashMap<K,V>`, and `HashSet<T>`. Fn / Function /
-/// ProgramHandle / etc. error: their identity isn't structural.
-///
-/// ## Canonical-key schemes (arc 216 Stone 5)
-///
-/// - **String** `"S:{s}"` — raw string (type-tagged to avoid `"42"` vs `I:42`)
-/// - **i64** `"I:{n}"`
-/// - **f64** `"F:{bits}"` — NaN-safe (bit pattern, not decimal)
-/// - **bool** `"B:{b}"`
-/// - **keyword** `"K:{k}"`
-/// - **HolonAST** `"H:{hash:x}"` — DefaultHasher over structural Hash impl
-/// - **Uuid** `"U:{uuid}"` — canonical UUID string (1:1 with value)
-/// - **HashSet<T>** `"Set:{sorted-element-keys}"` — sorted for determinism;
-///   element keys are recursive `hashmap_key` calls
-/// - **Vec<T>** `"Vec:[{len1}:{k1},{len2}:{k2},...]"` — **length-prefix scheme**:
-///   each element's recursive key is prefixed by its byte length. The prefix
-///   prevents naive-comma-join collisions: `["a","b,c"]` produces
-///   `"Vec:[1:S:a,3:S:b,c]"` and `["a,b","c"]` produces `"Vec:[3:S:a,b,1:S:c]"` —
-///   these are distinct. Order preserved (Vec is ordered).
-/// - **HashMap<K,V>** `"Map:{(k1=v1),(k2=v2),...}"` — pairs sorted by
-///   canonical key string for determinism (HashMap has no order); both K and V
-///   are recursive `hashmap_key` calls.
-/// - **WatAST** `"W:{hash:x}"` — DefaultHasher over `format!("{:?}", ast)`;
-///   WatAST does not implement Hash directly; Debug output is span-agnostic
-///   structural representation (WatAST's PartialEq is span-agnostic per arc 1818).
 // Stone 216.5b — runtime hashability guard.
 // Returns `false` for the 14 opaque-handle `Value` variants that carry
 // `unreachable!()` in `impl Hash for Value`. These variants are not
@@ -9762,90 +9725,6 @@ pub fn value_is_key_hashable(v: &Value) -> bool {
     value_is_hashable(v)
 }
 
-pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
-    match v {
-        Value::String(s) => Ok(format!("S:{}", s)),
-        Value::i64(n) => Ok(format!("I:{}", n)),
-        Value::f64(x) => Ok(format!("F:{}", x.to_bits())),
-        Value::bool(b) => Ok(format!("B:{}", b)),
-        Value::wat__core__keyword(k) => Ok(format!("K:{}", k)),
-        Value::holon__HolonAST(h) => {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            h.hash(&mut hasher);
-            Ok(format!("H:{:x}", hasher.finish()))
-        }
-        // Arc 207 slice 3 — Uuid is hashable as its canonical string form.
-        // UUIDs are identifiers; canonical-string key is unique (1:1 with value).
-        Value::wat__core__Uuid(u) => Ok(format!("U:{}", u)),
-        // Arc 216 Stone 1 — HashSet<T> is hashable as its sorted canonical key list.
-        // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate s.iter() (Values
-        // directly) and compute each element's canonical key via recursive hashmap_key.
-        // Sorted for determinism (HashSet has no order; sort produces a stable composite key).
-        // Nested sets (HashSet<HashSet<...>>) compose via this recursive descent.
-        Value::wat__std__HashSet(s) => {
-            let mut element_keys: Vec<String> = Vec::with_capacity(s.len());
-            for elem in s.iter() {
-                let k = hashmap_key(op, elem)?;
-                element_keys.push(k);
-            }
-            element_keys.sort();
-            Ok(format!("Set:{{{}}}", element_keys.join(",")))
-        }
-        // Arc 216 Stone 5 — Vec<T> is hashable via length-prefix scheme.
-        // Each element's canonical key is prefixed by its byte length, then
-        // joined with commas. The length prefix prevents collision between
-        // ["a","b,c"] and ["a,b","c"] — naive comma-join would produce the same
-        // string; length-prefix produces distinct strings. Order is preserved
-        // (Vec is ordered; no sort step). Recursive hashmap_key per element.
-        Value::Vec(xs) => {
-            let mut parts = Vec::with_capacity(xs.len());
-            for elem in xs.iter() {
-                let k = hashmap_key(op, elem)?;
-                parts.push(format!("{}:{}", k.len(), k));
-            }
-            Ok(format!("Vec:[{}]", parts.join(",")))
-        }
-        // Arc 216 Stone 5 — HashMap<K,V> is hashable as sorted (key=value) pairs.
-        // Stone 216.5c — storage is now Arc<HashMap<Value, Value>>; iterate m.iter() for (k, v)
-        // directly (no canonical-key tuple). Sort by canonical key string for determinism.
-        // Both K and V are recursed via hashmap_key.
-        Value::wat__std__HashMap(m) => {
-            let mut pairs: Vec<(String, String)> = Vec::with_capacity(m.len());
-            for (k, v) in m.iter() {
-                let k_key = hashmap_key(op, k)?;
-                let v_key = hashmap_key(op, v)?;
-                pairs.push((k_key, v_key));
-            }
-            pairs.sort_by(|a, b| a.0.cmp(&b.0));
-            let joined: String = pairs.iter()
-                .map(|(k, v)| format!("({}={})", k, v))
-                .collect::<Vec<_>>()
-                .join(",");
-            Ok(format!("Map:{{{}}}", joined))
-        }
-        // Arc 216 Stone 5 — WatAST is hashable via DefaultHasher over its Debug
-        // representation. WatAST does not implement Hash directly (only derives
-        // Debug + Clone + PartialEq). The Debug output is span-agnostic structural
-        // representation (WatAST's PartialEq is span-agnostic). Mirrors the
-        // HolonAST pattern at lines 9337-9343 but uses Debug string as hash input.
-        Value::wat__WatAST(ast) => {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            format!("{:?}", ast).hash(&mut hasher);
-            Ok(format!("W:{:x}", hasher.finish()))
-        }
-        other => Err(RuntimeError::TypeMismatch {
-            op: op.into(),
-            expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-            got: other.type_name(),
-            // arc 138: no span — public helper takes &Value, not &WatAST; no source coordinates available
-            span: Span::unknown(),
-        }),
-    }
-}
 
 /// `(:wat::core::HashMap :K :V k1 v1 k2 v2 ...)` — verb-equals-type
 /// constructor. First two args are separate type-keywords `:K` and

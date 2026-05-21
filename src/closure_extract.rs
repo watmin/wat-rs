@@ -1558,20 +1558,21 @@ fn encode_value_with_path(
             out.push(WatAST::Keyword(":wat::core::HashMap".into(), span.clone()));
             out.push(WatAST::Keyword(k_kw, span.clone()));
             out.push(WatAST::Keyword(v_kw, span.clone()));
-            // Iterate by sorted canonical key (via hashmap_key) for determinism.
-            // hashmap_key still exists (Stone 216.5d deletes it); used here for sort only.
+            // Stone 216.5d — sort by Value's native Hash for determinism.
+            // hashmap_key canonical-key crutch removed; Value: Hash (arc 216.5a) is the contract.
+            // DefaultHasher produces a stable u64 key per Value for sort ordering.
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let value_sort_key = |v: &Value| -> u64 {
+                let mut h = DefaultHasher::new();
+                v.hash(&mut h);
+                h.finish()
+            };
             let mut entries: Vec<(&Value, &Value)> = map.iter().collect();
-            entries.sort_by(|a, b| {
-                let ka = crate::runtime::hashmap_key(":closure-extract::HashMap", a.0)
-                    .unwrap_or_default();
-                let kb = crate::runtime::hashmap_key(":closure-extract::HashMap", b.0)
-                    .unwrap_or_default();
-                ka.cmp(&kb)
-            });
+            entries.sort_by_key(|(k, _)| value_sort_key(k));
             for (k, vv) in entries {
-                let canon_key = crate::runtime::hashmap_key(":closure-extract::HashMap", k)
-                    .unwrap_or_default();
-                path.push(format!("{{{}}}", canon_key));
+                let sort_key = value_sort_key(k);
+                path.push(format!("{{{:x}}}", sort_key));
                 let kk = encode_value_with_path(k, binding_name, path, state)?;
                 let vv2 = encode_value_with_path(vv, binding_name, path, state)?;
                 path.pop();
@@ -1582,7 +1583,7 @@ fn encode_value_with_path(
         }
         Value::wat__std__HashSet(set) => {
             // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate Values directly.
-            // Sort by canonical string (via hashmap_key) for deterministic encoding order.
+            // Stone 216.5d — sort by Value's native Hash for deterministic encoding order.
             let elem_kw = if let Some(v) = set.iter().next() {
                 value_static_type_keyword(v, state)?
             } else {
@@ -1591,16 +1592,20 @@ fn encode_value_with_path(
             let mut out = Vec::with_capacity(set.len() + 2);
             out.push(WatAST::Keyword(":wat::core::HashSet".into(), span.clone()));
             out.push(WatAST::Keyword(elem_kw, span.clone()));
-            // Collect values; sort by canonical key for determinism.
+            // Stone 216.5d — sort by Value's native Hash for determinism.
+            // hashmap_key canonical-key crutch removed; Value: Hash (arc 216.5a) is the contract.
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let value_sort_key_set = |v: &Value| -> u64 {
+                let mut h = DefaultHasher::new();
+                v.hash(&mut h);
+                h.finish()
+            };
             let mut entries: Vec<&Value> = set.iter().collect();
-            entries.sort_by(|a, b| {
-                let ka = crate::runtime::hashmap_key("closure_extract", a).unwrap_or_default();
-                let kb = crate::runtime::hashmap_key("closure_extract", b).unwrap_or_default();
-                ka.cmp(&kb)
-            });
+            entries.sort_by_key(|v| value_sort_key_set(v));
             for vv in entries {
-                let canon_key = crate::runtime::hashmap_key("closure_extract", vv).unwrap_or_default();
-                path.push(format!("{{{}}}", canon_key));
+                let sort_key = value_sort_key_set(vv);
+                path.push(format!("{{{:x}}}", sort_key));
                 let encoded = encode_value_with_path(vv, binding_name, path, state)?;
                 path.pop();
                 out.push(encoded);

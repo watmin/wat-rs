@@ -57,7 +57,7 @@ use rusqlite::{Connection, OpenFlags};
 use wat::ast::WatAST;
 use wat::edn_shim::{read_holon_ast_natural, read_holon_ast_tagged};
 use wat::runtime::{
-    eval, hashmap_key, Environment, EnumValue, RuntimeError, StructValue, SymbolTable, Value,
+    eval, Environment, EnumValue, RuntimeError, StructValue, SymbolTable, Value,
 };
 use wat::rust_deps::{
     downcast_ref_opaque, rust_opaque_arc, RustDispatch, RustScheme, RustSymbol, SchemeCtx,
@@ -488,7 +488,10 @@ fn decode_tags(text: &str) -> Result<Value, ReifyError> {
             )));
         }
     };
-    let mut map: std::collections::HashMap<String, (Value, Value)> =
+    // Stone 216.5d — native HashMap<Value, Value>; hashmap_key crutch removed.
+    // HolonAST is hashable (Value: Hash + Eq from arc 216.5a); no guard needed.
+    #[allow(clippy::mutable_key_type)]
+    let mut map: std::collections::HashMap<Value, Value> =
         std::collections::HashMap::with_capacity(entries.len());
     for (k, v) in entries {
         // Each k / v in the writer-side natural map IS a HolonAST.
@@ -498,9 +501,7 @@ fn decode_tags(text: &str) -> Result<Value, ReifyError> {
             .map_err(|e| ReifyError::DecodeTags(format!("value: {e}")))?;
         let k_val = Value::holon__HolonAST(k_ast);
         let v_val = Value::holon__HolonAST(v_ast);
-        let canonical = hashmap_key(":wat::telemetry::sqlite/tags-decode", &k_val)
-            .map_err(|e| ReifyError::DecodeTags(format!("hashmap_key: {e}")))?;
-        map.insert(canonical, (k_val, v_val));
+        map.insert(k_val, v_val);
     }
     Ok(Value::wat__std__HashMap(Arc::new(map)))
 }

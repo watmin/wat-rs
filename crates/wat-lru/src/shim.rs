@@ -13,33 +13,36 @@
 //! `#[wat_dispatch]` annotates a Rust `impl` block. We can't
 //! annotate the upstream `lru::LruCache<K,V>` directly (orphan rule,
 //! plus generic handling), so we wrap it in `WatLruCache` with
-//! monomorphic `LruCache<String, Value>` storage — canonical-string
-//! keys matching wat's HashMap convention. The wat-level `<K,V>`
-//! type parameters are phantom (declared via the attribute's
-//! `type_params = "K,V"`) and enforced by the type checker; the
-//! runtime transports any `Value`.
+//! monomorphic `LruCache<Value, Value>` storage — Value: Hash + Eq
+//! (arc 216 Stone 216.5a). The wat-level `<K,V>` type parameters are
+//! phantom (declared via the attribute's `type_params = "K,V"`) and
+//! enforced by the type checker; the runtime transports any `Value`.
+//!
+//! Stone 216.5d — `hashmap_key` deleted. LRU storage changed from
+//! `LruCache<String, (Value, Value)>` to `LruCache<Value, Value>`.
+//! The canonical-string key crutch is gone; `Value: Hash + Eq` is
+//! the contract. `value_is_hashable` guard replaces the `hashmap_key`
+//! panic path for opaque-handle values.
 
 use lru::LruCache;
 use std::num::NonZeroUsize;
 
 use wat::rust_deps::RustDepsBuilder;
-use wat::runtime::{hashmap_key, Value};
+use wat::runtime::{value_is_hashable, Value};
 
 use wat_macros::wat_dispatch;
 
-/// Newtype wrapper around `lru::LruCache<String, (Value, Value)>`.
+/// Newtype wrapper around `lru::LruCache<Value, Value>`.
 /// The wat type checker sees this as `:rust::lru::LruCache<K,V>` with
 /// phantom K,V (see the `type_params` attribute below).
 ///
-/// Storage shape: the canonical String of the user's key indexes into
-/// pairs of `(original_key_value, val)`. Keeping the original key
-/// alive lets `put` return the evicted entry as `Option<(K, V)>` —
-/// downstream consumers (e.g. HologramCache under arc 074 slice 2) need
-/// the original AST to clean up correlated bookkeeping when the LRU
-/// evicts a key. Memory cost is one extra `Arc::clone` per entry
-/// (HolonAST is Arc-wrapped; primitives are Copy or small).
+/// Stone 216.5d — storage is `LruCache<Value, Value>`. `Value: Hash + Eq`
+/// (arc 216.5a) is the equality contract. `value_is_hashable` guards
+/// opaque-handle keys before `push`/`get` so they produce panics with
+/// clear messages instead of hitting `unreachable!()` in `impl Hash for Value`.
+#[allow(clippy::mutable_key_type)]
 pub struct WatLruCache {
-    inner: LruCache<String, (Value, Value)>,
+    inner: LruCache<Value, Value>,
 }
 
 #[wat_dispatch(
@@ -47,6 +50,7 @@ pub struct WatLruCache {
     scope = "thread_owned",
     type_params = "K,V"
 )]
+#[allow(clippy::mutable_key_type)]
 impl WatLruCache {
     /// `:rust::lru::LruCache::new capacity` — capacity must be positive.
     /// The returned value is a `ThreadOwnedCell<WatLruCache>` wrapped
@@ -73,42 +77,42 @@ impl WatLruCache {
     }
 
     /// `:rust::lru::LruCache::put cache k v` — insert or update. LRU
-    /// evicts the least-recently-used entry if insertion pushes past
-    /// capacity. Key is canonicalized via `hashmap_key`, which now
-    /// accepts every value type with a structural identity:
-    /// primitives plus `HolonAST` (per arc 057). Fns / handles /
-    /// other non-hashable values still error.
+    /// evicts the least-recently-used entry if insertion pushed past
+    /// capacity. Stone 216.5d — key is `Value` directly via `Value: Hash + Eq`.
+    /// Opaque-handle values (fn, channel, thread handle) are not hashable;
+    /// `value_is_hashable` guards them before `push` so a clear panic is
+    /// emitted instead of hitting `unreachable!()`.
     ///
     /// Returns `Some((evicted_k, evicted_v))` if insertion pushed past
     /// capacity, `None` otherwise. Most callers ignore the return; bound
     /// caches that maintain correlated state (HologramCache's per-cell
     /// hologram store) consume it to drop the matching entry.
     pub fn put(&mut self, k: Value, v: Value) -> Option<(Value, Value)> {
-        let key = hashmap_key(":rust::lru::LruCache::put", &k).unwrap_or_else(|_| {
+        if !value_is_hashable(&k) {
             panic!(
                 ":rust::lru::LruCache::put: key must be a hashable value \
                  (primitive or HolonAST); got {}",
                 k.type_name()
-            )
-        });
+            );
+        }
         // Use `push` (returns Option<(K,V)>) rather than `put` (returns
         // Option<V>) because we want eviction visibility, not just
         // overwrite visibility. push returns Some on either an
         // overwrite of an existing key OR a capacity-driven eviction.
-        self.inner.push(key, (k, v)).map(|(_, pair)| pair)
+        self.inner.push(k, v)
     }
 
     /// `:rust::lru::LruCache::get cache k` — returns `:Option<V>`. Hit
-    /// bumps the entry to MRU. Key constraint matches put().
+    /// bumps the entry to MRU. Stone 216.5d — key lookup via `Value: Hash + Eq`.
     pub fn get(&mut self, k: Value) -> Option<Value> {
-        let key = hashmap_key(":rust::lru::LruCache::get", &k).unwrap_or_else(|_| {
+        if !value_is_hashable(&k) {
             panic!(
                 ":rust::lru::LruCache::get: key must be a hashable value \
                  (primitive or HolonAST); got {}",
                 k.type_name()
-            )
-        });
-        self.inner.get(&key).map(|(_, v)| v.clone())
+            );
+        }
+        self.inner.get(&k).cloned()
     }
 
     /// `:rust::lru::LruCache::len cache` — current entry count.
@@ -125,8 +129,8 @@ impl WatLruCache {
     }
 }
 
-/// Registrar for `:rust::lru::LruCache`. Forwards to the macro-
-/// generated register fn. Called by wat-lru's `pub fn register()`
+/// Registrar for `:rust::lru::LruCache`. Forwards to the
+/// macro-generated register fn. Called by wat-lru's `pub fn register()`
 /// at the crate root, which user binaries wire via `wat::main!`.
 pub fn register(builder: &mut RustDepsBuilder) {
     __wat_dispatch_WatLruCache::register(builder);
