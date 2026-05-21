@@ -139,10 +139,10 @@ unchanged.
 
 ## 3. Parsing
 
-Four free-function entry points and a `Parser` builder:
+Three free-function entry points (`parse`, `parse_owned`, `parse_all`) and a `Parser` builder (use `Parser::new_wire` for wire-mode):
 
 ```rust
-use wat_edn::{parse, parse_owned, parse_all, parse_wire, parse_wire_owned, Parser};
+use wat_edn::{parse, parse_owned, parse_all, Parser};
 
 // Single top-level form, zero-copy where possible
 let v: Value<'_> = parse("#myapp/Order {:id 1}")?;
@@ -153,17 +153,14 @@ let v: OwnedValue = parse_owned("#myapp/Order {:id 1}")?;
 // All top-level forms (whitespace + comments between them)
 let vs: Vec<Value<'_>> = parse_all("1 2 3")?;
 
-// Wire-mode parsers: inside parametric type arglists (`:Foo<A,B>`),
-// the `,` is swapped to `_` on the wire so commas survive EDN's
-// whitespace rule. These free functions undo that swap at parse time.
-let v: Value<'_>     = parse_wire(wire_input)?;   // zero-copy where possible
-let v: OwnedValue    = parse_wire_owned(wire_input)?; // materializes to 'static
-
 // Drive Parser directly when you need stricter control:
 //   parse_top  — one form then expect EOF (rejects trailing junk)
 //   parse_all  — all forms until EOF (same as the free function)
-//   new_wire   — wire-mode equivalent of the free functions above
+//   new_wire   — wire-mode: inside parametric type arglists (`:Foo<A,B>`),
+//                the `,` is swapped to `_` on the wire so commas survive
+//                EDN's whitespace rule. Use new_wire to decode that swap.
 let v: Value<'_> = Parser::new(input).parse_top()?;
+let v: Value<'_> = Parser::new_wire(wire_input).parse_top()?;  // wire-mode
 let vs: Vec<Value<'_>> = Parser::new_wire(wire_input).parse_all()?;
 ```
 

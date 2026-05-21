@@ -99,6 +99,7 @@ fn build_shape_matrix() -> Value<'static> {
             (tag("wat.holon", "Atom", kw("role")),
              tag("wat.holon", "Atom", kw("filler"))),
         ])),
+
     ])
 }
 

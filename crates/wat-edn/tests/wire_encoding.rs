@@ -7,13 +7,13 @@
 //!   - Source: `_` is FORBIDDEN (rejected by [`parse`]); `,` is the
 //!     type-arg separator
 //!   - Wire: `,` ↔ `_` swap (one-to-one at depth ≥ 1) — [`write`]
-//!     emits `_`; [`parse_wire`] decodes `_` back to `,`
+//!     emits `_`; [`Parser::new_wire`] decodes `_` back to `,`
 //! - **Outside `<...>`** (depth 0):
 //!   - Source: `_` allowed (preserves `:rust::*` Rust-mirror
 //!     convention)
 //!   - Wire: chars pass verbatim
 //!
-//! Round-trip property: `parse_wire(write(k)) == k` for every
+//! Round-trip property: `Parser::new_wire(write(k)).parse_top() == k` for every
 //! parametric type keyword. The `parse(...)` function (source mode)
 //! intentionally rejects `_` inside `<...>` so source authors can't
 //! confuse the wire form with the source form.
@@ -23,7 +23,7 @@
 //! identity, nested brackets, empty brackets, the `:rust::*` mirror
 //! convention, and existing 18 underscore-in-keyword forms.
 
-use wat_edn::{parse, parse_wire, write, Keyword, Value};
+use wat_edn::{parse, write, Keyword, Parser, Value};
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -35,12 +35,12 @@ fn kw(name: &str) -> Value<'static> {
     Value::Keyword(Keyword::new(name))
 }
 
-/// Round-trip a keyword via the wire path: write → parse_wire →
+/// Round-trip a keyword via the wire path: write → Parser::new_wire →
 /// expect equality with the in-memory original.
 fn roundtrip_wire(v: &Value<'_>) {
     let wire = write(v);
-    let decoded = parse_wire(&wire).unwrap_or_else(|e| {
-        panic!("parse_wire failed on writer output {:?}: {:?}", wire, e)
+    let decoded = Parser::new_wire(&wire).parse_top().unwrap_or_else(|e| {
+        panic!("Parser::new_wire(...).parse_top() failed on writer output {:?}: {:?}", wire, e)
     });
     assert_eq!(
         v.clone().into_owned(),
@@ -184,7 +184,7 @@ fn writer_preserves_underscore_with_brackets_outside() {
 fn wire_decode_swaps_underscore_to_comma() {
     // Wire reader sees `:HashMap<K_V>` (writer's output), decodes
     // it back to in-memory keyword body `HashMap<K,V>`.
-    let v = parse_wire(":HashMap<K_V>").unwrap();
+    let v = Parser::new_wire(":HashMap<K_V>").parse_top().unwrap();
     match v {
         Value::Keyword(k) => {
             assert_eq!(k.namespace(), None);
@@ -200,7 +200,7 @@ fn wire_decode_preserves_underscore_outside_brackets() {
     // Post-arc-219: strict-EDN keyword bodies use `.` not `::`;
     // the entire dot-separated body lands in `name()` (only `/`
     // is the namespace separator at the EDN layer).
-    let v = parse_wire(":rust.crossbeam_channel.Sender").unwrap();
+    let v = Parser::new_wire(":rust.crossbeam_channel.Sender").parse_top().unwrap();
     match v {
         Value::Keyword(k) => {
             assert_eq!(k.namespace(), None);
@@ -309,7 +309,7 @@ fn rust_mirror_underscore_forms_still_parse() {
             panic!("expected to parse {:?} (Rust-mirror), got {:?}", s, e)
         });
         // Wire mode also accepts (no swap on depth-0 underscores).
-        parse_wire(s).unwrap_or_else(|e| {
+        Parser::new_wire(s).parse_top().unwrap_or_else(|e| {
             panic!("wire mode failed on {:?}: {:?}", s, e)
         });
     }

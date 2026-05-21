@@ -1,6 +1,6 @@
 //! Round-trip tests: parse → write → parse → identical Value.
 
-use wat_edn::{parse, write, OwnedValue};
+use wat_edn::{parse, write, OwnedValue, Value};
 
 /// Materialize both Values via `into_owned` so the test doesn't
 /// thread the input string's lifetime through the returned tuple.
@@ -81,4 +81,29 @@ fn deep_nesting_round_trips() {
     let input = "[1 [2 [3 [4 [5 [6 [7 [8 [9 [10]]]]]]]]]]";
     let (v1, _, v2) = round_trip(input);
     assert_eq!(v1, v2);
+}
+
+#[test]
+fn supplementary_plane_char_round_trips() {
+    // U+1F600 (😀) is a supplementary-plane codepoint. EDN's \uXXXX
+    // escape is BMP-only (exactly 4 hex digits). The writer MUST emit
+    // the literal char, not overflow to 5 hex digits. Clojure parses
+    // the literal form correctly (verified via shape-matrix interop).
+    let original = Value::Char('😀');
+    let written = write(&original);
+    // The writer must emit the literal char (not ὠ0 which is 5 digits).
+    assert!(
+        !written.contains("\\u1F600"),
+        "writer must not emit 5-digit \\uXXXX for supplementary-plane: got {:?}",
+        written
+    );
+    let reparsed = parse(&written)
+        .unwrap_or_else(|e| panic!("parse failed on writer output {:?}: {:?}", written, e))
+        .into_owned();
+    assert_eq!(
+        original.into_owned(),
+        reparsed,
+        "supplementary-plane char must survive write→parse round-trip; wire={:?}",
+        written
+    );
 }

@@ -5,7 +5,7 @@
 //! at parse time. User tags surface as `Value::Tagged`.
 
 use crate::error::{Error, ErrorKind, Result};
-use crate::vocab::validate_first_char;
+use crate::vocab::{is_canonical_uuid, validate_first_char};
 use crate::lexer::{Lexer, Token};
 use crate::value::{Keyword, Symbol, Tag, Value};
 use bigdecimal::BigDecimal;
@@ -41,7 +41,8 @@ impl<'a> Parser<'a> {
     /// Construct a wire-decode-mode parser. The underlying lexer
     /// swaps `_` → `,` at bracket depth ≥ 1 inside keyword bodies
     /// BEFORE the source-validation rejection fires. See arc 170
-    /// slice 1f-W and [`crate::parse_wire`].
+    /// slice 1f-W. Use `Parser::new_wire(input).parse_top()` for
+    /// wire-mode reads.
     pub fn new_wire(input: &'a str) -> Self {
         Self {
             lexer: Lexer::new_wire(input),
@@ -446,32 +447,8 @@ fn reject_underscore_in_brackets(body: &str, body_start: usize) -> Result<()> {
     Ok(())
 }
 
-/// Spec: "A UUID. The tagged element is a canonical UUID string
-/// representation." The canonical form is 8-4-4-4-12 lowercase
-/// hexadecimal characters separated by hyphens.
-///
-/// `uuid::Uuid::parse_str` is more lenient (accepts simple-form,
-/// URN-form, and braced-form). Strict EDN means strict canonical.
-pub(crate) fn is_canonical_uuid(s: &str) -> bool {
-    if s.len() != 36 {
-        return false;
-    }
-    let bytes = s.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
-        let expect_dash = matches!(i, 8 | 13 | 18 | 23);
-        let is_dash = b == b'-';
-        if expect_dash != is_dash {
-            return false;
-        }
-        if !(is_dash || b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
-            return false;
-        }
-    }
-    true
-}
-
-// validate_first_char lives in `crate::vocab` so the rule is owned
-// once and shared with the lexer's symbol-start check.
+// validate_first_char and is_canonical_uuid live in `crate::vocab`
+// so spec rules are owned once and shared across the parser/json layers.
 
 #[cfg(test)]
 mod tests {

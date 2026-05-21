@@ -10,7 +10,7 @@
 //! (locked 2026-05-10).
 //!
 //! Mirror of [`super::lexer::Lexer::new_wire`]'s `_` → `,` decode.
-//! Round-trip property: `parse_wire(write(k)) == k` for any keyword
+//! Round-trip property: `Parser::new_wire(write(k)).parse_top() == k` for any keyword
 //! `k`, including parametric forms with commas at any depth.
 //!
 //! Outside `<...>` (depth 0), keyword body chars pass verbatim:
@@ -75,7 +75,7 @@ fn write_pretty_indented(v: &Value, out: &mut String, level: usize) {
             if items.is_empty() {
                 out.push_str(open);
                 out.push_str(close);
-            } else if all_scalar(items) && items.len() <= 8 {
+            } else if items.len() <= 8 && all_scalar(items) {
                 // Inline small scalar-only collections.
                 out.push_str(open);
                 let mut first = true;
@@ -310,10 +310,21 @@ fn write_char(c: char, out: &mut String) {
         out.push_str(name);
         return;
     }
-    if (c as u32) < 0x20 || (c as u32) > 0x7E {
-        write!(out, "u{:04X}", c as u32).unwrap();
+    let cp = c as u32;
+    // BMP control bytes (< 0x20) and DEL (0x7F) → \uXXXX (exactly 4
+    // hex digits per spec). BMP non-control non-printable also fits
+    // within 4 hex digits.
+    if cp < 0x20 || cp == 0x7F {
+        write!(out, "u{:04X}", cp).unwrap();
         return;
     }
+    if cp <= 0xFFFF && !(0x20..=0x7E).contains(&cp) {
+        write!(out, "u{:04X}", cp).unwrap();
+        return;
+    }
+    // Printable ASCII + supplementary-plane → literal. Supplementary-
+    // plane codepoints MUST be literal: EDN's \uXXXX is BMP-only (4
+    // hex digits). A 5-digit form (e.g. ὠ0) is not valid EDN.
     out.push(c);
 }
 

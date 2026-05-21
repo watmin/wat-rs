@@ -209,16 +209,6 @@ pub struct Tag {
     name: CompactString,
 }
 
-// ─── Boundary translation ────────────────────────────────────────
-
-/// Translate wat-rs `::` namespace separators to strict-EDN `.` form.
-/// One-pass; idempotent (`.` input passes through unchanged).
-/// Called at construction time by the checked constructors (`ns`, `try_ns`)
-/// so callers may pass either form and get canonical strict-EDN storage.
-fn translate_wat_to_strict(ns: &str) -> String {
-    ns.replace("::", ".")
-}
-
 // ─── Symbol ─────────────────────────────────────────────────────
 
 impl Symbol {
@@ -243,10 +233,9 @@ impl Symbol {
     /// on construction so callers may pass either form.
     #[track_caller]
     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
-        let ns_translated = translate_wat_to_strict(namespace.as_ref());
+        let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())
+            .unwrap_or_else(|m| panic!("invalid symbol namespace {:?}: {}", namespace.as_ref(), m));
         let name = name.as_ref();
-        crate::vocab::validate_first_char(&ns_translated)
-            .unwrap_or_else(|m| panic!("invalid symbol namespace {:?}: {}", ns_translated, m));
         crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid symbol name {:?}: {}", name, m));
         Self {
@@ -272,9 +261,8 @@ impl Symbol {
         namespace: impl AsRef<str>,
         name: impl AsRef<str>,
     ) -> std::result::Result<Self, &'static str> {
-        let ns_translated = translate_wat_to_strict(namespace.as_ref());
+        let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())?;
         let name = name.as_ref();
-        crate::vocab::validate_first_char(&ns_translated)?;
         crate::vocab::validate_first_char(name)?;
         Ok(Self {
             namespace: Some(CompactString::from(ns_translated)),
@@ -320,10 +308,9 @@ impl Keyword {
     /// on construction so callers may pass either form.
     #[track_caller]
     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
-        let ns_translated = translate_wat_to_strict(namespace.as_ref());
+        let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())
+            .unwrap_or_else(|m| panic!("invalid keyword namespace {:?}: {}", namespace.as_ref(), m));
         let name = name.as_ref();
-        crate::vocab::validate_first_char(&ns_translated)
-            .unwrap_or_else(|m| panic!("invalid keyword namespace {:?}: {}", ns_translated, m));
         crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid keyword name {:?}: {}", name, m));
         Self {
@@ -347,9 +334,8 @@ impl Keyword {
         namespace: impl AsRef<str>,
         name: impl AsRef<str>,
     ) -> std::result::Result<Self, &'static str> {
-        let ns_translated = translate_wat_to_strict(namespace.as_ref());
+        let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())?;
         let name = name.as_ref();
-        crate::vocab::validate_first_char(&ns_translated)?;
         crate::vocab::validate_first_char(name)?;
         Ok(Self {
             namespace: Some(CompactString::from(ns_translated)),
@@ -386,10 +372,9 @@ impl Tag {
     /// on construction so callers may pass either form.
     #[track_caller]
     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
-        let ns_translated = translate_wat_to_strict(namespace.as_ref());
+        let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())
+            .unwrap_or_else(|m| panic!("invalid tag namespace {:?}: {}", namespace.as_ref(), m));
         let name = name.as_ref();
-        crate::vocab::validate_first_char(&ns_translated)
-            .unwrap_or_else(|m| panic!("invalid tag namespace {:?}: {}", ns_translated, m));
         crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid tag name {:?}: {}", name, m));
         Self {
@@ -408,9 +393,8 @@ impl Tag {
         namespace: impl AsRef<str>,
         name: impl AsRef<str>,
     ) -> std::result::Result<Self, &'static str> {
-        let ns_translated = translate_wat_to_strict(namespace.as_ref());
+        let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())?;
         let name = name.as_ref();
-        crate::vocab::validate_first_char(&ns_translated)?;
         crate::vocab::validate_first_char(name)?;
         Ok(Self {
             namespace: CompactString::from(ns_translated),

@@ -33,7 +33,7 @@
 //!
 //! Round-trip identity holds for every spec EDN type.
 
-use crate::parser::is_canonical_uuid;
+use crate::vocab::is_canonical_uuid;
 use crate::value::{Keyword, Symbol, Tag, Value};
 use crate::OwnedValue;
 use bigdecimal::BigDecimal;
@@ -84,6 +84,9 @@ pub enum JsonError {
 
     #[error("invalid map: {0}")]
     InvalidMap(String),
+
+    #[error("invalid set: {0}")]
+    InvalidSet(String),
 
     #[error("invalid map key '{key}': {reason}")]
     InvalidMapKey { key: String, reason: String },
@@ -169,6 +172,12 @@ pub fn to_json_string(v: &Value<'_>) -> String {
     // well-formed serde_json::Value graphs (no NaN-in-Number). The
     // .expect() panic is structurally unreachable; the coupling is
     // the invariant.
+    // rune:temperare(serde-api-shape) — serde_json::to_string takes
+    // &impl Serialize; we materialize via edn_to_json into a full
+    // serde_json::Value tree before serializing. Alternative is a
+    // custom serde::Serialize impl on Value (full visitor). No caller
+    // has surfaced JSON-throughput pressure; the simpler shape wins
+    // until measurement disagrees.
     serde_json::to_string(&edn_to_json(v)).expect("serde_json::to_string on Value")
 }
 
@@ -179,6 +188,12 @@ pub fn to_json_string_pretty(v: &Value<'_>) -> String {
     // only well-formed serde_json::Value graphs (no NaN-in-Number). The
     // .expect() panic is structurally unreachable; the coupling is
     // the invariant.
+    // rune:temperare(serde-api-shape) — serde_json::to_string_pretty
+    // takes &impl Serialize; we materialize via edn_to_json into a full
+    // serde_json::Value tree before serializing. Alternative is a
+    // custom serde::Serialize impl on Value (full visitor). No caller
+    // has surfaced JSON-throughput pressure; the simpler shape wins
+    // until measurement disagrees.
     serde_json::to_string_pretty(&edn_to_json(v))
         .expect("serde_json::to_string_pretty on Value")
 }
@@ -373,7 +388,7 @@ fn decode_symbol(v: &JV) -> JsonResult<OwnedValue> {
 fn decode_set(v: &JV) -> JsonResult<OwnedValue> {
     let arr = v
         .as_array()
-        .ok_or_else(|| JsonError::InvalidMap(format!("#set body must be array: {}", v)))?;
+        .ok_or_else(|| JsonError::InvalidSet(format!("#set body must be array: {}", v)))?;
     let parsed: JsonResult<Vec<_>> = arr.iter().map(json_to_edn).collect();
     Ok(Value::Set(parsed?))
 }

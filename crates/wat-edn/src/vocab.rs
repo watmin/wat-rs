@@ -200,6 +200,39 @@ pub fn validate_first_char(s: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// Translate a wat-rs `::` namespace separator to strict-EDN `.` form
+/// and validate the first-character rule in one step. Returns the
+/// translated namespace on success.
+pub(crate) fn translate_and_validate_ns(ns: &str) -> Result<String, &'static str> {
+    let translated = ns.replace("::", ".");
+    validate_first_char(&translated)?;
+    Ok(translated)
+}
+
+/// Spec: "A UUID. The tagged element is a canonical UUID string
+/// representation." The canonical form is 8-4-4-4-12 lowercase
+/// hexadecimal characters separated by hyphens.
+///
+/// `uuid::Uuid::parse_str` is more lenient (accepts simple-form,
+/// URN-form, and braced-form). Strict EDN means strict canonical.
+pub(crate) fn is_canonical_uuid(s: &str) -> bool {
+    if s.len() != 36 {
+        return false;
+    }
+    let bytes = s.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        let expect_dash = matches!(i, 8 | 13 | 18 | 23);
+        let is_dash = b == b'-';
+        if expect_dash != is_dash {
+            return false;
+        }
+        if !(is_dash || b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
