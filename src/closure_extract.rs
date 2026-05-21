@@ -1570,7 +1570,9 @@ fn encode_value_with_path(
             Ok(WatAST::List(out, span))
         }
         Value::wat__std__HashSet(set) => {
-            let elem_kw = if let Some((_canon, v)) = set.iter().next() {
+            // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate Values directly.
+            // Sort by canonical string (via hashmap_key) for deterministic encoding order.
+            let elem_kw = if let Some(v) = set.iter().next() {
                 value_static_type_keyword(v, state)?
             } else {
                 ":wat::core::nil".to_string()
@@ -1578,9 +1580,15 @@ fn encode_value_with_path(
             let mut out = Vec::with_capacity(set.len() + 2);
             out.push(WatAST::Keyword(":wat::core::HashSet".into(), span.clone()));
             out.push(WatAST::Keyword(elem_kw, span.clone()));
-            let mut entries: Vec<(&String, &Value)> = set.iter().collect();
-            entries.sort_by(|a, b| a.0.cmp(b.0));
-            for (canon_key, vv) in entries {
+            // Collect values; sort by canonical key for determinism.
+            let mut entries: Vec<&Value> = set.iter().collect();
+            entries.sort_by(|a, b| {
+                let ka = crate::runtime::hashmap_key("closure_extract", a).unwrap_or_default();
+                let kb = crate::runtime::hashmap_key("closure_extract", b).unwrap_or_default();
+                ka.cmp(&kb)
+            });
+            for vv in entries {
+                let canon_key = crate::runtime::hashmap_key("closure_extract", vv).unwrap_or_default();
                 path.push(format!("{{{}}}", canon_key));
                 let encoded = encode_value_with_path(vv, binding_name, path, state)?;
                 path.pop();

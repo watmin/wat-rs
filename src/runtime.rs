@@ -44,6 +44,7 @@ use crate::span::Span;
 use crate::config::Config;
 use holon::{encode, HolonAST, Similarity};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -432,11 +433,10 @@ pub enum Value {
     /// (i64, f64, bool, String, keyword); composite keys land when
     /// a caller demands them.
     wat__std__HashMap(Arc<std::collections::HashMap<String, (Value, Value)>>),
-    /// A `:HashSet<T>` — Rust std's HashSet semantically; stored as
-    /// a `HashMap<canonical-key, original-value>` so `get` can
-    /// return the stored variant on hit. Primitive elements only in
-    /// this slice (matches HashMap's key scope).
-    wat__std__HashSet(Arc<std::collections::HashMap<String, Value>>),
+    /// A `:HashSet<T>` — Rust std's HashSet natively; stored as
+    /// `Arc<HashSet<Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
+    /// for Value`. No canonical-key crutch; dedupe via native hash semantics.
+    wat__std__HashSet(Arc<HashSet<Value>>),
     /// Generic opaque handle to a Rust-shim-owned value. The
     /// target-form for any `:rust::*` type that doesn't have its own
     /// dedicated Value variant. The inner `RustOpaqueInner` carries a
@@ -655,25 +655,11 @@ impl PartialEq for Value {
             (Value::wat__WatAST(a), Value::wat__WatAST(b)) => a == b,
             (Value::wat__core__Uuid(a), Value::wat__core__Uuid(b)) => a == b,
             (Value::Vec(a), Value::Vec(b)) => a == b,
-            // HashSet: two HashSets are equal iff they contain the same elements.
-            // Storage is Arc<HashMap<canonical_key, Value>>; keys are the canonical
-            // string representation. Equal iff key-sets are equal AND values match.
-            (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => {
-                if a.len() != b.len() {
-                    return false;
-                }
-                for (k, v) in a.iter() {
-                    match b.get(k) {
-                        Some(bv) => {
-                            if v != bv {
-                                return false;
-                            }
-                        }
-                        None => return false,
-                    }
-                }
-                true
-            }
+            // HashSet: native Arc<HashSet<Value>> equality.
+            // Stone 216.5b — storage is now Arc<HashSet<Value>>; HashSet's PartialEq
+            // impl delegates to element PartialEq (order-independent set semantics).
+            // Reduces to a single native comparison.
+            (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => a == b,
             // HashMap: two HashMaps are equal iff they contain the same key-value pairs.
             (Value::wat__std__HashMap(a), Value::wat__std__HashMap(b)) => {
                 if a.len() != b.len() {
@@ -790,11 +776,13 @@ impl std::hash::Hash for Value {
             Value::wat__core__Uuid(u) => u.hash(state),
             // Vec: std lib Vec<T>: Hash composes recursively
             Value::Vec(xs) => xs.hash(state),
-            // HashSet: sort element hashes for set semantics (order-independent)
+            // HashSet: sort element hashes for set semantics (order-independent).
+            // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate s.iter()
+            // directly (Values, not String canonical-keys).
             Value::wat__std__HashSet(s) => {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::Hasher;
-                let mut elem_hashes: Vec<u64> = s.values().map(|v| {
+                let mut elem_hashes: Vec<u64> = s.iter().map(|v| {
                     let mut h = DefaultHasher::new();
                     v.hash(&mut h);
                     h.finish()
@@ -7999,8 +7987,14 @@ fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value,
 fn hashset_contains_q_inner(container: &Value, item: &Value) -> Result<Value, RuntimeError> {
     match container {
         Value::wat__std__HashSet(s) => {
-            let key = hashmap_key(":wat::core::HashSet/contains?", item)?;
-            Ok(Value::bool(s.contains_key(&key)))
+            // Stone 216.5b — native HashSet::contains via Value: Hash + Eq.
+            // hashmap_key canonical-key crutch removed.
+            // Guard: opaque-handle items can't be in a HashSet (set rejects them at insert);
+            // contains? on an unhashable item is always false (never inserted).
+            if !value_is_set_hashable(item) {
+                return Ok(Value::bool(false));
+            }
+            Ok(Value::bool(s.contains(item)))
         }
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashSet/contains?".into(),
@@ -8676,12 +8670,29 @@ fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeEr
     }
 }
 
+// Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
+// `Value` contains `Arc`-wrapped types with interior mutability (Sender, AtomicBool, etc.)
+// which triggers the lint. The interior-mutability variants are opaque handles that never
+// appear as set elements (guarded by `value_is_set_hashable`). The lint is a false positive
+// for the Value variants actually used as HashSet elements (all structurally pure).
+#[allow(clippy::mutable_key_type)]
 fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeError> {
     match container {
         Value::wat__std__HashSet(s) => {
-            let key = hashmap_key(":wat::core::HashSet/conj", item)?;
-            let mut out = (**s).clone();
-            out.insert(key, item.clone());
+            // Stone 216.5b — native HashSet insert via Value: Hash + Eq.
+            // Arc strategy: clone-then-new-Arc (functional; no aliased mutation).
+            // hashmap_key canonical-key crutch removed.
+            // Guard: reject opaque-handle variants before they reach Hash.
+            if !value_is_set_hashable(item) {
+                return Err(RuntimeError::TypeMismatch {
+                    op: ":wat::core::HashSet/conj".into(),
+                    expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                    got: item.type_name(),
+                    span: Span::unknown(),
+                });
+            }
+            let mut out: HashSet<Value> = (**s).clone();
+            out.insert(item.clone());
             Ok(Value::wat__std__HashSet(Arc::new(out)))
         }
         other => Err(RuntimeError::TypeMismatch {
@@ -9665,6 +9676,34 @@ fn eval_list_remove_at(
 /// - **WatAST** `"W:{hash:x}"` — DefaultHasher over `format!("{:?}", ast)`;
 ///   WatAST does not implement Hash directly; Debug output is span-agnostic
 ///   structural representation (WatAST's PartialEq is span-agnostic per arc 1818).
+// Stone 216.5b — runtime hashability guard.
+// Returns `false` for the 14 opaque-handle `Value` variants that carry
+// `unreachable!()` in `impl Hash for Value`. These variants are not
+// atomizable and should not be inserted into a `HashSet<Value>` at the WAT surface.
+// Called by `eval_hashset_ctor` and `hashset_conj_inner` BEFORE `HashSet::insert`
+// so that a user-visible `TypeMismatch` is returned instead of an `unreachable!()`
+// panic. The `is_atomizable` check-time predicate (src/check.rs:3623) is the static
+// guarantee; this guard is the runtime defence-in-depth for inferred types.
+pub fn value_is_set_hashable(v: &Value) -> bool {
+    !matches!(
+        v,
+        Value::wat__core__fn(_)
+            | Value::wat__kernel__Sender(_)
+            | Value::wat__kernel__Receiver(_)
+            | Value::wat__kernel__ProgramHandle(_)
+            | Value::wat__kernel__HandlePool { .. }
+            | Value::wat__kernel__ChildHandle(_)
+            | Value::RustOpaque(_)
+            | Value::io__IOReader(_)
+            | Value::io__IOWriter(_)
+            | Value::OnlineSubspace(_)
+            | Value::Reckoner(_)
+            | Value::Engram(_)
+            | Value::EngramLibrary(_)
+            | Value::Hologram(_)
+    )
+}
+
 pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
     match v {
         Value::String(s) => Ok(format!("S:{}", s)),
@@ -9683,11 +9722,16 @@ pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
         // UUIDs are identifiers; canonical-string key is unique (1:1 with value).
         Value::wat__core__Uuid(u) => Ok(format!("U:{}", u)),
         // Arc 216 Stone 1 — HashSet<T> is hashable as its sorted canonical key list.
-        // Each element's canonical key is computed recursively; sorted for determinism
-        // (HashSet has no order; sort produces a stable composite key). Nested sets
-        // (HashSet<HashSet<...>>) compose via this recursive descent.
+        // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate s.iter() (Values
+        // directly) and compute each element's canonical key via recursive hashmap_key.
+        // Sorted for determinism (HashSet has no order; sort produces a stable composite key).
+        // Nested sets (HashSet<HashSet<...>>) compose via this recursive descent.
         Value::wat__std__HashSet(s) => {
-            let mut element_keys: Vec<String> = s.keys().cloned().collect();
+            let mut element_keys: Vec<String> = Vec::with_capacity(s.len());
+            for elem in s.iter() {
+                let k = hashmap_key(op, elem)?;
+                element_keys.push(k);
+            }
             element_keys.sort();
             Ok(format!("Set:{{{}}}", element_keys.join(",")))
         }
@@ -9823,6 +9867,9 @@ fn eval_hashmap_ctor(
 /// `(:wat::core::HashSet :T x1 x2 x3 ...)` — first arg is a type
 /// keyword read by the checker; remaining args are elements. Duplicate
 /// elements collapse (last stored wins on the exact canonical key).
+// Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
+// See comment on `hashset_conj_inner` for rationale.
+#[allow(clippy::mutable_key_type)]
 fn eval_hashset_ctor(
     args: &[WatAST],
     list_span: &Span,
@@ -9844,11 +9891,22 @@ fn eval_hashset_ctor(
             span: args[0].span().clone(),
         });
     }
-    let mut set = std::collections::HashMap::with_capacity(args.len() - 1);
+    // Stone 216.5b — native HashSet<Value> insert. Value implements Hash + Eq
+    // (Stone 216.5a); dedupe is handled natively by HashSet::insert semantics.
+    // hashmap_key canonical-key crutch removed.
+    // Guard: reject opaque-handle variants (would hit unreachable!() in Hash).
+    let mut set: HashSet<Value> = HashSet::with_capacity(args.len() - 1);
     for a in &args[1..] {
         let v = eval(a, env, sym)?;
-        let key = hashmap_key(":wat::core::HashSet", &v)?;
-        set.insert(key, v);
+        if !value_is_set_hashable(&v) {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::HashSet".into(),
+                expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                got: v.type_name(),
+                span: a.span().clone(),
+            });
+        }
+        set.insert(v);
     }
     Ok(Value::wat__std__HashSet(Arc::new(set)))
 }
@@ -13080,6 +13138,9 @@ fn try_match_pattern(
 /// vector-shape → Vec). Returns `Err` for other composite shapes
 /// (`Permute`/`Thermometer`/`Blend`/`SlotMarker`) that have no
 /// unambiguous Value reconstruction without consumer-declared T.
+// Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
+// See comment on `hashset_conj_inner` for rationale.
+#[allow(clippy::mutable_key_type)]
 fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, RuntimeError> {
     match item {
         HolonAST::Symbol(s) => Ok(Value::wat__core__keyword(Arc::new(s.to_string()))),
@@ -13102,9 +13163,8 @@ fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, Runtime
             if inner_items.is_empty() {
                 // Empty bundle — ambiguous between empty Vec, empty HashSet, empty HashMap.
                 // Conservatively return empty HashSet (set-shape, no keys present).
-                Ok(Value::wat__std__HashSet(Arc::new(
-                    std::collections::HashMap::new(),
-                )))
+                // Stone 216.5b — native HashSet<Value> (no canonical-key crutch).
+                Ok(Value::wat__std__HashSet(Arc::new(HashSet::new())))
             } else if all_i64_binds {
                 // Candidate for Vector: try sequential check; fall through to HashMap if fails.
                 let n = inner_items.len();
@@ -13164,12 +13224,12 @@ fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, Runtime
                 Ok(Value::wat__std__HashMap(Arc::new(map)))
             } else {
                 // Bare-atom set-shape → HashSet<T> (Stone 1).
-                let mut set: std::collections::HashMap<String, Value> =
-                    std::collections::HashMap::with_capacity(inner_items.len());
+                // Stone 216.5b — native HashSet<Value> insert; hashmap_key crutch removed.
+                let mut set: HashSet<Value> =
+                    HashSet::with_capacity(inner_items.len());
                 for inner in inner_items.iter() {
                     let v = holon_item_to_value(inner, op_span)?;
-                    let key = hashmap_key(":wat::core::atom-value", &v)?;
-                    set.insert(key, v);
+                    set.insert(v);
                 }
                 Ok(Value::wat__std__HashSet(Arc::new(set)))
             }
@@ -13199,6 +13259,9 @@ fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, Runtime
 ///   error. These are structural; their parts come out via the
 ///   substrate's structural decomposition (e.g. `unbind`), not via
 ///   atom-value.
+// Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
+// See comment on `hashset_conj_inner` for rationale.
+#[allow(clippy::mutable_key_type)]
 fn eval_atom_value(
     args: &[WatAST],
     list_span: &Span,
@@ -13287,14 +13350,13 @@ fn eval_atom_value(
                 // Empty Bundle — ambiguous between empty Vec, empty HashSet, empty HashMap.
                 // Consumer hint: if `-> :HashMap<K,V>` declared, produce empty HashMap.
                 // Conservative default: empty HashSet.
+                // Stone 216.5b — native HashSet<Value> (no canonical-key crutch).
                 if hint_is_hashmap {
                     Ok(Value::wat__std__HashMap(Arc::new(
                         std::collections::HashMap::new(),
                     )))
                 } else {
-                    Ok(Value::wat__std__HashSet(Arc::new(
-                        std::collections::HashMap::new(),
-                    )))
+                    Ok(Value::wat__std__HashSet(Arc::new(HashSet::new())))
                 }
             } else if all_i64_binds {
                 // Candidate for Vector: try sequential check; fall through to HashMap if fails.
@@ -13355,12 +13417,12 @@ fn eval_atom_value(
             } else {
                 // Bare-atom set-shape → HashSet<T> (Stone 1).
                 // Each child converted via holon_item_to_value (handles primitives + nested bundles).
-                let mut set: std::collections::HashMap<String, Value> =
-                    std::collections::HashMap::with_capacity(items.len());
+                // Stone 216.5b — native HashSet<Value> insert; hashmap_key crutch removed.
+                let mut set: HashSet<Value> =
+                    HashSet::with_capacity(items.len());
                 for item in items.iter() {
                     let v = holon_item_to_value(item, args[0].span())?;
-                    let key = hashmap_key(":wat::core::atom-value", &v)?;
-                    set.insert(key, v);
+                    set.insert(v);
                 }
                 Ok(Value::wat__std__HashSet(Arc::new(set)))
             }
@@ -13425,12 +13487,13 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         // Arc 216 Stone 1 — HashSet<T> atomizes to Bundle of bare atoms
         // (DESIGN Q2/Q3: set-shape = bundle of bare atoms; no Bind keys).
         // Each element is recursively atomized via value_to_atom; T must
-        // already be atomizable. Dedupe is not re-applied here — the
-        // HashSet's internal HashMap<canonical-key, Value> already enforces
-        // uniqueness; the Bundle carries one atom per unique element.
+        // already be atomizable. Dedupe not re-applied here — the
+        // HashSet<Value> natively enforces uniqueness; the Bundle carries
+        // one atom per unique element.
+        // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
         Value::wat__std__HashSet(s) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(s.len());
-            for elem in s.values() {
+            for elem in s.iter() {
                 let atom_val = value_to_atom(elem.clone(), arg_span)?;
                 match atom_val {
                     Value::holon__HolonAST(h) => items.push((*h).clone()),
@@ -15790,7 +15853,8 @@ fn render_value(v: &Value, depth: usize) -> String {
         Value::wat__std__HashSet(s) => {
             let mut out = String::from("#{");
             let mut first = true;
-            for v in s.values() {
+            // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
+            for v in s.iter() {
                 if !first {
                     out.push_str(", ");
                 }

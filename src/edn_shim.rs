@@ -334,6 +334,11 @@ pub fn read_edn(
 /// want [`read_edn`] (parse + bridge in one call); reach for
 /// this directly when you already have the parsed EDN tree (e.g.
 /// when bridging multiple sub-expressions of one document).
+// Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
+// `Value` contains `Arc`-wrapped types with interior mutability, triggering the lint.
+// The opaque-handle variants with interior mutability are never inserted into the set
+// (only EDN-representable primitive values are bridged here). False positive.
+#[allow(clippy::mutable_key_type)]
 pub fn edn_to_value(
     edn: &OwnedValue,
     types: Option<&crate::types::TypeEnv>,
@@ -386,16 +391,12 @@ pub fn edn_to_value(
             Ok(Value::wat__std__HashMap(Arc::new(backing)))
         }
         Edn::Set(items) => {
-            let mut backing = std::collections::HashMap::with_capacity(items.len());
+            // Stone 216.5b — native HashSet<Value> insert; hashmap_key crutch removed.
+            // Value: Hash + Eq (Stone 216.5a) makes this work natively.
+            let mut backing = std::collections::HashSet::with_capacity(items.len());
             for x in items {
                 let v_val = edn_to_value(x, types)?;
-                let canonical =
-                    crate::runtime::hashmap_key(":wat::edn::read", &v_val)
-                        // arc 138: no span — hashmap_key error has no WatAST origin
-                        .map_err(|e| EdnReadError::Other(format!(
-                            "non-hashable set element: {e:?}"
-                        ), Span::unknown()))?;
-                backing.insert(canonical, v_val);
+                backing.insert(v_val);
             }
             Ok(Value::wat__std__HashSet(Arc::new(backing)))
         }
@@ -1530,7 +1531,8 @@ pub fn value_to_edn_with(
                 .collect(),
         ),
         Value::wat__std__HashSet(s) => OwnedValue::Set(
-            s.values().map(|x| value_to_edn_with(x, types)).collect(),
+            // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
+            s.iter().map(|x| value_to_edn_with(x, types)).collect(),
         ),
 
         // ── User-declared struct / enum ──────────────────────────
