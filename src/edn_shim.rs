@@ -376,17 +376,21 @@ pub fn edn_to_value(
         }
         Edn::Map(entries) => {
             // Generic HashMap — the no-tag map case. Walk keys + values.
-            let mut backing = std::collections::HashMap::with_capacity(entries.len());
+            // Stone 216.5c — native HashMap<Value, Value>; hashmap_key crutch removed.
+            // Guard: reject non-hashable keys (opaque handles) with a clear error.
+            #[allow(clippy::mutable_key_type)]
+            let mut backing: std::collections::HashMap<Value, Value> =
+                std::collections::HashMap::with_capacity(entries.len());
             for (k, v) in entries {
                 let k_val = edn_to_value(k, types)?;
                 let v_val = edn_to_value(v, types)?;
-                let canonical =
-                    crate::runtime::hashmap_key(":wat::edn::read", &k_val)
-                        // arc 138: no span — hashmap_key error has no WatAST origin
-                        .map_err(|e| EdnReadError::Other(format!(
-                            "non-hashable map key: {e:?}"
-                        ), Span::unknown()))?;
-                backing.insert(canonical, (k_val, v_val));
+                if !crate::runtime::value_is_key_hashable(&k_val) {
+                    return Err(EdnReadError::Other(
+                        format!("non-hashable map key: {}", k_val.type_name()),
+                        Span::unknown(),
+                    ));
+                }
+                backing.insert(k_val, v_val);
             }
             Ok(Value::wat__std__HashMap(Arc::new(backing)))
         }
@@ -1019,8 +1023,9 @@ pub fn value_to_edn_notag(
         Value::Tuple(xs) => {
             OwnedValue::Vector(xs.iter().map(|x| value_to_edn_notag(x, types)).collect())
         }
+        // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
         Value::wat__std__HashMap(m) => OwnedValue::Map(
-            m.values()
+            m.iter()
                 .map(|(k, v)| {
                     (
                         value_to_edn_notag(k, types),
@@ -1139,8 +1144,9 @@ pub fn value_to_json_natural(
         Value::Tuple(xs) => OwnedValue::Vector(
             xs.iter().map(|x| value_to_json_natural(x, types)).collect(),
         ),
+        // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
         Value::wat__std__HashMap(m) => OwnedValue::Map(
-            m.values()
+            m.iter()
                 .map(|(k, v)| {
                     let key_v = value_to_json_natural(k, types);
                     // JSON keys must be strings; coerce keywords/ints/etc.
@@ -1525,8 +1531,9 @@ pub fn value_to_edn_with(
         Value::Tuple(xs) => {
             OwnedValue::Vector(xs.iter().map(|x| value_to_edn_with(x, types)).collect())
         }
+        // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
         Value::wat__std__HashMap(m) => OwnedValue::Map(
-            m.values()
+            m.iter()
                 .map(|(k, v)| (value_to_edn_with(k, types), value_to_edn_with(v, types)))
                 .collect(),
         ),

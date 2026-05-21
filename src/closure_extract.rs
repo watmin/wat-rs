@@ -1539,13 +1539,15 @@ fn encode_value_with_path(
             // single `:T` with two type-args for K + V (arc 214 P1 retired the
             // earlier `:(K,V)` tuple-keyword shape).
             //
+            // Stone 216.5c — storage is now Arc<HashMap<Value, Value>>; iterate (k, v) directly.
+            //
             // Determine K, V from the first entry. LIMITATION: empty HashMaps
             // have no entries to sample, so K + V fall back to `:wat::core::nil`
             // sentinels. A re-evaluated empty-capture will type-check as
             // `HashMap<nil,nil>` and accept any contents only at recipient
             // contexts expecting that exact shape. Non-empty captures infer
             // K + V honestly from the first entry's value types.
-            let (k_kw, v_kw) = if let Some((_canon, (k, vv))) = map.iter().next() {
+            let (k_kw, v_kw) = if let Some((k, vv)) = map.iter().next() {
                 let kkw = value_static_type_keyword(k, state)?;
                 let vkw = value_static_type_keyword(vv, state)?;
                 (kkw, vkw)
@@ -1556,10 +1558,19 @@ fn encode_value_with_path(
             out.push(WatAST::Keyword(":wat::core::HashMap".into(), span.clone()));
             out.push(WatAST::Keyword(k_kw, span.clone()));
             out.push(WatAST::Keyword(v_kw, span.clone()));
-            // Iterate by sorted canonical key for determinism.
-            let mut entries: Vec<(&String, &(Value, Value))> = map.iter().collect();
-            entries.sort_by(|a, b| a.0.cmp(b.0));
-            for (canon_key, (k, vv)) in entries {
+            // Iterate by sorted canonical key (via hashmap_key) for determinism.
+            // hashmap_key still exists (Stone 216.5d deletes it); used here for sort only.
+            let mut entries: Vec<(&Value, &Value)> = map.iter().collect();
+            entries.sort_by(|a, b| {
+                let ka = crate::runtime::hashmap_key(":closure-extract::HashMap", a.0)
+                    .unwrap_or_default();
+                let kb = crate::runtime::hashmap_key(":closure-extract::HashMap", b.0)
+                    .unwrap_or_default();
+                ka.cmp(&kb)
+            });
+            for (k, vv) in entries {
+                let canon_key = crate::runtime::hashmap_key(":closure-extract::HashMap", k)
+                    .unwrap_or_default();
                 path.push(format!("{{{}}}", canon_key));
                 let kk = encode_value_with_path(k, binding_name, path, state)?;
                 let vv2 = encode_value_with_path(vv, binding_name, path, state)?;

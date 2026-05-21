@@ -248,41 +248,32 @@ fn probe_8_hashmap_value_map_semantics() {
     // Storage is Arc<HashMap<canonical_key, (key_Value, val_Value)>>.
     // Value::Hash impl uses sorted (key_hash, val_hash) pairs for order-independence.
 
-    // Map A: {keyword(":a") → i64(1), keyword(":b") → i64(2)} — ":a" first
-    let mut map_a: std::collections::HashMap<String, (Value, Value)> =
+    // Map A: {keyword(":a") → i64(1), keyword(":b") → i64(2)} — ":a" first.
+    // Stone 216.5c — storage is now HashMap<Value, Value>; K is the native key.
+    #[allow(clippy::mutable_key_type)]
+    let mut map_a: std::collections::HashMap<Value, Value> =
         std::collections::HashMap::new();
     map_a.insert(
-        "K::a".to_string(),
-        (
-            Value::wat__core__keyword(Arc::new(":a".to_string())),
-            Value::i64(1),
-        ),
+        Value::wat__core__keyword(Arc::new(":a".to_string())),
+        Value::i64(1),
     );
     map_a.insert(
-        "K::b".to_string(),
-        (
-            Value::wat__core__keyword(Arc::new(":b".to_string())),
-            Value::i64(2),
-        ),
+        Value::wat__core__keyword(Arc::new(":b".to_string())),
+        Value::i64(2),
     );
     let hmap_a = Value::wat__std__HashMap(Arc::new(map_a));
 
     // Map B: same pairs, ":b" first
-    let mut map_b: std::collections::HashMap<String, (Value, Value)> =
+    #[allow(clippy::mutable_key_type)]
+    let mut map_b: std::collections::HashMap<Value, Value> =
         std::collections::HashMap::new();
     map_b.insert(
-        "K::b".to_string(),
-        (
-            Value::wat__core__keyword(Arc::new(":b".to_string())),
-            Value::i64(2),
-        ),
+        Value::wat__core__keyword(Arc::new(":b".to_string())),
+        Value::i64(2),
     );
     map_b.insert(
-        "K::a".to_string(),
-        (
-            Value::wat__core__keyword(Arc::new(":a".to_string())),
-            Value::i64(1),
-        ),
+        Value::wat__core__keyword(Arc::new(":a".to_string())),
+        Value::i64(1),
     );
     let hmap_b = Value::wat__std__HashMap(Arc::new(map_b));
 
@@ -298,15 +289,14 @@ fn probe_8_hashmap_value_map_semantics() {
 
 #[test]
 fn probe_9_deep_nesting() {
-    // Value::Vec([Value::wat__std__HashMap({":a" → i64(1)})])
-    let mut inner_map: std::collections::HashMap<String, (Value, Value)> =
+    // Value::Vec([Value::wat__std__HashMap({keyword(":a") → i64(1)})])
+    // Stone 216.5c — storage is now HashMap<Value, Value>; K is the native key.
+    #[allow(clippy::mutable_key_type)]
+    let mut inner_map: std::collections::HashMap<Value, Value> =
         std::collections::HashMap::new();
     inner_map.insert(
-        "K::a".to_string(),
-        (
-            Value::wat__core__keyword(Arc::new(":a".to_string())),
-            Value::i64(1),
-        ),
+        Value::wat__core__keyword(Arc::new(":a".to_string())),
+        Value::i64(1),
     );
     let hmap_val = Value::wat__std__HashMap(Arc::new(inner_map));
     let nested = Value::Vec(Arc::new(vec![hmap_val]));

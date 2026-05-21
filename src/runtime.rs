@@ -427,12 +427,10 @@ pub enum Value {
     /// A `:HashMap<K,V>` — Rust std's `HashMap` backing, wrapped for
     /// cheap Arc-cloning. Keys are serialized to type-tagged strings
     /// at insertion so heterogeneous-K programs don't collide
-    /// (`"42"` vs `42` vs `:42`). Stored entries carry the ORIGINAL
-    /// key Value alongside the Value so lookups round-trip the
-    /// caller's key variant. Scoped to primitive keys in this slice
-    /// (i64, f64, bool, String, keyword); composite keys land when
-    /// a caller demands them.
-    wat__std__HashMap(Arc<std::collections::HashMap<String, (Value, Value)>>),
+    /// A `:HashMap<K,V>` — Rust std's HashMap natively; stored as
+    /// `Arc<HashMap<Value, Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
+    /// for Value`. No canonical-key crutch; K is the actual HashMap key directly.
+    wat__std__HashMap(Arc<std::collections::HashMap<Value, Value>>),
     /// A `:HashSet<T>` — Rust std's HashSet natively; stored as
     /// `Arc<HashSet<Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; dedupe via native hash semantics.
@@ -660,23 +658,10 @@ impl PartialEq for Value {
             // impl delegates to element PartialEq (order-independent set semantics).
             // Reduces to a single native comparison.
             (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => a == b,
-            // HashMap: two HashMaps are equal iff they contain the same key-value pairs.
-            (Value::wat__std__HashMap(a), Value::wat__std__HashMap(b)) => {
-                if a.len() != b.len() {
-                    return false;
-                }
-                for (k, (ak, av)) in a.iter() {
-                    match b.get(k) {
-                        Some((bk, bv)) => {
-                            if ak != bk || av != bv {
-                                return false;
-                            }
-                        }
-                        None => return false,
-                    }
-                }
-                true
-            }
+            // HashMap: Stone 216.5c — native Arc<HashMap<Value,Value>> equality.
+            // std HashMap PartialEq uses Value's PartialEq on both K and V.
+            // Reduces to a single native comparison.
+            (Value::wat__std__HashMap(a), Value::wat__std__HashMap(b)) => a == b,
             // --- Structurally-equal but NOT atomizable ---
             (Value::u8(a), Value::u8(b)) => a == b,
             (Value::Unit, Value::Unit) => true,
@@ -790,15 +775,16 @@ impl std::hash::Hash for Value {
                 elem_hashes.sort_unstable();
                 elem_hashes.hash(state);
             }
-            // HashMap: sort (key_hash, val_hash) pairs for map semantics (order-independent)
+            // HashMap: sort (key_hash, val_hash) pairs for map semantics (order-independent).
+            // Stone 216.5c — iterate m.iter() for (k, v) directly (no canonical-key tuple).
             Value::wat__std__HashMap(m) => {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::Hasher;
-                let mut pair_hashes: Vec<(u64, u64)> = m.values().map(|(k_val, v_val)| {
+                let mut pair_hashes: Vec<(u64, u64)> = m.iter().map(|(k, v)| {
                     let mut kh = DefaultHasher::new();
-                    k_val.hash(&mut kh);
+                    k.hash(&mut kh);
                     let mut vh = DefaultHasher::new();
-                    v_val.hash(&mut vh);
+                    v.hash(&mut vh);
                     (kh.finish(), vh.finish())
                 }).collect();
                 pair_hashes.sort_unstable();
@@ -7972,8 +7958,13 @@ fn vector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, Run
 fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value, RuntimeError> {
     match container {
         Value::wat__std__HashMap(m) => {
-            let k = hashmap_key(":wat::core::HashMap/contains-key?", key)?;
-            Ok(Value::bool(m.contains_key(&k)))
+            // Stone 216.5c — native HashMap::contains_key via Value: Hash + Eq.
+            // Guard: opaque-handle keys can't be in the map (rejected at insert);
+            // contains-key? on an unhashable key is always false (never inserted).
+            if !value_is_key_hashable(key) {
+                return Ok(Value::bool(false));
+            }
+            Ok(Value::bool(m.contains_key(key)))
         }
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashMap/contains-key?".into(),
@@ -8093,9 +8084,13 @@ fn vector_get_inner(container: &Value, index: &Value) -> Result<Value, RuntimeEr
 fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value, RuntimeError> {
     match container {
         Value::wat__std__HashMap(m) => {
-            let k = hashmap_key(":wat::core::HashMap/get", key)?;
-            match m.get(&k) {
-                Some((_stored_k, v)) => Ok(Value::Option(Arc::new(Some(v.clone())))),
+            // Stone 216.5c — native HashMap::get via Value: Hash + Eq.
+            // Guard: opaque-handle keys return None (they can never be inserted).
+            if !value_is_key_hashable(key) {
+                return Ok(Value::Option(Arc::new(None)));
+            }
+            match m.get(key) {
+                Some(v) => Ok(Value::Option(Arc::new(Some(v.clone())))),
                 None => Ok(Value::Option(Arc::new(None))),
             }
         }
@@ -8212,9 +8207,13 @@ fn program_env_lookup(
             });
         }
     };
-    let k = hashmap_key(op, key_val)?;
-    let stored_v = match map.get(&k) {
-        Some((_sk, v)) => v,
+    // Stone 216.5c — native HashMap<Value, Value> lookup; hashmap_key crutch removed.
+    // Guard: non-hashable key returns None (unhashable keys can never be in the map).
+    if !value_is_key_hashable(key_val) {
+        return Ok(None);
+    }
+    let stored_v = match map.get(key_val) {
+        Some(v) => v,
         None => return Ok(None),
     };
     // The stored value must be a HolonAST (Env always stores HolonAST).
@@ -8409,9 +8408,12 @@ fn eval_program_env_get_default(
 ///
 /// Returns the final extracted `Option<Value>` or a `RuntimeError` for type errors
 /// on the env/path args.
+// Stone 216.5c — suppress `mutable_key_type` for `HashMap<Value, Value>`.
+// See comment on `hashmap_assoc_inner` for rationale (same Value-as-key situation).
+#[allow(clippy::mutable_key_type)]
 fn program_env_dig_walk(
     op: &str,
-    current: &std::collections::HashMap<String, (Value, Value)>,
+    current: &std::collections::HashMap<Value, Value>,
     path: &[Value],
     target_ty: &crate::types::TypeExpr,
     path_span: &Span,
@@ -8424,29 +8426,28 @@ fn program_env_dig_walk(
     // For multi-step: we'll shadow `current` step-by-step using a temporary map ref.
     // Since Rust can't hold a reference to an Arc-owned map across iterations without
     // storing the Arc, we use an owned Vec to carry intermediate maps.
-    let mut owned_map: Option<std::sync::Arc<std::collections::HashMap<String, (Value, Value)>>> =
-        None;
+    // Stone 216.5c — HashMap<Value, Value> native; no canonical-key String.
+    let mut owned_map: Option<std::sync::Arc<std::collections::HashMap<Value, Value>>> = None;
 
     for (step_idx, step_val) in path.iter().enumerate() {
         let last_step = step_idx == path.len() - 1;
         // Each step must be a keyword (design call: Vector<keyword> is the WAT path type).
-        // Non-keyword path step: treat as early termination → None.
-        // Use `hashmap_key` to produce the canonical HashMap lookup key (e.g. "K:foo").
-        let map_key = match hashmap_key(op, step_val) {
-            Ok(k) => k,
-            Err(_) => return Ok(None), // non-hashable step → None
-        };
+        // Non-hashable path step: treat as early termination → None.
+        // Stone 216.5c — use Value directly as map key; guard with value_is_key_hashable.
+        if !value_is_key_hashable(step_val) {
+            return Ok(None); // non-hashable step → None
+        }
         // Look up in current map
         let stored_v = {
             // Use the map we're currently traversing
-            let map_to_use: &std::collections::HashMap<String, (Value, Value)> =
+            let map_to_use: &std::collections::HashMap<Value, Value> =
                 if let Some(ref a) = owned_map {
                     a.as_ref()
                 } else {
                     current
                 };
-            match map_to_use.get(&map_key) {
-                Some((_sk, v)) => v.clone(),
+            match map_to_use.get(step_val) {
+                Some(v) => v.clone(),
                 None => return Ok(None),
             }
         };
@@ -8504,7 +8505,7 @@ fn eval_program_env_dig(
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
     let env_val = eval(&args[0], env, sym)?;
     let path_val = eval(&args[1], env, sym)?;
-    // Extract the map from env
+    // Extract the map from env. Stone 216.5c — HashMap<Value, Value> native.
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
         other => {
@@ -8753,13 +8754,29 @@ fn eval_hashset_conj(
 // reused by `dispatch_substrate_impl` for fallback routing through
 // alias-expanded calls.
 
+// Stone 216.5c — suppress `mutable_key_type` for `HashMap<Value, Value>`.
+// `Value` contains `Arc`-wrapped types with interior mutability (Sender, AtomicBool, etc.)
+// which triggers the lint. The interior-mutability variants are opaque handles that never
+// appear as map keys (guarded by `value_is_key_hashable`). The lint is a false positive
+// for the Value variants actually used as HashMap keys (all structurally pure).
+#[allow(clippy::mutable_key_type)]
 fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::HashMap/assoc";
     match container {
         Value::wat__std__HashMap(m) => {
-            let key = hashmap_key(OP, k)?;
-            let mut new_map = (**m).clone();
-            new_map.insert(key, (k.clone(), v.clone()));
+            // Stone 216.5c — native HashMap insert via Value: Hash + Eq.
+            // Arc strategy: clone-then-new-Arc (functional; no aliased mutation; mirrors 216.5b).
+            // Guard: reject opaque-handle keys before they reach Hash::hash.
+            if !value_is_key_hashable(k) {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                    got: k.type_name(),
+                    span: Span::unknown(),
+                });
+            }
+            let mut new_map: std::collections::HashMap<Value, Value> = (**m).clone();
+            new_map.insert(k.clone(), v.clone());
             Ok(Value::wat__std__HashMap(Arc::new(new_map)))
         }
         other => Err(RuntimeError::TypeMismatch {
@@ -8771,13 +8788,22 @@ fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value,
     }
 }
 
+// Stone 216.5c — suppress `mutable_key_type` for `HashMap<Value, Value>`.
+// See comment on `hashmap_assoc_inner` for rationale.
+#[allow(clippy::mutable_key_type)]
 fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::HashMap/dissoc";
     match container {
         Value::wat__std__HashMap(m) => {
-            let key = hashmap_key(OP, k)?;
-            let mut new_map = (**m).clone();
-            new_map.remove(&key);
+            // Stone 216.5c — native HashMap remove via Value: Hash + Eq.
+            // Arc strategy: clone-then-new-Arc (functional; mirrors hashmap_assoc_inner).
+            // Guard: opaque-handle keys can't be in the map; dissoc is a no-op.
+            if !value_is_key_hashable(k) {
+                // Nothing to remove — return the map unchanged.
+                return Ok(Value::wat__std__HashMap(m.clone()));
+            }
+            let mut new_map: std::collections::HashMap<Value, Value> = (**m).clone();
+            new_map.remove(k);
             Ok(Value::wat__std__HashMap(Arc::new(new_map)))
         }
         other => Err(RuntimeError::TypeMismatch {
@@ -8793,7 +8819,11 @@ fn hashmap_keys_inner(container: &Value) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::HashMap/keys";
     match container {
         Value::wat__std__HashMap(m) => {
-            let ks: Vec<Value> = m.values().map(|(k, _v)| k.clone()).collect();
+            // Stone 216.5c — SEMANTIC CORRECTION: returns actual K Values (not canonical String keys).
+            // Previously: m.values().map(|(k, _v)| k.clone()) — still returned original K Values
+            // (from the (canonical_key, (original_k, v)) tuple), which was correct by accident.
+            // Now: m.keys().cloned() — K is the direct HashMap key; no tuple indirection.
+            let ks: Vec<Value> = m.keys().cloned().collect();
             Ok(Value::Vec(Arc::new(ks)))
         }
         other => Err(RuntimeError::TypeMismatch {
@@ -8809,7 +8839,8 @@ fn hashmap_values_inner(container: &Value) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::HashMap/values";
     match container {
         Value::wat__std__HashMap(m) => {
-            let vs: Vec<Value> = m.values().map(|(_k, v)| v.clone()).collect();
+            // Stone 216.5c — native HashMap<Value, Value>; V is the direct map value.
+            let vs: Vec<Value> = m.values().cloned().collect();
             Ok(Value::Vec(Arc::new(vs)))
         }
         other => Err(RuntimeError::TypeMismatch {
@@ -9684,7 +9715,20 @@ fn eval_list_remove_at(
 // so that a user-visible `TypeMismatch` is returned instead of an `unreachable!()`
 // panic. The `is_atomizable` check-time predicate (src/check.rs:3623) is the static
 // guarantee; this guard is the runtime defence-in-depth for inferred types.
-pub fn value_is_set_hashable(v: &Value) -> bool {
+/// Stone 216.5c — shared hashability predicate.
+///
+/// Returns `false` for the 14 opaque-handle variants (those that receive
+/// `unreachable!()` in `impl Hash for Value`). All other variants — including
+/// structurally-hashable non-atomizable ones like `u8`, `Tuple`, `Option`, etc. —
+/// return `true`. Callers rely on this before inserting into `HashSet<Value>`
+/// or `HashMap<Value, _>` to preserve WAT-surface TypeMismatch behavior
+/// instead of hitting the `unreachable!()` panic.
+///
+/// **Unification decision:** `value_is_set_hashable` and `value_is_key_hashable`
+/// have identical bodies (same 14 opaque-handle variants). They are both thin
+/// wrappers over this function. Separate names are kept for call-site clarity
+/// (set insert vs. map key insert) but the predicate logic is defined once.
+pub fn value_is_hashable(v: &Value) -> bool {
     !matches!(
         v,
         Value::wat__core__fn(_)
@@ -9702,6 +9746,20 @@ pub fn value_is_set_hashable(v: &Value) -> bool {
             | Value::EngramLibrary(_)
             | Value::Hologram(_)
     )
+}
+
+/// Guard for `HashSet<Value>` insert sites. Delegates to `value_is_hashable`.
+/// Preserves WAT-surface TypeMismatch for opaque-handle elements (they can
+/// never be inserted into a HashSet; contains? on them is always false).
+pub fn value_is_set_hashable(v: &Value) -> bool {
+    value_is_hashable(v)
+}
+
+/// Guard for `HashMap<Value, _>` key insert sites. Delegates to `value_is_hashable`.
+/// Parallel to `value_is_set_hashable` (Stone 216.5b) for HashMap keys.
+/// Preserves WAT-surface TypeMismatch instead of hitting `unreachable!()` in Hash.
+pub fn value_is_key_hashable(v: &Value) -> bool {
+    value_is_hashable(v)
 }
 
 pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
@@ -9750,14 +9808,14 @@ pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
             Ok(format!("Vec:[{}]", parts.join(",")))
         }
         // Arc 216 Stone 5 — HashMap<K,V> is hashable as sorted (key=value) pairs.
-        // The map is stored as HashMap<canonical_key_string, (original_key_Value, value_Value)>.
-        // Sort by canonical key string for determinism (HashMap has no order).
-        // Both K (original key Value) and V are recursed via hashmap_key.
+        // Stone 216.5c — storage is now Arc<HashMap<Value, Value>>; iterate m.iter() for (k, v)
+        // directly (no canonical-key tuple). Sort by canonical key string for determinism.
+        // Both K and V are recursed via hashmap_key.
         Value::wat__std__HashMap(m) => {
             let mut pairs: Vec<(String, String)> = Vec::with_capacity(m.len());
-            for (_, (k_val, v_val)) in m.iter() {
-                let k_key = hashmap_key(op, k_val)?;
-                let v_key = hashmap_key(op, v_val)?;
+            for (k, v) in m.iter() {
+                let k_key = hashmap_key(op, k)?;
+                let v_key = hashmap_key(op, v)?;
                 pairs.push((k_key, v_key));
             }
             pairs.sort_by(|a, b| a.0.cmp(&b.0));
@@ -9838,12 +9896,24 @@ fn eval_hashmap_ctor(
             span: list_span.clone(),
         });
     }
-    let mut map = std::collections::HashMap::with_capacity(pairs.len() / 2);
+    // Stone 216.5c — HashMap<Value, Value> native storage; hashmap_key crutch removed.
+    // Guard: reject opaque-handle keys before they reach Hash::hash (unreachable!()).
+    // Arc strategy: build map locally, wrap in Arc once.
+    #[allow(clippy::mutable_key_type)]
+    let mut map: std::collections::HashMap<Value, Value> =
+        std::collections::HashMap::with_capacity(pairs.len() / 2);
     for pair in pairs.chunks(2) {
         let k = eval(&pair[0], env, sym)?;
         let v = eval(&pair[1], env, sym)?;
-        let key = hashmap_key(":wat::core::HashMap", &k)?;
-        map.insert(key, (k, v));
+        if !value_is_key_hashable(&k) {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::HashMap".into(),
+                expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                got: k.type_name(),
+                span: pair[0].span().clone(),
+            });
+        }
+        map.insert(k, v);
     }
     Ok(Value::wat__std__HashMap(Arc::new(map)))
 }
@@ -13194,29 +13264,29 @@ fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, Runtime
                     Ok(Value::Vec(Arc::new(elems)))
                 } else {
                     // Non-sequential I64 keys → HashMap (Stone 3; Probe 13).
-                    // Key is i64 so hashmap_key is well-defined.
-                    let mut map: std::collections::HashMap<String, (Value, Value)> =
+                    // Stone 216.5c — native HashMap<Value, Value>; i64 is always hashable.
+                    #[allow(clippy::mutable_key_type)]
+                    let mut map: std::collections::HashMap<Value, Value> =
                         std::collections::HashMap::with_capacity(n);
                     for (idx, v_val) in pairs.into_iter() {
                         let k_val = Value::i64(idx);
-                        let key = hashmap_key(":wat::core::atom-value", &k_val)?;
-                        map.insert(key, (k_val, v_val));
+                        map.insert(k_val, v_val);
                     }
                     Ok(Value::wat__std__HashMap(Arc::new(map)))
                 }
             } else if all_binds {
                 // Arbitrary-K Bind children → HashMap (Stone 3).
-                // Each Bind(K_holon, V_holon) → (k_val, v_val) pair.
+                // Stone 216.5c — native HashMap<Value, Value>; hashmap_key crutch removed.
                 let n = inner_items.len();
-                let mut map: std::collections::HashMap<String, (Value, Value)> =
+                #[allow(clippy::mutable_key_type)]
+                let mut map: std::collections::HashMap<Value, Value> =
                     std::collections::HashMap::with_capacity(n);
                 for child in inner_items.iter() {
                     match child {
                         HolonAST::Bind(k_holon, v_holon) => {
                             let k_val = holon_item_to_value(k_holon, op_span)?;
                             let v_val = holon_item_to_value(v_holon, op_span)?;
-                            let key = hashmap_key(":wat::core::atom-value", &k_val)?;
-                            map.insert(key, (k_val, v_val));
+                            map.insert(k_val, v_val);
                         }
                         _ => unreachable!("already checked all_binds"),
                     }
@@ -13350,11 +13420,12 @@ fn eval_atom_value(
                 // Empty Bundle — ambiguous between empty Vec, empty HashSet, empty HashMap.
                 // Consumer hint: if `-> :HashMap<K,V>` declared, produce empty HashMap.
                 // Conservative default: empty HashSet.
-                // Stone 216.5b — native HashSet<Value> (no canonical-key crutch).
+                // Stone 216.5c — native HashMap<Value, Value> (no canonical-key crutch).
                 if hint_is_hashmap {
-                    Ok(Value::wat__std__HashMap(Arc::new(
-                        std::collections::HashMap::new(),
-                    )))
+                    #[allow(clippy::mutable_key_type)]
+                    let empty: std::collections::HashMap<Value, Value> =
+                        std::collections::HashMap::new();
+                    Ok(Value::wat__std__HashMap(Arc::new(empty)))
                 } else {
                     Ok(Value::wat__std__HashSet(Arc::new(HashSet::new())))
                 }
@@ -13388,27 +13459,29 @@ fn eval_atom_value(
                     Ok(Value::Vec(Arc::new(elems)))
                 } else {
                     // Non-sequential I64 keys OR consumer declared HashMap → HashMap (Stone 3; Probe 13 + 14).
-                    let mut map: std::collections::HashMap<String, (Value, Value)> =
+                    // Stone 216.5c — native HashMap<Value, Value>; i64 is always hashable.
+                    #[allow(clippy::mutable_key_type)]
+                    let mut map: std::collections::HashMap<Value, Value> =
                         std::collections::HashMap::with_capacity(n);
                     for (idx, v_val) in pairs.into_iter() {
                         let k_val = Value::i64(idx);
-                        let key = hashmap_key(":wat::core::atom-value", &k_val)?;
-                        map.insert(key, (k_val, v_val));
+                        map.insert(k_val, v_val);
                     }
                     Ok(Value::wat__std__HashMap(Arc::new(map)))
                 }
             } else if all_binds {
                 // Arbitrary-K Bind children → HashMap (Stone 3).
+                // Stone 216.5c — native HashMap<Value, Value>; hashmap_key crutch removed.
                 let n = items.len();
-                let mut map: std::collections::HashMap<String, (Value, Value)> =
+                #[allow(clippy::mutable_key_type)]
+                let mut map: std::collections::HashMap<Value, Value> =
                     std::collections::HashMap::with_capacity(n);
                 for child in items.iter() {
                     match child {
                         HolonAST::Bind(k_holon, v_holon) => {
                             let k_val = holon_item_to_value(k_holon, args[0].span())?;
                             let v_val = holon_item_to_value(v_holon, args[0].span())?;
-                            let key = hashmap_key(":wat::core::atom-value", &k_val)?;
-                            map.insert(key, (k_val, v_val));
+                            map.insert(k_val, v_val);
                         }
                         _ => unreachable!("already checked all_binds"),
                     }
@@ -13525,15 +13598,16 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         // Iteration order is non-canonical (HashMap unordered); the produced Bundle's
         // Bind order is therefore non-deterministic. The reverse trip (atom-value)
         // reconstructs a HashMap which is also order-agnostic — round-trip is correct.
+        // Stone 216.5c — iterate m.iter() for (k, v) directly (K is the native key).
         Value::wat__std__HashMap(m) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(m.len());
-            for (k_val, v_val) in m.values() {
-                let k_atom_val = value_to_atom(k_val.clone(), arg_span)?;
+            for (k, v) in m.iter() {
+                let k_atom_val = value_to_atom(k.clone(), arg_span)?;
                 let k_holon = match k_atom_val {
                     Value::holon__HolonAST(h) => (*h).clone(),
                     _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
                 };
-                let v_atom_val = value_to_atom(v_val.clone(), arg_span)?;
+                let v_atom_val = value_to_atom(v.clone(), arg_span)?;
                 let v_holon = match v_atom_val {
                     Value::holon__HolonAST(h) => (*h).clone(),
                     _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
@@ -15832,9 +15906,9 @@ fn render_value(v: &Value, depth: usize) -> String {
         Value::wat__std__HashMap(m) => {
             let mut out = String::from("{");
             let mut first = true;
-            // Walk the (k_value, v_value) tuples stored in the map's
-            // Value side. Order is unspecified per HashMap semantics.
-            for (k, v) in m.values() {
+            // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
+            // Order is unspecified per HashMap semantics.
+            for (k, v) in m.iter() {
                 if !first {
                     out.push_str(", ");
                 }
