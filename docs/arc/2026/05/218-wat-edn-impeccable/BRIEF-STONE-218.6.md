@@ -274,8 +274,8 @@ Both are one-line convenience wrappers around `Parser::new_wire`. Added in arc 1
 After all edits land:
 
 1. `cargo build --release -p wat-edn` — must be 0 warnings, 0 errors
-2. `cargo test --release -p wat-edn` — count delta: -0 from 218.4 baseline (339), +1 from supplementary-plane probe = expected 340 (or sonnet's actual; report it). All PASS.
-3. `cargo test --release --lib -p wat` — must stay green (currently 824/0 per CLIFFNOTES post-219.1)
+2. `cargo test --release -p wat-edn` — current baseline 342 PASS (verified pre-spawn 2026-05-22 — note: 218.4 SCORE cited 339, but arc 219 added 3 spec_strict tests since then; current truth is 342). Expected post-stone: 342 + supplementary-plane probe + any optional `InvalidSet` decode probe = 343 or 344. Report actual.
+3. `cargo test --release --lib -p wat` — must stay green at 824/0 (verified pre-spawn 2026-05-22)
 4. `cargo clippy --release -p wat-edn -- -D warnings` — 0 warnings
 5. **Interop-tests four handshakes (mandatory per `feedback_wat_edn_touch_runs_interop_tests`):**
    ```sh

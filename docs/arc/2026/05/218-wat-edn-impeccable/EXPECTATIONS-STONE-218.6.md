@@ -12,8 +12,8 @@ Mode A target: 12/12 PASS.
 | 6 | `translate_and_validate_ns` combiner + 6 paired-call sites | `vocab.rs` adds `pub(crate) fn translate_and_validate_ns(ns: &str) -> Result<String, &'static str>` (translate `::` → `.`, validate first char, return translated). `value.rs:218-220` `translate_wat_to_strict` deleted. 6 paired-call sites in value.rs collapsed to single-call form (panic-flavor uses `.unwrap_or_else(|m| panic!(...))`; try-flavor uses `?`). |
 | 7 | rune `temperare(serde-api-shape)` additive | `crates/wat-edn/src/json.rs:165-172` + `:175-184` — second rune line added below the existing `struere(invariant-coupling)` rune on each of `to_json_string` + `to_json_string_pretty`. Wording cites: serde_json API shape, double-materialization trade-off, no caller pressure, simpler-wins-until-measurement disagrees. |
 | 8 | `parse_wire` + `parse_wire_owned` retired | `crates/wat-edn/src/lib.rs:130-152` — both function bodies + docstring block deleted. `tests/wire_encoding.rs` — every call site migrated to `Parser::new_wire(x).parse_top()` (or `.parse_top().map(Value::into_owned)`); imports updated; doc comments rephrased. All 23 tests preserved. `crates/wat-edn/docs/USER-GUIDE.md` — `parse_wire`/`parse_wire_owned` removed from imports + paragraph; section heading restored to 3-entry-point form; wire-mode teaching routes reader to `Parser::new_wire`. |
-| 9 | wat-edn test suite green | `cargo build --release -p wat-edn` 0 warnings / 0 errors. `cargo test --release -p wat-edn` PASS with expected count delta: 339 baseline + 1 supplementary-plane probe + 1 `InvalidSet` probe (optional sonnet-add) = 340 or 341. Report actual count. |
-| 10 | wat downstream test suite green | `cargo test --release --lib -p wat` PASS (824/0 baseline per CLIFFNOTES post-219.1). No regressions in the downstream substrate. |
+| 9 | wat-edn test suite green | `cargo build --release -p wat-edn` 0 warnings / 0 errors. `cargo test --release -p wat-edn` PASS with expected count delta: **342 baseline** (verified pre-spawn 2026-05-22; 218.4 SCORE cited 339 but arc 219 added 3 spec_strict tests since) + 1 supplementary-plane probe + 1 `InvalidSet` probe (optional sonnet-add) = 343 or 344. Report actual count. |
+| 10 | wat downstream test suite green | `cargo test --release --lib -p wat` PASS (824/0 baseline, verified pre-spawn 2026-05-22). No regressions in the downstream substrate. |
 | 11 | clippy clean | `cargo clippy --release -p wat-edn -- -D warnings` 0 warnings / 0 errors. |
 | 12 | Interop-tests 4 handshakes pass | All four commands from BRIEF "Verification" §5 return PASS. Shape matrix now includes the supplementary-plane char probe (proves the writer fix end-to-end through `clojure.edn/read`). |
 
@@ -57,7 +57,7 @@ Mode A target: 12/12 PASS.
 - `is_canonical_uuid` import form — `use crate::vocab::is_canonical_uuid` at top of parser.rs vs inline `crate::vocab::is_canonical_uuid` at call site; sonnet picks
 - `translate_and_validate_ns` panic-message wording — sonnet preserves diagnostic intent; exact prose may shift
 - USER-GUIDE wording for the section restructure — sonnet picks the cleanest explanation that preserves Stone 218.4's wire-mode teaching
-- Test count: report actual. May be 339 + 1 (just supplementary-plane probe) or 339 + 2 (supplementary-plane + an `InvalidSet` decode probe to lock the variant)
+- Test count: report actual. May be 342 + 1 (just supplementary-plane probe) or 342 + 2 (supplementary-plane + an `InvalidSet` decode probe to lock the variant)
 - Rune wording for `temperare(serde-api-shape)` — sonnet preserves the named axis (serde-API constraint, double-mat trade-off, no caller pressure); exact phrasing may shift
 
 ## Honesty deltas NOT accepted
