@@ -5338,6 +5338,41 @@ fn infer_list(
                 }
                 return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
+            ":wat::core::atom-value" => {
+                // Arc 216 Stone 3 — atom-value accepts 1 or 3 args.
+                // 1-arg form: `(atom-value h)` — plain reverse dispatch; return type T (Infer).
+                // 3-arg form: `(atom-value h -> :HashMap<K,V>)` — consumer-declared type hint
+                //   for disambiguating empty Bundle → empty HashMap. The `->` and type keyword
+                //   are syntactic decoration; return type is still T (Infer).
+                // Both forms validate the first arg is HolonAST.
+                if args.len() != 1 && args.len() != 3 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.clone(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                    return Some(fresh.fresh());
+                }
+                // Infer the first arg (must be HolonAST).
+                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                    let holon = TypeExpr::Path(":wat::holon::HolonAST".into());
+                    if unify(&arg_ty, &holon, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: k.clone(),
+                            param: "#1".into(),
+                            expected: ":wat::holon::HolonAST".into(),
+                            got: format_type(&apply_subst(&arg_ty, subst)),
+                            span: args[0].span().clone(),
+                        });
+                    }
+                }
+                // For the 3-arg form, the `->` and type keyword are not type-checked
+                // as expressions — they are syntactic annotation tokens. No additional
+                // inference needed.
+                // Return type is a fresh type variable (the inferred T from the holon's shape).
+                return Some(fresh.fresh());
+            }
             ":wat::holon::Bundle/children" => {
                 // Arc 201 slice 2 — Bundle/children.
                 // (bundle :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>

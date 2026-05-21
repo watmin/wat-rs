@@ -143,7 +143,7 @@ The `-> :T` annotation sits at TAIL position (after env + key args). The verb lo
 
 `path` is a `Vector<keyword>` — each element is a navigation step (keyword key for HashMap lookup).  The walk starts at `env` and follows each key in sequence.
 
-**STOP-1 (arc 215 atomizable-set limitation, partially resolved):** Multi-step traversal through nested HashMaps requires intermediate values to be `HashMap` entries.  Since `HolonAST` has no HashMap variant and `(:wat::holon::Atom {...})` still rejects HashMap inputs (arc 216 Stone 3 pending), multi-step behaves as single-step on well-typed Envs.  `HashSet<T>` is now atomizable (arc 216 Stone 1); `Vector<T>` is now atomizable (arc 216 Stone 2); HashMap atomization is pending Stone 3.  This limitation is documented in the probe file.
+**STOP-1 (arc 215 atomizable-set limitation, resolved):** `HashSet<T>` is now atomizable (arc 216 Stone 1); `Vector<T>` is now atomizable (arc 216 Stone 2); `HashMap<K,V>` is now atomizable (arc 216 Stone 3).  All three collection types support `(:wat::holon::Atom collection)` → HolonAST round-trip.  Multi-step traversal through nested HashMaps is now fully supported at the algebra level.
 
 Single-step paths (`[:key]`) are equivalent to the `/get` trio and always work.
 
@@ -384,7 +384,7 @@ atomizable(T) :=
   T ∈ {i64, f64, bool, String, keyword, HolonAST, WatAST}   -- arc 215 baseline
   OR T = HashSet<T'>  ∧ atomizable(T')                        -- arc 216 Stone 1
   OR T = Vector<T'>   ∧ atomizable(T')                        -- arc 216 Stone 2
-  OR T = HashMap<K,V> ∧ atomizable(K) ∧ atomizable(V)         -- arc 216 Stone 3 (future)
+  OR T = HashMap<K,V> ∧ atomizable(K) ∧ atomizable(V)         -- arc 216 Stone 3
 ```
 
 **Encoding shape (DESIGN Q2):**
@@ -405,14 +405,31 @@ atomizable(T) :=
 (:wat::core::atom-value bundle-of-positional-binds)
 ;; → Vec<T> (reconstructs from Bundle of Bind(I64(i), _) with sequential keys 0..n-1)
 ;; Round-trip: [1 2 3] → Atom → atom-value → [1 2 3] (order preserved)
+
+(:wat::holon::Atom {:foo 42 :bar 99})
+;; → HolonAST::Bundle([Bind(Symbol(foo), I64(42)), Bind(Symbol(bar), I64(99))])
+;; Map-shape: arbitrary-K Bind pairs; order non-canonical (HashMap unordered)
+
+(:wat::core::atom-value bundle-of-arbitrary-k-binds)
+;; → HashMap<K, V> (reconstructs from Bundle where all children are Bind nodes
+;;   and keys are not sequential i64 0..n-1 — non-sequential I64 keys also → HashMap)
+;; Round-trip: {:foo 42} → Atom → atom-value → {:foo 42}
+
+;; Empty Bundle disambiguation — consumer-declared type hint:
+(:wat::core::atom-value empty-bundle -> :wat::core::HashMap)
+;; → empty HashMap (consumer overrides conservative HashSet default)
+;; Without the `-> :T` hint, empty Bundle → empty HashSet (conservative default).
 ```
 
 **Shape discriminator at `atom-value`:**
 
-- Bundle of bare atoms → HashSet (set-shape, Stone 1)
-- Bundle of Bind(I64, _) with sequential keys 0..n-1 → Vec (array-shape, Stone 2)
-- Bundle of Bind(I64, _) with non-sequential keys → TypeMismatch (positional invariant violated)
-- Empty Bundle → empty HashSet (conservatively; no keys to discriminate)
+| Bundle shape | Result |
+|---|---|
+| Empty (no children) | empty HashSet (conservative default) |
+| Empty + `-> :wat::core::HashMap` annotation | empty HashMap (consumer-declared) |
+| All children are bare atoms (non-Bind) | HashSet (set-shape, Stone 1) |
+| All children are Bind(I64, _) with sequential keys 0..n-1 | Vec (array-shape, Stone 2) |
+| All children are Bind; keys non-sequential I64 OR non-I64 K | HashMap (map-shape, Stone 3) |
 
 **Predicate at check time:**
 
@@ -423,11 +440,17 @@ atomizable(T) :=
 ;; PASSES: Vector<i64> is atomizable (i64 is primitive)
 (:wat::holon::Atom [1 2 3])
 
+;; PASSES: HashMap<keyword, i64> is atomizable (both K and V are primitive)
+(:wat::holon::Atom {:foo 42 :bar 99})
+
 ;; PASSES: nested Vector<Vector<i64>> — predicate recurses both levels
 (:wat::holon::Atom outer-nested-vec)
 
 ;; PASSES: nested HashSet<HashSet<i64>> — predicate recurses
 (:wat::holon::Atom outer-nested-set)
+
+;; PASSES: HashMap<keyword, Vec<i64>> — composes Stone 2 + Stone 3
+(:wat::holon::Atom {:data [1 2 3]})
 
 ;; FAILS at check: Fn(...)->... is not atomizable
 (:wat::holon::Atom my-fn)
@@ -438,8 +461,8 @@ Non-atomizable T (e.g., function values, Thread handles, user structs not in the
 fails at check with `TypeMismatch` naming `:wat::holon::Atom` and the offending type.
 
 Reference: arc 216 DESIGN `docs/arc/2026/05/216-collections-as-holons/DESIGN.md`.
-Stone 2 shipped: STOP-1 note — Vector is now fully atomizable (HashSet: Stone 1 done;
-Vector: Stone 2 done; HashMap atomization: Stone 3 pending).
+Stone 3 shipped: STOP-1 note retired — HashMap is now fully atomizable.
+(HashSet: Stone 1 done; Vector: Stone 2 done; HashMap: Stone 3 done.)
 
 ### Vector literal syntax: `[...]` (arc 167 + arc 215 stone 2)
 

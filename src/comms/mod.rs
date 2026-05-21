@@ -271,6 +271,84 @@ where
     }
 }
 
+/// Arc 216 Stone 3 — `HolonRepresentable` for `HashMap<K, V>`.
+///
+/// Mirrors the `HashSet<T>` (Stone 1) and `Vec<T>` (Stone 2) patterns.
+/// Encodes as a `HolonAST::Bundle` of `Bind(K_holon, V_holon)` pairs
+/// (arbitrary-K map-shape per DESIGN Q2). Iteration order is non-canonical
+/// (HashMap unordered); the Bundle's Bind order is therefore non-deterministic.
+/// Round-trip is correct because the reverse trip reconstructs a HashMap which
+/// is also order-agnostic.
+///
+/// `from_holon_ast` validates the Bundle-of-Bind shape; each Bind's key and
+/// value are decoded via `K::from_holon_ast` and `V::from_holon_ast`
+/// respectively. The canonical key for the output HashMap is computed via
+/// `K::to_holon_ast` → `hashmap_key_from_holon` (deterministic string key).
+///
+/// Bounds: `K: HolonRepresentable + std::hash::Hash + Eq + Send + 'static` —
+/// Hash + Eq required for the inner `HashMap<K, V>` type; mirrors `HashSet<T>`
+/// bounds. `V: HolonRepresentable + Send + 'static` — no Hash + Eq needed.
+impl<K, V> HolonRepresentable for std::collections::HashMap<K, V>
+where
+    K: HolonRepresentable + std::hash::Hash + Eq + Send + 'static,
+    V: HolonRepresentable + Send + 'static,
+{
+    fn to_holon_ast(&self) -> holon::HolonAST {
+        let items: Vec<holon::HolonAST> = self
+            .iter()
+            .map(|(k, v)| {
+                let k_holon = k.to_holon_ast();
+                let v_holon = v.to_holon_ast();
+                holon::HolonAST::bind(k_holon, v_holon)
+            })
+            .collect();
+        holon::HolonAST::bundle(items)
+    }
+
+    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        match ast {
+            holon::HolonAST::Bundle(items) => {
+                let mut map = std::collections::HashMap::with_capacity(items.len());
+                for (i, item) in items.iter().enumerate() {
+                    match item {
+                        holon::HolonAST::Bind(k_holon, v_holon) => {
+                            let k = K::from_holon_ast(k_holon).map_err(|e| {
+                                WireError::new(format!(
+                                    "HashMap key #{} failed HolonRepresentable::from_holon_ast: {}",
+                                    i,
+                                    e.message()
+                                ))
+                            })?;
+                            let v = V::from_holon_ast(v_holon).map_err(|e| {
+                                WireError::new(format!(
+                                    "HashMap value #{} failed HolonRepresentable::from_holon_ast: {}",
+                                    i,
+                                    e.message()
+                                ))
+                            })?;
+                            map.insert(k, v);
+                        }
+                        other => {
+                            return Err(WireError::new(format!(
+                                "expected HolonAST::Bind at index {}; got {:?}",
+                                i, other
+                            )));
+                        }
+                    }
+                }
+                Ok(map)
+            }
+            other => Err(WireError::new(format!(
+                "expected HolonAST::Bundle (map-shape of Bind children), got {:?}",
+                other
+            ))),
+        }
+    }
+}
+
 // ─── Tier-agnostic sender / receiver traits ─────────────────────────────────
 
 /// Tier-agnostic send endpoint. Implemented by `comms::thread::Sender<T>` (Slice 2)
