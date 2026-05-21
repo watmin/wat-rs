@@ -488,6 +488,57 @@ Reference: arc 216 DESIGN `docs/arc/2026/05/216-collections-as-holons/DESIGN.md`
 Arc 216 Stones 1/2/3 all shipped. All three collection types fully atomizable.
 (HashSet: Stone 1; Vector: Stone 2; HashMap: Stone 3; composite verification: Stone 4.)
 
+#### Hashable types — `hashmap_key` symmetric contract (arc 216 Stone 5)
+
+**Contract:** every type admitted by `is_atomizable` is also hashable via `hashmap_key`
+at `src/runtime.rs`. The predicate and the runtime must be in sync.
+
+Before Stone 216.5 there was a gap: `HashSet<Vector<T>>`, `HashSet<HashMap<K,V>>`,
+`HashMap<Vector<T>, V>`, `HashMap<HashMap<K,V>, V>`, `HashMap<WatAST, V>` all passed
+`is_atomizable` at check time but failed at runtime with `TypeMismatch { expected:
+"hashable value (primitive, HolonAST, or HashSet<T>)", got: "wat::core::Vector" }`.
+Stone 216.5 closed this gap.
+
+**Canonical-key schemes** (now accepted in `hashmap_key`):
+
+| Type | Canonical key | Collision-safe? |
+|---|---|---|
+| `String` | `S:{s}` | Type-tagged (avoids `"42"` vs `I:42`) |
+| `i64` | `I:{n}` | Exact |
+| `f64` | `F:{bits}` | Bit-pattern (NaN-safe) |
+| `bool` | `B:{b}` | Exact |
+| `keyword` | `K:{k}` | Exact |
+| `HolonAST` | `H:{hash:x}` | DefaultHasher over structural Hash impl |
+| `Uuid` | `U:{uuid}` | Canonical UUID string (1:1 with value) |
+| `HashSet<T>` | `Set:{sorted-element-keys}` | Sorted for determinism; recursive |
+| `Vec<T>` | `Vec:[{len1}:{k1},{len2}:{k2},...]` | **Length-prefix scheme** — each element key prefixed by its byte length; prevents comma-join collisions (Stone 216.5) |
+| `HashMap<K,V>` | `Map:{(k1=v1),(k2=v2),...}` | Sorted by canonical key; both K and V recursive (Stone 216.5) |
+| `WatAST` | `W:{hash:x}` | DefaultHasher over `format!("{:?}", ast)` — WatAST's Debug is span-agnostic (Stone 216.5) |
+
+**Collision-safety example (Vec):**
+
+```
+["a", "b,c"]  → Vec:[3:S:a,5:S:b,c]
+["a,b", "c"]  → Vec:[5:S:a,b,3:S:c]
+```
+
+Naive comma-join would produce the same string for both (`a,b,c`); length-prefix
+produces distinct canonical keys. A `HashSet<Vector<String>>` containing both vectors
+has length 2, not 1.
+
+**Diagnostic message (post-Stone 216.5):**
+
+```
+hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)
+```
+
+This is the full accepted set. Attempting to use a non-hashable value (e.g., a
+function, a Thread handle) as a HashSet element or HashMap key produces a runtime
+`TypeMismatch` with this message.
+
+Reference: `src/runtime.rs` — `pub fn hashmap_key` function.
+Arc 216 Stone 5 — `hashmap_key` full coverage.
+
 ### Vector literal syntax: `[...]` (arc 167 + arc 215 stone 2)
 
 `[...]` is a vector literal. Since arc 215 stone 2 it routes through the unified

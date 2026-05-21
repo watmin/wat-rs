@@ -137,33 +137,37 @@ fn probe_2_composite_vector_of_hashset() {
 ///   → is_atomizable(HashSet<i64>) → is_atomizable(i64) = true
 ///   → true
 ///
-/// Note: `HashSet<Vector<i64>>` passes `is_atomizable` at check time but fails
-/// at the WAT runtime because `hashmap_key` does not handle `Value::Vec` (Vec
-/// is not hashable as a HashSet element key). This is a known predicate-ahead-of-
-/// runtime gap (same class as Stone 216.1 Delta 2). For this probe, we use
-/// `HashSet<HashSet<i64>>` which exercises the Stone 1 + Stone 1 recursive
-/// composition and does succeed end-to-end (the runtime's canonical-key scheme
-/// for HashSet values handles nested sets transparently).
+/// Stone 216.4 SCORE Delta 2 substituted `HashSet<HashSet<i64>>` here because
+/// `hashmap_key` did not handle `Value::Vec` at runtime. Stone 216.5 fixed the
+/// `hashmap_key` gap (added `Value::Vec` arm). This probe is relanded to its
+/// original BRIEF type: `HashSet<Vector<i64>>`.
 ///
-/// Arc 216 Stone 4 Probe 3.
+/// Predicate recursion path:
+///   is_atomizable(HashSet<Vector<i64>>)
+///   → is_atomizable(Vector<i64>) → is_atomizable(i64) = true
+///   → true
+///
+/// Arc 216 Stone 4 Probe 3 — relanded in Stone 216.5.
 #[test]
-fn probe_3_composite_hashset_of_hashset() {
-    // Build a HashSet<HashSet<i64>> at WAT surface.
-    // Two inner sets → outer length = 2 after Atom + atom-value round-trip.
+fn probe_3_composite_hashset_of_vector() {
+    // Build a HashSet<Vector<i64>> at WAT surface.
+    // Two inner vectors → outer HashSet length = 2 after Atom round-trip.
+    // This was the original BRIEF type; it previously failed at runtime because
+    // hashmap_key did not handle Value::Vec. Stone 216.5 fixed that gap.
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [inner1  (:wat::core::HashSet :wat::core::i64 1 2)
-             inner2  (:wat::core::HashSet :wat::core::i64 3)
-             outer   (:wat::core::HashSet :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::Atom outer)
-             cs      (:wat::holon::Bundle/children h)]
+            [v1     (:wat::core::Vector :wat::core::i64 1 2)
+             v2     (:wat::core::Vector :wat::core::i64 3 4)
+             outer  (:wat::core::HashSet :wat::type::Infer v1 v2)
+             h      (:wat::holon::Atom outer)
+             cs     (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
     assert_eq!(
         run_i64(src),
         2,
-        "Atom on HashSet<HashSet<i64>> must produce Bundle with 2 children"
+        "Atom on HashSet<Vector<i64>> must produce Bundle with 2 children"
     );
 }
 

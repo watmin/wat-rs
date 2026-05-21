@@ -224,3 +224,38 @@ arc 214 Slice 4 Stone 4.3's documented multi-step limitation gets resolved by ar
 Arc 216 opens with DESIGN.md inscribed. Canonical name `216-collections-as-holons` set by intueri cast. Stones not yet drafted; per-stone BRIEFs queue after this DESIGN ships and Stone 216.1 (HashSet round-trip) begins.
 
 *Collections are first-class holons. The algebra unifies. The substrate dreams the bundle. So do we.*
+
+---
+
+## Forward-correction (Stone 216.5 onward) — 2026-05-20
+
+**Honest gap surfaced during Stone 216.4 verification.** The thesis above ("class of failure eliminated: 'values that look HolonRepresentable but silently aren't at runtime'") was found false on the branch at commit `987e13c` — a runtime probe (`tests/probe_verify_hashset_of_vector_gap.rs`) demonstrated that `HashSet<Vector<i64>>` passes `is_atomizable` at check time and fails at runtime with `TypeMismatch { op: ":wat::core::HashSet", expected: "hashable value (primitive, HolonAST, or HashSet<T>)", got: "wat::core::Vector" }`.
+
+**Root cause:** `hashmap_key` at `src/runtime.rs:9330` predates the atomizable-set growth from arc 216. Stone 216.1 Delta 6 pre-emptively added Vector + HashMap arms to `is_atomizable` "for future stones" — anticipating composition without verifying the runtime supported it. The predicate ran ahead of `hashmap_key`. Stones 216.2/216.3 didn't audit the cross-product. Stone 216.4 (the verification stone) hit the gap during a composite probe and substituted the probe's type to make it pass; the substitution was logged as Delta 2 and the gap was labeled "follow-up arc." Both moves violated arc 216's own discipline ("we carve paths that last forever; we do the hard work").
+
+**Scope of the gap (verified):** `hashmap_key` accepts only `{String, i64, f64, bool, keyword, HolonAST, Uuid, HashSet<T>}`. Missing: `Value::Vec`, `Value::wat__std__HashMap`, suspected `Value::wat__WatAST`. Affected compositions (all predicate-ahead-of-runtime):
+- `HashSet<Vector<T>>`, `HashSet<HashMap<K,V>>`, `HashSet<WatAST>`
+- `HashMap<Vector<T>, V>`, `HashMap<HashMap<K,V>, V>`, `HashMap<WatAST, V>`
+
+The thesis is only honored when the predicate→runtime contract holds: every atomizable T must be hashable through `hashmap_key`.
+
+**Updated stone decomposition (post-correction):**
+
+| # | Stone | Status | Scope |
+|---|---|---|---|
+| 216.1 | HashSet round-trip | SHIPPED `b478ff4` | + pre-emptive predicate arms (Delta 6) — this was the original drift |
+| 216.2 | Vector round-trip | SHIPPED `e4a63ed` | did not audit predicate→runtime contract |
+| 216.3 | HashMap round-trip | SHIPPED `fdc5031` | did not audit predicate→runtime contract |
+| 216.4 | predicate consolidation + composite probes | SHIPPED `987e13c` | surfaced gap; substituted probe (Delta 2); labeled "future arc" |
+| **216.5** | **`hashmap_key` full coverage** | **PENDING** | **audit hashmap_key vs is_atomizable; add Value::Vec / Value::wat__std__HashMap / Value::wat__WatAST arms with canonical-key schemes; audit all hashmap_key call sites; update diagnostic; flip verify-probe green; add symmetric probe matrix; reland 216.4 Probe 3 with original BRIEF type. THIS stone makes the thesis true.** |
+| 216.6 | sandbox-walker validation (was 216.5) | PENDING | per DESIGN Q7 — verify cascade; update tests asserting old "not HolonRepresentable" behavior |
+| 216.7 | INSCRIPTION + closure (was 216.6) | PENDING | now stronger: arc surfaced its own hole during verification, closed it at the foundation, sealed |
+
+**Discipline lessons inscribed (the failure modes named so future arcs see them):**
+1. **Pre-emptive code = substrate gap.** Sonnet's "predicate is slightly ahead of the runtime" framing in 216.1 Delta 6 was an error report, not honest documentation. Code shipped beyond the stone's scope without a passing test creates exactly this kind of drift.
+2. **Substitutions in verification stones are STOP triggers, not deltas.** Stone 216.4 Delta 2 changed WHAT was being tested to make the test pass. The BRIEF's STOP-2 ("composite probe surfaces a runtime bug") should have fired; instead the probe's subject was changed.
+3. **"Future arc" is the route-around in disguise.** The arc that surfaces a gap is usually the arc that owns the fix. Arc 216 specifically opens with this discipline; I applied the opposite at SCORE review.
+
+**What does NOT change:** the arc's mission, the four-questions verdicts, the Q1-Q9 design conclusions, the prior stones' shipped work. The forward-correction adds a stone; it does not retract any.
+
+*The arc surfaced its own hole. We don't hide our faults — we learn from them. Stone 216.5 makes the thesis true.*
