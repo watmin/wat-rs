@@ -5,7 +5,7 @@
 //! at parse time. User tags surface as `Value::Tagged`.
 
 use crate::error::{Error, ErrorKind, Result};
-use crate::escapes::validate_first_char;
+use crate::vocab::validate_first_char;
 use crate::lexer::{Lexer, Token};
 use crate::value::{Keyword, Symbol, Tag, Value};
 use bigdecimal::BigDecimal;
@@ -462,7 +462,7 @@ fn is_canonical_uuid(s: &str) -> bool {
     true
 }
 
-// validate_first_char lives in `crate::escapes` so the rule is owned
+// validate_first_char lives in `crate::vocab` so the rule is owned
 // once and shared with the lexer's symbol-start check.
 
 #[cfg(test)]

@@ -33,7 +33,7 @@
 //! four-questions analysis locking the position-aware rule).
 
 use crate::error::{Error, ErrorKind, Result};
-use crate::escapes::{
+use crate::vocab::{
     decode_string_escape, hex_value, is_symbol_continue, is_symbol_start, is_whitespace,
     name_to_char,
 };
@@ -245,14 +245,14 @@ impl<'a> Lexer<'a> {
     }
 
     fn process_escape(&mut self, out: &mut String) -> Result<()> {
-        let e = self
+        let escape_byte = self
             .advance()
             .ok_or_else(|| Error::at(self.pos, ErrorKind::UnclosedString))?;
-        if let Some(c) = decode_string_escape(e) {
+        if let Some(c) = decode_string_escape(escape_byte) {
             out.push(c);
             return Ok(());
         }
-        if e == b'u' {
+        if escape_byte == b'u' {
             let acc = self.read_hex4()?;
             let c = char::from_u32(acc).ok_or_else(|| {
                 Error::at(
@@ -263,11 +263,11 @@ impl<'a> Lexer<'a> {
             out.push(c);
             return Ok(());
         }
-        Err(Error::at(self.pos - 1, ErrorKind::InvalidEscape(e)))
+        Err(Error::at(self.pos - 1, ErrorKind::InvalidEscape(escape_byte)))
     }
 
     fn read_hex4(&mut self) -> Result<u32> {
-        let mut acc = 0u32;
+        let mut codepoint = 0u32;
         for _ in 0..4 {
             let h = self
                 .advance()
@@ -278,9 +278,9 @@ impl<'a> Lexer<'a> {
                     ErrorKind::InvalidUnicode(format!("non-hex byte 0x{:02x}", h)),
                 )
             })?;
-            acc = (acc << 4) | (v as u32);
+            codepoint = (codepoint << 4) | (v as u32);
         }
-        Ok(acc)
+        Ok(codepoint)
     }
 
     // ─── Characters ─────────────────────────────────────────────
@@ -328,7 +328,7 @@ impl<'a> Lexer<'a> {
             .map_err(|e| Error::at(body_start, ErrorKind::Utf8(e.to_string())))?;
 
         // 1. Named char literal? (`\newline`, `\space`, etc. — spec set
-        //    plus extensions, all owned by escapes::NAMED_CHARS.)
+        //    plus extensions, all owned by vocab::NAMED_CHARS.)
         if let Some(c) = name_to_char(body_str) {
             return Ok(Token::Char(c));
         }
@@ -375,7 +375,7 @@ impl<'a> Lexer<'a> {
         // wire-decode swap (wire mode) happens after the loop.
         // See module rustdoc + arc 170 slice 1f-W.
         let mut depth: u32 = 0;
-        let mut owned: Option<String> = None;
+        let mut decoded_body: Option<String> = None;
         while let Some(b) = self.peek() {
             let in_brackets = depth > 0;
             let body_continue = is_symbol_continue(b) || (in_brackets && b == b',');
@@ -386,13 +386,13 @@ impl<'a> Lexer<'a> {
             // an owned String the first time we hit the swap; before
             // that, the body stays in the borrowed-slice fast path.
             if self.wire_decode && in_brackets && b == b'_' {
-                if owned.is_none() {
+                if decoded_body.is_none() {
                     let prefix = std::str::from_utf8(&self.input[body_start..self.pos])
                         .map_err(|e| Error::at(body_start, ErrorKind::Utf8(e.to_string())))?;
-                    owned = Some(String::from(prefix));
+                    decoded_body = Some(String::from(prefix));
                 }
-                owned.as_mut().unwrap().push(',');
-            } else if let Some(buf) = owned.as_mut() {
+                decoded_body.as_mut().unwrap().push(',');
+            } else if let Some(buf) = decoded_body.as_mut() {
                 buf.push(b as char);
             }
             // Track depth AFTER we've classified the byte so the
@@ -413,7 +413,7 @@ impl<'a> Lexer<'a> {
             return Err(Error::at(start, ErrorKind::InvalidKeyword("empty".into())));
         }
 
-        match owned {
+        match decoded_body {
             Some(s) => Ok(Token::Keyword { body: Cow::Owned(s), body_start }),
             None => {
                 let body = std::str::from_utf8(&self.input[body_start..self.pos])
@@ -620,7 +620,7 @@ impl<'a> Lexer<'a> {
 }
 
 // Predicate helpers (`is_symbol_start`, `is_symbol_continue`,
-// `is_whitespace`, `hex_value`) live in `crate::escapes` so the
+// `is_whitespace`, `hex_value`) live in `crate::vocab` so the
 // lexer and writer share one source of truth.
 
 fn decode_utf8_char(bytes: &[u8]) -> std::result::Result<(char, usize), String> {

@@ -17,7 +17,7 @@
 //! `_` stays `_` (preserves `:rust::*` Rust-mirror convention; no
 //! `,` is legal at depth 0 because EDN treats `,` as whitespace).
 
-use crate::escapes::{char_to_name, encode_string_escape, write_keyword_body_to};
+use crate::vocab::{char_to_name, encode_string_escape, write_keyword_body_to};
 use crate::value::{Keyword, Symbol, Tag, Value};
 use chrono::SecondsFormat;
 use std::fmt::Write;

@@ -66,7 +66,7 @@
 //! See `examples/bench.rs` for the timing harness.
 
 pub mod error;
-pub mod escapes;
+pub mod vocab;
 pub mod json;
 pub mod lexer;
 pub mod parser;
@@ -172,9 +172,6 @@ pub fn parse_all(input: &str) -> Result<Vec<Value<'_>>> {
 /// the feature pulls in `uuid`'s `v4` capability and transitively the
 /// `getrandom` system entropy source. Parser-only consumers stay lean.
 ///
-/// Arc 092. The first consumer is `wat-measure`'s `WorkUnit`, which
-/// keys every measurement scope by uuid.
-///
 /// # Example
 ///
 /// ```
@@ -187,6 +184,8 @@ pub fn parse_all(input: &str) -> Result<Vec<Value<'_>>> {
 /// assert_eq!(parsed.as_uuid(), Some(&id));
 /// # }
 /// ```
+// Arc 092. The first consumer is `wat-measure`'s `WorkUnit`, which
+// keys every measurement scope by uuid.
 #[cfg(feature = "mint")]
 pub fn new_uuid_v4() -> uuid::Uuid {
     uuid::Uuid::new_v4()

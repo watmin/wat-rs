@@ -221,7 +221,7 @@ impl Symbol {
     #[track_caller]
     pub fn new(name: impl AsRef<str>) -> Self {
         let name = name.as_ref();
-        crate::escapes::validate_first_char(name)
+        crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid symbol name {:?}: {}", name, m));
         Self { namespace: None, name: CompactString::from(name) }
     }
@@ -233,9 +233,9 @@ impl Symbol {
     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
         let namespace = namespace.as_ref();
         let name = name.as_ref();
-        crate::escapes::validate_first_char(namespace)
+        crate::vocab::validate_first_char(namespace)
             .unwrap_or_else(|m| panic!("invalid symbol namespace {:?}: {}", namespace, m));
-        crate::escapes::validate_first_char(name)
+        crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid symbol name {:?}: {}", name, m));
         Self {
             namespace: Some(CompactString::from(namespace)),
@@ -249,7 +249,7 @@ impl Symbol {
     /// errors from the parser path).
     pub fn try_new(name: impl AsRef<str>) -> std::result::Result<Self, &'static str> {
         let name = name.as_ref();
-        crate::escapes::validate_first_char(name)?;
+        crate::vocab::validate_first_char(name)?;
         Ok(Self { namespace: None, name: CompactString::from(name) })
     }
 
@@ -260,8 +260,8 @@ impl Symbol {
     ) -> std::result::Result<Self, &'static str> {
         let namespace = namespace.as_ref();
         let name = name.as_ref();
-        crate::escapes::validate_first_char(namespace)?;
-        crate::escapes::validate_first_char(name)?;
+        crate::vocab::validate_first_char(namespace)?;
+        crate::vocab::validate_first_char(name)?;
         Ok(Self {
             namespace: Some(CompactString::from(namespace)),
             name: CompactString::from(name),
@@ -296,7 +296,7 @@ impl Keyword {
     #[track_caller]
     pub fn new(name: impl AsRef<str>) -> Self {
         let name = name.as_ref();
-        crate::escapes::validate_first_char(name)
+        crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid keyword name {:?}: {}", name, m));
         Self { namespace: None, name: CompactString::from(name) }
     }
@@ -306,9 +306,9 @@ impl Keyword {
     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
         let namespace = namespace.as_ref();
         let name = name.as_ref();
-        crate::escapes::validate_first_char(namespace)
+        crate::vocab::validate_first_char(namespace)
             .unwrap_or_else(|m| panic!("invalid keyword namespace {:?}: {}", namespace, m));
-        crate::escapes::validate_first_char(name)
+        crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid keyword name {:?}: {}", name, m));
         Self {
             namespace: Some(CompactString::from(namespace)),
@@ -320,7 +320,7 @@ impl Keyword {
     /// [`Symbol::try_new`] for the error-type rationale.
     pub fn try_new(name: impl AsRef<str>) -> std::result::Result<Self, &'static str> {
         let name = name.as_ref();
-        crate::escapes::validate_first_char(name)?;
+        crate::vocab::validate_first_char(name)?;
         Ok(Self { namespace: None, name: CompactString::from(name) })
     }
 
@@ -331,8 +331,8 @@ impl Keyword {
     ) -> std::result::Result<Self, &'static str> {
         let namespace = namespace.as_ref();
         let name = name.as_ref();
-        crate::escapes::validate_first_char(namespace)?;
-        crate::escapes::validate_first_char(name)?;
+        crate::vocab::validate_first_char(namespace)?;
+        crate::vocab::validate_first_char(name)?;
         Ok(Self {
             namespace: Some(CompactString::from(namespace)),
             name: CompactString::from(name),
@@ -368,9 +368,9 @@ impl Tag {
     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
         let namespace = namespace.as_ref();
         let name = name.as_ref();
-        crate::escapes::validate_first_char(namespace)
+        crate::vocab::validate_first_char(namespace)
             .unwrap_or_else(|m| panic!("invalid tag namespace {:?}: {}", namespace, m));
-        crate::escapes::validate_first_char(name)
+        crate::vocab::validate_first_char(name)
             .unwrap_or_else(|m| panic!("invalid tag name {:?}: {}", name, m));
         Self {
             namespace: CompactString::from(namespace),
@@ -388,8 +388,8 @@ impl Tag {
     ) -> std::result::Result<Self, &'static str> {
         let namespace = namespace.as_ref();
         let name = name.as_ref();
-        crate::escapes::validate_first_char(namespace)?;
-        crate::escapes::validate_first_char(name)?;
+        crate::vocab::validate_first_char(namespace)?;
+        crate::vocab::validate_first_char(name)?;
         Ok(Self {
             namespace: CompactString::from(namespace),
             name: CompactString::from(name),
@@ -437,10 +437,10 @@ impl fmt::Display for Keyword {
         // them as byte-identical.
         f.write_str(":")?;
         if let Some(ns) = self.namespace() {
-            crate::escapes::write_keyword_body_to(ns, f)?;
+            crate::vocab::write_keyword_body_to(ns, f)?;
             f.write_str("/")?;
         }
-        crate::escapes::write_keyword_body_to(self.name(), f)
+        crate::vocab::write_keyword_body_to(self.name(), f)
     }
 }
 
@@ -476,8 +476,6 @@ impl<'a> Value<'a> {
         }
     }
 
-    // ─── Convenience accessors ──────────────────────────────────
-    //
     // Each `as_*` returns `Some(&inner)` when the variant matches,
     // `None` otherwise. Convenient for downstream consumers that
     // know the expected shape and want to short-circuit out of
