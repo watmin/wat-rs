@@ -1,5 +1,9 @@
 # BRIEF — Arc 220 Stone 220.5 — `:wat::core::Char` atomization gap fix
 
+> **SUPERSEDED 2026-05-22 by arc 221** (HolonAST primitive-layer honesty). The original 1-line `is_atomizable` extension is INSUFFICIENT — investigation surfaced that `value_to_atom` has no Char arm (would invent dishonest encoding) AND that Uuid had the same false-flag since arc 207 AND that HolonAST itself needs `HolonAST::Char` as a proper leaf (no convention-based encoding inside existing leaves). Stone 220.5 is RETIRED in current form. Arc 221 Phase A (Stone 221.1 holon-rs `HolonAST::Char` leaf + Stone 221.2 wat-rs `value_to_atom` Char + Uuid arms + `is_atomizable` Char) does what Stone 220.5 was trying to do, the right way. See `docs/arc/2026/05/221-holon-ast-primitive-layer-honesty/DESIGN.md` + INTERSTITIAL 2026-05-22 entry for the full doctrine surfacing. This BRIEF + its EXPECTATIONS stay as historical record per `feedback_inscription_immutable` ("what is inscribed is inscribed; we do not hide our faults — we learn from them"). Task #451 was deleted; task #452 (arc 221) supersedes.
+
+---
+
 **Stone scope (sonnet portion):** add `:wat::core::Char` to the `is_atomizable` predicate at `src/check.rs:3623`; add 3 probe tests proving Char is now fully atomizable as a primitive (Atom-able + HashMap-key-able + HashSet-element-able). One-line predicate addition + one new test file.
 **Type:** Sonnet Mode A.
 **Time budget:** 15-25 min target; 35 min STOP.
