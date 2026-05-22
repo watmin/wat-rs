@@ -176,12 +176,14 @@ pub fn to_json_string(v: &Value<'_>) -> String {
     serde_json::to_string(&edn_to_json(v)).expect("serde_json::to_string on Value")
 }
 
-// rune:purgare(public-api) — symmetric pretty variant of to_json_string
-// (consumed by src/edn_shim.rs for WAT_TEST_OUTPUT cargo integration per
-// arc 116). Impressive JSON bridges ship both compact and pretty forms;
-// removing this would leave an asymmetric surface. The pretty variant
-// is the natural API for human-readable JSON output (debug logs, error
-// envelopes, REPL inspection).
+// rune:purgare(public-api) — symmetric pretty variant paired with
+// to_json_string (which IS actively consumed by src/edn_shim.rs:105,166
+// for WAT_TEST_OUTPUT cargo integration per arc 116). to_json_string_pretty
+// itself has no current direct caller; justification is symmetric-
+// completeness with the live compact variant + future Clojure-IPC bridge
+// surface (crates/wat-edn/docs/IPC-BRIDGE.md). Impressive JSON bridges
+// ship both compact and pretty forms; the pretty variant is the natural
+// API for human-readable output (debug logs, error envelopes, REPL).
 /// Convert an EDN `Value` to a pretty-printed JSON string.
 pub fn to_json_string_pretty(v: &Value<'_>) -> String {
     // rune:temperare(serde-api-shape) — serde_json::to_string_pretty

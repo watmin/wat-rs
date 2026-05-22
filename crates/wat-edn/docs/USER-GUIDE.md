@@ -401,8 +401,7 @@ uuid               {"#uuid": "550e8400-..."}
 ### API
 
 ```rust
-use wat_edn::{to_json_string, to_json_string_pretty,
-              from_json_string, edn_to_json, json_to_edn};
+use wat_edn::{to_json_string, to_json_string_pretty, from_json_string};
 
 let v = parse(r#"#myapp/Order {:id 1 :tags #{:vip}}"#)?;
 
@@ -415,10 +414,6 @@ let s: String = to_json_string_pretty(&v);
 
 // JSON string → EDN OwnedValue
 let v2: OwnedValue = from_json_string(&s)?;
-
-// Or work with serde_json::Value directly
-let jv: serde_json::Value = edn_to_json(&v);
-let back: OwnedValue = json_to_edn(&jv)?;
 ```
 
 ### Lossy conversions to be aware of
@@ -789,7 +784,7 @@ five times against the spec; the residual converged to:
 [edn-spec]: https://github.com/edn-format/edn
 
 ```text
-Tests:  313 Rust + 39 Clojure (96 assertions)
+Tests:  344 Rust + 39 Clojure (96 assertions)
         Zero failures, zero ignored.
 
 Suites: 26 lib unit + 16 accessors + 4 display_equivalence

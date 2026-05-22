@@ -188,14 +188,14 @@ impl<'a> Lexer<'a> {
 
     fn lex_string(&mut self) -> Result<Token<'a>> {
         debug_assert_eq!(self.peek(), Some(b'"'));
-        let open_pos = self.pos;
+        let quote_start = self.pos;
         self.pos += 1;
         let body_start = self.pos;
 
         // Fast path: scan to closing quote without escapes.
         loop {
             match self.peek() {
-                None => return Err(Error::at(open_pos, ErrorKind::UnclosedString)),
+                None => return Err(Error::at(quote_start, ErrorKind::UnclosedString)),
                 Some(b'"') => {
                     let body = &self.input[body_start..self.pos];
                     let s = std::str::from_utf8(body)
@@ -203,7 +203,7 @@ impl<'a> Lexer<'a> {
                     self.pos += 1;
                     return Ok(Token::String(Cow::Borrowed(s)));
                 }
-                Some(b'\\') => return self.lex_string_escaped(open_pos, body_start),
+                Some(b'\\') => return self.lex_string_escaped(quote_start, body_start),
                 Some(_) => self.pos += 1,
             }
         }

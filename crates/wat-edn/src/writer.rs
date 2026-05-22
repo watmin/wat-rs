@@ -68,7 +68,7 @@ fn is_inline_value(v: &Value) -> bool {
 }
 
 /// True if every element inlines (so we can inline a small collection).
-fn all_scalar(items: &[Value]) -> bool {
+fn all_inline(items: &[Value]) -> bool {
     items.iter().all(is_inline_value)
 }
 
@@ -84,7 +84,7 @@ fn write_pretty_indented(v: &Value, out: &mut String, level: usize) {
             if items.is_empty() {
                 out.push_str(open);
                 out.push_str(close);
-            } else if items.len() <= 8 && all_scalar(items) {
+            } else if items.len() <= 8 && all_inline(items) {
                 // Inline small scalar-only collections.
                 out.push_str(open);
                 let mut first = true;
@@ -192,12 +192,13 @@ pub fn write(v: &Value) -> String {
     out
 }
 
-// rune:purgare(public-api) — buffer-reuse ergonomic for performance-
-// conscious consumers; symmetric with the actively-consumed `write` fn.
-// Documented in crates/wat-edn/docs/IPC-BRIDGE.md:95 as part of the
-// future Clojure-IPC bridge surface. The append-to-existing-buffer
-// shape is the canonical Rust pattern for output composition; removing
-// it would force consumers to allocate per write or write a wrapper.
+// rune:purgare(future-fixture) — buffer-reuse ergonomic retained for
+// the future Clojure-IPC bridge per crates/wat-edn/docs/IPC-BRIDGE.md:95;
+// no current external caller. Symmetric with the actively-consumed
+// `write` fn. The append-to-existing-buffer shape is the canonical
+// Rust pattern for output composition. This rune retires when the IPC
+// bridge ships and write_to gains a real caller (per purgare SKILL:
+// "rune retires when the downstream lands").
 /// Append `v` as EDN to `out`. Reuses caller-owned buffer.
 pub fn write_to(v: &Value, out: &mut String) {
     match v {

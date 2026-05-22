@@ -42,7 +42,7 @@ assert_eq!(v.into_owned(), v2);
 - Direct `push_str` writers (no `Display` formatter overhead)
 - Round-trip-safe JSON conversion with sentinel-key tagged objects
 - Pretty-print with byte-equivalent round-trip identity
-- 313 Rust tests + 39 Clojure tests, all green
+- 344 Rust tests + 39 Clojure tests, all green
 
 ## Performance (stable, M-class hardware)
 
@@ -94,7 +94,7 @@ See [§9 Spec extensions](docs/USER-GUIDE.md#9-spec-extensions).
 
 ## Verification (cross-language)
 
-Self round-trip is `cargo test -p wat-edn` (342/342 passing). The
+Self round-trip is `cargo test -p wat-edn` (344/344 passing). The
 spec-conformance claim above — *"peer to Clojure's reference reader"* —
 is empirically verified by piping wat-edn output through stock
 `clojure.edn/read` (no helpers, no extensions):
