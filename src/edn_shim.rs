@@ -1889,14 +1889,17 @@ fn edn_to_holon_ast_natural(edn: &OwnedValue) -> Result<Arc<holon::HolonAST>, Ed
         }
         // Bare primitives — best-effort lift to the matching leaf.
         OwnedValue::Keyword(k) => {
-            // Mirror `keyword_from_wat_path`'s inverse — wat
-            // colon-prefixed `:foo::bar` lowers to EDN keyword
-            // `foo/bar`; here we go back to `:foo::bar`.
+            // Arc 221 Stone 221.4b — EDN keyword reader emits HolonAST::Keyword,
+            // not HolonAST::Symbol. Stone 221.3 (holon-rs fa48b39) minted
+            // HolonAST::Keyword; stored content has NO leading colon.
+            // Mirror `keyword_from_wat_path`'s inverse — EDN keyword `foo/bar`
+            // (namespace `foo`, name `bar`) maps to wat-path `foo::bar` (no colon;
+            // HolonAST::keyword() stores the stripped form).
             let s = match k.namespace() {
-                Some(ns) => format!(":{}::{}", ns.replace('.', "::"), k.name()),
-                None => format!(":{}", k.name()),
+                Some(ns) => format!("{}::{}", ns.replace('.', "::"), k.name()),
+                None => k.name().to_string(),
             };
-            Ok(Arc::new(HolonAST::Symbol(Arc::from(s))))
+            Ok(Arc::new(HolonAST::Keyword(Arc::from(s))))
         }
         OwnedValue::String(s) => {
             Ok(Arc::new(HolonAST::String(Arc::from(s.as_ref()))))

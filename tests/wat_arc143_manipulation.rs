@@ -375,15 +375,23 @@ fn extract_arg_names_stops_before_return_type() {
 
 #[test]
 fn extract_arg_names_error_non_bundle() {
-    // Input is a bare keyword (Symbol HolonAST), not a Bundle.
-    // The runtime should error.
+    // Input is a Keyword leaf HolonAST (not a Bundle).
+    // The runtime should error with TypeMismatch (expects Bundle).
+    //
+    // Arc 221 Stone 221.4b — pre-existing test used `:wat::core::foldl` (a
+    // function) which is not atomizable; the type checker rejected it at
+    // startup (pre-existing failure verified by stash round-trip on the
+    // Stone 221.4b baseline). Fixed here: use `:user::foo` (a keyword value),
+    // which IS atomizable and produces HolonAST::Keyword — a leaf, not a Bundle.
+    // `extract-arg-names` requires a Bundle; a Keyword leaf triggers TypeMismatch
+    // at runtime, which is what this test is meant to verify.
     let src = r##"
 
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
             [leaf
-              (:wat::holon::Atom :wat::core::foldl)
+              (:wat::holon::Atom :user::foo)
              names
               (:wat::runtime::extract-arg-names leaf)]
             (:wat::kernel::println "should not reach")))

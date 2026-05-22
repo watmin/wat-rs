@@ -10487,13 +10487,13 @@ fn eval_struct_to_form(
 ///   `format_type`'s Var spelling; type variables stay atomic.
 ///
 /// Downstream `watast_to_holon` lowers `WatAST::List` → `HolonAST::Bundle`
-/// and `WatAST::Keyword(":Foo")` → `HolonAST::Symbol(":Foo")` uniformly
-/// (NOTE: `watast_to_holon` still uses Symbol for keywords — arc 221 Stone 221.5
-/// will update this path; Stone 221.4 only touches `value_to_atom`),
-/// so the reflection consumer sees structured `HolonAST::Bundle` for
-/// every Parametric / Tuple / Fn type and `HolonAST::Symbol` for every
-/// Path / Var. Type-driven macros can walk the structure via the
-/// existing HolonAST Bundle accessors instead of parsing keyword strings.
+/// and `WatAST::Keyword(":Foo")` → `HolonAST::Keyword("Foo")` uniformly
+/// (arc 221 Stone 221.4b — leading colon stripped by `HolonAST::keyword()`
+/// constructor per Stone 221.3; the pre-Stone-221.4b `→ HolonAST::Symbol(":Foo")`
+/// convention is retired).
+/// The reflection consumer sees `HolonAST::Bundle` for every Parametric / Tuple
+/// / Fn type and `HolonAST::Keyword` for every Path / Var keyword. Type-driven
+/// macros walk the structure via Bundle accessors; leaf keywords via `as_keyword()`.
 ///
 /// NOTE: this does NOT replace `format_type`. `format_type` remains the
 /// canonical source for DIAGNOSTIC / error-message spellings; only
@@ -11476,18 +11476,24 @@ fn split_type_params(s: &str) -> (&str, &str) {
 /// `(:wat::runtime::rename-callable-name head from to) -> :wat::holon::HolonAST`
 ///
 /// Arc 143 slice 3. Takes a signature head AST (a `Bundle` whose first
-/// `Symbol` child is `"<name><type-params>"`) and returns a new head
-/// with the function-name part replaced.
+/// `Keyword` child is `"<name><type-params>"` per arc 221 doctrine) and returns
+/// a new head with the function-name part replaced.
+///
+/// Arc 221 Stone 221.4b — children[0] is now `HolonAST::Keyword` (not Symbol).
+/// `watast_to_holon` converts `WatAST::Keyword → HolonAST::Keyword` (Stone 221.4b);
+/// function-name content has NO leading colon in the stored Keyword payload.
+/// `from_str` (from `name_from_keyword_or_fn`) includes the leading colon
+/// (stored in `Value::wat__core__keyword`); strip it before comparing to `base`.
 ///
 /// Steps:
 /// 1. Eval all three args; verify arg types.
 /// 2. Destructure head into Bundle children (error if not Bundle).
-/// 3. Verify children[0] is a Symbol; split it at `<` to separate
+/// 3. Verify children[0] is a Keyword; split it at `<` to separate
 ///    base name from type-param suffix.
-/// 4. Verify base == `from` keyword string (colon-prefixed). On mismatch,
-///    error "rename-callable-name: head name does not match `from`".
-/// 5. Construct new first symbol: `to + suffix`.
-/// 6. Rebuild Bundle with [new_symbol, children[1..]].
+/// 4. Verify base == `from` keyword string (colon stripped from from_str). On
+///    mismatch, error "rename-callable-name: head name does not match `from`".
+/// 5. Construct new first keyword: `to + suffix` via `HolonAST::keyword()`.
+/// 6. Rebuild Bundle with [new_keyword, children[1..]].
 fn eval_rename_callable_name(
     args: &[WatAST],
     env: &Environment,
@@ -11546,23 +11552,26 @@ fn eval_rename_callable_name(
         }
     };
 
-    // Destructure Bundle; check children[0] is a Symbol.
+    // Destructure Bundle; check children[0] is a Keyword (arc 221 Stone 221.4b).
     let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
     if children.is_empty() {
         return Err(RuntimeError::TypeMismatch {
             op: OP.into(),
-            expected: "Bundle with at least one Symbol child (the function name)",
+            expected: "Bundle with at least one Keyword child (the function name, arc 221 doctrine)",
             got: "empty Bundle",
             span: args[0].span().clone(),
         });
     }
+    // Arc 221 Stone 221.4b — children[0] is HolonAST::Keyword (not Symbol).
+    // watast_to_holon at Stone 221.4b converts WatAST::Keyword → HolonAST::Keyword;
+    // stored content has NO leading colon (HolonAST::keyword() strips it).
     let first_str = match &children[0] {
-        HolonAST::Symbol(s) => s.as_ref(),
+        HolonAST::Keyword(s) => s.as_ref(),
         _ => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
-                expected: "Symbol as first Bundle child (the function name)",
-                got: "non-Symbol first child",
+                expected: "Keyword as first Bundle child (the function name, arc 221 doctrine)",
+                got: "non-Keyword first child",
                 span: args[0].span().clone(),
             });
         }
@@ -11571,8 +11580,11 @@ fn eval_rename_callable_name(
     // Split name at `<` to preserve type-param suffix.
     let (base, suffix) = split_type_params(first_str);
 
-    // Verify base matches `from`.
-    if base != from_str.as_str() {
+    // Arc 221 Stone 221.4b — `base` has NO leading colon (Keyword payload);
+    // `from_str` (from name_from_keyword_or_fn / Value::wat__core__keyword) has
+    // the leading colon. Strip it before comparing.
+    let from_base = from_str.strip_prefix(':').unwrap_or(from_str.as_str());
+    if base != from_base {
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: format!(
@@ -11583,9 +11595,11 @@ fn eval_rename_callable_name(
         });
     }
 
-    // Construct new first symbol: to + suffix.
+    // Arc 221 Stone 221.4b — construct new first Keyword (not Symbol).
+    // to_str comes from name_from_keyword_or_fn (includes leading colon e.g. ":bar::fn").
+    // HolonAST::keyword() strips the leading colon → stored as "bar::fn" (no colon).
     let new_name = format!("{}{}", to_str, suffix);
-    let new_first = HolonAST::symbol(new_name.as_str());
+    let new_first = HolonAST::keyword(new_name.as_str());
 
     // Rebuild Bundle: [new_first] ++ children[1..].
     let mut new_children: Vec<HolonAST> = Vec::with_capacity(children.len());
@@ -11600,14 +11614,20 @@ fn eval_rename_callable_name(
 /// Arc 143 slice 3. Takes a signature head AST and returns a `Vec` of
 /// the arg-name keywords (`:_a0`, `:_a1`, ... or user-defined names).
 ///
+/// Arc 221 Stone 221.4b audit — arg-pair arg names are `HolonAST::Symbol` (bare
+/// identifiers from param names), NOT `HolonAST::Keyword`. This is HONEST per the
+/// distinction in the BRIEF shape-table: function/macro param names are declared
+/// as bare WAT identifiers (`WatAST::Symbol`), not user keywords (`WatAST::Keyword`).
+/// `->` is also a bare-symbol sentinel. Both remain `HolonAST::Symbol` — no change.
+///
 /// Algorithm:
 /// 1. Eval and destructure head as Bundle.
-/// 2. Skip children[0] (the function name symbol).
+/// 2. Skip children[0] (the function name Keyword — arc 221 Stone 221.4b).
 /// 3. For each remaining child:
-///    - Symbol("->"): STOP collecting (everything after is return type).
-///    - Bundle([Symbol(arg_name), _]): collect arg_name as a keyword.
+///    - Symbol("->"): STOP collecting (return-type sentinel; bare symbol, honest).
+///    - Bundle([Symbol(arg_name), _]): collect arg_name (bare-ident Symbol; honest).
 ///    - Anything else: skip.
-/// 4. Return Vec<Value::keyword>.
+/// 4. Return Vec<Value::holon__HolonAST> wrapping each Symbol leaf.
 fn eval_extract_arg_names(
     args: &[WatAST],
     env: &Environment,
@@ -13484,6 +13504,14 @@ fn try_match_pattern(
 fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, RuntimeError> {
     match item {
         HolonAST::Symbol(s) => Ok(Value::wat__core__keyword(Arc::new(s.to_string()))),
+        // Arc 221 Stone 221.4b — HolonAST::Keyword leaf → wat keyword Value.
+        // HolonAST::keyword() strips the leading colon; restore it for the Value round-trip.
+        // Symmetric inverse of the keyword() constructor (Stone 221.3 holon-rs fa48b39).
+        HolonAST::Keyword(s) => Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s)))),
+        // Arc 221 Stone 221.4b — HolonAST::Nil leaf → Value::Unit (wat's nil).
+        HolonAST::Nil => Ok(Value::Unit),
+        // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
+        HolonAST::Char(c) => Ok(Value::wat__core__Char(*c)),
         HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
         HolonAST::I64(n) => Ok(Value::i64(*n)),
         HolonAST::F64(x) => Ok(Value::f64(*x)),
@@ -13668,6 +13696,14 @@ fn eval_atom_value(
     };
     match &*holon {
         HolonAST::Symbol(s) => Ok(Value::wat__core__keyword(Arc::new(s.to_string()))),
+        // Arc 221 Stone 221.4b — HolonAST::Keyword leaf → wat keyword Value.
+        // HolonAST::keyword() strips the leading colon; restore it for the Value round-trip.
+        // Symmetric inverse of the keyword() constructor (Stone 221.3 holon-rs fa48b39).
+        HolonAST::Keyword(s) => Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s)))),
+        // Arc 221 Stone 221.4b — HolonAST::Nil leaf → Value::Unit (wat's nil).
+        HolonAST::Nil => Ok(Value::Unit),
+        // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
+        HolonAST::Char(c) => Ok(Value::wat__core__Char(*c)),
         HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
         HolonAST::I64(n) => Ok(Value::i64(*n)),
         HolonAST::F64(x) => Ok(Value::f64(*x)),
@@ -13950,13 +13986,21 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
 /// a coordinate; lists nest as Bundle; literals collapse to their
 /// matching primitive leaf; identifier scope is dropped (forms are
 /// spelling, scope is resolution-time).
+///
+/// Arc 221 Stone 221.4b — WatAST::Keyword lowers to HolonAST::keyword()
+/// (not HolonAST::symbol). HolonAST::keyword() strips the leading colon
+/// per Stone 221.3 doctrine (holon-rs commit fa48b39). Pre-arc-221 used
+/// HolonAST::symbol(k.as_str()) which violated the honest-primitive
+/// discipline; retired here.
 fn watast_to_holon(a: &WatAST) -> HolonAST {
     match a {
         WatAST::IntLit(n, _) => HolonAST::i64(*n),
         WatAST::FloatLit(x, _) => HolonAST::f64(*x),
         WatAST::BoolLit(b, _) => HolonAST::bool_(*b),
         WatAST::StringLit(s, _) => HolonAST::string(s.as_str()),
-        WatAST::Keyword(k, _) => HolonAST::symbol(k.as_str()),
+        // Arc 221 Stone 221.4b — Keyword lowers to HolonAST::Keyword, not Symbol.
+        // HolonAST::keyword() strips the leading colon stored in WatAST::Keyword.
+        WatAST::Keyword(k, _) => HolonAST::keyword(k.as_str()),
         WatAST::Symbol(ident, _) => HolonAST::symbol(ident.name.as_str()),
         WatAST::List(items, _) => {
             HolonAST::bundle(items.iter().map(watast_to_holon).collect())
@@ -14015,11 +14059,19 @@ fn eval_holon_leaf(
         Value::f64(x) => HolonAST::f64(x),
         Value::bool(b) => HolonAST::bool_(b),
         Value::String(s) => HolonAST::string(s.as_str()),
-        Value::wat__core__keyword(k) => HolonAST::symbol(k.as_str()),
+        // Arc 221 Stone 221.4b — Keyword primitive → HolonAST::Keyword leaf.
+        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
+        // HolonAST::keyword() strips the leading colon (Stone 221.3 holon-rs fa48b39).
+        Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str()),
+        // Arc 221 Stone 221.4b — Value::Unit (wat nil) → HolonAST::Nil leaf.
+        // Option A: aligned with value_to_atom (Stone 221.4) for consistency.
+        // Per the four-questions: obvious+simple+honest all YES — three dispatchers
+        // agreeing on nil-as-Nil is more honest than asymmetric TypeMismatch.
+        Value::Unit => HolonAST::Nil,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
-                expected: "primitive (i64/f64/bool/String/keyword); \
+                expected: "primitive (i64/f64/bool/String/keyword/nil); \
                            use :wat::holon::Atom to wrap a HolonAST, \
                            :wat::holon::from-watast to lower a quoted form",
                 got: other.type_name(),
@@ -20935,7 +20987,13 @@ fn value_to_holon(op: &'static str, v: Value) -> Result<Value, RuntimeError> {
         Value::f64(x) => HolonAST::f64(x),
         Value::bool(b) => HolonAST::bool_(b),
         Value::String(s) => HolonAST::string(s.as_str()),
-        Value::wat__core__keyword(k) => HolonAST::symbol(k.as_str()),
+        // Arc 221 Stone 221.4b — Keyword primitive → HolonAST::Keyword leaf.
+        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
+        // HolonAST::keyword() strips the leading colon (Stone 221.3 holon-rs fa48b39).
+        Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str()),
+        // Arc 221 Stone 221.4b — Value::Unit (wat nil) → HolonAST::Nil leaf.
+        // Option A: aligned with value_to_atom + :wat::holon::leaf for consistency.
+        Value::Unit => HolonAST::Nil,
         // Already a HolonAST — pass through unchanged. Eval-ast!'s
         // contract is "return the form's value as a HolonAST." If
         // it's already a HolonAST, return it directly; wrapping
@@ -21270,7 +21328,9 @@ fn step_form(
         WatAST::FloatLit(x, _) => Ok(StepValue::Terminal(HolonAST::f64(*x))),
         WatAST::BoolLit(b, _) => Ok(StepValue::Terminal(HolonAST::bool_(*b))),
         WatAST::StringLit(s, _) => Ok(StepValue::Terminal(HolonAST::string(s.as_str()))),
-        WatAST::Keyword(k, _) => Ok(StepValue::Terminal(HolonAST::symbol(k.as_str()))),
+        // Arc 221 Stone 221.4b — Keyword literal terminal → HolonAST::Keyword leaf.
+        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
+        WatAST::Keyword(k, _) => Ok(StepValue::Terminal(HolonAST::keyword(k.as_str()))),
         // A bare symbol that survived to step time means substitution
         // didn't reach it — an unbound free variable. Surface as
         // NoStepRule so the consumer falls back to eval-ast! (which
@@ -21319,7 +21379,9 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
         WatAST::FloatLit(x, _) => Some(HolonAST::f64(*x)),
         WatAST::BoolLit(b, _) => Some(HolonAST::bool_(*b)),
         WatAST::StringLit(s, _) => Some(HolonAST::string(s.as_str())),
-        WatAST::Keyword(k, _) => Some(HolonAST::symbol(k.as_str())),
+        // Arc 221 Stone 221.4b — Keyword value-shape recognition → HolonAST::Keyword leaf.
+        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
+        WatAST::Keyword(k, _) => Some(HolonAST::keyword(k.as_str())),
         // A bare Symbol could be either an unbound free variable
         // (NoStepRule territory) or a HolonAST::Symbol leaf (lifted
         // from a `holon::Symbol` per arc 057's `holon_to_watast`).
@@ -23905,6 +23967,12 @@ mod tests {
         // The form's identity participates in the algebra; this is the
         // substrate-side prerequisite for the cache-as-coordinate-tree
         // and for Reckoner labels on intermediary forms.
+        //
+        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+'2 40 2))`
+        // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+'2"), ...])`.
+        // `watast_to_holon` at Stone 221.4b now maps `WatAST::Keyword(k) →
+        // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+'2")`
+        // (leading colon stripped). Assertions flipped from as_symbol() to as_keyword().
         let v = eval_expr(
             "(:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+'2 40 2)))",
         )
@@ -23916,7 +23984,9 @@ mod tests {
         match &*h {
             HolonAST::Bundle(items) => {
                 assert_eq!(items.len(), 3, "expected 3-item Bundle, got {}", items.len());
-                assert_eq!(items[0].as_symbol(), Some(":wat::core::i64::+'2"));
+                // Stone 221.4b: WatAST::Keyword → HolonAST::Keyword; content without leading colon.
+                assert_eq!(items[0].as_keyword(), Some("wat::core::i64::+'2"));
+                assert_eq!(items[0].as_symbol(), None, "must NOT be Symbol after arc 221");
                 assert_eq!(items[1].as_i64(), Some(40));
                 assert_eq!(items[2].as_i64(), Some(2));
             }
@@ -23929,6 +23999,13 @@ mod tests {
         // Atomic literals inside quote DO survive the trip — they lower to
         // their matching primitive leaf at Atom time, and atom-value
         // reads them back as the corresponding wat Value.
+        //
+        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote :outcome)` produces
+        // `WatAST::Keyword(":outcome")` → `HolonAST::Keyword("outcome")` (no colon).
+        // `eval_atom_value` now has a `HolonAST::Keyword(s)` arm (Stone 221.4b)
+        // that returns `Value::keyword(":outcome")` (restores leading colon).
+        // The assertion value ":outcome" is unchanged; the path through atom-value
+        // now goes via the Keyword arm instead of the Symbol arm.
         let result = eval_expr(
             "(:wat::core::atom-value (:wat::holon::Atom (:wat::core::quote :outcome)))",
         )
@@ -23990,6 +24067,12 @@ mod tests {
         // coordinates, not runnable programs. Consumers who want the
         // value walk the form themselves (or use a future cache layer
         // that records the form → value edge).
+        //
+        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+'2 40 2))`
+        // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+'2"), ...])`.
+        // `watast_to_holon` at Stone 221.4b maps `WatAST::Keyword(k) →
+        // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+'2")`
+        // (leading colon stripped). Assertion flipped from as_symbol() to as_keyword().
         let v = eval_expr(
             "(:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+'2 40 2)))",
         )
@@ -24001,7 +24084,9 @@ mod tests {
         match &*h {
             HolonAST::Bundle(items) => {
                 assert_eq!(items.len(), 3);
-                assert_eq!(items[0].as_symbol(), Some(":wat::core::i64::+'2"));
+                // Stone 221.4b: WatAST::Keyword → HolonAST::Keyword; content without leading colon.
+                assert_eq!(items[0].as_keyword(), Some("wat::core::i64::+'2"));
+                assert_eq!(items[0].as_symbol(), None, "must NOT be Symbol after arc 221");
                 assert_eq!(items[1].as_i64(), Some(40));
                 assert_eq!(items[2].as_i64(), Some(2));
             }
@@ -27219,8 +27304,15 @@ mod tests {
     #[test]
     fn from_watast_lowers_quoted_list_to_bundle() {
         // Quoted list form lowers structurally — the result is a
-        // Bundle of Symbol / I64 leaves (mirrors arc 057's path-2
-        // structural lowering).
+        // Bundle of Keyword / I64 leaves (mirrors arc 057's path-2
+        // structural lowering; head keyword is now HolonAST::Keyword
+        // per arc 221 Stone 221.4b).
+        //
+        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+'2 40 2))`
+        // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+'2"), ...])`.
+        // `watast_to_holon` at Stone 221.4b maps `WatAST::Keyword(k) →
+        // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+'2")`
+        // (leading colon stripped). Assertion flipped from as_symbol() to as_keyword().
         let src = r#"
             (:wat::holon::from-watast
               (:wat::core::quote (:wat::core::i64::+'2 40 2)))
@@ -27233,7 +27325,9 @@ mod tests {
         match &*h {
             HolonAST::Bundle(items) => {
                 assert_eq!(items.len(), 3);
-                assert_eq!(items[0].as_symbol(), Some(":wat::core::i64::+'2"));
+                // Stone 221.4b: WatAST::Keyword → HolonAST::Keyword; content without leading colon.
+                assert_eq!(items[0].as_keyword(), Some("wat::core::i64::+'2"));
+                assert_eq!(items[0].as_symbol(), None, "must NOT be Symbol after arc 221");
                 assert_eq!(items[1].as_i64(), Some(40));
                 assert_eq!(items[2].as_i64(), Some(2));
             }
@@ -27245,6 +27339,13 @@ mod tests {
     fn from_watast_lowers_atomic_quote_to_leaf() {
         // Atomic literal inside quote — atomic shape stays as a
         // primitive leaf, NOT wrapped in a Bundle.
+        //
+        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote :outcome)` produces
+        // `WatAST::Keyword(":outcome")`; `watast_to_holon` at Stone 221.4b now maps
+        // `WatAST::Keyword(k) → HolonAST::keyword(k.as_str())` which strips the
+        // leading colon and produces `HolonAST::Keyword("outcome")`. Pre-Stone-221.4b
+        // used `HolonAST::symbol(k.as_str())` → `HolonAST::Symbol(":outcome")`.
+        // Assertion flipped from as_symbol() to as_keyword() per arc 221 doctrine.
         let src = r#"
             (:wat::holon::from-watast (:wat::core::quote :outcome))
         "#;
@@ -27253,7 +27354,10 @@ mod tests {
             Value::holon__HolonAST(h) => h,
             other => panic!("expected Holon, got {:?}", other),
         };
-        assert_eq!(h.as_symbol(), Some(":outcome"));
+        // Stone 221.4b: WatAST::Keyword → HolonAST::Keyword (no leading colon stored).
+        assert_eq!(h.as_keyword(), Some("outcome"));
+        // Confirm it is NOT a Symbol (regression guard against reverting to old convention).
+        assert_eq!(h.as_symbol(), None, "must NOT be Symbol after arc 221 Stone 221.4b");
     }
 
     #[test]
