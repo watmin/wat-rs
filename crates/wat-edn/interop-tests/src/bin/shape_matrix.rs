@@ -103,6 +103,15 @@ fn build_shape_matrix() -> Value<'static> {
         // ─── Arc 220 — :wat::core::Char (BMP-only) ───────────────
         (kw("char-bmp"), Value::Char('x')),
 
+        // ─── Arc 220 Stone 220.4 — :wat::core::List<T> ──────────
+        // EDN list of 3 integers: `(1 2 3)`. Proves cross-language
+        // round-trip of the parens form (distinct from vector `[1 2 3]`).
+        (kw("list-3"), Value::List(vec![
+            Value::Integer(1),
+            Value::Integer(2),
+            Value::Integer(3),
+        ])),
+
     ])
 }
 

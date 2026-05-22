@@ -502,6 +502,24 @@ pub fn eval_char_of(
     Ok(Value::wat__core__Char(c))
 }
 
+/// Arc 220 Stone 220.4 — `(:wat::core::List/of arg1 arg2 ...)` variadic constructor.
+///
+/// Evaluates each argument and pushes it to the back of a new `LinkedList<Value>`.
+/// Returns `Value::wat__core__List(Arc::new(list))`. Zero args → empty list.
+/// No arity restriction (variadic; 0 or more). Mirrors `eval_char_of` pattern but
+/// is variadic rather than fixed-arity.
+pub fn eval_list_of(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let mut items = std::collections::LinkedList::new();
+    for arg in args {
+        items.push_back(crate::runtime::eval(arg, env, sym)?);
+    }
+    Ok(Value::wat__core__List(std::sync::Arc::new(items)))
+}
+
 // ─── regex ───────────────────────────────────────────────────────────────
 
 /// `(:wat::core::regex::matches? pattern haystack)` → `:bool`.

@@ -622,6 +622,61 @@ pub enum Value {
     /// codepoints U+10000–U+10FFFF rejected at construction + lex time).
     /// Constructed via `(:wat::core::Char/of "x")` or `\c` literal.
     wat__core__Char(char),
+    /// Arc 220 Stone 220.4 — `:wat::core::List<T>`. Typed linked-list primitive.
+    /// Distinct from `Value::Vec` (`:wat::core::Vector`) — preserves the EDN
+    /// parens-vs-brackets distinction for faithful round-trips with Clojure.
+    /// Backed by `std::collections::LinkedList<Value>`: O(1) cons/head, O(N) iter.
+    /// Cross-type equality with Vector per EDN spec §282-289:
+    /// `List(1,2,3) == Vector(1,2,3)` returns true.
+    /// Hash invariant preserved: List + Vector with same contents hash equal.
+    /// conj = PREPEND (Clojure semantic; distinct from Vector conj = APPEND).
+    /// Constructed via `(:wat::core::List/of ...)` or `'(...)` literal.
+    wat__core__List(std::sync::Arc<std::collections::LinkedList<Value>>),
+}
+
+/// Arc 220 Stone 220.4 — shared sequence equality helper.
+///
+/// Used by `PartialEq for Value` cross-type arms (Vec vs List) and `values_equal`
+/// cross-type arms per EDN spec §282-289. Iterates both sequences in lockstep;
+/// returns true iff same length and all ordinal pairs are equal.
+fn sequence_eq<'a, I, J>(mut a: I, mut b: J) -> bool
+where
+    I: Iterator<Item = &'a Value>,
+    J: Iterator<Item = &'a Value>,
+{
+    loop {
+        match (a.next(), b.next()) {
+            (None, None) => return true,
+            (Some(_), None) | (None, Some(_)) => return false,
+            (Some(x), Some(y)) => {
+                if x != y {
+                    return false;
+                }
+            }
+        }
+    }
+}
+
+/// Arc 220 Stone 220.4 — shared sequence-Hash helper (β approach).
+///
+/// Used by `impl Hash for Value` for both `Vec` and `wat__core__List` arms.
+/// Both sequences use the same `SEQ_TAG` constant instead of `discriminant`,
+/// then hash each element in order. This preserves the Hash invariant:
+/// `List(1,2,3) == Vector(1,2,3)` (EDN spec §282-289) → must hash equal.
+///
+/// `SEQ_TAG = 0xA5` is arbitrary; distinct from any `std::mem::discriminant`
+/// value in practice (discriminants for C-like enums are 0..N for field position).
+fn hash_sequence<'a, H, I>(items: I, state: &mut H)
+where
+    H: std::hash::Hasher,
+    I: IntoIterator<Item = &'a Value>,
+{
+    use std::hash::Hash;
+    const SEQ_TAG: u8 = 0xA5;
+    SEQ_TAG.hash(state);
+    for v in items {
+        v.hash(state);
+    }
 }
 
 /// Arc 216 Stone 216.5a — `impl PartialEq for Value`.
@@ -662,6 +717,14 @@ impl PartialEq for Value {
             (Value::wat__core__Uuid(a), Value::wat__core__Uuid(b)) => a == b,
             // Arc 220 — Char equality. `char` implements `PartialEq`.
             (Value::wat__core__Char(a), Value::wat__core__Char(b)) => a == b,
+            // Arc 220 Stone 220.4 — List same-type equality.
+            (Value::wat__core__List(a), Value::wat__core__List(b)) => {
+                sequence_eq(a.iter(), b.iter())
+            }
+            // Arc 220 Stone 220.4 — Cross-type sequence equality per EDN spec §282-289.
+            // `List(1,2,3) == Vector(1,2,3)` returns true; order + contents match.
+            (Value::Vec(a), Value::wat__core__List(b)) => sequence_eq(a.iter(), b.iter()),
+            (Value::wat__core__List(a), Value::Vec(b)) => sequence_eq(a.iter(), b.iter()),
             (Value::Vec(a), Value::Vec(b)) => a == b,
             // HashSet: native Arc<HashSet<Value>> equality.
             // Stone 216.5b — storage is now Arc<HashSet<Value>>; HashSet's PartialEq
@@ -758,6 +821,16 @@ impl Eq for Value {}
 /// correct.
 impl std::hash::Hash for Value {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Arc 220 Stone 220.4 — sequence types (Vec + List) skip the
+        // global discriminant and use hash_sequence (shared SEQ_TAG + element
+        // iteration) so that `List(1,2,3)` and `Vector(1,2,3)` hash equal per
+        // EDN spec §282-289 (cross-type sequence equality). Early-return before
+        // the discriminant fires for these two variants only.
+        match self {
+            Value::Vec(xs) => return hash_sequence(xs.iter(), state),
+            Value::wat__core__List(xs) => return hash_sequence(xs.iter(), state),
+            _ => {}
+        }
         std::mem::discriminant(self).hash(state);
         match self {
             // --- Atomizable primitives ---
@@ -771,8 +844,8 @@ impl std::hash::Hash for Value {
             Value::wat__core__Uuid(u) => u.hash(state),
             // Arc 220 — Char hash. `char` implements `Hash`.
             Value::wat__core__Char(c) => c.hash(state),
-            // Vec: std lib Vec<T>: Hash composes recursively
-            Value::Vec(xs) => xs.hash(state),
+            // Arc 220 Stone 220.4 — Vec + List handled above (early-return); unreachable.
+            Value::Vec(_) | Value::wat__core__List(_) => unreachable!("handled above"),
             // HashSet: sort element hashes for set semantics (order-independent).
             // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate s.iter()
             // directly (Values, not String canonical-keys).
@@ -1055,6 +1128,8 @@ impl Value {
             Value::wat__core__Uuid(_) => "wat::core::Uuid",
             // Arc 220
             Value::wat__core__Char(_) => "wat::core::Char",
+            // Arc 220 Stone 220.4
+            Value::wat__core__List(_) => "wat::core::List",
         }
     }
 }
@@ -4591,6 +4666,10 @@ fn dispatch_keyword_head(
         // One verb: `Char/of` (from length-1 BMP String).
         ":wat::core::Char/of" => crate::string_ops::eval_char_of(args, env, sym),
 
+        // Arc 220 Stone 220.4 — typed `:wat::core::List` constructor.
+        // Variadic: `List/of` takes 0 or more args and builds a LinkedList.
+        ":wat::core::List/of" => crate::string_ops::eval_list_of(args, env, sym),
+
         // Regex — pattern matching. Lives in its own :wat::core::regex::*
         // namespace since the regex crate is a distinct concern.
         ":wat::core::regex::matches?" => crate::string_ops::eval_regex_matches(args, env, sym),
@@ -4756,6 +4835,8 @@ fn dispatch_keyword_head(
         ":wat::core::Vector/length" => eval_vector_length(args, env, sym),
         ":wat::core::HashMap/length" => eval_hashmap_length(args, env, sym),
         ":wat::core::HashSet/length" => eval_hashset_length(args, env, sym),
+        // Arc 220 Stone 220.4 — List per-Type ops.
+        ":wat::core::List/length" => eval_list_length(args, env, sym),
         // Arc 146 slice 3 — empty? / contains? / get / conj are now
         // Dispatches (declared in `wat/core.wat`). Per-Type impls also
         // directly callable; the dispatch_keyword_head guard above
@@ -4763,11 +4844,17 @@ fn dispatch_keyword_head(
         ":wat::core::Vector/empty?" => eval_vector_empty_q(args, env, sym),
         ":wat::core::HashMap/empty?" => eval_hashmap_empty_q(args, env, sym),
         ":wat::core::HashSet/empty?" => eval_hashset_empty_q(args, env, sym),
+        // Arc 220 Stone 220.4 — List empty?
+        ":wat::core::List/empty?" => eval_list_empty_q(args, env, sym),
         ":wat::core::Vector/contains?" => eval_vector_contains_q(args, env, sym),
         ":wat::core::HashMap/contains-key?" => eval_hashmap_contains_key_q(args, env, sym),
         ":wat::core::HashSet/contains?" => eval_hashset_contains_q(args, env, sym),
+        // Arc 220 Stone 220.4 — List contains?
+        ":wat::core::List/contains?" => eval_list_contains_q(args, env, sym),
         ":wat::core::Vector/get" => eval_vector_get(args, env, sym),
         ":wat::core::HashMap/get" => eval_hashmap_get(args, env, sym),
+        // Arc 220 Stone 220.4 — List get
+        ":wat::core::List/get" => eval_list_get(args, env, sym),
         // Arc 214 Slice 4 Stone 4.2 — :wat::program::Env accessor trio.
         ":wat::program::Env/get" => eval_program_env_get(args, env, sym),
         ":wat::program::Env/expect-get" => eval_program_env_expect_get(args, env, sym),
@@ -4778,6 +4865,8 @@ fn dispatch_keyword_head(
         ":wat::program::Env/dig-default" => eval_program_env_dig_default(args, env, sym),
         ":wat::core::Vector/conj" => eval_vector_conj(args, env, sym),
         ":wat::core::HashSet/conj" => eval_hashset_conj(args, env, sym),
+        // Arc 220 Stone 220.4 — List/conj PREPENDS (Clojure semantic; distinct from Vector/conj = APPEND)
+        ":wat::core::List/conj" => eval_list_conj(args, env, sym),
         // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat.
         // Single-impl-per-container ops. Surface short names
         // (:assoc / :dissoc / :keys / :values / :concat) become user-define
@@ -7136,6 +7225,48 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
             }
             Some(true)
         }
+        // Arc 220 Stone 220.4 — List same-type structural equality.
+        (Value::wat__core__List(xs), Value::wat__core__List(ys)) => {
+            if xs.len() != ys.len() {
+                return Some(false);
+            }
+            for (x, y) in xs.iter().zip(ys.iter()) {
+                match values_equal(x, y) {
+                    Some(true) => continue,
+                    Some(false) => return Some(false),
+                    None => return None,
+                }
+            }
+            Some(true)
+        }
+        // Arc 220 Stone 220.4 — Cross-type sequence equality per EDN spec §282-289.
+        // `List(1,2,3) == Vector(1,2,3)` returns true in the structural-equality path.
+        (Value::Vec(xs), Value::wat__core__List(ys)) => {
+            if xs.len() != ys.len() {
+                return Some(false);
+            }
+            for (x, y) in xs.iter().zip(ys.iter()) {
+                match values_equal(x, y) {
+                    Some(true) => continue,
+                    Some(false) => return Some(false),
+                    None => return None,
+                }
+            }
+            Some(true)
+        }
+        (Value::wat__core__List(xs), Value::Vec(ys)) => {
+            if xs.len() != ys.len() {
+                return Some(false);
+            }
+            for (x, y) in xs.iter().zip(ys.iter()) {
+                match values_equal(x, y) {
+                    Some(true) => continue,
+                    Some(false) => return Some(false),
+                    None => return None,
+                }
+            }
+            Some(true)
+        }
         (Value::Tuple(xs), Value::Tuple(ys)) => {
             if xs.len() != ys.len() {
                 return Some(false);
@@ -7771,6 +7902,19 @@ fn vector_length_inner(v: &Value) -> Result<Value, RuntimeError> {
     }
 }
 
+/// Arc 220 Stone 220.4 — `:wat::core::List/length` inner helper.
+fn list_length_inner(v: &Value) -> Result<Value, RuntimeError> {
+    match v {
+        Value::wat__core__List(xs) => Ok(Value::i64(xs.len() as i64)),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::List/length".into(),
+            expected: "List<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
 fn hashmap_length_inner(v: &Value) -> Result<Value, RuntimeError> {
     match v {
         Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
@@ -7899,6 +8043,19 @@ fn hashset_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
     }
 }
 
+/// Arc 220 Stone 220.4 — `:wat::core::List/empty?` inner helper.
+fn list_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
+    match v {
+        Value::wat__core__List(xs) => Ok(Value::bool(xs.is_empty())),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::List/empty?".into(),
+            expected: "List<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
 fn eval_vector_empty_q(
     args: &[WatAST],
     env: &Environment,
@@ -7964,6 +8121,23 @@ fn vector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, Run
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::Vector/contains?".into(),
             expected: "Vec<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+/// Arc 220 Stone 220.4 — `:wat::core::List/contains?` inner helper.
+/// O(N) linear scan (LinkedList has no indexing).
+fn list_contains_q_inner(container: &Value, item: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::wat__core__List(xs) => {
+            let found = xs.iter().any(|x| x == item);
+            Ok(Value::bool(found))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::List/contains?".into(),
+            expected: "List<T>",
             got: other.type_name(),
             span: Span::unknown(),
         }),
@@ -8096,6 +8270,39 @@ fn vector_get_inner(container: &Value, index: &Value) -> Result<Value, RuntimeEr
     }
 }
 
+/// Arc 220 Stone 220.4 — `:wat::core::List/get` inner helper.
+/// O(N) index walk (LinkedList has no random access). Returns `Option<T>`.
+fn list_get_inner(container: &Value, index: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::wat__core__List(xs) => {
+            let i = match index {
+                Value::i64(n) => *n,
+                other => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: ":wat::core::List/get".into(),
+                        expected: "i64 index",
+                        got: other.type_name(),
+                        span: Span::unknown(),
+                    });
+                }
+            };
+            if i < 0 || (i as usize) >= xs.len() {
+                Ok(Value::Option(Arc::new(None)))
+            } else {
+                Ok(Value::Option(Arc::new(
+                    xs.iter().nth(i as usize).cloned(),
+                )))
+            }
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::List/get".into(),
+            expected: "List<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
 fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value, RuntimeError> {
     match container {
         Value::wat__std__HashMap(m) => {
@@ -8152,6 +8359,96 @@ fn eval_hashmap_get(
     let container = eval(&args[0], env, sym)?;
     let key = eval(&args[1], env, sym)?;
     hashmap_get_inner(&container, &key)
+}
+
+// ─── Arc 220 Stone 220.4 — List eval wrappers ────────────────────────────────
+
+fn eval_list_length(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::List/length".into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    list_length_inner(&v)
+}
+
+fn eval_list_empty_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::List/empty?".into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    list_empty_q_inner(&v)
+}
+
+fn eval_list_contains_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::List/contains?".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let item = eval(&args[1], env, sym)?;
+    list_contains_q_inner(&container, &item)
+}
+
+fn eval_list_get(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::List/get".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let index = eval(&args[1], env, sym)?;
+    list_get_inner(&container, &index)
+}
+
+fn eval_list_conj(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::List/conj".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let item = eval(&args[1], env, sym)?;
+    list_conj_inner(&container, &item)
 }
 
 // ─── :wat::program::Env accessor trio — arc 214 Slice 4 Stone 4.2 ───────────
@@ -8686,6 +8983,25 @@ fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeEr
     }
 }
 
+/// Arc 220 Stone 220.4 — `:wat::core::List/conj` inner helper.
+/// **PREPEND** semantic per Clojure precedent (distinct from Vector/conj = APPEND).
+/// `conj` on a List adds the item to the FRONT, matching `cons` behavior.
+fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::wat__core__List(xs) => {
+            let mut out = (**xs).clone();
+            out.push_front(item.clone());
+            Ok(Value::wat__core__List(Arc::new(out)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::List/conj".into(),
+            expected: "List<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // `Value` contains `Arc`-wrapped types with interior mutability (Sender, AtomicBool, etc.)
 // which triggers the lint. The interior-mutability variants are opaque handles that never
@@ -9019,6 +9335,10 @@ pub(crate) fn dispatch_substrate_impl(
         ":wat::core::HashSet/length" => {
             Some(hashset_length_inner(vals.first().expect("arity-checked")))
         }
+        // Arc 220 Stone 220.4 — List/length
+        ":wat::core::List/length" => {
+            Some(list_length_inner(vals.first().expect("arity-checked")))
+        }
         // empty? — 1 arg
         ":wat::core::Vector/empty?" => {
             Some(vector_empty_q_inner(vals.first().expect("arity-checked")))
@@ -9028,6 +9348,10 @@ pub(crate) fn dispatch_substrate_impl(
         }
         ":wat::core::HashSet/empty?" => {
             Some(hashset_empty_q_inner(vals.first().expect("arity-checked")))
+        }
+        // Arc 220 Stone 220.4 — List/empty?
+        ":wat::core::List/empty?" => {
+            Some(list_empty_q_inner(vals.first().expect("arity-checked")))
         }
         // contains? — 2 args (mixed verbs)
         ":wat::core::Vector/contains?" => Some(vector_contains_q_inner(
@@ -9042,6 +9366,11 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
+        // Arc 220 Stone 220.4 — List/contains?
+        ":wat::core::List/contains?" => Some(list_contains_q_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
         // get — 2 args (return type varies per arm: Option<T> vs Option<V>)
         ":wat::core::Vector/get" => Some(vector_get_inner(
             vals.first().expect("arity-checked"),
@@ -9051,12 +9380,22 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
+        // Arc 220 Stone 220.4 — List/get
+        ":wat::core::List/get" => Some(list_get_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
         // conj — 2 args (returns container type)
         ":wat::core::Vector/conj" => Some(vector_conj_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         ":wat::core::HashSet/conj" => Some(hashset_conj_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        // Arc 220 Stone 220.4 — List/conj (PREPEND semantic)
+        ":wat::core::List/conj" => Some(list_conj_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11940,9 +12279,14 @@ fn eval_positional_accessor(
             }
         }),
         Value::Vec(items) => Ok(Value::Option(Arc::new(items.get(index).cloned()))),
+        // Arc 220 Stone 220.4 — List: O(N) nth via iterator.
+        // Returns Option<T> (None for out-of-bounds), matching Vec behavior.
+        Value::wat__core__List(items) => Ok(Value::Option(Arc::new(
+            items.iter().nth(index).cloned(),
+        ))),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: "tuple or Vec",
+            expected: "tuple, Vec, or List",
             got: other.type_name(),
             span: args[0].span().clone(),
         }),
@@ -12102,16 +12446,39 @@ fn eval_vec_rest(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::core::rest", eval(&args[0], env, sym)?)?;
-    if xs.is_empty() {
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::rest".into(),
-            reason: "cannot take rest of empty Vec".into(),
+    let v = eval(&args[0], env, sym)?;
+    match v {
+        Value::Vec(xs) => {
+            if xs.is_empty() {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::rest".into(),
+                    reason: "cannot take rest of empty Vec".into(),
+                    span: args[0].span().clone(),
+                });
+            }
+            let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        // Arc 220 Stone 220.4 — List: rest returns a new List (tail after first element).
+        // Maintains type identity: List/rest → List (not Vec).
+        Value::wat__core__List(xs) => {
+            if xs.is_empty() {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::rest".into(),
+                    reason: "cannot take rest of empty List".into(),
+                    span: args[0].span().clone(),
+                });
+            }
+            let out: std::collections::LinkedList<Value> = xs.iter().skip(1).cloned().collect();
+            Ok(Value::wat__core__List(Arc::new(out)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::rest".into(),
+            expected: "Vec or List",
+            got: other.type_name(),
             span: args[0].span().clone(),
-        });
+        }),
     }
-    let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
-    Ok(Value::Vec(Arc::new(out)))
 }
 
 /// `(:wat::std::list::map-with-index xs f)` → `Vec<U>`. Per
@@ -15934,6 +16301,12 @@ fn render_value(v: &Value, depth: usize) -> String {
             '\t' => "\\tab".to_string(),
             _ => format!("\\{}", c),
         },
+        // Arc 220 Stone 220.4 — List renders as EDN parens form `(item1 item2 ...)`.
+        // Delegates to per-Value render for each child. Space-joined.
+        Value::wat__core__List(xs) => {
+            let parts: Vec<String> = xs.iter().map(|v| render_value(v, depth + 1)).collect();
+            format!("({})", parts.join(" "))
+        }
     }
 }
 

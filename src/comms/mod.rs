@@ -271,6 +271,54 @@ where
     }
 }
 
+/// Arc 220 Stone 220.4 — `HolonRepresentable` for `LinkedList<T>`.
+///
+/// Mirrors the `HashSet<T>` impl pattern (Stone 1 above). Encodes as
+/// `HolonAST::Bundle(vec![T_holon, ...])` — the set-shape (no positional Bind keys)
+/// because LinkedList is accessed head-to-tail rather than by index. Order is preserved
+/// in the Bundle child list; reconstruction pushes elements back in order.
+///
+/// `from_holon_ast` reconstructs the LinkedList by matching `Bundle` shape and
+/// converting each child via `T::from_holon_ast` in traversal order.
+///
+/// Bounds: `T: HolonRepresentable + Send + 'static` — no `Hash + Eq` required
+/// (unlike HashSet) because LinkedList elements need not be hashable.
+impl<T> HolonRepresentable for std::collections::LinkedList<T>
+where
+    T: HolonRepresentable + Send + 'static,
+{
+    fn to_holon_ast(&self) -> holon::HolonAST {
+        let children: Vec<holon::HolonAST> = self.iter().map(|v| v.to_holon_ast()).collect();
+        holon::HolonAST::bundle(children)
+    }
+
+    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        match ast {
+            holon::HolonAST::Bundle(items) => {
+                let mut list = std::collections::LinkedList::new();
+                for (i, item) in items.iter().enumerate() {
+                    let v = T::from_holon_ast(item).map_err(|e| {
+                        WireError::new(format!(
+                            "LinkedList<T>[{}]: {}",
+                            i,
+                            e.message()
+                        ))
+                    })?;
+                    list.push_back(v);
+                }
+                Ok(list)
+            }
+            other => Err(WireError::new(format!(
+                "expected HolonAST::Bundle (list-shape), got {:?}",
+                other
+            ))),
+        }
+    }
+}
+
 /// Arc 216 Stone 3 — `HolonRepresentable` for `HashMap<K, V>`.
 ///
 /// Mirrors the `HashSet<T>` (Stone 1) and `Vec<T>` (Stone 2) patterns.

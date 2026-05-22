@@ -115,5 +115,11 @@
 (assert-shape :char-bmp #(= % \x) "char \\x")
 
 (println)
+(println "─── Arc 220 Stone 220.4 — :wat::core::List<T> ───")
+(assert-shape :list-3
+              #(= % '(1 2 3))
+              "list of 3 ints (1 2 3)")
+
+(println)
 (println "✓ All shapes parsed cleanly through clojure.edn/read.")
 (println "✓ wat-edn output is strict-EDN compliant across the matrix.")

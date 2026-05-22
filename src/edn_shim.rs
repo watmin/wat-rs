@@ -370,7 +370,17 @@ pub fn edn_to_value(
             "EDN BigInt / BigDecimal — wat numeric tower is i64 + f64 only".into(),
             Span::unknown(),
         )),
-        Edn::List(items) | Edn::Vector(items) => {
+        // Arc 220 Stone 220.4 — EDN list `(...)` → `Value::wat__core__List` (preserves
+        // the parens-vs-brackets distinction for faithful Clojure round-trips).
+        // Previously both List and Vector collapsed to Vec (lossy).
+        Edn::List(items) => {
+            let walked: std::collections::LinkedList<Value> = items
+                .iter()
+                .map(|x| edn_to_value(x, types))
+                .collect::<Result<_, _>>()?;
+            Ok(Value::wat__core__List(Arc::new(walked)))
+        }
+        Edn::Vector(items) => {
             let walked: Vec<Value> = items
                 .iter()
                 .map(|x| edn_to_value(x, types))
@@ -649,6 +659,24 @@ fn edn_to_typed_value_inner(
                             walked.push(v);
                         }
                         Ok(Value::Vec(Arc::new(walked)))
+                    }
+                    other => Err(mismatch(target, other)),
+                }
+            }
+            // Arc 220 Stone 220.4 — `:wat::core::List<T>` typed path.
+            // Accepts EDN list `(...)` (and vector `[...]` for compatibility with
+            // Clojure that pr-str's lists as parens but JSON consumers may emit brackets).
+            "wat::core::List" => {
+                let elem_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
+                match edn {
+                    Edn::List(items) | Edn::Vector(items) => {
+                        let mut walked = std::collections::LinkedList::new();
+                        for (i, item) in items.iter().enumerate() {
+                            let v = edn_to_typed_value_inner(elem_ty, item, types)
+                                .map_err(|e| e.at(&format!(".[{}]", i)))?;
+                            walked.push_back(v);
+                        }
+                        Ok(Value::wat__core__List(Arc::new(walked)))
                     }
                     other => Err(mismatch(target, other)),
                 }
@@ -1536,6 +1564,12 @@ pub fn value_to_edn_with(
         // ── Compound containers ──────────────────────────────────
         Value::Vec(xs) => {
             OwnedValue::Vector(xs.iter().map(|x| value_to_edn_with(x, types)).collect())
+        }
+        // Arc 220 Stone 220.4 — List → EDN parens form (OwnedValue::List).
+        // Preserves the List/Vector distinction on the wire so Clojure sees
+        // a proper list `(1 2 3)` rather than a vector `[1 2 3]`.
+        Value::wat__core__List(xs) => {
+            OwnedValue::List(xs.iter().map(|x| value_to_edn_with(x, types)).collect())
         }
         Value::Tuple(xs) => {
             OwnedValue::Vector(xs.iter().map(|x| value_to_edn_with(x, types)).collect())

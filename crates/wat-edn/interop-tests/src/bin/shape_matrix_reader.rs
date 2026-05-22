@@ -157,6 +157,16 @@ fn main() {
         |v| matches!(v, Value::Char('x')), "char 'x'");
 
     println!();
+    println!("─── Arc 220 Stone 220.4 — :wat::core::List<T> ───");
+    assert_shape(&parsed, "list-3",
+        |v| matches!(v, Value::List(items)
+            if items.len() == 3
+            && matches!(&items[0], Value::Integer(1))
+            && matches!(&items[1], Value::Integer(2))
+            && matches!(&items[2], Value::Integer(3))),
+        "list of 3 ints (1 2 3)");
+
+    println!();
     println!("✓ All shapes parsed cleanly through wat-edn.");
     println!("✓ Clojure pr-str output is wat-edn-readable across the matrix.");
 }

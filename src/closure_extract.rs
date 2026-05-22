@@ -1505,6 +1505,20 @@ fn encode_value_with_path(
             ],
             span,
         )),
+        // Arc 220 Stone 220.4 — List is portable: encode as a variadic
+        // `(:wat::core::List/of item1 item2 ...)` call. Each item is recursively
+        // encoded. Round-trips cleanly.
+        Value::wat__core__List(items) => {
+            let mut out = Vec::with_capacity(items.len() + 1);
+            out.push(WatAST::Keyword(":wat::core::List/of".into(), span.clone()));
+            for (i, it) in items.iter().enumerate() {
+                path.push(format!("[{}]", i));
+                let encoded = encode_value_with_path(it, binding_name, path, state)?;
+                path.pop();
+                out.push(encoded);
+            }
+            Ok(WatAST::List(out, span))
+        }
         Value::Unit => Ok(WatAST::Keyword(":wat::core::nil".into(), span)),
 
         // ─── containers ────────────────────────────────────────────────

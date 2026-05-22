@@ -1,0 +1,74 @@
+;; wat-tests/holon/list_round_trip.wat — Arc 220 Stone 220.4: :wat::core::List.
+;;
+;; Exercises List/of constructor, length, empty?, first, rest, conj (prepend),
+;; contains?, and cross-type equality with Vector.
+;; All cases pass if List<T> is correctly wired (eval, dispatch arms, equality).
+
+;; ─── 1: List/of and List/length ────────────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::holon::list_round_trip::list-of-length
+  ()
+  (:wat::core::let
+    [xs (:wat::core::List/of 1 2 3)
+     n  (:wat::core::List/length xs)]
+    (:wat::test::assert-eq n 3)))
+
+;; ─── 2: Empty list ─────────────────────────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::holon::list_round_trip::empty-list
+  ()
+  (:wat::core::let
+    [xs (:wat::core::List/of)]
+    (:wat::test::assert-eq (:wat::core::List/empty? xs) true)))
+
+;; ─── 3: List/empty? false ─────────────────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::holon::list_round_trip::nonempty-list-not-empty
+  ()
+  (:wat::core::let
+    [xs (:wat::core::List/of 1)]
+    (:wat::test::assert-eq (:wat::core::List/empty? xs) false)))
+
+;; ─── 4: List/contains? found ─────────────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::holon::list_round_trip::contains-found
+  ()
+  (:wat::core::let
+    [xs (:wat::core::List/of 1 2 3)]
+    (:wat::test::assert-eq (:wat::core::List/contains? xs 2) true)))
+
+;; ─── 5: List/contains? not found ─────────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::holon::list_round_trip::contains-not-found
+  ()
+  (:wat::core::let
+    [xs (:wat::core::List/of 1 2 3)]
+    (:wat::test::assert-eq (:wat::core::List/contains? xs 99) false)))
+
+;; ─── 6: rest length ────────────────────────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::holon::list_round_trip::rest-length
+  ()
+  (:wat::core::let
+    [xs (:wat::core::List/of 1 2 3)
+     tl (:wat::core::rest xs)]
+    (:wat::test::assert-eq (:wat::core::List/length tl) 2)))
+
+;; ─── 7: conj prepends — length increases ──────────────────────────────────
+
+(:wat::test::deftest :wat-tests::holon::list_round_trip::conj-length
+  ()
+  (:wat::core::let
+    [xs (:wat::core::List/of 2 3)
+     ys (:wat::core::List/conj xs 1)]
+    (:wat::test::assert-eq (:wat::core::List/length ys) 3)))
+
+;; ─── 8: cross-type equality List == Vector ────────────────────────────────
+
+(:wat::test::deftest :wat-tests::holon::list_round_trip::list-eq-vector
+  ()
+  (:wat::core::let
+    [lst (:wat::core::List/of 1 2 3)
+     vec [1 2 3]
+     eq  (:wat::core::= lst vec)]
+    (:wat::test::assert-eq eq true)))

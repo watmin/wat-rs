@@ -48,7 +48,11 @@
         (tagged-literal 'wat.holon/Atom :filler)}
 
        ;; Arc 220 — :wat::core::Char (BMP-only)
-       :char-bmp \x}]
+       :char-bmp \x
+
+       ;; Arc 220 Stone 220.4 — :wat::core::List<T>
+       ;; Clojure list `'(1 2 3)` — proves Rust side reads EDN parens form as List
+       :list-3 '(1 2 3)}]
   (binding [*print-dup* false]
     (print (pr-str shapes))
     (newline)))
