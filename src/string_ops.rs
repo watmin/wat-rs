@@ -419,6 +419,89 @@ pub fn eval_uuid_typed_nil(
     Ok(Value::wat__core__Uuid(uuid::Uuid::nil()))
 }
 
+// ─── Char ────────────────────────────────────────────────────────────────
+
+/// `(:wat::core::Char/of s)` → `:wat::core::Char`.
+///
+/// Constructs a typed `:wat::core::Char` from a length-1 String.
+/// BMP-only: codepoints above U+FFFF (supplementary-plane) are rejected
+/// with a clear diagnostic, inheriting the Stone 218.6b discipline from
+/// wat-edn's BMP-only strictness.
+///
+/// Errors:
+/// - ArityMismatch: not exactly 1 argument.
+/// - TypeMismatch: argument is not a `:wat::core::String`.
+/// - MalformedForm: string is empty (needs length-1 String).
+/// - MalformedForm: string has length > 1 char.
+/// - MalformedForm: the single char is a supplementary-plane codepoint.
+///
+/// Arc 220 slice 2.
+pub fn eval_char_of(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Char/of";
+    if args.len() != 1 {
+        let span = args
+            .first()
+            .map(|a| a.span().clone())
+            .unwrap_or_else(crate::span::Span::unknown);
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span,
+        });
+    }
+    let val = eval(&args[0], env, sym)?;
+    let s = match val {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let mut chars = s.chars();
+    let c = match chars.next() {
+        None => {
+            return Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: "expected a length-1 String; got empty string".into(),
+                span: args[0].span().clone(),
+            });
+        }
+        Some(c) => c,
+    };
+    if chars.next().is_some() {
+        let len = s.chars().count();
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "expected a length-1 String; got length-{} string {:?}",
+                len, s
+            ),
+            span: args[0].span().clone(),
+        });
+    }
+    if (c as u32) > 0xFFFF {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "supplementary-plane codepoint U+{:X} not supported; \
+                 wat::core::Char is BMP-only (U+0000–U+FFFF)",
+                c as u32
+            ),
+            span: args[0].span().clone(),
+        });
+    }
+    Ok(Value::wat__core__Char(c))
+}
+
 // ─── regex ───────────────────────────────────────────────────────────────
 
 /// `(:wat::core::regex::matches? pattern haystack)` → `:bool`.

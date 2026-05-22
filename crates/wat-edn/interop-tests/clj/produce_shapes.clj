@@ -45,7 +45,10 @@
 
        :map-with-tagged-keys
        {(tagged-literal 'wat.holon/Atom :role)
-        (tagged-literal 'wat.holon/Atom :filler)}}]
+        (tagged-literal 'wat.holon/Atom :filler)}
+
+       ;; Arc 220 — :wat::core::Char (BMP-only)
+       :char-bmp \x}]
   (binding [*print-dup* false]
     (print (pr-str shapes))
     (newline)))

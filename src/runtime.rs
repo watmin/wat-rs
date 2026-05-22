@@ -614,6 +614,14 @@ pub enum Value {
     /// `Instant`/`Duration`/`keyword` precedent. `uuid::Uuid` is `Copy`.
     /// Constructed via `Uuid/v4`, `Uuid/v5`, `Uuid/from-string`, `Uuid/nil`.
     wat__core__Uuid(uuid::Uuid),
+    /// Arc 220 — `:wat::core::Char`. Typed character primitive (BMP-only).
+    /// Distinct runtime variant from `Value::String` — a Char is a single
+    /// Unicode scalar value in the BMP (U+0000–U+FFFF), not a string.
+    /// Matches wat-edn's `Value::Char` and Clojure's character literal `\c`.
+    /// BMP-only inherits Stone 218.6b discipline (supplementary-plane
+    /// codepoints U+10000–U+10FFFF rejected at construction + lex time).
+    /// Constructed via `(:wat::core::Char/of "x")` or `\c` literal.
+    wat__core__Char(char),
 }
 
 /// Arc 216 Stone 216.5a — `impl PartialEq for Value`.
@@ -652,6 +660,8 @@ impl PartialEq for Value {
             (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => a == b,
             (Value::wat__WatAST(a), Value::wat__WatAST(b)) => a == b,
             (Value::wat__core__Uuid(a), Value::wat__core__Uuid(b)) => a == b,
+            // Arc 220 — Char equality. `char` implements `PartialEq`.
+            (Value::wat__core__Char(a), Value::wat__core__Char(b)) => a == b,
             (Value::Vec(a), Value::Vec(b)) => a == b,
             // HashSet: native Arc<HashSet<Value>> equality.
             // Stone 216.5b — storage is now Arc<HashSet<Value>>; HashSet's PartialEq
@@ -759,6 +769,8 @@ impl std::hash::Hash for Value {
             Value::holon__HolonAST(h) => h.hash(state),
             Value::wat__WatAST(ast) => ast.hash(state),
             Value::wat__core__Uuid(u) => u.hash(state),
+            // Arc 220 — Char hash. `char` implements `Hash`.
+            Value::wat__core__Char(c) => c.hash(state),
             // Vec: std lib Vec<T>: Hash composes recursively
             Value::Vec(xs) => xs.hash(state),
             // HashSet: sort element hashes for set semantics (order-independent).
@@ -1041,6 +1053,8 @@ impl Value {
             Value::Instant(_) => "wat::time::Instant",
             Value::Duration(_) => "wat::time::Duration",
             Value::wat__core__Uuid(_) => "wat::core::Uuid",
+            // Arc 220
+            Value::wat__core__Char(_) => "wat::core::Char",
         }
     }
 }
@@ -4573,6 +4587,10 @@ fn dispatch_keyword_head(
         ":wat::core::Uuid/to-string" => crate::string_ops::eval_uuid_typed_to_string(args, env, sym),
         ":wat::core::Uuid/nil" => crate::string_ops::eval_uuid_typed_nil(args, env, sym),
 
+        // Arc 220 slice 2 — typed `:wat::core::Char` constructor.
+        // One verb: `Char/of` (from length-1 BMP String).
+        ":wat::core::Char/of" => crate::string_ops::eval_char_of(args, env, sym),
+
         // Regex — pattern matching. Lives in its own :wat::core::regex::*
         // namespace since the regex crate is a distinct concern.
         ":wat::core::regex::matches?" => crate::string_ops::eval_regex_matches(args, env, sym),
@@ -7100,6 +7118,10 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // falls through to `_ => None`). UUIDs are identifiers, not ordinals;
         // no `values_compare` arm is added (correct: same as keyword/Enum/Struct).
         (Value::wat__core__Uuid(x), Value::wat__core__Uuid(y)) => Some(x == y),
+        // Arc 220 — Char equality. `char` implements `PartialEq`.
+        // Two Char values with the same codepoint are equal; a Char and a
+        // String are NOT equal (cross-type falls through to `_ => None`).
+        (Value::wat__core__Char(x), Value::wat__core__Char(y)) => Some(x == y),
         (Value::Unit, Value::Unit) => Some(true),
         (Value::Vec(xs), Value::Vec(ys)) => {
             if xs.len() != ys.len() {
@@ -15902,6 +15924,16 @@ fn render_value(v: &Value, depth: usize) -> String {
         Value::Duration(ns) => format!("<Duration {}ns>", ns),
         // Arc 207 — Uuid renders as the EDN reader literal form.
         Value::wat__core__Uuid(u) => format!("#uuid \"{}\"", u),
+        // Arc 220 — Char renders as the EDN character literal form `\c`.
+        // Named chars: newline → `\newline`, return → `\return`,
+        // space → `\space`, tab → `\tab`. All others: `\<char>`.
+        Value::wat__core__Char(c) => match c {
+            '\n' => "\\newline".to_string(),
+            '\r' => "\\return".to_string(),
+            ' ' => "\\space".to_string(),
+            '\t' => "\\tab".to_string(),
+            _ => format!("\\{}", c),
+        },
     }
 }
 

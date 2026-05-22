@@ -152,6 +152,11 @@ fn main() {
         "Map<Atom<:role>, Atom<:filler>>");
 
     println!();
+    println!("─── Arc 220 — :wat::core::Char (BMP-only) ───");
+    assert_shape(&parsed, "char-bmp",
+        |v| matches!(v, Value::Char('x')), "char 'x'");
+
+    println!();
     println!("✓ All shapes parsed cleanly through wat-edn.");
     println!("✓ Clojure pr-str output is wat-edn-readable across the matrix.");
 }

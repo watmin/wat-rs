@@ -100,6 +100,9 @@ fn build_shape_matrix() -> Value<'static> {
              tag("wat.holon", "Atom", kw("filler"))),
         ])),
 
+        // ─── Arc 220 — :wat::core::Char (BMP-only) ───────────────
+        (kw("char-bmp"), Value::Char('x')),
+
     ])
 }
 

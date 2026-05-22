@@ -286,6 +286,19 @@ impl<'a> Cursor<'a> {
             Token::Quasiquote => self.parse_reader_macro(":wat::core::quasiquote", span),
             Token::Unquote => self.parse_reader_macro(":wat::core::unquote", span),
             Token::UnquoteSplicing => self.parse_reader_macro(":wat::core::unquote-splicing", span),
+            // Arc 220 slice 2 — `\c` character literal reader macro.
+            // Desugars to `(:wat::core::Char/of "x")` at parse time, matching
+            // the Clojure/EDN `\c` form. The single-char string carries the
+            // literal value; `Char/of` constructs the typed `:wat::core::Char`.
+            // Named chars (`\newline` etc.) are resolved by the lexer before
+            // this point; the parser sees only the resolved `char` value.
+            Token::Char(c) => Ok(Some(WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::Char/of".into(), span.clone()),
+                    WatAST::StringLit(c.to_string(), span.clone()),
+                ],
+                span,
+            ))),
         }
     }
 

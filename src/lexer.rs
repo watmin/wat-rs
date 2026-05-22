@@ -48,8 +48,12 @@
 //!   Comma (`,`) is whitespace per EDN spec; it carries no token
 //!   at the main-lex-loop level (arc 172 slice 1).
 //!
-//! Future extensions (not in MVP): character literals `#\a`,
-//! block comments.
+//! - **Character literals** — `\c` / `\newline` / `\return` / `\space` /
+//!   `\tab` / `\uNNNN` per arc 220 (Clojure/EDN convention, BMP-only).
+//!   Note: the pre-arc-220 doc comment listed `#\a` as a future extension —
+//!   that was Common-Lisp/Scheme-style and WRONG per the wat-rs lineage.
+//!   Wat is clojure-on-rust; the form is `\c`, not `#\a`.
+//! - **Block comments** — not yet implemented.
 
 use crate::span::Span;
 use std::fmt;
@@ -117,6 +121,11 @@ pub enum Token {
     /// `(:wat::core::unquote-splicing X)`. Arc 172 slice 1: source
     /// characters changed from `,@` to `~@`; variant name unchanged.
     UnquoteSplicing,
+    /// Character literal — `\c` form. Arc 220 slice 2 (Clojure/EDN
+    /// convention). Examples: `\a` (letter a), `\newline` (newline),
+    /// `\space` (space), `\tab` (tab), `\return` (carriage return),
+    /// `\uNNNN` (Unicode BMP escape). BMP-only (U+0000–U+FFFF).
+    Char(char),
 }
 
 /// Byte offset into the source string. Used by [`LexError`] variants
@@ -143,6 +152,10 @@ pub enum LexError {
     /// `:wat::core::op'i64'i64` (type-discriminator). The legacy `,2` /
     /// `,i64-f64` shape was swept in arc 171 slice 2 (~440 sites).
     CommaInKeywordBody(Position),
+    /// Invalid character literal. Arc 220 slice 2: `\c` form error
+    /// (empty body, supplementary-plane codepoint, unknown named char,
+    /// or backslash followed by whitespace).
+    InvalidChar(String, Position),
 }
 
 impl fmt::Display for LexError {
@@ -172,6 +185,11 @@ impl fmt::Display for LexError {
                 `:wat::core::op'i64'i64` (type-discriminator). The legacy `,2` / `,i64-f64` \
                 shape was swept in arc 171 slice 2 (~440 sites).",
                 p
+            ),
+            LexError::InvalidChar(msg, p) => write!(
+                f,
+                "invalid character literal at byte {}: {}",
+                p, msg
             ),
         }
     }
@@ -297,6 +315,18 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             continue;
         }
 
+        // Character literal — arc 220 slice 2.
+        // `\c` / `\newline` / `\space` / `\tab` / `\return` / `\uNNNN`.
+        // Clojure/EDN form. Must check BEFORE bare-symbol fallthrough
+        // so `\a` is not consumed as a symbol.
+        if c == '\\' {
+            let start = i;
+            let (ch, next) = lex_char(src, i)?;
+            tokens.push(SpannedToken { token: Token::Char(ch), span: span_at(start) });
+            i = next;
+            continue;
+        }
+
         // Keyword token
         if c == ':' {
             let start = i;
@@ -417,6 +447,117 @@ fn lex_string(src: &str, start: usize) -> Result<(String, usize), LexError> {
     }
 
     Err(LexError::UnterminatedString(start))
+}
+
+/// Lex a character literal starting at `start` (pointing at `\`).
+///
+/// Handles the Clojure/EDN `\c` form (arc 220 slice 2):
+/// - Named: `\newline`, `\return`, `\space`, `\tab`
+/// - Unicode escape: `\uNNNN` (exactly 4 hex digits; BMP range 0000–FFFF)
+/// - Single non-alphanumeric char: `\(`, `\;`, `\é`, etc.
+/// - Single alphanumeric char: `\a`, `\1`, etc. (after named-char check)
+///
+/// BMP-only: supplementary-plane codepoints (U+10000–U+10FFFF) are rejected
+/// with `LexError::InvalidChar`, inheriting Stone 218.6b discipline.
+///
+/// Returns `(char_value, next_byte_offset)`.
+///
+/// Shape adapted verbatim from `crates/wat-edn/src/lexer.rs:288-355`.
+fn lex_char(src: &str, start: usize) -> Result<(char, usize), LexError> {
+    let bytes = src.as_bytes();
+    debug_assert_eq!(bytes[start] as char, '\\');
+    let mut pos = start + 1; // skip the backslash
+
+    // Backslash cannot be followed by end-of-input or whitespace.
+    if pos >= bytes.len() {
+        return Err(LexError::InvalidChar("empty char literal".into(), start));
+    }
+    let first = bytes[pos];
+    if (first as char).is_whitespace() {
+        return Err(LexError::InvalidChar(
+            "backslash followed by whitespace".into(),
+            start,
+        ));
+    }
+
+    // Single non-alphanumeric character (e.g. `\(`, `\;`, `\é`).
+    // Alphanumeric bodies fall through to the named-char / unicode-escape path.
+    if !(first as char).is_ascii_alphanumeric() {
+        // Decode one UTF-8 scalar at pos.
+        let rest = &src[pos..];
+        let c = rest.chars().next().ok_or_else(|| {
+            LexError::InvalidChar("incomplete UTF-8 sequence".into(), start)
+        })?;
+        if (c as u32) > 0xFFFF {
+            return Err(LexError::InvalidChar(
+                format!(
+                    "\\{}: supplementary-plane codepoint U+{:X} not supported; \
+                     wat char literals are BMP-only (U+0000–U+FFFF)",
+                    c, c as u32
+                ),
+                start,
+            ));
+        }
+        pos += c.len_utf8();
+        return Ok((c, pos));
+    }
+
+    // Read ASCII-alphanumeric body (a name like "newline", "u00A0", or a single letter/digit).
+    let body_start = pos;
+    while pos < bytes.len() && (bytes[pos] as char).is_ascii_alphanumeric() {
+        pos += 1;
+    }
+    let body = &src[body_start..pos];
+
+    // 1. Named char literal?
+    match body {
+        "newline" => return Ok(('\n', pos)),
+        "return"  => return Ok(('\r', pos)),
+        "space"   => return Ok((' ', pos)),
+        "tab"     => return Ok(('\t', pos)),
+        _ => {}
+    }
+
+    // 2. `\uNNNN` Unicode escape (exactly 4 hex digits)?
+    if body.len() == 5 && body.starts_with('u') {
+        let hex = &body[1..];
+        let acc = u32::from_str_radix(hex, 16).map_err(|_| {
+            LexError::InvalidChar(format!("\\{}: invalid hex escape", body), start)
+        })?;
+        let c = char::from_u32(acc).ok_or_else(|| {
+            LexError::InvalidChar(
+                format!("\\{}: not a valid Unicode scalar value", body),
+                start,
+            )
+        })?;
+        // Supplementary plane check (structurally impossible with 4 hex digits,
+        // but explicit per BMP-only discipline).
+        if (c as u32) > 0xFFFF {
+            return Err(LexError::InvalidChar(
+                format!(
+                    "\\{}: supplementary-plane codepoint U+{:X} not supported; \
+                     wat char literals are BMP-only",
+                    body, c as u32
+                ),
+                start,
+            ));
+        }
+        return Ok((c, pos));
+    }
+
+    // 3. Single character (`\a`, `\1`, etc.)?
+    let mut chars = body.chars();
+    if let Some(c) = chars.next() {
+        if chars.next().is_none() {
+            return Ok((c, pos));
+        }
+    }
+
+    // Unrecognised body (e.g. `\xyz`, `\newlines`).
+    Err(LexError::InvalidChar(
+        format!("unrecognised char literal \\{}", body),
+        start,
+    ))
 }
 
 /// Lex a keyword token starting at `start` (pointing at `:`).

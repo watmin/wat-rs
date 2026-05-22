@@ -1496,6 +1496,15 @@ fn encode_value_with_path(
             ],
             span,
         )),
+        // Arc 220 — Char is portable: encode as a `Char/of` call on a
+        // length-1 String. Round-trips cleanly (BMP guaranteed by construct).
+        Value::wat__core__Char(c) => Ok(WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::Char/of".into(), span.clone()),
+                WatAST::StringLit(c.to_string(), span.clone()),
+            ],
+            span,
+        )),
         Value::Unit => Ok(WatAST::Keyword(":wat::core::nil".into(), span)),
 
         // ─── containers ────────────────────────────────────────────────

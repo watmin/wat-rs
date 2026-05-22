@@ -350,7 +350,10 @@ pub fn edn_to_value(
         Edn::Integer(n) => Ok(Value::i64(*n)),
         Edn::Float(x) => Ok(Value::f64(*x)),
         Edn::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
-        Edn::Char(c) => Ok(Value::String(Arc::new(c.to_string()))),
+        // Arc 220 slice 2: EDN character literal `\c` → typed `:wat::core::Char`.
+        // Previously folded to String (lossy). Now preserved as a typed Char
+        // so round-trips through EDN are lossless. BMP guaranteed by wat-edn parser.
+        Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
         Edn::Keyword(k) => {
             let s = match k.namespace() {
                 Some(ns) => format!(":{}::{}", ns.replace('.', "::"), k.name()),
@@ -587,6 +590,12 @@ fn edn_to_typed_value_inner(
             // fields). Required for subprocess wire deserialization of UUID-typed fields.
             ":wat::core::Uuid" => match edn {
                 Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
+                other => Err(mismatch(target, other)),
+            },
+            // Arc 220 slice 2: EDN character literal `\c` → typed `:Char`.
+            // Typed path mirrors `:wat::core::Uuid` above (latent gap pattern).
+            ":wat::core::Char" => match edn {
+                Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
                 other => Err(mismatch(target, other)),
             },
             ":wat::holon::HolonAST" => {
@@ -1628,6 +1637,9 @@ pub fn value_to_edn_with(
         // `uuid::Uuid` is `Copy`; `OwnedValue::Uuid` already exists
         // in wat-edn (no crates/wat-edn/ edits needed).
         Value::wat__core__Uuid(u) => OwnedValue::Uuid(*u),
+        // Arc 220 — typed Char → EDN character literal.
+        // `char` is `Copy`; `OwnedValue::Char` already exists in wat-edn.
+        Value::wat__core__Char(c) => OwnedValue::Char(*c),
     }
 }
 

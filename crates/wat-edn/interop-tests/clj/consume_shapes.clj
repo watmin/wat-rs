@@ -111,5 +111,9 @@
               "Map<Atom<:role>, Atom<:filler>> — composite key")
 
 (println)
+(println "─── Arc 220 — :wat::core::Char (BMP-only) ───")
+(assert-shape :char-bmp #(= % \x) "char \\x")
+
+(println)
 (println "✓ All shapes parsed cleanly through clojure.edn/read.")
 (println "✓ wat-edn output is strict-EDN compliant across the matrix.")
