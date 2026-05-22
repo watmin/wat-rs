@@ -92,28 +92,32 @@ Cross-verify: `cargo test --release --test wat_arc220_char` still 10/10 PASS (St
 
 These stones can ship in any order after Phase A; they don't block arc 220 closure but they DO close the deeper doctrine gaps surfaced during this investigation.
 
-#### Stone 221.3 — holon-rs `HolonAST::Keyword` + `HolonAST::Nil` leaves
+#### Stone 221.3 — holon-rs `HolonAST::Keyword` + `HolonAST::Nil` + `HolonAST::Tag` leaves
 
 `holon-rs/src/kernel/holon_ast.rs`:
-- Add `Keyword(Arc<str>)` variant — content is the keyword body (with or without leading colon — DESIGN decision deferred to stone; recommendation: store WITHOUT leading colon to enable clean canonical-bytes type-tag distinction)
+- Add `Keyword(Arc<str>)` variant — content is the keyword body WITHOUT leading colon
 - Add `Nil` variant (no payload)
+- Add `Tag(Arc<str>)` variant — content is the tag identifier WITHOUT leading `#`
 - Per-variant Debug/PartialEq/Hash arms
-- Canonical-bytes paths with distinct type tags: `PRIM_TAG_KEYWORD: &str = "keyword"`, `PRIM_TAG_NIL: &str = "nil"`
+- Canonical-bytes paths with distinct type tags: `PRIM_TAG_KEYWORD: &str = "keyword"`, `PRIM_TAG_NIL: &str = "nil"`, `PRIM_TAG_TAG: &str = "tag"`
 - VSA encoder seed paths
 
 Holon-rs migration ripple in same stone:
 - All sites producing `Symbol(":x")` for keywords → `Keyword("x")`
 - All sites producing `Symbol("nil")` for nil → `Nil`
+- All sites producing `Symbol("#x")` for tag dispatch markers → `Tag("x")`
 - `HolonAST::keyword()` constructor produces `Keyword` (not `Symbol(":x")`)
 
 #### Stone 221.4 — wat-rs consumer ripple
 
 `wat-rs` consumer sweep across `src/`:
-- All `HolonAST::Symbol(":foo")` produce-sites for keywords → `HolonAST::Keyword("foo")` (or with-colon per Stone 221.3 decision)
+- All `HolonAST::Symbol(":foo")` produce-sites for keywords → `HolonAST::Keyword("foo")`
 - All `HolonAST::Symbol("nil")` produce-sites → `HolonAST::Nil`
+- All `HolonAST::Symbol("#foo")` produce-sites for tag dispatch → `HolonAST::Tag("foo")`
 - All match arms on the old conventions get migrated to the new variants
-- `value_to_atom::Value::wat__core__keyword(k)` arm → `HolonAST::Keyword(k)`
-- `value_to_atom::Value::Unit` arm (if it produces Symbol("nil") today) → `HolonAST::Nil`
+- `value_to_atom::Value::wat__core__keyword(k)` arm → `HolonAST::Keyword(k)` (strip leading colon at boundary)
+- `value_to_atom::Value::Unit` arm → `HolonAST::Nil`
+- `value_to_atom::Value::wat__core__Uuid(u)` arm — UPDATE per doctrine correction: `Bind(Tag("uuid"), String(u.to_string()))` (was tentatively planned as `Bind(Atom(Symbol("#uuid")), Atom(String(...)))` — the Atom wraps were fabricated identity layers; corrected to bare leaves)
 
 Per `feedback_substrate_as_teacher`: the compiler is the brief. Expected cascade is substrate-wide; iterate until `cargo test --release --lib -p wat` is green again. Test count may grow from the new variant clarity.
 
@@ -155,21 +159,67 @@ This is the cleanest fix to the existing collision documented at lines 67-71 of 
 | integers | `I64` | leaf |
 | floats | `F64` | leaf |
 | strings | `String` | leaf |
-| keywords | `Keyword` (new in 221.3) | leaf |
+| keywords | `Keyword("foo")` (new in 221.3; no leading colon in payload) | leaf |
 | symbols | `Symbol` | leaf |
 | chars | `Char` (new in 221.1) | leaf |
 | `(1 2 3)` list | `Bundle([1, 2, 3])` composition | composite |
 | `[1 2 3]` vector | `Bundle([Bind(I64(0), 1), Bind(I64(1), 2), ...])` positional composition | composite |
 | `#{a b c}` set | `Bundle([a, b, c])` set-shape composition | composite |
 | `{a 1 b 2}` map | `Bundle([Bind(a, 1), Bind(b, 2)])` map-shape composition | composite |
-| `#tag value` tagged | `Bind(Atom(Symbol("#tag")), <value>)` composition | composite |
-| `#uuid "..."` | tagged composition above + `Stone 221.2` value_to_atom Uuid arm | composite |
-| `#inst "..."` | tagged composition above; arc 216 Stone 216.9 | composite |
-| `#wat.core/Some N` | tagged composition above; arc 216 Stone 216.8 | composite |
+| `#tag value` tagged | `Bind(Tag("tag"), <value-leaf>)` composition (Tag new in 221.3; no leading `#` in payload) | composite |
+| `#uuid "..."` | `Bind(Tag("uuid"), String(hex))`; Stone 221.2 value_to_atom Uuid arm | composite |
+| `#inst "..."` | `Bind(Tag("inst"), String(rfc3339))`; arc 216 Stone 216.9 | composite |
+| `#wat.core/Some N` | `Bind(Tag("wat.core/Some"), <N-leaf>)`; arc 216 Stone 216.8 | composite |
+| `#wat.core/None nil` | `Bind(Tag("wat.core/None"), Nil)`; arc 216 Stone 216.8 | composite |
 
 **Arc 221 Phase B closes EDN-syntax coverage on HolonAST.** Every EDN literal type maps cleanly to either a leaf variant (untagged primitives) or a composition of existing composite primitives (Bundle + Bind + Permute for collections + tagged). No further HolonAST variants required.
 
+**16 HolonAST variants total after arc 221 ships:**
+
+```
+LEAVES (untagged primitive literals — 9):
+  Nil, Bool, I64, F64, String, Symbol, Keyword, Char, Tag
+
+COMPOSITES (3):
+  Bundle  — collections (lists, vectors, sets, maps via composition)
+  Bind    — key-value / positional / tag-payload
+  Permute — positional shift
+
+SPECIAL (kept for VSA semantics, not EDN-spec — 4):
+  Atom         — opaque-identity wrap (use INTENTIONALLY, not ceremonially)
+  Thermometer  — gradient encoding
+  Blend        — weighted sum
+  SlotMarker   — substrate-internal
+```
+
 **Deliberately out-of-spec:** BigInt + BigDecimal. Wat numeric tower is i64 + f64 only per CLIFFNOTES + `crates/wat-edn/src/edn.rs` ("EDN BigInt / BigDecimal — wat numeric tower is i64 + f64 only"). Arc 221 does not change this scope.
+
+## Forward-correction 2026-05-22 (notation refinement)
+
+The original DESIGN draft used `Bind(Atom(Symbol("#tag")), Atom(<payload>))` as the tagged-literal encoding shape. The user surfaced (during the doctrine dialogue captured in `INTERSTITIAL-REALIZATIONS.md` 2026-05-22 entry) that this notation conflates two distinct things:
+
+- **Verb `:wat::holon::Atom`** — wat-level dispatcher that takes a Value and produces the appropriate HolonAST node (leaf for primitives, opaque-identity wrap for HolonAST inputs, structural lowering for WatAST). For a String value, the verb produces `HolonAST::String`, NOT `HolonAST::Atom(HolonAST::String(...))`.
+- **Variant `HolonAST::Atom(Arc<HolonAST>)`** — opaque-identity wrap. Per the doc at `holon_ast.rs:88-96`: *"`Atom(Atom(x))` differs from `Atom(x)` differs from `x` — quote-wrapping is repeatable and meaningful."* The wrap MEANS something at the VSA vector level.
+
+**Wrapping a leaf in `HolonAST::Atom(...)` adds an opaque-identity dimension that wasn't in the EDN source form.** The bare-leaf form is honest. The Atom-wrap is reserved for explicit `(:wat::holon::Atom <holon-ast-value>)` dispatch (when the user EXPLICITLY wants opaque identity).
+
+**Corrected tagged-literal encoding examples:**
+
+```
+\a                   → Char('a')                                  ; leaf
+:foo                 → Keyword("foo")                             ; leaf (no colon in payload)
+nil                  → Nil                                        ; leaf
+#whatever :foobar    → Bind(Tag("whatever"), Keyword("foobar"))   ; tag + keyword-leaf
+#uuid "..."          → Bind(Tag("uuid"), String(hex))             ; tag + string-leaf
+#inst "..."          → Bind(Tag("inst"), String(rfc3339))         ; same shape
+#wat.core/Some 42    → Bind(Tag("wat.core/Some"), I64(42))        ; tag + i64-leaf
+#wat.core/None nil   → Bind(Tag("wat.core/None"), Nil)            ; tag + nil-leaf
+#wat.core/Ok :win    → Bind(Tag("wat.core/Ok"), Keyword("win"))   ; tag + keyword-leaf
+```
+
+This forward-corrects arc 216 Stones 216.8 + 216.9 (pending) — they should ship the cleaner `Bind(Tag, payload)` shape rather than the inscribed `Bind(Atom("#tag"), payload)` doctrine notation (which was always ambiguous about which "Atom" was meant).
+
+Per `feedback_inscription_immutable`: arc 216 Stone 216.7 INSCRIPTION stays unchanged as historical record. This DESIGN forward-corrects for Stones 216.8 + 216.9 going forward. Arc 221's INSCRIPTION cites the lineage.
 
 ## Calibration
 
@@ -177,8 +227,8 @@ This is the cleanest fix to the existing collision documented at lines 67-71 of 
 |---|---|---|---|
 | 221.1 | A | 30-60 min | holon-rs single-variant addition; new PRIM_TAG_CHAR; constructor + 3 tests |
 | 221.2 | A | 20-30 min | wat-rs value_to_atom 2 arms + is_atomizable 1 line + 6 probes |
-| 221.3 | B | 60-120 min | holon-rs 2 variants + migration ripple within holon-rs |
-| 221.4 | B | 60-90 min | wat-rs consumer ripple (substrate-as-teacher cascade per arc 213's pattern) |
+| 221.3 | B | 90-150 min | holon-rs 3 variants (Keyword + Nil + Tag) + migration ripple within holon-rs |
+| 221.4 | B | 60-90 min | wat-rs consumer ripple (substrate-as-teacher cascade per arc 213's pattern); includes value_to_atom Uuid → Bind(Tag, String) per 2026-05-22 doctrine correction |
 | 221.5 | B | 30-45 min | seed type-tag distinction + vector-identity probes |
 | 221.6 | B | 30 min | paperwork |
 
@@ -208,8 +258,8 @@ After Phase B:
 ## Open questions for the DESIGN review
 
 1. **Phase A only, or A+B in one arc?** Phase A unblocks arc 220 Slice 5 directly. Phase B is doctrine-completeness that can be its own arc (221b) if scope discipline prefers tighter arcs.
-2. **Keyword storage form:** with or without leading colon? `Keyword(":foo")` vs `Keyword("foo")`. Latter is cleaner canonical-bytes; former preserves the wat-source surface as-is. DESIGN-decide before Stone 221.3.
-3. **Migrate `HolonAST::symbol(":foo")` callers?** Stone 221.3 + 221.4 sweep produce-sites; do we also retire the keyword-via-symbol constructor entirely, or keep for from_parts_unchecked / lower-level callers?
-4. **Vector-identity regression risk in Stone 221.5:** any test fixture that assumes `Symbol("x")` and `String("x")` produce equal vectors will break. Audit scope?
+2. **Keyword + Tag storage form: with or without leading sigil?** RESOLVED 2026-05-22: store WITHOUT leading colon (Keyword) and WITHOUT leading `#` (Tag) — keeps the type tag at the canonical-bytes level distinct + matches the EDN-spec parser productions (the leading sigil is the parser dispatch, not part of the identifier).
+3. **Migrate `HolonAST::symbol(":foo")` callers?** Stone 221.3 + 221.4 sweep produce-sites; keep the keyword-via-symbol constructor available for `from_parts_unchecked` / lower-level callers but migrate the canonical produce-sites away from it. Same for tag-via-symbol.
+4. **Vector-identity regression risk in Stone 221.5:** any test fixture that assumes `Symbol("x")` and `String("x")` produce equal vectors will break. Audit scope: grep for `String(":` and `Symbol(":` co-occurrence in vector-identity tests; flag as Stone 221.5 pre-flight item.
 
-These should be answered before Stone 221.1 BRIEF lands.
+These have been resolved as of 2026-05-22 dialogue. Stone 221.1 BRIEF can proceed.
