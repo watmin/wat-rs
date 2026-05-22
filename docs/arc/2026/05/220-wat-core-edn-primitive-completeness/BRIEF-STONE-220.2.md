@@ -9,7 +9,8 @@
 
 ## User resolutions baked in (per arc 220 DESIGN + 2026-05-22 conversation)
 
-- **F:** `\c` literal syntax in wat source (EDN form `\c`; not constructor-only)
+- **F:** `\c` literal syntax in wat source — **the Clojure-on-Rust form**. EDN-aligned. (Note: the existing `src/lexer.rs:1-58` doc comment lists `#\a` as future-extension — that was Common-Lisp/Scheme-style and WRONG per the wat-rs lineage. Update the doc comment to `\c` per arc 220.)
+- **G:** `'` reader macro at form-start (`'(1 2 3)` → quote-wrapped) is **Slice 3 territory; NOT in this stone**. Note: arc 171's `'` AS KEYWORD-BODY DISCRIMINATOR (e.g. `:foo'2`) is unchanged — Clojure handles both lexically by position, so will wat.
 - **H:** `(:wat::core::Char/of "x")` — String length-1 input
 - **BMP-only:** inherits wat-edn Stone 218.6b discipline (panic on supplementary-plane; symmetric strictness across lex + construct)
 
@@ -32,12 +33,69 @@
 | 9 | `src/edn_shim.rs:1630` | `Value::wat__core__Uuid(u) => OwnedValue::Uuid(*u)` (write direction) | `Value::wat__core__Char(c) => OwnedValue::Char(*c)` |
 | 10 | `src/closure_extract.rs:1492` | `Value::wat__core__Uuid(u) => Ok(WatAST::List(...))` (closure capture) | Same pattern for Char |
 
-### Constructor function pattern (Uuid precedent)
+### Constructor function pattern (Uuid precedent — verbatim)
 
-- `src/string_ops.rs:252-261` — `eval_uuid_typed_v4` with `const OP: &str = ":wat::core::Uuid/v4";`
-- `src/runtime.rs:4570` — dispatch: `":wat::core::Uuid/v4" => crate::string_ops::eval_uuid_typed_v4(args, env, sym),`
+`src/string_ops.rs:252-271` — `eval_uuid_typed_v4`:
 
-For Char: add `eval_char_of` to `string_ops.rs` with `const OP: &str = ":wat::core::Char/of";` + dispatch entry in `runtime.rs`. Input: `:wat::core::String` arg of length-1 → returns `:wat::core::Char`. Errors: empty string ("expected length-1 String"); multi-char string ("expected length-1 String, got N chars"); supplementary-plane codepoint ("supplementary-plane chars unsupported; wat-edn char literals are BMP-only").
+```rust
+/// `(:wat::core::Uuid/v4)` → `:wat::core::Uuid`.
+///
+/// Mints a fresh v4 (random) UUID on every call. Returns a typed
+/// `:wat::core::Uuid` value — NOT a string. Arc 207 slice 2.
+pub fn eval_uuid_typed_v4(
+    args: &[WatAST],
+    _env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Uuid/v4";
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 0,
+            got: args.len(),
+            span: args[0].span().clone(),
+        });
+    }
+    Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v4()))
+}
+```
+
+`src/runtime.rs:4570` dispatch:
+```rust
+":wat::core::Uuid/v4" => crate::string_ops::eval_uuid_typed_v4(args, env, sym),
+```
+
+For Char: add `eval_char_of` following the same shape (1 arg, validate, construct). Take 1 `Value::String` arg, validate `s.len() == 1` (in chars), validate `(c as u32) <= 0xFFFF`, return `Value::wat__core__Char(c)`. Errors with `RuntimeError::TypeMismatch` / clear per-condition diagnostics.
+
+### Closure-extract arm (Uuid precedent — verbatim)
+
+`src/closure_extract.rs:1492-1500`:
+
+```rust
+// Arc 207 — Uuid is portable: encode as a `Uuid/from-string` call
+// on the canonical 8-4-4-4-12 hyphenated form. Round-trips cleanly.
+Value::wat__core__Uuid(u) => Ok(WatAST::List(
+    vec![
+        WatAST::Keyword(":wat::core::Uuid/from-string".into(), span.clone()),
+        WatAST::StringLit(u.to_string(), span.clone()),
+    ],
+    span,
+)),
+```
+
+For Char: encode as `(:wat::core::Char/of "x")` reverse-construction:
+
+```rust
+// Arc 220 — Char is portable: encode as a `Char/of` call on a
+// length-1 String. Round-trips cleanly (BMP guaranteed by construct).
+Value::wat__core__Char(c) => Ok(WatAST::List(
+    vec![
+        WatAST::Keyword(":wat::core::Char/of".into(), span.clone()),
+        WatAST::StringLit(c.to_string(), span.clone()),
+    ],
+    span,
+)),
+```
 
 ### Lexer addition (novel — no existing `lex_char`)
 
@@ -45,7 +103,92 @@ For Char: add `eval_char_of` to `string_ops.rs` with `const OP: &str = ":wat::co
 - Need to add `lex_char` that handles `\c` / `\newline` / `\space` / `\tab` / `\return` / `\uNNNN` per EDN spec § characters
 - Tokenizer entry dispatches on byte; add `b'\\' =>` case routing to `lex_char`
 - BMP-only check at lex time: reject `\uNNNN` where `NNNN > 0xFFFF` (already structurally impossible since `\uNNNN` is exactly 4 hex digits, max `￿`); reject literal `\😀` (supplementary-plane char in source) with diagnostic
-- Reference: `crates/wat-edn/src/lexer.rs:288-353` for the EDN char-lexing shape; adapt to wat-rs lexer conventions
+
+**Reference: `crates/wat-edn/src/lexer.rs:288-355` — verbatim lex_char shape (adapt to wat-rs `Lexer` struct conventions):**
+
+```rust
+fn lex_char(&mut self) -> Result<Token<'a>> {
+    debug_assert_eq!(self.peek(), Some(b'\\'));
+    let start = self.pos;
+    self.pos += 1;
+    let body_start = self.pos;
+
+    // Spec: "Backslash cannot be followed by whitespace."
+    // Capture `first` here to avoid a second peek below.
+    let first = match self.peek() {
+        None => return Err(Error::at(start, ErrorKind::InvalidChar("empty".into()))),
+        Some(b) if is_whitespace(b) => {
+            return Err(Error::at(
+                start,
+                ErrorKind::InvalidChar("backslash followed by whitespace".into()),
+            ))
+        }
+        Some(b) => b,
+    };
+
+    // Single non-alpha non-digit character (`\(`, `\;`, `\é`, etc.).
+    // Alphanumeric bodies fall through to the named-char path below
+    // (where `\newline`, `\space`, `\a`, `\1` resolve uniformly).
+    if !first.is_ascii_alphanumeric() {
+        let (c, byte_len) = decode_utf8_char(&self.input[self.pos..])
+            .map_err(|e| Error::at(self.pos, ErrorKind::Utf8(e)))?;
+        if (c as u32) > 0xFFFF {
+            return Err(Error::at(
+                start,
+                ErrorKind::InvalidChar(format!(
+                    "\\{}: supplementary-plane (U+{:X}) not supported; \
+                     wat char literals are BMP-only",
+                    c, c as u32
+                )),
+            ));
+        }
+        self.pos += byte_len;
+        return Ok(Token::Char(c));
+    }
+
+    // Read alphanumeric body (a name like "newline", "u00A0", or single letter)
+    while let Some(b) = self.peek() {
+        if b.is_ascii_alphanumeric() {
+            self.pos += 1;
+        } else {
+            break;
+        }
+    }
+
+    let body = &self.input[body_start..self.pos];
+    let body_str = std::str::from_utf8(body)
+        .map_err(|e| Error::at(body_start, ErrorKind::Utf8(e.to_string())))?;
+
+    // 1. Named char literal? (`\newline`, `\space`, etc.)
+    match body_str {
+        "newline" => return Ok(Token::Char('\n')),
+        "return"  => return Ok(Token::Char('\r')),
+        "space"   => return Ok(Token::Char(' ')),
+        "tab"     => return Ok(Token::Char('\t')),
+        _ => {}
+    }
+    // 2. `\uNNNN` Unicode escape?
+    if body_str.len() == 5 && body_str.starts_with('u') {
+        let acc = u32::from_str_radix(&body_str[1..], 16).map_err(|_| {
+            Error::at(start, ErrorKind::InvalidChar(format!("\\{}", body_str)))
+        })?;
+        let c = char::from_u32(acc).ok_or_else(|| {
+            Error::at(start, ErrorKind::InvalidChar(format!("\\{}: not a scalar", body_str)))
+        })?;
+        return Ok(Token::Char(c));
+    }
+    // 3. Single character? (`\a`, `\1`, etc.) — one iterator walk.
+    let mut it = body_str.chars();
+    if let Some(c) = it.next() {
+        if it.next().is_none() {
+            return Ok(Token::Char(c));
+        }
+    }
+    Err(Error::at(start, ErrorKind::InvalidChar(body_str.into())))
+}
+```
+
+Adapt to wat-rs's lexer struct (different field names; `LexError` enum vs `Error::at`; different is_whitespace check). The structural shape is the load-bearing reference.
 
 ### edn_shim bridge (existing precedent for Uuid)
 
@@ -73,14 +216,12 @@ Add `Value::wat__core__Char(char)` variant at `src/runtime.rs:616-617` (after Uu
 
 ### C. Lexer `\c` literal
 
-1. `src/lexer.rs` — add `fn lex_char(src: &str, start: usize) -> Result<(Token, usize), LexError>` after `lex_string`. Reference shape: `crates/wat-edn/src/lexer.rs:288-353`.
-   - Handle named chars: `\newline` → '\n', `\return` → '\r', `\space` → ' ', `\tab` → '\t'
-   - Handle `\uNNNN` (exactly 4 hex digits) → char::from_u32
-   - Handle single-char `\c` → that char; REJECT if codepoint > 0xFFFF
+1. `src/lexer.rs` — add `fn lex_char(src: &str, start: usize) -> Result<(Token, usize), LexError>` after `lex_string`. **Verbatim reference shape in "Pre-flight verified" Lexer-addition section above** (from `crates/wat-edn/src/lexer.rs`).
 2. `src/lexer.rs` — add `Token::Char(char)` enum variant if not present
-3. Tokenizer entry — dispatch on `b'\\'` to `lex_char`
+3. Tokenizer entry — dispatch on `b'\\'` to `lex_char` (note: existing `\` in strings is INSIDE `"..."` — string-escape handling is in `lex_string`; standalone `\` outside strings goes to `lex_char`)
 4. `src/parser.rs` — handle `Token::Char(c)` → `Value::wat__core__Char(c)` in atom-parsing
-5. STOP-1 trigger: if `b'\\'` is already used for any other purpose in lexer (string escape boundary?), surface and pause
+5. **Update doc comment** at `src/lexer.rs:1-58` — the existing "Future extensions (not in MVP): character literals `#\a`" line is WRONG per arc 220 (wat is clojure-on-rust; uses `\c`). Replace with `"Character literals: `\c` / `\newline` / `\return` / `\space` / `\tab` / `\uNNNN` per arc 220 (Clojure/EDN convention)."`
+6. STOP-1 trigger: if `b'\\'` outside strings is already used for any other purpose, surface + pause
 
 ### D. edn_shim bridge (3 sites)
 
