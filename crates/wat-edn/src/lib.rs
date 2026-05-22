@@ -82,7 +82,7 @@ pub mod writer;
 
 pub use error::{Error, ErrorKind, Result};
 pub use json::{
-    edn_to_json, from_json_string, json_to_edn, to_json_string, to_json_string_pretty,
+    from_json_string, to_json_string, to_json_string_pretty,
     JsonError, JsonResult,
 };
 pub use parser::Parser;

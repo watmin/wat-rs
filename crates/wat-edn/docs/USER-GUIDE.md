@@ -455,11 +455,17 @@ println!("{}", write_pretty(&v));
 Output:
 
 ```text
-{:asset :BTC
- :tags #{:vip}
- :nested [1
-          [2
-           [3]]]}
+{
+  :asset :BTC
+  :tags #{:vip}
+  :nested [
+    1
+    [
+      2
+      [3]
+    ]
+  ]
+}
 ```
 
 Layout rules:
@@ -805,6 +811,7 @@ pub enum Error {            // EDN parse errors
 pub enum ErrorKind {
     UnexpectedEof,
     UnexpectedByte(u8),
+    UnexpectedToken(&'static str),
     InvalidEscape(u8),
     InvalidUnicode(String),
     InvalidNumber(String),
@@ -816,6 +823,7 @@ pub enum ErrorKind {
     InvalidUuid(String),
     UnclosedString / List / Vector / Map / Set,
     OddMapElements,
+    Utf8(String),
     TagWithoutElement(String),
     UserTagMissingNamespace(String),
     Other(String),
@@ -834,6 +842,8 @@ pub enum JsonError {        // JSON conversion errors
     InvalidFloat(String),
     InvalidKeyword(String),
     InvalidMap(String),
+    InvalidSet(String),
+    InvalidMapKey { key: String, reason: String },
 }
 ```
 

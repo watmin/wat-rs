@@ -97,7 +97,7 @@ pub type JsonResult<T> = std::result::Result<T, JsonError>;
 // ─── EDN → JSON ─────────────────────────────────────────────────
 
 /// Convert an EDN `Value` to a `serde_json::Value`.
-pub fn edn_to_json(v: &Value<'_>) -> JV {
+pub(crate) fn edn_to_json(v: &Value<'_>) -> JV {
     match v {
         Value::Nil => JV::Null,
         Value::Bool(b) => JV::Bool(*b),
@@ -119,7 +119,7 @@ pub fn edn_to_json(v: &Value<'_>) -> JV {
             } else {
                 Number::from_f64(*f)
                     .map(JV::Number)
-                    .unwrap_or(JV::Null)
+                    .expect("finite f64 must convert to serde_json::Number per from_f64 contract")
             }
         }
         Value::BigDec(n) => sentinel("#bigdec", JV::String(format!("{}M", n))),
@@ -167,11 +167,6 @@ pub fn edn_to_json(v: &Value<'_>) -> JV {
 
 /// Convert an EDN `Value` to a JSON string.
 pub fn to_json_string(v: &Value<'_>) -> String {
-    // rune:struere(invariant-coupling) — serde_json::to_string cannot
-    // fail here because edn_to_json's closed construction emits only
-    // well-formed serde_json::Value graphs (no NaN-in-Number). The
-    // .expect() panic is structurally unreachable; the coupling is
-    // the invariant.
     // rune:temperare(serde-api-shape) — serde_json::to_string takes
     // &impl Serialize; we materialize via edn_to_json into a full
     // serde_json::Value tree before serializing. Alternative is a
@@ -181,13 +176,14 @@ pub fn to_json_string(v: &Value<'_>) -> String {
     serde_json::to_string(&edn_to_json(v)).expect("serde_json::to_string on Value")
 }
 
+// rune:purgare(public-api) — symmetric pretty variant of to_json_string
+// (consumed by src/edn_shim.rs for WAT_TEST_OUTPUT cargo integration per
+// arc 116). Impressive JSON bridges ship both compact and pretty forms;
+// removing this would leave an asymmetric surface. The pretty variant
+// is the natural API for human-readable JSON output (debug logs, error
+// envelopes, REPL inspection).
 /// Convert an EDN `Value` to a pretty-printed JSON string.
 pub fn to_json_string_pretty(v: &Value<'_>) -> String {
-    // rune:struere(invariant-coupling) — serde_json::to_string_pretty
-    // cannot fail here because edn_to_json's closed construction emits
-    // only well-formed serde_json::Value graphs (no NaN-in-Number). The
-    // .expect() panic is structurally unreachable; the coupling is
-    // the invariant.
     // rune:temperare(serde-api-shape) — serde_json::to_string_pretty
     // takes &impl Serialize; we materialize via edn_to_json into a full
     // serde_json::Value tree before serializing. Alternative is a
@@ -201,7 +197,7 @@ pub fn to_json_string_pretty(v: &Value<'_>) -> String {
 // ─── JSON → EDN ─────────────────────────────────────────────────
 
 /// Convert a `serde_json::Value` to an EDN `OwnedValue`.
-pub fn json_to_edn(v: &JV) -> JsonResult<OwnedValue> {
+pub(crate) fn json_to_edn(v: &JV) -> JsonResult<OwnedValue> {
     match v {
         JV::Null => Ok(Value::Nil),
         JV::Bool(b) => Ok(Value::Bool(*b)),

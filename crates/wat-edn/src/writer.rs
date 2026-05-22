@@ -42,6 +42,8 @@ fn push_indent(out: &mut String, level: usize) {
 }
 
 /// True if the value is "scalar enough" to inline without breaking.
+/// BigInt and BigDec are atomic (no sub-elements; print inline as `42N`/`3.14M`)
+/// and are correctly treated as scalar for pretty-print inlining.
 fn is_scalar(v: &Value) -> bool {
     matches!(
         v,
@@ -49,6 +51,8 @@ fn is_scalar(v: &Value) -> bool {
             | Value::Bool(_)
             | Value::Integer(_)
             | Value::Float(_)
+            | Value::BigInt(_)
+            | Value::BigDec(_)
             | Value::String(_)
             | Value::Char(_)
             | Value::Symbol(_)
@@ -183,6 +187,12 @@ pub fn write(v: &Value) -> String {
     out
 }
 
+// rune:purgare(public-api) — buffer-reuse ergonomic for performance-
+// conscious consumers; symmetric with the actively-consumed `write` fn.
+// Documented in crates/wat-edn/docs/IPC-BRIDGE.md:95 as part of the
+// future Clojure-IPC bridge surface. The append-to-existing-buffer
+// shape is the canonical Rust pattern for output composition; removing
+// it would force consumers to allocate per write or write a wrapper.
 /// Append `v` as EDN to `out`. Reuses caller-owned buffer.
 pub fn write_to(v: &Value, out: &mut String) {
     match v {
