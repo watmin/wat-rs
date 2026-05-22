@@ -1060,7 +1060,8 @@ fn nan_writes_as_sentinel() {
 #[test]
 fn nan_round_trips() {
     let v1 = Value::Float(f64::NAN);
-    let s = write(&v1); let v2 = parse(&s).unwrap();
+    let s = write(&v1);
+    let v2 = parse(&s).unwrap();
     assert_eq!(v1, v2);
 }
 
@@ -1214,16 +1215,12 @@ fn rt_realistic_blob() {
 
 #[test]
 fn rt_signed_bigint() {
-    let v1 = parse("-123456789012345678901234567890N").unwrap();
-    let s = write(&v1); let v2 = parse(&s).unwrap();
-    assert_eq!(v1, v2);
+    roundtrip("-123456789012345678901234567890N");
 }
 
 #[test]
 fn rt_signed_bigdec() {
-    let v1 = parse("-3.14M").unwrap();
-    let s = write(&v1); let v2 = parse(&s).unwrap();
-    assert_eq!(v1, v2);
+    roundtrip("-3.14M");
 }
 
 #[test]

@@ -209,7 +209,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn lex_string_escaped(&mut self, open_pos: usize, body_start: usize) -> Result<Token<'a>> {
+    fn lex_string_escaped(&mut self, quote_start: usize, body_start: usize) -> Result<Token<'a>> {
         let mut out = String::with_capacity(self.pos - body_start);
         let prefix = std::str::from_utf8(&self.input[body_start..self.pos])
             .map_err(|e| Error::at(body_start, ErrorKind::Utf8(e.to_string())))?;
@@ -230,7 +230,7 @@ impl<'a> Lexer<'a> {
             }
 
             match self.peek() {
-                None => return Err(Error::at(open_pos, ErrorKind::UnclosedString)),
+                None => return Err(Error::at(quote_start, ErrorKind::UnclosedString)),
                 Some(b'"') => {
                     self.pos += 1;
                     return Ok(Token::String(Cow::Owned(out)));
@@ -292,7 +292,8 @@ impl<'a> Lexer<'a> {
         let body_start = self.pos;
 
         // Spec: "Backslash cannot be followed by whitespace."
-        match self.peek() {
+        // Capture `first` here to avoid a second peek below.
+        let first = match self.peek() {
             None => return Err(Error::at(start, ErrorKind::InvalidChar("empty".into()))),
             Some(b) if is_whitespace(b) => {
                 return Err(Error::at(
@@ -300,13 +301,12 @@ impl<'a> Lexer<'a> {
                     ErrorKind::InvalidChar("backslash followed by whitespace".into()),
                 ))
             }
-            _ => {}
-        }
+            Some(b) => b,
+        };
 
         // Single non-alpha non-digit character (`\(`, `\;`, `\é`, etc.).
         // Alphanumeric bodies fall through to the named-char path below
         // (where `\newline`, `\space`, `\a`, `\1` resolve uniformly).
-        let first = self.peek().unwrap();
         if !first.is_ascii_alphanumeric() {
             let (c, byte_len) = decode_utf8_char(&self.input[self.pos..])
                 .map_err(|e| Error::at(self.pos, ErrorKind::Utf8(e)))?;

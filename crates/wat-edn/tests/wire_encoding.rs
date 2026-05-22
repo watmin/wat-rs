@@ -39,11 +39,18 @@ fn kw(name: &str) -> Value<'static> {
 /// expect equality with the in-memory original.
 fn roundtrip_wire(v: &Value<'_>) {
     let wire = write(v);
-    let decoded = Parser::new_wire(&wire).parse_top().unwrap_or_else(|e| {
+    roundtrip_wire_str(&wire, v);
+}
+
+/// Round-trip via the wire path using an already-computed wire string.
+/// Avoids a redundant `write(v)` allocation at call sites that have
+/// already bound the wire form for an assertion.
+fn roundtrip_wire_str(wire: &str, original: &Value<'_>) {
+    let decoded = Parser::new_wire(wire).parse_top().unwrap_or_else(|e| {
         panic!("Parser::new_wire(...).parse_top() failed on writer output {:?}: {:?}", wire, e)
     });
     assert_eq!(
-        v.clone().into_owned(),
+        original.clone().into_owned(),
         decoded.into_owned(),
         "round-trip identity broken; wire form was {:?}",
         wire
@@ -233,7 +240,7 @@ fn roundtrip_one_arg_parametric() {
     let k = kw("Vec<i64>");
     let wire = write(&k);
     assert_eq!(wire, ":Vec<i64>");
-    roundtrip_wire(&k);
+    roundtrip_wire_str(&wire, &k);
     // Source-mode parse also works because there's no `_` at
     // depth ≥ 1 in `Vec<i64>`.
     assert_eq!(parse(&wire).unwrap().into_owned(), k.clone().into_owned());
@@ -249,12 +256,10 @@ fn roundtrip_two_arg_parametric() {
 fn roundtrip_namespaced_parametric() {
     // Post-arc-219: strict-EDN keyword bodies use `.` not `::`.
     let k = kw("wat.core.HashMap<wat.core.String,wat.core.i64>");
-    roundtrip_wire(&k);
     // Wire form has `_` for the comma.
-    assert_eq!(
-        write(&k),
-        ":wat.core.HashMap<wat.core.String_wat.core.i64>"
-    );
+    let wire = write(&k);
+    assert_eq!(wire, ":wat.core.HashMap<wat.core.String_wat.core.i64>");
+    roundtrip_wire_str(&wire, &k);
 }
 
 // ─── Row H — Nested brackets ────────────────────────────────────
@@ -265,7 +270,7 @@ fn roundtrip_nested_brackets() {
     let k = kw("Vec<Map<K,V>>");
     let wire = write(&k);
     assert_eq!(wire, ":Vec<Map<K_V>>");
-    roundtrip_wire(&k);
+    roundtrip_wire_str(&wire, &k);
 }
 
 #[test]
@@ -273,7 +278,7 @@ fn roundtrip_deeply_nested_brackets() {
     let k = kw("A<B<C<D,E>,F>,G>");
     let wire = write(&k);
     assert_eq!(wire, ":A<B<C<D_E>_F>_G>");
-    roundtrip_wire(&k);
+    roundtrip_wire_str(&wire, &k);
 }
 
 // ─── Row I — Empty brackets ─────────────────────────────────────
@@ -284,7 +289,7 @@ fn roundtrip_empty_brackets() {
     let k = kw("Foo<>");
     let wire = write(&k);
     assert_eq!(wire, ":Foo<>");
-    roundtrip_wire(&k);
+    roundtrip_wire_str(&wire, &k);
     // Source-mode also accepts (no `_` present).
     assert_eq!(parse(":Foo<>").unwrap().into_owned(), k.into_owned());
 }

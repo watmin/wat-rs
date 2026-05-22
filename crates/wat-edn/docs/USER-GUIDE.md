@@ -380,7 +380,7 @@ EDN value          JSON shape
 nil                null
 true / false       true / false
 i64 (in range)     number
-i64 (> 2^53)       string  "9007199254740993"
+i64 (|i| > 2^53)   string  "9007199254740993" or "-9007199254740993"
 bigint             {"#bigint": "123N"}
 f64                number
 NaN / ±Inf         {"#float": "nan" | "inf" | "neg-inf"}
@@ -737,8 +737,8 @@ Output reports both MB/s and µs/op.
 - `lexical-core` for `f64` parsing was tried and reverted —
   per-call overhead exceeds savings on our workload (small numeric
   tokens). std::str::parse stays.
-- `serde` integration (Serialize/Deserialize for `Value`) is
-  available behind no flag yet; v0.2 candidate.
+- A future v0.2 may add direct `serde::{Serialize, Deserialize}` impls
+  on `Value` — no feature flag or impl exists today.
 - SIMD-accelerated whitespace scanning beyond what `memchr` already
   provides is a v0.3+ candidate (the deeply-nested case at 30 MB/s
   is the only place it'd matter measurably).

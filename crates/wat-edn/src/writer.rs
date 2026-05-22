@@ -41,10 +41,15 @@ fn push_indent(out: &mut String, level: usize) {
     }
 }
 
-/// True if the value is "scalar enough" to inline without breaking.
+/// True if the value inlines without breaking in a pretty-printed collection.
 /// BigInt and BigDec are atomic (no sub-elements; print inline as `42N`/`3.14M`)
-/// and are correctly treated as scalar for pretty-print inlining.
-fn is_scalar(v: &Value) -> bool {
+/// and are correctly treated as inline values for pretty-print inlining.
+///
+/// WHY `Value::Tagged` is absent: the tagged variant has its own dedicated arm in
+/// `write_pretty_indented` (see lines below) that writes `#ns/name <body>` inline or
+/// with a newline depending on the body — it never needs the generic "break each
+/// element" path that this predicate guards against.
+fn is_inline_value(v: &Value) -> bool {
     matches!(
         v,
         Value::Nil
@@ -62,9 +67,9 @@ fn is_scalar(v: &Value) -> bool {
     )
 }
 
-/// True if every element is scalar (so we can inline a small collection).
+/// True if every element inlines (so we can inline a small collection).
 fn all_scalar(items: &[Value]) -> bool {
-    items.iter().all(is_scalar)
+    items.iter().all(is_inline_value)
 }
 
 fn write_pretty_indented(v: &Value, out: &mut String, level: usize) {

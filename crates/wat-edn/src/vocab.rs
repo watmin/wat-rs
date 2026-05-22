@@ -173,6 +173,17 @@ pub(crate) fn write_keyword_body_to<W: std::fmt::Write>(
     Ok(())
 }
 
+/// Split a namespaced body `"ns/name"` at the first `/`.
+///
+/// Returns `Some((ns, name))` when exactly one `/` acts as a separator,
+/// `None` when no `/` is present (simple / unqualified body).
+///
+/// Used by the JSON bridge to decode keywords, symbols, and tagged
+/// elements that carry an `ns/name` pair as a JSON string.
+pub(crate) fn split_namespaced(body: &str) -> Option<(&str, &str)> {
+    body.find('/').map(|slash| (&body[..slash], &body[slash + 1..]))
+}
+
 /// Validate the first character of a symbol/keyword/tag name body.
 ///
 /// Spec: "Symbols begin with a non-numeric character. If `-`, `+` or `.`

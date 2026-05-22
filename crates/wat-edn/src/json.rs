@@ -33,7 +33,7 @@
 //!
 //! Round-trip identity holds for every spec EDN type.
 
-use crate::vocab::is_canonical_uuid;
+use crate::vocab::{is_canonical_uuid, split_namespaced};
 use crate::value::{Keyword, Symbol, Tag, Value};
 use crate::OwnedValue;
 use bigdecimal::BigDecimal;
@@ -109,24 +109,24 @@ pub(crate) fn edn_to_json(v: &Value<'_>) -> JV {
                 JV::String(i.to_string())
             }
         }
-        Value::BigInt(n) => sentinel("#bigint", JV::String(format!("{}N", n))),
+        Value::BigInt(n) => single_key_object("#bigint", JV::String(format!("{}N", n))),
         Value::Float(f) => {
             if f.is_nan() {
-                sentinel("#float", JV::String("nan".into()))
+                single_key_object("#float", JV::String("nan".into()))
             } else if f.is_infinite() {
                 let tag = if f.is_sign_negative() { "neg-inf" } else { "inf" };
-                sentinel("#float", JV::String(tag.into()))
+                single_key_object("#float", JV::String(tag.into()))
             } else {
                 Number::from_f64(*f)
                     .map(JV::Number)
                     .expect("finite f64 must convert to serde_json::Number per from_f64 contract")
             }
         }
-        Value::BigDec(n) => sentinel("#bigdec", JV::String(format!("{}M", n))),
+        Value::BigDec(n) => single_key_object("#bigdec", JV::String(format!("{}M", n))),
         Value::String(s) => JV::String(s.to_string()),
-        Value::Char(c) => sentinel("#char", JV::String(c.to_string())),
+        Value::Char(c) => single_key_object("#char", JV::String(c.to_string())),
         Value::Keyword(k) => JV::String(format!("{}", k)), // includes leading `:`
-        Value::Symbol(s) => sentinel("#symbol", JV::String(format!("{}", s))),
+        Value::Symbol(s) => single_key_object("#symbol", JV::String(format!("{}", s))),
         Value::List(items) | Value::Vector(items) => {
             JV::Array(items.iter().map(edn_to_json).collect())
         }
@@ -144,7 +144,7 @@ pub(crate) fn edn_to_json(v: &Value<'_>) -> JV {
             }
             JV::Object(map)
         }
-        Value::Set(items) => sentinel(
+        Value::Set(items) => single_key_object(
             "#set",
             JV::Array(items.iter().map(edn_to_json).collect()),
         ),
@@ -157,11 +157,11 @@ pub(crate) fn edn_to_json(v: &Value<'_>) -> JV {
             map.insert("body".to_string(), edn_to_json(body));
             JV::Object(map)
         }
-        Value::Inst(dt) => sentinel(
+        Value::Inst(dt) => single_key_object(
             "#inst",
             JV::String(dt.to_rfc3339_opts(SecondsFormat::AutoSi, true)),
         ),
-        Value::Uuid(u) => sentinel("#uuid", JV::String(u.to_string())),
+        Value::Uuid(u) => single_key_object("#uuid", JV::String(u.to_string())),
     }
 }
 
@@ -219,7 +219,7 @@ pub fn from_json_string(s: &str) -> JsonResult<OwnedValue> {
 
 // ─── Helpers ────────────────────────────────────────────────────
 
-fn sentinel(key: &str, body: JV) -> JV {
+fn single_key_object(key: &str, body: JV) -> JV {
     let mut map = Map::with_capacity(1);
     map.insert(key.to_string(), body);
     JV::Object(map)
@@ -251,9 +251,7 @@ fn string_to_edn(s: &str) -> JsonResult<OwnedValue> {
         if body.is_empty() {
             return Err(JsonError::InvalidKeyword(s.into()));
         }
-        if let Some(slash) = body.find('/') {
-            let ns = &body[..slash];
-            let name = &body[slash + 1..];
+        if let Some((ns, name)) = split_namespaced(body) {
             let kw = Keyword::try_ns(ns, name)
                 .map_err(|m| JsonError::InvalidKeyword(format!("{}: {}", s, m)))?;
             Ok(Value::Keyword(kw))
@@ -294,14 +292,14 @@ fn object_to_edn(map: &Map<String, JV>) -> JsonResult<OwnedValue> {
     // Plain map. Non-string keys (those parseable as EDN) recover.
     let mut entries = Vec::with_capacity(map.len());
     for (k, v) in map {
-        let key = parse_map_key(k)?;
+        let key = decode_map_key(k)?;
         let val = json_to_edn(v)?;
         entries.push((key, val));
     }
     Ok(Value::Map(entries))
 }
 
-fn parse_map_key(k: &str) -> JsonResult<OwnedValue> {
+fn decode_map_key(k: &str) -> JsonResult<OwnedValue> {
     // Heuristic: keys that LOOK like EDN (start with `:`, `[`, `{`,
     // `(`, `#`, `"`) are parsed as EDN; otherwise treated as plain
     // strings. This matches what edn_to_json produced.
@@ -372,8 +370,8 @@ fn decode_symbol(v: &JV) -> JsonResult<OwnedValue> {
     let s = v
         .as_str()
         .ok_or_else(|| JsonError::InvalidSymbol(v.to_string()))?;
-    let sym = if let Some(slash) = s.find('/') {
-        Symbol::try_ns(&s[..slash], &s[slash + 1..])
+    let sym = if let Some((ns, name)) = split_namespaced(s) {
+        Symbol::try_ns(ns, name)
             .map_err(|m| JsonError::InvalidSymbol(format!("{}: {}", s, m)))?
     } else {
         Symbol::try_new(s).map_err(|m| JsonError::InvalidSymbol(format!("{}: {}", s, m)))?
@@ -417,11 +415,8 @@ fn decode_tagged(tag_v: &JV, body_v: &JV) -> JsonResult<OwnedValue> {
     let tag_s = tag_v
         .as_str()
         .ok_or_else(|| JsonError::InvalidTag(format!("#tag must be string: {}", tag_v)))?;
-    let slash = tag_s
-        .find('/')
+    let (ns, name) = split_namespaced(tag_s)
         .ok_or_else(|| JsonError::InvalidTag(format!("user tag must have namespace: {}", tag_s)))?;
-    let ns = &tag_s[..slash];
-    let name = &tag_s[slash + 1..];
     let tag = Tag::try_ns(ns, name)
         .map_err(|m| JsonError::InvalidTag(format!("{}: {}", tag_s, m)))?;
     let body = json_to_edn(body_v)?;
@@ -582,7 +577,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_map_key_strict_edn_looking_invalid_returns_error() {
+    fn decode_map_key_strict_edn_looking_invalid_returns_error() {
         // An EDN-looking key (starts with ':') that fails to parse must
         // return JsonError::InvalidMapKey, not silently fall through to
         // Value::String. Probe: ":" is an EDN-looking key (colon prefix)

@@ -7,10 +7,15 @@ use bigdecimal::BigDecimal;
 use chrono::{TimeZone, Utc};
 use num_bigint::BigInt;
 use std::str::FromStr;
+use std::sync::LazyLock;
 use uuid::Uuid;
 use wat_edn::{Keyword, Symbol, Tag, Value};
 
-fn all_variants() -> Vec<(&'static str, Value<'static>)> {
+/// All 17 variants, initialized once per test binary run.
+/// Each call to `all_variants()` previously allocated 2 Box<BigInt> +
+/// 2 Box<BigDecimal> (36 heap allocs across 18 call sites).
+/// LazyLock reduces this to 1 Box<BigInt> + 1 Box<BigDecimal> total.
+static ALL_VARIANTS: LazyLock<Vec<(&'static str, Value<'static>)>> = LazyLock::new(|| {
     vec![
         ("nil", Value::Nil),
         ("bool", Value::Bool(true)),
@@ -33,6 +38,10 @@ fn all_variants() -> Vec<(&'static str, Value<'static>)> {
         ("inst", Value::Inst(Utc.timestamp_opt(0, 0).unwrap())),
         ("uuid", Value::Uuid(Uuid::nil())),
     ]
+});
+
+fn all_variants() -> Vec<(&'static str, Value<'static>)> {
+    ALL_VARIANTS.clone()
 }
 
 #[test]

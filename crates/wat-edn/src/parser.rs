@@ -96,18 +96,25 @@ impl<'a> Parser<'a> {
     // ─── Value parsing ─────────────────────────────────────────
 
     fn parse_value(&mut self) -> Result<Value<'a>> {
-        self.parse_value_inner(false)
+        self.parse_value_discarding(false)
     }
 
-    /// Inner parse with `discarding` flag. When true, built-in tag
+    /// Parse with `discarding` flag. When true, built-in tag
     /// validators (`#inst`, `#uuid`) skip semantic interpretation per
     /// spec L267 ("a reader should not call ... handlers during the
     /// processing of the element to be discarded"). The returned
     /// Value will be thrown away.
-    fn parse_value_inner(&mut self, discarding: bool) -> Result<Value<'a>> {
+    fn parse_value_discarding(&mut self, discarding: bool) -> Result<Value<'a>> {
         // Discards at this position: consume `#_ <form>` pairs as trivia.
         self.skip_discards()?;
 
+        // pos points at the start of the next unconsumed input byte. NOTE: for
+        // peeked tokens (where `self.peeked.is_some()`), pos may lag by one
+        // token — the position reflects the byte we're about to read, not the
+        // token we're about to consume. The Keyword arm captures its own
+        // body_start from the lexer to get exact spans; other arms accept this
+        // invariant trade-off for diagnostics (callers needing exact spans
+        // should capture at lex time, see Keyword handling below).
         let pos = self.lexer.pos();
         let t = self.next_token()?;
         match t {
@@ -165,13 +172,13 @@ impl<'a> Parser<'a> {
 
     /// Loop while the next token is `#_`: consume it, parse-and-discard
     /// the following form. Per spec L267, handlers must NOT execute
-    /// during a discard — `parse_value_inner(true)` propagates the
+    /// during a discard — `parse_value_discarding(true)` propagates the
     /// flag so built-in `#inst` / `#uuid` validators skip semantic
     /// interpretation of the discarded body.
     fn skip_discards(&mut self) -> Result<()> {
         while matches!(self.peek_token()?, Token::HashUnderscore) {
             self.next_token()?; // consume HashUnderscore
-            let _ = self.parse_value_inner(true)?;
+            let _ = self.parse_value_discarding(true)?;
         }
         Ok(())
     }
@@ -260,7 +267,7 @@ impl<'a> Parser<'a> {
                     ErrorKind::TagWithoutElement(tag_body.into()),
                 ));
             }
-            self.parse_value_inner(discarding)?
+            self.parse_value_discarding(discarding)?
         };
 
         // Under #_ discard, the entire tagged element is thrown away;
