@@ -156,7 +156,46 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-21 — arc 219 CLOSED; arc 218.5 unblocked; 217 + 216 closure BLOCKED on 218.5)
+## Currently (2026-05-22 — arc 218 IMPECCABLE; arc 220 active; Stone 220.4 IN FLIGHT sonnet)
+
+**Arc 218 wat-edn IMPECCABLE — closed in spirit; final recast 2026-05-22 FINAL = 0 L1 + 3 L2 docs (stalled at Slice 5 paperwork). 6 of 7 spells CONVERGED. Substrate is structurally honest.** Stone 218.6e shipped 8/8 PASS (`02d6204`); FINAL recast inscribed at `0972103` with the 3 remaining cernere doc-drift L2s (USER-GUIDE suite breakdown table + LOC claim + vocab.rs spec-quote bracket). Stone 218.5 (INSCRIPTION) not formally closed but substrate-side IMPECCABLE achieved (4 runes remain, all strongly justified per user 2026-05-22 high-bar).
+
+**Strategic intent (load-bearing for what's downstream):** wat<>clj IPC via EDN. Will eventually vend `wat-edn-clj` repo for Clojure-side communication with wat programs. Arc 217 is the named consumer.
+
+**Arc 220 active — wat::core EDN primitive completeness (Char + List).** Trigger: 2026-05-22 EDN spec audit found wat-edn rejected 3 spec-legal forms (`:foo:bar`, `:foo#bar`, `foo:bar`) that `clojure.edn/read` accepts; deeper audit found `:wat::core::Char` and `:wat::core::List` MISSING in wat-core (round-trip would lossy-collapse). Arc 164 SKIP (2026-05-08) was conditional on revisit; trigger conditions met via NEW signal: wat<>clj IPC round-trip integrity. Arc 220 DESIGN at `docs/arc/2026/05/220-wat-core-edn-primitive-completeness/DESIGN.md` (commit `8393722`).
+
+**Arc 220 slice status:**
+- Slice 1 ✓ DESIGN (`8393722`)
+- Slice 2 ✓ `:wat::core::Char` BMP-only (`dd84fcf` — 12 files, ~30 min sonnet, 12/12 PASS). Lexer doc fixed (`#\a` → `\c` per Clojure-on-Rust). Char/of("x") constructor. Cross-language BMP-only inherits Stone 218.6b.
+- Slice 3 ✓ `'` reader macro (`c526b1f` — 2 files, ~5 min sonnet, 7/7 PASS). `'(1 2 3)` form-start; `foo'` keyword-body discriminator (arc 171) preserved. Both legal per Clojure precedent.
+- Slice 4 ⏳ **IN FLIGHT** — `:wat::core::List<T>` LinkedList-backed (sonnet agent `aa893bc6ec32e96df`; spawned post `f33607d`). 14 expectation rows. Load-bearing novel: cross-type sequence-Hash so `List(1,2,3) == Vector(1,2,3)` per EDN spec §282-289. conj on List = PREPEND. Time budget 90-150 min target / 180 STOP.
+- Slice 5 pending — INSCRIPTION + USER-GUIDE + cross-references.
+
+**Wat-clippy mountain stays — arc 170 backlog visibility.** `cargo clippy -p wat -- -D warnings --all-targets` has 115 pre-existing warnings (verified via git stash round-trip 2026-05-22). User direction: *"they came from work on 170 - they are a constant reminder we have work to do - 170 is blocked on them"*. NOT a Stone 220.x verification gate. Wat-edn clippy stays gated (clean) per arc 218 discipline.
+
+**Sub-agent piped-bash permission wall — 6th-stone pattern.** 218.6b/c/d/e + 220.2 + (likely 220.4) hit the same wall on `cargo run | clojure -M` interop handshakes. Established pattern: sonnet ships everything else cleanly + marks handshake row "pending orchestrator-side verification"; orchestrator runs the 4 handshakes during scoring. Built into Stone 220.4 BRIEF preemptively.
+
+**Spec audit artifacts:** `crates/wat-edn/docs/EDN-SPEC.md` (verbatim spec fetch; commit `bb746b0`) + `crates/wat-edn/examples/spec_probe.rs` (3-form regression evidence). These STAY as arc 219b foundation.
+
+**Blocking chain post-arc-220:**
+```
+arc 220 Slice 4 IN FLIGHT (List)
+  → arc 220 Slice 5 (paperwork)
+  → arc 219b (wat-edn EDN spec conformance + differential interop suite — fixes the 3 spec-legal-but-rejected forms via vocab.rs is_symbol_continue revision; arc 219's over-strict rule was a forward-correction)
+  → arc 218 actual scope (streaming optimization per IPC-BRIDGE.md:305-312 — user-named "deferred")
+  → arc 217 (Clojure-IPC bridge — the named consumer; arc 220 + 219b + 218-streaming are all prereqs)
+  → arc 216 Stones 216.8/.9/.10 (sum-type tagged literals)
+  → arc 214 Slice 4 (kernel layer)
+  → eventual wat-edn-clj vendoring (user direction)
+```
+
+**Calibration trend across 13 stones in series** — 218.1 (~20) / 218.2 (~15) / 218.3 (~25) / 218.4 (~20) / 219.1 (below) / 218.6 (~8) / 218.6b (~6) / 218.6c (mins) / 218.6d (mins) / 218.6e (~6) / 220.2 (~30) / 220.3 (~5) — all at-or-below lower prediction band. Pattern locked: weaponized BRIEF (verbatim references + exact line numbers + Uuid-precedent pointers) + sonnet ships reliably.
+
+**Wat identity locked (2026-05-22):** wat IS clojure-on-rust. Char literal is `\c` (NOT `#\a` per old lexer doc that was wrong; fixed in Stone 220.2). `'(1 2 3)` reader macro at form-start AND `foo'` discriminator inside keyword body are BOTH legal (Clojure precedent; Slice 2 + arc 171 respectively).
+
+**Post-compaction recovery path:** read this CLIFFNOTES Currently section + check task notification for sonnet agent `aa893bc6ec32e96df` (Stone 220.4) + git log to see ship status. If sonnet returned during compaction, output file is at `/tmp/claude-1000/-home-watmin-work-holon/bc87fd88-050a-4542-bf0c-ccb5a18db436/tasks/aa893bc6ec32e96df.output` (do NOT tail it — read git status to see what shipped, or expect a task-notification on next turn). BRIEF at `docs/arc/2026/05/220-wat-core-edn-primitive-completeness/BRIEF-STONE-220.4.md`; EXPECTATIONS sibling.
+
+**Branch** `arc-170-gap-j-v5-deadlock-state`
 
 - **Arc 216 substrate work complete (collections + doctrine)** — 216.1/.2/.3 HolonRepresentable + 216.4 predicate + 216.5 hashmap_key bridge + 216.5a-d antidote (impl Hash for Value + native storage + DELETE hashmap_key) + 216.6 process-tier cascade + 216.7 encoding doctrine + Tuple round-trip. All shipped + pushed.
 - **Encoding doctrine LOCKED** in DESIGN-216 — 3 categories (Primitives `Atom` / Collections `Bundle` / Tagged `Bind(Atom("#tag"), payload)`); tagged shapes (FQDN per 2026-05-21b forward-correction): Option (`#wat.core/Some` / `#wat.core/None nil`) / Result (`#wat.core/Ok` / `#wat.core/Err`) / Instant (`#inst` — EDN-standard bare) / Uuid (`#uuid` — EDN-standard bare) / Duration (`#wat.time/Duration` — mints wat.time namespace); Unit-vs-None distinction restored
