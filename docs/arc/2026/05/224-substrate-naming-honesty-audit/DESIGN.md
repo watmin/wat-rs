@@ -1,8 +1,10 @@
 # DESIGN — Arc 224 — Substrate naming honesty audit (intueri sweep)
 
-> **SPAWN-BLOCK STATUS (2026-05-22 very-late):** Arc 224 was spawned by arc 221 during arc 221's Phase B doctrine dialogue. Per `feedback_spawn_block_winding`:
+> **SPAWN-BLOCK STATUS (2026-05-23 morning):** Arc 224 was spawned by arc 221 during arc 221's Phase B doctrine dialogue. Per `feedback_spawn_block_winding`:
 > - **Arc 224 BLOCKS arc 221's closure** (arc 221's INSCRIPTION cannot fire until arc 224 closes)
-> - Arc 221's spawn tree as of 2026-05-22 very-late: arc 221 → {arc 222, arc 223, arc 224}
+> - **Arc 224 NOW HAS ITS OWN SPAWN CHILD: arc 225** (atomize/materialize substrate-wide rename) — spawned 2026-05-23 morning after Stone 224.4 aggregate identified the Group B fix as substrate-wide work deserving its own arc
+> - Arc 221's spawn tree: arc 221 → {arc 222, arc 223, arc 224 → arc 225}
+> - **Arc 224 INSCRIPTION (Stone 224.7) blocked on arc 225 closing** per spawn-block discipline
 > - Arc 224's work proceeds AFTER arc 221 Phase B substrate stones (221.5 shipped 2026-05-22 commit `1979291`) — those deliver the leaf algebra arc 224 audits
 
 ## Triggering observation (2026-05-22 very-late)
