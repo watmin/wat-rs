@@ -1,10 +1,11 @@
 # DESIGN — Arc 221 — HolonAST primitive-layer honesty
 
-> **SPAWN-BLOCK STATUS (2026-05-22 late):** Arc 221 has spawned two children that block its closure per `feedback_spawn_block_winding`:
+> **SPAWN-BLOCK STATUS (2026-05-22 very-late):** Arc 221 has spawned THREE children that block its closure per `feedback_spawn_block_winding`:
 > - **arc 222** (EDN ↔ holon direct path) — spawned during arc 221's paperwork pass (be22dbe)
 > - **arc 223** (WatAST primitive-layer honesty) — spawned during arc 221 Stone 221.2 sonnet flight (5b5fba9)
+> - **arc 224** (substrate naming honesty audit / intueri sweep) — spawned during arc 221 Phase B doctrine dialogue (2026-05-22 very-late); the "names are lying" realization
 >
-> **Arc 221's INSCRIPTION (Stone 221.6) cannot fire until BOTH arc 222 AND arc 223 close.** Phase B substrate stones (221.3-221.5) deliver the HolonAST::Keyword/Nil/Tag leaves that arc 222 + arc 223 need to do their work. After Phase B substrate ships, both spawn children execute fully; only then does Stone 221.6 INSCRIPTION fire.
+> **Arc 221's INSCRIPTION (Stone 221.6) cannot fire until ALL THREE arc 222, arc 223, AND arc 224 close.** Phase B substrate stones (221.3-221.5) deliver the HolonAST::Keyword/Nil/Tag leaves + Symbol/String seed distinction that arc 222 + arc 223 need to do their work. Arc 224's intueri cast surfaced no Level 1 lies in the substrate algebra (per FINDINGS-INTUERI-HOLON-AST.md) but the audit continues across wat-rs runtime.rs + check.rs. After Phase B substrate ships + all three spawn children close, only then does Stone 221.6 INSCRIPTION fire.
 >
 > See CLIFFNOTES § "SPAWN-BLOCK-HONEST blocking chain" for the full winding order. Capability dependencies ≠ spawn-block; spawn-block wins when they conflict.
 
