@@ -284,6 +284,7 @@ impl<'a> Cursor<'a> {
             Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone(), span))),
             Token::Symbol(s) => Ok(Some(WatAST::Symbol(Identifier::bare(s.clone()), span))),
             Token::Quasiquote => self.parse_reader_macro(":wat::core::quasiquote", span),
+            Token::Quote => self.parse_reader_macro(":wat::core::quote", span),
             Token::Unquote => self.parse_reader_macro(":wat::core::unquote", span),
             Token::UnquoteSplicing => self.parse_reader_macro(":wat::core::unquote-splicing", span),
             // Arc 220 slice 2 — `\c` character literal reader macro.
@@ -825,6 +826,39 @@ mod tests {
             list(vec![sym("a"), sym("b"), sym("c")]),
         ]);
         assert_eq!(crate::parse_one!("`(a b c)").unwrap(), expected);
+    }
+
+    // ─── Quote reader macro ─────────────────────────────────────────────
+
+    #[test]
+    fn quote_wraps_following_form() {
+        // 'foo → (:wat::core::quote foo)
+        assert_eq!(
+            crate::parse_one!("'foo").unwrap(),
+            list(vec![kw(":wat::core::quote"), sym("foo")])
+        );
+    }
+
+    #[test]
+    fn quote_over_list() {
+        // '(a b c) → (:wat::core::quote (a b c))
+        assert_eq!(
+            crate::parse_one!("'(a b c)").unwrap(),
+            list(vec![
+                kw(":wat::core::quote"),
+                list(vec![sym("a"), sym("b"), sym("c")]),
+            ])
+        );
+    }
+
+    #[test]
+    fn quote_does_not_disturb_keyword_body_apostrophe() {
+        // Arc 171 invariant: `'` inside keyword body stays absorbed by lex_keyword.
+        // `:wat::core::op'2` is a single keyword token, NOT a quote of `(:wat::core::op 2)`.
+        assert_eq!(
+            crate::parse_one!(":wat::core::op'2").unwrap(),
+            kw(":wat::core::op'2")
+        );
     }
 
     #[test]

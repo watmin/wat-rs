@@ -113,6 +113,12 @@ pub enum Token {
     /// Quasiquote `` ` `` reader macro. Parser rewrites to
     /// `(:wat::core::quasiquote X)` wrapping the following form.
     Quasiquote,
+    /// Quote `'` reader macro. Parser rewrites to
+    /// `(:wat::core::quote X)` wrapping the following form.
+    /// Arc 220 Slice 3 (Clojure precedent — `'(1 2 3)` form-start).
+    /// Distinct from arc 171's keyword-body `'` discriminator (which is
+    /// absorbed by `lex_keyword` and never reaches this top-level token).
+    Quote,
     /// Unquote `~` reader macro. Parser rewrites to
     /// `(:wat::core::unquote X)`. Arc 172 slice 1: source character
     /// changed from `,` to `~`; variant name unchanged.
@@ -290,6 +296,15 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
         }
         if c == '`' {
             tokens.push(SpannedToken { token: Token::Quasiquote, span: span_at(i) });
+            i += 1;
+            continue;
+        }
+        // Quote reader macro — `'` at top-level token boundary.
+        // Arc 220 Slice 3: `'foo` → `(:wat::core::quote foo)`.
+        // The keyword-body `'` discriminator (arc 171) is absorbed inside
+        // `lex_keyword` before this point and never reaches this branch.
+        if c == '\'' {
+            tokens.push(SpannedToken { token: Token::Quote, span: span_at(i) });
             i += 1;
             continue;
         }
