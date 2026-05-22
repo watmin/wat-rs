@@ -10,6 +10,63 @@
 >
 > See CLIFFNOTES § "SPAWN-BLOCK-HONEST blocking chain" for the full winding order.
 
+> **DOCTRINE FULLY LANDED 2026-05-23 evening (forward-correction, supersedes the afternoon-only resolution below):** Through 7 rounds of dialogue across 2026-05-23, the substrate found itself. See INTERSTITIAL § 2026-05-23 evening for the full realization arc + Song #22 (Dope's Survive).
+>
+> **The universal doctrine:** *typed entities are bound with their type and data-form.* Every typed value at user-surface compiles to `(Bind (Atom <ClassName>) (Atom <data>))`. Class is the classifier atom (first-class value with deterministic VSA vector). Data is the held value (raw bytes at bottom OR further composition). Bind composes them; the whole IS the instance.
+>
+> **12 true substrate primitives:**
+> ```
+> Holder / opener:    Atom (hold)  ;  Materialize (open)  — substrate's quote/unquote
+> Composers:          Bind  ;  Bundle  ;  Permute        (3)
+> Raw carriers:       raw-i64, raw-f64, raw-bool, raw-char, raw-string-bytes  (5)
+> Encoders:           Thermometer  ;  Blend              (2)
+> Sentinel:           SlotMarker                          (1)
+> ```
+>
+> **The substrate IS the type system.** Type-checking emerges from VSA similarity:
+> ```
+> (is-X? value)  ≡  similarity(value's class atom, prototype-of-X atom)
+> ```
+> Continuous answer. Soft duck typing with measurable shape. Polymorphic dispatch via classifier-similarity. No class hierarchy. No method tables.
+>
+> **User-defined types are unlimited.** Users invent classifier names; the substrate doesn't need to know. `(Voltage 5.0)`, `(Celsius 273.15)` — all first-class via classifier-wrap. 12 substrate primitives suffice for any user-defined type universe.
+>
+> **Arc 222's mission under the resolved doctrine:** mint the EDN-form named constructors at wat-surface ALL following the uniform `(Bind (Atom <ClassName>) (Atom <data>))` pattern:
+>
+> ```
+> Surface form    Wat-surface verb       Substrate composition (canonical)
+> ─────────────   ────────────────────   ─────────────────────────────────────────
+> 42              (Int 42)               (Bind (Atom "Int") (Atom 42))
+> 2.5             (Float 2.5)            (Bind (Atom "Float") (Atom 2.5))
+> true            (Bool true)            (Bind (Atom "Bool") (Atom true))
+> \a              (Char \a)              (Bind (Atom "Char") (Atom \a))
+> "hello"         (String "hello")       (Bind (Atom "String") (Atom "hello"))
+> foo             (Symbol "foo")         (Bind (Atom "Symbol") (Atom "foo"))
+> :foo            (Keyword "foo")        (Bind (Atom "Keyword") (Atom "foo"))
+> #foo            (Tag "foo")            (Bind (Atom "Tag") (Atom "foo"))
+> nil             (Symbol "nil")         (Bind (Atom "Symbol") (Atom "nil"))
+> 'expr           (Quote expr)           (Bind (Atom "Quote") (Atom expr))
+> `expr           (Quasiquote expr)      (Bind (Atom "Quasiquote") (Atom expr))
+> ~expr           (Unquote expr)         (Bind (Atom "Unquote") (Atom expr))
+> ~@expr          (Splice expr)          (Bind (Atom "Splice") (Atom expr))
+> #tag v          (Tagged tag v)         (Bind (Tag-composition) (Atom v))
+>                                        = (Bind (Bind (Atom "Tag") (Atom tag-name)) (Atom v))
+> {k v ...}       (Map k v ...)          (Bind (Atom "Map") (Bundle (Bind k_h v_h) ...))
+> [x ...]         (Vector x ...)         (Bind (Atom "Vector") (Bundle (Bind 0 x_h) ...))
+> (x ...)         (List x ...)           (Bind (Atom "List") (Bundle x_h ...))
+> #{x ...}        (Set x ...)            (Bind (Atom "Set") (Bundle x_h ...))
+> ```
+>
+> Every named form has the SAME outer shape `(Bind (Atom <ClassName>) <body>)`. Classifier is uniform across the entire user-surface vocabulary.
+>
+> **Inscribe the doctrine.** Stone 222 work: mint the constructors; inscribe doctrine; 3×2 conversion topology verbs as honest decoders/encoders that traverse the classifier-wrapped forms.
+>
+> **Future arc (likely 226+):** type predicates as substrate operations (`(is-X? value)` as VSA similarity primitives); polymorphic dispatch via classifier-similarity routing.
+>
+> **Future arc (likely 227+):** user-defined types via classifier-wrap (wat-level type-declaration mechanism that mints new classifier atoms; no substrate changes needed).
+>
+> --- (the original afternoon-only resolution follows; superseded by the evening doctrine above)
+
 > **DOCTRINE CONVERGED 2026-05-23 afternoon (forward-correction):** The 3×2 conversion topology this arc was opened to inscribe now has a CLEAN doctrine articulation surfaced via the user-led dialogue captured in INTERSTITIAL § 2026-05-23 afternoon. Two layers, both internally consistent:
 >
 > **Layer 1 — Source form (parsed pre-eval):** ALL macro sigils `'` `` ` `` `~` `~@` encode as Bundle-of-verb at substrate source-encoding (no separate substrate variants; consistent shape with other verb applications).

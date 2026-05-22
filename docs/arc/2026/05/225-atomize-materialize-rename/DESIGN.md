@@ -6,6 +6,10 @@
 
 > **FURTHER DOCTRINE CONVERGENCE 2026-05-23 afternoon:** Continued dialogue surfaced the layered honesty framing for the entire quote-family + macro sigils. See INTERSTITIAL § 2026-05-23 afternoon for the full narrative. Key resolution: **substrate stays at 16 HolonAST variants — no expansion needed.** Macro sigils `'` `` ` `` `~` `~@` encode as Bundle-of-verb at source-form layer (consistent shape with other verb applications) AND evaluate to Atom-wrapped substrate forms at evaluated-form layer (consistent "this is held" semantic via Atom). Tag is reserved for EDN tagged literals only (`#name value`); reusing Tag for macro sigils was dishonest. Arc 225's scope is unchanged: narrow `:wat::holon::Atom` + rename `:wat::core::atom-value` → `:wat::holon::materialize`. The EDN-form named constructors and the quasiquote-expansion-evaluator work belong to arc 222.
 
+> **FULL DOCTRINE LANDED 2026-05-23 evening (supersedes afternoon framing):** Through 7 rounds of dialogue, the substrate found itself. See INTERSTITIAL § 2026-05-23 evening + [[typed-entities-doctrine]] memory entry. **Materialize is the substrate's UNQUOTE PRIMITIVE** — pair with Atom (which is quote at substrate-operation level). The rename `:wat::core::atom-value` → `:wat::holon::materialize` is even more load-bearing now: it names a foundational substrate operation, not just a decode convenience. The 12-true-primitives doctrine + the uniform `(Bind (Atom class) (Atom data))` typed-entity shape + the type-as-VSA-similarity insight all rest on Atom/Materialize being the substrate's quote/unquote dual.
+>
+> **Arc 225's scope remains:** narrow `:wat::holon::Atom` to single-shape constructor + rename `:wat::core::atom-value` → `:wat::holon::materialize`. The doctrine context expands the WEIGHT of the rename without expanding the work.
+
 ## Triggering observation
 
 Arc 224 Stone 224.2 (intueri on runtime.rs) found:
