@@ -1,6 +1,8 @@
 # EXPECTATIONS — Arc 221 Stone 221.4b — Finish keyword→Symbol substrate-doctrine class
 
-Mode A target: 9/9 PASS.
+> **EXPANDED 2026-05-22 very-late** (mid-flight scope correction): the macro-support family in runtime.rs is the second half of the doctrine class. Original 9-row scorecard expanded to 13 rows.
+
+Mode A target: 13/13 PASS.
 
 | # | Row | Expectation |
 |---|---|---|
@@ -12,19 +14,25 @@ Mode A target: 9/9 PASS.
 | 6 | `edn_shim.rs:1899` (EDN keyword reader) | String construction drops leading colon; `HolonAST::Symbol` → `HolonAST::Keyword`; doc cites Stone 221.4b doctrine |
 | 7 | Value::Unit consistency aligned across 3 dispatchers | Recommended Option A: add `Value::Unit => HolonAST::Nil` to runtime.rs:14018 and runtime.rs:20938; OR document honest reason for asymmetry in SCORE Delta |
 | 8 | Cascade test fixes per Stone 221.3 Delta 1a discipline | Tests broken by this stone's substrate change are NOT pre-existing; frame honestly in SCORE; mechanical fixes mirror Stone 221.4's `lower_atom_keyword` + `lookup_returns_some_for_if` pattern |
-| 9 | New probe file + all suites green | `tests/wat_arc221b_keyword_dispatcher_completeness.rs` with 5+ probes (one per illegal site, plus Unit consistency if Option A). `cargo build --release -p wat` 0 errors; `cargo test --release --lib -p wat` PASS (baseline 827); `cargo test --release --test wat_arc220_char` 10/10; `wat_arc221_char_atomization` 3/3; `wat_arc221_keyword_nil_tag_atomization` 6/6; new probe file PASS; `cargo test -p wat-edn` PASS; clippy clean on wat-edn |
+| 9 | New probe file (Phase 1) — dispatcher completeness | `tests/wat_arc221b_keyword_dispatcher_completeness.rs` with 5+ probes (one per Phase 1 illegal site, plus Unit consistency); all PASS |
+| 10 | Phase 2 — `eval_rename_callable_name` macro-support fix | `runtime.rs:11560` assertion flipped from Symbol to Keyword; `runtime.rs:11588` writer flipped to `HolonAST::keyword()`; error message updated; doc updated to cite Stone 221.4b |
+| 11 | Phase 2 — `eval_extract_arg_names` audit + fix | Lines 11644/11719 (`->` Symbol check) confirmed honest (substrate-internal sentinel). Lines 11647/11653 (arg-name extract+write) audited; flipped to Keyword if context warrants OR documented honest reason for Symbol; STOP-6 catches ambiguous traces |
+| 12 | Phase 2 — Audit of signature-of-defn / body-of / lookup-define | Each function audited for Symbol-vs-Keyword honesty post-Stone-221.4b; lying sites fixed; honest sites documented; doc comments at runtime.rs:10485/10490/10494 refreshed (`WatAST::Keyword → HolonAST::Keyword` reality, not stale `→ Symbol(":Foo")` text) |
+| 13 | New probe file (Phase 2) + cascade tests + targeted-suite green | `tests/wat_arc221b_macro_support_keyword_shape.rs` with 3+ probes (rename-callable-name accepts Keyword + end-to-end define-alias). The 7 ex-failures (try_recv_on_ready_queue / walk_w2/w3 / values_sum / zip_empty/pairs / dissoc_removes) now PASS. `cargo test --release --test wat_arc143_manipulation` PASS. **--lib FULL SWEEP EXPLICITLY SKIPPED** per task #413 (pre-existing signal-test hangs). All targeted suites green |
 
 ## Independent prediction (calibration record)
 
-**Target runtime:** 60-90 min Mode A
+**Target runtime:** 60-90 min Mode A (Phase 2 only — Phase 1 already on disk from first sonnet flight)
 **Upper bound:** 120 min
-**Confidence:** medium-high
+**Confidence:** medium
 
 **Rationale:**
-- Stone 221.4 was the closest precedent: 3 new value_to_atom arms + cascade + probes = ~55 min
-- Stone 221.4b is 6 mechanical site fixes + Unit consistency audit + cascade test fixes + 5+ probes
-- Expected cascade test count: 3-8 (rough estimate; eval-step! / quote / leaf are exercised in unit tests; substrate-as-teacher loop will reveal exact count)
-- Risk: the runtime.rs:14018 / 20938 functions may have additional implicit assumptions about Keyword vs Symbol that surface only when downstream consumers exercise them
+- Phase 1 already done (~30 min consumed by first sonnet flight + panic-abort)
+- Phase 2 scope: 2 substantial fixes (rename-callable-name + extract-arg-names) + audit of 3 more (signature-of-defn / body-of / lookup-define) + 3 doc refreshes + 7 known cascade test fixes + new probe file
+- Pattern from prior stones: ~25-35 min per substantive substrate fix + cascade test
+- Phase 2 estimate: 60-90 min — covers fixes + audit + tests + probe + SCORE
+- Risk: macro-support family may have deeper interactions; audit-only sites (signature-of-defn etc) may surface MORE lying code; substrate-as-teacher loop may extend
+- Mitigation: TARGETED verification (skip --lib; specific tests only) avoids the 9-min compile+hang cycle that fooled the first sonnet flight
 
 **Calibration check (fill in at completion):**
 - Actual runtime: [TBD]
@@ -61,9 +69,10 @@ Mode A target: 9/9 PASS.
 
 ## STOP triggers (cross-ref from BRIEF)
 
-- **STOP-1:** dishonest "pre-existing" framing
-- **STOP-2:** load-bearing probe fails
+- **STOP-1:** dishonest "pre-existing" framing for tests broken by THIS stone
+- **STOP-2:** load-bearing probe fails (especially rename-callable-name Keyword acceptance)
 - **STOP-3:** 120 min elapsed
 - **STOP-4:** holon-rs touched accidentally
-- **STOP-5:** additional illegal sites beyond the 6 — surface to orchestrator
-- **STOP-6:** Value::Unit consistency decision unclear from function contracts
+- **STOP-5:** additional illegal sites beyond Phase 1 + Phase 2 surfaced — extend scope OR surface to orchestrator
+- **STOP-6:** Value::Unit consistency decision unclear OR `eval_extract_arg_names` arg-name trace ambiguous (Keyword vs Symbol) — surface and ask, don't guess
+- **STOP-7 (NEW — bash discipline):** if a `cargo` command appears to "hang" with no output for >30 seconds, do NOT panic and TaskStop. The full --lib sweep takes ~9 min wall-clock due to pre-existing signal-handler hangs (task #413). Use ONLY the targeted invocations specified in BRIEF section "9. Verification". DO NOT pipe to `| grep` / `| tail` (the pipe buffers everything until process exit, making it look like no output is appearing). DO NOT launch concurrent background cargo runs. ONE command at a time, foreground, vanilla.

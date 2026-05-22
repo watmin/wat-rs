@@ -1,6 +1,8 @@
 # BRIEF — Arc 221 Stone 221.4b — Finish keyword→Symbol substrate-doctrine class in wat-rs
 
-**Stone scope (sonnet portion):** Stone 221.4 closed `value_to_atom` at `src/runtime.rs:~13800`. Post-flight audit surfaced **5 more illegal substrate paths** still emitting `HolonAST::symbol(k.as_str())` for keyword content — plus 1 in `edn_shim.rs`. Stone 221.4b finishes the doctrine class. **Wat-rs ONLY — holon-rs untouched.**
+> **SCOPE EXPANSION (mid-flight 2026-05-22 very-late):** First sonnet attempt landed the 6 dispatcher fixes (already on disk, uncommitted) but aborted before SCORE/verification due to piped-bash firewall trip. Post-flight verification surfaced that the **macro-support family in runtime.rs is the second half of the doctrine class** — `eval_rename_callable_name` + `eval_extract_arg_names` (+ audit `eval_signature_of_defn` / `eval_body_of` / `eval_lookup_define`) all assert + emit `HolonAST::Symbol(":foo")` (the retired pre-arc-221 convention). They tolerated the substrate's dishonest emission; Stone 221.4b's honest `watast_to_holon` change exposed them. 7 cargo lib tests fail through this single root cause. **Scope expanded within 221.4b** — same stone, expanded surface; not 221.4c per spawn-block discipline (221.4b never declared done). See Section "Phase 2 (NEW): Macro-support family cleanup" below.
+
+**Stone scope (sonnet portion):** Stone 221.4 closed `value_to_atom` at `src/runtime.rs:~13800`. Post-flight audit surfaced **5 more illegal substrate paths** in dispatchers + 1 in `edn_shim.rs` (Phase 1, already done on disk) + the macro-support family (Phase 2, this re-spawn). Stone 221.4b finishes the doctrine class. **Wat-rs ONLY — holon-rs untouched.**
 **Type:** Sonnet Mode A.
 **Time budget:** 60-90 min target; 120 min STOP.
 **Depends on:** Stones 221.1-221.4 (shipped). Stone 221.3 (holon-rs `fa48b39`) provides `HolonAST::keyword()` constructor that strips leading colon.
@@ -48,7 +50,58 @@ Decision tree:
 
 Per the four-questions: ALL THREE Value→HolonAST dispatchers being consistent (Option A) is more obvious + more honest + better UX. **Recommendation: Option A.** Sonnet adopts unless inspection of function contracts surfaces a clear reason for asymmetry; documents the choice in SCORE.
 
+## Phase 2 (NEW — re-spawn focus): Macro-support family cleanup
+
+Stone 221.4b Phase 1 (6 dispatcher fixes) is on disk in working tree. **Do NOT re-touch the Phase 1 edits** — `git diff` will show them already applied. Phase 2 = the macro-support family that ALSO lies about function/arg names.
+
+### Phase 2 illegal sites (audit + fix)
+
+| Site | Function | Current behavior | Honest fix |
+|---|---|---|---|
+| `runtime.rs:11560` | `eval_rename_callable_name` — assertion | `match &children[0] { HolonAST::Symbol(s) => ... }` rejects non-Symbol | Accept `HolonAST::Keyword(s)` (function names in macro-support context are keyword-shaped per arc 221 doctrine; the macro signature at `wat/runtime.wat:19-20` types them `:AST<wat::core::keyword>`) |
+| `runtime.rs:11588` | `eval_rename_callable_name` — writer | `let new_first = HolonAST::symbol(new_name.as_str())` writes Symbol-with-leading-colon (`to_str` includes `:`) | Use `HolonAST::keyword(new_name.as_str())` (Stone 221.3 constructor strips leading colon) |
+| `runtime.rs:11644` | `eval_extract_arg_names` | `match &children[0] { HolonAST::Symbol(s) if s.as_ref() == "->" => break }` — checks for `->` Symbol return-type sentinel | `->` is a bare symbol (no colon), so Symbol stays HONEST here. **Verify in context.** |
+| `runtime.rs:11647` | `eval_extract_arg_names` | `if let HolonAST::Symbol(arg_name) = &pair[0]` — extracts arg name | Arg names are keyword-shaped per macro context; flip to `HolonAST::Keyword`. **Verify by tracing what produces `pair[0]`.** |
+| `runtime.rs:11653` | `eval_extract_arg_names` — writer | `HolonAST::symbol(arg_name.as_ref())` produces output | If arg names are returned as keywords, flip to `HolonAST::keyword()`. **Verify caller expectations.** |
+| `runtime.rs:11719` | similar pattern | `HolonAST::Symbol(s) if s.as_ref() == "->"` | Same as 11644 — `->` is a bare symbol; HONEST. |
+| Doc comments at `runtime.rs:10485` / `10490` / `10494` | stale doc text | references `WatAST::Keyword(":Foo") → HolonAST::Symbol(":Foo")` | Refresh to cite arc 221 / Stone 221.4b doctrine — `WatAST::Keyword → HolonAST::Keyword` now |
+
+### Audit-only sites (may not need changes — confirm honesty in context)
+
+- `eval_signature_of_defn` at `runtime.rs:11228` — does it produce Bundle with Symbol or Keyword leaves? Trace through to see post-Stone-221.4b shape.
+- `eval_body_of` — similar audit
+- `eval_lookup_define` — similar audit
+
+**Decision rule per site:** if the function processes content extracted FROM a quoted-keyword form, that content should be `HolonAST::Keyword(...)` per arc 221 doctrine. If the function processes substrate-internal markers (`->`, slot placeholders), those stay `HolonAST::Symbol(...)` because they're bare identifiers in the substrate's grammar, not user keywords.
+
+### The shape distinction matters
+
+```
+User wrote     wat AST                       After Stone 221.4b watast_to_holon
+─────────      ─────────────────────────     ───────────────────────────
+my-fn          WatAST::Symbol("my-fn")        HolonAST::Symbol("my-fn")     ← bare identifier (HONEST)
+:my-fn         WatAST::Keyword(":my-fn")      HolonAST::Keyword("my-fn")    ← keyword leaf (HONEST per arc 221)
+->             WatAST::Symbol("->")           HolonAST::Symbol("->")        ← substrate sentinel (HONEST, bare)
+```
+
+The lying code was the macro-support family assuming "keyword-shaped function names emit as `Symbol(":name")`" — that was the retired convention. Now they must accept `Keyword("name")` (no colon) per arc 221.
+
 ## Your scope (sonnet)
+
+### Phase 1 (already done on disk — VERIFY only, do NOT re-touch)
+
+Confirm via `git diff src/runtime.rs src/edn_shim.rs` that these 6 fixes from prior sonnet flight are present:
+
+1. `runtime.rs:13959` — `WatAST::Keyword(k, _) => HolonAST::keyword(k.as_str())`
+2. `runtime.rs:14018` — `Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str())` + `Value::Unit => HolonAST::Nil`
+3. `runtime.rs:20938` — same as #2
+4. `runtime.rs:21273` — `WatAST::Keyword(k, _) => Ok(StepValue::Terminal(HolonAST::keyword(k.as_str())))`
+5. `runtime.rs:21322` — `WatAST::Keyword(k, _) => Some(HolonAST::keyword(k.as_str()))`
+6. `edn_shim.rs:1899` — drops leading colon in `s = format!("{}::{}", ns, name)`; emits `HolonAST::Keyword(Arc::from(s))`
+
+If `git diff` shows these — proceed to Phase 2. If not — STOP and report.
+
+### Phase 2 (this re-spawn — execute)
 
 ### 1. Fix 5 runtime.rs illegal sites
 
@@ -117,26 +170,79 @@ Fix each mechanically — flip `as_symbol() == Some(":foo")` to `as_keyword() ==
 
 If any probe is non-trivial to set up (e.g., the eval-step! Terminal needs a specific entry point), STOP and surface as a question.
 
-### 6. Verification
+### 6. Phase 2 specific Rust edits
 
-From wat-rs/:
+After Phase 1 verification + diagnosing each Phase 2 site:
+
+**A. `eval_rename_callable_name` (runtime.rs:11491-11600 area):**
+- Line ~11560 assertion: flip `HolonAST::Symbol(s) => s.as_ref()` to `HolonAST::Keyword(s) => s.as_ref()`. The keyword content has NO leading colon per Stone 221.3 — adjust `first_str` comparison against `from_str` (which DOES have leading colon from Value::wat__core__keyword); strip the colon from `from_str` OR add it back to `first_str` for the comparison. Choose the path that keeps the error messages clear.
+- Line ~11588 writer: `HolonAST::symbol(new_name.as_str())` → `HolonAST::keyword(new_name.as_str())`. The constructor strips any leading colon, so passing `to_str` (with or without colon) produces correct Keyword content.
+- Update the error message at the assertion: `"Symbol as first Bundle child"` → `"Keyword as first Bundle child (function name)"`.
+
+**B. `eval_extract_arg_names` (runtime.rs:11611-11700 area):**
+- Lines 11644 + 11719 (`->` Symbol check): VERIFY these stay correct — `->` is a bare-symbol return-type sentinel in the substrate's grammar, NOT a user keyword. Keep as `HolonAST::Symbol`.
+- Line 11647 (arg name extraction from pair): TRACE what produces `pair[0]`. If it's from a quoted-keyword form (likely yes per macro context), flip to `HolonAST::Keyword(arg_name) => ...`. Update line 11653 writer accordingly (`HolonAST::keyword(arg_name.as_ref())`).
+- **STOP and surface as a question if the trace is ambiguous** — don't guess.
+
+**C. Audit-only (no edits unless lying surfaces):**
+- `eval_signature_of_defn` at runtime.rs:11228 — read the body, trace the Bundle it constructs. Does the first child come from a quoted-keyword form? If yes, it's now `HolonAST::Keyword` post-Stone-221.4b. If consumers expect Symbol, that's a lie to fix. If consumers correctly accept Keyword, no change needed.
+- `eval_body_of` + `eval_lookup_define` — same audit pattern.
+
+**D. Refresh stale doc comments (3 sites):**
+- `runtime.rs:10485` / `10490` / `10494` — replace `WatAST::Keyword(":Foo") → HolonAST::Symbol(":Foo")` text with the post-Stone-221.4b reality (`WatAST::Keyword → HolonAST::Keyword` no colon in stored content).
+
+### 7. Cascade test fixes (per Stone 221.3 Delta 1a discipline)
+
+The 7 known failures all share root cause (rename-callable-name macro asserts Symbol). After Phase 2 fixes, these should pass:
+- `runtime::tests::try_recv_on_ready_queue_returns_some`
+- `runtime::tests::walk_w3_skip_short_circuits`
+- `runtime::tests::values_sum_matches_map_values`
+- `runtime::tests::walk_w2_already_terminal_input`
+- `runtime::tests::zip_empty_with_nonempty_is_empty`
+- `runtime::tests::zip_pairs_shorter_length`
+- `runtime::tests::dissoc_removes_existing_key`
+
+Other tests may surface as cascade once these compile + run. Tests asserting on `as_symbol() == Some(":foo")` for function/arg names need flipping to `as_keyword() == Some("foo")`. **NOT pre-existing — Stone 221.4b cascade.**
+
+### 8. New probe — `tests/wat_arc221b_macro_support_keyword_shape.rs`
+
+3+ probes verifying the macro-support family handles Keyword-shaped function names:
+
+1. **rename-callable-name accepts Keyword first child:** construct a Bundle with `HolonAST::Keyword("foo")` as first child + dummy rest; call `(:wat::runtime::rename-callable-name <bundle> :foo :bar)`; verify result Bundle has `HolonAST::Keyword("bar")` as first child (with colon stripped).
+2. **extract-arg-names extracts keywords:** construct a signature Bundle with Keyword-shaped arg names; verify extract-arg-names returns them as keywords.
+3. **define-alias end-to-end:** define a function `foo`, then `(:wat::runtime::define-alias :bar :foo)`, verify `(bar args...)` dispatches to `foo`'s body.
+
+### 9. Verification — TARGETED ONLY, NO `--lib` full sweep
+
+The full `--lib` sweep includes 5+ pre-existing signal-handler test hangs (tracked in task #413). Running them costs ~9 minutes wall-clock. **AVOID.** Use targeted invocations.
+
+Run each command DIRECTLY (no pipes, no `| grep`, no `| tail`):
 
 ```
 cargo build --release -p wat
-cargo test --release --lib -p wat
+cargo test --release --lib -p wat -- --skip reset_sighup --skip reset_sigusr1 --skip sigusr1_query --skip sigusr2_and_sighup --skip user_signal_predicates --skip reset_sigusr2 walk_w2_already_terminal_input walk_w3_skip_short_circuits try_recv_on_ready_queue_returns_some values_sum_matches_map_values zip_empty_with_nonempty_is_empty zip_pairs_shorter_length dissoc_removes_existing_key
+cargo test --release --test wat_arc143_manipulation
 cargo test --release --test wat_arc220_char
 cargo test --release --test wat_arc221_char_atomization
 cargo test --release --test wat_arc221_keyword_nil_tag_atomization
 cargo test --release --test wat_arc221b_keyword_dispatcher_completeness
+cargo test --release --test wat_arc221b_macro_support_keyword_shape
 cargo test --release -p wat-edn
 cargo clippy --release --all-targets -p wat-edn -- -D warnings
 ```
 
-All clean. Pre-existing wat-clippy backlog stays gated.
+**Each command runs ALONE.** No backgrounding. No piping output to grep/tail (the pipe buffers everything until process exit, fooling sonnet into thinking the command hung). No concurrent runs (the prior sonnet attempt launched 3 background cargo tests simultaneously — that's what caused the "no output" panic; vanilla foreground commands produce streaming output normally).
+
+If any verification command fails — read its stderr in the cargo output directly, identify the failure category, fix at root.
 
 **Holon-rs untouched** — `git -C /home/watmin/work/holon/holon-rs/ diff --name-only` must be empty.
 
-**Write `wat-rs/docs/arc/2026/05/221-holon-ast-primitive-layer-honesty/SCORE-STONE-221.4b.md`** mirroring SCORE-STONE-221.4.md shape.
+**Write `wat-rs/docs/arc/2026/05/221-holon-ast-primitive-layer-honesty/SCORE-STONE-221.4b.md`** mirroring SCORE-STONE-221.4.md shape. Must include:
+- Phase 1 verification (6 dispatcher fixes confirmed on disk)
+- Phase 2 deltas (macro-support family fixes with honest "what was lying" framing)
+- Cascade test fixes per Stone 221.3 Delta 1a discipline
+- Verification summary (targeted suites only; --lib full sweep explicitly skipped per task #413)
+- Calibration record + substrate state + unblocks
 
 ## STOP triggers
 
