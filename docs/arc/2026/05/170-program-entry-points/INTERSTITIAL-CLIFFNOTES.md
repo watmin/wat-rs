@@ -62,6 +62,7 @@ These ARE the substrate's identity. Memory entries auto-load; pointer per doctri
 | 3×2 conversion topology | DESIGN-222 (drafted 2026-05-22) + INTERSTITIAL § 2026-05-22 | Three first-class representations (edn / wat / holon) × two directions = 6 conversion cells. HolonAST primitives (Atom / Bundle / Bind / Permute / Thermometer / Blend / SlotMarker) are SUBSTRATE INTERNALS — the algebraic assembly language; dropdown for power users. EDN + wat literals are the SURFACE — data in its natural form. Holon hosts data natively; substrate compiles literal-form into algebraic-form. 16 HolonAST variants after arc 221 ships cover full EDN syntax: 9 leaves (Nil, Bool, I64, F64, String, Symbol, Keyword, Char, Tag) + 3 composites (Bundle, Bind, Permute) + 4 special (Atom, Thermometer, Blend, SlotMarker). Collections (List/Vector/Set/Map/Tuple) are NOT variants — they compose via Bundle+Bind. |
 | Wat-reveals-holon | INTERSTITIAL § 2026-05-22 | Strange-loop operates BIDIRECTIONALLY. Wat surface matures → exposes holon substrate gaps. Holon clarifies → empowers wat expression. The arc 221 atomization investigation surfaced after 4 weeks of holon-untouched wat-surface maturation; the contrast made the substrate compromises visible. Two halves of the hologram informing each other. Cross-ref: `project_holon_universal_ast` + `project_chapter7_night`. |
 | Language-as-thought-tool | INTERSTITIAL § 2026-05-22 (final section) | Rust's type system has no opinion on substrate honesty (`Symbol("nil")` and `Symbol("#uuid")` are identical-shape per compiler). Wat makes "is this enum honest?" a wat-native question because HolonAST IS the algebra + encoding boundary is named (`value_to_atom`) + doctrine becomes data the substrate manipulates. Lisp-on-Rust hosts thoughts that pure Rust suppresses. The substrate's reflexivity is the difference. |
+| **Spawn-block winding discipline** | `feedback_spawn_block_winding` + INTERSTITIAL § 2026-05-22 (late, post Stone 221.2 ship) | **Parent arc CANNOT close until ALL spawned children close.** Spawn-by-nature: any arc created while another arc is the active context (sonnet running OR DESIGN/paperwork being authored) is that arc's child — no "noticed during dialogue" exemption. Wind forward through chain depth-first; **never jump between arcs**. INSCRIPTION is always the LAST stone in an arc (fires only after substrate work + all spawn children closed). Capability dependencies (what X needs to begin work) are NOT the same as spawn-block (what X's CLOSURE requires); when they conflict, spawn-block wins. Recognition signal: when articulating "X can run in parallel" or "X is independent" for a spawned child, that's the dishonest hedge — discipline says child blocks parent. |
 
 Other key references: `feedback_compaction_protocols`, `feedback_docs_when_confused`, `feedback_iterative_complexity`, `feedback_simple_is_uniform_composition`, `feedback_verbose_is_honest`, `feedback_ward_zone_comms_only`, `feedback_collapse_to_llm_in_loop`, `feedback_tractability_tiebreaker`, `feedback_defect_fix_or_panic_never_revert`.
 
@@ -196,22 +197,55 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 DRAFTED at `docs/arc/2026/05/221-holon-ast-primitive-layer-honesty/BRIEF-STONE-221.1.md` (in working tree, not yet pushed at time of CLIFFNOTES write). EXPECTATIONS doc NOT YET WRITTEN. Working dir for the stone: `/home/watmin/work/holon/holon-rs/` (NOT wat-rs!). Sonnet scope: single-variant `Char(char)` addition + 5 arms + `PRIM_TAG_CHAR` constant + 3 tests. Band 30-60 min. Verification: `cargo build --release` + `cargo test --release` + `cargo clippy --release -- -D warnings` from holon-rs/ dir.
 
-### Updated blocking chain post-2026-05-22
+### SPAWN-BLOCK-HONEST blocking chain (corrected 2026-05-22 late per `feedback_spawn_block_winding`)
+
+**Earlier capability-based chains were dishonest** — implied arc 222 + arc 223 could run in parallel with arc 221. The strict spawn-block discipline forbids this: parent (arc 221) blocks on ALL spawned children. INSCRIPTION is always the LAST stone.
+
+**Current spawn tree (as of 2026-05-22 late):**
 
 ```
-Stone 221.1 (HolonAST::Char leaf in holon-rs)
-  → Stone 221.2 (wat-rs value_to_atom Char + Uuid arms + is_atomizable Char)
-  → arc 220 Slice 5 paperwork (INSCRIPTION + USER-GUIDE + cross-references)  [task #449]
-  → arc 222 (EDN↔holon direct path + 3×2 topology doctrine inscription)
-  → arc 219b (wat-edn EDN spec conformance + differential interop suite)
-  → arc 218 actual scope (streaming optimization per IPC-BRIDGE.md:305-312)
-  → arc 217 (Clojure-IPC bridge — the named consumer; arc 220 + 221 + 222 + 219b + 218-streaming all prereqs)
-  → arc 216 Stones 216.8/.9/.10 (now ship Bind(Tag, payload) shape per doctrine correction)
-  → arc 214 Slice 4 (kernel layer)
-  → eventual wat-edn-clj vendoring (user direction)
-
-PARALLEL: arc 221 Phase B (Stone 221.3 Keyword+Nil+Tag + Stone 221.4 ripple + Stone 221.5 Symbol/String seed + Stone 221.6 INSCRIPTION) — substrate-doctrine completeness; can ship any time after Phase A.
+arc 220 (spawned 221 during Stone 220.5 close attempt)
+  └→ arc 221 (spawned 222 during paperwork pass + 223 during Stone 221.2 sonnet flight)
+       ├→ arc 222 (no spawn children known)
+       └→ arc 223 (no spawn children known)
 ```
+
+**Honest forward winding from current head (arc 221 Phase B):**
+
+```
+1. arc 221 Phase B substrate stones (delivers what spawn children need)
+   - Stone 221.3 (HolonAST Keyword + Nil + Tag leaves in holon-rs)  ← head
+   - Stone 221.4 (wat-rs ripple incl Uuid → Bind(Tag, hex) — uses Stone 221.3's Tag leaf)
+   - Stone 221.5 (Symbol/String canonical-bytes seed distinction)
+
+2. arc 223 fully closes (5 stones — uses HolonAST::Tag from 221.3)
+   Stone 223.1 → 223.2 → 223.3 → 223.4 → 223.5 INSCRIPTION
+   ✓ arc 223 CLOSED
+
+3. arc 222 fully closes (5 stones — uses clean WatAST from arc 223 + clean HolonAST from arc 221 Phase B)
+   Stone 222.1 → 222.2 → 222.3 → 222.4 → 222.5 INSCRIPTION
+   ✓ arc 222 CLOSED
+
+4. arc 221 Stone 221.6 INSCRIPTION  ← LAST stone in arc 221 chain
+   ✓ arc 221 CLOSED (spawn children both closed)
+
+5. arc 220 Slice 5 paperwork
+   ✓ arc 220 CLOSED (spawn child arc 221 closed)
+
+6. Future arcs (each subject to spawn-block discipline themselves):
+   - arc 217 (Clojure-IPC bridge — the named end consumer)
+   - arc 216 Stones 216.8/.9/.10 (now ship Bind(Tag, payload) shape per doctrine correction)
+   - arc 219b (wat-edn EDN spec conformance + differential interop suite)
+   - arc 218 actual scope (streaming optimization per IPC-BRIDGE.md:305-312)
+   - arc 214 Slice 4 (kernel layer)
+   - eventual wat-edn-clj vendoring (user direction)
+```
+
+**Recognition rule:** if a "blocking chain" or "what's next" framing says "X can ship in parallel" or "X is independent" for an arc that was created while another was the active context, that's the dishonest hedge. Re-derive per `feedback_spawn_block_winding`.
+
+**Current winding head: Stone 221.3.** Until shipped, neither arc 223 nor arc 222 can do their work honestly (each needs HolonAST::Tag for its watast↔holon bridge work).
+
+**Estimated chain depth:** ~16 sonnet stones (3 in arc 221 Phase B substrate + 5 in arc 223 + 5 in arc 222 + 1 arc 221 INSCRIPTION + 1 arc 220 paperwork + cascade adjustments). Each stone may surface new spawns that extend the chain further (per `feedback_spawn_block_winding` — accept all surfaced gaps as spawn children; do not defer).
 
 ### Post-compaction recovery path (2026-05-22 late)
 

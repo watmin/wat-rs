@@ -1,5 +1,16 @@
 # DESIGN — Arc 222 — EDN ↔ holon direct path + 3×2 conversion topology
 
+> **SPAWN-BLOCK STATUS (2026-05-22 late):** Arc 222 was spawned by arc 221 during arc 221's paperwork pass (commit be22dbe). Per `feedback_spawn_block_winding`:
+> - **Arc 222 BLOCKS arc 221's closure** (arc 221's INSCRIPTION cannot fire until arc 222 closes)
+> - **Arc 222 has no spawn children** of its own (as of 2026-05-22 late)
+> - **Arc 222's work proceeds AFTER arc 221 Phase B substrate stones (221.3-221.5) ship** — those deliver HolonAST::Keyword/Nil/Tag leaves that arc 222 needs for honest conversion verbs
+> - **Arc 222's work also proceeds AFTER arc 223 closes** — arc 222's literal-as-surface doctrine needs clean WatAST primitive layer (arc 223's deliverable)
+>
+> Earlier "Recommended: arc 221 Phase B also ships first" framing was capability-language; the spawn-block discipline makes it a hard requirement (arc 222 blocks arc 221's closure, so MUST close before arc 221 INSCRIPTION fires).
+>
+> See CLIFFNOTES § "SPAWN-BLOCK-HONEST blocking chain" for the full winding order.
+
+
 **Opened:** 2026-05-22 (placeholder; full DESIGN ratified after arc 221 Phase A ships)
 **Branch:** `arc-170-gap-j-v5-deadlock-state`
 **Depends on:** arc 221 Phase A (Stone 221.1 `HolonAST::Char` leaf + Stone 221.2 wat-rs `value_to_atom` Char + Uuid arms) — without these leaves, EDN→holon cannot be honest.

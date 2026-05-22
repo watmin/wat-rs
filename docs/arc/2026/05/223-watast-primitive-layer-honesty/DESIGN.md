@@ -1,5 +1,15 @@
 # DESIGN — Arc 223 — WatAST primitive-layer honesty (CharLit + NilLit + TagLit)
 
+> **SPAWN-BLOCK STATUS (2026-05-22 late):** Arc 223 was spawned by arc 221 during arc 221 Stone 221.2 sonnet flight (commit 5b5fba9). Per `feedback_spawn_block_winding`:
+> - **Arc 223 BLOCKS arc 221's closure** (arc 221's INSCRIPTION cannot fire until arc 223 closes)
+> - **Arc 223 has no spawn children** of its own (as of 2026-05-22 late)
+> - **Arc 223's work proceeds AFTER arc 221 Phase B Stone 221.3** — that stone mints HolonAST::Tag which arc 223 Stone 223.3 needs for its watast↔holon bridge (TagLit ↔ HolonAST::Tag); also HolonAST::Nil for Stone 223.2's NilLit bridge
+>
+> Earlier "Can run in PARALLEL with arc 221 Phase B / arc 222" framing was dishonest hedge — spawn-block discipline forbids parallel-close (parent waits for child). Stone 223.1 (CharLit) is technically capability-unblocked NOW per arc 221 Phase A, but the spawn-block discipline says we wind forward through arc 221 Phase B first, then close arc 223 fully.
+>
+> See CLIFFNOTES § "SPAWN-BLOCK-HONEST blocking chain" for the full winding order.
+
+
 **Opened:** 2026-05-22 (placeholder; ratified post-arc-221 Phase A)
 **Branch:** `arc-170-gap-j-v5-deadlock-state`
 **Depends on:** none structurally — arc 223 is wat-rs only; doesn't need arc 221 or 222 to ship first. Can run in PARALLEL with arc 221 Phase B / arc 222.
