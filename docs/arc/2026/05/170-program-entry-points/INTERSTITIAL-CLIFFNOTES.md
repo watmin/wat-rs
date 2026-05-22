@@ -162,7 +162,89 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-22 late — arc 220 Stone 220.4 SHIPPED; arc 221 OPEN substrate-doctrine; arc 222 conceived 3×2 conversion topology)
+## Currently (2026-05-22 very-late — arc 221 Phase B halfway; arc 207 false-flag CLOSED; Stone 221.4b in flight)
+
+### Chain advance (2026-05-22 evening session)
+
+```
+✓ Stone 221.1 (HolonAST::Char in holon-rs; commit 243eded)         — ~25 min
+✓ Stone 221.2 (wat-rs value_to_atom Char + is_atomizable Char)     — ~35 min
+✓ Stone 221.3 (HolonAST Keyword + Nil + Tag in holon-rs; fa48b39)  — ~35 min
+✓ Stone 221.4 (wat-rs value_to_atom Keyword + Nil + Uuid; 52fda7e) — ~55 min
+                ← arc 207's 5-day-latent Uuid false-flag CLOSED
+→ Stone 221.4b (FINISH keyword→Symbol doctrine class: 5 runtime + 1 edn_shim sites)
+  Stone 221.5  (Symbol/String canonical-bytes seed distinction in holon-rs)
+  arc 223      (5 stones — WatAST CharLit/NilLit/TagLit + clojure-compat)
+  arc 222      (5 stones — 6 conversion-cell verbs + 3×2 topology inscription)
+  Stone 221.6  INSCRIPTION (arc 221 CLOSES)
+  arc 220 Slice 5 paperwork (arc 220 CLOSES)
+```
+
+### Stone 221.4b — opened mid-session (forward-correction)
+
+Stone 221.4 closed ONE keyword→Symbol dispatch path (`value_to_atom` at runtime.rs:~13800). Post-flight audit surfaced **5 more illegal substrate sites** still emitting `HolonAST::symbol(k.as_str())` for keyword content:
+
+- `runtime.rs:13959` `watast_to_holon`
+- `runtime.rs:14018` Value→HolonAST second dispatcher
+- `runtime.rs:20938` `:wat::holon::leaf` verb
+- `runtime.rs:21273` eval-step! Terminal Keyword
+- `runtime.rs:21322` step-form converter sibling
+- `edn_shim.rs:1899` EDN keyword reader
+
+The BRIEF I (orchestrator) wrote for 221.4 underscoped — I grep'd for literal `Symbol(":foo")` strings, missing dynamic `HolonAST::symbol(k.as_str())` paths where `k` came from keyword Value/AST. Stone 221.4b finishes the doctrine class per `feedback_no_known_defect_left_unfixed`.
+
+DESIGN-221 updated with Stone 221.4b section (insertion between 221.4 and 221.5).
+
+### Doctrine map (user-articulated 2026-05-22 very-late)
+
+Constructor-form ≡ literal-form bidirectional for every HolonAST leaf:
+
+```
+(Char "x")        ≡ \x
+(String "hi")     ≡ "hi"
+(Int 42)          ≡ 42
+(Float 2.5)       ≡ 2.5
+(Bool true)       ≡ true
+(Symbol "foo")    ≡ foo
+(Keyword "foo")   ≡ :foo
+(Tag "foo")       ≡ #foo
+(Nil)             ≡ nil
+```
+
+Collections (arc 222 + arc 216 Stones 216.8-10):
+
+```
+(Map :foo 42)         ≡ {:foo 42}        — Bundle([Bind(Keyword, I64), ...])
+(Set 1 2 3)           ≡ #{1 2 3}         — Bundle set-shape
+(Vector "a" "b")      ≡ ["a" "b"]        — Bundle positional-Bind
+(List true false)     ≡ (true false)     — Bundle
+```
+
+Tagged literals (arc 216 + arc 222 surface verbs): `Bind(Tag(t), payload)` composition.
+
+This is the 3×2 conversion topology made concrete. Arc 222 will mint the missing conversion-cell verbs + inscribe the topology doctrine.
+
+### Honest deltas inscribed this session
+
+- **Stone 221.3 Delta 1a:** "pre-existing failure" framing propagated through sonnet SCORE → orchestrator commit message → user dialogue before being caught. Same shape as Arc 168 / `feedback_pre_existing_verification`. Recognition signal: tests broken by a stone's intentional change are NOT pre-existing; they are stone-caused. Future SCORE reviews sniff-test: did this test pass on baseline? If yes, the framing is dishonest.
+- **Stone 221.4 inherits Stone 221.3 Delta 1a**: sonnet applied the discipline correctly to 2 broken-by-221.3 cascade tests; framed honestly.
+- **My BRIEF for Stone 221.4 underscoped:** grep for literal strings missed dynamic paths; Stone 221.4b cleans up. Pattern: when scoping a doctrine-retirement sweep, grep for the CONSTRUCTOR being called on the TYPE BEING RETIRED (e.g., `HolonAST::symbol(k.as_str())` where k is keyword-content), not just literal strings.
+
+### Branch
+
+`arc-170-gap-j-v5-deadlock-state`
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -10` for today's commit trajectory
+3. Check task status (#457 + #458 completed; #459 active)
+4. If sonnet is still running, wait for notification — do NOT poll
+5. Stone 221.4b SCORE will arrive at `wat-rs/docs/arc/2026/05/221-holon-ast-primitive-layer-honesty/SCORE-STONE-221.4b.md`
+
+---
+
+## Currently (2026-05-22 late — arc 220 Stone 220.4 SHIPPED; arc 221 OPEN substrate-doctrine; arc 222 conceived 3×2 conversion topology) — SUPERSEDED, see above
 
 ### Today's threads (load-bearing for post-compaction recovery)
 

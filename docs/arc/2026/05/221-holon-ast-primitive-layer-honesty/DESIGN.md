@@ -130,6 +130,33 @@ Holon-rs migration ripple in same stone:
 
 Per `feedback_substrate_as_teacher`: the compiler is the brief. Expected cascade is substrate-wide; iterate until `cargo test --release --lib -p wat` is green again. Test count may grow from the new variant clarity.
 
+#### Stone 221.4b — Finish keyword→Symbol substrate-doctrine class (forward-correction 2026-05-22 late)
+
+**Triggering observation:** Stone 221.4 closed ONE of multiple keyword→Symbol dispatch paths (`value_to_atom` at `src/runtime.rs:~13800`). Post-flight audit surfaced **5 more illegal substrate sites** that still emit `HolonAST::symbol(k.as_str())` when `k` is keyword-typed content:
+
+| Site | Function | Substrate path |
+|---|---|---|
+| `src/runtime.rs:13959` | `watast_to_holon` | WatAST::Keyword → HolonAST (quoted-WAT lowering) |
+| `src/runtime.rs:14018` | second Value→HolonAST dispatcher | distinct from value_to_atom; returns RuntimeError for non-primitives |
+| `src/runtime.rs:20938` | `:wat::holon::leaf` verb | runtime primitive→leaf dispatch |
+| `src/runtime.rs:21273` | `eval-step!` Terminal stepping | WatAST::Keyword arm |
+| `src/runtime.rs:21322` | another step-form converter | WatAST::Keyword arm |
+| `src/edn_shim.rs:1899` | EDN keyword reader | rebuilds `:foo::bar` then emits Symbol |
+
+**Doctrine state without 221.4b:** arc 221's INSCRIPTION would claim the keyword convention is retired while 5 substrate dispatchers continue to emit Symbol for keyword content. That's a violation per the doctrine arc 221 was opened to enforce — and per `feedback_no_known_defect_left_unfixed` the gap blocks arc 221 closure.
+
+Also surface the **Value::Unit consistency audit** — Stone 221.4 added `Value::Unit => HolonAST::Nil` to one dispatcher (`value_to_atom` at 13800); the dispatchers at 14018 + 20938 currently reject Unit as TypeMismatch. Sonnet decides honestly (align all three, OR document why these two stay strict).
+
+**Scope:**
+- Fix 6 illegal sites (5 runtime.rs + 1 edn_shim.rs) — all use `HolonAST::keyword(k.as_str())` per Stone 221.3 constructor (strips leading colon)
+- Audit Value::Unit consistency across 3 dispatchers; align or document honest reasons
+- Cascade test fixes expected — per Stone 221.3 Delta 1a discipline, tests broken by this stone are NOT pre-existing
+- New probes verifying each converter dispatches via Keyword (not Symbol)
+
+**Calibration:** 60-90 min target; 120 min STOP. Substrate-as-teacher cascade expected (test fixtures asserting on the old Symbol convention will need updating).
+
+**Does NOT do:** Symbol/String canonical-bytes seed distinction (Stone 221.5's scope); arc 222/223 work.
+
 #### Stone 221.5 — Symbol/String canonical-bytes seed distinction
 
 `holon-rs/src/kernel/holon_ast.rs`:
