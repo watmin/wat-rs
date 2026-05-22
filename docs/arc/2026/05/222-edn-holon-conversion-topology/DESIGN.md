@@ -10,6 +10,27 @@
 >
 > See CLIFFNOTES § "SPAWN-BLOCK-HONEST blocking chain" for the full winding order.
 
+> **DOCTRINE CONVERGED 2026-05-23 afternoon (forward-correction):** The 3×2 conversion topology this arc was opened to inscribe now has a CLEAN doctrine articulation surfaced via the user-led dialogue captured in INTERSTITIAL § 2026-05-23 afternoon. Two layers, both internally consistent:
+>
+> **Layer 1 — Source form (parsed pre-eval):** ALL macro sigils `'` `` ` `` `~` `~@` encode as Bundle-of-verb at substrate source-encoding (no separate substrate variants; consistent shape with other verb applications).
+>
+> **Layer 2 — Evaluated form (post-eval):** all quote-family reduce to Atom-wrapped substrate forms (`(quote x)` → `Atom(x_h)`; `(quasiquote template)` → `Atom(<expanded template>)`; Unquote/Splice consumed during expansion).
+>
+> **Substrate stays at 16 HolonAST variants — NO expansion.** Each variant has a Pascal-Case constructor verb. Lowercase verbs = operations (polymorphism honest by nature). Tag stays reserved for EDN tagged literals (`#name value`) only — NOT for macro sigils.
+>
+> **EDN forms compile to substrate compositions:**
+> ```
+> {k v ...}    → (Bundle (Bind k_h v_h) ...)
+> #{x ...}     → (Bundle x_h ...)               ; set-shape
+> [x ...]      → (Bundle (Bind 0 x_h) ...)      ; positional
+> (x ...)      → (Bundle x_h ...)               ; sequential
+> #tag v       → (Bind (Tag tag) v_h)
+> 'x           → Atom(x_h)                       ; post-eval
+> `(template)  → Atom(<expanded template>)       ; post-eval
+> ```
+>
+> Arc 222's mission narrows: mint the EDN-form named constructors at wat-surface (Map / Set / Vector / List / Tagged); inscribe the EDN-forms-compile-to-substrate-compositions doctrine + the 6 conversion-cell verbs. The macro-sigil evaluator work (quasiquote expansion semantics consuming Unquote/Splice and Atom-wrapping the result) belongs to arc 222 OR a sibling arc that touches the evaluator. The narrow Atom + materialize rename of `:wat::core::atom-value` happens in arc 225 (parallel sibling spawn child of arc 221).
+
 
 **Opened:** 2026-05-22 (placeholder; full DESIGN ratified after arc 221 Phase A ships)
 **Branch:** `arc-170-gap-j-v5-deadlock-state`

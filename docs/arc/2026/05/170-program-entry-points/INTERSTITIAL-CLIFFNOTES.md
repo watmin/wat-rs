@@ -62,7 +62,7 @@ These ARE the substrate's identity. Memory entries auto-load; pointer per doctri
 | 3×2 conversion topology | DESIGN-222 (drafted 2026-05-22) + INTERSTITIAL § 2026-05-22 | Three first-class representations (edn / wat / holon) × two directions = 6 conversion cells. HolonAST primitives (Atom / Bundle / Bind / Permute / Thermometer / Blend / SlotMarker) are SUBSTRATE INTERNALS — the algebraic assembly language; dropdown for power users. EDN + wat literals are the SURFACE — data in its natural form. Holon hosts data natively; substrate compiles literal-form into algebraic-form. 16 HolonAST variants after arc 221 ships cover full EDN syntax: 9 leaves (Nil, Bool, I64, F64, String, Symbol, Keyword, Char, Tag) + 3 composites (Bundle, Bind, Permute) + 4 special (Atom, Thermometer, Blend, SlotMarker). Collections (List/Vector/Set/Map/Tuple) are NOT variants — they compose via Bundle+Bind. |
 | Wat-reveals-holon | INTERSTITIAL § 2026-05-22 | Strange-loop operates BIDIRECTIONALLY. Wat surface matures → exposes holon substrate gaps. Holon clarifies → empowers wat expression. The arc 221 atomization investigation surfaced after 4 weeks of holon-untouched wat-surface maturation; the contrast made the substrate compromises visible. Two halves of the hologram informing each other. Cross-ref: `project_holon_universal_ast` + `project_chapter7_night`. |
 | Language-as-thought-tool | INTERSTITIAL § 2026-05-22 (final section) | Rust's type system has no opinion on substrate honesty (`Symbol("nil")` and `Symbol("#uuid")` are identical-shape per compiler). Wat makes "is this enum honest?" a wat-native question because HolonAST IS the algebra + encoding boundary is named (`value_to_atom`) + doctrine becomes data the substrate manipulates. Lisp-on-Rust hosts thoughts that pure Rust suppresses. The substrate's reflexivity is the difference. |
-| **Atom-is-holder doctrine + verb-name family pattern** | `project_atom_is_holder` + INTERSTITIAL § 2026-05-22 very-late → 2026-05-23 + arc 224 FINDINGS-INTUERI-RUNTIME.md | **Atom IS the algebra's quote** at the substrate level — minimal holder, repeatable holds compose. Same shape as Bundle:set::List::Vector::Map (composite primitive : surface form). User: *"Atom is meant to be holder of something — semantically its a quote.. just as (quote (quote :foo)) is holder of things."* The substrate ALGEBRA is honest (HolonAST::Atom variant means opaque-identity wrap). The wat-rs VERB layer LIES: `:wat::holon::Atom` polymorphic across 9 input arms, most NOT producing HolonAST::Atom. Sibling `:wat::core::atom-value` decodes Bundles too. **The honest verb-pair is boundary-crossing: `:wat::holon::atomize` (any value → algebra) / `:wat::holon::materialize` (any HolonAST → runtime).** Each verb names DIRECTION; polymorphism admitted. User: *"these are the conversations we've been grinding through 170 to have — we have found a flaw in our foundation — we need intueri to find our way out — our names are lying to us."* Intueri cast confirmed across runtime.rs (3 L1, 8 L2, family pattern). |
+| **Atom-is-holder + layered honesty + verb-name family pattern** | `project_atom_is_holder` + INTERSTITIAL §§ 2026-05-22 very-late → 2026-05-23 + arc 224 FINDINGS docs + arc 225 DESIGN.md | **TWO LAYERS, both consistent (2026-05-23 resolution).** (1) Source-form (parsed pre-eval): ALL four macro sigils `'` `` ` `` `~` `~@` are Bundle-of-verb at substrate source-encoding — consistent shape. (2) Evaluated-form (post-eval): all reduce to Atom-wrapped substrate forms — Atom is the holder primitive carrying the "this is held" semantic. **Substrate stays at 16 HolonAST variants — no expansion.** Each variant has a Pascal-Case constructor verb (`(:wat::holon::Bool b)`, ..., `(:wat::holon::Atom h)` — narrow to HolonAST input, returns HolonAST::Atom wrap). Lowercase verbs = operations (polymorphism honest by nature). EDN forms (Map/Set/Vector/List/Tagged) compile to substrate compositions; arc 222's territory. Reader macros expand at parse time to verb-form Bundles; evaluator handles deferred-expansion semantics; quasiquote consumes Unquote/Splice markers during expansion. Tag-the-variant reserved for EDN tagged literals (`#name value`) — NOT for macro sigils. **The lie was `:wat::holon::Atom` polymorphic across 9 input arms** (arc 224 audit). The fix is narrow Atom + rename `:wat::core::atom-value` → `:wat::holon::materialize` (arc 225). `leaf` as a category-name retires; each value-leaf has its own Pascal-Case constructor. User: *"our names are finding themselves but they are not found yet"* — found 2026-05-23 afternoon. |
 | **Spawn-block winding discipline** | `feedback_spawn_block_winding` + INTERSTITIAL § 2026-05-22 (late, post Stone 221.2 ship) | **Parent arc CANNOT close until ALL spawned children close.** Spawn-by-nature: any arc created while another arc is the active context (sonnet running OR DESIGN/paperwork being authored) is that arc's child — no "noticed during dialogue" exemption. Wind forward through chain depth-first; **never jump between arcs**. INSCRIPTION is always the LAST stone in an arc (fires only after substrate work + all spawn children closed). Capability dependencies (what X needs to begin work) are NOT the same as spawn-block (what X's CLOSURE requires); when they conflict, spawn-block wins. Recognition signal: when articulating "X can run in parallel" or "X is independent" for a spawned child, that's the dishonest hedge — discipline says child blocks parent. |
 
 Other key references: `feedback_compaction_protocols`, `feedback_docs_when_confused`, `feedback_iterative_complexity`, `feedback_simple_is_uniform_composition`, `feedback_verbose_is_honest`, `feedback_ward_zone_comms_only`, `feedback_collapse_to_llm_in_loop`, `feedback_tractability_tiebreaker`, `feedback_defect_fix_or_panic_never_revert`.
@@ -164,7 +164,73 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 morning — arc 221 Phase B substrate COMPLETE; arc 224 substrate naming honesty audit IN FLIGHT)
+## Currently (2026-05-23 afternoon — layered-honesty doctrine landed; arc 225 narrows Atom + materialize; substrate STAYS at 16)
+
+### Doctrine convergence (load-bearing 2026-05-23 afternoon)
+
+After Stone 225.1's first sonnet flight reverted (~396 lines), the user pushed the doctrine dialogue deeper. Multiple rounds surfaced layer-conflations in my proposals. Resolution landed:
+
+**Two layers, both internally consistent:**
+
+1. **Source form (parsed, pre-evaluation):** ALL four macro sigils `'` `` ` `` `~` `~@` encode as Bundle-of-verb at substrate source-encoding level. Consistent shape:
+   ```
+   'x   → (Bundle (Keyword "wat::core::quote") x_h)
+   `x   → (Bundle (Keyword "wat::core::quasiquote") x_h)
+   ~x   → (Bundle (Keyword "wat::core::unquote") x_h)
+   ~@x  → (Bundle (Keyword "wat::core::splice") x_h)
+   ```
+
+2. **Evaluated form (post-eval):** all reduce to Atom-wrapped substrate forms. Consistent end-state:
+   ```
+   (quote x)             → Atom(x_h)
+   (quasiquote template) → Atom(<template with unquote/splice holes filled>)
+   (unquote y) IN qq     → consumed; y evaluated; substituted in template
+   (splice y) IN qq      → consumed; y evaluated; spliced into template
+   ```
+
+**Substrate stays at 16 HolonAST variants.** No expansion. Tag stays reserved for EDN tagged literals (`#name value`). Reusing Tag for macro sigils was dishonest. Atom carries the "this is held" semantic for the entire quote-family at evaluated form.
+
+**Naming family invariant:**
+- **Pascal-Case verbs = CONSTRUCTORS** (single shape; verb name matches variant; returns `:HolonAST`)
+- **lowercase verbs = OPERATIONS** (output may be polymorphic if operation is naturally polymorphic)
+- `leaf` retires as a category-name; each value-leaf gets its own Pascal-Case constructor
+
+### Arc 225 final shape
+
+- Narrow `:wat::holon::Atom` to single-shape constructor: `(Atom :HolonAST) -> :HolonAST` (HolonAST::Atom wrap)
+- Rename `:wat::core::atom-value` → `:wat::holon::materialize` (lowercase operation; namespace move)
+- Consumer sweep: non-HolonAST inputs that used to go through polymorphic Atom now dispatch to narrow verbs (leaf for primitives; from-watast for WatAST; Bundle for collections; Bind+Tag for tagged composition)
+- Substrate STAYS at 16; this is rename + narrow + redirect, not expansion
+
+### Chain status
+
+```
+arc 220 (waits)
+  └→ arc 221 ✓ Phase B substrate COMPLETE; INSCRIPTION blocked on spawn children
+       ├→ arc 222 pending — EDN-form ↔ substrate-composition doctrine + named constructors
+       ├→ arc 223 pending — WatAST primitive-layer honesty
+       └→ arc 224 ✓ casts complete + aggregate; INSCRIPTION blocked on arc 225
+            └→ arc 225 (active head) — narrow Atom + materialize rename; Stone 225.1 BRIEF
+               pending under v3 resolved-doctrine shape
+       Stone 221.6 INSCRIPTION (arc 221 closes — blocked on {222, 223, 224})
+arc 220 Slice 5 paperwork (arc 220 closes — blocked on arc 221)
+```
+
+### Branch
+
+`arc-170-gap-j-v5-deadlock-state`
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. Read INTERSTITIAL § 2026-05-23 afternoon (the doctrine resolution arc, with worked example + dialogue)
+3. Read arc 225 DESIGN.md (current Option A shape)
+4. `git log --oneline | head -10` for today's commit trajectory
+5. Stone 225.1 BRIEF v3 pending — needs Bundle-coverage open question resolution (does Bundle accept Value-tier collection inputs, or do we mint Set/Map constructor verbs?)
+
+---
+
+## Currently (2026-05-23 morning — arc 221 Phase B substrate COMPLETE; arc 224 substrate naming honesty audit IN FLIGHT) — SUPERSEDED, see above
 
 ### Chain status post 2026-05-22 marathon + 2026-05-23 morning casts
 

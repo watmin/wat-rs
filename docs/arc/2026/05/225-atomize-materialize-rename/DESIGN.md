@@ -4,6 +4,8 @@
 
 > **DOCTRINE REFINEMENT 2026-05-23:** Original arc 225 DESIGN proposed renaming `:wat::holon::Atom` → `:wat::holon::atomize`. Mid-Stone-225.1 dialogue surfaced that this was still partially dishonest — `atomize` doesn't always return `HolonAST::Atom`. User probe: *"so :wat::holon::{Atom,Bundle,Bind,...} still exist?.. atomize returns an Atom?.."* + *"I would say Atom's sig is (Atom :HolonAST) -> :Atom?"* The honest direction: **narrow `:wat::holon::Atom` to a single-shape constructor matching the sibling Pascal-Case verb family.** Sonnet's in-flight rename work reverted; arc 225 reshaped.
 
+> **FURTHER DOCTRINE CONVERGENCE 2026-05-23 afternoon:** Continued dialogue surfaced the layered honesty framing for the entire quote-family + macro sigils. See INTERSTITIAL § 2026-05-23 afternoon for the full narrative. Key resolution: **substrate stays at 16 HolonAST variants — no expansion needed.** Macro sigils `'` `` ` `` `~` `~@` encode as Bundle-of-verb at source-form layer (consistent shape with other verb applications) AND evaluate to Atom-wrapped substrate forms at evaluated-form layer (consistent "this is held" semantic via Atom). Tag is reserved for EDN tagged literals only (`#name value`); reusing Tag for macro sigils was dishonest. Arc 225's scope is unchanged: narrow `:wat::holon::Atom` + rename `:wat::core::atom-value` → `:wat::holon::materialize`. The EDN-form named constructors and the quasiquote-expansion-evaluator work belong to arc 222.
+
 ## Triggering observation
 
 Arc 224 Stone 224.2 (intueri on runtime.rs) found:
