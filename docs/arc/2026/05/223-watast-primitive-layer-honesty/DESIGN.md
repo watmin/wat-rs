@@ -1,4 +1,4 @@
-# DESIGN — Arc 223 — WatAST primitive-layer honesty (CharLit + NilLit)
+# DESIGN — Arc 223 — WatAST primitive-layer honesty (CharLit + NilLit + TagLit)
 
 **Opened:** 2026-05-22 (placeholder; ratified post-arc-221 Phase A)
 **Branch:** `arc-170-gap-j-v5-deadlock-state`
@@ -7,7 +7,13 @@
 
 ## Mission
 
-Complete WatAST's primitive-literal coverage so the wat-source surface matches EDN-spec untagged-primitive completeness. Mint `WatAST::CharLit(char)` + `WatAST::NilLit` as distinct AST variants. Eliminate the existing convention-based encodings (`\c` via call-form `(:wat::core::Char/of "c")`, `nil` via `Keyword(":wat::core::nil")`). Same doctrine as arc 221 applied to the wat-rs layer above holon-rs.
+Complete WatAST's primitive-literal coverage so the wat-source surface matches EDN-spec primitive completeness AND clojure-compatibility (wat IS clojure-on-rust per 2026-05-22 locked identity). Mint:
+
+- `WatAST::CharLit(char)` — replaces `\c` call-form desugaring
+- `WatAST::NilLit` — replaces `Keyword(":wat::core::nil")` convention-based encoding
+- `WatAST::TagLit(String, Arc<WatAST>)` — first-class clojure-compatible tagged-literal source syntax (`#uuid "..."`, `#inst "..."`, `#wat.core/Some 42`, etc.) — closes the clojure-compat gap surfaced 2026-05-22
+
+Same doctrine as arc 221 applied to the wat-rs layer above holon-rs.
 
 ## Triggering observation
 
@@ -42,7 +48,22 @@ Arc 221 applied the doctrine at the HolonAST layer (Char + Keyword + Nil + Tag l
 | keywords | `:foo` | `Keyword(String)` (with leading colon) | unchanged structurally; potential canonical-bytes seed distinction (Stone 221.5 mirror) |
 | symbols | `foo` | `Symbol(Identifier)` | unchanged |
 | **chars** | `\c` | parser desugars to `List([Keyword(":wat::core::Char/of"), StringLit("c")])` | **NEW: `CharLit(char)`** |
-| tags `#tag` | NOT VALID in wat source (per arc 219) | n/a | OUT OF SCOPE — wat-source doesn't have tagged literals; arc 222 may revisit if literal-as-surface ratifies them |
+| **tagged literals** | `#uuid "..."`, `#inst "..."`, `#wat.core/Some 42` | **lexer REJECTS — only `#{` (set literal) is recognized at form-start; bare `#tag` fails to parse** | **NEW: `TagLit(String, Arc<WatAST>)` — closes clojure-compat violation surfaced 2026-05-22** |
+
+### Clojure-compatibility note (arc 219 disambiguation)
+
+Arc 219 dropped `:` and `#` from `is_symbol_continue` — that restriction is about characters allowed INSIDE a symbol body (preventing `foo#bar` from parsing as one symbol). It does NOT preclude `#` as a form-start dispatch character.
+
+Clojure source legally has multiple `#`-prefixed forms:
+- `#{1 2 3}` — set literal (wat ALREADY supports this via Token::LHashBrace at lexer.rs:271)
+- `#uuid "..."` — tagged literal (wat REJECTS today; arc 223 Stone 223.3 closes)
+- `#inst "..."` — tagged literal (wat REJECTS today; arc 223 Stone 223.3 closes)
+- `#wat.core/Some 42` — namespaced tagged literal (wat REJECTS today)
+- `#_form` — discard reader macro (wat REJECTS today; OUT OF SCOPE — not a value-producing form)
+- `#"regex"` — regex literal (wat doesn't need; we use `:wat::core::regex::*` verbs)
+- `#(...)` — anonymous fn shorthand (wat has `defn` + `fn`; OUT OF SCOPE — sugar, not honesty)
+
+Stone 223.3 closes the tagged-literal gap (the load-bearing one for clojure-compat + literal-as-surface). The other `#_` / `#"..."` / `#(...)` shorthand forms are deferred — not honesty issues, just convenience sugar.
 
 ## Stones
 
@@ -96,14 +117,57 @@ Tests in `tests/wat_arc223_nillit.rs`:
 - `()` empty-tuple literal — confirm what it produces today, preserve or migrate to NilLit
 - Round-trip: HolonAST::Nil (when Stone 221.3 ships) ↔ WatAST::NilLit ↔ Value::Unit
 
-### Stone 223.3 — consumer ripple + cleanup
+### Stone 223.3 — `WatAST::TagLit(String, Arc<WatAST>)` mint + lexer/parser dispatch + data-reader registry
+
+This stone closes the clojure-compat violation. Wat is clojure-on-rust per the 2026-05-22 locked identity; clojure source accepts `#uuid "..."` + `#inst "..."` + `#namespace/Type value` directly. Wat must too.
+
+`src/lexer.rs:~271`:
+- Add `#<tag-name>` recognition AFTER the existing `#{` check
+- Tag name follows EDN-spec keyword-body rules (already validated: arc 219's `is_symbol_continue` minus colon)
+- Emit `Token::TaggedLit(name: String)`
+- The body form follows the tag (handled at parser level)
+
+`src/parser.rs`:
+- Add `Token::TaggedLit(name) => self.parse_tagged_lit(name, span)` branch
+- `parse_tagged_lit` reads one form (the body) and constructs `WatAST::TagLit(name, Arc::new(body), span)`
+
+`src/ast.rs`:
+- Add `TagLit(String, Arc<WatAST>, Span)` variant
+- Doc comment cites arc 219 (FQDN tag namespacing) + arc 216.7 (encoding doctrine) + the clojure-compat closure
+
+`src/runtime.rs` — data-reader dispatch (Stone 223.3's load-bearing eval logic):
+- `eval(WatAST::TagLit(name, body, span)` dispatches by tag name:
+  - `"uuid"` → eval body as String → call `:wat::core::Uuid::from-str` equivalent
+  - `"inst"` → eval body as String → call Instant constructor
+  - `"wat.core/Some"` / `"wat.core/None"` / `"wat.core/Ok"` / `"wat.core/Err"` → construct Option/Result Value variants
+  - `"wat.time/Duration"` → mint Duration constructor (per arc 216 Stone 216.9 plan)
+  - Unknown tags → diagnostic error (or fall through to a user-extensible data-reader registry — DESIGN-decide)
+
+Consumer cascade (substrate-as-teacher):
+- `src/check.rs` — infer arm for TagLit → type depends on tag (uuid → Uuid; inst → Instant; etc.)
+- `src/closure_extract.rs` — extract arm for TagLit values
+- `src/runtime.rs::watast_to_holon` — `WatAST::TagLit(name, body)` → `HolonAST::Bind(HolonAST::Tag(name), watast_to_holon(body))` (uses Stone 221.3's HolonAST::Tag when shipped; falls back to `Symbol("#name")` if 221.3 not shipped — temporary scaffolding)
+- `src/runtime.rs::holon_to_watast` — `HolonAST::Bind(Tag(name), body)` → `WatAST::TagLit(name, holon_to_watast(body))`
+- `src/types.rs` (renderers + display) — TagLit description string
+- `src/parser.rs` (label renderer) — "tagged literal"
+- Any other exhaustive match across the ~1316 WatAST::* sites
+
+Tests in `tests/wat_arc223_taglit.rs`:
+- `#uuid "550e8400-e29b-41d4-a716-446655440000"` parses + evaluates to Value::wat__core__Uuid
+- `#inst "2026-05-22T..."` parses + evaluates to Instant equivalent
+- `#wat.core/Some 42` parses + evaluates to Value::Option(Some(42))
+- Unknown tag fails with diagnostic (or routes to data-reader registry per DESIGN decision)
+- Round-trip: TagLit → HolonAST → eval → Value
+
+### Stone 223.4 — consumer ripple + cleanup
 
 Sweep `WatAST::*` consumer sites for any patterns the compiler didn't catch (rare with exhaustive match but possible in `_ =>` fallthrough arms):
-- Audit `_ => ...` catchall arms in WatAST match expressions for cases where Char/Nil were silently absorbed
+- Audit `_ => ...` catchall arms in WatAST match expressions for cases where Char/Nil/Tag were silently absorbed
 - Update docstrings + examples in `wat/` source that reference the old call-form encoding
 - Update USER-GUIDE entries (if any) that reference the call-form
+- Add wat-source examples using tagged literals to USER-GUIDE (the clojure-compat now-honest surface)
 
-### Stone 223.4 — INSCRIPTION + cross-references
+### Stone 223.5 — INSCRIPTION + cross-references
 
 - `INSCRIPTION.md` — arc 223 closure narrative
 - CLIFFNOTES Currently update
@@ -112,12 +176,12 @@ Sweep `WatAST::*` consumer sites for any patterns the compiler didn't catch (rar
 
 ## What this arc does NOT do
 
-- Add `WatAST::TagLit` — wat source doesn't have tagged literals (`#` blocked by arc 219); reach arc 222 if literal-as-surface ratifies them
 - Add new WatAST variants for collections (Vector / Set / Map literals are first-class via existing parser dispatch + already-existing variants — outside primitive-layer)
-- Touch HolonAST (arc 221's job)
-- Touch wat-edn substrate (untouched)
-- Add new runes / spells
+- Touch HolonAST (arc 221's job; Stone 223.3's Tag-bridge uses `HolonAST::Tag` from arc 221 Stone 221.3 when shipped, else scaffolds via `Symbol("#name")`)
+- Touch wat-edn substrate (untouched; wat-edn already supports tagged-literal wire form)
+- Add `#_` discard reader macro, `#"regex"` regex literal, `#(...)` anonymous fn — convenience sugar, not honesty issues; deferred (no current task)
 - Modify the `(:wat::core::Char/of "c")` verb — kept for runtime String→Char construction; only the parser dispatch and AST representation change
+- Add user-extensible data-readers (clojure has `*data-readers*` for custom tag dispatch) — Stone 223.3 supports the built-in EDN-spec tags + wat-coined tags; user-extensible registry can be a follow-up arc if/when needed
 
 ## Calibration (provisional)
 
@@ -125,10 +189,11 @@ Sweep `WatAST::*` consumer sites for any patterns the compiler didn't catch (rar
 |---|---|---|
 | 223.1 (CharLit) | 90-180 min | New variant + parser dispatch + ~10-30 consumer cascade sites (substrate-as-teacher) + tests; bigger than Stone 221.1 due to wat-rs's larger consumer surface (1316 WatAST sites vs holon-rs's ~50) |
 | 223.2 (NilLit) | 90-180 min | Same shape as 223.1; NilLit has fewer payload-handling sites but more consumer match arms (nil appears EVERYWHERE) |
-| 223.3 (ripple) | 60-120 min | Audit fallthrough arms; docstring + example updates |
-| 223.4 (INSCRIPTION) | 30-45 min | paperwork |
+| 223.3 (TagLit) | 120-240 min | Largest of the three: lexer recognition of `#<name>` + parser dispatch + AST variant + data-reader dispatch for built-in tags (uuid/inst/wat.core/Some etc.) + cross-AST bridge with HolonAST::Tag (Stone 221.3) + consumer cascade. Load-bearing for clojure-compat. |
+| 223.4 (ripple) | 60-120 min | Audit fallthrough arms; docstring + example updates; USER-GUIDE additions for tagged-literal source syntax |
+| 223.5 (INSCRIPTION) | 30-45 min | paperwork |
 
-**Total estimate:** 4.5-9 hours across 4 stones. Multi-session work due to the consumer-sweep nature.
+**Total estimate:** 6.5-13 hours across 5 stones. Multi-session work due to the consumer-sweep nature.
 
 Per `feedback_substrate_as_teacher`: the cargo test fail-count IS the progress meter. Sonnet iterates through cascades naturally; each round of `cargo test → read → fix → re-run` knocks a category down.
 
@@ -153,5 +218,7 @@ Per `feedback_substrate_as_teacher`: the cargo test fail-count IS the progress m
 
 1. **Empty tuple `()` literal** — what's its current AST form? If `WatAST::List(vec![])`, decide: keep it OR migrate to NilLit for unit-value cases. Investigate before Stone 223.2.
 2. **Nil-as-type vs Nil-as-value at the AST level** — currently both are `Keyword(":wat::core::nil")` distinguished by context. Stone 223.2 introduces NilLit for the VALUE. Does the TYPE annotation also get a distinct form, or stay as Keyword in type-annotation position?
-3. **TagLit ratification trigger** — if/when does arc 222 (or later) add tagged literals to wat source syntax? At that point, arc 223b (or similar) mints TagLit. Mark as latent gap for now.
-4. **Migration vs additive** — Stone 223.1 + 223.2 each have an additive variant + a migration ripple. Could split each stone into ADD (mint variant + parser dispatch only; old paths still work) and MIGRATE (sweep consumers to new variant + retire old paths). Decide before Stone 223.1 BRIEF.
+3. **Migration vs additive** — Stone 223.1 + 223.2 + 223.3 each have an additive variant + a migration ripple. Could split each stone into ADD (mint variant + parser dispatch only; old paths still work) and MIGRATE (sweep consumers to new variant + retire old paths). Decide before Stone 223.1 BRIEF.
+4. **TagLit data-reader dispatch boundaries** — Stone 223.3 supports built-in EDN-spec tags (uuid, inst) + wat-coined tags (wat.core/Some, wat.core/None, etc.). Unknown tags: (a) error with diagnostic, OR (b) route to a user-extensible registry (clojure's `*data-readers*` pattern). DESIGN-decide; recommendation: (a) for first ship + (b) as follow-up arc if/when needed.
+5. **TagLit-without-body validation** — clojure requires `#tag <form>` (tag MUST be followed by a value). What happens if `#uuid` appears at end of file or before a comment? Error per Clojure precedent. Lexer or parser surfaces?
+6. **HolonAST::Tag dependency for Stone 223.3** — Stone 221.3 mints `HolonAST::Tag` as part of Phase B. If 221.3 hasn't shipped when Stone 223.3 runs, Stone 223.3's watast↔holon bridge scaffolds via `Symbol("#name")` then migrates. Or Stone 223.3 waits for 221.3. Decide.
