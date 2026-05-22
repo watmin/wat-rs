@@ -10487,7 +10487,9 @@ fn eval_struct_to_form(
 ///   `format_type`'s Var spelling; type variables stay atomic.
 ///
 /// Downstream `watast_to_holon` lowers `WatAST::List` → `HolonAST::Bundle`
-/// and `WatAST::Keyword(":Foo")` → `HolonAST::Symbol(":Foo")` uniformly,
+/// and `WatAST::Keyword(":Foo")` → `HolonAST::Symbol(":Foo")` uniformly
+/// (NOTE: `watast_to_holon` still uses Symbol for keywords — arc 221 Stone 221.5
+/// will update this path; Stone 221.4 only touches `value_to_atom`),
 /// so the reflection consumer sees structured `HolonAST::Bundle` for
 /// every Parametric / Tuple / Fn type and `HolonAST::Symbol` for every
 /// Path / Var. Type-driven macros can walk the structure via the
@@ -13820,7 +13822,30 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         Value::f64(x) => HolonAST::f64(x),
         Value::bool(b) => HolonAST::bool_(b),
         Value::String(s) => HolonAST::string(s.as_str()),
-        Value::wat__core__keyword(k) => HolonAST::symbol(k.as_str()),
+        // Arc 221 Stone 221.4 — Keyword primitive → HolonAST::Keyword leaf.
+        // Stone 221.3 minted HolonAST::Keyword in holon-rs commit fa48b39.
+        // Value::wat__core__keyword stores with leading colon (constructor at
+        // src/runtime.rs:7111 formats ":{name}"). HolonAST::keyword(&k) strips
+        // the colon at the boundary per Stone 221.3 doctrine (stored content has
+        // no leading colon). Pre-arc-221 used HolonAST::symbol(k.as_str()) which
+        // violated the honest-primitive discipline; retired here.
+        Value::wat__core__keyword(k) => HolonAST::keyword(&k),
+        // Arc 221 Stone 221.4 — Value::Unit (wat's nil) → HolonAST::Nil leaf.
+        // Stone 221.3 minted HolonAST::Nil in holon-rs commit fa48b39.
+        // Value::Unit is the runtime representation of :wat::core::nil.
+        // Pre-arc-221 would have used Symbol("nil"); HolonAST::Nil is the
+        // proper primitive leaf per arc 221 doctrine.
+        Value::Unit => HolonAST::Nil,
+        // Arc 221 Stone 221.4 — Uuid → HolonAST::Bind(Tag("uuid"), String(hex)).
+        // Closes arc 207 false-flag (5-day-latent gap since 2026-05-17).
+        // Uses tagged composition per arc 221 doctrine correction — bare-leaf
+        // payload in Bind, NOT Atom-wrapped. HolonAST::tag("uuid") strips the '#'
+        // if present; "uuid" has no '#'. The hex representation is the canonical
+        // lowercase hyphenated UUID string.
+        Value::wat__core__Uuid(u) => HolonAST::bind(
+            HolonAST::tag("uuid"),
+            HolonAST::string(u.to_string()),
+        ),
         // Arc 221 Stone 221.2 — Char primitive → HolonAST::Char leaf.
         // Stone 221.1 minted HolonAST::Char + char_() constructor in holon-rs
         // commit 243eded. Char is a proper primitive (BMP-only Unicode scalar),
@@ -14786,6 +14811,26 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
             ],
             Span::unknown(),
         ),
+        // Arc 221 Stone 221.4 — Keyword primitive leaf (Stone 221.3 holon-rs fa48b39).
+        // Stored content has no leading colon; add it back for the WatAST::Keyword form.
+        // Round-trip safe: WatAST::Keyword(":foo") eval'd → Value::keyword with colon.
+        HolonAST::Keyword(s) => WatAST::Keyword(format!(":{}", s), Span::unknown()),
+        // Arc 221 Stone 221.4 — Nil primitive leaf (Stone 221.3 holon-rs fa48b39).
+        // :wat::core::nil at eval position → Value::Unit (the nil value) per runtime:4358.
+        // Round-trip safe via the established keyword-eval path.
+        HolonAST::Nil => WatAST::Keyword(":wat::core::nil".into(), Span::unknown()),
+        // Arc 221 Stone 221.4 — Tag dispatch-marker leaf (Stone 221.3 holon-rs fa48b39).
+        // Tag is a substrate-internal Bind composition marker; not a user-facing WAT value.
+        // Non-round-trip (no :wat::holon::Tag constructor registered), like SlotMarker.
+        // Renders as debug-legible list for inspection; eval-ast! on this form will error
+        // with unknown constructor (intentional — Tags are substrate internals, not user forms).
+        HolonAST::Tag(s) => WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::holon::Tag".into(), Span::unknown()),
+                WatAST::StringLit(s.to_string(), Span::unknown()),
+            ],
+            Span::unknown(),
+        ),
         // SlotMarker (arc 073) is a substrate-internal sentinel returned
         // by `:wat::holon::term::template`. It surfaces here as a debug-
         // legible list, but the rendering is INTENTIONALLY non-round-
@@ -15629,6 +15674,10 @@ fn eval_holon_statement_length(
         | HolonAST::Bool(_)
         // Arc 221 Stone 221.2 — Char is a primitive leaf; statement-length = 1.
         | HolonAST::Char(_)
+        // Arc 221 Stone 221.4 — Keyword/Nil/Tag are primitive leaves; statement-length = 1.
+        | HolonAST::Keyword(_)
+        | HolonAST::Nil
+        | HolonAST::Tag(_)
         | HolonAST::Atom(_)
         | HolonAST::Permute(_, _)
         | HolonAST::Thermometer { .. }

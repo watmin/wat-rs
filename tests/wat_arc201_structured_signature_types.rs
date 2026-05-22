@@ -22,6 +22,11 @@
 //!                      recurse(ret)]`
 //! - `TypeExpr::Var(id)` → `HolonAST::Symbol(":?{id}")` (atomic)
 //!
+//! NOTE (arc 221 Stone 221.4): `value_to_atom` now maps keywords to
+//! `HolonAST::Keyword` (proper primitive leaf per Stone 221.3 doctrine).
+//! However `watast_to_holon` — used by `type_expr_to_ast` downstream —
+//! still maps `WatAST::Keyword` to `HolonAST::Symbol`. Stone 221.5 will
+//! update that path. Until then, the reflection path emits Symbol, not Keyword.
 //! These tests rely on `:wat::edn::write` to render the HolonAST to an
 //! EDN string; a Bundle renders as `#wat-edn.holon/Bundle [...]` and a
 //! Symbol renders as `#wat-edn.holon/Symbol "..."`. The tests

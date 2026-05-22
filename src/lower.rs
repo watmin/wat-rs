@@ -384,8 +384,11 @@ mod tests {
     fn lower_atom_keyword() {
         let ast = crate::parse_one!("(:wat::holon::Atom :foo::bar)").unwrap();
         let holon = lower(&ast).unwrap();
-        // Keywords lower to Symbol leaves with the leading `:` preserved.
-        assert_eq!(holon.as_symbol(), Some(":foo::bar"));
+        // Arc 221 Stone 221.3 (holon-rs fa48b39): HolonAST::keyword() now returns
+        // HolonAST::Keyword (stripped of leading colon), not HolonAST::Symbol.
+        // lower() calls HolonAST::keyword(k) at lower.rs:239 → Keyword variant.
+        // as_keyword() returns content WITHOUT the leading colon; as_symbol() → None.
+        assert_eq!(holon.as_keyword(), Some("foo::bar"));
     }
 
     #[test]

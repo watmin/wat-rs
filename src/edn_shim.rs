@@ -1810,6 +1810,24 @@ fn holon_ast_to_edn(h: &holon::HolonAST) -> OwnedValue {
             Tag::ns("wat-edn.holon", "Char"),
             Box::new(OwnedValue::Char(*c)),
         ),
+        // Arc 221 Stone 221.4 — Keyword primitive leaf (Stone 221.3 holon-rs fa48b39).
+        // Stored content has no leading colon; add it back as EDN keyword.
+        HolonAST::Keyword(s) => OwnedValue::Tagged(
+            Tag::ns("wat-edn.holon", "Keyword"),
+            Box::new(OwnedValue::Keyword(Keyword::new(s.as_ref()))),
+        ),
+        // Arc 221 Stone 221.4 — Nil primitive leaf (Stone 221.3 holon-rs fa48b39).
+        // Maps to EDN nil — the unit payload for the tagged form.
+        HolonAST::Nil => OwnedValue::Tagged(
+            Tag::ns("wat-edn.holon", "Nil"),
+            Box::new(OwnedValue::Nil),
+        ),
+        // Arc 221 Stone 221.4 — Tag dispatch-marker leaf (Stone 221.3 holon-rs fa48b39).
+        // Stored content has no leading '#'; emit as EDN string payload under the tag.
+        HolonAST::Tag(s) => OwnedValue::Tagged(
+            Tag::ns("wat-edn.holon", "Tag"),
+            Box::new(OwnedValue::String(std::borrow::Cow::Owned(s.to_string()))),
+        ),
         HolonAST::SlotMarker { min, max } => OwnedValue::Tagged(
             Tag::ns("wat-edn.holon", "SlotMarker"),
             Box::new(OwnedValue::Map(vec![
@@ -1917,6 +1935,16 @@ fn edn_holon_tag_to_ast(
         ("Bool", OwnedValue::Bool(b)) => Ok(Arc::new(HolonAST::Bool(*b))),
         // Arc 221 Stone 221.2 — Char leaf round-trip (mirrors holon_ast_to_edn Char arm).
         ("Char", OwnedValue::Char(c)) => Ok(Arc::new(HolonAST::Char(*c))),
+        // Arc 221 Stone 221.4 — Keyword/Nil/Tag leaf round-trips (Stone 221.3 holon-rs fa48b39).
+        // Keyword: stored content has no leading colon; HolonAST::Keyword(s) stores it stripped.
+        ("Keyword", OwnedValue::Keyword(kw)) => {
+            Ok(Arc::new(HolonAST::Keyword(Arc::from(kw.name()))))
+        }
+        ("Nil", OwnedValue::Nil) => Ok(Arc::new(HolonAST::Nil)),
+        // Tag: stored content has no leading '#'; reconstruct from the string payload.
+        ("Tag", OwnedValue::String(s)) => {
+            Ok(Arc::new(HolonAST::Tag(Arc::from(s.as_ref()))))
+        }
         ("Atom", inner) => {
             let child = edn_to_holon_ast(inner)?;
             Ok(Arc::new(HolonAST::Atom(child)))

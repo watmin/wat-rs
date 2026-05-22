@@ -3629,11 +3629,16 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
                 | ":wat::core::f64"
                 | ":wat::core::bool"
                 | ":wat::core::String"
+                // Arc 221 Stone 221.4 — keyword is atomizable; value_to_atom dispatches
+                // via the Keyword arm → HolonAST::Keyword leaf (Stone 221.3 holon-rs
+                // commit fa48b39). Pre-arc-221 used HolonAST::symbol; now honest.
                 | ":wat::core::keyword"
                 // HolonAST and WatAST (arc 215 baseline)
                 | ":wat::holon::HolonAST"
                 | ":wat::WatAST"
-                // Uuid — hashable primitive (arc 207)
+                // Uuid — hashable primitive (arc 207); value_to_atom dispatches via
+                // the Uuid arm → HolonAST::Bind(Tag("uuid"), String(hex)) per arc 221
+                // doctrine correction (Stone 221.4). Closes arc 207 false-flag.
                 | ":wat::core::Uuid"
                 // Arc 221 Stone 221.2 — Char is a primitive; HolonAST::Char leaf shipped
                 // in holon-rs commit 243eded (Stone 221.1); value_to_atom dispatches via

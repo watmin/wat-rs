@@ -230,6 +230,10 @@ fn find_first_thermometer(ast: &HolonAST) -> Option<(f64, f64, f64)> {
         | HolonAST::Bool(_)
         // Arc 221 Stone 221.2 — Char is a primitive leaf; no Thermometer.
         | HolonAST::Char(_)
+        // Arc 221 Stone 221.4 — Keyword/Nil/Tag are primitive leaves; no Thermometer.
+        | HolonAST::Keyword(_)
+        | HolonAST::Nil
+        | HolonAST::Tag(_)
         | HolonAST::SlotMarker { .. } => None,
     }
 }

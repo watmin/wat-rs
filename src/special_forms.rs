@@ -329,11 +329,16 @@ mod tests {
             HolonAST::Bundle(children) => {
                 // head + 3 slots (cond, then, else)
                 assert_eq!(children.len(), 4);
+                // Arc 221 Stone 221.3 (holon-rs fa48b39): HolonAST::keyword() now returns
+                // HolonAST::Keyword (stripped of leading colon). The sketch() builder at
+                // special_forms.rs:75 calls HolonAST::keyword(head) → Keyword("wat::core::if").
+                // as_keyword() returns content WITHOUT colon; as_symbol() → None.
                 assert_eq!(
-                    children[0].as_symbol(),
-                    Some(":wat::core::if"),
-                    "first child should be the keyword head"
+                    children[0].as_keyword(),
+                    Some("wat::core::if"),
+                    "first child should be the keyword head (HolonAST::Keyword after arc 221 Stone 221.3)"
                 );
+                // Slot children are still Symbol (HolonAST::symbol("<cond>") unchanged).
                 assert_eq!(children[1].as_symbol(), Some("<cond>"));
                 assert_eq!(children[2].as_symbol(), Some("<then>"));
                 assert_eq!(children[3].as_symbol(), Some("<else>"));

@@ -319,8 +319,9 @@ fn probe_4_get_multi_type() {
         other => panic!("expected Option<bool>; got {:?}", other),
     }
 
-    // keyword — :hello stored via (:wat::holon::Atom :hello) → HolonAST::Symbol(":hello")
-    // After extraction, HolonAST::Symbol("hello") → Value::keyword("hello")
+    // keyword — :hello stored via (:wat::holon::Atom :hello) → HolonAST::Keyword("hello")
+    // Arc 221 Stone 221.4: value_to_atom Keyword arm → HolonAST::keyword(&k) (strips colon).
+    // After extraction, HolonAST::Keyword("hello") → Value::keyword(":hello") at runtime.
     let src_kw = with_nil_main(&format!(
         r#"
         {}
