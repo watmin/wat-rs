@@ -228,6 +228,8 @@ fn find_first_thermometer(ast: &HolonAST) -> Option<(f64, f64, f64)> {
         | HolonAST::I64(_)
         | HolonAST::F64(_)
         | HolonAST::Bool(_)
+        // Arc 221 Stone 221.2 — Char is a primitive leaf; no Thermometer.
+        | HolonAST::Char(_)
         | HolonAST::SlotMarker { .. } => None,
     }
 }

@@ -1803,6 +1803,13 @@ fn holon_ast_to_edn(h: &holon::HolonAST) -> OwnedValue {
                 OwnedValue::Float(*w2),
             ])),
         ),
+        // Arc 221 Stone 221.2 — Char primitive leaf. Encodes as
+        // #wat-edn.holon/Char containing an EDN character literal.
+        // Mirrors the pattern: leaf tag + primitive payload.
+        HolonAST::Char(c) => OwnedValue::Tagged(
+            Tag::ns("wat-edn.holon", "Char"),
+            Box::new(OwnedValue::Char(*c)),
+        ),
         HolonAST::SlotMarker { min, max } => OwnedValue::Tagged(
             Tag::ns("wat-edn.holon", "SlotMarker"),
             Box::new(OwnedValue::Map(vec![
@@ -1908,6 +1915,8 @@ fn edn_holon_tag_to_ast(
         ("I64", OwnedValue::Integer(n)) => Ok(Arc::new(HolonAST::I64(*n))),
         ("F64", OwnedValue::Float(x)) => Ok(Arc::new(HolonAST::F64(*x))),
         ("Bool", OwnedValue::Bool(b)) => Ok(Arc::new(HolonAST::Bool(*b))),
+        // Arc 221 Stone 221.2 — Char leaf round-trip (mirrors holon_ast_to_edn Char arm).
+        ("Char", OwnedValue::Char(c)) => Ok(Arc::new(HolonAST::Char(*c))),
         ("Atom", inner) => {
             let child = edn_to_holon_ast(inner)?;
             Ok(Arc::new(HolonAST::Atom(child)))

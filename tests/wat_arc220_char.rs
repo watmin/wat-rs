@@ -220,12 +220,18 @@ fn char_of_valid_single_char() {
 // ─── 6: `Char/of ""` errors with length diagnostic ───────────────────────────
 
 /// Empty string is rejected with a clear "length-1" diagnostic.
+/// Arc 221 Stone 221.2: Char/of is now type-registered as `String → Char`.
+/// The call is placed inside a let binding so user::main still returns nil
+/// (arc 170 slice 1e canonical signature), while the runtime validation error
+/// fires when evaluating the Char/of binding before the nil is returned.
 #[test]
 fn char_of_empty_string_rejected() {
     let src = r#"
         (:wat::core::define
           (:user::main -> :wat::core::nil)
-          (:wat::core::Char/of ""))
+          (:wat::core::let
+            [_c (:wat::core::Char/of "")]
+            :wat::core::nil))
     "#;
     let err = run_expecting_runtime_err(src);
     assert!(
@@ -237,12 +243,16 @@ fn char_of_empty_string_rejected() {
 // ─── 7: `Char/of "ab"` errors with length diagnostic ────────────────────────
 
 /// Multi-char string is rejected with a clear "length" diagnostic.
+/// Arc 221 Stone 221.2: Char/of is now type-registered as `String → Char`.
+/// Wrapped in a let binding so user::main returns nil per arc 170 slice 1e.
 #[test]
 fn char_of_multi_char_rejected() {
     let src = r#"
         (:wat::core::define
           (:user::main -> :wat::core::nil)
-          (:wat::core::Char/of "ab"))
+          (:wat::core::let
+            [_c (:wat::core::Char/of "ab")]
+            :wat::core::nil))
     "#;
     let err = run_expecting_runtime_err(src);
     assert!(
@@ -254,10 +264,14 @@ fn char_of_multi_char_rejected() {
 // ─── 8: `Char/of` with supplementary-plane char rejected ─────────────────────
 
 /// A supplementary-plane char in a String arg is rejected with BMP diagnostic.
+/// Arc 221 Stone 221.2: Char/of is now type-registered as `String → Char`.
+/// Wrapped in a let binding so user::main returns nil per arc 170 slice 1e.
 #[test]
 fn char_of_supplementary_plane_rejected() {
     // U+1F600 GRINNING FACE — supplementary plane
-    let src = "(:wat::core::define\n  (:user::main -> :wat::core::nil)\n  (:wat::core::Char/of \"\u{1F600}\"))";
+    let src = &format!(
+        "(:wat::core::define\n  (:user::main -> :wat::core::nil)\n  (:wat::core::let\n    [_c (:wat::core::Char/of \"\u{1F600}\")]\n    :wat::core::nil))"
+    );
     let err = run_expecting_runtime_err(src);
     assert!(
         err.contains("supplementary") || err.contains("BMP") || err.contains("1F600"),

@@ -13821,6 +13821,11 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         Value::bool(b) => HolonAST::bool_(b),
         Value::String(s) => HolonAST::string(s.as_str()),
         Value::wat__core__keyword(k) => HolonAST::symbol(k.as_str()),
+        // Arc 221 Stone 221.2 — Char primitive → HolonAST::Char leaf.
+        // Stone 221.1 minted HolonAST::Char + char_() constructor in holon-rs
+        // commit 243eded. Char is a proper primitive (BMP-only Unicode scalar),
+        // not a convention-based encoding inside an existing leaf.
+        Value::wat__core__Char(c) => HolonAST::char_(c),
         // Opaque-identity wrap ───────────────────────────────────────
         Value::holon__HolonAST(h) => HolonAST::Atom(h),
         // Structural lowering of a captured wat form ────────────────
@@ -14770,6 +14775,17 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
             ],
             Span::unknown(),
         ),
+        // Arc 221 Stone 221.2 — Char primitive leaf. WatAST has no CharLit
+        // variant; render as (:wat::core::Char/of "c") so that
+        // `(eval-ast! (to-watast char-holon))` round-trips via Char/of.
+        // The one-char string preserves the Unicode codepoint faithfully.
+        HolonAST::Char(c) => WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::Char/of".into(), Span::unknown()),
+                WatAST::StringLit(c.to_string(), Span::unknown()),
+            ],
+            Span::unknown(),
+        ),
         // SlotMarker (arc 073) is a substrate-internal sentinel returned
         // by `:wat::holon::term::template`. It surfaces here as a debug-
         // legible list, but the rendering is INTENTIONALLY non-round-
@@ -15611,6 +15627,8 @@ fn eval_holon_statement_length(
         | HolonAST::I64(_)
         | HolonAST::F64(_)
         | HolonAST::Bool(_)
+        // Arc 221 Stone 221.2 — Char is a primitive leaf; statement-length = 1.
+        | HolonAST::Char(_)
         | HolonAST::Atom(_)
         | HolonAST::Permute(_, _)
         | HolonAST::Thermometer { .. }

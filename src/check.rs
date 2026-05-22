@@ -3635,6 +3635,12 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
                 | ":wat::WatAST"
                 // Uuid — hashable primitive (arc 207)
                 | ":wat::core::Uuid"
+                // Arc 221 Stone 221.2 — Char is a primitive; HolonAST::Char leaf shipped
+                // in holon-rs commit 243eded (Stone 221.1); value_to_atom dispatches via
+                // the Char arm added in Stone 221.2 (src/runtime.rs); is_atomizable gate
+                // is now consistent with the runtime Hash arm at src/runtime.rs:846
+                // (which shipped Stone 220.2).
+                | ":wat::core::Char"
                 // Type variables and inference sentinels — can't prove non-atomizable
                 | ":wat::type::Infer"
         ),
@@ -13484,6 +13490,24 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: uuid_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 220 slice 2 / Arc 221 Stone 221.2 — `:wat::core::Char` typed primitive.
+    // `Char/of` is the only constructor; it takes a length-1 BMP String and
+    // returns a `:wat::core::Char`. The `\c` literal reader macro desugars to
+    // `(:wat::core::Char/of "c")` at parse time (parser.rs). Without this
+    // registration the type checker returns `<unresolved>` for char literals,
+    // causing spurious TypeMismatch on dispatch sites (e.g. `contains?` on
+    // `HashSet<Char>` where the element arg must unify to Char).
+    let char_ty = || TypeExpr::Path(":wat::core::Char".into());
+    env.register(
+        ":wat::core::Char/of".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: char_ty(),
             rest_param_type: None,
         },
     );
