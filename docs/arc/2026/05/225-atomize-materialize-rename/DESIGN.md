@@ -1,159 +1,163 @@
-# DESIGN — Arc 225 — Narrow `:wat::holon::Atom` to constructor + `:wat::core::atom-value` → `:wat::holon::materialize`
+# DESIGN — Arc 225 — Bridge naming honesty (narrow Atom + `to-holon` / `from-holon` mint + `to-wat` / `from-wat` rename)
 
-> **SPAWN-BLOCK STATUS (2026-05-23):** Arc 225 is spawned by arc 224. Arc 224's INSCRIPTION (Stone 224.7) blocked on arc 225 closing. The chain: arc 220 ← arc 221 ← arc 224 ← arc 225 (depth 4).
+> **SPAWN-BLOCK STATUS (2026-05-22 late, post-bridge-naming-intueri):** Arc 225 spawned by arc 224. Arc 224's INSCRIPTION blocked on arc 225 closing. The chain: arc 220 ← arc 221 ← arc 224 ← arc 225. Arc 225's spawn children: **arc 228** (collection classifier-wrap) → arc 230 → arc 226 → arc 227. Arc 225's INSCRIPTION blocked on arc 228 closing.
 
-> **DOCTRINE REFINEMENT 2026-05-23:** Original arc 225 DESIGN proposed renaming `:wat::holon::Atom` → `:wat::holon::atomize`. Mid-Stone-225.1 dialogue surfaced that this was still partially dishonest — `atomize` doesn't always return `HolonAST::Atom`. User probe: *"so :wat::holon::{Atom,Bundle,Bind,...} still exist?.. atomize returns an Atom?.."* + *"I would say Atom's sig is (Atom :HolonAST) -> :Atom?"* The honest direction: **narrow `:wat::holon::Atom` to a single-shape constructor matching the sibling Pascal-Case verb family.** Sonnet's in-flight rename work reverted; arc 225 reshaped.
-
-> **FURTHER DOCTRINE CONVERGENCE 2026-05-23 afternoon:** Continued dialogue surfaced the layered honesty framing for the entire quote-family + macro sigils. See INTERSTITIAL § 2026-05-23 afternoon for the full narrative. Key resolution: **substrate stays at 16 HolonAST variants — no expansion needed.** Macro sigils `'` `` ` `` `~` `~@` encode as Bundle-of-verb at source-form layer (consistent shape with other verb applications) AND evaluate to Atom-wrapped substrate forms at evaluated-form layer (consistent "this is held" semantic via Atom). Tag is reserved for EDN tagged literals only (`#name value`); reusing Tag for macro sigils was dishonest. Arc 225's scope is unchanged: narrow `:wat::holon::Atom` + rename `:wat::core::atom-value` → `:wat::holon::materialize`. The EDN-form named constructors and the quasiquote-expansion-evaluator work belong to arc 222.
-
-> **FULL DOCTRINE LANDED 2026-05-23 evening (supersedes afternoon framing):** Through 7 rounds of dialogue, the substrate found itself. See INTERSTITIAL § 2026-05-23 evening + [[typed-entities-doctrine]] memory entry. **Materialize is the substrate's UNQUOTE PRIMITIVE** — pair with Atom (which is quote at substrate-operation level). The rename `:wat::core::atom-value` → `:wat::holon::materialize` is even more load-bearing now: it names a foundational substrate operation, not just a decode convenience. The 12-true-primitives doctrine + the uniform `(Bind (Atom class) (Atom data))` typed-entity shape + the type-as-VSA-similarity insight all rest on Atom/Materialize being the substrate's quote/unquote dual.
+> **DOCTRINE EVOLUTION (forward-corrections preserved in chronological order; DESIGNs are living per recovery doc § FM 11):**
 >
-> **Arc 225's scope remains:** narrow `:wat::holon::Atom` to single-shape constructor + rename `:wat::core::atom-value` → `:wat::holon::materialize`. The doctrine context expands the WEIGHT of the rename without expanding the work.
+> **2026-05-23 morning (Option A):** Original proposal `:wat::holon::Atom` → `:wat::holon::atomize` REJECTED. `atomize` is still polymorphic; doesn't always produce HolonAST::Atom. Narrow `:wat::holon::Atom` to single-shape HolonAST → HolonAST::Atom constructor instead.
+>
+> **2026-05-23 evening (typed-entities doctrine):** Every typed value at user-surface compiles to `(Bind (Atom <ClassName>) (Atom <data>))`. Atom is the substrate holder primitive. Wat-tier and holon-tier coexist as parallel layers.
+>
+> **2026-05-22 (post-compaction, intueri bridge-naming cast):** The proposed name `materialize` for the wat-verb is honest as an operation-name, BUT user observation surfaced asymmetry: existing `from-watast` / `to-watast` use "watast" but we don't say "holonast" anywhere — we say "holon" as the layer name. The honest family uses layer-names + direction throughout:
+>
+> ```
+> :wat::holon::from-wat    (renamed from from-watast)    WatAST       → HolonAST
+> :wat::holon::to-wat      (renamed from to-watast)      HolonAST     → WatAST
+> :wat::holon::to-holon    (NEW; replaces UP arm of Atom) runtime Value → HolonAST
+> :wat::holon::from-holon  (NEW; replaces atom-value)    HolonAST     → runtime Value
+> ```
+>
+> Plus narrow `:wat::holon::Atom h` constructor stays (Pascal-Case sibling to Bundle/Bind/Permute/Thermometer/Blend/Tag).
 
-## Triggering observation
+**Opened:** 2026-05-22 (post-arc-224 audit aggregate)
+**Branch:** `arc-170-gap-j-v5-deadlock-state`
+**Depends on:** arc 224 audit complete (Stones 224.1/.2/.3 + AGGREGATE-FINDINGS + FINDINGS-INTUERI-BRIDGE-OPS all shipped).
 
-Arc 224 Stone 224.2 (intueri on runtime.rs) found:
-- `:wat::holon::Atom` borrows the HolonAST variant name + dispatches polymorphically across 9 input types; most arms produce shapes that are NOT `HolonAST::Atom`
-- Sibling Pascal-Case verbs (`:wat::holon::Bundle`, `Bind`, `Permute`, `Thermometer`, `Blend`, `Tag`) are HONEST constructors — each takes one input shape + produces the matching variant
+## Mission — final shape
 
-The lie is specifically in `Atom`'s overload + in `:wat::core::atom-value`'s Bundle-decoding path (sibling lie at the inverse direction).
+Resolve the bridge-naming honesty findings from the arc 224 audit + the typed-entities doctrine + the intueri bridge-naming cast. **Substrate-wide rename + mint + narrow**, all under the symmetric layer-name + direction discipline.
 
-## The doctrine — verb-naming honesty per intueri + the holder framing
+The five concrete deliverables:
 
-Two naming patterns, both legitimate, but used DIFFERENTLY:
+1. **Narrow `:wat::holon::Atom`** to single-shape constructor
+2. **Mint `:wat::holon::to-holon`** (replaces the polymorphic UP arm of the original Atom verb)
+3. **Mint `:wat::holon::from-holon`** (replaces `:wat::core::atom-value`)
+4. **Rename `:wat::holon::from-watast` → `:wat::holon::from-wat`** (cosmetic; same semantics)
+5. **Rename `:wat::holon::to-watast` → `:wat::holon::to-wat`** (cosmetic; same semantics)
 
-**Pattern 1 — Pascal-Case variant-name verbs = CONSTRUCTORS:**
-- Each verb takes the variant's natural input shape, produces that variant
-- `:wat::holon::Bundle xs` → `HolonAST::Bundle(xs)` — single shape, no polymorphism
-- `:wat::holon::Bind a b` → `HolonAST::Bind(a, b)` — same
-- etc.
-- THE PATTERN matches the variant-name : output-type contract
-- **`:wat::holon::Atom h` SHOULD follow this: `(Atom :HolonAST) -> HolonAST::Atom(h)` — single shape, honest**
+Plus the L1-3 doc-lie from intueri bridge-naming cast: fix the (renamed) `eval_holon_from_holon` doc comment to honestly describe the polymorphic decode (currently says "Bundle → error" but body handles three-way Bundle dispatch since arc 216 Stones 1/2/3).
 
-**Pattern 2 — lowercase action-name verbs = OPERATIONS:**
-- Name describes WHAT THE VERB DOES, not the output type
-- Output may be polymorphic if the operation is naturally polymorphic
-- `:wat::holon::leaf v` (primitives → matching leaf variant)
-- `:wat::holon::from-watast w` (WatAST → structural HolonAST)
-- `:wat::holon::encode h` (HolonAST → encoded bytes)
-- `:wat::holon::materialize h` (HolonAST → runtime Value) — polymorphic by output, but name is honest about operation
+## The doctrine map (final)
 
-## Mission
+```
+wat-tier:    (quote      wat-form)  -> :WatAST       ;  hold source unevaluated (wat op)
+              (to-wat     holon)    -> :WatAST       ;  lower algebra → source AST
+              (from-wat   wat-ast)  -> :HolonAST     ;  lift source AST → algebra
 
-**Restore the verb-naming family invariant: Pascal-Case = constructor; lowercase = operation.**
+holon-tier:  (Atom       holon)    -> :HolonAST     ;  hold with VSA opaque-identity (holon op)
+              (to-holon   value)   -> :HolonAST     ;  lift runtime → algebra
+              (from-holon holon)   -> :Value        ;  lower algebra → runtime
+```
 
-Specifically:
-1. **Narrow `:wat::holon::Atom`** to `(Atom :HolonAST) -> HolonAST::Atom(_)` — matches sibling constructor pattern
-2. **Rename `:wat::core::atom-value` → `:wat::holon::materialize`** — operation name (lowercase); polymorphic decode is HONEST as a single direction operation; namespace move into `:wat::holon` to colocate with the algebra
-3. **Verify narrow-verb coverage for the input types that fell out of polymorphic Atom:**
-   - Primitives → `:wat::holon::leaf` (already exists, arc 065)
-   - WatAST → `:wat::holon::from-watast` (already exists, arc 221)
-   - Collections (Vec/Tuple/HashSet/HashMap) → likely fold into `:wat::holon::Bundle` if it accepts shape variation, OR mint new constructor verbs
-   - Uuid + future tagged literals → `:wat::holon::Bind` + `:wat::holon::Tag` composition (already honest)
+Five verbs (Atom + 4 bridge ops). Each verb has unique input/output types. Type-system dispatches unambiguously. Symmetric naming: layer + direction. No variant-name borrowing. No AST-suffix asymmetry.
 
-## Scope
+## Spawn-block status (load-bearing)
 
-### Phase 1 — Substrate narrowing (Stone 225.1)
+Arc 225 is the entry point of a 5-arc chain. Arc 225's INSCRIPTION blocked on arc 228 closing. Arc 228's INSCRIPTION blocked on arc 230. Arc 230 on arc 226. Arc 226 on arc 227. The chain implements the typed-entities doctrine progressively across the substrate.
 
-#### A. Narrow `:wat::holon::Atom` verb
+```
+arc 225 — bridge naming (THIS ARC; active head)
+  └→ arc 228 — substrate collection classifier-wrap
+       └→ arc 230 — substrate variant retirement (Symbol/Keyword/Tag/Nil retire)
+            └→ arc 226 — type predicates as VSA similarity
+                 └→ arc 227 — user-defined types via classifier-wrap
+```
 
-`src/runtime.rs:13820` (`eval_algebra_atom`) / `:13838` (`value_to_atom`):
-- Accept ONLY `Value::holon__HolonAST(_)` input
+Independent / parallel-OK arcs (siblings of arc 224 under arc 221):
+- arc 222 — EDN-form named constructors + 3×2 conversion topology
+- arc 223 — WatAST primitive-layer honesty
+- arc 229 — quasiquote evaluator + splice (deferred per user; small + concrete)
+
+## Stones
+
+### Stone 225.1 — substrate rename + mint (v3, under resolved naming)
+
+Substrate Rust changes in `src/runtime.rs` + `src/check.rs`:
+
+**A. Narrow `:wat::holon::Atom`** (`runtime.rs:13820` / `13838`):
+- Accept ONLY `Value::holon__HolonAST` input
 - Return `HolonAST::Atom(inner)` opaque-identity wrap
-- DELETE all other input-arm branches (primitives, WatAST, collections, Uuid) — those become out-of-scope-for-Atom; consumers must use narrow verbs
-- Rename `value_to_atom` Rust fn → `wrap_holon_as_atom` (since "atomize" is misleading and the fn now only does Atom-wrap)
-- Update doc comments to reflect single-shape constructor
+- DELETE all other input-arm branches (primitives, WatAST, collections, Uuid, etc.) — the polymorphic body retires
+- Rename Rust fn `value_to_atom` → `wrap_holon_as_atom`
+- TypeScheme update in `check.rs:13558` from `∀T. T → HolonAST` to `HolonAST → HolonAST`
+- Update `infer_list` special-case at `check.rs:5326`
 
-`src/check.rs:13558` TypeScheme:
-- Change from `∀T. T → HolonAST` to `HolonAST → HolonAST` (narrow input type)
-- Update `infer_list` special-case at `:5326` accordingly
+**B. Mint `:wat::holon::to-holon`** (NEW; absorbs the retired UP arms):
+- New verb registration in `runtime.rs` dispatch table
+- New Rust fn `eval_holon_to_holon` — accepts `Value` of any type; produces appropriate HolonAST (primitive → leaf; HolonAST → Atom-wrap; WatAST → structural lower; collections → bare Bundle for now — arc 228 extends with classifier-wrap; Uuid → Bind(Tag, String) per existing pattern)
+- TypeScheme in `check.rs` — `∀T. T → HolonAST` (polymorphic; operation-name honest)
+- Doc-comment explains: lowercase = operation = polymorphism honest per typed-entities doctrine
 
-#### B. Rename `:wat::core::atom-value` → `:wat::holon::materialize`
+**C. Mint `:wat::holon::from-holon`** + retire `:wat::core::atom-value`:
+- Rename verb: `:wat::core::atom-value` → `:wat::holon::from-holon` (namespace move + rename)
+- Rename Rust fn: `eval_atom_value` → `eval_holon_from_holon`
+- Body unchanged in semantics — still polymorphic decode (Atom unwrap; Bundle three-way → Vec/HashMap/HashSet; leaves → matching Value primitive)
+- **Doc comment refresh** — fix L1-3 from intueri bridge-naming cast: current doc says "Composite (Bundle/...) → error" but body handles Bundle three-way; refresh to honestly describe the polymorphic decode
+- Rename Rust helper `holon_item_to_value` → `from_holon_item` + thread `op: &str` parameter (closes arc 224 L1-runtime-3 latent lie)
+- TypeScheme in `check.rs:13591` → `:wat::holon::from-holon` string key
 
-`src/runtime.rs:13633` (`eval_atom_value`):
-- Rename verb: `:wat::core::atom-value` → `:wat::holon::materialize`
-- Rename Rust fn: `eval_atom_value` → `eval_holon_materialize`
-- Body unchanged — still polymorphic decode (HolonAST::Atom → inner; Bundle → Vec/HashMap/HashSet/Tuple by key shape; leaves → matching Value primitive)
-- Doc comment refresh: name is honest now (operation, not borrowed variant)
+**D. Rename `from-watast` → `from-wat`**:
+- Verb registration: `:wat::holon::from-watast` → `:wat::holon::from-wat`
+- Rust fn: `eval_holon_from_watast` → `eval_holon_from_wat`
+- TypeScheme + special-case handler updates
+- No semantic change; cosmetic family-consistency rename
 
-`src/runtime.rs:13504` `holon_item_to_value`:
-- Rename → `materialize_holon_item`
-- Thread `op: &str` parameter (closes arc 224 L1-runtime-3 latent lie)
-- All callers updated to pass their own op name
+**E. Rename `to-watast` → `to-wat`**:
+- Verb registration: `:wat::holon::to-watast` → `:wat::holon::to-wat`
+- Rust fn: `eval_holon_to_watast` → `eval_holon_to_wat`
+- Same as D — cosmetic
 
-`src/check.rs:13591` TypeScheme:
-- Keep `∀T. HolonAST → T` (honest); just change the verb-name string
-- Update `infer_list` special-case at `:5362`
+**F. Substrate-as-teacher cascade**:
+- `cargo build --release -p wat` after Phase A-E sites will emit many errors from old verb names + retired Atom arms
+- Iterate per FM 15: read errors, apply rule, rerun until green
 
-#### C. Verify narrow-verb coverage for retired Atom arms
+**G. Wat-side caller sweep**:
+- All `wat/**/*.wat` + `wat-tests/**/*.wat` callers of any of the four old verbs need updating
+- Atom polymorphic callers redirect to `to-holon` or to narrow constructors (leaf/Bundle/etc.) per the input type
 
-For each input type that USED to go through `:wat::holon::Atom`, identify the honest narrow verb:
+Per pre-flight grep (orchestrator):
+- ~31 Rust call sites for `:wat::holon::Atom` literal
+- ~10 Rust call sites for `:wat::core::atom-value` literal
+- ~54 wat-side caller sites for either verb
+- Plus `:wat::holon::from-watast` / `to-watast` callers (need fresh grep)
+- Total estimated: ~150-200 touch points
 
-| Input type | Honest verb | Status |
-|---|---|---|
-| Value primitives (i64/f64/bool/String/keyword/Unit/Char) | `:wat::holon::leaf` | exists (arc 065); covers |
-| Value::wat__core__Uuid | `:wat::holon::Bind` with `:wat::holon::Tag` composition | exists; consumers compose explicitly |
-| Value::holon__HolonAST | `:wat::holon::Atom` (newly narrowed) | THIS STONE |
-| Value::wat__WatAST | `:wat::holon::from-watast` | exists (arc 221); covers |
-| Value::wat__std__HashSet | `:wat::holon::Bundle` (set-shape) | NEEDS VERIFICATION — does Bundle accept HashSet input? |
-| Value::Vec / Tuple | `:wat::holon::Bundle` (positional/sequence) | needs verification |
-| Value::wat__std__HashMap | `:wat::holon::Bundle` of `:wat::holon::Bind` pairs | needs verification |
+### Stone 225.2 — INSCRIPTION (after arc 228 closes per spawn-block)
 
-If `:wat::holon::Bundle` doesn't currently accept Value-tier collection inputs (it currently takes `Value::Vec<HolonAST>`), Stone 225.1 may need a sub-stone to extend Bundle's constructor (OR mint dedicated `:wat::holon::Set` / `:wat::holon::Map` constructor verbs that lift collections into Bundle-composition shape).
+- INSCRIPTION-225.md inscribes the bridge naming family + the verdict on `atomize` (rejected as lie)
+- Cross-references arc 224 audit, intueri bridge-naming cast, typed-entities doctrine
+- Closes arc 225; unblocks arc 224 INSCRIPTION
 
-### Phase 2 — Consumer sweep (Stone 225.2)
-
-After Phase 1, every wat caller of `:wat::holon::Atom` that was passing non-HolonAST input will fail to type-check. Substrate-as-teacher cascade: read errors, replace each call with the appropriate narrow verb (`:wat::holon::leaf`, `:wat::holon::Bundle`, `:wat::holon::Bind`+`Tag`, etc.). Rename `:wat::core::atom-value` callers to `:wat::holon::materialize`.
-
-Per pre-flight grep: ~31 Rust call sites for `:wat::holon::Atom`, ~10 for `:wat::core::atom-value`, ~54 wat-side caller sites total. Many will need REPLACEMENT (not just rename) under the narrowed-Atom doctrine.
-
-### Phase 3 — Doc + USER-GUIDE + 058 spec (Stone 225.3)
-
-Inscribe the verb-naming-family invariant in USER-GUIDE: Pascal-Case = constructor; lowercase = operation. Update verb reference docs. Cross-reference arc 224 audit + intueri family-pattern finding.
-
-### Phase 4 — INSCRIPTION (Stone 225.4)
-
-Arc 225 closure. Names the verb-naming-family invariant explicitly. Cross-references arc 065/221 (the earlier right-shape splits that prefigured this doctrine) + arc 224 (the audit that surfaced the remaining lie) + arc 221 (the doctrine dialogue that started it all).
-
-## What this arc does NOT do
-
-- Touch holon-rs (the algebra primitive `HolonAST::Atom` STAYS — intueri 224.1 confirmed honest)
-- Touch wat-edn wire format
-- Other Group A small fixes from arc 224 AGGREGATE — those are Stone 224.5's scope
-- L2 mumbles
-- Audit the OTHER Pascal-Case sibling verbs for polymorphic-overload (preliminary check shows they're honest; if a future cast finds otherwise, that's a future arc)
-
-## Calibration (revised under Option A shape)
+## Calibration
 
 | Stone | Scope | Predicted |
 |---|---|---|
-| 225.1 | substrate narrow (Atom + materialize rename + sub-stone for Bundle/Set/Map coverage if needed) | 60-150 min Mode A |
-| 225.2 | consumer sweep with REPLACEMENT not just rename | 90-180 min Mode A — substrate-as-teacher cascade |
-| 225.3 | doc + USER-GUIDE + 058 | 30-60 min |
-| 225.4 | INSCRIPTION | 30 min |
+| 225.1 | substrate rename + mint + cascade + sweep | 180-300 min Mode A |
+| 225.2 | INSCRIPTION | 30-60 min orchestrator-direct (blocked on arc 228 closing) |
 
-**Total estimate:** 3.5-7 hours sonnet across the 4 stones.
+**225.1 total estimate:** 3-5 hours sonnet. Larger than original arc 225 plan because the resolved naming added 2 more renames + 1 more mint. Worth it for the symmetric honest family.
 
-The estimate is similar to Option B's was, but the work shape is DIFFERENT:
-- Option B: pure rename (95% of sites are mechanical Atom → atomize replacements)
-- Option A (current): rename ~10% (atom-value → materialize) + REPLACE ~90% with appropriate narrow verbs (caller-by-caller decision on which narrow verb fits each site)
+## What this arc does NOT do
 
-Option A is more thinking work per call site but produces an honest verb family.
+- Touch holon-rs (the algebra primitives stay; arc 230 retires variants later)
+- Implement collection classifier-wrap (arc 228's scope)
+- Mint type predicates (arc 226)
+- Touch the quasiquote evaluator (arc 229; deferred)
+- EDN-form named constructors at wat-surface (arc 222)
+- WatAST primitive-layer honesty (arc 223)
 
 ## Cross-references
 
-- arc 224 AGGREGATE-FINDINGS.md — Group B scope that this arc addresses
-- arc 224 FINDINGS-INTUERI-RUNTIME.md — L1-1 + family pattern finding
-- arc 065 — the original `Atom` split into `leaf` / `from-watast` / narrowed Atom; this arc completes that work by also pulling the collection arms out
-- arc 221 — substrate-doctrine arc that surfaced the verb-naming honesty question
-- INTERSTITIAL § 2026-05-22 very-late → 2026-05-23 — the realization arc
-- [[atom-is-holder]] — substrate doctrine
-- [[spawn-block-winding]] — arc 225 parentage
-
-## Open question for the BRIEF (one remaining)
-
-**Does `:wat::holon::Bundle` accept collection-shape Value inputs (Vec/Tuple/HashSet/HashMap), or only `Value::Vec<HolonAST>`?** If the latter (preliminary grep suggests so), Stone 225.1 needs a sub-stone that either:
-- Extends Bundle's constructor to recognize the collection types, OR
-- Mints dedicated `:wat::holon::Set` / `:wat::holon::Map` constructor verbs that produce Bundle composition shapes
-
-This is an Option A implementation detail the BRIEF must resolve before sonnet runs. Pre-Stone-225.1 grep needed.
+- arc 224 FINDINGS-INTUERI-BRIDGE-OPS.md — the cast that resolved the bridge naming
+- arc 224 FINDINGS-INTUERI-RUNTIME.md — the audit that surfaced the original Atom verb lie
+- arc 224 AGGREGATE-FINDINGS.md — Group B scope (which this arc fulfills)
+- arc 228 DESIGN.md — spawn child; collection classifier-wrap built on this arc's clean Atom semantics
+- arc 222 DESIGN.md — sibling arc; EDN-form constructors use this arc's bridge verbs
+- arc 230 DESIGN.md — descendant; variant retirement built on the typed-entities doctrine
+- [[typed-entities-doctrine]] memory — load-bearing doctrine
+- [[atom-is-holder]] memory — earlier framing; refreshed under typed-entities
+- INTERSTITIAL § 2026-05-23 evening — doctrine landing
+- INTERSTITIAL § 2026-05-22 (post-compaction) — bridge naming dialogue + timeline correction
+- `feedback_spawn_block_winding` — parentage discipline
+- `feedback_inscription_immutable` — doctrine for forward-correcting earlier arcs
+- `feedback_substrate_as_teacher` (`docs/SUBSTRATE-AS-TEACHER.md`) — cascade methodology for Stone 225.1
