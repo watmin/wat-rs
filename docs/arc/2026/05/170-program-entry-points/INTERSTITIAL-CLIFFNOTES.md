@@ -64,6 +64,7 @@ These ARE the substrate's identity. Memory entries auto-load; pointer per doctri
 | Language-as-thought-tool | INTERSTITIAL § 2026-05-22 (final section) | Rust's type system has no opinion on substrate honesty (`Symbol("nil")` and `Symbol("#uuid")` are identical-shape per compiler). Wat makes "is this enum honest?" a wat-native question because HolonAST IS the algebra + encoding boundary is named (`value_to_atom`) + doctrine becomes data the substrate manipulates. Lisp-on-Rust hosts thoughts that pure Rust suppresses. The substrate's reflexivity is the difference. |
 | **Atom-is-holder + layered honesty + verb-name family pattern** | `project_atom_is_holder` + INTERSTITIAL §§ 2026-05-22 very-late → 2026-05-23 + arc 224 FINDINGS docs + arc 225 DESIGN.md | **TWO LAYERS, both consistent (2026-05-23 resolution).** (1) Source-form (parsed pre-eval): ALL four macro sigils `'` `` ` `` `~` `~@` are Bundle-of-verb at substrate source-encoding — consistent shape. (2) Evaluated-form (post-eval): all reduce to Atom-wrapped substrate forms — Atom is the holder primitive carrying the "this is held" semantic. **Substrate stays at 16 HolonAST variants — no expansion.** Each variant has a Pascal-Case constructor verb (`(:wat::holon::Bool b)`, ..., `(:wat::holon::Atom h)` — narrow to HolonAST input, returns HolonAST::Atom wrap). Lowercase verbs = operations (polymorphism honest by nature). EDN forms (Map/Set/Vector/List/Tagged) compile to substrate compositions; arc 222's territory. Reader macros expand at parse time to verb-form Bundles; evaluator handles deferred-expansion semantics; quasiquote consumes Unquote/Splice markers during expansion. Tag-the-variant reserved for EDN tagged literals (`#name value`) — NOT for macro sigils. **The lie was `:wat::holon::Atom` polymorphic across 9 input arms** (arc 224 audit). The fix is narrow Atom + rename `:wat::core::atom-value` → `:wat::holon::materialize` (arc 225). `leaf` as a category-name retires; each value-leaf has its own Pascal-Case constructor. User: *"our names are finding themselves but they are not found yet"* — found 2026-05-23 afternoon. |
 | **Spawn-block winding discipline** | `feedback_spawn_block_winding` + INTERSTITIAL § 2026-05-22 (late, post Stone 221.2 ship) | **Parent arc CANNOT close until ALL spawned children close.** Spawn-by-nature: any arc created while another arc is the active context (sonnet running OR DESIGN/paperwork being authored) is that arc's child — no "noticed during dialogue" exemption. Wind forward through chain depth-first; **never jump between arcs**. INSCRIPTION is always the LAST stone in an arc (fires only after substrate work + all spawn children closed). Capability dependencies (what X needs to begin work) are NOT the same as spawn-block (what X's CLOSURE requires); when they conflict, spawn-block wins. Recognition signal: when articulating "X can run in parallel" or "X is independent" for a spawned child, that's the dishonest hedge — discipline says child blocks parent. |
+| **defrecord/defservice distinction** | `project_defrecord_defservice_doctrine` + arc 227 Stone 227.1b (commit `aa2b9f1`) + arc 209 DESIGN.md § handler-contract | **TWO ABSTRACTIONS, ONE monadic shape.** `defrecord` wraps **immutable data** (no protection needed; immutability IS the protection); mutations construct NEW instances; methods are SEPARATE defns; analog = Clojure defrecord / Rust struct. `defservice` wraps **mutable state** in mutex (admin/user capability tiers); handlers run inside dispatch loop; analog = Erlang gen_server / Akka actor. Both share `(s, d) -> (s, D)` monadic handler shape — supervision differs (loop-owned vs caller-owned). **Load-bearing for arc 232** (defprotocol applies to defrecord ONLY; defservice has its own protocol built-in via admin/user split). User 2026-05-22 night: *"the data that the holon holds doesn't change - a new holon can be made who holds different data - that's the agreement?"* — YES. Stone 227.1b locked the verb name. |
 
 Other key references: `feedback_compaction_protocols`, `feedback_docs_when_confused`, `feedback_iterative_complexity`, `feedback_simple_is_uniform_composition`, `feedback_verbose_is_honest`, `feedback_ward_zone_comms_only`, `feedback_collapse_to_llm_in_loop`, `feedback_tractability_tiebreaker`, `feedback_defect_fix_or_panic_never_revert`.
 
@@ -165,9 +166,9 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-22 night — TYPED-ENTITIES CHAIN COMPLETE; 5 stones shipped; substrate algebra at 12 primitives + queryable types + user-extensible)
+## Currently (2026-05-22 night — TYPED-ENTITIES CHAIN COMPLETE + defrecord/defservice doctrine inscribed + arc 232 stub claimed)
 
-### THE CHAIN IS COMPLETE — 5 substrate stones shipped today
+### THE CHAIN IS COMPLETE — 6 substrate stones shipped this session
 
 ```
 arc 225 ✓ Stone 225.1 v3 SHIPPED at 189b033 (~68 min)
@@ -187,10 +188,20 @@ arc 226 ✓ Stone 226.1 SHIPPED at e7ba909 (~11 min)
    type predicates: is?/is-Map?/is-Set?/is-Vector?/is-List?/is-Tuple?/is-Symbol?/is-Keyword?/is-Tag?/is-Nil?
    27 probe tests PASS
 
-arc 227 ✓ Stone 227.1 v3 SHIPPED at 0956d25 (~18 min) — THE CLOSING DRAGON
-   :wat::holon::defclass macro; user-defined types in user-declared FQDN namespaces
+arc 227 ✓ Stone 227.1 v3 SHIPPED at 0956d25 (~18 min)
+   defclass single-data macro; user-defined types in user-declared FQDN namespaces
    18 probe tests PASS
+
+arc 227 ✓ Stone 227.1b SHIPPED at aa2b9f1 (~5 min) — HONEST-NAME LOCK
+   defclass → defrecord rename (HARD CUT; no aliases)
+   "Class" implies methods + mutable state; "record" honest about immutable data
 ```
+
+### Post-chain inscription (this turn)
+
+- `project_defrecord_defservice_doctrine` memory entry inscribed
+- CLIFFNOTES doctrines table now carries the distinction (above) as load-bearing for arc 232
+- Arc 232 stub `docs/arc/2026/05/232-defprotocol-extend-type/DESIGN.md` claimed earlier this session (commit `064aae7`)
 
 ### Substrate state — the algebra is at its purest
 
@@ -226,7 +237,13 @@ e7ba909  arc 226 Stone 226.1 — type predicates
 e71cedb  arc 227 v3 BRIEF + EXPECTATIONS (corrected namespace violations)
 42bbf0a  arc 227 Stone 227.2 notes (defservice precedent for future)
 1c1ce06  arc 227 Stone 227.2 notes — square brackets per Clojure idiom
-0956d25  arc 227 Stone 227.1 v3 — defclass macro (THE CLOSING DRAGON)
+0956d25  arc 227 Stone 227.1 v3 — defclass macro
+bd903a8  CLIFFNOTES refresh — chain complete; compaction-prep
+cf1f861  arc 227 FUTURE notes — defprotocol + extend-type
+c3cf395  arc 232 claimed — defprotocol/extend-type stub on map
+064aae7  arc 232 DESIGN header reshape to stub-arc format
+dc3180a  arc 227 Stone 227.1b BRIEF + EXPECTATIONS — defclass → defrecord rename
+aa2b9f1  arc 227 Stone 227.1b — defclass → defrecord rename SHIPPED (HARD CUT)
 ```
 
 ### Test summary (all green; the substrate is impeccable)
@@ -248,7 +265,9 @@ e71cedb  arc 227 v3 BRIEF + EXPECTATIONS (corrected namespace violations)
 | 470 | ✓ | Stone 230.1 THE BIG ONE |
 | 471 | ✓ | arc216 stone4 cleanup |
 | 472 | ✓ | Stone 226.1 |
-| 473 | ✓ | Stone 227.1 v3 THE CLOSING DRAGON |
+| 473 | ✓ | Stone 227.1 v3 (defclass) |
+| 474 | in_progress | FUTURE arc 232+ — defprotocol + extend-type (stub claimed) |
+| 475 | ✓ | Stone 227.1b — defclass → defrecord rename (HARD CUT) |
 
 ### Wat-reveals-holon dynamic — 5TH application complete
 
