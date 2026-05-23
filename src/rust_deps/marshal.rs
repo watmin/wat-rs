@@ -65,7 +65,7 @@ impl FromWat for i64 {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "i64",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span, // arc 138 F4b: real span threaded through
             }),
         }
@@ -85,7 +85,7 @@ impl FromWat for f64 {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span, // arc 138 F4b: real span threaded through
             }),
         }
@@ -105,7 +105,7 @@ impl FromWat for bool {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "bool",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span, // arc 138 F4b: real span threaded through
             }),
         }
@@ -125,7 +125,7 @@ impl FromWat for String {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span, // arc 138 F4b: real span threaded through
             }),
         }
@@ -147,7 +147,7 @@ impl FromWat for () {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "()",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span, // arc 138 F4b: real span threaded through
             }),
         }
@@ -172,7 +172,7 @@ impl<T: FromWat> FromWat for Option<T> {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Option",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span, // arc 138 F4b: real span threaded through
             }),
         }
@@ -220,7 +220,7 @@ macro_rules! impl_tuple_marshaling {
                     other => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
                         expected: "Tuple",
-                        got: other.type_name(),
+                        got: crate::runtime::ValueSnapshot::of(&other),
                         span, // arc 138 F4b: real span threaded through
                     }),
                 }
@@ -258,7 +258,7 @@ impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Result",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span, // arc 138 F4b: real span threaded through
             }),
         }
@@ -283,7 +283,7 @@ impl<T: FromWat> FromWat for Vec<T> {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Vector",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span, // arc 138 F4b: real span threaded through
             }),
         }
@@ -364,7 +364,7 @@ pub fn rust_opaque_arc(
                 return Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: expected_path,
-                    got: inner.type_path,
+                    got: crate::runtime::ValueSnapshot::unavailable(inner.type_path),
                     span,
                 });
             }
@@ -373,7 +373,7 @@ pub fn rust_opaque_arc(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
-            got: other.type_name(),
+            got: crate::runtime::ValueSnapshot::of(&other),
             span,
         }),
     }
@@ -540,7 +540,7 @@ pub fn downcast_ref_opaque<'a, T: Any>(
         return Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
-            got: inner.type_path,
+            got: crate::runtime::ValueSnapshot::unavailable(inner.type_path),
             span: span.clone(),
         });
     }
@@ -548,7 +548,7 @@ pub fn downcast_ref_opaque<'a, T: Any>(
         RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
-            got: "(payload downcast failed — shim author misalignment)",
+            got: crate::runtime::ValueSnapshot::unavailable("payload downcast failed — shim author misalignment"),
             span,
         }
     })
@@ -731,7 +731,7 @@ mod tests {
             RuntimeError::TypeMismatch { op, expected, got, .. } => {
                 assert_eq!(op, ":rust::test::method");
                 assert_eq!(expected, "i64");
-                assert_eq!(got, "wat::core::String");
+                assert_eq!(got.type_name, "wat::core::String");
             }
             other => panic!("expected TypeMismatch, got {:?}", other),
         }

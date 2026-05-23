@@ -303,7 +303,7 @@ pub fn eval_kernel_wait_child(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::ChildHandle",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -568,7 +568,7 @@ pub fn eval_kernel_fork_program_ast(
                         return Err(RuntimeError::TypeMismatch {
                             op: OP.into(),
                             expected: "wat::WatAST",
-                            got: other.type_name(),
+                            got: crate::runtime::ValueSnapshot::of(&other),
                             span: crate::span::Span::unknown(),
                         });
                     }
@@ -580,7 +580,7 @@ pub fn eval_kernel_fork_program_ast(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<wat::WatAST>",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -1118,7 +1118,7 @@ pub fn eval_kernel_fork_program(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -1131,7 +1131,7 @@ pub fn eval_kernel_fork_program(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "Option<String>",
-                    got: other.type_name(),
+                    got: crate::runtime::ValueSnapshot::of(&other),
                     span: args[1].span().clone(),
                 });
             }
@@ -1141,7 +1141,7 @@ pub fn eval_kernel_fork_program(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Option<String>",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }

@@ -135,7 +135,7 @@ pub fn eval_string_join(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -146,7 +146,7 @@ pub fn eval_string_join(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<String>",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -160,7 +160,7 @@ pub fn eval_string_join(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
-                    got: other.type_name(),
+                    got: crate::runtime::ValueSnapshot::of(&other),
                     span: crate::span::Span::unknown(),
                 });
             }
@@ -208,7 +208,7 @@ pub fn eval_string_concat(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
-                    got: other.type_name(),
+                    got: crate::runtime::ValueSnapshot::of(&other),
                     span: arg.span().clone(),
                 });
             }
@@ -301,7 +301,7 @@ pub fn eval_uuid_typed_v5(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Uuid".into(),
-                got: ns_val.type_name().into(),
+                got: crate::runtime::ValueSnapshot::of(&ns_val),
                 span: args[0].span().clone(),
             });
         }
@@ -312,7 +312,7 @@ pub fn eval_uuid_typed_v5(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String".into(),
-                got: name_val.type_name().into(),
+                got: crate::runtime::ValueSnapshot::of(&name_val),
                 span: args[1].span().clone(),
             });
         }
@@ -350,7 +350,7 @@ pub fn eval_uuid_typed_from_string(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String".into(),
-                got: s_val.type_name().into(),
+                got: crate::runtime::ValueSnapshot::of(&s_val),
                 span: args[0].span().clone(),
             });
         }
@@ -391,7 +391,7 @@ pub fn eval_uuid_typed_to_string(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Uuid".into(),
-                got: u_val.type_name().into(),
+                got: crate::runtime::ValueSnapshot::of(&u_val),
                 span: args[0].span().clone(),
             });
         }
@@ -461,7 +461,7 @@ pub fn eval_char_of(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -568,7 +568,7 @@ fn one_string(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: other.type_name(),
+            got: crate::runtime::ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -598,7 +598,7 @@ fn two_strings(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -609,7 +609,7 @@ fn two_strings(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }

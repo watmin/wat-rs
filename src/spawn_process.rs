@@ -117,7 +117,7 @@ pub fn eval_kernel_spawn_process(
                         return Err(RuntimeError::TypeMismatch {
                             op: OP.into(),
                             expected: "wat::WatAST",
-                            got: other.type_name(),
+                            got: crate::runtime::ValueSnapshot::of(&other),
                             span: args[0].span().clone(),
                         });
                     }
@@ -129,7 +129,7 @@ pub fn eval_kernel_spawn_process(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<wat::WatAST>",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }

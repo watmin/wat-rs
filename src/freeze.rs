@@ -1045,7 +1045,7 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
             return Err(RuntimeError::TypeMismatch {
                 op: label.to_string(),
                 expected: "wat::kernel::Thread",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: Span::unknown(),
             });
         }
@@ -1071,7 +1071,7 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
             return Err(RuntimeError::TypeMismatch {
                 op: label.to_string(),
                 expected: "wat::kernel::ProgramHandle (service Thread.join slot)",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: Span::unknown(),
             });
         }
@@ -1099,7 +1099,7 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
         crate::runtime::ProgramHandleInner::Forked(_) => Err(RuntimeError::TypeMismatch {
             op: label.to_string(),
             expected: "InThread variant for service Thread",
-            got: "Forked variant — substrate bug",
+            got: crate::runtime::ValueSnapshot::unavailable("Forked variant — substrate bug"),
             span: Span::unknown(),
         }),
     }

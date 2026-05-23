@@ -1623,16 +1623,86 @@ impl SymbolTable {
     }
 }
 
+/// Provenance of a Value — where it came from.
+///
+/// Stone 233.1 ships only `Unknown`. Stone 233.2 adds variants:
+/// `Literal { span }` — the value appeared as a literal in source
+/// `SymbolBound { binding_site, head_site }` — bound via let; trace via span
+/// `RuntimeBuilt { producer, head_site }` — built by `keyword/from-string`,
+///   `from-holon`, mailbox payload, etc.
+#[derive(Debug, Clone)]
+pub enum Provenance {
+    Unknown,
+}
+
+/// Snapshot of a value attached to a runtime error for diagnostic richness.
+///
+/// Carries the value's type name (cheap; static) AND a rendered form
+/// (heap-allocated; constructed at error-creation time via `render_value`).
+///
+/// `provenance` is `Unknown` in 233.1. Stone 233.2 fills it with real
+/// variants (Literal / SymbolBound / RuntimeBuilt) once Value-level
+/// provenance tracking lands.
+#[derive(Debug, Clone)]
+pub struct ValueSnapshot {
+    pub type_name: &'static str,
+    pub rendered: String,
+    pub provenance: Provenance,
+}
+
+impl ValueSnapshot {
+    /// Construct from a runtime Value at error-creation time. Uses
+    /// existing `render_value` for the rendered field; `Provenance::Unknown`
+    /// always in v1.
+    pub fn of(v: &Value) -> Self {
+        ValueSnapshot {
+            type_name: v.type_name(),
+            rendered: render_value(v, 0),
+            provenance: Provenance::Unknown,
+        }
+    }
+
+    /// Synthetic snapshot for error sites where the actual Value is not
+    /// available (e.g., struct-field pattern failures, retired-verb stubs).
+    /// Uses `type_name` as the category and `"<unavailable>"` as rendered.
+    pub fn unavailable(type_name: &'static str) -> Self {
+        ValueSnapshot {
+            type_name,
+            rendered: "<unavailable>".into(),
+            provenance: Provenance::Unknown,
+        }
+    }
+
+    /// Synthetic snapshot with a custom rendered description. Used when a
+    /// runtime computation (not a Value) produces the diagnostic string
+    /// (e.g., an out-of-range integer cell value).
+    pub fn described(type_name: &'static str, description: String) -> Self {
+        ValueSnapshot {
+            type_name,
+            rendered: description,
+            provenance: Provenance::Unknown,
+        }
+    }
+}
+
+impl std::fmt::Display for ValueSnapshot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Type name followed by rendered content in backticks.
+        // Example: "wat::core::keyword `:wat::core::i64::+'2`"
+        write!(f, "{} `{}`", self.type_name, self.rendered)
+    }
+}
+
 /// Runtime error.
 #[derive(Debug)]
 pub enum RuntimeError {
     UnboundSymbol(String, Span),
     UnknownFunction(String, Span),
-    NotCallable { got: &'static str, span: Span },
+    NotCallable { got: ValueSnapshot, span: Span },
     TypeMismatch {
         op: String,
         expected: &'static str,
-        got: &'static str,
+        got: ValueSnapshot,
         span: Span,
     },
     ArityMismatch {
@@ -1641,7 +1711,7 @@ pub enum RuntimeError {
         got: usize,
         span: Span,
     },
-    BadCondition { got: &'static str, span: Span },
+    BadCondition { got: ValueSnapshot, span: Span },
     MalformedForm { head: String, reason: String, span: Span },
     ParamShadowsBuiltin(String, Span),
     DivisionByZero(Span),
@@ -1889,7 +1959,7 @@ impl fmt::Display for RuntimeError {
                 write!(f, "{}{}: expected {} arguments, got {}", span_prefix(span), op, expected, got)
             }
             RuntimeError::BadCondition { got, span } => {
-                write!(f, "{}if / when condition must be :bool; got {}", span_prefix(span), got)
+                write!(f, "{}if / when condition must be :wat::core::bool; got {}", span_prefix(span), got)
             }
             RuntimeError::MalformedForm { head, reason, span } => {
                 write!(f, "{}malformed {} form: {}", span_prefix(span), head, reason)
@@ -4120,7 +4190,7 @@ fn eval_if_tail(
         Value::bool(true) => eval_tail(&args[3], env, sym),
         Value::bool(false) => eval_tail(&args[4], env, sym),
         other => Err(RuntimeError::BadCondition {
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -5231,7 +5301,7 @@ fn dispatch_keyword_head(
             Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::process-send".into(),
                 expected: "Process/stdin (IOWriter) + Sender/from-pipe for typed sends",
-                got: "(retired verb — arc 170 Stone C)",
+                got: ValueSnapshot::unavailable("retired verb — arc 170 Stone C"),
                 span: list_span.clone(),
             })
         }
@@ -5239,7 +5309,7 @@ fn dispatch_keyword_head(
             Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::process-recv".into(),
                 expected: "Process/stdout (IOReader) + Receiver/from-pipe for typed recvs",
-                got: "(retired verb — arc 170 Stone C)",
+                got: ValueSnapshot::unavailable("retired verb — arc 170 Stone C"),
                 span: list_span.clone(),
             })
         }
@@ -5451,7 +5521,7 @@ fn dispatch_keyword_head(
                             Value::wat__core__fn(f) => f.clone(),
                             other_val => {
                                 return Err(RuntimeError::NotCallable {
-                                    got: other_val.type_name(),
+                                    got: ValueSnapshot::of(&other_val),
                                     span: list_span.clone(),
                                 });
                             }
@@ -5950,7 +6020,7 @@ fn bind_let_binding(
                     return Err(RuntimeError::TypeMismatch {
                         op: ":wat::core::let".into(),
                         expected: "wat::core::Struct",
-                        got: other.type_name(),
+                        got: ValueSnapshot::of(&other),
                         span: rhs.span().clone(),
                     });
                 }
@@ -6078,7 +6148,7 @@ fn destructure_tuple(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::core::Tuple",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -6276,7 +6346,7 @@ fn eval_if(
         Value::bool(true) => eval(&args[3], env, sym),
         Value::bool(false) => eval(&args[4], env, sym),
         other => Err(RuntimeError::BadCondition {
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -6329,7 +6399,7 @@ fn eval_cond(
             Value::bool(false) => continue,
             other => {
                 return Err(RuntimeError::BadCondition {
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: items[0].span().clone(),
                 });
             }
@@ -6377,7 +6447,7 @@ fn eval_cond_tail(
             Value::bool(false) => continue,
             other => {
                 return Err(RuntimeError::BadCondition {
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: items[0].span().clone(),
                 });
             }
@@ -6508,13 +6578,13 @@ where
         (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: a_span,
         }),
         (_, other) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: b_span,
         }),
     }
@@ -6555,7 +6625,7 @@ fn eval_u8_cast(
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::u8".into(),
             expected: "i64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: arg_span,
         }),
     }
@@ -6591,13 +6661,13 @@ where
         (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "f64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: a_span,
         }),
         (_, other) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "f64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: b_span,
         }),
     }
@@ -6638,13 +6708,13 @@ where
         (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: a_span,
         }),
         (_, other) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "f64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: b_span,
         }),
     }
@@ -6682,13 +6752,13 @@ where
         (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "f64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: a_span,
         }),
         (_, other) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: b_span,
         }),
     }
@@ -6724,7 +6794,7 @@ fn eval_one_arg<T>(
     extract(v).map_err(|other| RuntimeError::TypeMismatch {
         op: head.into(),
         expected,
-        got: other.type_name(),
+        got: ValueSnapshot::of(&other),
         span: arg_span,
     })
 }
@@ -6849,7 +6919,7 @@ fn eval_f64_round(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "f64",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: arg0_span,
             });
         }
@@ -6860,7 +6930,7 @@ fn eval_f64_round(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "i64",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: arg1_span.clone(),
             });
         }
@@ -6909,7 +6979,7 @@ fn eval_f64_unary(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: arg_span,
             });
         }
@@ -6947,7 +7017,7 @@ fn eval_f64_clamp(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "f64",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: arg_span,
                 });
             }
@@ -7254,7 +7324,7 @@ fn eval_apply(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::apply".into(),
                 expected: "wat::core::Vector",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: spread_ast.span().clone(),
             });
         }
@@ -7273,7 +7343,7 @@ fn eval_apply(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::apply".into(),
                 expected: "wat::core::keyword",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[2].span().clone(),
             });
         }
@@ -7324,7 +7394,7 @@ fn eval_apply(
             }
             other_val => {
                 return Err(RuntimeError::NotCallable {
-                    got: other_val.type_name(),
+                    got: ValueSnapshot::of(&other_val),
                     span: list_span,
                 });
             }
@@ -7426,7 +7496,7 @@ fn eval_eq(
         None => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "matching comparable pair",
-            got: a.type_name(),
+            got: ValueSnapshot::of(&a),
             span: a_span,
         }),
     }
@@ -7456,7 +7526,7 @@ fn eval_not_eq(
         other => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "bool from inner eq",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: list_span.clone(),
         }),
     }
@@ -7766,7 +7836,7 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
             return Err(RuntimeError::TypeMismatch {
                 op: head.into(),
                 expected: "matching comparable pair",
-                got: a.type_name(),
+                got: ValueSnapshot::of(&a),
                 span: a_span,
             });
         }
@@ -7887,7 +7957,7 @@ fn apply_arith_pair(
         _ => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "matching numeric pair (i64 or f64)",
-            got: a.type_name(),
+            got: ValueSnapshot::of(&a),
             span: a_span.clone(),
         }),
     }
@@ -7948,7 +8018,7 @@ fn eval_arithmetic_variadic(
                     return Err(RuntimeError::TypeMismatch {
                         op: head.into(),
                         expected: "i64 or f64",
-                        got: v.type_name(),
+                        got: ValueSnapshot::of(&v),
                         span: arg_span,
                     });
                 }
@@ -7961,7 +8031,7 @@ fn eval_arithmetic_variadic(
             _ => Err(RuntimeError::TypeMismatch {
                 op: head.into(),
                 expected: "i64 or f64",
-                got: v.type_name(),
+                got: ValueSnapshot::of(&v),
                 span: arg_span,
             }),
         }
@@ -8000,7 +8070,7 @@ fn eval_not(
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::not".into(),
             expected: "bool",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: arg_span,
         }),
     }
@@ -8021,7 +8091,7 @@ fn eval_and(
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::core::and".into(),
                     expected: "bool",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: arg_span,
                 })
             }
@@ -8044,7 +8114,7 @@ fn eval_or(
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::core::or".into(),
                     expected: "bool",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: arg_span,
                 })
             }
@@ -8134,7 +8204,7 @@ fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>, RuntimeErr
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::core::Vector",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8149,7 +8219,7 @@ fn require_i64(op: &'static str, v: Value) -> Result<i64, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "i64",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8182,7 +8252,7 @@ fn vector_length_inner(v: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::Vector/length".into(),
             expected: "Vec<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8195,7 +8265,7 @@ fn list_length_inner(v: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::List/length".into(),
             expected: "List<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8207,7 +8277,7 @@ fn hashmap_length_inner(v: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashMap/length".into(),
             expected: "HashMap<K,V>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8219,7 +8289,7 @@ fn hashset_length_inner(v: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashSet/length".into(),
             expected: "HashSet<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8299,7 +8369,7 @@ fn vector_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::Vector/empty?".into(),
             expected: "Vec<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8311,7 +8381,7 @@ fn hashmap_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashMap/empty?".into(),
             expected: "HashMap<K,V>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8323,7 +8393,7 @@ fn hashset_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashSet/empty?".into(),
             expected: "HashSet<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8336,7 +8406,7 @@ fn list_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::List/empty?".into(),
             expected: "List<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8407,7 +8477,7 @@ fn vector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, Run
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::Vector/contains?".into(),
             expected: "Vec<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8424,7 +8494,7 @@ fn list_contains_q_inner(container: &Value, item: &Value) -> Result<Value, Runti
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::List/contains?".into(),
             expected: "List<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8444,7 +8514,7 @@ fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value,
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashMap/contains-key?".into(),
             expected: "HashMap<K,V>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8465,7 +8535,7 @@ fn hashset_contains_q_inner(container: &Value, item: &Value) -> Result<Value, Ru
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashSet/contains?".into(),
             expected: "HashSet<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8536,7 +8606,7 @@ fn vector_get_inner(container: &Value, index: &Value) -> Result<Value, RuntimeEr
                     return Err(RuntimeError::TypeMismatch {
                         op: ":wat::core::Vector/get".into(),
                         expected: "i64 index",
-                        got: other.type_name(),
+                        got: ValueSnapshot::of(&other),
                         span: Span::unknown(),
                     });
                 }
@@ -8550,7 +8620,7 @@ fn vector_get_inner(container: &Value, index: &Value) -> Result<Value, RuntimeEr
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::Vector/get".into(),
             expected: "Vec<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8567,7 +8637,7 @@ fn list_get_inner(container: &Value, index: &Value) -> Result<Value, RuntimeErro
                     return Err(RuntimeError::TypeMismatch {
                         op: ":wat::core::List/get".into(),
                         expected: "i64 index",
-                        got: other.type_name(),
+                        got: ValueSnapshot::of(&other),
                         span: Span::unknown(),
                     });
                 }
@@ -8583,7 +8653,7 @@ fn list_get_inner(container: &Value, index: &Value) -> Result<Value, RuntimeErro
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::List/get".into(),
             expected: "List<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8605,7 +8675,7 @@ fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value, RuntimeErr
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashMap/get".into(),
             expected: "HashMap<K,V>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -8812,7 +8882,7 @@ fn program_env_lookup(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: key_span.clone(),
             });
         }
@@ -9122,7 +9192,7 @@ fn eval_program_env_dig(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -9134,7 +9204,7 @@ fn eval_program_env_dig(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vector<HolonAST> path",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -9172,7 +9242,7 @@ fn eval_program_env_expect_dig(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -9183,7 +9253,7 @@ fn eval_program_env_expect_dig(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vector<HolonAST> path",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -9241,7 +9311,7 @@ fn eval_program_env_dig_default(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -9252,7 +9322,7 @@ fn eval_program_env_dig_default(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vector<HolonAST> path",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -9275,7 +9345,7 @@ fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeEr
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::Vector/conj".into(),
             expected: "Vec<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -9294,7 +9364,7 @@ fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeErro
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::List/conj".into(),
             expected: "List<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -9317,7 +9387,7 @@ fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeE
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::core::HashSet/conj".into(),
                     expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                    got: item.type_name(),
+                    got: ValueSnapshot::of(&item),
                     span: Span::unknown(),
                 });
             }
@@ -9328,7 +9398,7 @@ fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeE
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::HashSet/conj".into(),
             expected: "HashSet<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -9400,7 +9470,7 @@ fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value,
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                    got: k.type_name(),
+                    got: ValueSnapshot::of(&k),
                     span: Span::unknown(),
                 });
             }
@@ -9411,7 +9481,7 @@ fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value,
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -9438,7 +9508,7 @@ fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value, RuntimeEr
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -9458,7 +9528,7 @@ fn hashmap_keys_inner(container: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -9475,7 +9545,7 @@ fn hashmap_values_inner(container: &Value) -> Result<Value, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: Span::unknown(),
         }),
     }
@@ -9489,7 +9559,7 @@ fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, RuntimeErro
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<T>",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: Span::unknown(),
             });
         }
@@ -9500,7 +9570,7 @@ fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, RuntimeErro
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<T>",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: Span::unknown(),
             });
         }
@@ -9788,7 +9858,7 @@ where
         _ => Err(RuntimeError::TypeMismatch {
             op: impl_name.into(),
             expected: "(i64, i64)",
-            got: a.type_name(),
+            got: ValueSnapshot::of(&a),
             span: Span::unknown(),
         }),
     }
@@ -9812,7 +9882,7 @@ where
         _ => Err(RuntimeError::TypeMismatch {
             op: impl_name.into(),
             expected: "(f64, f64)",
-            got: a.type_name(),
+            got: ValueSnapshot::of(&a),
             span: Span::unknown(),
         }),
     }
@@ -9836,7 +9906,7 @@ where
         _ => Err(RuntimeError::TypeMismatch {
             op: impl_name.into(),
             expected: "(i64, f64)",
-            got: a.type_name(),
+            got: ValueSnapshot::of(&a),
             span: Span::unknown(),
         }),
     }
@@ -9860,7 +9930,7 @@ where
         _ => Err(RuntimeError::TypeMismatch {
             op: impl_name.into(),
             expected: "(f64, i64)",
-            got: a.type_name(),
+            got: ValueSnapshot::of(&a),
             span: Span::unknown(),
         }),
     }
@@ -10016,7 +10086,7 @@ fn eval_vec_sort_by(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -10040,7 +10110,7 @@ fn eval_vec_sort_by(
                 other => Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "bool",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     // arc 138: no span — inside sort_by closure, no AST args in scope
                     span: Span::unknown(),
                 }),
@@ -10100,7 +10170,7 @@ fn eval_vec_map(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::map".into(),
                 expected: "wat::core::fn",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: Span::unknown(),
             });
         }
@@ -10139,7 +10209,7 @@ fn eval_vec_foldl(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::foldl".into(),
                 expected: "wat::core::fn",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: Span::unknown(),
             });
         }
@@ -10177,7 +10247,7 @@ fn eval_vec_foldr(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::foldr".into(),
                 expected: "wat::core::fn",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: Span::unknown(),
             });
         }
@@ -10213,7 +10283,7 @@ fn eval_vec_filter(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::filter".into(),
                 expected: "wat::core::fn",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: Span::unknown(),
             });
         }
@@ -10228,7 +10298,7 @@ fn eval_vec_filter(
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::core::filter".into(),
                     expected: "bool",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: Span::unknown(),
                 });
             }
@@ -10447,7 +10517,7 @@ fn eval_hashmap_ctor(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::HashMap".into(),
                 expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                got: k.type_name(),
+                got: ValueSnapshot::of(&k),
                 span: pair[0].span().clone(),
             });
         }
@@ -10510,7 +10580,7 @@ fn eval_hashset_ctor(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::HashSet".into(),
                 expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                got: v.type_name(),
+                got: ValueSnapshot::of(&v),
                 span: a.span().clone(),
             });
         }
@@ -10689,7 +10759,7 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, Runtime
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "primitive (i64/f64/bool/String/keyword) or :wat::WatAST",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span,
         }),
     }
@@ -10737,7 +10807,7 @@ fn eval_struct_to_form(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "struct value (e.g. `:my::Foo/new`'s output)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -11453,7 +11523,7 @@ fn eval_lookup_define(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::core::keyword or named function (e.g. :my::fn)",
-                    got: v.type_name(),
+                    got: ValueSnapshot::of(&v),
                     span: args[0].span().clone(),
                 });
             }
@@ -11544,7 +11614,7 @@ fn eval_signature_of_defn(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::keyword or named function (e.g. :my::fn)",
-                got: v.type_name(),
+                got: ValueSnapshot::of(&v),
                 span: args[0].span().clone(),
             });
         }
@@ -11664,7 +11734,7 @@ fn eval_signature_of_fn(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn value (e.g., from `(:wat::core::fn [...] -> :T body)`)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -11703,7 +11773,7 @@ fn eval_body_of(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::keyword or named function (e.g. :my::fn)",
-                got: v.type_name(),
+                got: ValueSnapshot::of(&v),
                 span: args[0].span().clone(),
             });
         }
@@ -11752,7 +11822,7 @@ fn require_bundle<'a>(
         _ => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Bundle (signature head HolonAST)",
-            got: "non-Bundle HolonAST variant",
+            got: ValueSnapshot::unavailable("non-Bundle HolonAST variant"),
             span: arg_span.clone(),
         }),
     }
@@ -11818,7 +11888,7 @@ fn eval_rename_callable_name(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (signature head)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -11833,7 +11903,7 @@ fn eval_rename_callable_name(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::keyword or named function (from name)",
-                got: from_val.type_name(),
+                got: ValueSnapshot::of(&from_val),
                 span: args[1].span().clone(),
             });
         }
@@ -11844,7 +11914,7 @@ fn eval_rename_callable_name(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::keyword or named function (to name)",
-                got: to_val.type_name(),
+                got: ValueSnapshot::of(&to_val),
                 span: args[2].span().clone(),
             });
         }
@@ -11856,7 +11926,7 @@ fn eval_rename_callable_name(
         return Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Bundle with at least one Keyword child (the function name, arc 221 doctrine)",
-            got: "empty Bundle",
+            got: ValueSnapshot::unavailable("empty Bundle"),
             span: args[0].span().clone(),
         });
     }
@@ -11869,7 +11939,7 @@ fn eval_rename_callable_name(
         return Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Keyword composition as first Bundle child (the function name, arc 230 doctrine)",
-            got: "non-Keyword first child",
+            got: ValueSnapshot::unavailable("non-Keyword first child"),
             span: args[0].span().clone(),
         });
     };
@@ -11946,7 +12016,7 @@ fn eval_extract_arg_names(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (signature head)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -12027,7 +12097,7 @@ fn eval_extract_arg_types(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (signature head)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -12095,7 +12165,7 @@ fn eval_bundle_children(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (Bundle)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -12142,7 +12212,7 @@ fn eval_bundle_first(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (Bundle)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -12151,7 +12221,7 @@ fn eval_bundle_first(
     let first = children.first().ok_or_else(|| RuntimeError::TypeMismatch {
         op: OP.into(),
         expected: "Bundle with at least one child",
-        got: "empty Bundle",
+        got: ValueSnapshot::unavailable("empty Bundle"),
         span: args[0].span().clone(),
     })?;
     Ok(Value::holon__HolonAST(Arc::new(first.clone())))
@@ -12431,7 +12501,7 @@ fn walk_match_clause(
                 other => Err(RuntimeError::TypeMismatch {
                     op: ":wat::form::matches?".into(),
                     expected: "bool from where-body",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: body.span().clone(),
                 }),
             }
@@ -12490,7 +12560,7 @@ fn eval_macroexpand_1(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::WatAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -12533,7 +12603,7 @@ fn eval_macroexpand(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::WatAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -12618,7 +12688,7 @@ fn eval_positional_accessor(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "tuple, Vec, or List",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -12675,7 +12745,7 @@ fn eval_vec_find_last_index(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -12695,7 +12765,7 @@ fn eval_vec_find_last_index(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "bool (predicate result)",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     // arc 138: no span — predicate result from apply_function; no AST arg in scope
                     span: Span::unknown(),
                 });
@@ -12736,7 +12806,7 @@ fn eval_f64_reduce(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Vec<f64>",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: arg_span,
             });
         }
@@ -12750,7 +12820,7 @@ fn eval_f64_reduce(
                 return Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: "Vec<f64>",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: arg_span.clone(),
                 });
             }
@@ -12806,7 +12876,7 @@ fn eval_vec_rest(
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::rest".into(),
             expected: "Vec or List",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -12837,7 +12907,7 @@ fn eval_list_map_with_index(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::std::list::map-with-index".into(),
                 expected: "wat::core::fn",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -12971,7 +13041,7 @@ fn eval_try(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Result<T,E>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -13021,7 +13091,7 @@ fn eval_option_try(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -13071,7 +13141,7 @@ fn eval_option_expect(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<T>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[2].span().clone(),
         }),
     }
@@ -13113,7 +13183,7 @@ fn eval_result_expect(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Result<T,E>",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[2].span().clone(),
         }),
     }
@@ -13164,7 +13234,7 @@ fn expect_panic(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: msg_ast.span().clone(),
             });
         }
@@ -13224,7 +13294,7 @@ fn eval_kernel_raise(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -13407,7 +13477,7 @@ fn eval_struct_field(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::struct-field".into(),
                 expected: "Struct",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -13844,7 +13914,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
                 RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: "classifier-wrapped Bundle (Bind(Atom(name), Bundle(...)))",
-                    got: "classifier-wrapped non-Bundle inner",
+                    got: ValueSnapshot::unavailable("classifier-wrapped non-Bundle inner"),
                     span: op_span.clone(),
                 }
             })?;
@@ -13865,7 +13935,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
                                 return Err(RuntimeError::TypeMismatch {
                                     op: op.into(),
                                     expected: "Bind(K, V) child in nested Map classifier-Bundle",
-                                    got: "non-Bind child in Map classifier-Bundle inner items",
+                                    got: ValueSnapshot::unavailable("non-Bind child in Map classifier-Bundle inner items"),
                                     span: op_span.clone(),
                                 });
                             }
@@ -13893,7 +13963,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
                                         return Err(RuntimeError::TypeMismatch {
                                             op: op.into(),
                                             expected: "I64 positional key in nested Vector classifier-Bundle",
-                                            got: "non-I64 Bind key in Vector classifier-Bundle",
+                                            got: ValueSnapshot::unavailable("non-I64 Bind key in Vector classifier-Bundle"),
                                             span: op_span.clone(),
                                         });
                                     }
@@ -13905,7 +13975,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
                                 return Err(RuntimeError::TypeMismatch {
                                     op: op.into(),
                                     expected: "Bind(I64, _) in nested Vector classifier-Bundle",
-                                    got: "non-Bind child in Vector classifier-Bundle inner items",
+                                    got: ValueSnapshot::unavailable("non-Bind child in Vector classifier-Bundle inner items"),
                                     span: op_span.clone(),
                                 });
                             }
@@ -13935,7 +14005,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
                                         return Err(RuntimeError::TypeMismatch {
                                             op: op.into(),
                                             expected: "I64 positional key in nested Tuple classifier-Bundle",
-                                            got: "non-I64 Bind key in Tuple classifier-Bundle",
+                                            got: ValueSnapshot::unavailable("non-I64 Bind key in Tuple classifier-Bundle"),
                                             span: op_span.clone(),
                                         });
                                     }
@@ -13947,7 +14017,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
                                 return Err(RuntimeError::TypeMismatch {
                                     op: op.into(),
                                     expected: "Bind(I64, _) in nested Tuple classifier-Bundle",
-                                    got: "non-Bind child in Tuple classifier-Bundle inner items",
+                                    got: ValueSnapshot::unavailable("non-Bind child in Tuple classifier-Bundle inner items"),
                                     span: op_span.clone(),
                                 });
                             }
@@ -13960,7 +14030,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
                 _ => Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: "known classifier: Map, Set, Vector, List, or Tuple",
-                    got: "unknown classifier name in nested collection item",
+                    got: ValueSnapshot::unavailable("unknown classifier name in nested collection item"),
                     span: op_span.clone(),
                 }),
             }
@@ -13968,7 +14038,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
         _ => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "primitive leaf or classifier-wrapped collection (Bind(Atom(name), Bundle(...))) as produced by to-holon",
-            got: "unclassified HolonAST (bare Bundle, non-classifier Bind, Permute, Thermometer, Blend, or other composite)",
+            got: ValueSnapshot::unavailable("unclassified HolonAST (bare Bundle, non-classifier Bind, Permute, Thermometer, Blend, or other composite)"),
             span: op_span.clone(),
         }),
     }
@@ -14114,7 +14184,7 @@ fn eval_holon_from_holon(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -14164,7 +14234,7 @@ fn eval_holon_from_holon(
                         return Err(RuntimeError::TypeMismatch {
                             op: OP.into(),
                             expected: "classifier-wrapped Bundle (Bind(Atom(name), Bundle(...)))",
-                            got: "classifier-wrapped non-Bundle inner",
+                            got: ValueSnapshot::unavailable("classifier-wrapped non-Bundle inner"),
                             span: args[0].span().clone(),
                         });
                     }
@@ -14188,7 +14258,7 @@ fn eval_holon_from_holon(
                                     return Err(RuntimeError::TypeMismatch {
                                         op: OP.into(),
                                         expected: "Bind(K, V) child in Map classifier-Bundle",
-                                        got: "non-Bind child in Map classifier-Bundle inner items",
+                                        got: ValueSnapshot::unavailable("non-Bind child in Map classifier-Bundle inner items"),
                                         span: args[0].span().clone(),
                                     });
                                 }
@@ -14218,7 +14288,7 @@ fn eval_holon_from_holon(
                                             return Err(RuntimeError::TypeMismatch {
                                                 op: OP.into(),
                                                 expected: "I64 positional key in Vector classifier-Bundle",
-                                                got: "non-I64 Bind key in Vector classifier-Bundle",
+                                                got: ValueSnapshot::unavailable("non-I64 Bind key in Vector classifier-Bundle"),
                                                 span: args[0].span().clone(),
                                             });
                                         }
@@ -14230,7 +14300,7 @@ fn eval_holon_from_holon(
                                     return Err(RuntimeError::TypeMismatch {
                                         op: OP.into(),
                                         expected: "Bind(I64, _) positional child in Vector classifier-Bundle",
-                                        got: "non-Bind child in Vector classifier-Bundle inner items",
+                                        got: ValueSnapshot::unavailable("non-Bind child in Vector classifier-Bundle inner items"),
                                         span: args[0].span().clone(),
                                     });
                                 }
@@ -14264,7 +14334,7 @@ fn eval_holon_from_holon(
                                             return Err(RuntimeError::TypeMismatch {
                                                 op: OP.into(),
                                                 expected: "I64 positional key in Tuple classifier-Bundle",
-                                                got: "non-I64 Bind key in Tuple classifier-Bundle",
+                                                got: ValueSnapshot::unavailable("non-I64 Bind key in Tuple classifier-Bundle"),
                                                 span: args[0].span().clone(),
                                             });
                                         }
@@ -14276,7 +14346,7 @@ fn eval_holon_from_holon(
                                     return Err(RuntimeError::TypeMismatch {
                                         op: OP.into(),
                                         expected: "Bind(I64, _) positional child in Tuple classifier-Bundle",
-                                        got: "non-Bind child in Tuple classifier-Bundle inner items",
+                                        got: ValueSnapshot::unavailable("non-Bind child in Tuple classifier-Bundle inner items"),
                                         span: args[0].span().clone(),
                                     });
                                 }
@@ -14290,7 +14360,7 @@ fn eval_holon_from_holon(
                         Err(RuntimeError::TypeMismatch {
                             op: OP.into(),
                             expected: "known classifier: Map, Set, Vector, List, or Tuple",
-                            got: "unknown classifier name in collection Bind",
+                            got: ValueSnapshot::unavailable("unknown classifier name in collection Bind"),
                             span: args[0].span().clone(),
                         })
                     }
@@ -14303,7 +14373,7 @@ fn eval_holon_from_holon(
                 Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "primitive leaf, Atom, or classifier-wrapped collection (Bind(Atom(name), Bundle(...))) as produced by to-holon or :wat::holon::Map/Set/Vector/List/Tuple constructors",
-                    got: "unclassified HolonAST (bare Bundle, Bind without Atom-String classifier, Permute, Thermometer, Blend, or other composite)",
+                    got: ValueSnapshot::unavailable("unclassified HolonAST (bare Bundle, Bind without Atom-String classifier, Permute, Thermometer, Blend, or other composite)"),
                     span: args[0].span().clone(),
                 })
             }
@@ -14349,7 +14419,7 @@ fn wrap_holon_as_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> 
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::Atom".into(),
             expected: ":wat::holon::HolonAST (use :wat::holon::to-holon for other types)",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: arg_span.clone(),
         }),
     }
@@ -14551,7 +14621,7 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::to-holon".into(),
                 expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, Tuple<T1,...>, HashMap<K,V>, or List<T>",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: arg_span.clone(),
             });
         }
@@ -14650,7 +14720,7 @@ fn eval_holon_leaf(
                            use :wat::holon::Atom to wrap a HolonAST, \
                            :wat::holon::from-wat to lower a quoted form, \
                            :wat::holon::to-holon for other types",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -14693,7 +14763,7 @@ fn eval_holon_from_wat(
                            use :wat::holon::Atom for HolonAST inputs, \
                            :wat::holon::to-holon for other types, \
                            :wat::holon::leaf for primitives",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -14742,7 +14812,7 @@ fn eval_holon_to_wat(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::to-wat".into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -14778,7 +14848,7 @@ fn eval_term_template(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -14812,7 +14882,7 @@ fn eval_term_slots(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -14847,7 +14917,7 @@ fn eval_term_ranges(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -14897,7 +14967,7 @@ fn eval_term_matches_q(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -14908,7 +14978,7 @@ fn eval_term_matches_q(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -15018,7 +15088,7 @@ fn require_hologram(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Hologram",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             // arc 138: no span — takes Value, not WatAST; no source coords available
             span: Span::unknown(),
         }),
@@ -15031,7 +15101,7 @@ fn require_fn(op: &str, v: Value) -> Result<Arc<Function>, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "fn(f64)->bool",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             // arc 138: no span — takes Value, not WatAST; no source coords available
             span: Span::unknown(),
         }),
@@ -15094,7 +15164,7 @@ fn eval_hologram_put(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -15105,7 +15175,7 @@ fn eval_hologram_put(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[2].span().clone(),
             });
         }
@@ -15142,7 +15212,7 @@ fn eval_hologram_get(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -15188,7 +15258,7 @@ fn eval_hologram_find(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -15234,7 +15304,7 @@ fn eval_hologram_remove(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -15322,7 +15392,7 @@ fn eval_therm_form(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "f64",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -15333,7 +15403,7 @@ fn eval_therm_form(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "f64",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -15344,7 +15414,7 @@ fn eval_therm_form(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "f64",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[2].span().clone(),
             });
         }
@@ -15550,7 +15620,7 @@ fn eval_algebra_bundle(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Bundle".into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -15625,14 +15695,14 @@ fn eval_algebra_permute(
         Value::i64(n) => i32::try_from(n).map_err(|_| RuntimeError::TypeMismatch {
             op: ":wat::holon::Permute".into(),
             expected: "i32 step (integer fitting in i32)",
-            got: "i64 out of range",
+            got: ValueSnapshot::unavailable("i64 out of range"),
             span: args[1].span().clone(),
         })?,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Permute".into(),
                 expected: "i32 step",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -15736,7 +15806,7 @@ fn eval_algebra_map(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -15779,7 +15849,7 @@ fn eval_algebra_set(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -15823,7 +15893,7 @@ fn eval_algebra_vector(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -15872,7 +15942,7 @@ fn eval_algebra_list(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -15917,7 +15987,7 @@ fn eval_algebra_tuple(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -15945,7 +16015,7 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Holon",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             // arc 138: no span — takes Value, not WatAST; no source coords available
             span: Span::unknown(),
         }),
@@ -16006,7 +16076,7 @@ fn eval_holon_is_predicate(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String (classifier name)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -16296,7 +16366,7 @@ fn pair_values_to_vectors(
                 return Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: "Vector pair with matching dimensions",
-                    got: "mismatched-dim Vector pair",
+                    got: ValueSnapshot::unavailable("mismatched-dim Vector pair"),
                     // arc 138: no span — takes Value pair, no AST in scope
                     span: Span::unknown(),
                 });
@@ -16325,7 +16395,7 @@ fn pair_values_to_vectors(
         (a, _) => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::HolonAST or wat::holon::Vector",
-            got: a.type_name(),
+            got: ValueSnapshot::of(&a),
             // arc 138: no span — takes Value pair, no AST in scope
             span: Span::unknown(),
         }),
@@ -16587,7 +16657,7 @@ fn run_ast_arg_for_eval_coincident(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Ast",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: arg.span().clone(),
             });
         }
@@ -16950,7 +17020,7 @@ fn eval_algebra_simhash(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::simhash".into(),
                 expected: "wat::holon::HolonAST or wat::holon::Vector",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             })
         }
@@ -17053,7 +17123,7 @@ fn eval_holon_vector_bytes(
     let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError::TypeMismatch {
         op: OP.into(),
         expected: "Vector with dim representable as u32",
-        got: "oversized Vector dim",
+        got: ValueSnapshot::unavailable("oversized Vector dim"),
         // arc 138: no span — dim comes from Vector value, not AST
         span: Span::unknown(),
     })?;
@@ -17075,11 +17145,10 @@ fn eval_holon_vector_bytes(
                     return Err(RuntimeError::TypeMismatch {
                         op: OP.into(),
                         expected: "Vector cell in {-1, 0, +1}",
-                        got: format!(
-                            "cell value out of ternary range ({})",
-                            other
-                        )
-                        .leak(),
+                        got: ValueSnapshot::described(
+                            "wat::core::i64",
+                            format!("cell value out of ternary range ({})", other),
+                        ),
                         // arc 138: no span — cell value from Vector data, not AST
                         span: Span::unknown(),
                     });
@@ -17128,7 +17197,7 @@ fn eval_holon_bytes_vector(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<u8>",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -17141,7 +17210,7 @@ fn eval_holon_bytes_vector(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<u8>",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     // arc 138: no span — element from Vec value, not AST
                     span: Span::unknown(),
                 });
@@ -17225,7 +17294,7 @@ fn eval_bytes_to_hex(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::Bytes (Vec<u8>)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -17238,7 +17307,7 @@ fn eval_bytes_to_hex(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::core::Bytes (Vec<u8>)",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     // arc 138: no span — element from Vec value, not AST
                     span: Span::unknown(),
                 });
@@ -17291,7 +17360,7 @@ fn eval_bytes_from_hex(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -17567,7 +17636,7 @@ fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, RuntimeError
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Vector",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             // arc 138: no span — takes Value, not WatAST; no source coords available
             span: Span::unknown(),
         }),
@@ -17600,7 +17669,7 @@ fn eval_holon_vector_bind(
         return Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::vector-bind".into(),
             expected: "Vector pair with matching dimensions",
-            got: "mismatched-dim Vector pair",
+            got: ValueSnapshot::unavailable("mismatched-dim Vector pair"),
             // arc 138: no span — dimensions from Vector values, not AST
             span: Span::unknown(),
         });
@@ -17636,7 +17705,7 @@ fn eval_holon_vector_bundle(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::vector-bundle".into(),
                 expected: "Vec of wat::holon::Vector",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             })
         }
@@ -17645,7 +17714,7 @@ fn eval_holon_vector_bundle(
         return Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::vector-bundle".into(),
             expected: "non-empty Vec of Vector",
-            got: "empty Vec",
+            got: ValueSnapshot::unavailable("empty Vec"),
             span: args[0].span().clone(),
         });
     }
@@ -17663,7 +17732,7 @@ fn eval_holon_vector_bundle(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::vector-bundle".into(),
                 expected: "Vec of Vectors with matching dimensions",
-                got: "mismatched-dim Vector in Vec",
+                got: ValueSnapshot::unavailable("mismatched-dim Vector in Vec"),
                 // arc 138: no span — dimensions from Vector values, not AST
                 span: Span::unknown(),
             });
@@ -17701,7 +17770,7 @@ fn eval_holon_vector_blend(
         return Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::vector-blend".into(),
             expected: "Vector pair with matching dimensions",
-            got: "mismatched-dim Vector pair",
+            got: ValueSnapshot::unavailable("mismatched-dim Vector pair"),
             // arc 138: no span — dimensions from Vector values, not AST
             span: Span::unknown(),
         });
@@ -17738,7 +17807,7 @@ fn eval_holon_vector_permute(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::vector-permute".into(),
                 expected: "i64 shift amount",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             })
         }
@@ -17758,7 +17827,7 @@ fn require_subspace(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::OnlineSubspace",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: list_span.clone(),
         }),
     }
@@ -18017,7 +18086,7 @@ fn require_reckoner(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Reckoner",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: list_span.clone(),
         }),
     }
@@ -18045,7 +18114,7 @@ fn eval_reckoner_new_discrete(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Reckoner/new-discrete".into(),
                 expected: "String",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             })
         }
@@ -18070,7 +18139,7 @@ fn eval_reckoner_new_discrete(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Reckoner/new-discrete".into(),
                 expected: "Vec of HolonAST",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[3].span().clone(),
             })
         }
@@ -18108,7 +18177,7 @@ fn eval_reckoner_new_continuous(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Reckoner/new-continuous".into(),
                 expected: "String",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             })
         }
@@ -18245,7 +18314,7 @@ fn eval_reckoner_resolve(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Reckoner/resolve".into(),
                 expected: "bool",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[2].span().clone(),
             })
         }
@@ -18336,7 +18405,7 @@ fn require_engram(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Engram",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: list_span.clone(),
         }),
     }
@@ -18353,7 +18422,7 @@ fn require_engram_library(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::EngramLibrary",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: list_span.clone(),
         }),
     }
@@ -18366,7 +18435,7 @@ fn require_string(op: &str, v: Value, list_span: &Span) -> Result<String, Runtim
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: list_span.clone(),
         }),
     }
@@ -18652,7 +18721,7 @@ fn require_numeric(op: &str, v: Value, list_span: &Span) -> Result<f64, RuntimeE
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "numeric",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: list_span.clone(),
         }),
     }
@@ -18671,7 +18740,7 @@ fn apply_value(
         other => {
             // arc 138: no span — apply_value receives a Value not a WatAST; callee span not in scope
             return Err(RuntimeError::NotCallable {
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: Span::unknown(),
             })
         }
@@ -19210,7 +19279,7 @@ fn eval_make_bounded_queue(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::make-bounded-channel".into(),
                 expected: "i64",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -19287,7 +19356,7 @@ fn eval_kernel_send(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::send".into(),
                 expected: "wat::kernel::Sender",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -19345,7 +19414,7 @@ fn eval_kernel_sender_close(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::kernel::Sender<T>",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -19379,7 +19448,7 @@ fn eval_kernel_recv(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::recv".into(),
                 expected: "wat::kernel::Receiver",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -19447,7 +19516,7 @@ fn eval_kernel_try_recv(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::try-recv".into(),
                 expected: "wat::kernel::Receiver",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -19533,7 +19602,7 @@ fn eval_kernel_drop(
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::kernel::drop".into(),
             expected: "wat::kernel::Sender | wat::kernel::Receiver",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -19566,7 +19635,7 @@ fn eval_math_unary(
             return Err(RuntimeError::TypeMismatch {
                 op: format!(":wat::std::math::{}", op_name),
                 expected: "f64",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -19622,7 +19691,7 @@ fn eval_stat_mean(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<f64>",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     // arc 138: no span — iterating over Vec<Value>; no per-element AST span
                     span: args[0].span().clone(),
                 });
@@ -19665,7 +19734,7 @@ fn eval_stat_variance(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<f64>",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     // arc 138: no span — iterating over Vec<Value>; no per-element AST span
                     span: args[0].span().clone(),
                 });
@@ -19709,7 +19778,7 @@ fn eval_stat_stddev(
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Option<f64> from inner variance",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             // arc 138: no span — internal variance re-wrap; no originating AST element
             span: list_span.clone(),
         }),
@@ -19745,7 +19814,7 @@ fn eval_handle_pool_new(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::HandlePool::new".into(),
                 expected: "String",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -19756,7 +19825,7 @@ fn eval_handle_pool_new(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::HandlePool::new".into(),
                 expected: "wat::core::Vector",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[1].span().clone(),
             });
         }
@@ -19805,7 +19874,7 @@ fn eval_handle_pool_pop(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::HandlePool::pop".into(),
                 expected: "wat::kernel::HandlePool",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -19850,7 +19919,7 @@ fn eval_handle_pool_finish(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::HandlePool::finish".into(),
                 expected: "wat::kernel::HandlePool",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -19903,7 +19972,7 @@ fn eval_kernel_select(
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::select".into(),
                 expected: "wat::core::Vector",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -19948,7 +20017,7 @@ fn eval_kernel_select(
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::kernel::select".into(),
                     expected: "wat::kernel::Receiver",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     // arc 138: no span — iterating over Vec<Value>; no per-element AST span
                     span: args[0].span().clone(),
                 });
@@ -20077,7 +20146,7 @@ fn eval_kernel_process_join_result(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -20090,7 +20159,7 @@ fn eval_kernel_process_join_result(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.join (ProgramHandle)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 // arc 138: no span — struct field lookup; no per-field AST
                 span: args[0].span().clone(),
             });
@@ -20166,7 +20235,7 @@ fn eval_kernel_process_drain_and_join(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -20181,7 +20250,7 @@ fn eval_kernel_process_drain_and_join(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.join (ProgramHandle)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 span: args[0].span().clone(),
             });
         }
@@ -20242,7 +20311,7 @@ fn drain_process_reader_field(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected,
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 span: subject_ast.span().clone(),
             });
         }
@@ -20283,7 +20352,7 @@ fn eval_kernel_process_stdin(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -20294,7 +20363,7 @@ fn eval_kernel_process_stdin(
         _ => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Process.stdin (IOWriter)",
-            got: "missing or wrong-type field",
+            got: ValueSnapshot::unavailable("missing or wrong-type field"),
             span: args[0].span().clone(),
         }),
     }
@@ -20326,7 +20395,7 @@ fn eval_kernel_process_stdout(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -20337,7 +20406,7 @@ fn eval_kernel_process_stdout(
         _ => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Process.stdout (IOReader)",
-            got: "missing or wrong-type field",
+            got: ValueSnapshot::unavailable("missing or wrong-type field"),
             span: args[0].span().clone(),
         }),
     }
@@ -20369,7 +20438,7 @@ fn eval_kernel_process_stderr(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -20380,7 +20449,7 @@ fn eval_kernel_process_stderr(
         _ => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Process.stderr (IOReader)",
-            got: "missing or wrong-type field",
+            got: ValueSnapshot::unavailable("missing or wrong-type field"),
             span: args[0].span().clone(),
         }),
     }
@@ -20436,7 +20505,7 @@ fn eval_kernel_spawn_thread(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "function keyword path or fn value",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: args[0].span().clone(),
                 });
             }
@@ -20588,7 +20657,7 @@ fn eval_kernel_thread_join_result(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Thread",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -20600,7 +20669,7 @@ fn eval_kernel_thread_join_result(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Thread.join (ProgramHandle)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 // arc 138: no span — struct field lookup; no per-field AST
                 span: args[0].span().clone(),
             });
@@ -20627,7 +20696,7 @@ fn eval_kernel_thread_join_result(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Thread.join (InThread variant)",
-                got: "Forked variant on a Thread<I,O> — substrate bug",
+                got: ValueSnapshot::unavailable("Forked variant on a Thread<I,O> — substrate bug"),
                 // arc 138: no span — internal substrate invariant; no AST source
                 span: args[0].span().clone(),
             });
@@ -20671,7 +20740,7 @@ fn eval_kernel_thread_drain_and_join(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Thread",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -20686,7 +20755,7 @@ fn eval_kernel_thread_drain_and_join(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Thread.join (ProgramHandle)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 span: args[0].span().clone(),
             });
         }
@@ -20710,7 +20779,7 @@ fn eval_kernel_thread_drain_and_join(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Thread.join (InThread variant)",
-                got: "Forked variant on a Thread<I,O> — substrate bug",
+                got: ValueSnapshot::unavailable("Forked variant on a Thread<I,O> — substrate bug"),
                 span: args[0].span().clone(),
             });
         }
@@ -20738,7 +20807,7 @@ fn drain_thread_output_channel(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Thread.output (Receiver)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 span: subject_ast.span().clone(),
             });
         }
@@ -20796,7 +20865,7 @@ fn eval_kernel_thread_readln(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "ThreadPeer.rx (Receiver)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 span: args[0].span().clone(),
             });
         }
@@ -20854,7 +20923,7 @@ fn eval_kernel_thread_println(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "ThreadPeer.tx (Sender)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 span: args[0].span().clone(),
             });
         }
@@ -20892,7 +20961,7 @@ fn eval_thread_peer_struct(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::kernel::ThreadPeer",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: subject_ast.span().clone(),
         }),
     }
@@ -20950,7 +21019,7 @@ fn eval_kernel_process_readln(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "ProcessPeer.rx (Receiver)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 span: args[0].span().clone(),
             });
         }
@@ -21008,7 +21077,7 @@ fn eval_kernel_process_println(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "ProcessPeer.tx (Sender)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 span: args[0].span().clone(),
             });
         }
@@ -21045,7 +21114,7 @@ fn eval_process_peer_struct(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::kernel::ProcessPeer",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: subject_ast.span().clone(),
         }),
     }
@@ -21080,7 +21149,7 @@ fn eval_kernel_sender_from_pipe(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::io::IOWriter",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -21116,7 +21185,7 @@ fn eval_kernel_receiver_from_pipe(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::io::IOReader",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -21157,7 +21226,7 @@ fn eval_kernel_process_send(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -21168,7 +21237,7 @@ fn eval_kernel_process_send(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.stdin (IOWriter)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 // arc 138: no span — struct field lookup; no per-field AST
                 span: args[0].span().clone(),
             });
@@ -21231,7 +21300,7 @@ fn eval_kernel_process_recv(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -21243,7 +21312,7 @@ fn eval_kernel_process_recv(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.stdout (IOReader)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 // arc 138: no span — struct field lookup; no per-field AST
                 span: args[0].span().clone(),
             });
@@ -21255,7 +21324,7 @@ fn eval_kernel_process_recv(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.stderr (IOReader)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 // arc 138: no span — struct field lookup; no per-field AST
                 span: args[0].span().clone(),
             });
@@ -21267,7 +21336,7 @@ fn eval_kernel_process_recv(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.join (ProgramHandle)",
-                got: "missing or wrong-type field",
+                got: ValueSnapshot::unavailable("missing or wrong-type field"),
                 // arc 138: no span — struct field lookup; no per-field AST
                 span: args[0].span().clone(),
             });
@@ -21699,7 +21768,7 @@ fn eval_died_error_message(
                     _ => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
                         expected: "String inside *DiedError variant",
-                        got: "non-String payload",
+                        got: ValueSnapshot::unavailable("non-String payload"),
                         // arc 138: no span — matching on Value::Enum fields; no AST element
                         span: args[0].span().clone(),
                     }),
@@ -21714,7 +21783,7 @@ fn eval_died_error_message(
                 _ => Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: "*DiedError variant",
-                    got: "unknown *DiedError variant",
+                    got: ValueSnapshot::unavailable("unknown *DiedError variant"),
                     // arc 138: no span — matching on Value::Enum variant_name; no AST element
                     span: args[0].span().clone(),
                 }),
@@ -21723,7 +21792,7 @@ fn eval_died_error_message(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::kernel::*DiedError",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -21813,7 +21882,7 @@ fn eval_kernel_extract_panics(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<String>",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
@@ -21876,7 +21945,7 @@ fn eval_died_error_to_failure(
                         _ => return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "String at Panic.message",
-                            got: "non-String at field 0",
+                            got: ValueSnapshot::unavailable("non-String at field 0"),
                             // arc 138: no span — matching on Value::Enum fields; no AST element
                             span: args[0].span().clone(),
                         }),
@@ -21904,7 +21973,7 @@ fn eval_died_error_to_failure(
                     _ => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
                         expected: "String at *DiedError.message",
-                        got: "non-String at field 0",
+                        got: ValueSnapshot::unavailable("non-String at field 0"),
                         // arc 138: no span — matching on Value::Enum fields; no AST element
                         span: args[0].span().clone(),
                     }),
@@ -21919,7 +21988,7 @@ fn eval_died_error_to_failure(
                 _ => Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: "*DiedError variant",
-                    got: "unknown *DiedError variant",
+                    got: ValueSnapshot::unavailable("unknown *DiedError variant"),
                     // arc 138: no span — matching on Value::Enum variant_name; no AST element
                     span: args[0].span().clone(),
                 }),
@@ -21928,7 +21997,7 @@ fn eval_died_error_to_failure(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::kernel::*DiedError",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
         }),
     }
@@ -22081,7 +22150,7 @@ fn eval_form_ast(
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::eval-ast!".into(),
                     expected: "Ast",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: args[0].span().clone(),
                 });
             }
@@ -22133,7 +22202,7 @@ fn value_to_holon(op: &'static str, v: Value) -> Result<Value, RuntimeError> {
                 op: op.into(),
                 expected: "form whose terminal value has a HolonAST \
                            representation (primitive or HolonAST)",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 // arc 138: no span — receives a Value, no originating AST in scope
                 span: Span::unknown(),
             });
@@ -22210,7 +22279,7 @@ fn eval_form_step(
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::eval-step!".into(),
                     expected: "wat::WatAST",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: args[0].span().clone(),
                 });
             }
@@ -22266,7 +22335,7 @@ fn eval_walk(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::WatAST",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: args[0].span().clone(),
                 });
             }
@@ -22279,7 +22348,7 @@ fn eval_walk(
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::core::fn — visitor (acc, form, step) → WalkStep<A>",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(&other),
                     span: args[2].span().clone(),
                 });
             }
@@ -22313,7 +22382,7 @@ fn eval_walk(
                         return Err(RuntimeError::TypeMismatch {
                             op: OP.into(),
                             expected: "wat::eval::WalkStep<A>",
-                            got: "different enum",
+                            got: ValueSnapshot::unavailable("different enum"),
                             // arc 138: no span — Value::Enum result from visitor; no originating AST
                             span: args[2].span().clone(),
                         });
@@ -22325,7 +22394,7 @@ fn eval_walk(
                     return Err(RuntimeError::TypeMismatch {
                         op: OP.into(),
                         expected: "wat::eval::WalkStep<A>",
-                        got: other.type_name(),
+                        got: ValueSnapshot::of(&other),
                         // arc 138: no span — visitor return value; no originating AST
                         span: args[2].span().clone(),
                     });
@@ -22378,7 +22447,7 @@ fn eval_walk(
                             return Err(RuntimeError::TypeMismatch {
                                 op: OP.into(),
                                 expected: "wat::holon::HolonAST (Skip's terminal field)",
-                                got: other.type_name(),
+                                got: ValueSnapshot::of(&other),
                                 // arc 138: no span — visitor return value field; no AST
                                 span: args[2].span().clone(),
                             });
@@ -22907,7 +22976,7 @@ fn step_holon_descend_then_fire(
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::eval-step!".into(),
                     expected: "successful holon construction",
-                    got: err_val.type_name(),
+                    got: ValueSnapshot::of(&err_val),
                     span: list_span.clone(),
                 });
             }
@@ -23702,7 +23771,7 @@ fn expect_string_value(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: arg.span().clone(),
         }),
     }
@@ -23768,7 +23837,7 @@ fn resolve_verify_payload(
             other => Err(RuntimeError::TypeMismatch {
                 op: ":wat::verify::string".into(),
                 expected: "String",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: locator_ast.span().clone(),
             }),
         },
@@ -23790,7 +23859,7 @@ fn resolve_verify_payload(
             other => Err(RuntimeError::TypeMismatch {
                 op: ":wat::verify::file-path".into(),
                 expected: "String",
-                got: other.type_name(),
+                got: ValueSnapshot::of(&other),
                 span: locator_ast.span().clone(),
             }),
         },

@@ -290,7 +290,7 @@ fn expect_string(op: &str, v: Value, span: crate::span::Span) -> Result<String, 
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: other.type_name(),
+            got: crate::runtime::ValueSnapshot::of(&other),
             span,
         }),
     }
@@ -307,7 +307,7 @@ fn expect_option_string(
             Some(other) => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: span.clone(),
             }),
             None => Ok(None),
@@ -315,7 +315,7 @@ fn expect_option_string(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",
-            got: other.type_name(),
+            got: crate::runtime::ValueSnapshot::of(&other),
             span,
         }),
     }
@@ -333,7 +333,7 @@ fn expect_vec_ast(op: &str, v: Value, span: crate::span::Span) -> Result<Vec<Wat
                         return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "wat::WatAST",
-                            got: other.type_name(),
+                            got: crate::runtime::ValueSnapshot::of(&other),
                             span: span.clone(),
                         });
                     }
@@ -344,7 +344,7 @@ fn expect_vec_ast(op: &str, v: Value, span: crate::span::Span) -> Result<Vec<Wat
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Vec<wat::WatAST>",
-            got: other.type_name(),
+            got: crate::runtime::ValueSnapshot::of(&other),
             span,
         }),
     }

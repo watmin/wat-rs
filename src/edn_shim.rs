@@ -197,7 +197,7 @@ pub fn eval_edn_read(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
-                got: other.type_name(),
+                got: crate::runtime::ValueSnapshot::of(&other),
                 span: crate::span::Span::unknown(),
             });
         }
