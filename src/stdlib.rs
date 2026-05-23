@@ -71,6 +71,17 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/holon/Trigram.wat",
         source: include_str!("../wat/holon/Trigram.wat"),
     },
+    // Arc 227 Stone 227.1 — :wat::holon::defclass macro. Mints user-defined
+    // classifier-wrapped types in user-declared namespaces. Single-arg form;
+    // expands to constructor + predicate pair. Depends on :wat::holon::Bind,
+    // :wat::holon::Atom, :wat::holon::to-holon (arc 225 substrate),
+    // :wat::holon::is? (arc 226 substrate), and :wat::core::keyword/*
+    // reflection primitives. Loads after Trigram so all holon-tier
+    // predecessors are registered first.
+    WatSource {
+        path: "wat/holon/defclass.wat",
+        source: include_str!("../wat/holon/defclass.wat"),
+    },
     WatSource {
         path: "wat/holon.wat",
         source: include_str!("../wat/holon.wat"),
