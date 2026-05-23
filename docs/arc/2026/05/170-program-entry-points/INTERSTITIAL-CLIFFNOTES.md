@@ -170,7 +170,116 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 night post-compaction — Stone 233.2.d sub-DESIGN landed; substrate-symmetry reframed from arc 234 → Stone 233.2.d via FM 11 catch)
+## Currently (2026-05-23 late late — Stone 233.2.h/i SHIPPED; Stone 233.2.l doctrine landed; "annihilation of failure domains is direction")
+
+### What shipped this session
+
+```
+b32244c   Stone 233.2.d sub-DESIGN
+a2ff91f   CLIFFNOTES Currently reframe (arc 234 → Stone 233.2.d)
+2ff3d56   Stone 233.2.d FM 2-bis probe (FAILS 133/382 pre-stone)
+0bf7786   Stone 233.2.d BRIEF + EXPECTATIONS
+c4dc8f4   Stone 233.2.d SHIPPED — 12/13 (167 sigs, 0 ripples, 35.9 min sonnet)
+4758e83   Stone 233.2.f BRIEF + EXPECTATIONS
+51d83e1   Stone 233.2.f SHIPPED — 8/8 apply Tracked-unwrap (+5/-5, 3:12 sonnet)
+b2a3188   Stone 233.2.g sub-DESIGN — Shape A pivot via four-questions
+0f4e318   Stone 233.2.h FM 2-bis probe
+60a9774   Stone 233.2.h BRIEF + EXPECTATIONS
+38acd60   Stone 233.2.h SHIPPED — 9/9 TrackedValue mint (+45, 3:12 sonnet)
+90570e6   Song #25 Bad Guy INTERSTITIAL
+87d197a   Song #25 annotation — FOURTH attribution-blur (AGENCY dimension; Oracle/vase)
+c77d960   INVENTORY § N.3 — ^Type vs :Type type-annotation candidate
+4fdbabf   § N.3 redundant ':' correction
+df7dcb8   Stone 233.2.i FM 2-bis probe (FAILS 0/3 pre-stone)
+99db500   Stone 233.2.i BRIEF + EXPECTATIONS
+0d89a1e   Song #26 Elevator Operator INTERSTITIAL
+8164629   Stone 233.2.i SHIPPED — 10/10 eval signature flip (107 files, 64 min sonnet)
+[this turn] Stone 233.2.l doctrine + sub-stone added (failure-engineering verdict)
+```
+
+### The failure-engineering moment
+
+User invoked `scratch/FAILURE-ENGINEERING.md` doctrine after the post-Stone-233.2.i diagnosis. Empirical proof: 7 arc216 stone1 hashset probes failing — `hashset_length_inner` (src/runtime.rs:8460) pattern-matches `Value::wat__std__HashSet(s)` without `.inner()`; from-holon (Stone 233.2.c producer) wraps with `Value::Tracked`; pattern misses; TypeMismatch fires. ValueSnapshot::of() unwraps Tracked for the error display (per Stone 233.2.a transparency), making the error MAXIMALLY DISHONEST — expected="HashSet<T>" and got.type_name="wat::core::HashSet" match, but rejection still fires. The substrate's own dishonest signal too loud to ignore.
+
+Proven empirically: `match v.inner()` flips probe FAIL → PASS in one line.
+
+Four-questions verdict (against FAILURE-ENGINEERING.md standard):
+- Probe-only static-source scan = ✅✅ (catches AFTER construction) → FAILS Honest
+- Proc-macro structural seal = ✅✅✅ (compile error AT construction; passes all four YES)
+
+**Stone 233.2.l added** — `#[wat_value]` proc-macro forbidding future wrapping variants on Value enum. Same shape as ZERO-MUTEX: "the SITUATION that produces the failure is never constructed."
+
+User's articulation: *"annihilation of failure domains is direction."* Doctrine extension to the existing failure-engineering vocabulary.
+
+### Revised arc 233 chain (10 sub-stones total)
+
+```
+233.2.a-d  ✓ SHIPPED (Provenance + producer wrap + symmetry sweep)
+233.2.f    ✓ SHIPPED (apply Tracked-unwrap fix — Shape A pivot catalyst)
+233.2.g    ✓ sub-DESIGN landed (Shape A picked)
+233.2.h    ✓ SHIPPED (TrackedValue mint)
+233.2.i    ✓ SHIPPED (eval signature flip — 107 files)
+233.2.j       migrate 5 producers Value::Tracked → TrackedValue::new
+233.2.k       retire Value::Tracked variant + Value::inner()  ← class instance closes
+233.2.l       #[wat_value] proc-macro; structural meta-class prevention  ← meta-class closes
+233.2.e       AST-derived provenance on enriched substrate
+233.3         Errors-as-EDN
+233.4         INSCRIPTION (closes arc 233)
+arc 232       resumes (defprotocol on enriched substrate)
+```
+
+### Pending tasks
+
+| # | Status | Stone |
+|---|---|---|
+| 494 | pending | 233.2.j producer migration |
+| 495 | pending (blocks 488 + 497) | 233.2.k variant retirement |
+| 497 | pending (blocks 488) | 233.2.l proc-macro structural seal |
+| 488 | pending | 233.2.e AST-derived provenance |
+| 496 | pending (auto-resolves at 233.2.k) | arc216 stone1 7 probes (live trap-door instances) |
+
+### Substrate state — impeccable mid-cascade
+
+```
+HEAD          8164629 on arc-170-gap-j-v5-deadlock-state
+Lib tests     827/0/1 PASS
+arc 233 probes: 233.2.d 1/1, 233.2.h 6/6, 233.2.i 3/3, 233.1 8/8, 233.2.a 8/8, 232.0 8/8
+Clippy        54 (baseline match)
+holon-rs      untouched since 530650c (arc 230 atomic pair Phase A)
+Pre-existing  7 arc216 stone1 probes FAIL (verified pre-existing via stash + stash;
+              same trap-door class; auto-resolves at 233.2.k)
+Both repos    pushed
+```
+
+### Discipline gains this session
+
+- **Fourth attribution-blur** named: AGENCY dimension (user invoked discipline D; D produced verdict V; LLM narrated V as own choice). Oracle/vase frame. Prior three were verbal.
+- **Failure-engineering doctrine** elevated from CONVENTION to STRUCTURAL via four-questions test — probe-only fails Honest under FAILURE-ENGINEERING.md standard
+- **Annihilation of failure domains is direction** — user articulation; doctrine extension
+- **The pattern-match `.inner()` trap class** — empirically isolated, structurally addressed via Stone 233.2.k + 233.2.l
+- **Sonnet calibration** continues below predicted bands (Stone 233.2.h: 3:12 / 15-30 min target; 233.2.i: 64 min / 90-150 min target)
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -20` for today's trajectory
+3. Read `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.md` — sub-stone table with 10 sub-stones (a-l + e) + three resequencings
+4. Read `docs/arc/2026/05/233-substrate-errors-as-values/SCORE-STONE-233.2.i.md` — the BIG cascade SCORE + pre-existing honest deltas
+5. Read `scratch/FAILURE-ENGINEERING.md` — the doctrine that produced Stone 233.2.l's verdict
+6. Task #494 (233.2.j) is the next executable stone
+
+### Pending decisions (post-compaction)
+
+1. **Draft Stone 233.2.j BRIEF** — 5-producer migration (mechanical; small stone)
+2. **Stone 233.2.k after 233.2.j ships** — variant retirement
+3. **Stone 233.2.l after 233.2.k ships** — proc-macro structural seal
+4. **Stone 233.2.e after 233.2.l ships** — AST-derived provenance on fully-sealed substrate
+
+Order: 233.2.j → 233.2.k → 233.2.l → 233.2.e → 233.3 → 233.4 → arc 232 resume.
+
+---
+
+## Currently (2026-05-23 night post-compaction — Stone 233.2.d sub-DESIGN landed; substrate-symmetry reframed from arc 234 → Stone 233.2.d via FM 11 catch) — SUPERSEDED, see above
 
 ### Post-compaction reframe (the load-bearing correction)
 
