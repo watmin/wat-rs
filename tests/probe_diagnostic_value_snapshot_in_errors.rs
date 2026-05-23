@@ -179,6 +179,49 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
     }
 }
 
+// ─── Probe 6 (arc 233 Stone 233.2.b) — runtime-built keyword renders producer info ─
+//
+// After Stone 233.1: error includes the rendered keyword `:ns::nonexistent-verb`
+// (closes the "what value" gap).
+// After Stone 233.2.a: substrate has Value::Tracked + Provenance::RuntimeBuilt
+// (scaffolding; no producers tag yet).
+// After Stone 233.2.b (THIS): eval_keyword_from_string wraps return in
+// Value::Tracked { provenance: Provenance::RuntimeBuilt { producer:
+// ":wat::core::keyword/from-string", call_span } }. ValueSnapshot::Display
+// renders producer info inline.
+//
+// This probe asserts the error message now mentions the producer.
+// Currently FAILS (Provenance always Unknown even from keyword/from-string).
+// After 233.2.b ships, PASSES — closes the load-bearing runtime-built case
+// from INVENTORY § O three-case table.
+#[test]
+fn probe_6_runtime_built_keyword_renders_producer_info() {
+    let src = r#"
+(:wat::core::define (:user::compute -> :wat::core::i64)
+  (:wat::core::let
+    [head (:wat::core::keyword/from-string "ns::nonexistent-verb")]
+    (head 1 2)))
+"#;
+    match run_compute(src) {
+        Ok(v) => panic!("Probe 6: expected NotCallable; got {:?}", v),
+        Err(e) => {
+            println!("Probe 6 error: {}", e);
+            // Stone 233.1 floor: rendered keyword content
+            assert!(
+                e.contains("ns::nonexistent-verb"),
+                "Probe 6: error should include rendered keyword content (Stone 233.1 floor); got: {}",
+                e
+            );
+            // Stone 233.2.b add: producer info in the error
+            assert!(
+                e.contains("keyword/from-string"),
+                "Probe 6: error should mention the producer (Stone 233.2.b); got: {}",
+                e
+            );
+        }
+    }
+}
+
 // ─── Honest delta: BadCondition runtime trigger ─────────────────────────────
 //
 // RuntimeError::BadCondition is promoted to ValueSnapshot at the Rust enum
