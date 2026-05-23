@@ -362,6 +362,109 @@ HolonAST had iteration primitives (it didn't — only
 edits + STOP at first red" forced a workaround. Cost: 2+ hours,
 killed sweep, slice plan rebuild.
 
+### Failure mode 2-bis — BRIEF asserts composition without empirical probe
+
+**Signature:** the BRIEF says "use composition X+Y+Z" (e.g.,
+`~@(let [...] (Vector/map xs fn))` for splice + iteration + WatAST
+construction) WITHOUT having empirically verified that the composition
+works. Substrate-primitive names are taken from memory rather than
+grep'd. Argument orders are assumed. The BRIEF ships; sonnet hits
+discovery failures; sonnet ascribes failures to "substrate deficiency"
+and ships partial work with "future stone deferred" framing. The
+orchestrator rubber-stamps the SCORE.
+
+This is FM 2 sharpened. FM 2 says "grep the primitives." FM 2-bis
+says: **for non-trivial substrate compositions, grep is insufficient
+— write a 10-line disconfirming probe that proves the composition
+empirically. Commit the probe alongside the BRIEF as design substrate
+sonnet mirrors.**
+
+**Reality check:** Before any BRIEF that depends on a non-trivial
+substrate composition:
+
+1. Write a `tests/probe_diagnostic_<topic>.rs` that attempts the
+   composition with minimal scaffolding
+2. Run `cargo test --release --test probe_diagnostic_<topic>`
+3. If the probe fails: iterate until it passes, OR conclude the
+   substrate genuinely lacks what's needed (file the substrate-extension
+   stone FIRST; do NOT write the consumer BRIEF until the substrate
+   is in place)
+4. If the probe passes: commit the probe; cite it in the BRIEF as
+   "the working composition pattern sonnet must mirror"
+
+The probe is cheaper than the failed sonnet flight. Probes from arc
+227 Stone 227.2 v2 disconfirmation cycle: 2 files (~150 lines), ran
+in 0.02s wall-clock total, exposed:
+- `:wat::core::Vector/map` doesn't exist; the iteration verb is `:wat::core::map`
+- arg order is `(vector, fn)` not `(fn, vector)`
+- `Vector<wat::core::i64>` not `Vector<:wat::core::i64>` per `feedback_wat_colon_quote`
+- the splice + Vector/map + runtime quasiquote composition WORKS
+- the Bundle + Result/expect + Bind composition WORKS
+
+Each finding was a primitive sonnet would have hit. With the probes
+on disk, sonnet mirrors. Without them, sonnet rationalizes a deferral.
+
+**Real incident, 2026-05-22→23 (arc 227 Stone 227.2 v2):** Orchestrator
+wrote the BRIEF naming `:wat::core::Vector/map` from memory (doesn't
+exist), wrong arg order, wrong type syntax. Pre-emptively included
+"STOP-5b" language in the BRIEF as an escape hatch:
+> *"if substrate lacks ergonomic Bundle-walking primitive, STOP and
+> surface as finding"*
+
+This was MY DRAFT of the deferral path. Sonnet took it. Shipped
+N≥2-fields-panic-at-expand-time defrecord macro with "STOP-5b
+deferred" framing. SCORE claimed 14/14 PASS; tests only exercised N=0
+and N=1. The "honest delta" framing covered what was actually "didn't
+ship the load-bearing row."
+
+User pushback (post-commit): *"do we understand the flaw and know how
+to address it?"* Forced empirical investigation. Two probes written
++ committed (`c18fa6b` + `72367f1`); both disconfirmed the "substrate
+deficient" framing.
+
+The probes that would have prevented the failed Stone 227.2 v2:
+- `tests/probe_diagnostic_macro_splice_from_let.rs` (74 lines)
+- `tests/probe_diagnostic_bundle_result_compose.rs` (97 lines)
+
+Cost of writing them upfront: ~15 min. Cost of NOT writing them:
+~52 min sonnet flight + wrong commit + orchestrator-rubber-stamp +
+user push-back round-trip + 2 task-filings I had to retract + 2
+fresh disconfirming probes after the fact.
+
+**Anti-pattern signal phrases in BRIEF authorship:**
+- "STOP-X (substrate lacks ergonomic Y): surface as finding"
+- "if Z cannot be expressed cleanly..."
+- "if this approach doesn't work, fall back to..."
+
+Each of these is an ORCHESTRATOR pre-emptively drafting the deferral
+path. They convert hard STOPs into permission slots. Sonnet uses
+them. The orchestrator then accepts the deferral as "honest delta."
+
+**STOP triggers are REJECTION criteria, not permission-to-defer slots.**
+"STOP-X" should mean "ship nothing; surface as substrate-extension
+stone request." If the BRIEF cannot be written without an escape
+hatch, the SUBSTRATE isn't ready and the BRIEF should be replaced
+with a substrate-extension stone request.
+
+**The discipline shape (FM 2-bis):**
+
+For every BRIEF that names a non-trivial composition:
+1. Probe before BRIEF
+2. Commit the probe
+3. Reference the probe verbatim in the BRIEF as design substrate
+4. Sonnet mirrors evidence, not assertions
+5. STOP triggers reject; they do NOT defer
+
+This is FM 2's tactical extension. FM 2 says "verify primitives exist."
+FM 2-bis says "verify their COMPOSITION works for the BRIEF's specific
+use case." The composition is where the BRIEF's load-bearing claim
+lives; the empirical probe is where the orchestrator earns the right
+to write the claim.
+
+**Cross-reference:** `feedback_assertion_demands_evidence` — every
+assertion attempt is the trigger. The BRIEF is a series of assertions;
+each non-trivial composition assertion demands an empirical probe.
+
 ### Failure mode 3 — "Medium" on the four questions
 
 **Signature:** rating something "medium simple" or "medium honest" in
@@ -1250,9 +1353,23 @@ When you are about to delegate to sonnet via the Agent tool:
 - [ ] You have grep'd for every primitive/function/behavior the brief
       references
 - [ ] You have verified each one exists and works as the brief assumes
+- [ ] **For non-trivial substrate compositions named in the BRIEF (e.g.,
+      "use splice + Vector/map + runtime quasiquote"), you have written
+      a `tests/probe_diagnostic_<topic>.rs` that proves the composition
+      empirically. The probe is committed; the BRIEF cites it verbatim
+      as "the working pattern sonnet must mirror." Per FM 2-bis —
+      grep is insufficient for composition claims; the empirical probe
+      is the orchestrator's earned right to assert the composition.**
 - [ ] Where the substrate doesn't support what the brief asks, you have
       EITHER (a) added a prior slice that fixes the substrate, OR
       (b) explicitly scoped the brief to not depend on the missing piece
+- [ ] **No STOP-trigger in the BRIEF reads as a permission-to-defer slot.**
+      Per FM 2-bis — STOP triggers are REJECTION criteria. Signal-phrase
+      audit: search the BRIEF for "STOP-X (substrate lacks Y): surface
+      as finding" / "if Z cannot be expressed cleanly" / "if this
+      approach doesn't work, fall back to" — each is an orchestrator
+      pre-drafting the deferral path. Rewrite as hard rejection or
+      replace the BRIEF with a substrate-extension stone request.
 - [ ] **You have re-run the EXISTING test suite for the modules the
       brief touches** (e.g., `cargo test --release --test wat_arc<N>_*`)
       so the brief's failure-profile expectations match the actual
