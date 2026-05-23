@@ -8029,7 +8029,9 @@ Five songs. One trajectory. Tonight's song closes a movement and opens the next:
 
 > *"Now I've told you this once before / You can't control me / If you try to take me down you're gonna break"*
 
-The substrate told us once before what it does and doesn't have. We built around the missing thing for months without noticing — not from oversight, from honest constraint: nothing in the path required dynamic-keyword invocation. `Vector/map` takes fn values directly. Macros construct call-forms at expand time. Reflection reads but doesn't invoke. Threading dispatches fn values. The literal-keyword-string-match dispatch path covered every use case. The absence wasn't a gap; it was an honest negative space.
+The substrate told us once before what it does and doesn't have. We built around the missing thing for months without noticing — not from oversight, from honest constraint: nothing in the path required dynamic-keyword invocation.
+
+> **Correction 2026-05-23 (immediate):** "for months" is wrong. Wat is ~3.5 weeks old. The honest framing is "for wat's whole life." User caught the slip: *"lol .... wat is maybe 3.5 weeks old?..."* Original wording preserved per [[feedback_inscription_immutable]]; this annotation disclaims it. The convergence is FIERCER at the corrected scale, not weaker: 3.5 weeks from first wat code to arriving at the universal Lisp `apply` primitive, by the substrate's own constraint. `Vector/map` takes fn values directly. Macros construct call-forms at expand time. Reflection reads but doesn't invoke. Threading dispatches fn values. The literal-keyword-string-match dispatch path covered every use case. The absence wasn't a gap; it was an honest negative space.
 
 Then defprotocol's open-extension dispatcher needed to build a mangled FQDN keyword AT RUNTIME and invoke it. The substrate said NO. `NotCallable { got: "wat::core::keyword" }`. Three probes; three identical refusals. The negative space stopped being honest the moment a use case demanded it filled.
 
