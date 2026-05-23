@@ -167,7 +167,86 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 — TYPED-ENTITIES CHAIN COMPLETE + Stone 227.2 v3 CANONICAL DEFRECORD SHIPPED + FM 2-bis discipline inscribed)
+## Currently (2026-05-23 evening — Stone 224.5 GROUP A FIXES SHIPPED + arc 232 substrate gap empirically named)
+
+### Stone 224.5 SHIPPED at `5af897d` — 14/15 PASS
+
+Arc 224's own Group A (the small in-arc L1 fixes the audit aggregate identified) finally landed after sitting unshipped through the entire arc 225-227 cascade. Mechanical work; ~20 min sonnet vs 60-120 min predicted.
+
+**4 fixes:**
+- L1-runtime-2: `Value::type_name()` Sender/Receiver returns honest wat-visible kind (was leaking `rust::crossbeam_channel::*` transport)
+- L1-check-A: `type_contains_sender_kind` → `sender_kind_in_type` (Rust Option-returning-find convention) + doc rewrite with canonical vocab
+- L1-check-B: `ScopeDeadlock` variant doc — retired `QueueSender`/`QueuePair` vocab purged
+- L1-check-C: `symbol_ty` closure → `keyword_ty` (it builds `:wat::core::keyword`; name was lying)
+
+L1-runtime-3 confirmed already-absorbed by arc 225 Stone 225.1 v3 (per `runtime.rs:13547` comment).
+
+**Row 11 honest delta:** scorecard expected 0 `QueueSender|QueuePair` hits in check.rs. Actual: 10. All 10 are in the LEGACY_KERNEL_QUEUE_NAMES detection constant + BareLegacyKernelQueuePath variant docs — the legacy-detection subsystem MUST mention retired names to detect callers using them. Touching would trigger STOP-6. Scorecard was over-broad, not the work. Sonnet caught + framed correctly.
+
+### Arc 232 call-by-name GAP empirically named at `5c7dddf`
+
+DESIGN.md line 174-176 hypothesized `:wat::runtime::lookup-fn` exists OR can be cleanly added via arc 201 reflection. Probe `tests/probe_diagnostic_dynamic_keyword_invocation.rs` disconfirms:
+
+```
+ALL 3 probes FAIL with NotCallable { got: "wat::core::keyword" }
+```
+
+eval_list head dispatch (`runtime.rs:4015-4050` + `5435-5460`) handles literal-keyword, Symbol-bound `wat__core__fn`, List inline-fn, and arc 157 def-bound-fn. **Symbol-bound `Value::wat__core__keyword` is dead data — never re-resolved as a verb dispatch.** No `apply` / `invoke` / `lookup-fn` primitive exists.
+
+defprotocol's dispatcher pattern as DESIGN-written CANNOT WORK. Three resolution paths in `docs/arc/2026/05/232-defprotocol-extend-type/FINDING-CALL-BY-NAME-GAP.md`:
+
+- **(a)** Mint `:wat::core::apply [head <- :keyword] [args <- :Vector] -> :T` — new primitive; Clojure-convergent; smallest surface — RECOMMENDED
+- **(b)** Reshape eval_list head dispatch to auto-resolve Symbol-bound Keyword as verb — bigger semantic shift
+- **(c)** Macro-time closed `cond` — loses defprotocol's open-extension benefit; disqualified per DESIGN goal
+
+**Arc 232 has a substrate prerequisite (arc 232.0 or similar) BEFORE the defprotocol BRIEF.** Probe stays as permanent regression guard.
+
+### THE CHAIN — current state
+
+```
+arc 225 ✓ Stone 225.1 v3 SHIPPED at 189b033 — bridge naming
+arc 228 ✓ Stone 228.1 SHIPPED at 29cc984 — collection classifier-wrap
+arc 230 ✓ Stone 230.1 SHIPPED — atomic pair 530650c + 9f70959 — variant retirement (16→12 true primitives)
+arc 226 ✓ Stone 226.1 SHIPPED at e7ba909 — type predicates
+arc 227 ✓ Stones 227.1 / 227.1b / 227.2 v3 SHIPPED — defrecord N≥0 canonical
+arc 224 ✓ Stones 224.1-4 audit + Stone 224.5 Group A fixes SHIPPED at 5af897d
+
+arc 232 ✗ STUB CLAIMED — substrate gap empirically named (5c7dddf);
+         call-by-name prerequisite needed before defprotocol BRIEF
+```
+
+### Pending decisions (user input needed)
+
+1. **Arc 232 resolution path** — Option (a) mint `:wat::core::apply` recommended; alternatives (b)/(c) in FINDING
+2. **Whether to open arc 232.0 prerequisite stone NOW** vs queue for later
+3. **Cascade INSCRIPTION order** — 8 arcs await paperwork (227 → 226 → 230 → 228 → 225 → 224 → 221 → 220 Slice 5); also 222 + 223 (arc 221 spawn children) NOT STARTED
+
+### Today's commits (chronological — post-compaction continuation)
+
+```
+189b033 → 846fab7  [pre-compaction] arc 225/228/230/226/227 chain
+e0e8b8e  arc 224 Stone 224.5 BRIEF + EXPECTATIONS
+5c7dddf  arc 232 call-by-name GAP — probe + FINDING
+5af897d  arc 224 Stone 224.5 SHIPPED — 14/15 PASS
+```
+
+### Test state — substrate impeccable
+
+- wat-rs: 827/827 lib + 35/35 stone2_defrecord + 2/2 diagnostic probes (macro splice + Bundle/Result) + 3/3 dynamic-keyword probes FAIL by-design (regression guards for the gap) + clippy unchanged baseline
+- holon-rs: untouched since 530650c
+- HEAD `5af897d` on `arc-170-gap-j-v5-deadlock-state`; both repos pushed
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -10` for today's trajectory
+3. Read `docs/arc/2026/05/232-defprotocol-extend-type/FINDING-CALL-BY-NAME-GAP.md` (arc 232 prerequisite — load-bearing for next-move decision)
+4. Read `SCORE-STONE-224.5.md` (arc 224's own scope closed)
+5. Decision boundary: which fork in arc 232 + cascade INSCRIPTION ordering
+
+---
+
+## Currently (2026-05-23 — TYPED-ENTITIES CHAIN COMPLETE + Stone 227.2 v3 CANONICAL DEFRECORD SHIPPED + FM 2-bis discipline inscribed) — SUPERSEDED, see above
 
 ### Stone 227.2 v3 SHIPPED at `846fab7` — canonical defrecord for ALL N
 
