@@ -5202,7 +5202,7 @@ fn dispatch_keyword_head(
         ":wat::edn::write-json-natural" => {
             crate::edn_shim::eval_edn_write_json_natural(args, env, sym)
         }
-        ":wat::edn::read" => crate::edn_shim::eval_edn_read(args, env, sym),
+        ":wat::edn::read" => crate::edn_shim::eval_edn_read(args, list_span, env, sym),
         ":wat::holon::vector-bind" => eval_holon_vector_bind(args, list_span, env, sym),
         ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, list_span, env, sym),
         ":wat::holon::vector-blend" => eval_holon_vector_blend(args, list_span, env, sym),
@@ -6660,18 +6660,20 @@ where
     let b_span = args[1].span().clone();
     let a = eval(&args[0], env, sym)?;
     let b = eval(&args[1], env, sym)?;
-    match (a, b) {
-        (Value::i64(x), Value::i64(y)) => Ok(Value::i64(op(x, y, &b_span)?)),
+    // Arc 233 Stone 233.2.c — use .inner() for Tracked-transparency: a Value::Tracked
+    // wrapping an i64 (e.g., from eval_holon_from_holon) must be transparent to arithmetic.
+    match (a.inner(), b.inner()) {
+        (Value::i64(x), Value::i64(y)) => Ok(Value::i64(op(*x, *y, &b_span)?)),
         (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: ValueSnapshot::of(&other),
+            got: ValueSnapshot::of(&a),
             span: a_span,
         }),
-        (_, other) => Err(RuntimeError::TypeMismatch {
+        (_, _) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: ValueSnapshot::of(&other),
+            got: ValueSnapshot::of(&b),
             span: b_span,
         }),
     }
@@ -14291,22 +14293,77 @@ fn eval_holon_from_holon(
     if let Some(s) = holon.as_symbol() {
         // nil composition (symbol("nil")) → Value::Unit.
         if s == "nil" {
-            return Ok(Value::Unit);
+            return Ok(Value::Tracked {
+                inner: Box::new(Value::Unit),
+                provenance: Provenance::RuntimeBuilt {
+                    producer: ":wat::holon::from-holon",
+                    call_span: list_span.clone(),
+                },
+            });
         }
-        return Ok(Value::wat__core__keyword(Arc::new(s.to_string())));
+        return Ok(Value::Tracked {
+            inner: Box::new(Value::wat__core__keyword(Arc::new(s.to_string()))),
+            provenance: Provenance::RuntimeBuilt {
+                producer: ":wat::holon::from-holon",
+                call_span: list_span.clone(),
+            },
+        });
     }
     if let Some(s) = holon.as_keyword() {
         // Keyword composition: restore leading colon for the Value round-trip.
-        return Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s))));
+        return Ok(Value::Tracked {
+            inner: Box::new(Value::wat__core__keyword(Arc::new(format!(":{}", s)))),
+            provenance: Provenance::RuntimeBuilt {
+                producer: ":wat::holon::from-holon",
+                call_span: list_span.clone(),
+            },
+        });
     }
     match &*holon {
         // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
-        HolonAST::Char(c) => Ok(Value::wat__core__Char(*c)),
-        HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
-        HolonAST::I64(n) => Ok(Value::i64(*n)),
-        HolonAST::F64(x) => Ok(Value::f64(*x)),
-        HolonAST::Bool(b) => Ok(Value::bool(*b)),
-        HolonAST::Atom(inner) => Ok(Value::holon__HolonAST(inner.clone())),
+        // Arc 233 Stone 233.2.c — wrap each return in Tracked with RuntimeBuilt provenance.
+        HolonAST::Char(c) => Ok(Value::Tracked {
+            inner: Box::new(Value::wat__core__Char(*c)),
+            provenance: Provenance::RuntimeBuilt {
+                producer: ":wat::holon::from-holon",
+                call_span: list_span.clone(),
+            },
+        }),
+        HolonAST::String(s) => Ok(Value::Tracked {
+            inner: Box::new(Value::String(Arc::new(s.to_string()))),
+            provenance: Provenance::RuntimeBuilt {
+                producer: ":wat::holon::from-holon",
+                call_span: list_span.clone(),
+            },
+        }),
+        HolonAST::I64(n) => Ok(Value::Tracked {
+            inner: Box::new(Value::i64(*n)),
+            provenance: Provenance::RuntimeBuilt {
+                producer: ":wat::holon::from-holon",
+                call_span: list_span.clone(),
+            },
+        }),
+        HolonAST::F64(x) => Ok(Value::Tracked {
+            inner: Box::new(Value::f64(*x)),
+            provenance: Provenance::RuntimeBuilt {
+                producer: ":wat::holon::from-holon",
+                call_span: list_span.clone(),
+            },
+        }),
+        HolonAST::Bool(b) => Ok(Value::Tracked {
+            inner: Box::new(Value::bool(*b)),
+            provenance: Provenance::RuntimeBuilt {
+                producer: ":wat::holon::from-holon",
+                call_span: list_span.clone(),
+            },
+        }),
+        HolonAST::Atom(inner) => Ok(Value::Tracked {
+            inner: Box::new(Value::holon__HolonAST(inner.clone())),
+            provenance: Provenance::RuntimeBuilt {
+                producer: ":wat::holon::from-holon",
+                call_span: list_span.clone(),
+            },
+        }),
         // Arc 228 Stone 228.1 — classifier-dispatch replaces arc 216 heuristic Bundle dispatch.
         // The outermost form is now Bind(Atom(String(name)), Bundle(items)) for all collections.
         // Dispatch by classifier name:
@@ -14360,7 +14417,13 @@ fn eval_holon_from_holon(
                                 }
                             }
                         }
-                        Ok(Value::wat__std__HashMap(Arc::new(map)))
+                        Ok(Value::Tracked {
+                            inner: Box::new(Value::wat__std__HashMap(Arc::new(map))),
+                            provenance: Provenance::RuntimeBuilt {
+                                producer: ":wat::holon::from-holon",
+                                call_span: list_span.clone(),
+                            },
+                        })
                     }
                     "Set" => {
                         // Set: inner Bundle contains bare items → HashSet.
@@ -14369,7 +14432,13 @@ fn eval_holon_from_holon(
                             let v = from_holon_item(item, OP, args[0].span())?;
                             set.insert(v);
                         }
-                        Ok(Value::wat__std__HashSet(Arc::new(set)))
+                        Ok(Value::Tracked {
+                            inner: Box::new(Value::wat__std__HashSet(Arc::new(set))),
+                            provenance: Provenance::RuntimeBuilt {
+                                producer: ":wat::holon::from-holon",
+                                call_span: list_span.clone(),
+                            },
+                        })
                     }
                     "Vector" => {
                         // Vector: inner Bundle contains positional Bind(I64, _) pairs → Vec.
@@ -14404,7 +14473,13 @@ fn eval_holon_from_holon(
                         }
                         pairs.sort_by_key(|(k, _)| *k);
                         let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                        Ok(Value::Vec(Arc::new(elems)))
+                        Ok(Value::Tracked {
+                            inner: Box::new(Value::Vec(Arc::new(elems))),
+                            provenance: Provenance::RuntimeBuilt {
+                                producer: ":wat::holon::from-holon",
+                                call_span: list_span.clone(),
+                            },
+                        })
                     }
                     "List" => {
                         // List: inner Bundle contains sequential bare items → wat::core::List.
@@ -14414,7 +14489,13 @@ fn eval_holon_from_holon(
                             let v = from_holon_item(item, OP, args[0].span())?;
                             list.push_back(v);
                         }
-                        Ok(Value::wat__core__List(Arc::new(list)))
+                        Ok(Value::Tracked {
+                            inner: Box::new(Value::wat__core__List(Arc::new(list))),
+                            provenance: Provenance::RuntimeBuilt {
+                                producer: ":wat::holon::from-holon",
+                                call_span: list_span.clone(),
+                            },
+                        })
                     }
                     "Tuple" => {
                         // Tuple: inner Bundle contains positional Bind(I64, _) pairs → Tuple.
@@ -14450,7 +14531,13 @@ fn eval_holon_from_holon(
                         }
                         pairs.sort_by_key(|(k, _)| *k);
                         let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                        Ok(Value::Tuple(Arc::new(elems)))
+                        Ok(Value::Tracked {
+                            inner: Box::new(Value::Tuple(Arc::new(elems))),
+                            provenance: Provenance::RuntimeBuilt {
+                                producer: ":wat::holon::from-holon",
+                                call_span: list_span.clone(),
+                            },
+                        })
                     }
                     _ => {
                         Err(RuntimeError::TypeMismatch {
@@ -19570,7 +19657,16 @@ fn eval_kernel_recv(
     );
     match outcome {
         crate::typed_channel::RecvOutcome::Value(v) => {
-            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
+            // Arc 233 Stone 233.2.c — tag the received value with RuntimeBuilt provenance
+            // so errors propagating from recv-produced Values surface the producer origin.
+            let tagged = Value::Tracked {
+                inner: Box::new(v),
+                provenance: Provenance::RuntimeBuilt {
+                    producer: ":wat::kernel::recv",
+                    call_span: list_span.clone(),
+                },
+            };
+            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(tagged)))))))
         }
         crate::typed_channel::RecvOutcome::Disconnected => {
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
@@ -19638,7 +19734,16 @@ fn eval_kernel_try_recv(
     );
     match outcome {
         crate::typed_channel::RecvOutcome::Value(v) => {
-            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
+            // Arc 233 Stone 233.2.c — tag the received value with RuntimeBuilt provenance
+            // so errors propagating from try-recv-produced Values surface the producer origin.
+            let tagged = Value::Tracked {
+                inner: Box::new(v),
+                provenance: Provenance::RuntimeBuilt {
+                    producer: ":wat::kernel::try-recv",
+                    call_span: list_span.clone(),
+                },
+            };
+            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(tagged)))))))
         }
         crate::typed_channel::RecvOutcome::Disconnected => {
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
@@ -25270,8 +25375,9 @@ mod tests {
             r#"(:wat::holon::from-holon (:wat::holon::to-holon "hello"))"#,
         )
         .unwrap();
-        match result {
-            Value::String(s) => assert_eq!(&*s, "hello"),
+        // Arc 233 Stone 233.2.c — from-holon now wraps in Tracked; unwrap before matching.
+        match result.inner().clone() {
+            Value::String(s) => assert_eq!(s.as_str(), "hello"),
             other => panic!("expected Value::String, got {:?}", other),
         }
     }
@@ -25328,8 +25434,9 @@ mod tests {
             "(:wat::holon::from-holon (:wat::holon::from-wat (:wat::core::quote :outcome)))",
         )
         .unwrap();
-        match result {
-            Value::wat__core__keyword(k) => assert_eq!(&*k, ":outcome"),
+        // Arc 233 Stone 233.2.c — from-holon now wraps in Tracked; unwrap before matching.
+        match result.inner().clone() {
+            Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":outcome"),
             other => panic!("expected keyword, got {:?}", other),
         }
     }
@@ -26840,7 +26947,8 @@ mod tests {
                 ((:wat::core::Ok :wat::core::None) 0)
                 ((:wat::core::Err _died) -1)))
         "#;
-        match eval_expr(src).unwrap() {
+        // Arc 233 Stone 233.2.c — recv now wraps the received value in Tracked; unwrap before matching.
+        match eval_expr(src).unwrap().inner() {
             Value::i64(42) => {}
             v => panic!("expected 42, got {:?}", v),
         }
@@ -28131,7 +28239,8 @@ mod tests {
                 ((:wat::core::Ok :wat::core::None) 0)
                 ((:wat::core::Err _died) -1)))
         "#;
-        match eval_expr(src).unwrap() {
+        // Arc 233 Stone 233.2.c — try-recv now wraps the received value in Tracked; unwrap before matching.
+        match eval_expr(src).unwrap().inner() {
             Value::i64(7) => {}
             v => panic!("expected 7, got {:?}", v),
         }
@@ -28840,7 +28949,8 @@ mod tests {
               ((:wat::core::Ok h) (:wat::holon::from-holon h))
               ((:wat::core::Err _) -1))
         "#;
-        match eval_expr(src).unwrap() {
+        // Arc 233 Stone 233.2.c — from-holon now wraps in Tracked; unwrap before matching.
+        match eval_expr(src).unwrap().inner() {
             Value::i64(42) => {}
             v => panic!("expected 42, got {:?}", v),
         }
@@ -29050,10 +29160,11 @@ mod tests {
               value))
           ((:wat::core::Err _) -1))
         "#;
-        match run(src).unwrap() {
+        // Arc 233 Stone 233.2.c — from-holon now wraps in Tracked; unwrap before matching.
+        match run(src).unwrap().inner() {
             Value::i64(value) => {
                 assert_eq!(
-                    value, 999,
+                    *value, 999,
                     "expected sentinel 999 from Skip, got {}",
                     value
                 );

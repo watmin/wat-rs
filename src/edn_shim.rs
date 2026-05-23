@@ -185,6 +185,7 @@ pub fn eval_edn_write_json_natural(
 ///     the path that failed.
 pub fn eval_edn_read(
     args: &[WatAST],
+    list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -208,13 +209,22 @@ pub fn eval_edn_read(
         reason: format!("EDN parse error: {e}"),
         span: crate::span::Span::unknown(),
     })?;
-    edn_to_value(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
+    // Arc 233 Stone 233.2.c — wrap result in Tracked with RuntimeBuilt provenance
+    // so that errors flowing from edn::read-produced Values surface the producer origin.
+    let result = edn_to_value(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
         // arc 138: no span — edn_to_value errors on parsed EDN, no originating WatAST
         RuntimeError::MalformedForm {
             head: OP.into(),
             reason: e.to_string(),
             span: crate::span::Span::unknown(),
         }
+    })?;
+    Ok(Value::Tracked {
+        inner: Box::new(result),
+        provenance: crate::runtime::Provenance::RuntimeBuilt {
+            producer: ":wat::edn::read",
+            call_span: list_span.clone(),
+        },
     })
 }
 
