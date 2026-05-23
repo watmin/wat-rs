@@ -99,27 +99,29 @@ fn startup_err(src: &str) -> String {
     }
 }
 
-// ─── Probe 1 — Forward: HashMap → HolonAST::Bundle of Bind children ──────────
+// ─── Probe 1 — Forward: HashMap → classifier-wrapped HolonAST ────────────────
 
-/// `(:wat::holon::to-holon{:foo 42 :bar 99})` produces a `HolonAST::Bundle`
-/// containing two Bind children (one per key-value pair: Bind(Symbol(:foo), I64(42))
-/// and Bind(Symbol(:bar), I64(99))).
-/// Bundle child count equals the HashMap's entry count.
-/// Arc 216 Stone 3 forward direction (value_to_atom HashMap arm, DESIGN Q2 map-shape).
+/// `(:wat::holon::to-holon{:foo 42 :bar 99})` produces a classifier-wrapped HolonAST.
+/// Arc 228 Stone 228.1: the output is `Bind(Atom("Map"), Bundle(Bind pairs))`, not a bare Bundle.
+/// Arc 216 Stone 3 forward direction — forward-corrected per typed-entities doctrine.
+/// Verified via round-trip: to-holon → from-holon → HashMap/length = 2.
 #[test]
 fn probe_1_forward_hashmap_to_bundle() {
+    // Arc 228: Bundle/children no longer works on the classifier-wrapped top-level Bind.
+    // Verify via round-trip: to-holon produces an encoding that from-holon decodes back
+    // to a HashMap of length 2. The entry count proves encoding captured both pairs.
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   {:foo 42 :bar 99}
              h   (:wat::holon::to-holon m)
-             cs  (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rv  (:wat::holon::from-holon h)]
+            (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src),
         2,
-        "Bundle must have 2 children for {{:foo 42 :bar 99}}"
+        "classifier-wrapped Map encoding must preserve 2 entries in round-trip"
     );
 }
 
@@ -179,23 +181,24 @@ fn probe_2_reverse_bundle_to_hashmap_roundtrip() {
 /// Arc 216 Stone 3 — consumer-declared type disambiguation for empty Bundle.
 #[test]
 fn probe_3_empty_map_roundtrip_consumer_declared() {
-    // Forward: empty map → Bundle with 0 children.
+    // Arc 228: to-holon on empty HashMap produces Bind(Atom("Map"), Bundle([])).
+    // from-holon dispatches by classifier "Map" → empty HashMap (no consumer hint needed).
+    // The "-> :T" annotation form is still valid syntax but no longer required for disambiguation.
     let src_forward = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
              h   (:wat::holon::to-holon m)
-             cs  (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rv  (:wat::holon::from-holon h)]
+            (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_forward),
         0,
-        "empty HashMap → Bundle with 0 children"
+        "empty HashMap classifier-wrapped encoding must round-trip to HashMap length 0"
     );
 
-    // Reverse via consumer-declared type: empty Bundle → empty HashMap.
-    // Use bare `:wat::core::HashMap` keyword (no type params needed; hint is type-erasure-safe).
+    // Reverse via consumer-declared type: still valid syntax; classifier dispatch takes precedence.
     let src_reverse = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
@@ -207,7 +210,7 @@ fn probe_3_empty_map_roundtrip_consumer_declared() {
     assert_eq!(
         run_i64(src_reverse),
         0,
-        "empty Bundle + consumer declares HashMap → empty HashMap (length 0)"
+        "empty Map classifier-wrapped + consumer hint: empty HashMap (length 0)"
     );
 }
 
@@ -366,20 +369,21 @@ fn probe_7_nested_map_roundtrip() {
     "#;
     assert_eq!(run_i64(src_outer_len), 1, "nested map outer length = 1");
 
-    // Forward: outer Bundle has 1 Bind child.
+    // Arc 228: Bundle/children no longer applies to the classifier-wrapped top-level Bind.
+    // Verify outer entry count via round-trip (already done above).
     let src_bundle_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1 :y 2)
              outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
              h     (:wat::holon::to-holon outer)
-             cs    (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rv    (:wat::holon::from-holon h)]
+            (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
         1,
-        "nested map: outer Bundle must have 1 Bind child"
+        "nested map arc 228: classifier-wrapped outer HashMap length = 1"
     );
 }
 
@@ -406,20 +410,21 @@ fn probe_8_mixed_nesting_hashmap_of_vec() {
         "HashMap<keyword,Vec<i64>> round-trip: outer length 1"
     );
 
-    // Forward: outer Bundle has 1 Bind child (Bind(Symbol, Bundle-of-positional-Binds)).
+    // Arc 228: Bundle/children no longer applies to the classifier-wrapped top-level Bind.
+    // Verify outer entry count via round-trip.
     let src_bundle_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [v   (:wat::core::Vector :wat::core::i64 10 20 30)
              m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data v)
              h   (:wat::holon::to-holon m)
-             cs  (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rv  (:wat::holon::from-holon h)]
+            (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
         1,
-        "HashMap<keyword,Vec<i64>> forward: Bundle must have 1 Bind child"
+        "HashMap<keyword,Vec<i64>> arc 228: classifier-wrapped outer length = 1"
     );
 }
 
@@ -446,20 +451,21 @@ fn probe_9_mixed_nesting_hashmap_of_hashset() {
         "HashMap<keyword,HashSet<i64>> round-trip: outer length 1"
     );
 
-    // Forward: outer Bundle has 1 Bind child.
+    // Arc 228: Bundle/children no longer applies to the classifier-wrapped top-level Bind.
+    // Verify outer entry count via round-trip.
     let src_bundle_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [s   (:wat::core::HashSet :wat::core::i64 1 2 3)
              m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data s)
              h   (:wat::holon::to-holon m)
-             cs  (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rv  (:wat::holon::from-holon h)]
+            (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
         1,
-        "HashMap<keyword,HashSet<i64>> forward: Bundle must have 1 Bind child"
+        "HashMap<keyword,HashSet<i64>> arc 228: classifier-wrapped outer length = 1"
     );
 }
 
@@ -681,30 +687,33 @@ fn probe_13_shape_disambiguation_non_sequential_i64() {
 
 // ─── Probe 14 — Empty Bundle disambiguation via consumer-declared HashMap ─────
 
-/// Empty Bundle + consumer declares HashMap → empty HashMap (length 0).
-/// Without the `-> :T` annotation, empty Bundle returns empty HashSet (Stone 216.2 Delta 1).
-/// With `-> :wat::core::HashMap<K,V>`, the consumer-declared type overrides the
-/// conservative HashSet default.
-/// Arc 216 Stone 3 — consumer-declared type disambiguation (EXPECTATIONS row 19).
+/// Arc 228 Stone 228.1: empty HashMap now classifier-wrapped.
+///
+/// Pre-arc-228 behavior (arc 216 Stone 3 Delta 1): empty Bundle was ambiguous;
+/// unannotated form returned empty HashSet; `-> :HashMap` annotation returned empty HashMap.
+///
+/// Post-arc-228 behavior: to-holon on empty HashMap produces `Bind(Atom("Map"), Bundle([]))`.
+/// from-holon dispatches by classifier "Map" → always returns HashMap, regardless of annotation.
+/// The consumer-hint `-> :T` annotation is no longer needed for disambiguation.
 #[test]
 fn probe_14_empty_bundle_disambiguation_consumer_declares_hashmap() {
-    // Without annotation: empty HashMap → Atom → empty Bundle → atom-value → empty HashSet.
-    // Verify the unannotated form still returns HashSet (conservative default, no regression).
+    // Arc 228: unannotated form now returns HashMap (classifier "Map" is unambiguous).
+    // The arc 216 conservative-default behavior (empty Bundle → HashSet) is retired.
     let src_unannotated = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
              h   (:wat::holon::to-holon m)
              rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length rv)))
+            (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_unannotated),
         0,
-        "unannotated empty Bundle → empty HashSet (conservative default)"
+        "arc 228: empty HashMap classifier-wrapped encoding returns HashMap (not HashSet)"
     );
 
-    // With `-> :wat::core::HashMap` annotation: empty Bundle → empty HashMap.
+    // Annotated form: `-> :HashMap` is still valid syntax; classifier dispatch takes precedence.
     let src_annotated = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
@@ -716,6 +725,6 @@ fn probe_14_empty_bundle_disambiguation_consumer_declares_hashmap() {
     assert_eq!(
         run_i64(src_annotated),
         0,
-        "consumer-declared HashMap: empty Bundle → empty HashMap (length 0)"
+        "annotated form still works: empty Map classifier + consumer hint → empty HashMap (length 0)"
     );
 }

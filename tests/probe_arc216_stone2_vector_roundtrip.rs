@@ -89,23 +89,26 @@ fn startup_err(src: &str) -> String {
     }
 }
 
-// ─── Probe 1 — Forward: `[1 2 3]` → HolonAST::Bundle of Bind children ───────
+// ─── Probe 1 — Forward: `[1 2 3]` → classifier-wrapped HolonAST ─────────────
 
-/// `(:wat::holon::to-holon [1 2 3])` produces a `HolonAST::Bundle` containing
-/// three Bind children (one per element with i64 keys 0, 1, 2).
-/// The bundle's child count equals the vector length.
-/// Arc 216 Stone 2 forward direction (value_to_atom Vec arm, DESIGN Q2).
+/// `(:wat::holon::to-holon [1 2 3])` produces a classifier-wrapped HolonAST.
+/// Arc 228 Stone 228.1: the output is `Bind(Atom("Vector"), Bundle(positional Binds))`,
+/// not a bare Bundle. Arc 216 Stone 2 forward direction — forward-corrected per
+/// typed-entities doctrine.
+/// Verified via round-trip: to-holon → from-holon → length = 3.
 #[test]
 fn probe_1_forward_vec_to_bundle() {
-    // Verify the result is a HolonAST Bundle with 3 children.
+    // Arc 228: Bundle/children no longer works on the classifier-wrapped top-level Bind.
+    // Verify via round-trip: to-holon produces an encoding that from-holon decodes back
+    // to a Vec of length 3. The element count proves encoding captured all 3 elements.
     let src_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [h   (:wat::holon::to-holon [1 2 3])
-             cs  (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             v   (:wat::holon::from-holon h)]
+            (:wat::core::Vector/length v)))
     "#;
-    assert_eq!(run_i64(src_len), 3, "Bundle must have 3 children for [1 2 3]");
+    assert_eq!(run_i64(src_len), 3, "classifier-wrapped Vector encoding must preserve 3 elements in round-trip");
 }
 
 // ─── Probe 2 — Reverse: Bundle → Vec round-trip ──────────────────────────────
@@ -146,27 +149,28 @@ fn probe_2_reverse_bundle_to_vec_roundtrip() {
 
 // ─── Probe 3 — Empty vec round-trip ──────────────────────────────────────────
 
-/// Empty vec round-trip: `[]` → `Bundle([])` → empty Bundle edge case.
-/// The empty Bundle is ambiguous at the algebra level (no keys to discriminate
-/// shape). Per implementation choice: `atom-value` on an empty Bundle returns
-/// an empty HashSet (set-shape; cannot prove vector-shape without keys).
-/// This is documented as an honest edge-case delta.
+/// Empty vec round-trip: `[]` → classifier-wrapped empty Bundle → `Vec` of length 0.
+/// Arc 228 Stone 228.1: the output is `Bind(Atom("Vector"), Bundle([]))`. The classifier
+/// "Vector" unambiguously identifies the empty collection as a Vector on the reverse trip.
+/// This resolves the arc 216 honest edge-case (empty Bundle was ambiguous; now unambiguous).
 ///
-/// The forward direction is verified: `(:wat::holon::to-holon [])` → Bundle with 0 children.
+/// Verified via round-trip: to-holon → from-holon → Vector/length = 0.
 #[test]
 fn probe_3_empty_vec_forward() {
-    // Forward: empty vec → Bundle with 0 children.
+    // Arc 228: to-holon on empty vec produces Bind(Atom("Vector"), Bundle([])).
+    // from-holon dispatches by classifier "Vector" → Vec of length 0.
+    // Round-trip is now unambiguous (no consumer-hint needed).
     let src_fwd = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [h  (:wat::holon::to-holon [])
-             cs (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             v  (:wat::holon::from-holon h)]
+            (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
         run_i64(src_fwd),
         0,
-        "empty vec must produce Bundle with 0 children"
+        "empty vec classifier-wrapped encoding must round-trip to Vec length 0"
     );
 }
 
@@ -325,7 +329,9 @@ fn probe_7_nested_vector_roundtrip() {
         "nested Vec round-trip: outer length must be 2"
     );
 
-    // Bundle child count for forward direction: 2 Binds at outer level.
+    // Arc 228: Bundle/children no longer applies to the classifier-wrapped top-level Bind.
+    // Verify via second round-trip: outer Vec has 2 elements (already proven above).
+    // Re-verify using a distinct sub-expression to confirm idempotency.
     let src_bundle_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
@@ -333,13 +339,13 @@ fn probe_7_nested_vector_roundtrip() {
              inner2  (:wat::core::Vector :wat::core::i64 4 5)
              outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
              h       (:wat::holon::to-holon outer)
-             cs      (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             v       (:wat::holon::from-holon h)]
+            (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
         2,
-        "nested Vec forward: Bundle must have 2 children (one Bind per inner vec)"
+        "nested Vec arc 228: classifier-wrapped encoding outer length = 2"
     );
 
     // Inner element check: after round-trip, get element 0 from outer Vec,
@@ -399,7 +405,8 @@ fn probe_8_mixed_nesting_vec_of_hashset() {
         "Vec<HashSet<i64>> round-trip: outer length must be 2"
     );
 
-    // Forward: outer Bundle has 2 Bind children.
+    // Arc 228: Bundle/children no longer applies to the classifier-wrapped top-level Bind.
+    // Verify the outer element count via round-trip: outer Vec has 2 elements.
     let src_bundle_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
@@ -407,13 +414,13 @@ fn probe_8_mixed_nesting_vec_of_hashset() {
              s2  (:wat::core::HashSet :wat::core::i64 4 5)
              v   (:wat::core::Vector :wat::type::Infer s1 s2)
              h   (:wat::holon::to-holon v)
-             cs  (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rv  (:wat::holon::from-holon h)]
+            (:wat::core::Vector/length rv)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
         2,
-        "Vec<HashSet<i64>> forward: Bundle must have 2 Bind children"
+        "Vec<HashSet<i64>> arc 228: classifier-wrapped outer Vec length = 2"
     );
 }
 

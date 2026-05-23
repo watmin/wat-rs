@@ -72,6 +72,54 @@ fn run_i64(src: &str) -> i64 {
     }
 }
 
+/// Run a wat program that returns an opaque Value (any type).
+/// Used for probes that return Tuple — the type checker cannot statically
+/// infer the return type of `from-holon`, so element access happens at Rust level.
+fn run_value(src: &str) -> Value {
+    let src = with_nil_main(src);
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup should succeed");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute")
+}
+
+/// Extract element at `index` from a `Value::Tuple`, asserting it is i64.
+fn tuple_element_i64(v: Value, index: usize, probe: &str) -> i64 {
+    match v {
+        Value::Tuple(items) => match items.get(index) {
+            Some(Value::i64(n)) => *n,
+            Some(other) => panic!("{}: tuple[{}] is {:?}, expected i64", probe, index, other),
+            None => panic!("{}: tuple has fewer than {} elements", probe, index + 1),
+        },
+        other => panic!("{}: expected Tuple; got {:?}", probe, other),
+    }
+}
+
+/// Extract length of inner Vec from element at `index` of a `Value::Tuple`.
+fn tuple_element_vec_length(v: Value, index: usize, probe: &str) -> i64 {
+    match v {
+        Value::Tuple(items) => match items.get(index) {
+            Some(Value::Vec(inner)) => inner.len() as i64,
+            Some(other) => panic!("{}: tuple[{}] is {:?}, expected Vec", probe, index, other),
+            None => panic!("{}: tuple has fewer than {} elements", probe, index + 1),
+        },
+        other => panic!("{}: expected Tuple; got {:?}", probe, other),
+    }
+}
+
+/// Extract length of inner Tuple from element at `index` of a `Value::Tuple`.
+fn tuple_element_tuple_length(v: Value, index: usize, probe: &str) -> i64 {
+    match v {
+        Value::Tuple(items) => match items.get(index) {
+            Some(Value::Tuple(inner)) => inner.len() as i64,
+            Some(other) => panic!("{}: tuple[{}] is {:?}, expected Tuple", probe, index, other),
+            None => panic!("{}: tuple has fewer than {} elements", probe, index + 1),
+        },
+        other => panic!("{}: expected Tuple; got {:?}", probe, other),
+    }
+}
+
 fn startup_err(src: &str) -> String {
     let src = with_nil_main(src);
     match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
@@ -80,189 +128,229 @@ fn startup_err(src: &str) -> String {
     }
 }
 
-// ─── Probe 1 — Forward: 2-tuple → HolonAST::Bundle of Bind children ──────────
+// ─── Probe 1 — Forward: 2-tuple → classifier-wrapped HolonAST ───────────────
 
-/// `(:wat::holon::to-holon (:wat::core::Tuple 1 "hello"))` produces a `HolonAST::Bundle`
-/// containing 2 Bind children (one per element with i64 keys 0, 1).
-/// Arc 216 Stone 7 forward direction (value_to_atom Tuple arm, encoding doctrine).
+/// `(:wat::holon::to-holon (:wat::core::Tuple 1 "hello"))` produces a classifier-wrapped HolonAST.
+/// Arc 228 Stone 228.1: the output is `Bind(Atom("Tuple"), Bundle(positional Binds))`.
+/// Arc 216 Stone 7 forward direction — forward-corrected per typed-entities doctrine.
+/// Verified via round-trip: to-holon → from-holon → Tuple → first element = 1.
+///
+/// Type-checker note: `from-holon` returns `?T` (fresh type var). To allow the return
+/// without calling `first`/`second` (which require statically-known tuple/Vec type),
+/// we declare the return type explicitly and extract the element at Rust level.
 #[test]
 fn probe_1_forward_2tuple_to_bundle() {
-    // Verify the result is a HolonAST Bundle with 2 children.
+    // Arc 228: Bundle/children no longer works on classifier-wrapped top-level Bind.
+    // Verify via round-trip: from-holon returns Tuple (classifier "Tuple" is distinct).
+    // Return the Tuple directly with explicit type annotation; extract first element in Rust.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :(wat::core::i64,wat::core::String))
           (:wat::core::let
             [t  (:wat::core::Tuple 1 "hello")
              h  (:wat::holon::to-holon t)
-             cs (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rt (:wat::holon::from-holon h)]
+            rt))
     "#;
-    assert_eq!(run_i64(src), 2, "Bundle must have 2 children for (i64, String) tuple");
+    let v = run_value(src);
+    assert_eq!(
+        tuple_element_i64(v, 0, "probe_1"),
+        1,
+        "classifier-wrapped Tuple round-trip: first element must be 1"
+    );
 }
 
-// ─── Probe 2 — Reverse: Bundle → Vec (honest asymmetry) ──────────────────────
+// ─── Probe 2 — Reverse: Tuple-classified → Tuple (arc 228 no honest asymmetry) ─
 
-/// `atom-value` on a Tuple-encoded Bundle reconstructs a Vec (positional-Bind shape).
-/// The Tuple and Vec encodings are identical; `atom-value` returns Vec.
-/// This is the honest asymmetry per DESIGN Q9: consumer-declared type discriminates.
-/// Verify: result is a Vector with length 2; first element = 1.
+/// Arc 228 Stone 228.1: from-holon now returns Tuple (not Vec) for Tuple-encoded forms.
+///
+/// Pre-arc-228 (arc 216 "honest asymmetry"): Tuple and Vec had identical bare-Bundle
+/// encoding; from-holon always returned Vec for positional-Bind Bundles; consumer-declared
+/// type was the only discriminator.
+///
+/// Post-arc-228: the classifier Atom("Tuple") vs Atom("Vector") is the discriminator.
+/// from-holon on Tuple-classified form returns Tuple; from-holon on Vector returns Vec.
+/// The honest asymmetry is resolved: the substrate type is recoverable from data alone.
+///
+/// Type-checker note: return Tuple directly with explicit annotation; element access at Rust level.
 #[test]
 fn probe_2_reverse_bundle_to_vec_honest_asymmetry() {
-    // Length = 2 after round-trip via atom-value (returns Vec, not Tuple).
-    let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::let
-            [t  (:wat::core::Tuple 1 "hello")
-             h  (:wat::holon::to-holon t)
-             v  (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length v)))
-    "#;
-    assert_eq!(run_i64(src_len), 2, "atom-value on Tuple Bundle must produce Vec with length 2");
-
-    // First element = 1 (order preserved).
+    // Arc 228: from-holon returns Tuple (not Vec). Return Tuple with explicit type annotation.
+    // Second element is "hello" (String); verify first element = 1 (i64) at Rust level.
     let src_first = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :(wat::core::i64,wat::core::String))
           (:wat::core::let
             [t  (:wat::core::Tuple 1 "hello")
              h  (:wat::holon::to-holon t)
-             v  (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get v 0)
-              -> :wat::core::i64
-              ((:wat::core::Some x) x)
-              (:wat::core::None -1))))
+             rt (:wat::holon::from-holon h)]
+            rt))
     "#;
-    assert_eq!(run_i64(src_first), 1, "atom-value on Tuple Bundle: first element must be 1");
+    let v = run_value(src_first);
+    assert_eq!(
+        tuple_element_i64(v, 0, "probe_2"),
+        1,
+        "arc 228: from-holon Tuple round-trip: first element = 1 (Tuple, not Vec)"
+    );
 }
 
-// ─── Probe 3 — 3-tuple primitives → Bundle shape verification ─────────────────
+// ─── Probe 3 — 3-tuple primitives → round-trip element verification ───────────
 
-/// `(bool, i64, String)` 3-tuple forward: Bundle has 3 Bind children with I64 keys.
-/// Verifies heterogeneous element types all atomize correctly.
+/// `(bool, i64, String)` 3-tuple forward: classifier-wrapped Bind with 3-element inner Bundle.
+/// Arc 228: Bundle/children no longer works on classifier-wrapped top-level Bind.
+/// Verify via round-trip: to-holon → from-holon → Tuple; second element = 42.
+///
+/// Type-checker note: from-holon returns ?T; declare explicit return type; element at Rust level.
 #[test]
 fn probe_3_three_tuple_primitives_bundle_shape() {
-    // Verify Bundle has 3 children.
-    let src_count = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+    // Arc 228: round-trip via from-holon → Tuple. Return with explicit 3-Tuple type annotation.
+    // Extract element at index 1 (42) at Rust level from the returned Value::Tuple.
+    let src = r#"
+        (:wat::core::define (:user::compute -> :(wat::core::bool,wat::core::i64,wat::core::String))
           (:wat::core::let
             [t  (:wat::core::Tuple true 42 "wat")
              h  (:wat::holon::to-holon t)
-             cs (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rt (:wat::holon::from-holon h)]
+            rt))
     "#;
-    assert_eq!(run_i64(src_count), 3, "3-tuple Bundle must have 3 children");
-
-    // After atom-value: Vec with length 3; element at index 1 = 42.
-    let src_elem = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::let
-            [t  (:wat::core::Tuple true 42 "wat")
-             h  (:wat::holon::to-holon t)
-             v  (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get v 1)
-              -> :wat::core::i64
-              ((:wat::core::Some x) x)
-              (:wat::core::None -1))))
-    "#;
-    assert_eq!(run_i64(src_elem), 42, "3-tuple: element at index 1 must be 42");
+    let v = run_value(src);
+    assert_eq!(
+        tuple_element_i64(v, 1, "probe_3"),
+        42,
+        "3-tuple round-trip: element at index 1 must be 42"
+    );
 }
 
 // ─── Probe 4 — Nested Tuple: ((i64, i64), String) ────────────────────────────
 
 /// `(:wat::core::Tuple (:wat::core::Tuple 1 2) "outer")` — nested Tuple.
-/// Outer Bundle has 2 Bind children; inner Bind's value is a Bundle of 2 Binds.
-/// Verifies recursive atomization (Tuple arm calls value_to_atom on each element).
+/// Arc 228: outer is classifier-wrapped Bind; Bundle/children no longer applies.
+/// Verify via round-trip: from-holon → outer Tuple; first element is inner Tuple.
+/// Inner Tuple's first element = 1 and second element = 2.
+///
+/// Type-checker note: from-holon returns ?T; return the outer Tuple directly with
+/// explicit type annotation; extract nested elements at Rust level.
 #[test]
 fn probe_4_nested_tuple_roundtrip() {
-    // Outer Bundle has 2 children.
+    // Arc 228: round-trip outer Tuple via to-holon/from-holon.
+    // Return Tuple directly; type annotation uses bare (T,U) form (no leading `:`) for inner Tuple.
+    // The function body is just `rt` — no need to call first/second at wat level.
+    // Inner Tuple elements verified at Rust level from Value::Tuple.
     let src_outer = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :((wat::core::i64,wat::core::i64),wat::core::String))
           (:wat::core::let
             [inner (:wat::core::Tuple 1 2)
              outer (:wat::core::Tuple inner "outer")
              h     (:wat::holon::to-holon outer)
-             cs    (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rt    (:wat::holon::from-holon h)]
+            rt))
     "#;
-    assert_eq!(run_i64(src_outer), 2, "nested Tuple outer Bundle must have 2 children");
+    let v = run_value(src_outer);
+    // outer is Tuple; element 0 is inner Tuple; verify inner Tuple length = 2.
+    assert_eq!(
+        tuple_element_tuple_length(v, 0, "probe_4"),
+        2,
+        "nested Tuple: inner Tuple (element 0 of outer) must have length 2"
+    );
 
-    // After atom-value on outer: Vec of length 2; element 0 is itself a Vec (inner Tuple decoded).
-    // The inner Tuple encodes as a positional-Bind Bundle; atom-value decodes the outer Bundle
-    // recursively — each element is decoded via holon_item_to_value, which decodes the inner
-    // Bundle as Vec. So element 0 of the outer Vec is already a Vec of length 2; call Vector/length.
-    let src_inner_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+    // Inner Tuple first element = 1, second element = 2: verify via Rust-level extraction.
+    let src_inner = r#"
+        (:wat::core::define (:user::compute -> :((wat::core::i64,wat::core::i64),wat::core::String))
           (:wat::core::let
             [inner (:wat::core::Tuple 1 2)
              outer (:wat::core::Tuple inner "outer")
              h     (:wat::holon::to-holon outer)
-             v     (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get v 0)
-              -> :wat::core::i64
-              ((:wat::core::Some inner_v)
-                (:wat::core::Vector/length inner_v))
-              (:wat::core::None -1))))
+             rt    (:wat::holon::from-holon h)]
+            rt))
     "#;
-    assert_eq!(run_i64(src_inner_len), 2, "nested Tuple: inner element round-trips to Vec of length 2");
+    let v2 = run_value(src_inner);
+    match v2 {
+        Value::Tuple(outer_items) => match outer_items.first() {
+            Some(Value::Tuple(inner_items)) => {
+                assert_eq!(inner_items.get(0), Some(&Value::i64(1)), "nested Tuple: inner[0] = 1");
+                assert_eq!(inner_items.get(1), Some(&Value::i64(2)), "nested Tuple: inner[1] = 2");
+            }
+            other => panic!("probe_4: outer[0] should be Tuple; got {:?}", other),
+        },
+        other => panic!("probe_4: expected outer Tuple; got {:?}", other),
+    }
 }
 
 // ─── Probe 5 — Tuple containing Vec: (Vec<i64>, String) ──────────────────────
 
 /// `(:wat::core::Tuple [1 2 3] "tag")` — Tuple whose first element is a Vec<i64>.
-/// Outer Bundle has 2 Bind children; inner Bind's value is a positional-Bind Bundle (Vec-shape).
-/// Verifies composition of Tuple and Vec encodings.
+/// Arc 228: outer is classifier-wrapped Bind; Bundle/children no longer applies.
+/// Verify via round-trip: to-holon → from-holon → outer Tuple; first element = inner Vec.
+/// Inner Vec (Vector-classified) decodes to Vec; Vector/length = 3.
 #[test]
 fn probe_5_tuple_containing_vec_roundtrip() {
-    // Outer Bundle has 2 children.
+    // Arc 228: round-trip outer Tuple; first element is inner Vec (Vector-classified → Vec).
+    // Return Tuple directly with explicit type annotation; extract inner Vec length at Rust level.
+    // Type annotation: :(wat::core::Vector<wat::core::i64>,wat::core::String) — no leading `:` on inner elements.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :(wat::core::Vector<wat::core::i64>,wat::core::String))
           (:wat::core::let
-            [v   [1 2 3]
-             t   (:wat::core::Tuple v "tag")
-             h   (:wat::holon::to-holon t)
-             cs  (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+            [v    [1 2 3]
+             t    (:wat::core::Tuple v "tag")
+             h    (:wat::holon::to-holon t)
+             rt   (:wat::holon::from-holon h)]
+            rt))
     "#;
-    assert_eq!(run_i64(src), 2, "Tuple containing Vec: outer Bundle must have 2 children");
+    let v = run_value(src);
+    assert_eq!(
+        tuple_element_vec_length(v, 0, "probe_5"),
+        3,
+        "Tuple containing Vec: inner Vec (element 0) must have length 3"
+    );
 
-    // Inner Vec element: after atom-value on outer, element 0 is itself a Vec (decoded recursively).
-    // The Vec<i64> inside the Tuple encodes as a positional-Bind Bundle; holon_item_to_value
-    // decodes it as Vec. So element 0 of the outer Vec is already a Vec; call Vector/length directly.
+    // Inner Vec element at index 0 = 1: verify via Rust-level extraction.
     let src_inner = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :(wat::core::Vector<wat::core::i64>,wat::core::String))
           (:wat::core::let
-            [v   [1 2 3]
-             t   (:wat::core::Tuple v "tag")
-             h   (:wat::holon::to-holon t)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get rv 0)
-              -> :wat::core::i64
-              ((:wat::core::Some inner_v)
-                (:wat::core::Vector/length inner_v))
-              (:wat::core::None -1))))
+            [v    [1 2 3]
+             t    (:wat::core::Tuple v "tag")
+             h    (:wat::holon::to-holon t)
+             rt   (:wat::holon::from-holon h)]
+            rt))
     "#;
-    assert_eq!(run_i64(src_inner), 3, "Tuple containing Vec: inner Vec round-trips to length 3");
+    match run_value(src_inner) {
+        Value::Tuple(outer_items) => match outer_items.first() {
+            Some(Value::Vec(inner_v)) => {
+                assert_eq!(inner_v.get(0), Some(&Value::i64(1)), "Tuple containing Vec: inner Vec[0] = 1");
+            }
+            other => panic!("probe_5: outer[0] should be Vec; got {:?}", other),
+        },
+        other => panic!("probe_5: expected Tuple; got {:?}", other),
+    }
 }
 
 // ─── Probe 6 — Tuple containing HashSet ───────────────────────────────────────
 
 /// `(:wat::core::Tuple (:wat::core::HashSet :wat::core::i64 1 2) "label")` — composition
-/// with Stone 216.1. Outer Bundle has 2 Bind children; inner is a bare-atom Bundle (HashSet-shape).
+/// with Stone 216.1. Arc 228: outer is classifier-wrapped Bind; Bundle/children no longer applies.
+/// Verify via round-trip: to-holon → from-holon → outer Tuple; first element = inner HashSet.
+/// HashSet/length = 2.
 #[test]
 fn probe_6_tuple_containing_hashset() {
-    // Outer Bundle has 2 children.
+    // Arc 228: round-trip outer Tuple; first element is inner HashSet (Set-classified → HashSet).
+    // Return Tuple directly with explicit type annotation; extract inner HashSet length at Rust level.
+    // Type annotation: :(wat::core::HashSet<wat::core::i64>,wat::core::String).
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::define (:user::compute -> :(wat::core::HashSet<wat::core::i64>,wat::core::String))
           (:wat::core::let
             [s   (:wat::core::HashSet :wat::core::i64 1 2)
              t   (:wat::core::Tuple s "label")
              h   (:wat::holon::to-holon t)
-             cs  (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             rt  (:wat::holon::from-holon h)]
+            rt))
     "#;
-    assert_eq!(run_i64(src), 2, "Tuple containing HashSet: outer Bundle must have 2 children");
+    match run_value(src) {
+        Value::Tuple(outer_items) => match outer_items.first() {
+            Some(Value::wat__std__HashSet(hs)) => {
+                assert_eq!(hs.len(), 2, "Tuple containing HashSet: inner HashSet must have length 2");
+            }
+            other => panic!("probe_6: outer[0] should be HashSet; got {:?}", other),
+        },
+        other => panic!("probe_6: expected Tuple; got {:?}", other),
+    }
 }
 
 // ─── Probe 7 — is_atomizable predicate ────────────────────────────────────────

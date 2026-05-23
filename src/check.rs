@@ -14082,6 +14082,72 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 228 Stone 228.1 — Pascal-Case collection classifier-wrap constructor verbs.
+    // Each takes a Vector<HolonAST> of items (same input shape as Bundle) and produces
+    // a HolonAST (the classifier-wrapped Bind form). Return type is plain HolonAST
+    // (no Result wrap) — no capacity-check enforcement at this tier; the inner Bundle
+    // is not capacity-checked (the classifier-wrap itself is a metadata Bind, not a
+    // superposition accumulation site).
+    env.register(
+        ":wat::holon::Map".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![holon_ty()],
+            }],
+            ret: holon_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::Set".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![holon_ty()],
+            }],
+            ret: holon_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::Vector".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![holon_ty()],
+            }],
+            ret: holon_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::List".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![holon_ty()],
+            }],
+            ret: holon_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::Tuple".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![holon_ty()],
+            }],
+            ret: holon_ty(),
+            rest_param_type: None,
+        },
+    );
 
     // Cosine measurement — the retrieval scalar (FOUNDATION 1718 +
     // OPEN-QUESTIONS line 419). Algebra-substrate operation (input is

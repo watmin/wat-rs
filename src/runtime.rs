@@ -4946,6 +4946,13 @@ fn dispatch_keyword_head(
         ":wat::holon::Permute" => eval_algebra_permute(args, list_span, env, sym),
         ":wat::holon::Thermometer" => eval_algebra_thermometer(args, list_span, env, sym),
         ":wat::holon::Blend" => eval_algebra_blend(args, list_span, env, sym),
+        // Arc 228 — classifier-wrapped collection constructors (typed-entities doctrine).
+        // Each produces Bind(Atom("ClassName"), Bundle(...)) so type is recoverable from data alone.
+        ":wat::holon::Map" => eval_algebra_map(args, list_span, env, sym),
+        ":wat::holon::Set" => eval_algebra_set(args, list_span, env, sym),
+        ":wat::holon::Vector" => eval_algebra_vector(args, list_span, env, sym),
+        ":wat::holon::List" => eval_algebra_list(args, list_span, env, sym),
+        ":wat::holon::Tuple" => eval_algebra_tuple(args, list_span, env, sym),
 
         // Term decomposition (arc 073). Read the form's structure as a
         // Prolog term: template (the cell type), slots (the tuning
@@ -13522,121 +13529,222 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
         HolonAST::I64(n) => Ok(Value::i64(*n)),
         HolonAST::F64(x) => Ok(Value::f64(*x)),
         HolonAST::Bool(b) => Ok(Value::bool(*b)),
-        HolonAST::Bundle(inner_items) => {
-            // Arc 216 Stone 2 + Stone 3 — three-way shape dispatch:
-            // 1. All children Bind(I64(_), _) AND sequential keys → Vector
-            // 2. All children are Bind nodes (with any K, or non-sequential I64) → HashMap
-            // 3. Empty bundle → empty HashSet (conservative; empty is ambiguous)
-            // 4. No Bind children (bare atoms) → HashSet
-            let all_i64_binds = inner_items.iter().all(|child| {
-                matches!(child, HolonAST::Bind(k, _) if matches!(k.as_ref(), HolonAST::I64(_)))
-            });
-            let all_binds = inner_items
-                .iter()
-                .all(|child| matches!(child, HolonAST::Bind(_, _)));
-            if inner_items.is_empty() {
-                // Empty bundle — ambiguous between empty Vec, empty HashSet, empty HashMap.
-                // Conservatively return empty HashSet (set-shape, no keys present).
-                // Stone 216.5b — native HashSet<Value> (no canonical-key crutch).
-                Ok(Value::wat__std__HashSet(Arc::new(HashSet::new())))
-            } else if all_i64_binds {
-                // Candidate for Vector: try sequential check; fall through to HashMap if fails.
-                let n = inner_items.len();
-                let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
-                for child in inner_items.iter() {
-                    match child {
-                        HolonAST::Bind(k, v) => {
-                            let idx = match k.as_ref() {
-                                HolonAST::I64(i) => *i,
-                                _ => unreachable!("already checked all_i64_binds"),
-                            };
-                            let elem = from_holon_item(v, op, op_span)?;
-                            pairs.push((idx, elem));
-                        }
-                        _ => unreachable!("already checked all_i64_binds"),
-                    }
+        // Arc 228 Stone 228.1 — classifier-dispatch for nested collection items.
+        // Recognizes Bind(Atom(String(name)), Bundle(items)) produced by to_holon_inner.
+        // Falls through to the bare-Bundle error path for unclassified Bundles.
+        item if extract_classifier(item).is_some() => {
+            let classifier = extract_classifier(item).unwrap();
+            let inner_items = extract_classifier_inner_bundle(item).ok_or_else(|| {
+                RuntimeError::TypeMismatch {
+                    op: op.into(),
+                    expected: "classifier-wrapped Bundle (Bind(Atom(name), Bundle(...)))",
+                    got: "classifier-wrapped non-Bundle inner",
+                    span: op_span.clone(),
                 }
-                // Sort by key and check sequential invariant 0..n-1.
-                pairs.sort_by_key(|(k, _)| *k);
-                let sequential = pairs
-                    .iter()
-                    .enumerate()
-                    .all(|(expected, (actual, _))| *actual == expected as i64);
-                if sequential {
-                    // Vector path: sequential i64 keys → Vec (Stone 2).
-                    let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                    Ok(Value::Vec(Arc::new(elems)))
-                } else {
-                    // Non-sequential I64 keys → HashMap (Stone 3; Probe 13).
-                    // Stone 216.5c — native HashMap<Value, Value>; i64 is always hashable.
+            })?;
+            match classifier.as_str() {
+                "Map" => {
+                    let n = inner_items.len();
                     #[allow(clippy::mutable_key_type)]
                     let mut map: std::collections::HashMap<Value, Value> =
                         std::collections::HashMap::with_capacity(n);
-                    for (idx, v_val) in pairs.into_iter() {
-                        let k_val = Value::i64(idx);
-                        map.insert(k_val, v_val);
+                    for child in inner_items.iter() {
+                        match child {
+                            HolonAST::Bind(k_holon, v_holon) => {
+                                let k_val = from_holon_item(k_holon, op, op_span)?;
+                                let v_val = from_holon_item(v_holon, op, op_span)?;
+                                map.insert(k_val, v_val);
+                            }
+                            _ => {
+                                return Err(RuntimeError::TypeMismatch {
+                                    op: op.into(),
+                                    expected: "Bind(K, V) child in nested Map classifier-Bundle",
+                                    got: "non-Bind child in Map classifier-Bundle inner items",
+                                    span: op_span.clone(),
+                                });
+                            }
+                        }
                     }
                     Ok(Value::wat__std__HashMap(Arc::new(map)))
                 }
-            } else if all_binds {
-                // Arbitrary-K Bind children → HashMap (Stone 3).
-                // Stone 216.5c — native HashMap<Value, Value>; hashmap_key crutch removed.
-                let n = inner_items.len();
-                #[allow(clippy::mutable_key_type)]
-                let mut map: std::collections::HashMap<Value, Value> =
-                    std::collections::HashMap::with_capacity(n);
-                for child in inner_items.iter() {
-                    match child {
-                        HolonAST::Bind(k_holon, v_holon) => {
-                            let k_val = from_holon_item(k_holon, op, op_span)?;
-                            let v_val = from_holon_item(v_holon, op, op_span)?;
-                            map.insert(k_val, v_val);
-                        }
-                        _ => unreachable!("already checked all_binds"),
+                "Set" => {
+                    let mut set: HashSet<Value> = HashSet::with_capacity(inner_items.len());
+                    for child in inner_items.iter() {
+                        let v = from_holon_item(child, op, op_span)?;
+                        set.insert(v);
                     }
+                    Ok(Value::wat__std__HashSet(Arc::new(set)))
                 }
-                Ok(Value::wat__std__HashMap(Arc::new(map)))
-            } else {
-                // Bare-atom set-shape → HashSet<T> (Stone 1).
-                // Stone 216.5b — native HashSet<Value> insert; hashmap_key crutch removed.
-                let mut set: HashSet<Value> =
-                    HashSet::with_capacity(inner_items.len());
-                for inner in inner_items.iter() {
-                    let v = from_holon_item(inner, op, op_span)?;
-                    set.insert(v);
+                "Vector" => {
+                    let n = inner_items.len();
+                    let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
+                    for child in inner_items.iter() {
+                        match child {
+                            HolonAST::Bind(k, v) => {
+                                let idx = match k.as_ref() {
+                                    HolonAST::I64(i) => *i,
+                                    _ => {
+                                        return Err(RuntimeError::TypeMismatch {
+                                            op: op.into(),
+                                            expected: "I64 positional key in nested Vector classifier-Bundle",
+                                            got: "non-I64 Bind key in Vector classifier-Bundle",
+                                            span: op_span.clone(),
+                                        });
+                                    }
+                                };
+                                let elem = from_holon_item(v, op, op_span)?;
+                                pairs.push((idx, elem));
+                            }
+                            _ => {
+                                return Err(RuntimeError::TypeMismatch {
+                                    op: op.into(),
+                                    expected: "Bind(I64, _) in nested Vector classifier-Bundle",
+                                    got: "non-Bind child in Vector classifier-Bundle inner items",
+                                    span: op_span.clone(),
+                                });
+                            }
+                        }
+                    }
+                    pairs.sort_by_key(|(k, _)| *k);
+                    let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
+                    Ok(Value::Vec(Arc::new(elems)))
                 }
-                Ok(Value::wat__std__HashSet(Arc::new(set)))
+                "List" => {
+                    let mut list = std::collections::LinkedList::new();
+                    for child in inner_items.iter() {
+                        let v = from_holon_item(child, op, op_span)?;
+                        list.push_back(v);
+                    }
+                    Ok(Value::wat__core__List(Arc::new(list)))
+                }
+                "Tuple" => {
+                    let n = inner_items.len();
+                    let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
+                    for child in inner_items.iter() {
+                        match child {
+                            HolonAST::Bind(k, v) => {
+                                let idx = match k.as_ref() {
+                                    HolonAST::I64(i) => *i,
+                                    _ => {
+                                        return Err(RuntimeError::TypeMismatch {
+                                            op: op.into(),
+                                            expected: "I64 positional key in nested Tuple classifier-Bundle",
+                                            got: "non-I64 Bind key in Tuple classifier-Bundle",
+                                            span: op_span.clone(),
+                                        });
+                                    }
+                                };
+                                let elem = from_holon_item(v, op, op_span)?;
+                                pairs.push((idx, elem));
+                            }
+                            _ => {
+                                return Err(RuntimeError::TypeMismatch {
+                                    op: op.into(),
+                                    expected: "Bind(I64, _) in nested Tuple classifier-Bundle",
+                                    got: "non-Bind child in Tuple classifier-Bundle inner items",
+                                    span: op_span.clone(),
+                                });
+                            }
+                        }
+                    }
+                    pairs.sort_by_key(|(k, _)| *k);
+                    let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
+                    Ok(Value::Tuple(Arc::new(elems)))
+                }
+                _ => Err(RuntimeError::TypeMismatch {
+                    op: op.into(),
+                    expected: "known classifier: Map, Set, Vector, List, or Tuple",
+                    got: "unknown classifier name in nested collection item",
+                    span: op_span.clone(),
+                }),
             }
         }
         _ => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: "primitive atom, Bundle (bare-atom set-shape), Bundle (positional-Bind vector-shape), or Bundle (arbitrary-K Bind map-shape)",
-            got: "composite HolonAST variant (Bind/Permute/Thermometer/Blend/SlotMarker)",
+            expected: "primitive leaf or classifier-wrapped collection (Bind(Atom(name), Bundle(...))) as produced by to-holon",
+            got: "unclassified HolonAST (bare Bundle, non-classifier Bind, Permute, Thermometer, Blend, or other composite)",
             span: op_span.clone(),
         }),
+    }
+}
+
+/// Arc 228 Stone 228.1 — extract the classifier name from a classifier-wrapped HolonAST.
+///
+/// Returns `Some(name)` if the outermost form is `Bind(Atom(String(name)), _)` — i.e., a
+/// classifier-wrapped collection as produced by `to_holon_inner` (arc 228) or the Pascal-Case
+/// constructor verbs (`:wat::holon::Map`, `:wat::holon::Set`, etc.).
+///
+/// Returns `None` for any other form (bare primitives, bare Bundles, Atoms, Permute, etc.).
+///
+/// Callers use this to dispatch by classifier name on the decode path (`from-holon`).
+fn extract_classifier(holon: &HolonAST) -> Option<String> {
+    match holon {
+        HolonAST::Bind(key, _) => {
+            match key.as_ref() {
+                HolonAST::Atom(inner) => {
+                    match inner.as_ref() {
+                        HolonAST::String(s) => Some(s.to_string()),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Extract the inner Bundle items from a classifier-wrapped form.
+///
+/// Given `Bind(Atom(String(_)), Bundle(items))`, returns a reference to `items`.
+/// Returns `None` if the form is not classifier-wrapped or the inner is not a Bundle.
+///
+/// Used by the decode dispatch in `from_holon_item` for nested classifier-wrapped collections.
+fn extract_classifier_inner_bundle(holon: &HolonAST) -> Option<&Vec<HolonAST>> {
+    match holon {
+        HolonAST::Bind(key, inner) => {
+            match key.as_ref() {
+                HolonAST::Atom(atom_inner) => {
+                    match atom_inner.as_ref() {
+                        HolonAST::String(_) => {
+                            match inner.as_ref() {
+                                HolonAST::Bundle(items) => Some(items),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+        _ => None,
     }
 }
 
 /// `(:wat::holon::from-holon <holon>)` — lower a HolonAST back to a runtime `Value`.
 ///
 /// Arc 225 Stone 225.1 — renamed from `:wat::core::atom-value` (namespace move +
-/// honest rename). The body is the full polymorphic decoder, unchanged in semantics.
+/// honest rename).
+///
+/// Arc 228 Stone 228.1 — updated decode dispatch. Previously dispatched by Bundle
+/// child-shape heuristic (three-way: bare-atom → HashSet, positional-Bind → Vec,
+/// arbitrary-Bind → HashMap). Now dispatches by classifier-atom first: if the outermost
+/// form is `Bind(Atom(String(name)), inner)`, dispatches by name
+/// ("Map" → HashMap, "Set" → HashSet, "Vector" → Vec, "List" → List, "Tuple" → Tuple).
+/// Bare Bundle (no classifier) errors with helpful diagnostic per HARD CUT discipline —
+/// the substrate refuses to decode unclassified collections. Callers must use
+/// `to_holon_inner` (or a Pascal-Case constructor) which always produces classifier-wrapped
+/// forms.
 ///
 /// Polymorphic decode — the full HolonAST-to-Value materializer:
 ///
 /// - Primitive leaf (Symbol/Keyword/Nil/Char/String/I64/F64/Bool) → corresponding
-///   runtime `Value` (Symbol → keyword, Keyword → keyword restoring ":" prefix,
-///   Nil → Unit, Char → Char, String → String, I64 → i64, F64 → f64, Bool → bool).
-/// - `Atom(inner)` → inner HolonAST as a `Value::holon__HolonAST`. The wrap is
-///   unwrapped one layer; consumers wanting the inner-most leaf call `from-holon`
-///   repeatedly.
-/// - `Bundle(items)` → three-way shape dispatch (arc 216 Stones 1/2/3):
-///   bare-atom children → HashSet; positional-Bind children with sequential I64 keys
-///   → Vec; arbitrary-Bind children → HashMap. Consumer hint `-> :HashMap<K,V>`
-///   disambiguates empty Bundle → empty HashMap.
-/// - Composite (`Bind`/`Permute`/`Thermometer`/`Blend`) →
-///   TypeMismatch error. These are structural; their parts come out via the
-///   substrate's structural decomposition (e.g. `unbind`), not via `from-holon`.
+///   runtime `Value`.
+/// - `Atom(inner)` → inner HolonAST as a `Value::holon__HolonAST`.
+/// - `Bind(Atom(String(name)), Bundle(items))` → classifier-dispatch by name.
+/// - `Bundle(items)` → TypeMismatch (unclassified Bundle; HARD CUT per arc 228 doctrine).
+/// - Other composite → TypeMismatch.
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // See comment on `hashset_conj_inner` for rationale.
 #[allow(clippy::mutable_key_type)]
@@ -13660,7 +13768,7 @@ fn eval_holon_from_holon(
     }
     // Extract optional type annotation from `-> :T` suffix.
     // When args.len() == 3: args[0] = holon expr, args[1] = `->` symbol, args[2] = type keyword.
-    let hint_is_hashmap = if args.len() == 3 {
+    let _hint_is_hashmap = if args.len() == 3 {
         // Validate `->` symbol.
         match &args[1] {
             WatAST::Symbol(s, _) if s.as_str() == "->" => {}
@@ -13720,109 +13828,173 @@ fn eval_holon_from_holon(
         HolonAST::F64(x) => Ok(Value::f64(*x)),
         HolonAST::Bool(b) => Ok(Value::bool(*b)),
         HolonAST::Atom(inner) => Ok(Value::holon__HolonAST(inner.clone())),
-        // Arc 216 Stone 1 + 2 + 3 — Bundle three-way shape dispatch:
-        // 1. All children Bind(I64, _) AND sequential → Vec (Stone 2)
-        // 2. All children Bind nodes (any K, or non-sequential I64) → HashMap (Stone 3)
-        // 3. Empty → HashMap if consumer-declared (hint_is_hashmap); else HashSet
-        // 4. Bare atoms → HashSet (Stone 1)
-        // DESIGN Q2: discriminator is child shape + sequential check + consumer hint.
-        HolonAST::Bundle(items) => {
-            let all_i64_binds = items.iter().all(|child| {
-                matches!(child, HolonAST::Bind(k, _) if matches!(k.as_ref(), HolonAST::I64(_)))
-            });
-            let all_binds = items
-                .iter()
-                .all(|child| matches!(child, HolonAST::Bind(_, _)));
-            if items.is_empty() {
-                // Empty Bundle — ambiguous between empty Vec, empty HashSet, empty HashMap.
-                // Consumer hint: if `-> :HashMap<K,V>` declared, produce empty HashMap.
-                // Conservative default: empty HashSet.
-                // Stone 216.5c — native HashMap<Value, Value> (no canonical-key crutch).
-                if hint_is_hashmap {
-                    #[allow(clippy::mutable_key_type)]
-                    let empty: std::collections::HashMap<Value, Value> =
-                        std::collections::HashMap::new();
-                    Ok(Value::wat__std__HashMap(Arc::new(empty)))
-                } else {
-                    Ok(Value::wat__std__HashSet(Arc::new(HashSet::new())))
-                }
-            } else if all_i64_binds {
-                // Candidate for Vector: try sequential check; fall through to HashMap if fails.
-                let n = items.len();
-                let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
-                for child in items.iter() {
-                    match child {
-                        HolonAST::Bind(k, v) => {
-                            let idx = match k.as_ref() {
-                                HolonAST::I64(i) => *i,
-                                _ => unreachable!("already checked all_i64_binds"),
-                            };
-                            let elem = from_holon_item(v, OP, args[0].span())?;
-                            pairs.push((idx, elem));
+        // Arc 228 Stone 228.1 — classifier-dispatch replaces arc 216 heuristic Bundle dispatch.
+        // The outermost form is now Bind(Atom(String(name)), Bundle(items)) for all collections.
+        // Dispatch by classifier name:
+        //   "Map"    → HashMap (arbitrary-K Binds in inner Bundle)
+        //   "Set"    → HashSet (bare items in inner Bundle)
+        //   "Vector" → Vec    (positional I64-key Binds in inner Bundle)
+        //   "List"   → List   (bare items in inner Bundle, order-preserving)
+        //   "Tuple"  → Tuple  (positional I64-key Binds in inner Bundle)
+        // Per HARD CUT discipline: bare Bundles (no classifier) error with diagnostic.
+        // The `-> :HashMap<K,V>` consumer-hint form is preserved for empty-Map classifier.
+        other => {
+            if let Some(classifier) = extract_classifier(other) {
+                // Classifier-wrapped collection: extract inner Bundle items.
+                let inner_bundle = match other {
+                    HolonAST::Bind(_, inner) => inner,
+                    _ => unreachable!("extract_classifier returned Some for non-Bind"),
+                };
+                let items = match inner_bundle.as_ref() {
+                    HolonAST::Bundle(items) => items,
+                    _ => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "classifier-wrapped Bundle (Bind(Atom(name), Bundle(...)))",
+                            got: "classifier-wrapped non-Bundle inner",
+                            span: args[0].span().clone(),
+                        });
+                    }
+                };
+                match classifier.as_str() {
+                    "Map" => {
+                        // Map: inner Bundle contains Bind(K, V) pairs → HashMap.
+                        let n = items.len();
+                        // Empty Map always returns empty HashMap regardless of hint.
+                        #[allow(clippy::mutable_key_type)]
+                        let mut map: std::collections::HashMap<Value, Value> =
+                            std::collections::HashMap::with_capacity(n);
+                        for child in items.iter() {
+                            match child {
+                                HolonAST::Bind(k_holon, v_holon) => {
+                                    let k_val = from_holon_item(k_holon, OP, args[0].span())?;
+                                    let v_val = from_holon_item(v_holon, OP, args[0].span())?;
+                                    map.insert(k_val, v_val);
+                                }
+                                _ => {
+                                    return Err(RuntimeError::TypeMismatch {
+                                        op: OP.into(),
+                                        expected: "Bind(K, V) child in Map classifier-Bundle",
+                                        got: "non-Bind child in Map classifier-Bundle inner items",
+                                        span: args[0].span().clone(),
+                                    });
+                                }
+                            }
                         }
-                        _ => unreachable!("already checked all_i64_binds"),
+                        Ok(Value::wat__std__HashMap(Arc::new(map)))
                     }
-                }
-                // Sort by key, then check sequential invariant 0..n-1.
-                pairs.sort_by_key(|(k, _)| *k);
-                let sequential = pairs
-                    .iter()
-                    .enumerate()
-                    .all(|(expected, (actual, _))| *actual == expected as i64);
-                if sequential && !hint_is_hashmap {
-                    // Vector path (Stone 2): sequential i64 keys and consumer hasn't
-                    // declared HashMap explicitly.
-                    let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                    Ok(Value::Vec(Arc::new(elems)))
-                } else {
-                    // Non-sequential I64 keys OR consumer declared HashMap → HashMap (Stone 3; Probe 13 + 14).
-                    // Stone 216.5c — native HashMap<Value, Value>; i64 is always hashable.
-                    #[allow(clippy::mutable_key_type)]
-                    let mut map: std::collections::HashMap<Value, Value> =
-                        std::collections::HashMap::with_capacity(n);
-                    for (idx, v_val) in pairs.into_iter() {
-                        let k_val = Value::i64(idx);
-                        map.insert(k_val, v_val);
-                    }
-                    Ok(Value::wat__std__HashMap(Arc::new(map)))
-                }
-            } else if all_binds {
-                // Arbitrary-K Bind children → HashMap (Stone 3).
-                // Stone 216.5c — native HashMap<Value, Value>; hashmap_key crutch removed.
-                let n = items.len();
-                #[allow(clippy::mutable_key_type)]
-                let mut map: std::collections::HashMap<Value, Value> =
-                    std::collections::HashMap::with_capacity(n);
-                for child in items.iter() {
-                    match child {
-                        HolonAST::Bind(k_holon, v_holon) => {
-                            let k_val = from_holon_item(k_holon, OP, args[0].span())?;
-                            let v_val = from_holon_item(v_holon, OP, args[0].span())?;
-                            map.insert(k_val, v_val);
+                    "Set" => {
+                        // Set: inner Bundle contains bare items → HashSet.
+                        let mut set: HashSet<Value> = HashSet::with_capacity(items.len());
+                        for item in items.iter() {
+                            let v = from_holon_item(item, OP, args[0].span())?;
+                            set.insert(v);
                         }
-                        _ => unreachable!("already checked all_binds"),
+                        Ok(Value::wat__std__HashSet(Arc::new(set)))
+                    }
+                    "Vector" => {
+                        // Vector: inner Bundle contains positional Bind(I64, _) pairs → Vec.
+                        let n = items.len();
+                        let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
+                        for child in items.iter() {
+                            match child {
+                                HolonAST::Bind(k, v) => {
+                                    let idx = match k.as_ref() {
+                                        HolonAST::I64(i) => *i,
+                                        _ => {
+                                            return Err(RuntimeError::TypeMismatch {
+                                                op: OP.into(),
+                                                expected: "I64 positional key in Vector classifier-Bundle",
+                                                got: "non-I64 Bind key in Vector classifier-Bundle",
+                                                span: args[0].span().clone(),
+                                            });
+                                        }
+                                    };
+                                    let elem = from_holon_item(v, OP, args[0].span())?;
+                                    pairs.push((idx, elem));
+                                }
+                                _ => {
+                                    return Err(RuntimeError::TypeMismatch {
+                                        op: OP.into(),
+                                        expected: "Bind(I64, _) positional child in Vector classifier-Bundle",
+                                        got: "non-Bind child in Vector classifier-Bundle inner items",
+                                        span: args[0].span().clone(),
+                                    });
+                                }
+                            }
+                        }
+                        pairs.sort_by_key(|(k, _)| *k);
+                        let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
+                        Ok(Value::Vec(Arc::new(elems)))
+                    }
+                    "List" => {
+                        // List: inner Bundle contains sequential bare items → wat::core::List.
+                        // Order-preserving (LinkedList; items were stored front-to-back).
+                        let mut list = std::collections::LinkedList::new();
+                        for item in items.iter() {
+                            let v = from_holon_item(item, OP, args[0].span())?;
+                            list.push_back(v);
+                        }
+                        Ok(Value::wat__core__List(Arc::new(list)))
+                    }
+                    "Tuple" => {
+                        // Tuple: inner Bundle contains positional Bind(I64, _) pairs → Tuple.
+                        // Same internal structure as Vector; outer classifier distinguishes.
+                        let n = items.len();
+                        let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
+                        for child in items.iter() {
+                            match child {
+                                HolonAST::Bind(k, v) => {
+                                    let idx = match k.as_ref() {
+                                        HolonAST::I64(i) => *i,
+                                        _ => {
+                                            return Err(RuntimeError::TypeMismatch {
+                                                op: OP.into(),
+                                                expected: "I64 positional key in Tuple classifier-Bundle",
+                                                got: "non-I64 Bind key in Tuple classifier-Bundle",
+                                                span: args[0].span().clone(),
+                                            });
+                                        }
+                                    };
+                                    let elem = from_holon_item(v, OP, args[0].span())?;
+                                    pairs.push((idx, elem));
+                                }
+                                _ => {
+                                    return Err(RuntimeError::TypeMismatch {
+                                        op: OP.into(),
+                                        expected: "Bind(I64, _) positional child in Tuple classifier-Bundle",
+                                        got: "non-Bind child in Tuple classifier-Bundle inner items",
+                                        span: args[0].span().clone(),
+                                    });
+                                }
+                            }
+                        }
+                        pairs.sort_by_key(|(k, _)| *k);
+                        let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
+                        Ok(Value::Tuple(Arc::new(elems)))
+                    }
+                    _ => {
+                        Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "known classifier: Map, Set, Vector, List, or Tuple",
+                            got: "unknown classifier name in collection Bind",
+                            span: args[0].span().clone(),
+                        })
                     }
                 }
-                Ok(Value::wat__std__HashMap(Arc::new(map)))
             } else {
-                // Bare-atom set-shape → HashSet<T> (Stone 1).
-                // Each child converted via from_holon_item (handles primitives + nested bundles).
-                // Stone 216.5b — native HashSet<Value> insert; hashmap_key crutch removed.
-                let mut set: HashSet<Value> =
-                    HashSet::with_capacity(items.len());
-                for item in items.iter() {
-                    let v = from_holon_item(item, OP, args[0].span())?;
-                    set.insert(v);
-                }
-                Ok(Value::wat__std__HashSet(Arc::new(set)))
+                // No classifier — bare Bundle or other structural form.
+                // Per arc 228 HARD CUT: unclassified collections are not decodeable.
+                // Bare Bundle must be upgraded to classifier-wrapped form first
+                // (use to-holon on the collection Value, or a Pascal-Case constructor).
+                Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "primitive leaf, Atom, or classifier-wrapped collection (Bind(Atom(name), Bundle(...))) as produced by to-holon or :wat::holon::Map/Set/Vector/List/Tuple constructors",
+                    got: "unclassified HolonAST (bare Bundle, Bind without Atom-String classifier, Permute, Thermometer, Blend, or other composite)",
+                    span: args[0].span().clone(),
+                })
             }
         }
-        _ => Err(RuntimeError::TypeMismatch {
-            op: OP.into(),
-            expected: "Atom, primitive leaf, or Bundle (bare-atom set-shape, positional-Bind vector-shape, or arbitrary-K Bind map-shape)",
-            got: "composite HolonAST variant (Bind/Permute/Thermometer/Blend)",
-            span: args[0].span().clone(),
-        }),
     }
 }
 
@@ -13947,12 +14119,10 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         Value::holon__HolonAST(h) => HolonAST::Atom(h),
         // Structural lowering of a captured wat form ────────────────
         Value::wat__WatAST(a) => watast_to_holon(&a),
-        // Arc 216 Stone 1 — HashSet<T> → Bundle of bare atoms
-        // (DESIGN Q2/Q3: set-shape = bundle of bare atoms; no Bind keys).
-        // Each element is recursively lifted via to_holon_inner; T must
-        // already be liftable. Dedupe not re-applied here — the
-        // HashSet<Value> natively enforces uniqueness; the Bundle carries
-        // one atom per unique element.
+        // Arc 216 Stone 1 — HashSet<T> → classifier-wrapped Bundle of bare items.
+        // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
+        // typed-entities doctrine: every collection carries its classifier at substrate.
+        // Output: Bind(Atom("Set"), Bundle(bare items)).
         // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
         Value::wat__std__HashSet(s) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(s.len());
@@ -13963,12 +14133,18 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
                     _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
                 }
             }
-            return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
+            let inner_bundle = HolonAST::bundle(items);
+            let classified = HolonAST::bind(
+                HolonAST::Atom(Arc::new(HolonAST::string("Set"))),
+                inner_bundle,
+            );
+            return Ok(Value::holon__HolonAST(Arc::new(classified)));
         }
-        // Arc 216 Stone 2 — Vec<T> (wat::core::Vector) → Bundle of
-        // positional-Binds (DESIGN Q2: array-shape = Bundle of Bind(I64(i), T_holon)).
-        // Each element is recursively lifted via to_holon_inner; index i becomes
-        // the Bind key as HolonAST::I64(i). Order is preserved — index 0 first.
+        // Arc 216 Stone 2 — Vec<T> → classifier-wrapped positional-Bind Bundle.
+        // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
+        // typed-entities doctrine. Output: Bind(Atom("Vector"), Bundle(positional Binds)).
+        // Each element's index i becomes the Bind key as HolonAST::I64(i).
+        // Order is preserved — index 0 first.
         Value::Vec(v) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(v.len());
             for (i, elem) in v.iter().enumerate() {
@@ -13980,14 +14156,18 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
                 let key = HolonAST::i64(i as i64);
                 items.push(HolonAST::bind(key, elem_holon));
             }
-            return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
+            let inner_bundle = HolonAST::bundle(items);
+            let classified = HolonAST::bind(
+                HolonAST::Atom(Arc::new(HolonAST::string("Vector"))),
+                inner_bundle,
+            );
+            return Ok(Value::holon__HolonAST(Arc::new(classified)));
         }
-        // Arc 216 Stone 7 — Tuple (wat::core::Tuple) → Bundle of positional-Binds
-        // (DESIGN Q2 / encoding doctrine: collection-category; same shape as Vector<T>).
-        // Heterogeneous element types — each element recursively lifted via to_holon_inner.
-        // Index i becomes the Bind key as HolonAST::I64(i). Order preserved — index 0 first.
-        // Encoding is IDENTICAL to Vec; the consumer's declared type is the discriminator on
-        // the reverse trip (same honest asymmetry as DESIGN Q9 for Vec vs HashMap).
+        // Arc 216 Stone 7 — Tuple → classifier-wrapped positional-Bind Bundle.
+        // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding + resolves the
+        // identical-encoding-as-Vec dishonesty. Output: Bind(Atom("Tuple"), Bundle(positional Binds)).
+        // Bundle internals are identical to Vec (positional Binds); the OUTER Atom("Tuple")
+        // vs Atom("Vector") classifier is the sole discriminator. NOW DISTINCT at substrate.
         Value::Tuple(t) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(t.len());
             for (i, elem) in t.iter().enumerate() {
@@ -13999,11 +14179,16 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
                 let key = HolonAST::i64(i as i64);
                 items.push(HolonAST::bind(key, elem_holon));
             }
-            return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
+            let inner_bundle = HolonAST::bundle(items);
+            let classified = HolonAST::bind(
+                HolonAST::Atom(Arc::new(HolonAST::string("Tuple"))),
+                inner_bundle,
+            );
+            return Ok(Value::holon__HolonAST(Arc::new(classified)));
         }
-        // Arc 216 Stone 3 — HashMap<K, V> → Bundle of arbitrary-K Binds.
-        // DESIGN Q2: map-shape = Bundle of Bind(K_holon, V_holon) pairs.
-        // K and V are each recursively lifted via to_holon_inner; both must be liftable.
+        // Arc 216 Stone 3 — HashMap<K, V> → classifier-wrapped Bundle of arbitrary-K Binds.
+        // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
+        // typed-entities doctrine. Output: Bind(Atom("Map"), Bundle(K-V Binds)).
         // Iteration order is non-canonical (HashMap unordered); the produced Bundle's
         // Bind order is therefore non-deterministic. The reverse trip (from-holon)
         // reconstructs a HashMap which is also order-agnostic — round-trip is correct.
@@ -14023,12 +14208,38 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
                 };
                 items.push(HolonAST::bind(k_holon, v_holon));
             }
-            return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
+            let inner_bundle = HolonAST::bundle(items);
+            let classified = HolonAST::bind(
+                HolonAST::Atom(Arc::new(HolonAST::string("Map"))),
+                inner_bundle,
+            );
+            return Ok(Value::holon__HolonAST(Arc::new(classified)));
+        }
+        // Arc 228 Stone 228.1 — List (wat::core::List) → classifier-wrapped Bundle of
+        // sequential bare items. Output: Bind(Atom("List"), Bundle(items)).
+        // Items are sequential (like Set) but the outer Atom("List") vs Atom("Set")
+        // classifier discriminates on the reverse trip. Order is preserved via LinkedList
+        // iteration (front to back).
+        Value::wat__core__List(l) => {
+            let mut items: Vec<HolonAST> = Vec::with_capacity(l.len());
+            for elem in l.iter() {
+                let holon_val = to_holon_inner(elem.clone(), arg_span)?;
+                match holon_val {
+                    Value::holon__HolonAST(h) => items.push((*h).clone()),
+                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+                }
+            }
+            let inner_bundle = HolonAST::bundle(items);
+            let classified = HolonAST::bind(
+                HolonAST::Atom(Arc::new(HolonAST::string("List"))),
+                inner_bundle,
+            );
+            return Ok(Value::holon__HolonAST(Arc::new(classified)));
         }
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::to-holon".into(),
-                expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, Tuple<T1,...>, or HashMap<K,V>",
+                expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, Tuple<T1,...>, HashMap<K,V>, or List<T>",
                 got: other.type_name(),
                 span: arg_span.clone(),
             });
@@ -15192,6 +15403,245 @@ fn eval_algebra_blend(
     let w1 = require_numeric(":wat::holon::Blend", eval(&args[2], env, sym)?, list_span)?;
     let w2 = require_numeric(":wat::holon::Blend", eval(&args[3], env, sym)?, list_span)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend((*a).clone(), (*b).clone(), w1, w2))))
+}
+
+// ─── Arc 228 — Pascal-Case collection classifier-wrap constructors ────────────
+//
+// Each constructor takes a Vec<HolonAST> and wraps it in
+// Bind(Atom("ClassName"), Bundle(items)) per the typed-entities doctrine.
+// The outer Bind carries the classifier; the inner Bundle carries the data.
+// Type recovery: extract the classifier-atom from the outer Bind.
+
+/// `(:wat::holon::Map <list-of-bind-pairs>)` — map classifier-wrap.
+///
+/// Arc 228 Stone 228.1. Takes a `Vec<HolonAST>` whose elements are Bind(K, V) pairs
+/// (arbitrary keys). Produces `Bind(Atom("Map"), Bundle(items))`. The outer Atom("Map")
+/// is the classifier; from-holon dispatches by extracting it.
+///
+/// Input list format mirrors `:wat::holon::Bundle` — a `:wat::core::Vector` of HolonAST items.
+/// Items should each be a `Bind(K, V)` pair as produced by `:wat::holon::Bind`.
+fn eval_algebra_map(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Map";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let list = match eval(&args[0], env, sym)? {
+        Value::Vec(l) => l,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let children: Vec<HolonAST> = list
+        .iter()
+        .map(|v| require_holon(OP, v.clone()).map(|h| (*h).clone()))
+        .collect::<Result<Vec<HolonAST>, _>>()?;
+    let inner_bundle = HolonAST::bundle(children);
+    let classified = HolonAST::bind(
+        HolonAST::Atom(Arc::new(HolonAST::string("Map"))),
+        inner_bundle,
+    );
+    Ok(Value::holon__HolonAST(Arc::new(classified)))
+}
+
+/// `(:wat::holon::Set <list-of-items>)` — set classifier-wrap.
+///
+/// Arc 228 Stone 228.1. Takes a `Vec<HolonAST>` of bare items (no Bind keys).
+/// Produces `Bind(Atom("Set"), Bundle(items))`. The outer Atom("Set") is the
+/// classifier; from-holon dispatches by extracting it.
+fn eval_algebra_set(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Set";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let list = match eval(&args[0], env, sym)? {
+        Value::Vec(l) => l,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let children: Vec<HolonAST> = list
+        .iter()
+        .map(|v| require_holon(OP, v.clone()).map(|h| (*h).clone()))
+        .collect::<Result<Vec<HolonAST>, _>>()?;
+    let inner_bundle = HolonAST::bundle(children);
+    let classified = HolonAST::bind(
+        HolonAST::Atom(Arc::new(HolonAST::string("Set"))),
+        inner_bundle,
+    );
+    Ok(Value::holon__HolonAST(Arc::new(classified)))
+}
+
+/// `(:wat::holon::Vector <list-of-items>)` — vector classifier-wrap with positional Binds.
+///
+/// Arc 228 Stone 228.1. Takes a `Vec<HolonAST>` of bare items. Substrate auto-applies
+/// positional Bind keys (I64(0), I64(1), ...) to each item. Produces
+/// `Bind(Atom("Vector"), Bundle([Bind(I64(0), item0), Bind(I64(1), item1), ...]))`.
+/// The outer Atom("Vector") is the classifier. Distinguished from Tuple by classifier alone.
+fn eval_algebra_vector(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Vector";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let list = match eval(&args[0], env, sym)? {
+        Value::Vec(l) => l,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let positional: Vec<HolonAST> = list
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            require_holon(OP, v.clone()).map(|h| {
+                HolonAST::bind(HolonAST::i64(i as i64), (*h).clone())
+            })
+        })
+        .collect::<Result<Vec<HolonAST>, _>>()?;
+    let inner_bundle = HolonAST::bundle(positional);
+    let classified = HolonAST::bind(
+        HolonAST::Atom(Arc::new(HolonAST::string("Vector"))),
+        inner_bundle,
+    );
+    Ok(Value::holon__HolonAST(Arc::new(classified)))
+}
+
+/// `(:wat::holon::List <list-of-items>)` — list classifier-wrap (sequential bare items).
+///
+/// Arc 228 Stone 228.1. Takes a `Vec<HolonAST>` of bare items (NO positional Bind keys).
+/// Produces `Bind(Atom("List"), Bundle(items))`. Distinguished from Set by classifier alone;
+/// the inner Bundle has no Bind keys (bare sequential items, like Set), but the outer
+/// classifier "List" vs "Set" discriminates on the reverse trip.
+fn eval_algebra_list(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::List";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let list = match eval(&args[0], env, sym)? {
+        Value::Vec(l) => l,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let children: Vec<HolonAST> = list
+        .iter()
+        .map(|v| require_holon(OP, v.clone()).map(|h| (*h).clone()))
+        .collect::<Result<Vec<HolonAST>, _>>()?;
+    let inner_bundle = HolonAST::bundle(children);
+    let classified = HolonAST::bind(
+        HolonAST::Atom(Arc::new(HolonAST::string("List"))),
+        inner_bundle,
+    );
+    Ok(Value::holon__HolonAST(Arc::new(classified)))
+}
+
+/// `(:wat::holon::Tuple <list-of-items>)` — tuple classifier-wrap with positional Binds.
+///
+/// Arc 228 Stone 228.1. Identical Bundle internals to `:wat::holon::Vector` (positional Binds),
+/// but outer classifier is `Atom("Tuple")` instead of `Atom("Vector")`. The classifier
+/// is the sole discriminator on the reverse trip — now distinct at substrate
+/// (was identical bare-Bundle encoding under arc 216 doctrine, now corrected per
+/// typed-entities doctrine).
+fn eval_algebra_tuple(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Tuple";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let list = match eval(&args[0], env, sym)? {
+        Value::Vec(l) => l,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let positional: Vec<HolonAST> = list
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            require_holon(OP, v.clone()).map(|h| {
+                HolonAST::bind(HolonAST::i64(i as i64), (*h).clone())
+            })
+        })
+        .collect::<Result<Vec<HolonAST>, _>>()?;
+    let inner_bundle = HolonAST::bundle(positional);
+    let classified = HolonAST::bind(
+        HolonAST::Atom(Arc::new(HolonAST::string("Tuple"))),
+        inner_bundle,
+    );
+    Ok(Value::holon__HolonAST(Arc::new(classified)))
 }
 
 fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
