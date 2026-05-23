@@ -1,37 +1,71 @@
-# BRIEF — Arc 227 Stone 227.2 — Multi-field defrecord + auto-accessors
+# BRIEF — Arc 227 Stone 227.2 v2 — Mandate field-list on defrecord (RETIRE single-arg form)
 
-**Stone scope:** Extend `:wat::holon::defrecord` to accept a field-list `[name <- :Type ...]` as optional second argument. Auto-generates constructor with N typed args + N accessors `:ns::Type/<field>` + the predicate (unchanged). Single-arg form (Stone 227.1b) stays — backward compatible.
+**Stone scope:** Unify `:wat::holon::defrecord` under ONE canonical shape — **always takes a field-list `[fields]`** as second argument. Field-list can be empty `[]` (tagged unit) OR contain N `[name <- :Type]` entries (N-field struct). Auto-generates N-arg constructor + N accessors `:ns::Type/<field>` + predicate. Retires Stone 227.1b's single-arg form (HARD CUT). Migrates 18 existing probes.
 
 **Type:** Sonnet Mode A.
-**Time budget:** 60-120 min target; 180 min STOP.
-**Depends on:** Stone 227.1b SHIPPED (commit `aa2b9f1`); defrecord macro exists at `wat/holon/defrecord.wat`; arc 226 `:wat::holon::is?` + arc 228 `extract_classifier` available; arc 230 classifier-wrap encoding established.
-**Calibration:** Closest precedent — Stone 227.1 v3 (~18 min for original defclass mint); Stone 227.1b (~5 min for rename). This stone is more substantial (field-list parsing + N-arg constructor synthesis + N accessor synthesis) but builds on the existing macro shape.
+**Time budget:** 90-180 min target; 240 min STOP.
+**Depends on:** Stone 227.1b SHIPPED (commit `aa2b9f1`); defrecord macro exists at `wat/holon/defrecord.wat`.
+**Calibration:** Bigger scope than 227.1b (~5 min for rename) but smaller than 227.1 v3 original mint (~18 min) — macro is more uniform; probe migration is mechanical sed-able work.
 
-## Doctrine context (per `project_defrecord_defservice_doctrine`)
+## v2 supersedes v1 (orchestrator stop+reframe)
 
-defrecord wraps immutable data. Multi-field defrecords are STRUCTS — named fields, type-checked, accessed via auto-generated accessors. Methods stay separate defns (per `STONE-227.2-NOTES.md`); defrecord does NOT bundle methods.
+The v1 BRIEF (committed at `2162d82`) proposed TWO defrecord forms:
+- 1-arg `(defrecord :ns::Foo)` — single-data (Stone 227.1b shipped)
+- 2-arg `(defrecord :ns::Foo [fields])` — new multi-field
 
-The (s, d) -> (s, D) monadic shape applies to defrecord methods (caller-owned threading), but the macro doesn't enforce it — convention only.
+User pushback 2026-05-22 night: *"i don't know if i like having options ..... i think forcing the empty vec is best?...."*
+
+Four-questions atomic check on optional-args:
+- **Obvious?** NO — two shapes per verb; readers must learn arity-dispatch
+- **Simple?** NO — two paths; macro branches internally
+- **Honest?** NO — implies defrecord has two kinds when really we're accommodating v1
+- **Good UX?** Worse per `feedback_wat_llm_first_design` — LLM-first design rejects synonym features; one canonical path
+
+YES YES YES YES (one shape) wins decisively. v2 mandates the field-list. **HARD CUT — single-arg form retired.**
 
 ## Working dir + constraints
 
 - **Working dir: `/home/watmin/work/holon/wat-rs/`**
 - Branch: `arc-170-gap-j-v5-deadlock-state` (already current)
-- DO NOT commit. Orchestrator commits after independent scoring.
-- DO NOT touch holon-rs (substrate settled).
-- DO NOT touch wat-edn.
-- **HARD CUT** discipline — no aliases of any prior shape.
+- DO NOT commit. DO NOT touch holon-rs. DO NOT touch wat-edn.
+- **HARD CUT** discipline — single-arg form retired; no aliases.
 
 ## BASH DISCIPLINE
 
 - ONE cargo command at a time, foreground; no piping; no concurrent runs
 - 5 known signal-handler test hangs (task #413) — skip per Verification
 
-## Pre-flight verified (orchestrator-grep'd 2026-05-22 night)
+## Doctrine context
 
-### Existing macro (`wat/holon/defrecord.wat`)
+Per `project_defrecord_defservice_doctrine` (inscribed `72a7ad5`): defrecord wraps immutable data. Per `feedback_wat_llm_first_design`: one canonical path per task; reject synonym features; the path of least resistance IS the path we want.
 
-Reviewed in full. Current shape (single-arg):
+**defrecord IS a fields-struct.** Zero fields is honestly a tagged unit (`Bind(Atom("classname"), Bundle())`). One field is a wrapped-payload. N fields is a struct. ALL share the same shape.
+
+## The canonical form (locked)
+
+```
+(:wat::holon::defrecord :myapp::Voltage
+  [magnitude <- :wat::core::f64
+   unit      <- :wat::core::String])
+```
+
+Macro head: `(defrecord <fqdn> <field-list>)` — always 2-arg.
+
+**Three field-count cases, ONE shape:**
+
+| Field-list | Constructor signature | Accessors | Instance shape |
+|---|---|---|---|
+| `[]` | `(:ns::T)` zero-arg | none | `Bind(Atom("ns::T"), Bundle())` |
+| `[v <- :T1]` | `(:ns::T v)` one-arg | `:ns::T/v` | `Bind(Atom("ns::T"), Bundle(Bind(Atom("v"), Atom(<v-val>))))` |
+| `[a <- :T1, b <- :T2]` | `(:ns::T a b)` two-arg | `:ns::T/a`, `:ns::T/b` | `Bind(Atom("ns::T"), Bundle(Bind(Atom("a"), Atom(<a>)), Bind(Atom("b"), Atom(<b>))))` |
+
+Uniform composition (per `feedback_simple_is_uniform_composition`): N identical Bind-of-Atom-Atom pairs in the inner Bundle.
+
+## Pre-flight verified
+
+### Existing defrecord macro (`wat/holon/defrecord.wat`)
+
+Reviewed in full at HEAD `aa2b9f1`. Current shape (single-arg; retiring):
 
 ```
 (:wat::core::defmacro
@@ -40,155 +74,152 @@ Reviewed in full. Current shape (single-arg):
     -> :AST<wat::core::nil>)
   `(:wat::core::do
      (:wat::core::defn ~fqdn [v <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
-       (:wat::holon::Bind
-         (:wat::holon::Atom (:wat::holon::to-holon ~(:wat::core::keyword/to-string fqdn)))
-         (:wat::holon::Atom v)))
-     (:wat::core::defn ~(... derived predicate fqdn ...) [v <- :wat::holon::HolonAST] -> :wat::core::bool
-       (:wat::holon::is? v ~(:wat::core::keyword/to-string fqdn)))))
+       (:wat::holon::Bind ...))
+     (:wat::core::defn ~<predicate-fqdn> [v <- :wat::holon::HolonAST] -> :wat::core::bool
+       (:wat::holon::is? v ~classifier-str))))
 ```
+
+v2 macro becomes 2-arg head, body branches by field-count.
+
+### Existing 18 probes (`tests/probe_arc227_stone1_defrecord.rs`)
+
+All 18 use 1-arg form: `(:wat::holon::defrecord :test::Voltage)` then `(:test::Voltage 5.0)` etc. Each test must migrate to v2 form.
+
+**Migration mapping:**
+
+| Test 227.1b shape | Test 227.2 v2 shape | Rationale |
+|---|---|---|
+| `(defrecord :test::Voltage)` then `(:test::Voltage 5.0)` | `(defrecord :test::Voltage [value <- :wat::core::f64])` then `(:test::Voltage 5.0)` | Constructor signature now reflects the field; accessor `:test::Voltage/value` becomes available |
+| Pure-tag tests (if any — sonnet inspects) | `(defrecord :test::Tag [])` then `(:test::Tag)` | Zero-field tag |
+
+Most existing probes use the opaque-payload pattern → migrate to single-field `[value <- :Type]` form. Sonnet picks the appropriate field name per probe.
 
 ### Substrate primitives available
 
-- `:wat::core::defmacro` with optional `& rest` for variadic params (arc 150)
+- `:wat::core::defmacro` with fixed-arity head (matches v2's 2-arg shape)
 - `:wat::core::quasiquote` + `:wat::core::unquote` + `:wat::core::splice` (`~@`)
-- `:wat::core::keyword/to-string` + `:wat::core::keyword/from-string`
+- `:wat::core::keyword/to-string` + `:wat::core::keyword/from-string` + `:wat::core::keyword/of`
 - `:wat::core::string::split` + `string::join` + `string::concat`
-- `:wat::core::Vector/length` / `last` / `take` / `nth` / `map`
+- `:wat::core::Vector/length` / `last` / `take` / `map`
 - `:wat::core::Option/expect`
 - arc 228 `:wat::holon::Bind` / `:wat::holon::Bundle` / `:wat::holon::Atom`
-- arc 230 classifier-wrap composition: instance shape `Bind(Atom("ClassName"), Bundle(Bind(Atom("field1"), Atom(val1)), ...))`
-- arc 228 `extract_classifier` + `extract_classifier_inner_bundle` (substrate helpers; accessor extraction may need to walk Bundle for the matching field-name Bind)
-
-### Surface design (locked per dialogue)
-
-**Two coexisting forms:**
-
-```
-;; Form 1 — single-data (Stone 227.1b shipped; UNCHANGED)
-(:wat::holon::defrecord :myapp::Foo)
-  ;; constructor takes 1 HolonAST payload (opaque)
-  ;; predicate :myapp::is-Foo?
-  ;; no accessors (single payload; use from-holon)
-
-;; Form 2 — multi-field (Stone 227.2 NEW)
-(:wat::holon::defrecord :myapp::Voltage
-  [magnitude <- :wat::core::f64
-   unit      <- :wat::core::String])
-  ;; constructor takes N typed args (magnitude, unit)
-  ;; predicate :myapp::is-Voltage?
-  ;; accessors :myapp::Voltage/magnitude, :myapp::Voltage/unit
-```
-
-**Field-list syntax:** `[name <- :Type ...]` — matches defservice's typed-binder convention (`user <- :counter::User`). Bare-symbol field names; FQDN types after `<-`.
-
-**Macro dispatch by arity:**
-- 1-arg → single-data form (existing behavior)
-- 2-arg → multi-field form (new)
-
-**Instance shape for multi-field** (per arc 230 classifier-wrap):
-
-```
-Bind(Atom("myapp::Voltage"),
-  Bundle(
-    Bind(Atom("magnitude"), Atom(<f64-value>)),
-    Bind(Atom("unit"),      Atom(<String-value>))))
-```
-
-The classifier is the FQDN; the inner Bundle holds named-field Binds. Field-name = bare symbol from declaration; field-value = the typed value lifted to HolonAST via `:wat::holon::to-holon`.
-
-**Accessor synthesis** — for each field:
-
-```
-(:wat::core::defn :myapp::Voltage/magnitude
-  [v <- :myapp::Voltage] -> :wat::holon::HolonAST
-  ;; extract the inner Bundle from v's classifier-wrap,
-  ;; find the Bind with classifier-atom "magnitude",
-  ;; return its inner Atom contents (raw HolonAST)
-  ...)
-```
-
-Accessor returns `:wat::holon::HolonAST` (the raw inner Atom contents). Caller uses `:wat::holon::from-holon` if they want it back as a primitive.
-
-(Alternative: accessor returns the typed primitive directly. Decide via four-questions during sonnet flight. The HolonAST-returning version is the conservative honest baseline; primitive-returning is the ergonomic upgrade. Pick the version that compiles cleanly and reads well; document choice in SCORE.)
+- arc 228 `extract_classifier_inner_bundle` (substrate helper; used by accessor body)
+- arc 226 `:wat::holon::is?`
 
 ## Your scope (sonnet)
 
-### Phase 1 — Extend macro head + dispatch
+### Phase 1 — Rewrite macro head + body
 
 Edit `wat/holon/defrecord.wat`:
-- Macro now accepts 1 or 2 args (variadic `& rest` OR explicit 2-arity overload — pick whichever wat's defmacro supports cleanly)
-- 1-arg path: existing behavior unchanged
-- 2-arg path: extract field-list; synthesize multi-field constructor + accessors
+- Macro head becomes 2-arg: `(:wat::holon::defrecord (fqdn :AST...) (fields :AST...))` — always takes field-list
+- Body branches on field-count:
+  - **Empty field-list** → zero-arg constructor; no accessors; predicate
+  - **N-element field-list** → N-arg constructor; N accessors; predicate
 
-Investigate via grep how existing variadic defmacros pattern this (e.g., `wat/runtime.wat` define-alias). Mirror that shape.
+Update header doc-comment to reflect v2 mandate. Note in macro body that single-arg form is RETIRED per Stone 227.2 v2.
 
-### Phase 2 — Multi-field constructor synthesis
+### Phase 2 — Constructor synthesis (uniform N-arg)
 
-Constructor takes N args (one per field, typed). Expands to:
+For field-list of length N:
 
 ```
-(:wat::core::defn ~fqdn [arg1 <- :Type1, arg2 <- :Type2, ...]
+(:wat::core::defn ~fqdn [arg1 <- :Type1, arg2 <- :Type2, ..., argN <- :TypeN]
                         -> :wat::holon::HolonAST
   (:wat::holon::Bind
     (:wat::holon::Atom (:wat::holon::to-holon ~classifier-str))
     (:wat::holon::Bundle
-      (:wat::holon::Bind (:wat::holon::Atom (:wat::holon::to-holon "field1"))
-                         (:wat::holon::Atom (:wat::holon::to-holon arg1)))
-      (:wat::holon::Bind (:wat::holon::Atom (:wat::holon::to-holon "field2"))
-                         (:wat::holon::Atom (:wat::holon::to-holon arg2)))
-      ...)))
+      ~@(map (fn [field-name field-val]
+               `(:wat::holon::Bind (:wat::holon::Atom (:wat::holon::to-holon ~field-name-str))
+                                   (:wat::holon::Atom (:wat::holon::to-holon ~field-val))))
+             field-names field-vals))))
 ```
 
-Use `:wat::holon::to-holon` to lift each typed arg to HolonAST before wrapping in Atom.
+For N=0: Bundle has zero children; constructor is zero-arg.
 
-### Phase 3 — Accessor synthesis (one per field)
+### Phase 3 — Accessor synthesis (one per field; skipped for N=0)
 
-For each `[name <- :Type]` declaration, generate:
-
-```
-(:wat::core::defn ~(keyword/of fqdn "/" "field-name") [v <- ~fqdn] -> :wat::holon::HolonAST
-  (... walk inner Bundle; find Bind with classifier-atom "field-name"; return inner Atom contents ...))
-```
-
-The body needs to:
-1. Extract the inner Bundle from v (via `extract_classifier_inner_bundle` or equivalent)
-2. Iterate Bundle items; find the one whose outer atom matches the field-name string
-3. Return that Bind's inner contents (raw HolonAST)
-
-**If substrate-level Bundle-walking primitives aren't ergonomic** — surface as STOP-5b (need new primitive OR macro should be more conservative). Use `:wat::holon::Bundle/children` + `is?` + classifier extraction to walk.
-
-### Phase 4 — Predicate (unchanged from 227.1b)
+For each field `[name <- :Type]`:
 
 ```
-(:wat::core::defn :myapp::is-Voltage? [v <- :wat::holon::HolonAST] -> :wat::core::bool
-  (:wat::holon::is? v "myapp::Voltage"))
+(:wat::core::defn ~(:wat::core::keyword/of fqdn "/" name-str)
+  [v <- ~fqdn] -> :wat::holon::HolonAST
+  ;; extract inner Bundle from v; find Bind matching field-name; return inner contents
+  ...)
 ```
 
-Same as single-data form. Both shapes share the predicate logic.
+Use `extract_classifier_inner_bundle` + `:wat::holon::Bundle/children` iteration. Find the Bind whose outer Atom matches `name-str`. Return its inner Atom contents (raw HolonAST).
 
-### Phase 5 — Tests
+**Accessor return type:** `:wat::holon::HolonAST` (raw inner Atom contents). Caller uses `:wat::holon::from-holon` to recover the typed primitive. Honest baseline — typed-primitive return is future ergonomics.
 
-Extend `tests/probe_arc227_stone1_defrecord.rs` OR create a sibling file `tests/probe_arc227_stone2_defrecord_multifield.rs` (sonnet picks; sibling is cleaner):
+### Phase 4 — Predicate (unchanged shape from 227.1b)
 
-**Test categories** (8+ tests):
-1. **Single-data form still works** (backward compat — Stone 227.1b shape)
-2. **Multi-field construct + accessor read** — single field
-3. **Multi-field construct + accessor read** — multiple fields
-4. **Predicate works on multi-field instance**
-5. **Cross-namespace independence** for multi-field (appA::Voltage vs appB::Voltage)
-6. **Accessor returns raw HolonAST** (or typed primitive — document the choice)
-7. **Constructor type-checks each field** — wrong type → check error
-8. **Empty field-list `[]`** behavior — error or treat as single-data? (Pick + document.)
+```
+(:wat::core::defn ~<predicate-fqdn> [v <- :wat::holon::HolonAST] -> :wat::core::bool
+  (:wat::holon::is? v ~classifier-str))
+```
 
-### Phase 6 — Verification
+Always generated regardless of field-count.
+
+### Phase 5 — Migrate existing 18 probes
+
+Edit `tests/probe_arc227_stone1_defrecord.rs`:
+- Every `(:wat::holon::defrecord :test::Foo)` (1-arg) becomes `(:wat::holon::defrecord :test::Foo [value <- :Type])` where `:Type` matches the data the test passes
+- Every `(:test::Foo somedata)` call retains its shape (constructor still takes one arg)
+- Predicate tests unchanged (predicate behavior unchanged)
+
+If any probe asserts on the OPAQUE-payload behavior specifically (e.g., asserts the constructor takes HolonAST not typed primitive), that probe needs semantic update.
+
+Rename file to reflect v2 ownership: `git mv tests/probe_arc227_stone1_defrecord.rs tests/probe_arc227_stone2_defrecord.rs` — the v2 stone supersedes v1's tests. (Sonnet's choice if a separate stone1 probe should retire entirely.)
+
+### Phase 6 — Add new tests for v2-specific behavior
+
+Extend the migrated probe (OR new sibling file):
+- Multi-field construct + accessor read
+- Empty field-list `[]` zero-arg constructor works
+- N-field constructor type-checks each arg
+- Accessor returns raw HolonAST (document choice)
+- Cross-namespace independence with multi-field
+
+Total target ~25+ tests (18 migrated + ~7 v2-specific).
+
+### Phase 7 — Update src/stdlib.rs comment
+
+Line 74 in `src/stdlib.rs` mentions Stone 227.1b. Update to note Stone 227.2 v2 supersedes:
+
+```rust
+// Arc 227 Stone 227.2 v2 — :wat::holon::defrecord macro (multi-field shape;
+// supersedes 227.1b single-arg form). Mints user-defined classifier-wrapped
+// typed entities with named fields.
+```
+
+### Phase 8 — Append rename note to SCORE-STONE-227.1b.md
+
+Per `feedback_inscription_immutable`: DO NOT rewrite 227.1b's SCORE body. APPEND a section:
+
+```markdown
+## Addendum 2026-05-22 night — Stone 227.2 v2 supersedes (HARD CUT)
+
+Stone 227.2 v2 retires the single-arg form this stone shipped. Per
+`feedback_wat_llm_first_design` four-questions check: optional args is a
+synonym feature. defrecord now mandates the field-list (possibly empty `[]`).
+
+- Macro signature: `(defrecord :fqdn [fields])` — always 2-arg
+- Single-arg `(defrecord :fqdn)` form RETIRED (HARD CUT; no alias)
+- Probes migrated to explicit field-list form
+- Commit: [TBD by orchestrator]
+
+This SCORE doc's body above remains unchanged as historical record per
+`feedback_inscription_immutable`.
+```
+
+### Phase 9 — Verification
 
 Run each ONE AT A TIME, foreground:
 
 ```
 cargo build --release -p wat
 cargo test --release --lib -p wat -- --skip reset_sighup --skip reset_sigusr1 --skip sigusr1_query --skip sigusr2_and_sighup --skip user_signal_predicates --skip reset_sigusr2
-cargo test --release --test probe_arc227_stone1_defrecord
-cargo test --release --test probe_arc227_stone2_defrecord_multifield     # if sibling created
+cargo test --release --test probe_arc227_stone2_defrecord       # or whatever the migrated file is named
 cargo test --release --test probe_arc226_stone1_type_predicates
 cargo test --release --test probe_arc216_stone1_hashset_roundtrip
 cargo test --release --test probe_arc216_stone2_vector_roundtrip
@@ -206,43 +237,46 @@ All must complete cleanly.
 
 **Holon-rs untouched** — `git -C /home/watmin/work/holon/holon-rs/ diff --name-only` empty.
 
-**Write `wat-rs/docs/arc/2026/05/227-user-defined-types-classifier-wrap/SCORE-STONE-227.2.md`** mirroring SCORE-STONE-227.1b.md shape; document accessor-return-type choice + empty-list behavior.
+**Post-stone grep verification:** `grep -rn "defrecord :[^\s]* *)$" --include="*.wat" --include="*.rs" .` should return ZERO matches (no bare 1-arg defrecord calls).
+
+**Write `wat-rs/docs/arc/2026/05/227-user-defined-types-classifier-wrap/SCORE-STONE-227.2.md`** mirroring SCORE-STONE-227.1b.md shape.
 
 ## STOP triggers
 
 - **STOP-1 (compile error UNEXPECTED):** STOP and report
-- **STOP-2 (test failure beyond new probe):** STOP + diagnose
-- **STOP-3 (180 min elapsed):** wall-clock STOP
+- **STOP-2 (test failure beyond migrated probes):** STOP + diagnose; broken-by-this-stone framing per Stone 221.3 Delta 1a
+- **STOP-3 (240 min elapsed):** wall-clock STOP
 - **STOP-4 (holon-rs touched accidentally):** STOP and report
-- **STOP-5 (substrate-primitive route taken when wat-defmacro works):** STOP — defrecord stays pure macro expansion
-- **STOP-5b (substrate lacks ergonomic Bundle-walking primitive):** if accessor body cannot be expressed without proposing new substrate primitives, STOP and surface as finding; orchestrator decides whether to mint helpers OR defer this stone
-- **STOP-6 (methods bundled in defrecord):** STOP — per `STONE-227.2-NOTES.md` Pattern 3, methods stay separate defns. Field-list is the only addition.
+- **STOP-5 (substrate-primitive route):** STOP — defrecord stays pure macro
+- **STOP-5b (substrate lacks ergonomic Bundle-walking):** if accessor body cannot be expressed in pure wat, STOP and surface — orchestrator decides whether to mint helpers OR defer
+- **STOP-6 (methods bundled):** STOP — per `STONE-227.2-NOTES.md` Pattern 3, defrecord NEVER bundles methods
 - **STOP-7 (bash discipline):** cargo hang from pipes
-- **STOP-8 (backward compat broken):** STOP if Stone 227.1b's single-arg form stops working. All Stone 227.1b probe tests must continue to pass.
+- **STOP-8 (1-arg form retained as alias):** STOP — HARD CUT; no `(defrecord :fqdn)` alias for `(defrecord :fqdn [])` or similar; users WRITE the field-list
+- **STOP-9 (historical artifact rewritten):** STOP — BRIEF/EXPECTATIONS of Stone 227.1b stay intact; SCORE-227.1b body unchanged (append-only via Phase 8 addendum)
 
 ## Out-of-scope
 
-- Methods bundled in defrecord (STOP-6; per `STONE-227.2-NOTES.md`)
+- Methods bundled in defrecord (STOP-6; methods stay separate defns per notes Pattern 3)
 - Inheritance via classifier-chain (Stone 227.3)
-- `:with-<field>` setters that return new instance with one field replaced (Stone 227.4 if requested)
-- `:invariants` predicates on construction (future enhancement)
+- `:with-<field>` immutable setters (future)
+- `:invariants` (future)
 - defprotocol / extend-type (arc 232)
-- from-holon support for multi-field structs returning typed Tuple/HashMap (future stone — accessors are the v1 access path)
+- from-holon support for multi-field structs returning typed Tuple (future)
 - holon-rs / wat-edn changes
 - Aliases (HARD CUT)
 
 ## Doctrine context
 
-Stone 227.2 ships the ergonomic upgrade defrecord needs to be useful:
+Stone 227.2 v2 unifies defrecord under one canonical shape:
 
 ```
-Stone 227.1 v3 ✓  single-data newtype (opaque payload)
-Stone 227.1b ✓    rename defclass → defrecord (honest name)
-Stone 227.2       multi-field structs + auto-accessors (THIS STONE)
+Stone 227.1 v3 ✓  defclass macro (historical name; superseded by 227.1b)
+Stone 227.1b ✓    rename to defrecord (semantics unchanged from v3 — single-arg form)
+Stone 227.2 v2    field-list mandate + multi-field + accessors (THIS — retires single-arg)
 Stone 227.3?      inheritance via classifier-chain (when needed)
 Stone 227.4?      INSCRIPTION (closes arc 227)
 ```
 
-defrecord becomes Clojure-defrecord-comparable: declare data shape; substrate generates the boilerplate; methods are separate defns; immutable updates construct new instances; type-checking via classifier-similarity (arc 226).
+Per `feedback_wat_llm_first_design`: one canonical path; reject synonym features; engineered pedagogy for AI co-authors. The mandate IS the design.
 
-Per `project_defrecord_defservice_doctrine` — defrecord is the immutable-data abstraction; defservice is the mutex-around-mutable-state abstraction. This stone advances defrecord's surface; defservice (arc 209) stays its own arc.
+User direction: *"i am engineering this for models like yourself"* — the bias toward forcing the empty vec IS LLM-first discipline firing. Stone 227.2 v2 honors it.
