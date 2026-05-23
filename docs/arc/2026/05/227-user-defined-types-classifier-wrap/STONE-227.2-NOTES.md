@@ -22,13 +22,15 @@ Patterns to study from defservice (arc 209 DESIGN.md + SCORE-SLICE-1.md). **Note
 Per SCORE-SLICE-1.md Audit 1:
 > A macro can expand to `(:wat::core::do enum1 enum2 struct1 defn1 defn2 ...)`. `register_types` recurses into top-level `(:wat::core::do ...)` bodies via `splice_type_decls_user` (`src/types.rs:1450-1481`). `register_defines` recurses via `preregister_fn_defs_in_do` (`src/runtime.rs:1741`).
 
-For multi-field defclass:
+For multi-field defclass (using Clojure-idiomatic square brackets, matching `defn`'s parameter-list style):
 
 ```
 (:wat::holon::defclass :myapp::Voltage
-  :fields {magnitude :wat::core::Float
-           unit      :wat::core::String})
+  [magnitude :wat::core::Float]
+  [unit      :wat::core::String])
 ```
+
+Each `[name type]` pair mirrors how `defn` parameters carry type annotations. **No curly-brace map** — per Clojure idiom, `[]` is for parameter/field lists; `{}` is for runtime hashmap literals. Field-name-to-type is a SCHEMA (declared once at type-mint time), not a runtime map.
 
 Expands to:
 
@@ -48,7 +50,7 @@ Expands to:
     (:wat::holon::is? v "myapp::Voltage")))
 ```
 
-Field access auto-generated. Constructor takes positional or named args.
+Field access auto-generated. Constructor takes positional args.
 
 ### Pattern 2 — Computed unquote for namespaced method names
 
@@ -60,64 +62,79 @@ Per `src/macros.rs:1069-1097` (arc 143) + `keyword/of` arc 170 Gap A:
 
 Lets defclass generate `:myapp::Voltage/<field>` accessors at expand time without string manipulation tricks. The keyword IS the namespace per `feedback_fqdn_is_the_namespace`.
 
-### Pattern 3 — `state-as-self` for methods (defservice's contract)
+### Pattern 3 — Methods as SEPARATE defns (not bundled in defclass)
 
-Per arc 209 DESIGN § "Handler signature":
+Per Clojure tradition + the doctrine: methods are FUNCTIONS THAT TAKE INSTANCES. They don't NEED to live inside the defclass declaration. defclass mints the type; methods are independent declarations bound by namespace convention.
 
-> Handlers take state as the FIRST argument. The dispatch loop threads state through each handler call. State is implicit-self via positional convention, not via implicit lookup.
+```
+;; defclass mints just the type (Stone 227.2 multi-field scope)
+(:wat::holon::defclass :myapp::Voltage
+  [magnitude :wat::core::Float]
+  [unit      :wat::core::String])
 
-For defclass methods:
+;; methods are SEPARATE defns; namespace convention (Type/method-name) provides the binding
+(:wat::core::defn :myapp::Voltage/double [self]
+  (:myapp::Voltage (* 2.0 (:myapp::Voltage/magnitude self))
+                   (:myapp::Voltage/unit self)))
+
+(:wat::core::defn :myapp::Voltage/scale [self by]
+  (:myapp::Voltage (* by (:myapp::Voltage/magnitude self))
+                   (:myapp::Voltage/unit self)))
+```
+
+**No state-hiding. No method-map in defclass. No special method-declaration syntax.** Methods are just defns. The first arg is `self` by convention. Per `project_typed_entities_doctrine`: "OO without class hierarchy. Method dispatch = route by similarity between instance's class + method-registered class atoms."
+
+**This is SIMPLER than defservice's pattern.** defservice has a single closed protocol (admin/user ops bound to a service instance + its state). defclass types are open — methods extend any-time by anyone. Like Clojure's `defrecord` (fields-only) + separate `defn`s (methods anywhere). The `defservice` closed-protocol shape is a DIFFERENT problem (service has owned state + bounded operations); defclass types are open data shapes.
+
+Stone 227.3+ may integrate with arc 226's polymorphic predicate machinery for multimethod dispatch (`(defmethod some-op :myapp::Voltage [self ...])`), but that's a SEPARATE arc — defclass itself stays a data-shape declarator.
+
+### Pattern 4 — Capability-grouped declarations (defservice-specific; NOT directly applicable to defclass)
+
+defservice splits handlers by capability tier because services have BOUNDED PROTOCOLS (admin can do X; user can do Y; access control matters). For defclass, types are OPEN — anyone can define methods on any type via namespace convention. No `:admin` / `:user` split needed.
+
+If defclass V2 wants `:invariants` (predicates checked on construction), that's the only group worth considering — and it can be `[invariant-name predicate-expr]` square-brackets-shape, not a map:
 
 ```
 (:wat::holon::defclass :myapp::Voltage
-  :fields {magnitude :Float}
-  :methods {double  [self]       (:myapp::Voltage (* 2.0 (:myapp::Voltage/magnitude self)))
-            scale   [self by]    (:myapp::Voltage (* by (:myapp::Voltage/magnitude self)))
-            magnitude+ [self n]  (:myapp::Voltage (+ n (:myapp::Voltage/magnitude self)))})
+  [magnitude :wat::core::Float]
+  [unit      :wat::core::String]
+  ;; invariants section (Stone 227.4+ optional):
+  [:invariant magnitude-non-negative (>= magnitude 0.0)]
+  [:invariant unit-not-empty (not= "" unit)])
 ```
 
-First param = `self` (the instance). Methods expand to:
-
-```
-(:wat::core::defn :myapp::Voltage/double [self]
-  (:myapp::Voltage (* 2.0 (:myapp::Voltage/magnitude self))))
-
-(:wat::core::defn :myapp::Voltage/scale [self by]
-  (:myapp::Voltage (* by (:myapp::Voltage/magnitude self))))
-```
-
-**No state-hiding.** Methods are functions; instance is the first arg. Clojure tradition. Per `project_typed_entities_doctrine`: "OO without class hierarchy. Method dispatch = route by similarity between instance's class + method-registered class atoms" — Stone 227.3+ can integrate with arc 226's polymorphic predicate machinery for multimethod dispatch.
-
-### Pattern 4 — Capability-grouped declarations (defservice's :admin / :user split)
-
-defservice splits handlers by capability tier:
-
-```
-:admin {Provision [...] -> User
-        Deprovision [...] -> nil
-        Stop [] -> nil}
-:user  {Get [] -> i64
-        Increment [n :i64] -> i64}
-```
-
-For defclass: could group `:fields` (data) + `:methods` (operations) + `:invariants` (predicates checked on construction) + `:protocols` (shared method declarations). Each group generates its own type of substrate artifact.
+Each invariant is a `[:invariant name predicate]` triple. Mirrors `[name type]` field shape. Square brackets everywhere.
 
 ### Pattern 5 — Type signature propagation
 
-defservice carries type signatures through to the generated wrappers. For defclass:
+defservice carries type signatures through to the generated wrappers. For defclass — since methods are SEPARATE defns (per Pattern 3 revision), type signatures live on each `defn` declaration where the method is defined, not bundled in defclass.
+
+defclass v2+ ONLY needs to propagate field types through the constructor signature:
 
 ```
-:fields {magnitude :wat::core::Float
-         unit :wat::core::String}
-:methods {double [self -> :myapp::Voltage]
-          scale [self by :wat::core::Float -> :myapp::Voltage]}
+(:wat::holon::defclass :myapp::Voltage
+  [magnitude :wat::core::Float]
+  [unit      :wat::core::String])
+
+;; generated constructor signature (auto-threaded from field types):
+;;   (:wat::core::defn :myapp::Voltage
+;;     [magnitude :wat::core::Float unit :wat::core::String -> :wat::holon::HolonAST]
+;;     ...)
 ```
 
-Signatures auto-thread to the generated defn arg-lists + return-type annotations. The check-layer reasons about user types via the predicate + signature combo.
+Method signatures live on each method's `defn` declaration:
+
+```
+(:wat::core::defn :myapp::Voltage/double
+  [self :wat::holon::HolonAST -> :wat::holon::HolonAST]
+  ...)
+```
+
+The check-layer reasons about user types via the predicate `:myapp::is-Voltage?` + the field-access fns' return types.
 
 ## Open questions for Stone 227.2 BRIEF (when authored)
 
-1. **Field map shape** — `{name type ...}` (Clojure map syntax) OR `[[name type] ...]` (vector of pairs) OR `:fields name type name type ...` (flat sequence)? Pick the most idiomatic with existing wat conventions.
+1. **Field declaration shape** — RESOLVED 2026-05-22: use `[name type]` square-bracket pairs per Clojure idiom; mirrors `defn`'s param-list style. No curly-brace map (maps are for runtime hashmaps; schema-at-mint-time is parameter-list shape).
 
 2. **Accessor naming** — `:myapp::Voltage/magnitude` (slash-separated; defservice precedent) OR `:myapp::Voltage::magnitude` (FQDN-deeper)? Per `feedback_fqdn_is_the_namespace` the slash-form is established for method/accessor naming (e.g., `:wat::holon::Bundle/children`).
 
