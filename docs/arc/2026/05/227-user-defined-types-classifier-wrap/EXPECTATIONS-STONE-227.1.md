@@ -1,19 +1,25 @@
-# EXPECTATIONS — Arc 227 Stone 227.1 — User-defined types via `defclass` macro
+# EXPECTATIONS — Arc 227 Stone 227.1 — User-defined types via `:wat::holon::defclass` macro (v3)
 
-Mode A target: 10/10 PASS.
+Mode A target: 12/12 PASS.
+
+## v3 supersedes v1
+
+The v1 EXPECTATIONS had two violations corrected in v3: (1) defclass moved from `:wat::core::*` to `:wat::holon::*` namespace; (2) macro REQUIRES user-declared FQDN (no `:user::*` insertion).
 
 | # | Row | Expectation |
 |---|---|---|
-| 1 | NEW `:wat::core::defclass` defmacro authored | Wat-level defmacro in appropriate stdlib path (likely `wat/core/defclass.wat` or similar); single-arg form `(defclass Name)`; expands to constructor + predicate defns using arc 226/228 primitives |
-| 2 | defmacro registered via stdlib defmacros | Auto-loaded via `register_stdlib_defmacros` path; no manual user import needed; verified by tests being able to call `(:wat::core::defclass ...)` directly |
-| 3 | Constructor auto-generated correctly | `(defclass MyType)` produces a callable `(:user::MyType <data>)` (or similar namespace) that returns `Bind(Atom("MyType"), Atom(<data>))` |
-| 4 | Predicate auto-generated correctly | `(defclass MyType)` produces a callable `(:user::is-MyType? x)` (or similar) that calls `:wat::holon::is?` with "MyType" classifier; returns bool |
-| 5 | Multiple user types independent | `(defclass A)` + `(defclass B)` — instances of A are NOT B and vice-versa; predicates discriminate correctly |
-| 6 | User types distinct from built-in types | `(defclass MyMap)` produces instances queryable as MyMap but NOT as built-in Map (different classifier strings; no collision) |
-| 7 | Polymorphic `is?` works on user-defined classes | `(:wat::holon::is? user-instance "MyType")` returns true; same machinery as built-in types |
-| 8 | Constructor errors on non-atomizable input | Calling `(MyType <fn>)` (non-atomizable) errors at check time per arc 225's narrow `:wat::holon::Atom` constructor; honest error message |
-| 9 | New test file `probe_arc227_stone1_defclass.rs` | 8+ tests: simple defclass; multiple classes; cross-discrimination; user-vs-builtin; polymorphic is?; edge cases; all PASS |
-| 10 | All test suites green + holon-rs untouched | `cargo build --release -p wat` 0 errors; `cargo test --release --lib -p wat [--skip 5]` PASS; new probe + arc 226 + arc 216 + arc 221 + arc 143 + mvp + wat-edn PASS; clippy clean; holon-rs untouched |
+| 1 | NEW `:wat::holon::defclass` defmacro authored | Wat-level defmacro in `wat/holon/defclass.wat` (or similar holon-tier path); single-arg form `(defclass :fqdn::Name)`; expands to constructor + predicate using arc 226/228 primitives |
+| 2 | defmacro registered via stdlib defmacros | Auto-loaded via `register_stdlib_defmacros` path; verified by tests being able to call `(:wat::holon::defclass ...)` directly without user import |
+| 3 | Constructor auto-generated in USER-DECLARED namespace | `(defclass :myapp::Voltage)` produces `(:myapp::Voltage <data>)` — NOT in `:user::*` or any other auto-inserted namespace; constructor returns `Bind(Atom("myapp::Voltage"), Atom(<data>))` |
+| 4 | Predicate auto-generated in USER-DECLARED namespace | `(defclass :myapp::Voltage)` produces `(:myapp::is-Voltage? x)`; is- prefix attaches to basename; namespace preserved; calls `:wat::holon::is?` with FQDN classifier string |
+| 5 | Classifier string = FQDN (collision-free) | The Atom that classifies the instance carries the FQDN without leading colon — e.g., `"myapp::Voltage"` not `"Voltage"`. Distinct user types across namespaces produce distinct classifiers |
+| 6 | Multiple namespaces independent | `(defclass :appA::Voltage)` + `(defclass :appB::Voltage)` produce distinct classifiers ("appA::Voltage" vs "appB::Voltage"); cross-discrimination via predicates verified |
+| 7 | User types distinct from built-in types | `(defclass :test::MyMap)` produces instances queryable as MyMap but NOT as built-in Map (classifier "test::MyMap" ≠ "Map") |
+| 8 | Polymorphic `:wat::holon::is?` works on user types | `(:wat::holon::is? user-instance "myapp::Voltage")` returns true; bare "Voltage" returns false |
+| 9 | Constructor errors on non-atomizable | Calling `(:test::Voltage <fn>)` errors at check time per arc 225 narrow Atom constructor |
+| 10 | New test file `probe_arc227_stone1_defclass.rs` | 6+ tests covering: single defclass, cross-namespace independence, multiple-same-namespace, user-vs-built-in, polymorphic is?, non-atomizable error; all PASS |
+| 11 | All test suites green + holon-rs untouched | `cargo build --release -p wat` 0 errors; `cargo test --release --lib -p wat [--skip 5]` PASS; new probe + arc 226 + arc 216 + arc 221 + arc 143 + mvp PASS; `cargo test -p wat-edn` PASS; clippy clean; holon-rs untouched |
+| 12 | No `:user::*` insertion anywhere | grep for `:user::` in the generated macro output should ONLY appear if the user explicitly declared `:user::SomeType`. Substrate never auto-inserts |
 
 ## Independent prediction (calibration record)
 
@@ -22,14 +28,14 @@ Mode A target: 10/10 PASS.
 **Confidence:** high
 
 **Rationale:**
-- Pure macro expansion using existing primitives; no substrate-primitive minting; no encoding cascade
-- Pattern locked from defservice / defn-restricted / etc.; sonnet has clear precedent
-- Tests are mechanical: defclass + verify + cross-discriminate
+- Pure macro expansion using existing primitives; no substrate-primitive minting
+- defclass body needs to extract FQDN → namespace + basename via keyword-manipulation primitives (sonnet investigates what's available)
+- Test pattern is mechanical
 
 **Risks:**
-- Macro template construction — quasiquote/unquote nesting can be tricky; may need iteration
-- Constructor name generation — building `:user::MyType` from `MyType` requires symbol manipulation; sonnet may need to find the right substrate helper
-- defmacro auto-load path — sonnet may need to add the new wat file to the stdlib path list if not already scanned
+- Keyword manipulation — building "myapp::is-Voltage?" from ":myapp::Voltage" may require finding the right substrate helper. If unavailable, STOP-5b surfaces as finding (orchestrator decides whether to mint helpers OR defer arc 227 v1 to a simpler shape)
+- Macro template construction with computed unquote may need iteration
+- defmacro auto-load path may need adjustment
 
 **Calibration check (fill in at completion):**
 - Actual runtime: [TBD]
@@ -47,19 +53,18 @@ Mode A target: 10/10 PASS.
 
 ## Honesty deltas accepted
 
-- defmacro syntax may evolve as sonnet finds the cleanest template form
-- Constructor namespace (`:user::MyType` vs `:wat::user::MyType` vs other) — sonnet picks consistent with existing convention
-- Re-declaration behavior — error OR idempotent; sonnet picks honest behavior + documents
-- Test count may exceed 8 if sonnet finds more edge cases worth covering
+- defmacro template syntax may evolve as sonnet finds the cleanest form
+- Test count may exceed 6 if sonnet finds more edge cases worth covering
+- If keyword-manipulation helpers are missing AND sonnet can mint them as wat-level helpers (not new substrate primitives), acceptable — document as Delta
 
 ## Honesty deltas NOT accepted
 
-- Adding new substrate primitives instead of using defmacro — STOP-5; the doctrine says user-defined types live at the wat-surface
-- Inheritance in v1 — STOP-6; Stone 227.2 territory
-- VSA similarity scoring — different arc (226.2)
-- "Pre-existing failure" framing for tests broken by this stone — STOP per Stone 221.3 Delta 1a
+- Inserting into `:user::*` or any auto-namespace — STOP-8; users declare their own
+- Adding new substrate primitives instead of using defmacro — STOP-5
+- Inheritance in v1 — STOP-6
+- VSA similarity scoring — different arc
 - Touching holon-rs — STOP-4
-- Aliases for any existing macro name — HARD CUT
+- Aliases — HARD CUT
 
 ## STOP triggers (cross-ref from BRIEF)
 
@@ -68,5 +73,7 @@ Mode A target: 10/10 PASS.
 - **STOP-3:** 180 min elapsed
 - **STOP-4:** holon-rs touched accidentally
 - **STOP-5:** substrate-primitive route instead of wat-defmacro
-- **STOP-6:** inheritance scope creep (deferred to 227.2)
+- **STOP-5b:** substrate lacks keyword-manipulation helpers — surface as finding
+- **STOP-6:** inheritance scope creep
 - **STOP-7:** bash discipline — cargo hang from pipes
+- **STOP-8:** namespace insertion violation (no `:user::*` auto-insertion)
