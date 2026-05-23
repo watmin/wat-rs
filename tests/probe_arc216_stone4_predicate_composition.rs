@@ -75,8 +75,10 @@ fn startup_err(src: &str) -> String {
 /// Arc 216 Stone 4 Probe 1.
 #[test]
 fn probe_1_composite_hashmap_of_vector() {
-    // Build a HashMap<keyword, Vector<i64>> and atomize it.
-    // The Bundle should have 2 children (2 map entries).
+    // Arc 228 classifier-wrap: to-holon on HashMap produces
+    // Bind(Atom("Map"), Bundle(...)), so Bundle/children on the top-level fails.
+    // Verify via round-trip: from-holon decodes back to HashMap; length proves
+    // the encoding captured both entries.
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
@@ -84,13 +86,13 @@ fn probe_1_composite_hashmap_of_vector() {
              inner2  (:wat::core::Vector :wat::core::i64 40 50)
              m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :a inner1 :b inner2)
              h       (:wat::holon::to-holon m)
-             cs      (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             back    (:wat::holon::from-holon h)]
+            (:wat::core::HashMap/length back)))
     "#;
     assert_eq!(
         run_i64(src),
         2,
-        "to-holon on HashMap<keyword, Vector<i64>> must produce Bundle with 2 children"
+        "HashMap<keyword, Vector<i64>> round-trip must preserve 2 entries"
     );
 }
 
@@ -108,9 +110,9 @@ fn probe_1_composite_hashmap_of_vector() {
 /// Arc 216 Stone 4 Probe 2.
 #[test]
 fn probe_2_composite_vector_of_hashset() {
-    // Build a Vector<HashSet<i64>> and atomize it.
-    // The outer Bundle has positional Bind children (array-shape, Stone 2).
-    // The inner bundles have bare atoms (set-shape, Stone 1).
+    // Arc 228 classifier-wrap: to-holon on Vector produces
+    // Bind(Atom("Vector"), Bundle(positional Binds)). Round-trip via from-holon
+    // back to Vector; length proves the 2 inner HashSets survived.
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
@@ -118,13 +120,13 @@ fn probe_2_composite_vector_of_hashset() {
              set2    (:wat::core::HashSet :wat::core::i64 4 5)
              outer   (:wat::core::Vector :wat::type::Infer set1 set2)
              h       (:wat::holon::to-holon outer)
-             cs      (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             back    (:wat::holon::from-holon h)]
+            (:wat::core::Vector/length back)))
     "#;
     assert_eq!(
         run_i64(src),
         2,
-        "to-holon on Vector<HashSet<i64>> must produce Bundle with 2 children"
+        "Vector<HashSet<i64>> round-trip must preserve 2 inner sets"
     );
 }
 
@@ -150,10 +152,10 @@ fn probe_2_composite_vector_of_hashset() {
 /// Arc 216 Stone 4 Probe 3 — relanded in Stone 216.5.
 #[test]
 fn probe_3_composite_hashset_of_vector() {
-    // Build a HashSet<Vector<i64>> at WAT surface.
-    // Two inner vectors → outer HashSet length = 2 after Atom round-trip.
-    // This was the original BRIEF type; it previously failed at runtime because
-    // hashmap_key did not handle Value::Vec. Stone 216.5 fixed that gap.
+    // Arc 228 classifier-wrap: to-holon on HashSet produces
+    // Bind(Atom("Set"), Bundle(bare items)). Round-trip via from-holon back
+    // to HashSet; length proves the 2 inner Vectors survived. Stone 216.5
+    // fixed the hashmap_key gap so HashSet<Vector<i64>> is valid.
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
@@ -161,13 +163,13 @@ fn probe_3_composite_hashset_of_vector() {
              v2     (:wat::core::Vector :wat::core::i64 3 4)
              outer  (:wat::core::HashSet :wat::type::Infer v1 v2)
              h      (:wat::holon::to-holon outer)
-             cs     (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             back   (:wat::holon::from-holon h)]
+            (:wat::core::HashSet/length back)))
     "#;
     assert_eq!(
         run_i64(src),
         2,
-        "to-holon on HashSet<Vector<i64>> must produce Bundle with 2 children"
+        "HashSet<Vector<i64>> round-trip must preserve 2 inner vectors"
     );
 }
 
@@ -187,8 +189,9 @@ fn probe_3_composite_hashset_of_vector() {
 /// Arc 216 Stone 4 Probe 4 — the canonical triple-nested composition probe.
 #[test]
 fn probe_4_triple_nested_hashmap_vector_hashset() {
-    // Build a HashMap<keyword, Vector<HashSet<i64>>> with 1 entry.
-    // The outer Bundle is map-shape (1 Bind child: Bind(:a_holon, inner_vec_bundle)).
+    // Arc 228 classifier-wrap: to-holon on HashMap produces
+    // Bind(Atom("Map"), Bundle(...)). Round-trip via from-holon back to
+    // HashMap; length proves the 1 entry (with triple-nested value) survived.
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
@@ -197,13 +200,13 @@ fn probe_4_triple_nested_hashmap_vector_hashset() {
              vec     (:wat::core::Vector :wat::type::Infer set1 set2)
              m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data vec)
              h       (:wat::holon::to-holon m)
-             cs      (:wat::holon::Bundle/children h)]
-            (:wat::core::length cs)))
+             back    (:wat::holon::from-holon h)]
+            (:wat::core::HashMap/length back)))
     "#;
     assert_eq!(
         run_i64(src),
         1,
-        "to-holon on HashMap<keyword, Vector<HashSet<i64>>> must produce Bundle with 1 child"
+        "HashMap<keyword, Vector<HashSet<i64>>> round-trip must preserve 1 entry"
     );
 }
 
