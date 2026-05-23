@@ -1497,15 +1497,15 @@ The annotation token IS the type's namespaced keyword. Direction is carried by s
     (/ (Math/floor (* d factor)) factor)))
 ```
 
-Adapted to wat shape (with FQDN type names per [[fqdn-is-the-namespace]]):
+Adapted to wat shape (with FQDN type names per [[fqdn-is-the-namespace]]). **Note:** `^` IS the annotation marker; the leading `:` (keyword marker) drops — using both would be redundant. The annotated form names a TYPE, not a keyword:
 
 ```
-(:wat::core::defn :add ^:wat::core::i64 [^:wat::core::i64 a ^:wat::core::i64 b]
+(:wat::core::defn :add ^wat::core::i64 [^wat::core::i64 a ^wat::core::i64 b]
   (:wat::core::i64::+ a b))
 
-(:wat::core::apply ^:wat::core::i64 plus [2 3])
+(:wat::core::apply ^wat::core::i64 plus [2 3])
 
-(:wat::core::Result/expect ^:wat::core::String value msg)
+(:wat::core::Result/expect ^wat::core::String value msg)
 ```
 
 OR shorter (if wat's namespacing remains visible elsewhere; this is a separate question):
@@ -1541,10 +1541,10 @@ If wat adopts `^Type` placement convention, does the return-type-BEFORE-arg-vect
 
 ```
 ;; Clojure-style position (return before args):
-(:wat::core::defn :add ^:wat::core::i64 [^:wat::core::i64 a ^:wat::core::i64 b] body)
+(:wat::core::defn :add ^wat::core::i64 [^wat::core::i64 a ^wat::core::i64 b] body)
 
 ;; wat-current-style position (return after args):
-(:wat::core::defn :add [^:wat::core::i64 a ^:wat::core::i64 b] ^:wat::core::i64 body)
+(:wat::core::defn :add [^wat::core::i64 a ^wat::core::i64 b] ^wat::core::i64 body)
 ```
 
 The Clojure-style position has reflection precedent (multi-arity allows different return types per arity; harder to express otherwise). wat may want the same expressive shape for future multi-arity work.
