@@ -1327,7 +1327,9 @@ User audit drove the four-questions on each "doesn't need list_span" category:
 
 **The "genuinely don't need" category collapses to zero.** Every arm benefits.
 
-### Scope (arc 234 candidate)
+### Scope (Stone 233.2.d — REFRAMED 2026-05-23 night post-compaction)
+
+**Note:** originally filed as "arc 234 candidate"; post-compaction four-questions revealed the work belongs IN arc 233 as Stone 233.2.d (splitting it out would be FM 11 deferral one level up — Stone 233.2's Provenance population thesis needs uniform `list_span` as its foundation). See [arc 233 Stone 233.2.d sub-DESIGN](../../05/233-substrate-errors-as-values/DESIGN-STONE-233.2.d.md).
 
 - ~245 dispatch arms updated to pass `list_span` to their called eval fn
 - ~245 eval fn signatures gain `list_span: &Span` parameter (most won't use it initially — pure addition)
