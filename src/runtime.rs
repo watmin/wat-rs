@@ -1750,7 +1750,33 @@ impl std::fmt::Display for ValueSnapshot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Type name followed by rendered content in backticks.
         // Example: "wat::core::keyword `:wat::core::i64::+'2`"
-        write!(f, "{} `{}`", self.type_name, self.rendered)
+        write!(f, "{} `{}`", self.type_name, self.rendered)?;
+        // Arc 233 Stone 233.2.b: render Provenance inline when not Unknown.
+        match &self.provenance {
+            Provenance::Unknown => Ok(()),
+            Provenance::RuntimeBuilt { producer, call_span } => {
+                write!(
+                    f,
+                    " (built by {} at {}:{}:{})",
+                    producer, call_span.file, call_span.line, call_span.col
+                )
+            }
+            Provenance::Literal { span } => {
+                write!(f, " (from {}:{}:{})", span.file, span.line, span.col)
+            }
+            Provenance::SymbolBound { binding_span, head_span } => {
+                write!(
+                    f,
+                    " (bound from {}:{}:{} at {}:{}:{})",
+                    binding_span.file,
+                    binding_span.line,
+                    binding_span.col,
+                    head_span.file,
+                    head_span.line,
+                    head_span.col
+                )
+            }
+        }
     }
 }
 
@@ -7267,7 +7293,16 @@ fn eval_keyword_from_string(
         });
     }
     // Prepend ':' to form the canonical keyword string.
-    Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s.as_str()))))
+    // Arc 233 Stone 233.2.b: wrap in Tracked with RuntimeBuilt provenance so
+    // diagnostic errors (e.g., NotCallable) can report the producer origin.
+    let kw = Value::wat__core__keyword(Arc::new(format!(":{}", s.as_str())));
+    Ok(Value::Tracked {
+        inner: Box::new(kw),
+        provenance: Provenance::RuntimeBuilt {
+            producer: ":wat::core::keyword/from-string",
+            call_span: list_span.clone(),
+        },
+    })
 }
 
 // ─── Arc 232 Stone 232.0 — :wat::core::apply ────────────────────────────────
@@ -30195,13 +30230,15 @@ mod tests {
 
     #[test]
     fn keyword_from_string_prepends_colon() {
+        // Arc 233 Stone 233.2.b: keyword/from-string now returns Value::Tracked;
+        // use inner() to unwrap for the value-level assertion.
         let result = eval_expr(r#"(:wat::core::keyword/from-string "foo")"#).unwrap();
-        match result {
+        match result.inner() {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":foo"),
             other => panic!("expected keyword; got {:?}", other),
         }
         let result2 = eval_expr(r#"(:wat::core::keyword/from-string "wat::core::i64")"#).unwrap();
-        match result2 {
+        match result2.inner() {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":wat::core::i64"),
             other => panic!("expected keyword; got {:?}", other),
         }
@@ -30221,12 +30258,14 @@ mod tests {
             );
             assert_eq!(&text, expected_text, "to-string({}) should strip ':'", kw);
             // from-string(to-string(k)) == k
+            // Arc 233 Stone 233.2.b: keyword/from-string returns Value::Tracked;
+            // use inner() to unwrap for the value-level assertion.
             let roundtrip = eval_expr(&format!(
                 r#"(:wat::core::keyword/from-string (:wat::core::keyword/to-string {}))"#,
                 kw
             ))
             .unwrap();
-            match roundtrip {
+            match roundtrip.inner() {
                 Value::wat__core__keyword(k) => {
                     assert_eq!(k.as_str(), *kw, "round-trip failed for {}", kw)
                 }
