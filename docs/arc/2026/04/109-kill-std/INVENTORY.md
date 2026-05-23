@@ -1393,3 +1393,61 @@ immediate slice; recorded so the question doesn't get lost.
 - [[encoding-doctrine]] — tagged scalars + FQDN tags pattern
 - [[wat-llm-first-design]] — LLM-first means familiar Clojure shapes
   win unless wat has a real reason to diverge
+
+## O. Diagnostic message richness — include value content alongside type names
+
+**Surfaced 2026-05-23** (during arc 232.0 call-by-name research probe).
+
+The diagnostic probe `tests/probe_diagnostic_dynamic_keyword_invocation.rs`
+hit `NotCallable { got: "wat::core::keyword" }` — the error correctly
+named the TYPE but lost the actual VALUE being attempted (e.g.,
+`:wat::core::i64::+'2` or `:ns::greeting`). The missing value made
+the specific dispatch failure harder to diagnose than necessary.
+
+### Root cause
+
+`RuntimeError::NotCallable { got: &'static str, span: Span }` carries
+the static type-name string from `Value::type_name()`. The `&'static
+str` constraint structurally prohibits dynamic value content (heap
+allocations can't satisfy `'static`).
+
+Same shape applies to `TypeMismatch`, `UnknownFunction`, and any
+other `&'static str` error field across `RuntimeError`.
+
+### Target
+
+Audit substrate error variants. For each `got` / `expected` field
+that's currently `&'static str`:
+
+- If the field NAMES a fixed type/op category — keep `&'static str` (it's correct)
+- If the field LOSES value content that would help diagnostics — promote to `String` + render the value at the call site
+
+Example targets:
+- `NotCallable { got: String }` — include the rendered keyword/value
+- `TypeMismatch { got: String }` — include the actual value alongside its type
+- (others surface via audit)
+
+### Precedent arcs
+
+- arc 138 — errors carry point-in-code coordinates (project-wide sweep)
+- arc 064 — assert-eq renders values + surfaces location
+- arc 113 — cascading runtime error messages (cross-thread panic backtrace)
+- arc 116 — phenomenal cargo debugging (Failure → Diagnostic)
+
+These established the diagnostic-richness pattern; this section
+inherits it.
+
+### Out of scope
+
+- Errors where the type name IS the full information (`StackOverflow`,
+  `OutOfMemory`, control-flow signals like `TailCall`)
+- Errors at boundaries where the value isn't renderable (opaque
+  Rust handles, channel internals)
+- Performance-sensitive error paths where heap allocation would hurt
+  (audit case-by-case)
+
+### Status
+
+Open backlog item. Sized: medium (mechanical audit + sweep across
+RuntimeError variants + call sites). Could ship as its own arc OR
+fold into an arc-109 § N substrate-polish stone when one opens.
