@@ -7430,18 +7430,18 @@ fn eval_apply(
     combined.extend((*spread_vec).iter().cloned());
 
     // Step 5 — fast path: fn-valued head (Arc 009 lift OR let-bound fn).
-    if let Value::wat__core__fn(ref func) = head_val {
+    if let Value::wat__core__fn(func) = head_val.inner() {
         return apply_function(func.clone(), combined, sym, list_span);
     }
 
     // Step 6 — keyword-valued head: extract name + dispatch chain.
-    let head_kw = match head_val {
-        Value::wat__core__keyword(ref k) => k.clone(),
-        ref other => {
+    let head_kw = match head_val.inner() {
+        Value::wat__core__keyword(k) => k.clone(),
+        other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::apply".into(),
                 expected: "wat::core::keyword",
-                got: ValueSnapshot::of(&other),
+                got: ValueSnapshot::of(other),
                 span: args[2].span().clone(),
             });
         }
