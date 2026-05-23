@@ -5323,11 +5323,43 @@ fn infer_list(
                     args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
                 });
             }
-            ":wat::holon::Atom" | ":wat::holon::leaf" => {
+            // Arc 225 Stone 225.1 — Atom is now narrow (HolonAST → HolonAST).
+            // The atomizable-predicate check is retired for Atom; it validates HolonAST
+            // input via the registered TypeScheme (HolonAST param). The special-case
+            // is retained only for `to-holon` and `leaf` (polymorphic ∀T verbs).
+            ":wat::holon::Atom" => {
+                // Narrow constructor: HolonAST → HolonAST. The TypeScheme handles
+                // arity and type unification; no special-case needed beyond routing here.
+                // Return HolonAST unconditionally (one arg, HolonAST input, HolonAST output).
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.clone(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                    return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
+                }
+                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                    let holon = TypeExpr::Path(":wat::holon::HolonAST".into());
+                    if unify(&arg_ty, &holon, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: k.clone(),
+                            param: "#1".into(),
+                            expected: ":wat::holon::HolonAST (use :wat::holon::to-holon for other types)".into(),
+                            got: format_type(&apply_subst(&arg_ty, subst)),
+                            span: args[0].span().clone(),
+                        });
+                    }
+                }
+                return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
+            }
+            ":wat::holon::to-holon" | ":wat::holon::leaf" => {
+                // Arc 225 Stone 225.1 — `to-holon` (new polymorphic UP verb) and `leaf`.
+                // Both are ∀T. T → :wat::holon::HolonAST.
                 // Arc 216 Stone 1 — atomizable-predicate check at call time.
                 //
-                // `Atom` and `leaf` are ∀T. T → :wat::holon::HolonAST. After
-                // inferring T from the argument, validate `is_atomizable(T)`.
+                // After inferring T from the argument, validate `is_atomizable(T)`.
                 // Non-atomizable T (e.g., `HashSet<Function<...>>`) is caught
                 // here with a diagnostic naming the offending type.
                 //
@@ -5359,10 +5391,11 @@ fn infer_list(
                 }
                 return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
-            ":wat::core::atom-value" => {
-                // Arc 216 Stone 3 — atom-value accepts 1 or 3 args.
-                // 1-arg form: `(atom-value h)` — plain reverse dispatch; return type T (Infer).
-                // 3-arg form: `(atom-value h -> :HashMap<K,V>)` — consumer-declared type hint
+            ":wat::holon::from-holon" => {
+                // Arc 225 Stone 225.1 — renamed from `:wat::core::atom-value`.
+                // from-holon accepts 1 or 3 args.
+                // 1-arg form: `(from-holon h)` — plain reverse dispatch; return type T (Infer).
+                // 3-arg form: `(from-holon h -> :HashMap<K,V>)` — consumer-declared type hint
                 //   for disambiguating empty Bundle → empty HashMap. The `->` and type keyword
                 //   are syntactic decoration; return type is still T (Infer).
                 // Both forms validate the first arg is HolonAST.
@@ -13547,15 +13580,31 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Algebra-core UpperCalls.
-    // Atom — ∀T. T → :wat::holon::HolonAST. Polymorphic per arc 057
-    // (primitive → leaf; HolonAST → opaque-wrap; quoted form →
-    // structural lower). Arc 065 introduced named siblings (`leaf`
-    // for primitives, `from-watast` for quoted forms) so consumers
-    // can pick the verb that names the move; the polymorphism
-    // stays for back-compat across ~960 existing call sites.
+    // Algebra-core UpperCalls — bridge naming family (arc 225 Stone 225.1).
+    // Honest symmetric layer-name + direction discipline:
+    //   Atom       HolonAST → HolonAST  (narrow: opaque-identity wrap)
+    //   to-holon   ∀T. T → HolonAST    (polymorphic UP from any Value)
+    //   from-holon HolonAST → ∀T        (polymorphic DOWN to any Value)
+    //   from-wat   WatAST → HolonAST   (structural UP from source tier)
+    //   to-wat     HolonAST → WatAST   (structural DOWN to source tier)
+
+    // Atom — HolonAST → HolonAST. Arc 225 Stone 225.1 — NARROWED from ∀T.
+    // Now accepts ONLY HolonAST input; returns HolonAST::Atom(inner) wrap.
+    // For lifting any other type, use :wat::holon::to-holon.
     env.register(
         ":wat::holon::Atom".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: holon_ty(),
+            rest_param_type: None,
+        },
+    );
+    // to-holon — ∀T. T → HolonAST. Arc 225 Stone 225.1 — NEW polymorphic UP verb.
+    // Absorbs the retired polymorphic arms of old Atom. Operation-name honest:
+    // signals boundary-crossing into the algebra tier; no variant promise.
+    env.register(
+        ":wat::holon::to-holon".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![t_var()],
@@ -13563,8 +13612,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 065 named siblings of polymorphic Atom — one verb per
-    // move. Polymorphism for back-compat; named ops for new code.
+    // Arc 065 named sibling for primitives — one verb per move.
     env.register(
         ":wat::holon::leaf".into(),
         TypeScheme {
@@ -13574,8 +13622,10 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // from-wat — WatAST → HolonAST. Arc 225 Stone 225.1 — renamed from `from-watast`
+    // (drops "ast" suffix for layer-name consistency; semantics unchanged).
     env.register(
-        ":wat::holon::from-watast".into(),
+        ":wat::holon::from-wat".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
@@ -13583,12 +13633,12 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // atom-value — ∀T. :wat::holon::HolonAST → :T. Dual of Atom. The caller's
-    // let-binding type ascription (or surrounding context) pins T; the
-    // runtime dispatches on the holon's variant and errors when the
-    // variant doesn't match the expected return type.
+    // from-holon — ∀T. HolonAST → T. Arc 225 Stone 225.1 — renamed from
+    // `:wat::core::atom-value` (namespace move + honest rename). Polymorphic
+    // decode: primitive leaf → matching Value; Atom(inner) → inner HolonAST;
+    // Bundle → Vec/HashMap/HashSet via three-way shape dispatch.
     env.register(
-        ":wat::core::atom-value".into(),
+        ":wat::holon::from-holon".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![holon_ty()],
@@ -13597,12 +13647,12 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // to-watast — :wat::holon::HolonAST → :wat::WatAST. Story-2 escape
-    // hatch per arc 057: structural inverse of Atom's quote-lowering.
-    // Pair with :wat::eval-ast! when you want the value, not the
-    // coordinate.
+    // to-wat — HolonAST → WatAST. Arc 225 Stone 225.1 — renamed from `to-watast`
+    // (drops "ast" suffix for layer-name consistency; semantics unchanged).
+    // Story-2 escape hatch per arc 057: structural inverse of from-wat's quote-lowering.
+    // Pair with :wat::eval-ast! when you want the value, not the coordinate.
     env.register(
-        ":wat::holon::to-watast".into(),
+        ":wat::holon::to-wat".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty()],
@@ -15732,8 +15782,9 @@ fn register_builtins(env: &mut CheckEnv) {
     // Bundle/first    (bundle :HolonAST) -> :wat::holon::HolonAST
     //
     // The `Atom/value` half of the originally-proposed accessor set is
-    // already served by arc 057's `:wat::core::atom-value` (which
-    // unwraps `HolonAST::Atom` AND extracts the wat-`Value` for primitive
+    // already served by arc 057's `:wat::holon::from-holon` (renamed from
+    // `:wat::core::atom-value` at arc 225 Stone 225.1; unwraps
+    // `HolonAST::Atom` AND extracts the wat-`Value` for primitive
     // leaves Symbol/String/I64/F64/Bool). Bundle/children + Bundle/first
     // complete the structural decomposition surface; Atom/value would
     // duplicate the existing accessor.
@@ -16612,7 +16663,9 @@ mod tests {
     fn correct_arity_passes() {
         assert!(check("(:wat::core::i64::+'2 1 2)").is_ok());
         assert!(check("(:wat::core::not true)").is_ok());
-        assert!(check("(:wat::holon::Bind (:wat::holon::Atom 1) (:wat::holon::Atom 2))").is_ok());
+        // Arc 225 Stone 225.1: narrow Atom only accepts HolonAST; use
+        // to-holon for integer literals (the polymorphic UP verb).
+        assert!(check("(:wat::holon::Bind (:wat::holon::to-holon 1) (:wat::holon::to-holon 2))").is_ok());
     }
 
     #[test]
@@ -16780,12 +16833,14 @@ mod tests {
 
     #[test]
     fn bundle_of_list_of_holons_passes() {
-        // Bundle takes :wat::holon::Holons. A list of (Atom ...) calls
-        // returns :wat::holon::Holons, so Bundle(list(Atoms...)) type-checks.
+        // Bundle takes :wat::holon::Holons. A list of (to-holon ...) calls
+        // returns :wat::holon::HolonAST, so Bundle(list(to-holons...)) type-checks.
+        // Arc 225 Stone 225.1: narrow Atom only accepts HolonAST; use
+        // to-holon for integer literals (the polymorphic UP verb).
         assert!(check(
             r#"(:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST
-                 (:wat::holon::Atom 1)
-                 (:wat::holon::Atom 2)))"#
+                 (:wat::holon::to-holon 1)
+                 (:wat::holon::to-holon 2)))"#
         )
         .is_ok());
     }

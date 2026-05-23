@@ -33,12 +33,13 @@
 ;;    `:wat::kernel::run-threads-n3` (N=3) helper macros
 ;; 4. Each helper macro uses the arc 201 reflection chain to extract
 ;;    ThreadPeer<I,O> type args from the coordinator signature:
-;;    signature-of-fn → extract-arg-types → Bundle/children → atom-value
+;;    signature-of-fn → extract-arg-types → Bundle/children → from-holon
 ;;    → keyword/to-string + string::concat + keyword/from-string
 ;;    This constructs :wat::kernel::Receiver<I> / Sender<O>
 ;;    at expand time (same pattern arc 143 slice 2 proved with define-alias)
+;;    (Arc 225 Stone 225.1: atom-value renamed to from-holon)
 ;; 5. Peer binding names come from coordinator arg names (extract-arg-names
-;;    + to-watast → WatAST::Symbol as valid let binder)
+;;    + to-wat → WatAST::Symbol as valid let binder)
 ;; 6. Coordinator is called as (~coordinator peer-a peer-b ...) where the
 ;;    peer symbols are spliced via ~@(extract-arg-names sig)
 ;;
@@ -53,7 +54,7 @@
 ;; - Thread binding names: LITERAL fixed index-based symbols (thread-0,
 ;;   thread-1, thread-2) embedded in each N-specific template
 ;; - Peer binding names: coordinator's own binder names (extract-arg-names
-;;   + to-watast → WatAST::Symbol("logger")) — valid let binders
+;;   + to-wat → WatAST::Symbol("logger")) — valid let binders
 ;; - Drain binding names: LITERAL fixed index-based symbols (_drained-0,
 ;;   _drained-1, _drained-2)
 ;;
@@ -70,8 +71,8 @@
 ;; at expand time to:
 ;; 1. Count N from the coordinator's signature via substrate primitives only
 ;; 2. Extract factory 0/1/2 ASTs by quoting the variadic rest-list and
-;;    converting through HolonAST (quasiquote → from-watast → Bundle/children
-;;    → to-watast round-trip)
+;;    converting through HolonAST (quasiquote → from-wat → Bundle/children
+;;    → to-wat round-trip) (Arc 225 Stone 225.1: from-watast→from-wat, to-watast→to-wat)
 ;; 3. Return a Value::wat__WatAST containing the call to the N-specific macro
 ;;    (run-threads-n1 or run-threads-n3) with coordinator and factory args
 ;; 4. The macro expansion pipeline re-expands the result, firing the
@@ -140,7 +141,7 @@
                                i0h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                      (:wat::core::get ch0 1)
                                      "run-threads-n1: missing I-type child at slot 1")
-                               i0  (:wat::core::atom-value i0h)]
+                               i0  (:wat::holon::from-holon i0h)]
                               (:wat::core::keyword/from-string
                                 (:wat::core::string::concat
                                   "rust::crossbeam_channel::Receiver<"
@@ -156,7 +157,7 @@
                                o0h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                      (:wat::core::get ch0 2)
                                      "run-threads-n1: missing O-type child at slot 2")
-                               o0  (:wat::core::atom-value o0h)]
+                               o0  (:wat::holon::from-holon o0h)]
                               (:wat::core::keyword/from-string
                                 (:wat::core::string::concat
                                   "rust::crossbeam_channel::Sender<"
@@ -164,7 +165,7 @@
                                   ">")))]
             -> :wat::core::nil
             (~factory-0 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
-      ~(:wat::holon::to-watast
+      ~(:wat::holon::to-wat
           (:wat::core::Option/expect -> :wat::holon::HolonAST
             (:wat::core::get
               (:wat::runtime::extract-arg-names
@@ -217,7 +218,7 @@
                                i0h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                      (:wat::core::get ch0 1)
                                      "run-threads-n3: missing I-type child at slot 0:1")
-                               i0  (:wat::core::atom-value i0h)]
+                               i0  (:wat::holon::from-holon i0h)]
                               (:wat::core::keyword/from-string
                                 (:wat::core::string::concat
                                   "rust::crossbeam_channel::Receiver<"
@@ -233,7 +234,7 @@
                                o0h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                      (:wat::core::get ch0 2)
                                      "run-threads-n3: missing O-type child at slot 0:2")
-                               o0  (:wat::core::atom-value o0h)]
+                               o0  (:wat::holon::from-holon o0h)]
                               (:wat::core::keyword/from-string
                                 (:wat::core::string::concat
                                   "rust::crossbeam_channel::Sender<"
@@ -241,7 +242,7 @@
                                   ">")))]
             -> :wat::core::nil
             (~factory-0 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
-      ~(:wat::holon::to-watast
+      ~(:wat::holon::to-wat
           (:wat::core::Option/expect -> :wat::holon::HolonAST
             (:wat::core::get
               (:wat::runtime::extract-arg-names
@@ -264,7 +265,7 @@
                                i1h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                      (:wat::core::get ch1 1)
                                      "run-threads-n3: missing I-type child at slot 1:1")
-                               i1  (:wat::core::atom-value i1h)]
+                               i1  (:wat::holon::from-holon i1h)]
                               (:wat::core::keyword/from-string
                                 (:wat::core::string::concat
                                   "rust::crossbeam_channel::Receiver<"
@@ -280,7 +281,7 @@
                                o1h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                      (:wat::core::get ch1 2)
                                      "run-threads-n3: missing O-type child at slot 1:2")
-                               o1  (:wat::core::atom-value o1h)]
+                               o1  (:wat::holon::from-holon o1h)]
                               (:wat::core::keyword/from-string
                                 (:wat::core::string::concat
                                   "rust::crossbeam_channel::Sender<"
@@ -288,7 +289,7 @@
                                   ">")))]
             -> :wat::core::nil
             (~factory-1 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
-      ~(:wat::holon::to-watast
+      ~(:wat::holon::to-wat
           (:wat::core::Option/expect -> :wat::holon::HolonAST
             (:wat::core::get
               (:wat::runtime::extract-arg-names
@@ -311,7 +312,7 @@
                                i2h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                      (:wat::core::get ch2 1)
                                      "run-threads-n3: missing I-type child at slot 2:1")
-                               i2  (:wat::core::atom-value i2h)]
+                               i2  (:wat::holon::from-holon i2h)]
                               (:wat::core::keyword/from-string
                                 (:wat::core::string::concat
                                   "rust::crossbeam_channel::Receiver<"
@@ -327,7 +328,7 @@
                                o2h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                      (:wat::core::get ch2 2)
                                      "run-threads-n3: missing O-type child at slot 2:2")
-                               o2  (:wat::core::atom-value o2h)]
+                               o2  (:wat::holon::from-holon o2h)]
                               (:wat::core::keyword/from-string
                                 (:wat::core::string::concat
                                   "rust::crossbeam_channel::Sender<"
@@ -335,7 +336,7 @@
                                   ">")))]
             -> :wat::core::nil
             (~factory-2 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
-      ~(:wat::holon::to-watast
+      ~(:wat::holon::to-wat
           (:wat::core::Option/expect -> :wat::holon::HolonAST
             (:wat::core::get
               (:wat::runtime::extract-arg-names
@@ -363,7 +364,7 @@
 ;; (N=1 or N=3). Dispatches to run-threads-n1 or run-threads-n3 via
 ;; a computed-unquote that:
 ;;   1. Evals coordinator form → fn value → signature-of-fn → counts binders
-;;   2. Quotes the variadic factories rest-list → from-watast → Bundle/children
+;;   2. Quotes the variadic factories rest-list → from-wat → Bundle/children
 ;;      → extracts factory 0 (and 1/2 for N=3) as Value::wat__WatAST
 ;;   3. Returns Value::wat__WatAST of the n1/n3 macro call
 ;;   4. Re-expansion fires the n1/n3 macro to produce the final let form
@@ -377,7 +378,7 @@
 ;; rejects; no primitive produces WatAST::Symbol from a computed string).
 ;; Resolution: thread/drain names are literal (thread-0 etc.); peer names
 ;; come from the coordinator's binder names directly (which ARE valid
-;; WatAST::Symbol via extract-arg-names + to-watast).
+;; WatAST::Symbol via extract-arg-names + to-wat).
 
 (:wat::core::defmacro
   (:wat::kernel::run-threads
@@ -393,17 +394,17 @@
        ;; Quote the variadic factories rest-list to get its AST, then
        ;; convert through HolonAST to access individual factory forms.
        ;; quasiquote preserves the List([fA,fB,...]) as Value::wat__WatAST.
-       ;; from-watast lifts it to HolonAST::Bundle([holonA,holonB,...]).
+       ;; from-wat lifts it to HolonAST::Bundle([holonA,holonB,...]).
        ;; Bundle/children gives Vec<HolonAST> for indexed access.
        rt-facs-ast  (:wat::core::quasiquote factories)
-       rt-facs-h    (:wat::holon::from-watast rt-facs-ast)
+       rt-facs-h    (:wat::holon::from-wat rt-facs-ast)
        rt-facs-ch   (:wat::holon::Bundle/children rt-facs-h)
        rt-fac0-h    (:wat::core::Option/expect -> :wat::holon::HolonAST
                       (:wat::core::get rt-facs-ch 0)
                       "run-threads: no factory at position 0")
-       ;; to-watast on the HolonAST::Bundle restores the factory call form
+       ;; to-wat on the HolonAST::Bundle restores the factory call form
        ;; as Value::wat__WatAST for embedding in the inner macro call.
-       rt-fac0      (:wat::holon::to-watast rt-fac0-h)]
+       rt-fac0      (:wat::holon::to-wat rt-fac0-h)]
       ;; Dispatch: N=1 → run-threads-n1; else → run-threads-n3.
       ;; The if is evaluated at expand time; only the matching branch runs.
       ;; The branch returns Value::wat__WatAST of the n-specific macro call.
@@ -419,11 +420,11 @@
           [rt-fac1-h   (:wat::core::Option/expect -> :wat::holon::HolonAST
                           (:wat::core::get rt-facs-ch 1)
                           "run-threads: no factory at position 1")
-           rt-fac1     (:wat::holon::to-watast rt-fac1-h)
+           rt-fac1     (:wat::holon::to-wat rt-fac1-h)
            rt-fac2-h   (:wat::core::Option/expect -> :wat::holon::HolonAST
                           (:wat::core::get rt-facs-ch 2)
                           "run-threads: no factory at position 2")
-           rt-fac2     (:wat::holon::to-watast rt-fac2-h)]
+           rt-fac2     (:wat::holon::to-wat rt-fac2-h)]
           (:wat::core::quasiquote
             (:wat::kernel::run-threads-n3
               coordinator

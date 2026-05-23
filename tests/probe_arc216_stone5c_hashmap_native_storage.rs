@@ -18,7 +18,7 @@
 //! 9. `HashMap/empty?` works (true for empty, false for non-empty)
 //! 10. Nested HashMap — `HashMap<keyword, HashMap<keyword, i64>>` construction + get
 //! 11. HashMap with HashSet as K — `HashMap<HashSet<i64>, String>` (HashSet-as-K)
-//! 12. HashMap round-trip through `:wat::holon::Atom` + `atom-value` (Stone 216.3 contract)
+//! 12. HashMap round-trip through `:wat::holon::to-holon` + `from-holon` (Stone 216.3 contract)
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
@@ -348,41 +348,41 @@ fn probe_11_hashset_as_key() {
     "#), "HashSet-as-K: same elements different construction → same key (hash equality)");
 }
 
-// ─── Probe 12 — HashMap round-trip through Atom + atom-value ─────────────────
+// ─── Probe 12 — HashMap round-trip through to-holon + from-holon ─────────────────
 //
-// Stone 216.3 contract preserved: HashMap → Atom (HolonAST Bundle) → atom-value → HashMap.
+// Stone 216.3 contract preserved: HashMap → to-holon (HolonAST Bundle) → from-holon → HashMap.
 
 #[test]
 fn probe_12_atom_roundtrip() {
-    // Forward: HashMap<keyword, i64> → Atom → Bundle with correct child count
+    // Forward: HashMap<keyword, i64> → to-holon → Bundle with correct child count
     let n = run_i64(r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
                                :foo 42 :bar 99)]
-            (:wat::core::let [h (:wat::holon::Atom m)]
+            (:wat::core::let [h (:wat::holon::to-holon m)]
               (:wat::core::Vector/length
                 (:wat::holon::Bundle/children h)))))
     "#);
-    assert_eq!(n, 2, "forward: HashMap→Atom produces Bundle with 2 children");
+    assert_eq!(n, 2, "forward: HashMap→to-holon produces Bundle with 2 children");
 
-    // Reverse: Atom → atom-value → HashMap; contains-key? works
+    // Reverse: to-holon → from-holon → HashMap; contains-key? works
     let b = run_bool(r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
                                :foo 42 :bar 99)]
-            (:wat::core::let [h (:wat::holon::Atom m)]
-              (:wat::core::let [m2 (:wat::core::atom-value h)]
+            (:wat::core::let [h (:wat::holon::to-holon m)]
+              (:wat::core::let [m2 (:wat::holon::from-holon h)]
                 (:wat::core::HashMap/contains-key? m2 :foo)))))
     "#);
-    assert!(b, "reverse: atom-value recovers HashMap; contains-key? :foo = true");
+    assert!(b, "reverse: from-holon recovers HashMap; contains-key? :foo = true");
 
     // Round-trip length preserved
     let n = run_i64(r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
                                :foo 42 :bar 99)]
-            (:wat::core::let [h (:wat::holon::Atom m)]
-              (:wat::core::let [m2 (:wat::core::atom-value h)]
+            (:wat::core::let [h (:wat::holon::to-holon m)]
+              (:wat::core::let [m2 (:wat::holon::from-holon h)]
                 (:wat::core::HashMap/length m2)))))
     "#);
     assert_eq!(n, 2, "round-trip length preserved");

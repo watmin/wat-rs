@@ -184,7 +184,7 @@ fn run_panics(src: &str) -> bool {
 fn env_with_string_foo() -> &'static str {
     r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:foo (:wat::holon::Atom "bar")})
+          {:foo (:wat::holon::to-holon "bar")})
     "#
 }
 
@@ -192,7 +192,7 @@ fn env_with_string_foo() -> &'static str {
 fn env_with_i64_num() -> &'static str {
     r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:num (:wat::holon::Atom 42)})
+          {:num (:wat::holon::to-holon 42)})
     "#
 }
 
@@ -200,7 +200,7 @@ fn env_with_i64_num() -> &'static str {
 fn env_with_bool_flag() -> &'static str {
     r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:flag (:wat::holon::Atom true)})
+          {:flag (:wat::holon::to-holon true)})
     "#
 }
 
@@ -208,7 +208,7 @@ fn env_with_bool_flag() -> &'static str {
 fn env_with_keyword_tag() -> &'static str {
     r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:tag (:wat::holon::Atom :hello)})
+          {:tag (:wat::holon::to-holon :hello)})
     "#
 }
 
@@ -218,7 +218,7 @@ fn env_with_keyword_tag() -> &'static str {
 fn env_with_outer_leaf() -> &'static str {
     r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:outer (:wat::holon::Atom "bar")})
+          {:outer (:wat::holon::to-holon "bar")})
     "#
 }
 

@@ -89,8 +89,8 @@
 (:wat::test::deftest :wat-tests::std::test::test-assert-coincident-pass
   ()
   (:wat::test::assert-coincident
-    (:wat::holon::Atom "alice")
-    (:wat::holon::Atom "alice")))
+    (:wat::holon::to-holon "alice")
+    (:wat::holon::to-holon "alice")))
 
 ;; The fail-side test exercises arc 069's wiring: when the assertion
 ;; fails, the rendered CoincidentExplanation lands in the failure
@@ -104,8 +104,8 @@
     [r
       (:wat::test::run-thread
         (:wat::test::assert-coincident
-          (:wat::holon::Atom "alice")
-          (:wat::holon::Atom "charlie")))
+          (:wat::holon::to-holon "alice")
+          (:wat::holon::to-holon "charlie")))
      fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)

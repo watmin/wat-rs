@@ -11,10 +11,10 @@
 (:wat::test::deftest :wat-tests::holon::Trigram::test-window-participant-above-floor
   ()
   (:wat::core::let
-    [a (:wat::holon::Atom "a")
-     b (:wat::holon::Atom "b")
-     c (:wat::holon::Atom "c")
-     d (:wat::holon::Atom "d")
+    [a (:wat::holon::to-holon "a")
+     b (:wat::holon::to-holon "b")
+     c (:wat::holon::to-holon "c")
+     d (:wat::holon::to-holon "d")
      window-1
       (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a b c))
      ;; Trigram returns :wat::core::Result<HolonAST, CapacityExceeded>. 4 atoms at
@@ -31,11 +31,11 @@
 (:wat::test::deftest :wat-tests::holon::Trigram::test-outsider-below-floor
   ()
   (:wat::core::let
-    [a (:wat::holon::Atom "a")
-     b (:wat::holon::Atom "b")
-     c (:wat::holon::Atom "c")
-     d (:wat::holon::Atom "d")
-     z (:wat::holon::Atom "unrelated-z")
+    [a (:wat::holon::to-holon "a")
+     b (:wat::holon::to-holon "b")
+     c (:wat::holon::to-holon "c")
+     d (:wat::holon::to-holon "d")
+     z (:wat::holon::to-holon "unrelated-z")
      full
       (:wat::core::match
         (:wat::holon::Trigram (:wat::core::Vector :wat::holon::HolonAST a b c d))

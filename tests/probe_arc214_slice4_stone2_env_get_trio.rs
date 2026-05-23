@@ -173,28 +173,28 @@ fn run_panics(src: &str) -> bool {
 fn env_with_string_foo() -> &'static str {
     r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:foo (:wat::holon::Atom "bar")})
+          {:foo (:wat::holon::to-holon "bar")})
     "#
 }
 
 fn env_with_i64_baz() -> &'static str {
     r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:baz (:wat::holon::Atom 42)})
+          {:baz (:wat::holon::to-holon 42)})
     "#
 }
 
 fn env_with_bool_flag() -> &'static str {
     r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:flag (:wat::holon::Atom true)})
+          {:flag (:wat::holon::to-holon true)})
     "#
 }
 
 fn env_with_keyword_tag() -> &'static str {
     r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:tag (:wat::holon::Atom :hello)})
+          {:tag (:wat::holon::to-holon :hello)})
     "#
 }
 
@@ -319,7 +319,7 @@ fn probe_4_get_multi_type() {
         other => panic!("expected Option<bool>; got {:?}", other),
     }
 
-    // keyword — :hello stored via (:wat::holon::Atom :hello) → HolonAST::Keyword("hello")
+    // keyword — :hello stored via (:wat::holon::to-holon :hello) → HolonAST::Keyword("hello")
     // Arc 221 Stone 221.4: value_to_atom Keyword arm → HolonAST::keyword(&k) (strips colon).
     // After extraction, HolonAST::Keyword("hello") → Value::keyword(":hello") at runtime.
     let src_kw = with_nil_main(&format!(
@@ -594,18 +594,18 @@ fn probe_13_empty_env() {
 
 // ─── Probe 14 — HolonAST::Atom unwrap ────────────────────────────────────────
 
-/// Stored `(:wat::holon::Atom 42)` constructs `HolonAST::I64(42)` (the Atom
-/// constructor wraps a primitive into a HolonAST leaf). `Env/get` with
+/// Stored `(:wat::holon::to-holon 42)` constructs `HolonAST::I64(42)` (the to-holon
+/// verb wraps a primitive into a HolonAST leaf). `Env/get` with
 /// T = i64 must extract it cleanly to `Some(42)`.
 ///
-/// Note: `(:wat::holon::Atom 42)` produces `HolonAST::I64(42)` (primitive leaf),
-/// NOT `HolonAST::Atom(HolonAST::I64(42))`. The Atom constructor for primitives
-/// goes directly to the typed leaf. See `value_to_atom` in runtime.rs.
+/// Note: `(:wat::holon::to-holon 42)` produces `HolonAST::I64(42)` (primitive leaf),
+/// NOT `HolonAST::Atom(HolonAST::I64(42))`. The to-holon verb for primitives
+/// goes directly to the typed leaf. See `to_holon_inner` in runtime.rs.
 #[test]
 fn probe_14_holon_ast_atom_unwrap() {
     let src = r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:num (:wat::holon::Atom 42)})
+          {:num (:wat::holon::to-holon 42)})
         (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
           (:wat::program::Env/get (:user::make-env) :num -> :wat::core::i64))
     "#;
@@ -625,18 +625,18 @@ fn probe_14_holon_ast_atom_unwrap() {
 ///   - expect-get → panic
 ///   - get-default → default
 ///
-/// Construction: `(:wat::holon::Atom (:wat::holon::Atom "x"))` — the outer Atom
+/// Construction: `(:wat::holon::Atom (:wat::holon::to-holon "x"))` — the outer Atom
 /// wraps the inner HolonAST::String("x"). `holon_ast_extract` for the outer Atom
 /// yields `Value::holon__HolonAST(inner)`, which does NOT match T = String →
 /// returns None. This tests the nested / non-primitive-leaf path.
 #[test]
 fn probe_15_nested_holon_as_wrong_type() {
     // Store a nested Atom at :data.
-    // (:wat::holon::Atom (:wat::holon::Atom "x")) → HolonAST::Atom(HolonAST::String("x"))
+    // (:wat::holon::Atom (:wat::holon::to-holon "x")) → HolonAST::Atom(HolonAST::String("x"))
     // which is NOT a primitive leaf for String extraction purposes.
     let env_with_nested = r#"
         (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:data (:wat::holon::Atom (:wat::holon::Atom "x"))})
+          {:data (:wat::holon::Atom (:wat::holon::to-holon "x"))})
     "#;
 
     // get → None (nested Atom is not a primitive String)

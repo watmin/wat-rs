@@ -138,7 +138,7 @@ fn probe_p5_holonast_keyed_length() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::length
             (:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST
-              (:wat::holon::Atom 42) (:wat::holon::Atom "answer"))))
+              (:wat::holon::to-holon 42) (:wat::holon::to-holon "answer"))))
     "#;
     assert_eq!(run_i64(src), 1, "HolonAST-keyed HashMap with one pair → length 1");
 }

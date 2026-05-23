@@ -151,7 +151,7 @@ fn whitespace_and_comments_ignored() {
 fn parse_error_surfaces_as_error() {
     let (vm, se) = env();
     // Unclosed paren.
-    let err = eval_algebra_source("(:wat::holon::Atom \"x\"", &vm, &se).unwrap_err();
+    let err = eval_algebra_source("(:wat::holon::to-holon \"x\"", &vm, &se).unwrap_err();
     match err {
         wat::Error::Parse(_) => {} // expected
         other => panic!("expected ParseError, got {:?}", other),

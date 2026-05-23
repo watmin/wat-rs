@@ -9,10 +9,10 @@
 //! ## The 10 probes
 //!
 //! Forward direction:
-//!  1. `(:wat::holon::Atom #{1 2 3})` → `HolonAST::Bundle` containing three atoms
+//!  1. `(:wat::holon::to-holon #{1 2 3})` → `HolonAST::Bundle` containing three atoms
 //!
 //! Reverse direction:
-//!  2. `(:wat::core::atom-value <bundle>)` on a round-tripped HashSet → reconstructs set
+//!  2. `(:wat::holon::from-holon<bundle>)` on a round-tripped HashSet → reconstructs set
 //!
 //! Edge cases:
 //!  3. Empty set `#{}` → `Bundle([])` → `#{}`; length preserved
@@ -28,8 +28,8 @@
 //!  7. `HashSet<HashSet<i64>>` — outer Bundle of inner Bundles; recursive atomization
 //!
 //! Check-level atomizable predicate:
-//!  8. `(:wat::holon::Atom my-hashset)` for atomizable T type-checks cleanly
-//!  9. `(:wat::holon::Atom fn-value)` where T is Fn — fails at check (TypeMismatch)
+//!  8. `(:wat::holon::to-holonmy-hashset)` for atomizable T type-checks cleanly
+//!  9. `(:wat::holon::to-holonfn-value)` where T is Fn — fails at check (TypeMismatch)
 //!
 //! HolonRepresentable Rust-side:
 //! 10. `HashSet<String>` satisfies `HolonRepresentable` at compile time; roundtrip correct
@@ -84,7 +84,7 @@ fn startup_err(src: &str) -> String {
 
 // ─── Probe 1 — Forward: `#{1 2 3}` → HolonAST::Bundle ───────────────────────
 
-/// `(:wat::holon::Atom #{1 2 3})` produces a `HolonAST::Bundle` containing
+/// `(:wat::holon::to-holon #{1 2 3})` produces a `HolonAST::Bundle` containing
 /// three atoms (I64 leaves). The bundle's item count equals the set size.
 /// Arc 216 Stone 1 forward direction (value_to_atom, DESIGN Q2/Q3).
 #[test]
@@ -94,7 +94,7 @@ fn probe_1_forward_hashset_to_bundle() {
     let src_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h   (:wat::holon::Atom #{1 2 3})
+            [h   (:wat::holon::to-holon #{1 2 3})
              cs  (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -112,8 +112,8 @@ fn probe_2_reverse_bundle_to_hashset_roundtrip() {
     let src_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h   (:wat::holon::Atom #{1 2 3})
-             s   (:wat::core::atom-value h)]
+            [h   (:wat::holon::to-holon #{1 2 3})
+             s   (:wat::holon::from-holon h)]
             (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src_len), 3, "round-trip must preserve length 3");
@@ -122,8 +122,8 @@ fn probe_2_reverse_bundle_to_hashset_roundtrip() {
     let src_contains = r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [h   (:wat::holon::Atom #{1 2 3})
-             s   (:wat::core::atom-value h)]
+            [h   (:wat::holon::to-holon #{1 2 3})
+             s   (:wat::holon::from-holon h)]
             (:wat::core::HashSet/contains? s 2)))
     "#;
     assert!(run_bool(src_contains), "round-trip must preserve element 2");
@@ -137,8 +137,8 @@ fn probe_3_empty_set_roundtrip() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom #{})
-             s (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon #{})
+             s (:wat::holon::from-holon h)]
             (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src), 0, "empty set round-trip must preserve length 0");
@@ -152,8 +152,8 @@ fn probe_4_single_element_roundtrip() {
     let src_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom #{42})
-             s (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon #{42})
+             s (:wat::holon::from-holon h)]
             (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src_len), 1, "single-element round-trip must have length 1");
@@ -161,8 +161,8 @@ fn probe_4_single_element_roundtrip() {
     let src_contains = r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [h (:wat::holon::Atom #{42})
-             s (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon #{42})
+             s (:wat::holon::from-holon h)]
             (:wat::core::HashSet/contains? s 42)))
     "#;
     assert!(
@@ -181,8 +181,8 @@ fn probe_5_multi_t_types() {
     let src_i64 = r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [h (:wat::holon::Atom #{10 20 30})
-             s (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon #{10 20 30})
+             s (:wat::holon::from-holon h)]
             (:wat::core::HashSet/contains? s 20)))
     "#;
     assert!(run_bool(src_i64), "HashSet<i64> round-trip must contain 20");
@@ -191,8 +191,8 @@ fn probe_5_multi_t_types() {
     let src_string = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom (:wat::core::HashSet :wat::core::String "a" "b" "c"))
-             s (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::String "a" "b" "c"))
+             s (:wat::holon::from-holon h)]
             (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src_string), 3, "HashSet<String> round-trip: length must be 3");
@@ -201,8 +201,8 @@ fn probe_5_multi_t_types() {
     let src_bool = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom (:wat::core::HashSet :wat::core::bool true false))
-             s (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::bool true false))
+             s (:wat::holon::from-holon h)]
             (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src_bool), 2, "HashSet<bool> round-trip: length must be 2");
@@ -218,8 +218,8 @@ fn probe_6_dedupe_semantic() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom #{1 1 2 2 3})
-             s (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon #{1 1 2 2 3})
+             s (:wat::holon::from-holon h)]
             (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(
@@ -253,8 +253,8 @@ fn probe_7_nested_set_roundtrip() {
             [inner1  (:wat::core::HashSet :wat::core::i64 1 2)
              inner2  (:wat::core::HashSet :wat::core::i64 3)
              outer   (:wat::core::HashSet :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::Atom outer)
-             s       (:wat::core::atom-value h)]
+             h       (:wat::holon::to-holon outer)
+             s       (:wat::holon::from-holon h)]
             (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(
@@ -273,7 +273,7 @@ fn probe_7_nested_set_roundtrip() {
             [inner1  (:wat::core::HashSet :wat::core::i64 1 2)
              inner2  (:wat::core::HashSet :wat::core::i64 3)
              outer   (:wat::core::HashSet :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::Atom outer)
+             h       (:wat::holon::to-holon outer)
              cs      (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -286,14 +286,14 @@ fn probe_7_nested_set_roundtrip() {
 
 // ─── Probe 8 — Check passes for atomizable T ─────────────────────────────────
 
-/// `(:wat::holon::Atom #{1 2 3})` type-checks cleanly for `HashSet<i64>` T.
+/// `(:wat::holon::to-holon #{1 2 3})` type-checks cleanly for `HashSet<i64>` T.
 /// The atomizable predicate recurses: HashSet<i64> → atomizable(i64) → YES.
 #[test]
 fn probe_8_check_passes_for_atomizable_t() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom #{1 2 3})]
+            [h (:wat::holon::to-holon #{1 2 3})]
             1))
     "#;
     assert_eq!(run_i64(src), 1, "Atom on HashSet<i64> must pass check and run");
@@ -304,7 +304,7 @@ fn probe_8_check_passes_for_atomizable_t() {
           (:wat::core::let
             [inner  (:wat::core::HashSet :wat::core::i64 1 2)
              outer  (:wat::core::HashSet :wat::type::Infer inner)
-             h      (:wat::holon::Atom outer)]
+             h      (:wat::holon::to-holon outer)]
             1))
     "#;
     assert_eq!(
@@ -316,7 +316,7 @@ fn probe_8_check_passes_for_atomizable_t() {
 
 // ─── Probe 9 — Check fails for non-atomizable T ──────────────────────────────
 
-/// `(:wat::holon::Atom fn-value)` where T is a function type fails at check.
+/// `(:wat::holon::to-holonfn-value)` where T is a function type fails at check.
 /// Function types (`Fn(args)->ret`) are not in the atomizable set (DESIGN Q6).
 /// The predicate `is_atomizable(Fn(...)->...)` = false; check emits TypeMismatch.
 ///
@@ -329,12 +329,12 @@ fn probe_9_check_fails_for_non_atomizable_t() {
     // Construct a function value via :wat::core::fn (arc 167 flat-shape syntax).
     // The flat shape is: (:wat::core::fn [x <- :T] -> :R body).
     // f has type Fn([i64])->i64 — TypeExpr::Fn{...} — not atomizable.
-    // Check must reject with TypeMismatch naming :wat::holon::Atom.
+    // Check must reject with TypeMismatch naming :wat::holon::to-holon.
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::nil)
           (:wat::core::let
             [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
-            (:wat::holon::Atom f)))
+            (:wat::holon::to-holon f)))
     "#;
     let err = startup_err(src);
     assert!(
@@ -342,9 +342,10 @@ fn probe_9_check_fails_for_non_atomizable_t() {
         "Atom on Fn type must fail at check with TypeMismatch; got: {}",
         err
     );
+    // Arc 225 Stone 225.1: callee is now :wat::holon::to-holon (polymorphic UP verb).
     assert!(
-        err.contains(":wat::holon::Atom"),
-        "TypeMismatch must name the callee :wat::holon::Atom; got: {}",
+        err.contains(":wat::holon::to-holon"),
+        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
         err
     );
 }

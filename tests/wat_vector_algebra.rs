@@ -60,8 +60,8 @@ fn vector_bind_roundtrip() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::Atom "a"))
-             vb (:wat::holon::encode (:wat::holon::Atom "b"))
+            [va (:wat::holon::encode (:wat::holon::to-holon "a"))
+             vb (:wat::holon::encode (:wat::holon::to-holon "b"))
              c1 (:wat::holon::vector-bind va vb)
              c2 (:wat::holon::vector-bind va vb)]
             (:wat::kernel::println
@@ -77,7 +77,7 @@ fn vector_bundle_singleton_returns_input() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::Atom "x"))
+            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
              bundled
               (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector va))
              ;; Cosine should be ~1.0 (same sign pattern).
@@ -95,8 +95,8 @@ fn vector_blend_weighted() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::Atom "x"))
-             vb (:wat::holon::encode (:wat::holon::Atom "y"))
+            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+             vb (:wat::holon::encode (:wat::holon::to-holon "y"))
              blended (:wat::holon::vector-blend va vb 1.0 0.0)
              c (:wat::holon::cosine va blended)]
             ;; Pure a-weight should give very high cosine to a.
@@ -113,7 +113,7 @@ fn vector_permute_changes_vector() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::Atom "x"))
+            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
              shifted (:wat::holon::vector-permute va 5)]
             (:wat::kernel::println
               (:wat::core::if (:wat::core::= va shifted) -> :wat::core::String "same" "differs"))))

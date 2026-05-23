@@ -31,7 +31,7 @@
       theta
        (:wat::core::* two-pi frac)]
      (:wat::holon::Blend
-       (:wat::holon::Atom :wat::std::circular-cos-basis)
-       (:wat::holon::Atom :wat::std::circular-sin-basis)
+       (:wat::holon::to-holon :wat::std::circular-cos-basis)
+       (:wat::holon::to-holon :wat::std::circular-sin-basis)
        (:wat::std::math::cos theta)
        (:wat::std::math::sin theta))))

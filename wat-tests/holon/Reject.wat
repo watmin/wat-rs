@@ -40,8 +40,8 @@
        ((:wat::core::Ok h) h)
        ((:wat::core::Err _) (:wat::holon::leaf 0)))))
   (:wat::core::let
-    [y (:wat::holon::Atom "y")
-     noise (:wat::holon::Atom "noise")
+    [y (:wat::holon::to-holon "y")
+     noise (:wat::holon::to-holon "noise")
      ;; x contains y plus a noise atom — x has a real y-component.
      x
       (:wat-tests::holon::Reject::bundle-or-fail y noise)
@@ -61,8 +61,8 @@
        ((:wat::core::Ok h) h)
        ((:wat::core::Err _) (:wat::holon::leaf 0)))))
   (:wat::core::let
-    [y (:wat::holon::Atom "y")
-     noise (:wat::holon::Atom "noise")
+    [y (:wat::holon::to-holon "y")
+     noise (:wat::holon::to-holon "noise")
      ;; x contains y plus a noise atom — x has a real y-component
      ;; for Project to preserve.
      x

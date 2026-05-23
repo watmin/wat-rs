@@ -96,7 +96,7 @@
      form
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((:wat::core::Ok h)  h)
-        ((:wat::core::Err _) (:wat::holon::Atom "unreachable")))
+        ((:wat::core::Err _) (:wat::holon::to-holon "unreachable")))
      slots (:wat::holon::term::slots form)
      n (:wat::core::length slots)]
     (:wat::test::assert-eq n 2)))
@@ -114,7 +114,7 @@
      form
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((:wat::core::Ok h)  h)
-        ((:wat::core::Err _) (:wat::holon::Atom "unreachable")))
+        ((:wat::core::Err _) (:wat::holon::to-holon "unreachable")))
      slot-count
       (:wat::core::length (:wat::holon::term::slots form))
      range-count

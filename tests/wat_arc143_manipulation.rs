@@ -391,7 +391,7 @@ fn extract_arg_names_error_non_bundle() {
           (:user::main -> :wat::core::nil)
           (:wat::core::let
             [leaf
-              (:wat::holon::Atom :user::foo)
+              (:wat::holon::to-holon :user::foo)
              names
               (:wat::runtime::extract-arg-names leaf)]
             (:wat::kernel::println "should not reach")))

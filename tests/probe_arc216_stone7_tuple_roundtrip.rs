@@ -11,7 +11,7 @@
 //! ## The 12 probes (covers all EXPECTATIONS rows 6-11)
 //!
 //! Forward direction — WAT surface:
-//!  1. `(:wat::holon::Atom (:wat::core::Tuple 1 "hello"))` → Bundle with 2 Bind children
+//!  1. `(:wat::holon::to-holon (:wat::core::Tuple 1 "hello"))` → Bundle with 2 Bind children
 //!
 //! Reverse direction — WAT surface:
 //!  2. `atom-value` on Tuple-encoded Bundle → Vec (positional-Bind shape; honest asymmetry)
@@ -82,7 +82,7 @@ fn startup_err(src: &str) -> String {
 
 // ─── Probe 1 — Forward: 2-tuple → HolonAST::Bundle of Bind children ──────────
 
-/// `(:wat::holon::Atom (:wat::core::Tuple 1 "hello"))` produces a `HolonAST::Bundle`
+/// `(:wat::holon::to-holon (:wat::core::Tuple 1 "hello"))` produces a `HolonAST::Bundle`
 /// containing 2 Bind children (one per element with i64 keys 0, 1).
 /// Arc 216 Stone 7 forward direction (value_to_atom Tuple arm, encoding doctrine).
 #[test]
@@ -92,7 +92,7 @@ fn probe_1_forward_2tuple_to_bundle() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [t  (:wat::core::Tuple 1 "hello")
-             h  (:wat::holon::Atom t)
+             h  (:wat::holon::to-holon t)
              cs (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -112,8 +112,8 @@ fn probe_2_reverse_bundle_to_vec_honest_asymmetry() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [t  (:wat::core::Tuple 1 "hello")
-             h  (:wat::holon::Atom t)
-             v  (:wat::core::atom-value h)]
+             h  (:wat::holon::to-holon t)
+             v  (:wat::holon::from-holon h)]
             (:wat::core::Vector/length v)))
     "#;
     assert_eq!(run_i64(src_len), 2, "atom-value on Tuple Bundle must produce Vec with length 2");
@@ -123,8 +123,8 @@ fn probe_2_reverse_bundle_to_vec_honest_asymmetry() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [t  (:wat::core::Tuple 1 "hello")
-             h  (:wat::holon::Atom t)
-             v  (:wat::core::atom-value h)]
+             h  (:wat::holon::to-holon t)
+             v  (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get v 0)
               -> :wat::core::i64
@@ -145,7 +145,7 @@ fn probe_3_three_tuple_primitives_bundle_shape() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [t  (:wat::core::Tuple true 42 "wat")
-             h  (:wat::holon::Atom t)
+             h  (:wat::holon::to-holon t)
              cs (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -156,8 +156,8 @@ fn probe_3_three_tuple_primitives_bundle_shape() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [t  (:wat::core::Tuple true 42 "wat")
-             h  (:wat::holon::Atom t)
-             v  (:wat::core::atom-value h)]
+             h  (:wat::holon::to-holon t)
+             v  (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get v 1)
               -> :wat::core::i64
@@ -180,7 +180,7 @@ fn probe_4_nested_tuple_roundtrip() {
           (:wat::core::let
             [inner (:wat::core::Tuple 1 2)
              outer (:wat::core::Tuple inner "outer")
-             h     (:wat::holon::Atom outer)
+             h     (:wat::holon::to-holon outer)
              cs    (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -195,8 +195,8 @@ fn probe_4_nested_tuple_roundtrip() {
           (:wat::core::let
             [inner (:wat::core::Tuple 1 2)
              outer (:wat::core::Tuple inner "outer")
-             h     (:wat::holon::Atom outer)
-             v     (:wat::core::atom-value h)]
+             h     (:wat::holon::to-holon outer)
+             v     (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get v 0)
               -> :wat::core::i64
@@ -220,7 +220,7 @@ fn probe_5_tuple_containing_vec_roundtrip() {
           (:wat::core::let
             [v   [1 2 3]
              t   (:wat::core::Tuple v "tag")
-             h   (:wat::holon::Atom t)
+             h   (:wat::holon::to-holon t)
              cs  (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -234,8 +234,8 @@ fn probe_5_tuple_containing_vec_roundtrip() {
           (:wat::core::let
             [v   [1 2 3]
              t   (:wat::core::Tuple v "tag")
-             h   (:wat::holon::Atom t)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon t)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get rv 0)
               -> :wat::core::i64
@@ -258,7 +258,7 @@ fn probe_6_tuple_containing_hashset() {
           (:wat::core::let
             [s   (:wat::core::HashSet :wat::core::i64 1 2)
              t   (:wat::core::Tuple s "label")
-             h   (:wat::holon::Atom t)
+             h   (:wat::holon::to-holon t)
              cs  (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -276,7 +276,7 @@ fn probe_7_is_atomizable_tuple() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [t  (:wat::core::Tuple 1 "hello")
-             h  (:wat::holon::Atom t)]
+             h  (:wat::holon::to-holon t)]
             1))
     "#;
     assert_eq!(run_i64(src_admit), 1, "Tuple<i64, String> must pass is_atomizable check");
@@ -287,7 +287,7 @@ fn probe_7_is_atomizable_tuple() {
           (:wat::core::let
             [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
              t (:wat::core::Tuple f "tag")]
-            (:wat::holon::Atom t)))
+            (:wat::holon::to-holon t)))
     "#;
     let err = startup_err(src_reject);
     assert!(
@@ -295,9 +295,10 @@ fn probe_7_is_atomizable_tuple() {
         "Tuple containing Fn must fail at check with TypeMismatch; got: {}",
         err
     );
+    // Arc 225 Stone 225.1: callee is now :wat::holon::to-holon (polymorphic UP verb).
     assert!(
-        err.contains(":wat::holon::Atom"),
-        "TypeMismatch must name the callee :wat::holon::Atom; got: {}",
+        err.contains(":wat::holon::to-holon"),
+        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
         err
     );
 }

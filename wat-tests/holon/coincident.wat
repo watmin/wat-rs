@@ -15,7 +15,7 @@
 (:wat::test::deftest :wat-tests::holon::coincident::test-self-coincident
   ()
   (:wat::core::let
-    [a (:wat::holon::Atom "rsi")]
+    [a (:wat::holon::to-holon "rsi")]
     (:wat::test::assert-eq
       (:wat::holon::coincident? a a)
       true)))
@@ -26,9 +26,9 @@
   ()
   (:wat::core::let
     [a
-      (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))
+      (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))
      b
-      (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))]
+      (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))]
     (:wat::test::assert-eq
       (:wat::holon::coincident? a b)
       true)))
@@ -38,8 +38,8 @@
 (:wat::test::deftest :wat-tests::holon::coincident::test-unrelated-not-coincident
   ()
   (:wat::core::let
-    [a (:wat::holon::Atom "alice")
-     b (:wat::holon::Atom "charlie")]
+    [a (:wat::holon::to-holon "alice")
+     b (:wat::holon::to-holon "charlie")]
     (:wat::test::assert-eq
       (:wat::holon::coincident? a b)
       false)))
@@ -55,14 +55,14 @@
     [bundled
       (:wat::holon::Bundle
         (:wat::core::Vector :wat::holon::HolonAST
-          (:wat::holon::Atom "a")
-          (:wat::holon::Atom "b")
-          (:wat::holon::Atom "c")))
+          (:wat::holon::to-holon "a")
+          (:wat::holon::to-holon "b")
+          (:wat::holon::to-holon "c")))
      bundle
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((:wat::core::Ok h)  h)
-        ((:wat::core::Err _) (:wat::holon::Atom "unreachable")))
-     atom (:wat::holon::Atom "a")]
+        ((:wat::core::Err _) (:wat::holon::to-holon "unreachable")))
+     atom (:wat::holon::to-holon "a")]
     ;; presence? fires (atom's signal IS in the bundle).
     (:wat::test::assert-eq
       (:wat::core::if (:wat::holon::presence? atom bundle)
@@ -85,7 +85,7 @@
   ()
   (:wat::core::let
     [a
-      (:wat::holon::Bind (:wat::holon::Atom "rsi")
+      (:wat::holon::Bind (:wat::holon::to-holon "rsi")
                          (:wat::holon::Thermometer 0.5 -1.0 1.0))]
     ;; Arc 037: coincident? does the per-d threshold comparison
     ;; internally. Replaces the pre-arc-037 hand-rolled

@@ -72,7 +72,7 @@ fn library_add_subspace_then_count() {
           (:wat::core::let
             [lib (:wat::holon::EngramLibrary/new 10000)
              sub (:wat::holon::OnlineSubspace/new 10000 4)
-             v (:wat::holon::encode (:wat::holon::Atom "x"))
+             v (:wat::holon::encode (:wat::holon::to-holon "x"))
              ;; Train at least once so the subspace is non-trivial.
              r (:wat::holon::OnlineSubspace/update sub v)
              u (:wat::holon::EngramLibrary/add lib "pattern-a" sub)
@@ -96,7 +96,7 @@ fn library_match_returns_named_pairs() {
           (:wat::core::let
             [lib (:wat::holon::EngramLibrary/new 10000)
              sub (:wat::holon::OnlineSubspace/new 10000 4)
-             v (:wat::holon::encode (:wat::holon::Atom "x"))
+             v (:wat::holon::encode (:wat::holon::to-holon "x"))
              r (:wat::holon::OnlineSubspace/update sub v)
              u (:wat::holon::EngramLibrary/add lib "alpha" sub)
              ;; Match against the same vector — should return 1 pair (name, residual).

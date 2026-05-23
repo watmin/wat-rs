@@ -9,7 +9,7 @@
 //!
 //! ## Tests
 //!
-//!  1 — `(:wat::holon::Atom \a)` round-trip; atom(Char) distinct from atom(i64)
+//!  1 — `(:wat::holon::to-holon \a)` round-trip; atom(Char) distinct from atom(i64)
 //!  2 — `HashMap<Char, i64>` insert + lookup (char-frequency-tally pattern)
 //!  3 — `HashSet<Char>` insert + contains? (vowels-set pattern)
 
@@ -51,9 +51,9 @@ fn run_i64(src: &str) -> i64 {
     }
 }
 
-// ─── Probe 1 — `(:wat::holon::Atom \a)` round-trip; atom(Char) ≠ atom(i64) ──
+// ─── Probe 1 — `(:wat::holon::to-holon \a)` round-trip; atom(Char) ≠ atom(i64) ──
 
-/// `(:wat::holon::Atom \a)` dispatches through `value_to_atom` Char arm to
+/// `(:wat::holon::to-holon \a)` dispatches through `value_to_atom` Char arm to
 /// `HolonAST::char_('a')`. The result is a `Value::holon__HolonAST` wrapping
 /// a `HolonAST::Char('a')` leaf.
 ///
@@ -68,8 +68,8 @@ fn probe_1_char_atom_round_trip_distinct_from_i64() {
     let same = run_bool(r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [atom-a1  (:wat::holon::Atom \a)
-             atom-a2  (:wat::holon::Atom \a)]
+            [atom-a1  (:wat::holon::to-holon \a)
+             atom-a2  (:wat::holon::to-holon \a)]
             (:wat::core::= atom-a1 atom-a2)))
     "#);
     assert!(same, "Atom(\\a) must equal Atom(\\a) — same Char leaf");
@@ -78,8 +78,8 @@ fn probe_1_char_atom_round_trip_distinct_from_i64() {
     let diff = run_bool(r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [atom-a  (:wat::holon::Atom \a)
-             atom-b  (:wat::holon::Atom \b)
+            [atom-a  (:wat::holon::to-holon \a)
+             atom-b  (:wat::holon::to-holon \b)
              eq      (:wat::core::= atom-a atom-b)]
             (:wat::core::not eq)))
     "#);
@@ -90,8 +90,8 @@ fn probe_1_char_atom_round_trip_distinct_from_i64() {
     let not_i64 = run_bool(r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [atom-char  (:wat::holon::Atom \a)
-             atom-int   (:wat::holon::Atom 97)
+            [atom-char  (:wat::holon::to-holon \a)
+             atom-int   (:wat::holon::to-holon 97)
              eq         (:wat::core::= atom-char atom-int)]
             (:wat::core::not eq)))
     "#);

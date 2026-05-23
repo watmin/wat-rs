@@ -67,7 +67,7 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
 
         (:wat::core::define (:my::compute -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let
-            [program (:wat::core::quote (:wat::holon::Atom "hello"))]
+            [program (:wat::core::quote (:wat::holon::to-holon "hello"))]
             (:wat::eval-ast! program)))
     "#;
     match run(src) {
@@ -126,7 +126,7 @@ fn eval_digest_string_bang_hash_mismatch_surfaces_as_err() {
 
         (:wat::core::define (:my::compute -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::eval-digest-string!
- "(:wat::holon::Atom \"x\")"
+ "(:wat::holon::to-holon \"x\")"
             :wat::verify::digest-sha256
             :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"))
     "#;

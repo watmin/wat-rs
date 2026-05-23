@@ -76,7 +76,7 @@ fn subspace_update_increments_n_and_returns_residual() {
           (:user::main -> :wat::core::nil)
           (:wat::core::let
             [s (:wat::holon::OnlineSubspace/new 10000 4)
-             v (:wat::holon::encode (:wat::holon::Atom "x"))
+             v (:wat::holon::encode (:wat::holon::to-holon "x"))
              residual (:wat::holon::OnlineSubspace/update s v)
              n (:wat::holon::OnlineSubspace/n s)]
             (:wat::kernel::println

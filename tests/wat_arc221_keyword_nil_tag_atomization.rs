@@ -11,9 +11,9 @@
 //!
 //! ## Tests
 //!
-//!  1 — `(:wat::holon::Atom :foo)` round-trip; atom(:foo) ≠ atom("foo") (distinct from String)
-//!  2 — `(:wat::holon::Atom nil)` round-trip; atom(nil) ≠ atom(:nil) (distinct from Keyword)
-//!  3 — `(:wat::holon::Atom <uuid-val>)` round-trip via tagged composition; closes arc 207
+//!  1 — `(:wat::holon::to-holon :foo)` round-trip; atom(:foo) ≠ atom("foo") (distinct from String)
+//!  2 — `(:wat::holon::to-holonnil)` round-trip; atom(nil) ≠ atom(:nil) (distinct from Keyword)
+//!  3 — `(:wat::holon::to-holon<uuid-val>)` round-trip via tagged composition; closes arc 207
 //!  4 — `HashMap<keyword, i64>` insert + lookup (keyword as map key)
 //!  5 — `HashSet<keyword>` insert + contains? (keyword as set element)
 //!  6 — `HashMap<Uuid, String>` insert + lookup (Uuid as map key — arc 207 false-flag close)
@@ -68,9 +68,9 @@ fn run_string(src: &str) -> String {
     }
 }
 
-// ─── Probe 1 — `(:wat::holon::Atom :foo)` round-trip; distinct from String ──
+// ─── Probe 1 — `(:wat::holon::to-holon :foo)` round-trip; distinct from String ──
 
-/// `(:wat::holon::Atom :foo)` dispatches through `value_to_atom` Keyword arm
+/// `(:wat::holon::to-holon :foo)` dispatches through `value_to_atom` Keyword arm
 /// to `HolonAST::keyword("foo")` (a `HolonAST::Keyword` leaf).
 ///
 /// Distinctness: atom(:foo) must NOT equal atom("foo") — Keyword leaf vs String leaf.
@@ -83,8 +83,8 @@ fn probe_1_keyword_atom_round_trip_distinct_from_string() {
     let same = run_bool(r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [atom-foo1  (:wat::holon::Atom :foo)
-             atom-foo2  (:wat::holon::Atom :foo)]
+            [atom-foo1  (:wat::holon::to-holon :foo)
+             atom-foo2  (:wat::holon::to-holon :foo)]
             (:wat::core::= atom-foo1 atom-foo2)))
     "#);
     assert!(same, "Atom(:foo) must equal Atom(:foo) — same Keyword leaf");
@@ -93,8 +93,8 @@ fn probe_1_keyword_atom_round_trip_distinct_from_string() {
     let diff = run_bool(r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [atom-foo  (:wat::holon::Atom :foo)
-             atom-bar  (:wat::holon::Atom :bar)
+            [atom-foo  (:wat::holon::to-holon :foo)
+             atom-bar  (:wat::holon::to-holon :bar)
              eq        (:wat::core::= atom-foo atom-bar)]
             (:wat::core::not eq)))
     "#);
@@ -104,21 +104,21 @@ fn probe_1_keyword_atom_round_trip_distinct_from_string() {
     let not_string = run_bool(r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [atom-kw  (:wat::holon::Atom :foo)
-             atom-str (:wat::holon::Atom "foo")
+            [atom-kw  (:wat::holon::to-holon :foo)
+             atom-str (:wat::holon::to-holon "foo")
              eq       (:wat::core::= atom-kw atom-str)]
             (:wat::core::not eq)))
     "#);
     assert!(not_string, "Atom(:foo) must NOT equal Atom(\"foo\") — Keyword leaf distinct from String leaf");
 }
 
-// ─── Probe 2 — `(:wat::holon::Atom :wat::core::nil)` round-trip ──────────────
+// ─── Probe 2 — `(:wat::holon::to-holon :wat::core::nil)` round-trip ──────────────
 
-/// `(:wat::holon::Atom :wat::core::nil)` dispatches through `value_to_atom` Nil arm
+/// `(:wat::holon::to-holon :wat::core::nil)` dispatches through `value_to_atom` Nil arm
 /// to `HolonAST::Nil` (the proper Nil primitive leaf, not Symbol("nil")).
 ///
 /// In WAT, nil is the keyword `:wat::core::nil` — it evaluates to `Value::Unit`
-/// (wat's nil value). So `(:wat::holon::Atom :wat::core::nil)` first evaluates
+/// (wat's nil value). So `(:wat::holon::to-holon :wat::core::nil)` first evaluates
 /// `:wat::core::nil` → `Value::Unit`, then `value_to_atom(Value::Unit)` → `HolonAST::Nil`.
 ///
 /// Distinctness: atom(:wat::core::nil) must NOT equal atom(:nil) — the Nil leaf
@@ -132,8 +132,8 @@ fn probe_2_nil_atom_round_trip_distinct_from_keyword_nil() {
     let same = run_bool(r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [atom-nil1  (:wat::holon::Atom :wat::core::nil)
-             atom-nil2  (:wat::holon::Atom :wat::core::nil)]
+            [atom-nil1  (:wat::holon::to-holon :wat::core::nil)
+             atom-nil2  (:wat::holon::to-holon :wat::core::nil)]
             (:wat::core::= atom-nil1 atom-nil2)))
     "#);
     assert!(same, "Atom(:wat::core::nil) must equal itself — same Nil leaf");
@@ -145,21 +145,21 @@ fn probe_2_nil_atom_round_trip_distinct_from_keyword_nil() {
     let diff = run_bool(r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [atom-nil  (:wat::holon::Atom :wat::core::nil)
-             atom-knil (:wat::holon::Atom :nil)
+            [atom-nil  (:wat::holon::to-holon :wat::core::nil)
+             atom-knil (:wat::holon::to-holon :nil)
              eq        (:wat::core::= atom-nil atom-knil)]
             (:wat::core::not eq)))
     "#);
     assert!(diff, "Atom(:wat::core::nil) must NOT equal Atom(:nil) — Nil leaf distinct from Keyword leaf");
 }
 
-// ─── Probe 3 — `(:wat::holon::Atom <uuid-val>)` round-trip — closes arc 207 ─
+// ─── Probe 3 — `(:wat::holon::to-holon<uuid-val>)` round-trip — closes arc 207 ─
 
-/// `(:wat::holon::Atom <uuid>)` dispatches through `value_to_atom` Uuid arm to
+/// `(:wat::holon::to-holon<uuid>)` dispatches through `value_to_atom` Uuid arm to
 /// `HolonAST::Bind(Tag("uuid"), String(hex))` — the tagged composition shape.
 ///
 /// This probe CLOSES ARC 207 FALSE-FLAG. Before Stone 221.4, `value_to_atom`
-/// had no Uuid arm, so `(:wat::holon::Atom (:wat::core::Uuid/v5 ns name))`
+/// had no Uuid arm, so `(:wat::holon::to-holon(:wat::core::Uuid/v5 ns name))`
 /// would fall through to the TypeMismatch error arm at runtime — a 5-day-latent
 /// gap since 2026-05-17.
 ///
@@ -177,8 +177,8 @@ fn probe_3_uuid_atom_round_trip_closes_arc_207_false_flag() {
             [ns    (:wat::core::Uuid/nil)
              u1    (:wat::core::Uuid/v5 ns "hello")
              u2    (:wat::core::Uuid/v5 ns "hello")
-             a1    (:wat::holon::Atom u1)
-             a2    (:wat::holon::Atom u2)]
+             a1    (:wat::holon::to-holon u1)
+             a2    (:wat::holon::to-holon u2)]
             (:wat::core::= a1 a2)))
     "#);
     assert!(same, "Atom(Uuid/v5 same-args) must equal itself — deterministic tagged composition");
@@ -190,8 +190,8 @@ fn probe_3_uuid_atom_round_trip_closes_arc_207_false_flag() {
             [ns    (:wat::core::Uuid/nil)
              u1    (:wat::core::Uuid/v5 ns "hello")
              u2    (:wat::core::Uuid/v5 ns "world")
-             a1    (:wat::holon::Atom u1)
-             a2    (:wat::holon::Atom u2)
+             a1    (:wat::holon::to-holon u1)
+             a2    (:wat::holon::to-holon u2)
              eq    (:wat::core::= a1 a2)]
             (:wat::core::not eq)))
     "#);

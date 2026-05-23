@@ -71,9 +71,9 @@
     [r
       (:wat::holon::eval-coincident?
         (:wat::core::quote
-          (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v")))
+          (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v")))
         (:wat::core::quote
-          (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))))]
+          (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))))]
     (:wat::test::assert-eq
       (:wat::core::match r -> :wat::core::bool
         ((:wat::core::Ok b)  b)

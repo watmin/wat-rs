@@ -58,8 +58,8 @@ fn reckoner_discrete_construct_dims_labels() {
           (:wat::core::let
             [labels
               (:wat::core::Vector :wat::holon::HolonAST
-                (:wat::holon::Atom "up")
-                (:wat::holon::Atom "down"))
+                (:wat::holon::to-holon "up")
+                (:wat::holon::to-holon "down"))
              r
               (:wat::holon::Reckoner/new-discrete "test-rec" 10000 100 labels)
              d (:wat::holon::Reckoner/dims r)
@@ -81,12 +81,12 @@ fn reckoner_observe_then_predict() {
           (:wat::core::let
             [labels
               (:wat::core::Vector :wat::holon::HolonAST
-                (:wat::holon::Atom "up")
-                (:wat::holon::Atom "down"))
+                (:wat::holon::to-holon "up")
+                (:wat::holon::to-holon "down"))
              r
               ;; Tiny recalib_interval=1 so discriminants update after every observe.
               (:wat::holon::Reckoner/new-discrete "rec" 10000 1 labels)
-             v (:wat::holon::encode (:wat::holon::Atom "x"))
+             v (:wat::holon::encode (:wat::holon::to-holon "x"))
              u1 (:wat::holon::Reckoner/observe r v 0 1.0)
              u2 (:wat::holon::Reckoner/observe r v 1 1.0)
              pred

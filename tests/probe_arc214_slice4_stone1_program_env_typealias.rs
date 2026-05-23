@@ -5,7 +5,7 @@
 //! - `parse_type_expr(":wat::program::Env")` returns Ok
 //! - `expand_alias` resolves the alias to the underlying Parametric form
 //! - A function declaring `:wat::program::Env` param type-checks
-//! - `{:foo (:wat::holon::Atom 42)}` (explicit HolonAST value) unifies with the param
+//! - `{:foo (:wat::holon::to-holon 42)}` (explicit HolonAST value) unifies with the param
 //! - `{}` (empty map) unifies with the param
 //! - `{:foo "string"}` (V = String, not HolonAST) fails at check with TypeMismatch
 //!
@@ -14,7 +14,7 @@
 //! 1. `parse_type_expr(":wat::program::Env")` returns `Ok(...)`
 //! 2. `expand_alias` resolves `:wat::program::Env` to `Parametric { head: "wat::core::HashMap", args: [keyword, HolonAST] }`
 //! 3. Function signature `(m :wat::program::Env) -> :wat::core::nil` type-checks cleanly
-//! 4. Calling with `{:foo (:wat::holon::Atom 42)}` (V infers HolonAST) type-checks
+//! 4. Calling with `{:foo (:wat::holon::to-holon 42)}` (V infers HolonAST) type-checks
 //! 5. Calling with `{}` (empty literal; HM unification fills K + V from param) type-checks
 //! 6. Calling with `{:foo "string"}` (V = String) fails at check with TypeMismatch
 
@@ -118,7 +118,7 @@ fn probe_2_expand_alias_resolves_to_hashmap_parametric() {
 
 /// Declaring a function that accepts `:wat::program::Env` and returns
 /// `:wat::core::nil` must type-check cleanly.
-/// Calling it with a keyword-keyed HolonAST map `{:foo (:wat::holon::Atom 42)}`
+/// Calling it with a keyword-keyed HolonAST map `{:foo (:wat::holon::to-holon 42)}`
 /// is NOT in this probe — this probe checks only the definition.
 #[test]
 fn probe_3_function_signature_accepts_program_env() {
@@ -131,11 +131,11 @@ fn probe_3_function_signature_accepts_program_env() {
     startup_ok(src);
 }
 
-// ─── Probe 4: `{:foo (:wat::holon::Atom 42)}` unifies with `:wat::program::Env` ─
+// ─── Probe 4: `{:foo (:wat::holon::to-holon 42)}` unifies with `:wat::program::Env` ─
 
-/// Calling `take-env` with `{:foo (:wat::holon::Atom 42)}`:
+/// Calling `take-env` with `{:foo (:wat::holon::to-holon 42)}`:
 /// - K is inferred as :wat::core::keyword from :foo
-/// - V is inferred as :wat::holon::HolonAST from `(:wat::holon::Atom 42)`
+/// - V is inferred as :wat::holon::HolonAST from `(:wat::holon::to-holon 42)`
 /// - The inferred type unifies with the param type :wat::program::Env
 ///   (which expands to HashMap<keyword, HolonAST>)
 /// Should type-check without error.
@@ -145,7 +145,7 @@ fn probe_4_explicit_atom_literal_accepted() {
         (:wat::core::define (:user::take-env (m :wat::program::Env) -> :wat::core::nil)
           :wat::core::nil)
         (:wat::core::define (:user::compute -> :wat::core::nil)
-          (:user::take-env {:foo (:wat::holon::Atom 42)}))
+          (:user::take-env {:foo (:wat::holon::to-holon 42)}))
     "#;
     startup_ok(src);
 }

@@ -74,8 +74,8 @@ fn vector_construct_via_encode() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [v1 (:wat::holon::encode (:wat::holon::Atom "x"))
-             v2 (:wat::holon::encode (:wat::holon::Atom "x"))]
+            [v1 (:wat::holon::encode (:wat::holon::to-holon "x"))
+             v2 (:wat::holon::encode (:wat::holon::to-holon "x"))]
             (:wat::kernel::println
               (:wat::core::if (:wat::core::= v1 v2) -> :wat::core::String "equal" "diff"))))
     "##;
@@ -88,8 +88,8 @@ fn vector_distinct_atoms_distinct_vectors() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::Atom "alpha"))
-             vb (:wat::holon::encode (:wat::holon::Atom "beta"))]
+            [va (:wat::holon::encode (:wat::holon::to-holon "alpha"))
+             vb (:wat::holon::encode (:wat::holon::to-holon "beta"))]
             (:wat::kernel::println
               (:wat::core::if (:wat::core::= va vb) -> :wat::core::String "same" "diff"))))
     "##;
@@ -108,7 +108,7 @@ fn vector_as_struct_field_roundtrip() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [v (:wat::holon::encode (:wat::holon::Atom "x"))
+            [v (:wat::holon::encode (:wat::holon::to-holon "x"))
              e (:my::Engram/new "alpha" v)
              retrieved (:my::Engram/vec e)]
             (:wat::kernel::println
@@ -126,8 +126,8 @@ fn polymorphic_cosine_ast_ast() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [a (:wat::holon::Atom "x")
-             b (:wat::holon::Atom "x")
+            [a (:wat::holon::to-holon "x")
+             b (:wat::holon::to-holon "x")
              c (:wat::holon::cosine a b)]
             (:wat::kernel::println
               (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
@@ -141,8 +141,8 @@ fn polymorphic_cosine_vector_vector() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::Atom "x"))
-             vb (:wat::holon::encode (:wat::holon::Atom "x"))
+            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+             vb (:wat::holon::encode (:wat::holon::to-holon "x"))
              c (:wat::holon::cosine va vb)]
             (:wat::kernel::println
               (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
@@ -156,8 +156,8 @@ fn polymorphic_cosine_ast_vector_mixed() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [a (:wat::holon::Atom "x")
-             vb (:wat::holon::encode (:wat::holon::Atom "x"))
+            [a (:wat::holon::to-holon "x")
+             vb (:wat::holon::encode (:wat::holon::to-holon "x"))
              c (:wat::holon::cosine a vb)]
             (:wat::kernel::println
               (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
@@ -171,8 +171,8 @@ fn polymorphic_cosine_vector_ast_mixed() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::Atom "x"))
-             b (:wat::holon::Atom "x")
+            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+             b (:wat::holon::to-holon "x")
              c (:wat::holon::cosine va b)]
             (:wat::kernel::println
               (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
@@ -188,8 +188,8 @@ fn polymorphic_dot_vector_vector() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::Atom "x"))
-             vb (:wat::holon::encode (:wat::holon::Atom "x"))
+            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+             vb (:wat::holon::encode (:wat::holon::to-holon "x"))
              d (:wat::holon::dot va vb)]
             ;; dot on the SAME vector should be sizeable (positive, bounded).
             (:wat::kernel::println
@@ -206,7 +206,7 @@ fn polymorphic_simhash_ast_and_vector_agree() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [ast (:wat::holon::Atom "alpha")
+            [ast (:wat::holon::to-holon "alpha")
              vec (:wat::holon::encode ast)
              k-ast (:wat::holon::simhash ast)
              k-vec (:wat::holon::simhash vec)]
@@ -247,12 +247,12 @@ fn vector_encode_deterministic_across_calls() {
           (:wat::core::let
             [a
               (:wat::holon::Bind
-                (:wat::holon::Atom "role")
-                (:wat::holon::Atom "filler"))
+                (:wat::holon::to-holon "role")
+                (:wat::holon::to-holon "filler"))
              b
               (:wat::holon::Bind
-                (:wat::holon::Atom "role")
-                (:wat::holon::Atom "filler"))
+                (:wat::holon::to-holon "role")
+                (:wat::holon::to-holon "filler"))
              va (:wat::holon::encode a)
              vb (:wat::holon::encode b)]
             (:wat::kernel::println

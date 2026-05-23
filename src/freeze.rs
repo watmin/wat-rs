@@ -1431,9 +1431,11 @@ mod tests {
 
     #[test]
     fn minimal_program_freezes() {
+        // Arc 225 Stone 225.1: narrow Atom only accepts HolonAST; use
+        // to-holon for string literals (the polymorphic UP verb).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::holon::Atom "hello")
+            (:wat::holon::to-holon "hello")
         "#;
         let world = startup(src).expect("startup");
         assert_eq!(world.config().capacity_mode, crate::config::CapacityMode::Error);
@@ -1666,8 +1668,10 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
+        // Arc 225 Stone 225.1: narrow Atom only accepts HolonAST; use
+        // to-holon for string literals (the polymorphic UP verb).
         let ast = crate::parse_one!(
-            r#"(:wat::holon::Bind (:wat::holon::Atom "role") (:wat::holon::Atom "filler"))"#,
+            r#"(:wat::holon::Bind (:wat::holon::to-holon "role") (:wat::holon::to-holon "filler"))"#,
         )
         .unwrap();
         let env = Environment::new();

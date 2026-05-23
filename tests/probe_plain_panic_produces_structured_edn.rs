@@ -83,8 +83,8 @@ fn probe_plain_panic_produces_structured_edn() {
         [_bundle
           (:wat::holon::Bundle
             (:wat::core::Vector :wat::holon::HolonAST
-              (:wat::holon::Atom "key1")
-              (:wat::holon::Atom "key2")))]
+              (:wat::holon::to-holon "key1")
+              (:wat::holon::to-holon "key2")))]
         :wat::core::nil))))
 
 (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)

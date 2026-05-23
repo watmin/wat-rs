@@ -6,8 +6,8 @@
 //! type shapes. Slice 2 mints the verbs that let macros WALK that
 //! structure: `Bundle/children` returns the per-child HolonAST sequence;
 //! `Bundle/first` returns the first child as a HolonAST. Combined with
-//! arc 057's existing `:wat::core::atom-value` (which unwraps
-//! `HolonAST::Atom` and extracts wat-`Value` for primitive leaves), the
+//! arc 225's `:wat::holon::from-holon` (which unwraps
+//! `HolonAST` leaves and extracts wat-`Value` for primitive leaves), the
 //! HolonAST decomposition surface is complete.
 //!
 //! Naming notes:
@@ -16,10 +16,8 @@
 //!   `Bundle/head` verb.
 //! - `Bundle/children` matches the docstring vocabulary on
 //!   `HolonAST::Bundle(Arc<Vec<HolonAST>>)` ("children" not "items").
-//! - `Atom/value` was NOT minted; `:wat::core::atom-value` already
-//!   serves the leaf-unwrap need (BRIEF § STOP triggers item 3:
-//!   "An accessor-shaped sibling already exists — surface; don't
-//!   duplicate; reuse if appropriate").
+//! - `from-holon` is the arc 225 rename of `atom-value`; it extracts
+//!   a runtime Value from any HolonAST leaf.
 
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
@@ -271,16 +269,15 @@ fn bundle_first_returns_head_keyword_of_signature() {
     );
 }
 
-// ─── Bundle/first: composes with atom-value to extract the head name ───────
+// ─── Bundle/first: composes with from-holon to extract the head name ───────
 
 #[test]
 fn bundle_first_composes_with_atom_value() {
     // The structured-accessor surface is: Bundle/first returns a
-    // HolonAST; atom-value (arc 057's existing leaf accessor) extracts
+    // HolonAST; from-holon (arc 225's renamed leaf accessor) extracts
     // the wrapped wat-Value. For a Symbol leaf, that's a keyword.
     //
-    // This test proves the two surfaces interoperate without an
-    // `Atom/value` duplicate.
+    // This test proves the two surfaces interoperate.
     let src = r##"
 
         (:wat::core::define
@@ -295,7 +292,7 @@ fn bundle_first_composes_with_atom_value() {
                        ((:wat::core::Some s) s)
                        (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
              head    (:wat::holon::Bundle/first sig)
-             name-kw (:wat::core::atom-value head)
+             name-kw (:wat::holon::from-holon head)
              rendered (:wat::edn::write name-kw)]
             (:wat::kernel::println rendered)))
     "##;

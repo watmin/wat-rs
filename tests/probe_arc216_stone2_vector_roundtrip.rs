@@ -11,10 +11,10 @@
 //! ## The 12 probes
 //!
 //! Forward direction:
-//!  1. `(:wat::holon::Atom [1 2 3])` → `HolonAST::Bundle` containing 3 Bind children
+//!  1. `(:wat::holon::to-holon [1 2 3])` → `HolonAST::Bundle` containing 3 Bind children
 //!
 //! Reverse direction:
-//!  2. `(:wat::core::atom-value <bundle>)` on a round-tripped Vec → reconstructs Vec
+//!  2. `(:wat::holon::from-holon<bundle>)` on a round-tripped Vec → reconstructs Vec
 //!
 //! Edge cases:
 //!  3. Empty vec `[]` → `Bundle([])` → reconstructs (edge: empty bundle)
@@ -33,8 +33,8 @@
 //!  8. `Vec<HashSet<i64>>` — composes with Stone 216.1 (inner Bundles are bare-atom set-shape)
 //!
 //! Check-level atomizable predicate:
-//!  9. `(:wat::holon::Atom [1 2 3])` for atomizable T type-checks cleanly
-//! 10. `(:wat::holon::Atom vec-of-fns)` fails at check (non-atomizable T)
+//!  9. `(:wat::holon::to-holon [1 2 3])` for atomizable T type-checks cleanly
+//! 10. `(:wat::holon::to-holonvec-of-fns)` fails at check (non-atomizable T)
 //!
 //! HolonRepresentable Rust-side:
 //! 11. `Vec<String>` satisfies `HolonRepresentable` at compile time; roundtrip correct
@@ -91,7 +91,7 @@ fn startup_err(src: &str) -> String {
 
 // ─── Probe 1 — Forward: `[1 2 3]` → HolonAST::Bundle of Bind children ───────
 
-/// `(:wat::holon::Atom [1 2 3])` produces a `HolonAST::Bundle` containing
+/// `(:wat::holon::to-holon [1 2 3])` produces a `HolonAST::Bundle` containing
 /// three Bind children (one per element with i64 keys 0, 1, 2).
 /// The bundle's child count equals the vector length.
 /// Arc 216 Stone 2 forward direction (value_to_atom Vec arm, DESIGN Q2).
@@ -101,7 +101,7 @@ fn probe_1_forward_vec_to_bundle() {
     let src_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h   (:wat::holon::Atom [1 2 3])
+            [h   (:wat::holon::to-holon [1 2 3])
              cs  (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -119,8 +119,8 @@ fn probe_2_reverse_bundle_to_vec_roundtrip() {
     let src_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h   (:wat::holon::Atom [1 2 3])
-             v   (:wat::core::atom-value h)]
+            [h   (:wat::holon::to-holon [1 2 3])
+             v   (:wat::holon::from-holon h)]
             (:wat::core::Vector/length v)))
     "#;
     assert_eq!(run_i64(src_len), 3, "round-trip must preserve length 3");
@@ -129,8 +129,8 @@ fn probe_2_reverse_bundle_to_vec_roundtrip() {
     let src_first = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h   (:wat::holon::Atom [1 2 3])
-             v   (:wat::core::atom-value h)]
+            [h   (:wat::holon::to-holon [1 2 3])
+             v   (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get v 0)
               -> :wat::core::i64
@@ -152,14 +152,14 @@ fn probe_2_reverse_bundle_to_vec_roundtrip() {
 /// an empty HashSet (set-shape; cannot prove vector-shape without keys).
 /// This is documented as an honest edge-case delta.
 ///
-/// The forward direction is verified: `(:wat::holon::Atom [])` → Bundle with 0 children.
+/// The forward direction is verified: `(:wat::holon::to-holon [])` → Bundle with 0 children.
 #[test]
 fn probe_3_empty_vec_forward() {
     // Forward: empty vec → Bundle with 0 children.
     let src_fwd = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h  (:wat::holon::Atom [])
+            [h  (:wat::holon::to-holon [])
              cs (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -178,8 +178,8 @@ fn probe_4_single_element_roundtrip() {
     let src_len = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom [42])
-             v (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon [42])
+             v (:wat::holon::from-holon h)]
             (:wat::core::Vector/length v)))
     "#;
     assert_eq!(run_i64(src_len), 1, "single-element round-trip must have length 1");
@@ -187,8 +187,8 @@ fn probe_4_single_element_roundtrip() {
     let src_elem = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom [42])
-             v (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon [42])
+             v (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get v 0)
               -> :wat::core::i64
@@ -212,8 +212,8 @@ fn probe_5_multi_t_types() {
     let src_i64 = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom [10 20 30])
-             v (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon [10 20 30])
+             v (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get v 1)
               -> :wat::core::i64
@@ -230,8 +230,8 @@ fn probe_5_multi_t_types() {
     let src_string = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom (:wat::core::Vector :wat::core::String "a" "b" "c"))
-             v (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::String "a" "b" "c"))
+             v (:wat::holon::from-holon h)]
             (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
@@ -244,8 +244,8 @@ fn probe_5_multi_t_types() {
     let src_bool = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom (:wat::core::Vector :wat::core::bool true false true))
-             v (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::bool true false true))
+             v (:wat::holon::from-holon h)]
             (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
@@ -266,8 +266,8 @@ fn probe_6_order_preservation() {
     let src_idx0 = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom [10 20 30])
-             v (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon [10 20 30])
+             v (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get v 0)
               -> :wat::core::i64
@@ -277,8 +277,8 @@ fn probe_6_order_preservation() {
     let src_idx2 = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom [10 20 30])
-             v (:wat::core::atom-value h)]
+            [h (:wat::holon::to-holon [10 20 30])
+             v (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get v 2)
               -> :wat::core::i64
@@ -315,8 +315,8 @@ fn probe_7_nested_vector_roundtrip() {
             [inner1  (:wat::core::Vector :wat::core::i64 1 2 3)
              inner2  (:wat::core::Vector :wat::core::i64 4 5)
              outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::Atom outer)
-             v       (:wat::core::atom-value h)]
+             h       (:wat::holon::to-holon outer)
+             v       (:wat::holon::from-holon h)]
             (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
@@ -332,7 +332,7 @@ fn probe_7_nested_vector_roundtrip() {
             [inner1  (:wat::core::Vector :wat::core::i64 1 2 3)
              inner2  (:wat::core::Vector :wat::core::i64 4 5)
              outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::Atom outer)
+             h       (:wat::holon::to-holon outer)
              cs      (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -351,8 +351,8 @@ fn probe_7_nested_vector_roundtrip() {
             [inner1  (:wat::core::Vector :wat::core::i64 1 2 3)
              inner2  (:wat::core::Vector :wat::core::i64 4 5)
              outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::Atom outer)
-             v       (:wat::core::atom-value h)]
+             h       (:wat::holon::to-holon outer)
+             v       (:wat::holon::from-holon h)]
             (:wat::core::match
               (:wat::core::Vector/get v 1)
               -> :wat::core::i64
@@ -389,8 +389,8 @@ fn probe_8_mixed_nesting_vec_of_hashset() {
             [s1  (:wat::core::HashSet :wat::core::i64 1 2 3)
              s2  (:wat::core::HashSet :wat::core::i64 4 5)
              v   (:wat::core::Vector :wat::type::Infer s1 s2)
-             h   (:wat::holon::Atom v)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon v)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::Vector/length rv)))
     "#;
     assert_eq!(
@@ -406,7 +406,7 @@ fn probe_8_mixed_nesting_vec_of_hashset() {
             [s1  (:wat::core::HashSet :wat::core::i64 1 2 3)
              s2  (:wat::core::HashSet :wat::core::i64 4 5)
              v   (:wat::core::Vector :wat::type::Infer s1 s2)
-             h   (:wat::holon::Atom v)
+             h   (:wat::holon::to-holon v)
              cs  (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -419,7 +419,7 @@ fn probe_8_mixed_nesting_vec_of_hashset() {
 
 // ─── Probe 9 — Check passes for atomizable T ─────────────────────────────────
 
-/// `(:wat::holon::Atom [1 2 3])` type-checks cleanly for `Vec<i64>` T.
+/// `(:wat::holon::to-holon [1 2 3])` type-checks cleanly for `Vec<i64>` T.
 /// The atomizable predicate recurses: Vector<i64> → atomizable(i64) → YES.
 /// Nested `Vec<Vec<i64>>` also passes (predicate recurses both levels).
 #[test]
@@ -427,7 +427,7 @@ fn probe_9_check_passes_for_atomizable_t() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
-            [h (:wat::holon::Atom [1 2 3])]
+            [h (:wat::holon::to-holon [1 2 3])]
             1))
     "#;
     assert_eq!(run_i64(src), 1, "Atom on Vec<i64> must pass check and run");
@@ -438,7 +438,7 @@ fn probe_9_check_passes_for_atomizable_t() {
           (:wat::core::let
             [inner  (:wat::core::Vector :wat::core::i64 1 2)
              outer  (:wat::core::Vector :wat::type::Infer inner)
-             h      (:wat::holon::Atom outer)]
+             h      (:wat::holon::to-holon outer)]
             1))
     "#;
     assert_eq!(
@@ -450,29 +450,31 @@ fn probe_9_check_passes_for_atomizable_t() {
 
 // ─── Probe 10 — Check fails for non-atomizable T ─────────────────────────────
 
-/// `(:wat::holon::Atom fn-value)` where T is a function type fails at check.
+/// `(:wat::holon::to-holon fn-value)` where T is a function type fails at check.
 /// Function types are not in the atomizable set (DESIGN Q6).
 /// The predicate `is_atomizable(Fn(...)->...)` = false; check emits TypeMismatch.
 ///
 /// Note: The predicate fires on any non-atomizable T, not specifically on Vec<T>.
 /// A function value is the simplest statically-resolvable non-atomizable type.
+/// Arc 225 Stone 225.1: callee in TypeMismatch is now :wat::holon::to-holon
+/// (the polymorphic UP verb; the old Atom no longer accepts non-HolonAST input).
 #[test]
 fn probe_10_check_fails_for_non_atomizable_t() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::nil)
           (:wat::core::let
             [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
-            (:wat::holon::Atom f)))
+            (:wat::holon::to-holon f)))
     "#;
     let err = startup_err(src);
     assert!(
         err.contains("TypeMismatch"),
-        "Atom on Fn type must fail at check with TypeMismatch; got: {}",
+        "to-holon on Fn type must fail at check with TypeMismatch; got: {}",
         err
     );
     assert!(
-        err.contains(":wat::holon::Atom"),
-        "TypeMismatch must name the callee :wat::holon::Atom; got: {}",
+        err.contains(":wat::holon::to-holon"),
+        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
         err
     );
 }

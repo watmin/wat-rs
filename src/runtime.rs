@@ -4568,7 +4568,7 @@ fn dispatch_keyword_head(
         ":wat::core::forms" => Ok(eval_forms(args)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, env, sym),
-        ":wat::core::atom-value" => eval_atom_value(args, list_span, env, sym),
+        ":wat::holon::from-holon" => eval_holon_from_holon(args, list_span, env, sym),
         ":wat::core::match" => eval_match(args, list_span, env, sym),
         // Arc 109 slice 1j — § D' Option/Result method forms.
         // Three retiring verbs (Pattern 2): pre-slice spellings still
@@ -4936,10 +4936,11 @@ fn dispatch_keyword_head(
         ":wat::io::IOWriter/close" => crate::io::eval_iowriter_close(args, env, sym, list_span),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
-        ":wat::holon::Atom" => eval_algebra_atom(args, list_span, env, sym),
+        ":wat::holon::Atom" => eval_holon_atom_constructor(args, list_span, env, sym),
+        ":wat::holon::to-holon" => eval_holon_to_holon(args, list_span, env, sym),
         ":wat::holon::leaf" => eval_holon_leaf(args, list_span, env, sym),
-        ":wat::holon::from-watast" => eval_holon_from_watast(args, list_span, env, sym),
-        ":wat::holon::to-watast" => eval_holon_to_watast(args, list_span, env, sym),
+        ":wat::holon::from-wat" => eval_holon_from_wat(args, list_span, env, sym),
+        ":wat::holon::to-wat" => eval_holon_to_wat(args, list_span, env, sym),
         ":wat::holon::Bind" => eval_algebra_bind(args, list_span, env, sym),
         ":wat::holon::Bundle" => eval_algebra_bundle(args, list_span, env, sym),
         ":wat::holon::Permute" => eval_algebra_permute(args, list_span, env, sym),
@@ -11762,8 +11763,9 @@ fn eval_extract_arg_types(
 /// Errors on any non-`Bundle` HolonAST variant (Symbol, Atom, Bind, Permute,
 /// Thermometer, Blend, SlotMarker, or the primitive leaves) with
 /// `RuntimeError::TypeMismatch`. The leaf-unwrap counterpart for
-/// `HolonAST::Atom` / primitive leaves is `:wat::core::atom-value` (arc 057);
-/// `Bundle/children` and `atom-value` together cover the full HolonAST
+/// `HolonAST::Atom` / primitive leaves is `:wat::holon::from-holon` (arc 057; renamed
+/// from `:wat::core::atom-value` at arc 225 Stone 225.1);
+/// `Bundle/children` and `from-holon` together cover the full HolonAST
 /// decomposition surface.
 fn eval_bundle_children(
     args: &[WatAST],
@@ -13492,16 +13494,20 @@ fn try_match_pattern(
 
 /// Arc 216 Stone 1 + 2 — Reverse one HolonAST item back to a `Value`.
 ///
-/// Used by the `atom-value` Bundle extraction path. Handles the six
+/// Used by `from-holon` Bundle extraction path. Handles the six
 /// primitive leaf variants and recursively handles nested `Bundle`
 /// (dispatching on shape: bare-atom set-shape → HashSet; positional-Bind
 /// vector-shape → Vec). Returns `Err` for other composite shapes
 /// (`Permute`/`Thermometer`/`Blend`/`SlotMarker`) that have no
 /// unambiguous Value reconstruction without consumer-declared T.
+///
+/// Arc 225 Stone 225.1 — renamed from `holon_item_to_value`. `op: &str`
+/// parameter threaded through to close arc 224 L1-runtime-3 latent lie
+/// (hardcoded op name in error arm).
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // See comment on `hashset_conj_inner` for rationale.
 #[allow(clippy::mutable_key_type)]
-fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, RuntimeError> {
+fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, RuntimeError> {
     match item {
         HolonAST::Symbol(s) => Ok(Value::wat__core__keyword(Arc::new(s.to_string()))),
         // Arc 221 Stone 221.4b — HolonAST::Keyword leaf → wat keyword Value.
@@ -13544,7 +13550,7 @@ fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, Runtime
                                 HolonAST::I64(i) => *i,
                                 _ => unreachable!("already checked all_i64_binds"),
                             };
-                            let elem = holon_item_to_value(v, op_span)?;
+                            let elem = from_holon_item(v, op, op_span)?;
                             pairs.push((idx, elem));
                         }
                         _ => unreachable!("already checked all_i64_binds"),
@@ -13582,8 +13588,8 @@ fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, Runtime
                 for child in inner_items.iter() {
                     match child {
                         HolonAST::Bind(k_holon, v_holon) => {
-                            let k_val = holon_item_to_value(k_holon, op_span)?;
-                            let v_val = holon_item_to_value(v_holon, op_span)?;
+                            let k_val = from_holon_item(k_holon, op, op_span)?;
+                            let v_val = from_holon_item(v_holon, op, op_span)?;
                             map.insert(k_val, v_val);
                         }
                         _ => unreachable!("already checked all_binds"),
@@ -13596,14 +13602,14 @@ fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, Runtime
                 let mut set: HashSet<Value> =
                     HashSet::with_capacity(inner_items.len());
                 for inner in inner_items.iter() {
-                    let v = holon_item_to_value(inner, op_span)?;
+                    let v = from_holon_item(inner, op, op_span)?;
                     set.insert(v);
                 }
                 Ok(Value::wat__std__HashSet(Arc::new(set)))
             }
         }
         _ => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::atom-value".into(),
+            op: op.into(),
             expected: "primitive atom, Bundle (bare-atom set-shape), Bundle (positional-Bind vector-shape), or Bundle (arbitrary-K Bind map-shape)",
             got: "composite HolonAST variant (Bind/Permute/Thermometer/Blend/SlotMarker)",
             span: op_span.clone(),
@@ -13611,37 +13617,42 @@ fn holon_item_to_value(item: &HolonAST, op_span: &Span) -> Result<Value, Runtime
     }
 }
 
-/// `(:wat::core::atom-value <holon>)` — extract the wrapped value from a
-/// HolonAST leaf or from an opaque-identity `Atom` wrap.
+/// `(:wat::holon::from-holon <holon>)` — lower a HolonAST back to a runtime `Value`.
 ///
-/// Per arc 057 the algebra is closed: HolonAST has typed primitive
-/// leaves (Symbol/String/I64/F64/Bool) AND an opaque-identity wrap
-/// (`Atom(Arc<HolonAST>)`). `atom-value` recovers either:
+/// Arc 225 Stone 225.1 — renamed from `:wat::core::atom-value` (namespace move +
+/// honest rename). The body is the full polymorphic decoder, unchanged in semantics.
 ///
-/// - Primitive leaf → corresponding wat `Value` (Symbol → keyword,
-///   String → String, I64 → i64, F64 → f64, Bool → bool).
-/// - `Atom(inner)` → inner HolonAST as a `Value::holon__HolonAST`. The
-///   wrap is unwrapped one layer; consumers wanting the inner-most
-///   leaf call `atom-value` repeatedly.
-/// - Composite (`Bind`/`Bundle`/`Permute`/`Thermometer`/`Blend`) →
-///   error. These are structural; their parts come out via the
-///   substrate's structural decomposition (e.g. `unbind`), not via
-///   atom-value.
+/// Polymorphic decode — the full HolonAST-to-Value materializer:
+///
+/// - Primitive leaf (Symbol/Keyword/Nil/Char/String/I64/F64/Bool) → corresponding
+///   runtime `Value` (Symbol → keyword, Keyword → keyword restoring ":" prefix,
+///   Nil → Unit, Char → Char, String → String, I64 → i64, F64 → f64, Bool → bool).
+/// - `Atom(inner)` → inner HolonAST as a `Value::holon__HolonAST`. The wrap is
+///   unwrapped one layer; consumers wanting the inner-most leaf call `from-holon`
+///   repeatedly.
+/// - `Bundle(items)` → three-way shape dispatch (arc 216 Stones 1/2/3):
+///   bare-atom children → HashSet; positional-Bind children with sequential I64 keys
+///   → Vec; arbitrary-Bind children → HashMap. Consumer hint `-> :HashMap<K,V>`
+///   disambiguates empty Bundle → empty HashMap.
+/// - Composite (`Bind`/`Permute`/`Thermometer`/`Blend`) →
+///   TypeMismatch error. These are structural; their parts come out via the
+///   substrate's structural decomposition (e.g. `unbind`), not via `from-holon`.
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // See comment on `hashset_conj_inner` for rationale.
 #[allow(clippy::mutable_key_type)]
-fn eval_atom_value(
+fn eval_holon_from_holon(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::from-holon";
     // Accepts 1 arg (no type hint) or 3 args with optional `-> :T` annotation
-    // for disambiguating empty Bundle: `(atom-value h -> :wat::core::HashMap<K,V>)`.
+    // for disambiguating empty Bundle: `(from-holon h -> :wat::core::HashMap<K,V>)`.
     // Arc 216 Stone 3 — the 3-arg form is the only way to signal "empty Bundle = empty HashMap".
     if args.len() != 1 && args.len() != 3 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::atom-value".into(),
+            op: OP.into(),
             expected: 1,
             got: args.len(),
             span: list_span.clone(),
@@ -13655,7 +13666,7 @@ fn eval_atom_value(
             WatAST::Symbol(s, _) if s.as_str() == "->" => {}
             other => {
                 return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::atom-value".into(),
+                    head: OP.into(),
                     reason: format!(
                         "expected `->` at position 2 for type annotation; got {}",
                         ast_variant_name(other)
@@ -13670,7 +13681,7 @@ fn eval_atom_value(
             WatAST::Keyword(k, _) => k.starts_with(":wat::core::HashMap"),
             other => {
                 return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::atom-value".into(),
+                    head: OP.into(),
                     reason: format!(
                         "expected type keyword after `->` for annotation; got {}",
                         ast_variant_name(other)
@@ -13687,7 +13698,7 @@ fn eval_atom_value(
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
-                op: ":wat::core::atom-value".into(),
+                op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
                 span: args[0].span().clone(),
@@ -13746,7 +13757,7 @@ fn eval_atom_value(
                                 HolonAST::I64(i) => *i,
                                 _ => unreachable!("already checked all_i64_binds"),
                             };
-                            let elem = holon_item_to_value(v, args[0].span())?;
+                            let elem = from_holon_item(v, OP, args[0].span())?;
                             pairs.push((idx, elem));
                         }
                         _ => unreachable!("already checked all_i64_binds"),
@@ -13785,8 +13796,8 @@ fn eval_atom_value(
                 for child in items.iter() {
                     match child {
                         HolonAST::Bind(k_holon, v_holon) => {
-                            let k_val = holon_item_to_value(k_holon, args[0].span())?;
-                            let v_val = holon_item_to_value(v_holon, args[0].span())?;
+                            let k_val = from_holon_item(k_holon, OP, args[0].span())?;
+                            let v_val = from_holon_item(v_holon, OP, args[0].span())?;
                             map.insert(k_val, v_val);
                         }
                         _ => unreachable!("already checked all_binds"),
@@ -13795,19 +13806,19 @@ fn eval_atom_value(
                 Ok(Value::wat__std__HashMap(Arc::new(map)))
             } else {
                 // Bare-atom set-shape → HashSet<T> (Stone 1).
-                // Each child converted via holon_item_to_value (handles primitives + nested bundles).
+                // Each child converted via from_holon_item (handles primitives + nested bundles).
                 // Stone 216.5b — native HashSet<Value> insert; hashmap_key crutch removed.
                 let mut set: HashSet<Value> =
                     HashSet::with_capacity(items.len());
                 for item in items.iter() {
-                    let v = holon_item_to_value(item, args[0].span())?;
+                    let v = from_holon_item(item, OP, args[0].span())?;
                     set.insert(v);
                 }
                 Ok(Value::wat__std__HashSet(Arc::new(set)))
             }
         }
         _ => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::atom-value".into(),
+            op: OP.into(),
             expected: "Atom, primitive leaf, or Bundle (bare-atom set-shape, positional-Bind vector-shape, or arbitrary-K Bind map-shape)",
             got: "composite HolonAST variant (Bind/Permute/Thermometer/Blend)",
             span: args[0].span().clone(),
@@ -13817,7 +13828,14 @@ fn eval_atom_value(
 
 // ─── Algebra-core UpperCall runtime construction ────────────────────────
 
-fn eval_algebra_atom(
+/// `(:wat::holon::Atom holon)` — opaque-identity wrap for a HolonAST value.
+///
+/// Arc 225 Stone 225.1 — narrowed from the old polymorphic `Atom` constructor.
+/// Now accepts ONLY `Value::holon__HolonAST` input; returns `HolonAST::Atom(inner)`.
+///
+/// For lifting ANY other value type into HolonAST, use `:wat::holon::to-holon`
+/// (the new polymorphic UP verb). `Atom` is the opaque-identity wrap specifically.
+fn eval_holon_atom_constructor(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -13832,26 +13850,62 @@ fn eval_algebra_atom(
         });
     }
     let v = eval(&args[0], env, sym)?;
-    value_to_atom(v, args[0].span())
+    wrap_holon_as_atom(v, args[0].span())
 }
 
-fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
-    // Per arc 057 (typed leaves; algebra closed) the Atom constructor
-    // is a polymorphic dispatcher onto HolonAST:
-    //
-    // - Primitives → typed leaves (vocabulary atoms; BOOK Ch.45).
-    // - HolonAST   → opaque-identity wrap (BOOK Ch.54 atom-vs-recursive
-    //                distinction; `Atom(prog)` ≠ `prog` at the
-    //                geometric level — kept for callers who explicitly
-    //                want one-identity-for-the-whole-subtree).
-    // - WatAST     → structural lowering. Programs ARE holons under the
-    //                cache-as-coordinate-tree vision: a quoted form
-    //                (Keyword, literal, or List) produces the
-    //                corresponding HolonAST node, recursively. This is
-    //                what lets the form's identity participate in the
-    //                algebra (Hash + Eq + cosine) — the prerequisite
-    //                for the dual-LRU expansion/value caches and for
-    //                Reckoner labels on intermediary forms.
+/// Wrap a HolonAST in an opaque-identity `Atom` node.
+///
+/// Arc 225 Stone 225.1 — renamed from `value_to_atom` (which was polymorphic).
+/// This function now accepts ONLY `Value::holon__HolonAST`; the polymorphic UP
+/// arms moved to `eval_holon_to_holon` / `to_holon_inner`.
+fn wrap_holon_as_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
+    match v {
+        Value::holon__HolonAST(h) => Ok(Value::holon__HolonAST(Arc::new(HolonAST::Atom(h)))),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::holon::Atom".into(),
+            expected: ":wat::holon::HolonAST (use :wat::holon::to-holon for other types)",
+            got: other.type_name(),
+            span: arg_span.clone(),
+        }),
+    }
+}
+
+/// `(:wat::holon::to-holon value)` — polymorphic lift of any runtime `Value` into HolonAST.
+///
+/// Arc 225 Stone 225.1 — NEW verb. Absorbs the polymorphic UP arms that were
+/// retired from `:wat::holon::Atom`. The operation-name `to-holon` is honest:
+/// it signals boundary-crossing into the algebra tier without promising a specific
+/// HolonAST variant (compare: `Atom` would falsely promise `HolonAST::Atom` output
+/// for all inputs).
+///
+/// Dispatch by input type:
+/// - Primitives (i64/f64/bool/String/keyword/nil/Char/Uuid) → typed leaves.
+/// - HolonAST → `HolonAST::Atom(inner)` (opaque-identity wrap, same as narrow `Atom`).
+/// - WatAST → structural lowering via `watast_to_holon` (List→Bundle, literals→leaves).
+/// - HashSet<T> → Bundle of bare atoms (arc 216 Stone 1).
+/// - Vec<T> / Tuple → Bundle of positional-Bind pairs (arc 216 Stone 2/7).
+/// - HashMap<K,V> → Bundle of arbitrary-K Bind pairs (arc 216 Stone 3).
+fn eval_holon_to_holon(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::to-holon".into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    to_holon_inner(v, args[0].span())
+}
+
+fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
+    // Arc 225 Stone 225.1 — the polymorphic UP body, moved here from the
+    // retired `value_to_atom`. All arms preserved in semantics; rename only.
     let holon = match v {
         // Primitive leaves ───────────────────────────────────────────
         Value::i64(n) => HolonAST::i64(n),
@@ -13888,82 +13942,84 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         // not a convention-based encoding inside an existing leaf.
         Value::wat__core__Char(c) => HolonAST::char_(c),
         // Opaque-identity wrap ───────────────────────────────────────
+        // HolonAST input → Atom(inner) wrap; the to-holon verb is the general
+        // lift, and for HolonAST inputs it behaves identically to narrow Atom.
         Value::holon__HolonAST(h) => HolonAST::Atom(h),
         // Structural lowering of a captured wat form ────────────────
         Value::wat__WatAST(a) => watast_to_holon(&a),
-        // Arc 216 Stone 1 — HashSet<T> atomizes to Bundle of bare atoms
+        // Arc 216 Stone 1 — HashSet<T> → Bundle of bare atoms
         // (DESIGN Q2/Q3: set-shape = bundle of bare atoms; no Bind keys).
-        // Each element is recursively atomized via value_to_atom; T must
-        // already be atomizable. Dedupe not re-applied here — the
+        // Each element is recursively lifted via to_holon_inner; T must
+        // already be liftable. Dedupe not re-applied here — the
         // HashSet<Value> natively enforces uniqueness; the Bundle carries
         // one atom per unique element.
         // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
         Value::wat__std__HashSet(s) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(s.len());
             for elem in s.iter() {
-                let atom_val = value_to_atom(elem.clone(), arg_span)?;
-                match atom_val {
+                let holon_val = to_holon_inner(elem.clone(), arg_span)?;
+                match holon_val {
                     Value::holon__HolonAST(h) => items.push((*h).clone()),
-                    _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
+                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
                 }
             }
             return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
         }
-        // Arc 216 Stone 2 — Vec<T> (wat::core::Vector) atomizes to Bundle of
+        // Arc 216 Stone 2 — Vec<T> (wat::core::Vector) → Bundle of
         // positional-Binds (DESIGN Q2: array-shape = Bundle of Bind(I64(i), T_holon)).
-        // Each element is recursively atomized via value_to_atom; index i becomes
+        // Each element is recursively lifted via to_holon_inner; index i becomes
         // the Bind key as HolonAST::I64(i). Order is preserved — index 0 first.
         Value::Vec(v) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(v.len());
             for (i, elem) in v.iter().enumerate() {
-                let atom_val = value_to_atom(elem.clone(), arg_span)?;
-                let elem_holon = match atom_val {
+                let holon_val = to_holon_inner(elem.clone(), arg_span)?;
+                let elem_holon = match holon_val {
                     Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
+                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
                 };
                 let key = HolonAST::i64(i as i64);
                 items.push(HolonAST::bind(key, elem_holon));
             }
             return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
         }
-        // Arc 216 Stone 7 — Tuple (wat::core::Tuple) atomizes to Bundle of positional-Binds
+        // Arc 216 Stone 7 — Tuple (wat::core::Tuple) → Bundle of positional-Binds
         // (DESIGN Q2 / encoding doctrine: collection-category; same shape as Vector<T>).
-        // Heterogeneous element types — each element recursively atomized via value_to_atom.
+        // Heterogeneous element types — each element recursively lifted via to_holon_inner.
         // Index i becomes the Bind key as HolonAST::I64(i). Order preserved — index 0 first.
         // Encoding is IDENTICAL to Vec; the consumer's declared type is the discriminator on
         // the reverse trip (same honest asymmetry as DESIGN Q9 for Vec vs HashMap).
         Value::Tuple(t) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(t.len());
             for (i, elem) in t.iter().enumerate() {
-                let atom_val = value_to_atom(elem.clone(), arg_span)?;
-                let elem_holon = match atom_val {
+                let holon_val = to_holon_inner(elem.clone(), arg_span)?;
+                let elem_holon = match holon_val {
                     Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
+                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
                 };
                 let key = HolonAST::i64(i as i64);
                 items.push(HolonAST::bind(key, elem_holon));
             }
             return Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(items))));
         }
-        // Arc 216 Stone 3 — HashMap<K, V> atomizes to Bundle of arbitrary-K Binds.
+        // Arc 216 Stone 3 — HashMap<K, V> → Bundle of arbitrary-K Binds.
         // DESIGN Q2: map-shape = Bundle of Bind(K_holon, V_holon) pairs.
-        // K and V are each recursively atomized via value_to_atom; both must be atomizable.
+        // K and V are each recursively lifted via to_holon_inner; both must be liftable.
         // Iteration order is non-canonical (HashMap unordered); the produced Bundle's
-        // Bind order is therefore non-deterministic. The reverse trip (atom-value)
+        // Bind order is therefore non-deterministic. The reverse trip (from-holon)
         // reconstructs a HashMap which is also order-agnostic — round-trip is correct.
         // Stone 216.5c — iterate m.iter() for (k, v) directly (K is the native key).
         Value::wat__std__HashMap(m) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(m.len());
             for (k, v) in m.iter() {
-                let k_atom_val = value_to_atom(k.clone(), arg_span)?;
-                let k_holon = match k_atom_val {
+                let k_holon_val = to_holon_inner(k.clone(), arg_span)?;
+                let k_holon = match k_holon_val {
                     Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
+                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
                 };
-                let v_atom_val = value_to_atom(v.clone(), arg_span)?;
-                let v_holon = match v_atom_val {
+                let v_holon_val = to_holon_inner(v.clone(), arg_span)?;
+                let v_holon = match v_holon_val {
                     Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("value_to_atom always returns holon__HolonAST on Ok"),
+                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
                 };
                 items.push(HolonAST::bind(k_holon, v_holon));
             }
@@ -13971,7 +14027,7 @@ fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         }
         other => {
             return Err(RuntimeError::TypeMismatch {
-                op: ":wat::holon::Atom".into(),
+                op: ":wat::holon::to-holon".into(),
                 expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, Tuple<T1,...>, or HashMap<K,V>",
                 got: other.type_name(),
                 span: arg_span.clone(),
@@ -14037,7 +14093,7 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
 ///
 /// Accepts only primitive Value variants; non-primitives error
 /// with TypeMismatch and a hint pointing at the right verb
-/// (`Atom` for HolonAST inputs; `from-watast` for quoted forms).
+/// (`Atom` for HolonAST inputs; `from-wat` for quoted forms).
 fn eval_holon_leaf(
     args: &[WatAST],
     list_span: &Span,
@@ -14073,7 +14129,8 @@ fn eval_holon_leaf(
                 op: OP.into(),
                 expected: "primitive (i64/f64/bool/String/keyword/nil); \
                            use :wat::holon::Atom to wrap a HolonAST, \
-                           :wat::holon::from-watast to lower a quoted form",
+                           :wat::holon::from-wat to lower a quoted form, \
+                           :wat::holon::to-holon for other types",
                 got: other.type_name(),
                 span: args[0].span().clone(),
             });
@@ -14082,23 +14139,23 @@ fn eval_holon_leaf(
     Ok(Value::holon__HolonAST(Arc::new(h)))
 }
 
-/// `(:wat::holon::from-watast form)` → `:wat::holon::HolonAST` (arc 065).
+/// `(:wat::holon::from-wat form)` → `:wat::holon::HolonAST` (arc 065).
 /// Lower a quoted wat form to a HolonAST tree (List → Bundle,
-/// Keyword → Symbol, literals → matching primitive leaves). One
-/// named verb for the WatAST case of arc 057's polymorphic Atom;
-/// the round-trip pair `to-watast` / `from-watast` reads visibly
-/// at call sites.
+/// Keyword → Keyword, literals → matching primitive leaves). One
+/// named verb for the WatAST case; the round-trip pair `to-wat` / `from-wat`
+/// reads visibly at call sites (arc 225 Stone 225.1: renamed from `from-watast`
+/// to drop the redundant "ast" suffix and align with the layer-name direction family).
 ///
 /// Accepts only `Value::wat__WatAST` (typically produced via
 /// `:wat::core::quote`); non-WatAST inputs error with TypeMismatch
 /// and a hint pointing at the right verb.
-fn eval_holon_from_watast(
+fn eval_holon_from_wat(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::from-watast";
+    const OP: &str = ":wat::holon::from-wat";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -14115,6 +14172,7 @@ fn eval_holon_from_watast(
                 op: OP.into(),
                 expected: ":wat::WatAST (typically from :wat::core::quote); \
                            use :wat::holon::Atom for HolonAST inputs, \
+                           :wat::holon::to-holon for other types, \
                            :wat::holon::leaf for primitives",
                 got: other.type_name(),
                 span: args[0].span().clone(),
@@ -14124,24 +14182,28 @@ fn eval_holon_from_watast(
     Ok(Value::holon__HolonAST(Arc::new(h)))
 }
 
-/// `(:wat::holon::to-watast holon) -> :wat::WatAST` — lift a HolonAST
+/// `(:wat::holon::to-wat holon) -> :wat::WatAST` — lower a HolonAST
 /// back to a runnable wat AST. The Story-2 escape hatch per arc 057:
 /// the substrate's "next form" surface (cosine, Bind, presence, the
 /// dual-LRU coordinate cache) operates on HolonAST structure directly;
-/// when a consumer wants the actual VALUE, they `to-watast` the form
+/// when a consumer wants the actual VALUE, they `to-wat` the form
 /// and `eval-ast!` the result.
 ///
-/// The lift is the structural inverse of [`watast_to_holon`]:
+/// Arc 225 Stone 225.1 — renamed from `to-watast` to drop the redundant
+/// "ast" suffix and align with the layer-name direction family
+/// (`to-wat` / `from-wat` pair; symmetric with `to-holon` / `from-holon`).
+///
+/// The lower is the structural inverse of [`watast_to_holon`]:
 /// primitive leaves recover their corresponding WatAST literal;
 /// `Bundle`s become `List`s; `Atom`/`Bind`/`Permute`/`Thermometer`/
 /// `Blend` emit the wat source form that, when evaluated, would
 /// reconstruct that node — so a HolonAST tree round-trips through
-/// `to-watast → eval-ast!` back to the same HolonAST shape.
+/// `to-wat → eval-ast!` back to the same HolonAST shape.
 ///
 /// Lossy parts: identifier scope (dropped at lowering time;
 /// recovered keyword form re-resolves through the current scope) and
 /// span info (never preserved on either side).
-fn eval_holon_to_watast(
+fn eval_holon_to_wat(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -14149,7 +14211,7 @@ fn eval_holon_to_watast(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::holon::to-watast".into(),
+            op: ":wat::holon::to-wat".into(),
             expected: 1,
             got: args.len(),
             span: list_span.clone(),
@@ -14159,7 +14221,7 @@ fn eval_holon_to_watast(
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
-                op: ":wat::holon::to-watast".into(),
+                op: ":wat::holon::to-wat".into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
                 span: args[0].span().clone(),
@@ -14798,7 +14860,7 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
         // Symbol whose content begins with `:` came from a keyword;
         // anything else came from a bare wat identifier. We use that
         // prefix to decide which WatAST variant to emit, preserving the
-        // `to-watast → eval-ast!` round-trip for both shapes.
+        // `to-wat → eval-ast!` round-trip for both shapes.
         HolonAST::Symbol(s) => {
             if s.starts_with(':') {
                 WatAST::Keyword(s.to_string(), Span::unknown())
@@ -14812,6 +14874,10 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
         ),
         HolonAST::Atom(inner) => WatAST::List(
             vec![
+                // Arc 225 Stone 225.1 — `:wat::holon::Atom` is now the narrow constructor
+                // (HolonAST → HolonAST::Atom). `to-wat` emits it here because the round-trip
+                // `(to-wat h → eval-ast!)` must reconstruct the same HolonAST shape;
+                // the round-trip input for Atom(inner) IS a HolonAST, so the narrow Atom is correct.
                 WatAST::Keyword(":wat::holon::Atom".into(), Span::unknown()),
                 holon_to_watast(inner),
             ],
@@ -14854,7 +14920,7 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
         ),
         // Arc 221 Stone 221.2 — Char primitive leaf. WatAST has no CharLit
         // variant; render as (:wat::core::Char/of "c") so that
-        // `(eval-ast! (to-watast char-holon))` round-trips via Char/of.
+        // `(eval-ast! (to-wat char-holon))` round-trips via Char/of.
         // The one-char string preserves the Unicode codepoint faithfully.
         HolonAST::Char(c) => WatAST::List(
             vec![
@@ -14887,7 +14953,7 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
         // by `:wat::holon::term::template`. It surfaces here as a debug-
         // legible list, but the rendering is INTENTIONALLY non-round-
         // trippable: `:wat::holon::SlotMarker` is not registered as a
-        // from-watast constructor, so `(eval-ast! (to-watast template))`
+        // from-wat constructor, so `(eval-ast! (to-wat template))`
         // on a template-bearing form will fail at re-parse with an
         // unknown-constructor error. Templates are query keys, not
         // values; this rendering supports inspection without reopening
@@ -15467,8 +15533,8 @@ fn run_ast_arg_for_eval_coincident(
     run_constrained(&ast, env, sym)
 }
 
-/// Shared finalizer: atomize both sides via `value_to_atom`, encode
-/// both atoms, cosine, compare against `coincident_floor`. Returns
+/// Shared finalizer: lift both sides via `to_holon_inner`, encode
+/// both HolonASTs, cosine, compare against `coincident_floor`. Returns
 /// `Value::bool`. Used by all four eval-coincident-family variants —
 /// the per-variant resolver produces the two Values via its own
 /// verification discipline, then hands them here for the coincidence
@@ -15482,8 +15548,8 @@ fn coincident_of_two_values(
 ) -> Result<Value, RuntimeError> {
     // arc 138: no span — values produced by evaluation; no AST args in scope
     let unknown = Span::unknown();
-    let atom_a = value_to_atom(value_a, &unknown)?;
-    let atom_b = value_to_atom(value_b, &unknown)?;
+    let atom_a = to_holon_inner(value_a, &unknown)?;
+    let atom_b = to_holon_inner(value_b, &unknown)?;
     let holon_a = require_holon(op, atom_a)?;
     let holon_b = require_holon(op, atom_b)?;
     let ctx = require_encoding_ctx(op, sym, list_span)?;
@@ -21314,7 +21380,7 @@ fn step_form(
     sym: &SymbolTable,
 ) -> Result<StepValue, RuntimeError> {
     // Arc 070 — try value-shape recognition first. Covers everything
-    // a `to-watast(holon)` round-trip can produce, plus primitive
+    // a `to-wat(holon)` round-trip can produce, plus primitive
     // literals. Reduction-shape forms (arithmetic, comparison,
     // user-function calls, special forms) fall through.
     if let Some(holon) = try_recognize_holon_value(form) {
@@ -21398,21 +21464,21 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
             match &items[0] {
                 WatAST::Keyword(k, _) => match k.as_str() {
                     ":wat::holon::Atom" if items.len() == 2 => {
-                        // Match `value_to_atom`'s polymorphic
-                        // dispatch (arc 057): primitive args lift to
-                        // matching typed leaves; nested holon
-                        // constructor args wrap as opaque-identity
-                        // `Atom`. The substrate's invariant — `Atom`
-                        // never wraps a primitive directly because
-                        // primitives are already typed leaves.
+                        // Arc 225 Stone 225.1 — `Atom` is now the NARROW constructor:
+                        // accepts only a HolonAST value and wraps it as HolonAST::Atom(inner).
+                        // At eval time, primitive literals would error (they evaluate to
+                        // non-HolonAST Values). The recognizer only accepts nested holon
+                        // constructor forms (whose evaluation produces HolonAST); primitive
+                        // literals are rejected here so the stepper fires eval for them
+                        // (which produces the honest TypeMismatch at runtime).
                         match &items[1] {
+                            // Primitive literals are NOT recognized — they don't produce HolonAST.
+                            // Callers passing primitives to Atom should use :wat::holon::to-holon.
                             WatAST::IntLit(_, _)
                             | WatAST::FloatLit(_, _)
                             | WatAST::BoolLit(_, _)
                             | WatAST::StringLit(_, _)
-                            | WatAST::Keyword(_, _) => {
-                                try_recognize_holon_value(&items[1])
-                            }
+                            | WatAST::Keyword(_, _) => None,
                             _ => {
                                 let inner = try_recognize_holon_value(&items[1])?;
                                 Some(HolonAST::Atom(std::sync::Arc::new(inner)))
@@ -21494,7 +21560,7 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                     // Bare-list head (List or Symbol). Structural
                     // Bundle lift per arc 057's
                     // `holon_to_watast(Bundle(items))` — the source
-                    // shape `to-watast` produces. Recognize as a
+                    // shape `to-wat` produces. Recognize as a
                     // Bundle iff every child recognizes too.
                     let mut children = Vec::with_capacity(items.len());
                     for item in items {
@@ -21618,7 +21684,10 @@ fn step_list(
         // typed-leaf back to a primitive WatAST would lose the
         // HolonAST-typed distinction the next constructor expects, so
         // the whole holon tree fires in one step instead of piecemeal.
+        // Arc 225 Stone 225.1 — `to-holon` added (new polymorphic UP verb;
+        // always returns HolonAST). `Atom` remains (narrow HolonAST→Atom wrap).
         ":wat::holon::Atom"
+        | ":wat::holon::to-holon"
         | ":wat::holon::leaf"
         | ":wat::holon::Bind"
         | ":wat::holon::Bundle"
@@ -21805,7 +21874,9 @@ fn is_holon_arg_canonical(form: &WatAST) -> bool {
         | WatAST::Keyword(_, _) => true,
         WatAST::List(items, _) => match items.first() {
             Some(WatAST::Keyword(k, _)) => match k.as_str() {
+                // Arc 225 Stone 225.1 — `to-holon` added (always returns HolonAST).
                 ":wat::holon::Atom"
+                | ":wat::holon::to-holon"
                 | ":wat::holon::leaf"
                 | ":wat::holon::Bind"
                 | ":wat::holon::Permute"
@@ -23687,15 +23758,16 @@ mod tests {
 
     #[test]
     fn algebra_atom_from_literal() {
-        let v = eval_expr(r#"(:wat::holon::Atom "role")"#).unwrap();
+        // Arc 225 Stone 225.1 — Atom is now narrow (HolonAST→Atom); use to-holon for primitives.
+        let v = eval_expr(r#"(:wat::holon::to-holon "role")"#).unwrap();
         assert!(matches!(v, Value::holon__HolonAST(_)));
     }
 
     #[test]
     fn algebra_atom_from_bound_variable() {
-        // (Atom x) where x is a let-bound integer — runtime construction.
+        // Arc 225 Stone 225.1 — to-holon lifts bound integer → HolonAST leaf.
         let v = eval_expr(
-            r#"(:wat::core::let [x 42] (:wat::holon::Atom x))"#,
+            r#"(:wat::core::let [x 42] (:wat::holon::to-holon x))"#,
         )
         .unwrap();
         match v {
@@ -23708,10 +23780,11 @@ mod tests {
 
     #[test]
     fn algebra_bind_composes_holons() {
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives into HolonAST.
         let v = eval_expr(
             r#"(:wat::holon::Bind
-                 (:wat::holon::Atom "role")
-                 (:wat::holon::Atom "filler"))"#,
+                 (:wat::holon::to-holon "role")
+                 (:wat::holon::to-holon "filler"))"#,
         )
         .unwrap();
         assert!(matches!(v, Value::holon__HolonAST(_)));
@@ -23724,12 +23797,13 @@ mod tests {
         // exercise the four capacity-mode paths. This unit test
         // confirms the Ok wrap happens at cost <= budget (at d=1024,
         // budget=32 and we Bundle 3 atoms).
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let v = eval_with_ctx(
             r#"(:wat::holon::Bundle
                  (:wat::core::Vector :wat::holon::HolonAST
-                   (:wat::holon::Atom "a")
-                   (:wat::holon::Atom "b")
-                   (:wat::holon::Atom "c")))"#,
+                   (:wat::holon::to-holon "a")
+                   (:wat::holon::to-holon "b")
+                   (:wat::holon::to-holon "c")))"#,
             1024,
         )
         .unwrap();
@@ -23745,10 +23819,11 @@ mod tests {
     #[test]
     fn algebra_blend_with_runtime_weight() {
         // Weight computed at runtime via arithmetic.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let v = eval_expr(
             r#"(:wat::holon::Blend
-                 (:wat::holon::Atom "x")
-                 (:wat::holon::Atom "y")
+                 (:wat::holon::to-holon "x")
+                 (:wat::holon::to-holon "y")
                  1
                  (:wat::core::i64::-'2 0 1))"#,
         )
@@ -23758,8 +23833,9 @@ mod tests {
 
     #[test]
     fn algebra_bundle_non_list_rejected() {
+        // Arc 225 Stone 225.1 — to-holon; Bundle still refuses non-list.
         let err = eval_expr(
-            r#"(:wat::holon::Bundle (:wat::holon::Atom "a"))"#,
+            r#"(:wat::holon::Bundle (:wat::holon::to-holon "a"))"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
@@ -23770,12 +23846,13 @@ mod tests {
     #[test]
     fn program_with_defines_and_algebra() {
         // A small program that defines a helper and uses it to build a Holon.
+        // Arc 225 Stone 225.1 — to-holon lifts string parameters.
         let result = run(
             r#"
             (:wat::core::define (:my::app::encode-pair (a :wat::core::String) (b :wat::core::String) -> :wat::holon::HolonAST)
               (:wat::holon::Bind
-                (:wat::holon::Atom a)
-                (:wat::holon::Atom b)))
+                (:wat::holon::to-holon a)
+                (:wat::holon::to-holon b)))
             (:my::app::encode-pair "role" "filler")
             "#,
         )
@@ -23940,9 +24017,11 @@ mod tests {
 
     #[test]
     fn atom_wraps_quoted_program() {
-        // (Atom (quote (+ 1 2))) — program becomes a holon.
+        // Arc 225 Stone 225.1 — from-wat lowers quoted WatAST form to HolonAST.
+        // Old: (Atom (quote form)) — Atom accepted WatAST (polymorphic, now retired).
+        // New: (from-wat (quote form)) — the honest directional verb.
         let result = eval_expr(
-            "(:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+'2 1 2)))",
+            "(:wat::holon::from-wat (:wat::core::quote (:wat::core::i64::+'2 1 2)))",
         )
         .unwrap();
         assert!(matches!(result, Value::holon__HolonAST(_)));
@@ -23950,8 +24029,9 @@ mod tests {
 
     #[test]
     fn atom_value_recovers_string() {
+        // Arc 225 Stone 225.1 — from-holon replaces atom-value; to-holon replaces polymorphic Atom.
         let result = eval_expr(
-            r#"(:wat::core::atom-value (:wat::holon::Atom "hello"))"#,
+            r#"(:wat::holon::from-holon (:wat::holon::to-holon "hello"))"#,
         )
         .unwrap();
         match result {
@@ -23973,8 +24053,10 @@ mod tests {
         // `watast_to_holon` at Stone 221.4b now maps `WatAST::Keyword(k) →
         // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+'2")`
         // (leading colon stripped). Assertions flipped from as_symbol() to as_keyword().
+        //
+        // Arc 225 Stone 225.1 — from-wat replaces Atom for WatAST inputs.
         let v = eval_expr(
-            "(:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+'2 40 2)))",
+            "(:wat::holon::from-wat (:wat::core::quote (:wat::core::i64::+'2 40 2)))",
         )
         .unwrap();
         let h = match v {
@@ -23997,17 +24079,17 @@ mod tests {
     #[test]
     fn atom_value_recovers_quoted_keyword() {
         // Atomic literals inside quote DO survive the trip — they lower to
-        // their matching primitive leaf at Atom time, and atom-value
+        // their matching primitive leaf via from-wat, and from-holon
         // reads them back as the corresponding wat Value.
         //
         // Arc 221 Stone 221.4b cascade — `(:wat::core::quote :outcome)` produces
         // `WatAST::Keyword(":outcome")` → `HolonAST::Keyword("outcome")` (no colon).
-        // `eval_atom_value` now has a `HolonAST::Keyword(s)` arm (Stone 221.4b)
-        // that returns `Value::keyword(":outcome")` (restores leading colon).
-        // The assertion value ":outcome" is unchanged; the path through atom-value
-        // now goes via the Keyword arm instead of the Symbol arm.
+        // `eval_holon_from_holon` (renamed from eval_atom_value) has a `HolonAST::Keyword(s)`
+        // arm that returns `Value::keyword(":outcome")` (restores leading colon).
+        //
+        // Arc 225 Stone 225.1 — from-holon replaces atom-value; from-wat replaces WatAST arm of Atom.
         let result = eval_expr(
-            "(:wat::core::atom-value (:wat::holon::Atom (:wat::core::quote :outcome)))",
+            "(:wat::holon::from-holon (:wat::holon::from-wat (:wat::core::quote :outcome)))",
         )
         .unwrap();
         match result {
@@ -24018,17 +24100,18 @@ mod tests {
 
     #[test]
     fn atom_value_refuses_non_atom_holon() {
-        // Bind(Atom, Atom) is not an Atom — atom-value refuses.
+        // Bind(to-holon, to-holon) is a Bind — from-holon refuses (not a primitive leaf or Atom).
+        // Arc 225 Stone 225.1 — from-holon replaces atom-value; to-holon replaces Atom for primitives.
         let err = eval_expr(
-            r#"(:wat::core::atom-value
+            r#"(:wat::holon::from-holon
                  (:wat::holon::Bind
-                   (:wat::holon::Atom "a")
-                   (:wat::holon::Atom "b")))"#,
+                   (:wat::holon::to-holon "a")
+                   (:wat::holon::to-holon "b")))"#,
         )
         .unwrap_err();
         assert!(matches!(
             err,
-            RuntimeError::TypeMismatch { op, .. } if op == ":wat::core::atom-value"
+            RuntimeError::TypeMismatch { op, .. } if op == ":wat::holon::from-holon"
         ));
     }
 
@@ -24038,12 +24121,13 @@ mod tests {
         // be self-inverse at the vector level. The structure stays; the
         // vector is where the self-inverse shows up via cosine. Per 058-024
         // rejection text + FOUNDATION 1718 (presence is measurement).
+        // Arc 225 Stone 225.1 — to-holon replaces Atom for string primitives.
         let result = eval_expr(
             r#"(:wat::holon::Bind
                  (:wat::holon::Bind
-                   (:wat::holon::Atom "key")
-                   (:wat::holon::Atom "program"))
-                 (:wat::holon::Atom "key"))"#,
+                   (:wat::holon::to-holon "key")
+                   (:wat::holon::to-holon "program"))
+                 (:wat::holon::to-holon "key"))"#,
         )
         .unwrap();
         match result {
@@ -24062,19 +24146,20 @@ mod tests {
         // primitive leaves). The form is now a coordinate in the
         // algebra; cosine, Hash, and Eq all see its structure.
         //
-        // The pre-arc-057 lossless `Atom → atom-value → eval-ast!`
-        // round-trip is intentionally gone — the substrate holds
-        // coordinates, not runnable programs. Consumers who want the
-        // value walk the form themselves (or use a future cache layer
-        // that records the form → value edge).
+        // The pre-arc-057 lossless round-trip is intentionally gone —
+        // the substrate holds coordinates, not runnable programs. Consumers
+        // who want the value walk the form themselves (or use a future cache
+        // layer that records the form → value edge).
         //
         // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+'2 40 2))`
         // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+'2"), ...])`.
         // `watast_to_holon` at Stone 221.4b maps `WatAST::Keyword(k) →
         // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+'2")`
         // (leading colon stripped). Assertion flipped from as_symbol() to as_keyword().
+        //
+        // Arc 225 Stone 225.1 — from-wat replaces Atom for WatAST (quoted form) inputs.
         let v = eval_expr(
-            "(:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+'2 40 2)))",
+            "(:wat::holon::from-wat (:wat::core::quote (:wat::core::i64::+'2 40 2)))",
         )
         .unwrap();
         let h = match v {
@@ -24131,10 +24216,11 @@ mod tests {
 
     #[test]
     fn presence_of_atom_in_itself_is_one() {
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::cosine
-                 (:wat::holon::Atom "hello")
-                 (:wat::holon::Atom "hello"))"#,
+                 (:wat::holon::to-holon "hello")
+                 (:wat::holon::to-holon "hello"))"#,
             1024,
         )
         .unwrap();
@@ -24150,10 +24236,11 @@ mod tests {
         // non-zero dimensions in v's encoding. The exact count
         // depends on the substrate's ternary content; we just
         // assert it's well above sqrt(d) (the noise scale).
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::dot
-                 (:wat::holon::Atom "alice")
-                 (:wat::holon::Atom "alice"))"#,
+                 (:wat::holon::to-holon "alice")
+                 (:wat::holon::to-holon "alice"))"#,
             1024,
         )
         .unwrap();
@@ -24171,10 +24258,11 @@ mod tests {
         // dot(a, a) >> dot(a, b) for independent atoms. The exact
         // magnitudes are substrate-dependent; the ordering is the
         // load-bearing invariant for Gram-Schmidt (Reject / Project).
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let self_dot = match eval_with_ctx(
             r#"(:wat::holon::dot
-                 (:wat::holon::Atom "alice")
-                 (:wat::holon::Atom "alice"))"#,
+                 (:wat::holon::to-holon "alice")
+                 (:wat::holon::to-holon "alice"))"#,
             1024,
         )
         .unwrap()
@@ -24184,8 +24272,8 @@ mod tests {
         };
         let cross_dot = match eval_with_ctx(
             r#"(:wat::holon::dot
-                 (:wat::holon::Atom "alice")
-                 (:wat::holon::Atom "charlie"))"#,
+                 (:wat::holon::to-holon "alice")
+                 (:wat::holon::to-holon "charlie"))"#,
             1024,
         )
         .unwrap()
@@ -24203,7 +24291,8 @@ mod tests {
 
     #[test]
     fn dot_wrong_arity() {
-        let ast = crate::parse_one!(r#"(:wat::holon::dot (:wat::holon::Atom "a"))"#).unwrap();
+        // Arc 225 Stone 225.1 — to-holon lifts string primitive.
+        let ast = crate::parse_one!(r#"(:wat::holon::dot (:wat::holon::to-holon "a"))"#).unwrap();
         let err = eval(&ast, &Environment::new(), &test_sym_with_ctx(1024)).unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
@@ -24218,10 +24307,11 @@ mod tests {
     fn presence_q_true_for_self() {
         // presence? is the boolean verdict — cosine > noise floor.
         // An atom against itself: cosine = 1.0, well above the floor.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::presence?
-                 (:wat::holon::Atom "alice")
-                 (:wat::holon::Atom "alice"))"#,
+                 (:wat::holon::to-holon "alice")
+                 (:wat::holon::to-holon "alice"))"#,
             1024,
         )
         .unwrap();
@@ -24230,10 +24320,11 @@ mod tests {
 
     #[test]
     fn presence_q_false_for_unrelated() {
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::presence?
-                 (:wat::holon::Atom "alice")
-                 (:wat::holon::Atom "charlie"))"#,
+                 (:wat::holon::to-holon "alice")
+                 (:wat::holon::to-holon "charlie"))"#,
             1024,
         )
         .unwrap();
@@ -24245,10 +24336,11 @@ mod tests {
     #[test]
     fn coincident_q_true_for_self() {
         // Atom vs itself: cosine = 1.0, (1 - cosine) = 0 < noise-floor.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::coincident?
-                 (:wat::holon::Atom "alice")
-                 (:wat::holon::Atom "alice"))"#,
+                 (:wat::holon::to-holon "alice")
+                 (:wat::holon::to-holon "alice"))"#,
             1024,
         )
         .unwrap();
@@ -24259,10 +24351,11 @@ mod tests {
     fn coincident_q_true_for_structurally_same() {
         // Two hand-built identical-structure holons: same Bind shape
         // with same atom children.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::coincident?
-                 (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))
-                 (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v")))"#,
+                 (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))
+                 (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v")))"#,
             1024,
         )
         .unwrap();
@@ -24272,10 +24365,11 @@ mod tests {
     #[test]
     fn coincident_q_false_for_unrelated() {
         // Two orthogonal atoms: cosine ≈ 0, (1 - cosine) ≈ 1 > noise-floor.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::coincident?
-                 (:wat::holon::Atom "alice")
-                 (:wat::holon::Atom "charlie"))"#,
+                 (:wat::holon::to-holon "alice")
+                 (:wat::holon::to-holon "charlie"))"#,
             1024,
         )
         .unwrap();
@@ -24378,15 +24472,16 @@ mod tests {
         // Easy case: a=Atom("a"), b=Bundle([Atom("a"), Atom("b"), Atom("c")]).
         // The Bundle contains Atom("a") — so presence? is true — but
         // the Bundle is NOT the same as the single atom.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let bundle_src = r#"(:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST
-                               (:wat::holon::Atom "a")
-                               (:wat::holon::Atom "b")
-                               (:wat::holon::Atom "c")))"#;
+                               (:wat::holon::to-holon "a")
+                               (:wat::holon::to-holon "b")
+                               (:wat::holon::to-holon "c")))"#;
         let present = eval_with_ctx(
             &format!(
                 r#"(:wat::core::match {bundle}
                      -> :bool
-                     ((:wat::core::Ok h) (:wat::holon::presence? (:wat::holon::Atom "a") h))
+                     ((:wat::core::Ok h) (:wat::holon::presence? (:wat::holon::to-holon "a") h))
                      ((:wat::core::Err _) false))"#,
                 bundle = bundle_src
             ),
@@ -24401,7 +24496,7 @@ mod tests {
             &format!(
                 r#"(:wat::core::match {bundle}
                      -> :bool
-                     ((:wat::core::Ok h) (:wat::holon::coincident? (:wat::holon::Atom "a") h))
+                     ((:wat::core::Ok h) (:wat::holon::coincident? (:wat::holon::to-holon "a") h))
                      ((:wat::core::Err _) false))"#,
                 bundle = bundle_src
             ),
@@ -24468,11 +24563,12 @@ mod tests {
 
     #[test]
     fn coincident_explain_byte_identical() {
-        // Same Atom against itself: cosine = 1.0, coincident at sigma=1.
+        // Same holon against itself: cosine = 1.0, coincident at sigma=1.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::coincident-explain
-                 (:wat::holon::Atom "alice")
-                 (:wat::holon::Atom "alice"))"#,
+                 (:wat::holon::to-holon "alice")
+                 (:wat::holon::to-holon "alice"))"#,
             1024,
         )
         .unwrap();
@@ -24525,10 +24621,11 @@ mod tests {
         // honestly large. The diagnostic surfaces the structural
         // distance — caller reads cosine directly to see "not near-
         // coincident, structurally distant."
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::coincident-explain
-                 (:wat::holon::Atom "alice")
-                 (:wat::holon::Atom "charlie"))"#,
+                 (:wat::holon::to-holon "alice")
+                 (:wat::holon::to-holon "charlie"))"#,
             1024,
         )
         .unwrap();
@@ -24544,9 +24641,10 @@ mod tests {
     fn coincident_explain_polymorphic_holon_vector() {
         // One side AST, the other side a pre-encoded Vector. Same
         // input shape `coincident?` accepts post arc 061.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitive.
         let result = eval_with_ctx(
             r#"(:wat::core::let
-                 [a (:wat::holon::Atom "x")
+                 [a (:wat::holon::to-holon "x")
                   va (:wat::holon::encode a)]
                  (:wat::holon::coincident-explain a va))"#,
             1024,
@@ -24560,10 +24658,11 @@ mod tests {
     fn coincident_explain_dim_reflects_router_choice() {
         // Build with d=512; the diagnostic's `dim` field reports
         // the actual encoding d, not a hard-coded constant.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::coincident-explain
-                 (:wat::holon::Atom "a")
-                 (:wat::holon::Atom "a"))"#,
+                 (:wat::holon::to-holon "a")
+                 (:wat::holon::to-holon "a"))"#,
             512,
         )
         .unwrap();
@@ -24572,8 +24671,9 @@ mod tests {
 
     #[test]
     fn coincident_explain_arity_mismatch() {
+        // Arc 225 Stone 225.1 — to-holon lifts string primitive.
         let err = eval_with_ctx(
-            r#"(:wat::holon::coincident-explain (:wat::holon::Atom "x"))"#,
+            r#"(:wat::holon::coincident-explain (:wat::holon::to-holon "x"))"#,
             1024,
         )
         .unwrap_err();
@@ -24585,14 +24685,15 @@ mod tests {
         // The struct's `coincident` field returns the same value as
         // `:wat::holon::coincident?` for the same inputs. This is
         // the "the diagnostic doesn't lie" invariant.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let cases = [
             (
-                r#"(:wat::holon::Atom "a")"#,
-                r#"(:wat::holon::Atom "a")"#,
+                r#"(:wat::holon::to-holon "a")"#,
+                r#"(:wat::holon::to-holon "a")"#,
             ),
             (
-                r#"(:wat::holon::Atom "a")"#,
-                r#"(:wat::holon::Atom "b")"#,
+                r#"(:wat::holon::to-holon "a")"#,
+                r#"(:wat::holon::to-holon "b")"#,
             ),
             (
                 r#"(:wat::holon::Thermometer 4.0 0.0 10.0)"#,
@@ -24693,16 +24794,15 @@ mod tests {
 
     #[test]
     fn eval_coincident_q_true_for_structurally_same_holon() {
-        // Atom(quote-HolonAST) wraps each side's constructed Bind as
-        // an Atom whose payload is the canonical-EDN of the Bind.
         // Two structurally-identical constructions share a hash →
         // same vector → coincident? fires.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives inside quoted forms.
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-coincident?
                  (:wat::core::quote
-                   (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v")))
+                   (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v")))
                  (:wat::core::quote
-                   (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))))"#,
+                   (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))))"#,
             1024,
         )
         .unwrap();
@@ -24711,29 +24811,21 @@ mod tests {
 
     #[test]
     fn eval_coincident_q_accepts_mixed_types() {
-        // Side A reduces to :i64 4 → Atom(4). Side B reduces to an
-        // already-built HolonAST Atom(4) → value_to_atom wraps
-        // HolonAST in another Atom(HolonAST) — canonical-EDN of
-        // Atom(4)-the-wrapping == canonical-EDN of Atom(4)-the-scalar's
-        // enveloping NOT guaranteed to match. This test locks what
-        // actually happens: HolonAST-lifts-to-Atom(HolonAST) so
-        // scalars compared to Atoms of the same scalar are NOT
-        // coincident under this primitive. Documented here so
-        // future refactors don't silently change the behavior.
+        // Side A reduces to :i64 4 → to_holon_inner(i64 4) → I64 leaf.
+        // Side B reduces to an already-built HolonAST I64(4) →
+        // to_holon_inner(HolonAST) wraps it as Atom(HolonAST::I64(4)) —
+        // different shape from the bare I64 leaf. This test locks that behavior.
+        //
+        // Arc 225 Stone 225.1 — to-holon replaces polymorphic Atom.
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-coincident?
                  (:wat::core::quote 4)
-                 (:wat::core::quote (:wat::holon::Atom 4)))"#,
+                 (:wat::core::quote (:wat::holon::to-holon 4)))"#,
             1024,
         )
         .unwrap();
-        // Expect false — side A is Atom(i64 4), side B is
-        // Atom(HolonAST::Atom(4)), different payloads. The primitive
-        // is "coincidence of atomized results" — atomizing a holon
-        // wraps it; atomizing a scalar lifts it; the two disagree.
-        // If a caller wants to compare arithmetic-equivalent results,
-        // they should normalize both sides to scalars OR both to
-        // already-built holons before the call.
+        // Expect false — side A is I64 leaf, side B is Atom(HolonAST::I64(4)).
+        // Different payloads; the primitive is "coincidence of lifted results."
         assert!(matches!(eval_ok_inner(result), Value::bool(false)));
     }
 
@@ -24970,10 +25062,11 @@ mod tests {
     fn cosine_of_atom_with_itself_is_one() {
         // The renamed primitive (algebra::cosine) returns the same
         // scalar the old :wat::core::presence did.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::holon::cosine
-                 (:wat::holon::Atom "self")
-                 (:wat::holon::Atom "self"))"#,
+                 (:wat::holon::to-holon "self")
+                 (:wat::holon::to-holon "self"))"#,
             1024,
         )
         .unwrap();
@@ -25003,10 +25096,11 @@ mod tests {
     fn presence_requires_encoding_ctx() {
         // Without a frozen SymbolTable, presence must error — can't
         // reach into encoding machinery that doesn't exist.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let ast = crate::parse_one!(
             r#"(:wat::holon::cosine
-                 (:wat::holon::Atom "a")
-                 (:wat::holon::Atom "b"))"#
+                 (:wat::holon::to-holon "a")
+                 (:wat::holon::to-holon "b"))"#
         )
         .unwrap();
         let err = eval(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
@@ -25021,10 +25115,11 @@ mod tests {
         // Core claim: cosine(encode(p), encode(Bind(k, p))) is near zero —
         // MAP bind orthogonalizes. The presence of p in Bind(k,p) is
         // below the substrate's presence floor (15σ at d=1024).
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::core::let
-                 [program (:wat::holon::Atom "the-program")
-                  key (:wat::holon::Atom "the-key")
+                 [program (:wat::holon::to-holon "the-program")
+                  key (:wat::holon::to-holon "the-key")
                   bound (:wat::holon::Bind key program)]
                  (:wat::holon::cosine program bound))"#,
             1024,
@@ -25051,10 +25146,11 @@ mod tests {
         // Self-inverse: cosine(encode(p), encode(Bind(Bind(k,p), k))) is
         // well above the presence floor. MAP's bind(bind(k,p), k) ≈ p on
         // non-zero positions of k.
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let result = eval_with_ctx(
             r#"(:wat::core::let
-                 [program (:wat::holon::Atom "the-program")
-                  key (:wat::holon::Atom "the-key")
+                 [program (:wat::holon::to-holon "the-program")
+                  key (:wat::holon::to-holon "the-key")
                   bound (:wat::holon::Bind key program)
                   recovered (:wat::holon::Bind bound key)]
                  (:wat::holon::cosine program recovered))"#,
@@ -26859,10 +26955,11 @@ mod tests {
         // Encode an AST → vector → bytes → vector, then check the
         // recovered vector cosines == 1.0 with the original
         // (byte-perfect round-trip).
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let src = r#"
             (:wat::core::let
               [v
-                (:wat::holon::encode (:wat::holon::Atom "round-trip-test"))
+                (:wat::holon::encode (:wat::holon::to-holon "round-trip-test"))
                bs (:wat::holon::vector-bytes v)
                maybe-v
                 (:wat::holon::bytes-vector bs)
@@ -26870,7 +26967,7 @@ mod tests {
                 (:wat::core::match maybe-v -> :wat::holon::Vector
                   ((:wat::core::Some v2) v2)
                   (:wat::core::None
-                    (:wat::holon::encode (:wat::holon::Atom "decode-failed-sentinel"))))]
+                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel"))))]
               (:wat::holon::cosine v v2))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
@@ -26887,12 +26984,13 @@ mod tests {
     fn vector_bytes_deterministic() {
         // Same Vector → same bytes (substrate-level determinism;
         // arc 061 Q7).
+        // Arc 225 Stone 225.1 — to-holon lifts string primitives.
         let src = r#"
             (:wat::core::let
               [v1
-                (:wat::holon::encode (:wat::holon::Atom "deterministic"))
+                (:wat::holon::encode (:wat::holon::to-holon "deterministic"))
                v2
-                (:wat::holon::encode (:wat::holon::Atom "deterministic"))
+                (:wat::holon::encode (:wat::holon::to-holon "deterministic"))
                b1 (:wat::holon::vector-bytes v1)
                b2 (:wat::holon::vector-bytes v2)]
               (:wat::core::= b1 b2))
@@ -26956,9 +27054,9 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [v1
-                (:wat::holon::encode (:wat::holon::Atom "coincide-me"))
+                (:wat::holon::encode (:wat::holon::to-holon "coincide-me"))
                v2
-                (:wat::holon::encode (:wat::holon::Atom "coincide-me"))]
+                (:wat::holon::encode (:wat::holon::to-holon "coincide-me"))]
               (:wat::holon::coincident? v1 v2))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
@@ -26975,8 +27073,8 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [v
-                (:wat::holon::encode (:wat::holon::Atom "mixed-input"))]
-              (:wat::holon::coincident? v (:wat::holon::Atom "mixed-input")))
+                (:wat::holon::encode (:wat::holon::to-holon "mixed-input"))]
+              (:wat::holon::coincident? v (:wat::holon::to-holon "mixed-input")))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
             Value::bool(true) => {}
@@ -27186,7 +27284,7 @@ mod tests {
         // Vector → angle-bracketed dim summary.
         let s = match eval_with_ctx(
             r#"(:wat::core::show
-                  (:wat::holon::encode (:wat::holon::Atom "x")))"#,
+                  (:wat::holon::encode (:wat::holon::to-holon "x")))"#,
             1024,
         )
         .unwrap()
@@ -27256,17 +27354,17 @@ mod tests {
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
-    // ─── leaf / from-watast (arc 065) ──────────────────────────────────
+    // ─── leaf / from-wat (arc 065; renamed from-watast → from-wat at arc 225) ──────────────────────────────────
 
     #[test]
     fn leaf_lifts_primitive_to_holon_leaf() {
         // Each primitive Value variant should become its matching
-        // HolonAST leaf. atom-value extracts the value back to verify.
+        // HolonAST leaf. from-holon extracts the value back to verify.
         let cases = [
-            (r#"(:wat::core::atom-value (:wat::holon::leaf 42))"#, "42"),
-            (r#"(:wat::core::atom-value (:wat::holon::leaf 3.14))"#, "3.14"),
-            (r#"(:wat::core::atom-value (:wat::holon::leaf true))"#, "true"),
-            (r#"(:wat::core::atom-value (:wat::holon::leaf "hi"))"#, "\"hi\""),
+            (r#"(:wat::holon::from-holon (:wat::holon::leaf 42))"#, "42"),
+            (r#"(:wat::holon::from-holon (:wat::holon::leaf 3.14))"#, "3.14"),
+            (r#"(:wat::holon::from-holon (:wat::holon::leaf true))"#, "true"),
+            (r#"(:wat::holon::from-holon (:wat::holon::leaf "hi"))"#, "\"hi\""),
         ];
         for (src, expected) in cases.iter() {
             // Wrap each in a show call to get a stable comparison
@@ -27284,8 +27382,12 @@ mod tests {
     fn leaf_rejects_non_primitive() {
         // HolonAST input is the wrong verb; the rejection should
         // hint at Atom (which IS the right verb for HolonAST → wrap).
+        // Arc 225 Stone 225.1: use leaf(1) to produce a real HolonAST
+        // to pass as input to leaf (the narrow Atom is no longer valid
+        // as a primitive-string constructor; leaf(1) is the simplest
+        // way to obtain a HolonAST to hand to leaf).
         let err = eval_expr(
-            "(:wat::holon::leaf (:wat::holon::Atom \"already-holon\"))",
+            "(:wat::holon::leaf (:wat::holon::leaf 1))",
         )
         .unwrap_err();
         match err {
@@ -27313,8 +27415,9 @@ mod tests {
         // `watast_to_holon` at Stone 221.4b maps `WatAST::Keyword(k) →
         // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+'2")`
         // (leading colon stripped). Assertion flipped from as_symbol() to as_keyword().
+        // Arc 225 Stone 225.1: from-watast renamed to from-wat.
         let src = r#"
-            (:wat::holon::from-watast
+            (:wat::holon::from-wat
               (:wat::core::quote (:wat::core::i64::+'2 40 2)))
         "#;
         let v = eval_expr(src).unwrap();
@@ -27346,8 +27449,9 @@ mod tests {
         // leading colon and produces `HolonAST::Keyword("outcome")`. Pre-Stone-221.4b
         // used `HolonAST::symbol(k.as_str())` → `HolonAST::Symbol(":outcome")`.
         // Assertion flipped from as_symbol() to as_keyword() per arc 221 doctrine.
+        // Arc 225 Stone 225.1: from-watast renamed to from-wat.
         let src = r#"
-            (:wat::holon::from-watast (:wat::core::quote :outcome))
+            (:wat::holon::from-wat (:wat::core::quote :outcome))
         "#;
         let v = eval_expr(src).unwrap();
         let h = match v {
@@ -27363,10 +27467,11 @@ mod tests {
     #[test]
     fn from_watast_rejects_non_watast() {
         // Primitive input is the wrong verb; should hint at leaf.
-        let err = eval_expr("(:wat::holon::from-watast 42)").unwrap_err();
+        // Arc 225 Stone 225.1: from-watast renamed to from-wat.
+        let err = eval_expr("(:wat::holon::from-wat 42)").unwrap_err();
         match err {
             RuntimeError::TypeMismatch { op, expected, .. } => {
-                assert_eq!(op, ":wat::holon::from-watast");
+                assert_eq!(op, ":wat::holon::from-wat");
                 assert!(
                     expected.contains(":wat::holon::leaf"),
                     "expected hint to mention leaf, got: {}",
@@ -27379,9 +27484,9 @@ mod tests {
 
     #[test]
     fn watast_round_trip_preserves_bundle_shape() {
-        // The (to-watast → from-watast) round-trip preserves a
-        // structurally-lowered Bundle of primitives — `to-watast`
-        // emits `(items…)` for a Bundle, and `from-watast` reads
+        // The (to-wat → from-wat) round-trip preserves a
+        // structurally-lowered Bundle of primitives — `to-wat`
+        // emits `(items…)` for a Bundle, and `from-wat` reads
         // that List back as a Bundle of leaves. Trees that started
         // as algebra ops (Bind / Permute / Thermometer / Blend)
         // lift as symbol-headed Lists at the source level; they
@@ -27401,8 +27506,8 @@ mod tests {
                   -> :wat::holon::HolonAST
                   ((:wat::core::Ok h) h)
                   ((:wat::core::Err _) (:wat::holon::leaf "unreachable")))
-               ast (:wat::holon::to-watast h1)
-               h2 (:wat::holon::from-watast ast)]
+               ast (:wat::holon::to-wat h1)
+               h2 (:wat::holon::from-wat ast)]
               (:wat::holon::cosine h1 h2))
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
@@ -27423,7 +27528,8 @@ mod tests {
 
     #[test]
     fn from_watast_arity_mismatch() {
-        let err = eval_expr("(:wat::holon::from-watast)").unwrap_err();
+        // Arc 225 Stone 225.1: from-watast renamed to from-wat.
+        let err = eval_expr("(:wat::holon::from-wat)").unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
@@ -27486,15 +27592,16 @@ mod tests {
     fn eval_ast_passes_through_holon_result() {
         // When the form's result is itself a HolonAST, the caller
         // binds T = :wat::holon::HolonAST and (Ok h) gets the
-        // HolonAST directly. atom-value still works on it because
+        // HolonAST directly. from-holon still works on it because
         // the runtime IS returning a HolonAST in this case.
+        // Arc 225 Stone 225.1: atom-value renamed to from-holon.
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote
                   (:wat::holon::leaf 42)))
               -> :i64
-              ((:wat::core::Ok h) (:wat::core::atom-value h))
+              ((:wat::core::Ok h) (:wat::holon::from-holon h))
               ((:wat::core::Err _) -1))
         "#;
         match eval_expr(src).unwrap() {
@@ -27622,7 +27729,7 @@ mod tests {
                 (:wat::core::let
                   [terminal (:wat::core::first pair)
                    count (:wat::core::second pair)
-                   value (:wat::core::atom-value terminal)
+                   value (:wat::holon::from-holon terminal)
                    ;; encode (value, count) as one i64: value * 1000 + count.
                    ;; sufficient for a chain of length < 1000.
                    packed
@@ -27659,8 +27766,8 @@ mod tests {
               (:wat::eval::walk
                 (:wat::core::quote
                   (:wat::holon::Bind
-                    (:wat::holon::Atom "k")
-                    (:wat::holon::Atom "v")))
+                    (:wat::holon::to-holon "k")
+                    (:wat::holon::to-holon "v")))
                 0
                 :my::test::count-visit)
               -> :wat::core::i64
@@ -27703,7 +27810,7 @@ mod tests {
           ((:wat::core::Ok pair)
             (:wat::core::let
               [terminal (:wat::core::first pair)
-               value (:wat::core::atom-value terminal)]
+               value (:wat::holon::from-holon terminal)]
               value))
           ((:wat::core::Err _) -1))
         "#;
@@ -27731,7 +27838,7 @@ mod tests {
             (:wat::core::match
               (:wat::eval::walk
                 (:wat::core::quote
-                  (:wat::holon::from-watast
+                  (:wat::holon::from-wat
                     (:wat::core::quote 42)))
                 0
                 :my::test::count-visit)
@@ -27762,11 +27869,16 @@ mod tests {
         // value-shape and returns AlreadyTerminal with the rebuilt
         // Bundle. The walker can now distinguish "input is already
         // a value" from "no rule applies."
+        //
+        // Arc 225 Stone 225.1: narrow Atom only accepts HolonAST input;
+        // primitive-string Atom forms no longer recognized by
+        // try_recognize_holon_value. Use leaf forms (the primitive-to-
+        // leaf constructor) which ARE recognized as value-shapes.
         let s = step_to_show(
             r#"(:wat::eval-step!
                  (:wat::core::quote
-                   ((:wat::holon::Atom "k")
-                    (:wat::holon::Atom "v"))))"#,
+                   ((:wat::holon::leaf "k")
+                    (:wat::holon::leaf "v"))))"#,
         );
         assert!(
             s.contains("AlreadyTerminal"),
@@ -27777,13 +27889,21 @@ mod tests {
 
     #[test]
     fn step_already_terminal_on_holon_constructor_call() {
-        // `(:wat::holon::Atom "k")` is a value-shape per arc 057's
+        // `(:wat::holon::leaf "k")` is a value-shape per arc 057's
         // `holon_to_watast` (the source form an already-built holon
         // round-trips to). Returns AlreadyTerminal — the substrate
         // KNOWS this is a value, not a function call to compute one.
+        //
+        // Arc 225 Stone 225.1: the original test used
+        // `(:wat::holon::Atom "k")` (old polymorphic Atom accepting a
+        // primitive string). The narrow Atom now only accepts HolonAST
+        // input, so primitive-string Atom forms are no longer recognized
+        // as value-shapes by try_recognize_holon_value. Use
+        // `(:wat::holon::leaf "k")` which is a genuine primitive-to-leaf
+        // constructor and IS recognized as a value-shape.
         let s = step_to_show(
             r#"(:wat::eval-step!
-                 (:wat::core::quote (:wat::holon::Atom "k")))"#,
+                 (:wat::core::quote (:wat::holon::leaf "k")))"#,
         );
         assert!(
             s.contains("AlreadyTerminal"),
@@ -27816,15 +27936,16 @@ mod tests {
 
     #[test]
     fn step_unknown_form_yields_no_step_rule_err() {
-        // `:wat::holon::from-watast` consumes a quoted form (a
+        // `:wat::holon::from-wat` consumes a quoted form (a
         // `:wat::WatAST` value) and `:wat::core::quote` is a special
         // form not in the step-rule table — quote produces a
         // wat__WatAST Value that has no HolonAST representation. Step
         // mode routes both to NoStepRule; consumers that hit them
-        // fall back to `eval-ast!`. Picking from-watast as the test
+        // fall back to `eval-ast!`. Picking from-wat as the test
         // case documents that boundary.
+        // Arc 225 Stone 225.1: from-watast renamed to from-wat.
         let s = step_to_show(
-            "(:wat::eval-step! (:wat::core::quote (:wat::holon::from-watast x)))",
+            "(:wat::eval-step! (:wat::core::quote (:wat::holon::from-wat x)))",
         );
         assert!(
             s.contains("no-step-rule"),
@@ -28153,12 +28274,16 @@ mod tests {
 
     #[test]
     fn step_holon_constructor_atom() {
-        // `(:wat::holon::Atom "k")` — primitive arg, holon-canonical;
-        // fires in one step. Per arc 057's polymorphic Atom the result
-        // is the typed-leaf shape `HolonAST::String("k")`, NOT an
-        // Atom-wrap (the wrap reserves itself for HolonAST inputs;
-        // primitives lift to typed leaves).
-        let h = step_drive_to_terminal(r#"(:wat::holon::Atom "k")"#);
+        // `(:wat::holon::to-holon "k")` — primitive string input to the
+        // polymorphic UP verb; fires in one step. The result is
+        // `HolonAST::String("k")` — to-holon lifts primitive strings to
+        // typed leaves (the Atom-wrap is reserved for HolonAST inputs).
+        //
+        // Arc 225 Stone 225.1: the original test used
+        // `(:wat::holon::Atom "k")` (old polymorphic Atom). After the
+        // narrow, Atom only accepts HolonAST; the polymorphic UP arm
+        // moved to :wat::holon::to-holon.
+        let h = step_drive_to_terminal(r#"(:wat::holon::to-holon "k")"#);
         match &*h {
             HolonAST::String(s) if &s[..] == "k" => {}
             other => panic!("expected HolonAST::String(\"k\"), got {:?}", other),
@@ -28167,16 +28292,19 @@ mod tests {
 
     #[test]
     fn step_holon_constructor_bind() {
-        // `(:wat::holon::Bind (Atom "k") (Atom "v"))` — both args are
-        // holon-canonical (constructor lists with primitive fields),
+        // `(:wat::holon::Bind (to-holon "k") (to-holon "v"))` — both args
+        // are holon-canonical (constructor lists with primitive fields),
         // so the whole tree fires as one rewrite. The result is the
         // Bind tree over typed-leaf children. Verifies the Phase 3
         // type-loss workaround: lifting a typed leaf back to a bare
         // primitive WatAST would make the parent's require_holon
         // check fail, so the macro-step rule keeps the holon tree
         // intact through eval.
+        //
+        // Arc 225 Stone 225.1: Atom "k" → to-holon "k" (polymorphic
+        // UP verb absorbs the old Atom primitive-lift arm).
         let h = step_drive_to_terminal(
-            r#"(:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))"#,
+            r#"(:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))"#,
         );
         match &*h {
             HolonAST::Bind(a, b) => {
@@ -28200,6 +28328,8 @@ mod tests {
         // Bundle exercises the encoding pipeline (capacity guard +
         // dim router), so this test runs through `run_with_ctx`
         // instead of `run`.
+        // Arc 225 Stone 225.1: Atom "a"/"b" → to-holon (polymorphic UP
+        // verb absorbs old Atom primitive-lift arm).
         let src = format!(
             r#"
             {}
@@ -28207,8 +28337,8 @@ mod tests {
               (:wat::core::quote
                 (:wat::holon::Bundle
                   (:wat::core::Vector :wat::holon::HolonAST
-                    (:wat::holon::Atom "a")
-                    (:wat::holon::Atom "b")))))
+                    (:wat::holon::to-holon "a")
+                    (:wat::holon::to-holon "b")))))
             "#,
             step_to_terminal_prelude()
         );
@@ -28268,16 +28398,17 @@ mod tests {
 
     #[test]
     fn to_watast_eval_ast_round_trip_for_form() {
-        // A wat form built via `from-watast` round-trips through
-        // `to-watast` → `eval-ast!` to its terminal value (bare,
+        // A wat form built via `from-wat` round-trips through
+        // `to-wat` → `eval-ast!` to its terminal value (bare,
         // post-arc-102). The arc-057 round-trip claim, now with
         // T = :i64 since arc 102 makes eval-ast! polymorphic.
+        // Arc 225 Stone 225.1: from-watast → from-wat, to-watast → to-wat.
         let src = r#"
             (:wat::core::let
               [form
-                (:wat::holon::from-watast
+                (:wat::holon::from-wat
                   (:wat::core::quote (:wat::core::i64::+'2 40 2)))
-               ast (:wat::holon::to-watast form)]
+               ast (:wat::holon::to-wat form)]
               (:wat::core::match (:wat::eval-ast! ast) -> :i64
                 ((:wat::core::Ok n) n)
                 ((:wat::core::Err _) -1)))
@@ -28297,7 +28428,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [v
-                (:wat::holon::encode (:wat::holon::Atom "alias-test"))
+                (:wat::holon::encode (:wat::holon::to-holon "alias-test"))
                ;; Annotate with the alias on one binding...
                bs1
                 (:wat::holon::vector-bytes v)

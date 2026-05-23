@@ -108,8 +108,8 @@ fn walk_visitor_signature_matches_at_use_site() {
             (:wat::eval::walk
               (:wat::core::quote
                 (:wat::holon::Bind
-                  (:wat::holon::Atom "k")
-                  (:wat::holon::Atom "v")))
+                  (:wat::holon::to-holon "k")
+                  (:wat::holon::to-holon "v")))
               0
               :my::test::count-visit) -> :wat::core::i64
             ((:wat::core::Ok pair)

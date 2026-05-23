@@ -37,4 +37,4 @@
            head
            (:wat::core::fn [acc <- :wat::holon::HolonAST x <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
              (:wat::holon::Bind acc x))))
-       (:wat::core::None (:wat::holon::Atom "Sequential-empty-input")))))
+       (:wat::core::None (:wat::holon::to-holon "Sequential-empty-input")))))

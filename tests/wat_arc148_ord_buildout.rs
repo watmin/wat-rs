@@ -510,7 +510,7 @@ fn algebra_vector_le_self() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [v (:wat::holon::encode (:wat::holon::Atom "x"))]
+            [v (:wat::holon::encode (:wat::holon::to-holon "x"))]
             (:wat::core::<= v v)))
     "#;
     assert!(run_bool(src));
@@ -521,7 +521,7 @@ fn algebra_vector_ge_self() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [v (:wat::holon::encode (:wat::holon::Atom "x"))]
+            [v (:wat::holon::encode (:wat::holon::to-holon "x"))]
             (:wat::core::>= v v)))
     "#;
     assert!(run_bool(src));
@@ -533,7 +533,7 @@ fn algebra_vector_lt_self_is_false() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [v (:wat::holon::encode (:wat::holon::Atom "x"))]
+            [v (:wat::holon::encode (:wat::holon::to-holon "x"))]
             (:wat::core::< v v)))
     "#;
     assert!(!run_bool(src));
@@ -548,8 +548,8 @@ fn algebra_vector_distinct_atoms_have_some_order() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::Atom "alpha"))
-             vb (:wat::holon::encode (:wat::holon::Atom "omega"))]
+            [va (:wat::holon::encode (:wat::holon::to-holon "alpha"))
+             vb (:wat::holon::encode (:wat::holon::to-holon "omega"))]
             (:wat::core::or (:wat::core::< va vb) (:wat::core::> va vb))))
     "#;
     assert!(run_bool(src));
@@ -657,8 +657,8 @@ fn holon_ast_ord_raises_type_mismatch() {
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::<
-            (:wat::holon::Atom "x")
-            (:wat::holon::Atom "y")))
+            (:wat::holon::to-holon "x")
+            (:wat::holon::to-holon "y")))
     "#;
     let err = run_expecting_runtime_error(src);
     assert!(

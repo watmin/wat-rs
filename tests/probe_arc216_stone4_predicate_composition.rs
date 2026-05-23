@@ -62,7 +62,7 @@ fn startup_err(src: &str) -> String {
 
 // ─── Probe 1 — Composite HashMap-of-Vector ────────────────────────────────────
 
-/// `(:wat::holon::Atom (HashMap keyword (Vector i64)))` — HashMap<keyword, Vector<i64>>
+/// `(:wat::holon::to-holon (HashMap keyword (Vector i64)))` — HashMap<keyword, Vector<i64>>
 /// type-checks and runs.
 ///
 /// Predicate recursion path:
@@ -83,20 +83,20 @@ fn probe_1_composite_hashmap_of_vector() {
             [inner1  (:wat::core::Vector :wat::core::i64 10 20 30)
              inner2  (:wat::core::Vector :wat::core::i64 40 50)
              m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :a inner1 :b inner2)
-             h       (:wat::holon::Atom m)
+             h       (:wat::holon::to-holon m)
              cs      (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
     assert_eq!(
         run_i64(src),
         2,
-        "Atom on HashMap<keyword, Vector<i64>> must produce Bundle with 2 children"
+        "to-holon on HashMap<keyword, Vector<i64>> must produce Bundle with 2 children"
     );
 }
 
 // ─── Probe 2 — Composite Vector-of-HashSet ────────────────────────────────────
 
-/// `(:wat::holon::Atom (Vector (HashSet i64)))` — Vector<HashSet<i64>>
+/// `(:wat::holon::to-holon (Vector (HashSet i64)))` — Vector<HashSet<i64>>
 /// type-checks and runs.
 ///
 /// Predicate recursion path:
@@ -117,14 +117,14 @@ fn probe_2_composite_vector_of_hashset() {
             [set1    (:wat::core::HashSet :wat::core::i64 1 2 3)
              set2    (:wat::core::HashSet :wat::core::i64 4 5)
              outer   (:wat::core::Vector :wat::type::Infer set1 set2)
-             h       (:wat::holon::Atom outer)
+             h       (:wat::holon::to-holon outer)
              cs      (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
     assert_eq!(
         run_i64(src),
         2,
-        "Atom on Vector<HashSet<i64>> must produce Bundle with 2 children"
+        "to-holon on Vector<HashSet<i64>> must produce Bundle with 2 children"
     );
 }
 
@@ -160,20 +160,20 @@ fn probe_3_composite_hashset_of_vector() {
             [v1     (:wat::core::Vector :wat::core::i64 1 2)
              v2     (:wat::core::Vector :wat::core::i64 3 4)
              outer  (:wat::core::HashSet :wat::type::Infer v1 v2)
-             h      (:wat::holon::Atom outer)
+             h      (:wat::holon::to-holon outer)
              cs     (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
     assert_eq!(
         run_i64(src),
         2,
-        "Atom on HashSet<Vector<i64>> must produce Bundle with 2 children"
+        "to-holon on HashSet<Vector<i64>> must produce Bundle with 2 children"
     );
 }
 
 // ─── Probe 4 — Triple-nested: HashMap<keyword, Vector<HashSet<i64>>> ─────────
 
-/// `(:wat::holon::Atom (HashMap keyword (Vector (HashSet i64))))` — all three
+/// `(:wat::holon::to-holon (HashMap keyword (Vector (HashSet i64))))` — all three
 /// collections nested; type-checks and runs.
 ///
 /// Predicate recursion path:
@@ -196,21 +196,21 @@ fn probe_4_triple_nested_hashmap_vector_hashset() {
              set2    (:wat::core::HashSet :wat::core::i64 3)
              vec     (:wat::core::Vector :wat::type::Infer set1 set2)
              m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data vec)
-             h       (:wat::holon::Atom m)
+             h       (:wat::holon::to-holon m)
              cs      (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
     assert_eq!(
         run_i64(src),
         1,
-        "Atom on HashMap<keyword, Vector<HashSet<i64>>> must produce Bundle with 1 child"
+        "to-holon on HashMap<keyword, Vector<HashSet<i64>>> must produce Bundle with 1 child"
     );
 }
 
 // ─── Probe 5 — Negative: non-atomizable element in Vector ─────────────────────
 
-/// `(:wat::holon::Atom vec-of-fns)` — Vector<Fn(...)> fails at check with
-/// TypeMismatch naming `:wat::holon::Atom` and the non-atomizable position.
+/// `(:wat::holon::to-holon vec-of-fns)` — Vector<Fn(...)> fails at check with
+/// TypeMismatch naming `:wat::holon::to-holon` and the non-atomizable position.
 ///
 /// Predicate:
 ///   is_atomizable(Vector<Fn([i64])->i64>)
@@ -224,7 +224,7 @@ fn probe_4_triple_nested_hashmap_vector_hashset() {
 /// the element type to be inferred from the provided elements).
 ///
 /// This probe therefore uses a direct function value (not Vector-of-Fn)
-/// as the non-atomizable argument to `:wat::holon::Atom`, which fires the
+/// as the non-atomizable argument to `:wat::holon::to-holon`, which fires the
 /// predicate in the same check arm. The predicate is per-argument-type:
 /// any T where is_atomizable(T) = false triggers TypeMismatch.
 ///
@@ -232,22 +232,22 @@ fn probe_4_triple_nested_hashmap_vector_hashset() {
 #[test]
 fn probe_5_negative_non_atomizable_element() {
     // A function value (Fn([i64])->i64) — TypeExpr::Fn — is not atomizable.
-    // Check must reject with TypeMismatch naming :wat::holon::Atom.
+    // Check must reject with TypeMismatch naming :wat::holon::to-holon.
     let src = r#"
         (:wat::core::define (:user::compute -> :wat::core::nil)
           (:wat::core::let
             [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
-            (:wat::holon::Atom f)))
+            (:wat::holon::to-holon f)))
     "#;
     let err = startup_err(src);
     assert!(
         err.contains("TypeMismatch"),
-        "Atom on non-atomizable type must fail with TypeMismatch; got: {}",
+        "to-holon on non-atomizable type must fail with TypeMismatch; got: {}",
         err
     );
     assert!(
-        err.contains(":wat::holon::Atom"),
-        "TypeMismatch must name the callee :wat::holon::Atom; got: {}",
+        err.contains(":wat::holon::to-holon"),
+        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
         err
     );
 }
@@ -265,19 +265,19 @@ fn probe_5_negative_non_atomizable_element() {
 /// literal containing a function element gives the whole vector a Fn-containing
 /// type, which `is_atomizable` rejects.
 ///
-/// Predicate path: the Atom argument's inferred type includes Fn → is_atomizable
+/// Predicate path: the to-holon argument's inferred type includes Fn → is_atomizable
 /// returns false → TypeMismatch at check.
 ///
 /// Delta (honest): `HashMap<Fn(...), i64>` is impossible at WAT surface; this probe
 /// substitutes the nearest available non-atomizable form. The predicate check arm
-/// (`infer_list` `:wat::holon::Atom`) fires identically regardless of whether the
+/// (`infer_list` `:wat::holon::to-holon`) fires identically regardless of whether the
 /// non-atomizable type arrives as a primitive argument, a K, a V, or an element.
 ///
 /// Arc 216 Stone 4 Probe 6.
 #[test]
 fn probe_6_negative_non_atomizable_nested_fn() {
-    // A function applied directly to Atom. Atom receives a Fn([i64])->i64 value.
-    // is_atomizable(Fn{...}) = false → TypeMismatch naming :wat::holon::Atom.
+    // A function applied directly to to-holon. to-holon receives a Fn([i64])->i64 value.
+    // is_atomizable(Fn{...}) = false → TypeMismatch naming :wat::holon::to-holon.
     // This is the second non-atomizable negative, distinct from Probe 5 in naming
     // (same predicate arm; proves the arm fires for any non-atomizable T, not
     // just the first test case).
@@ -286,17 +286,17 @@ fn probe_6_negative_non_atomizable_nested_fn() {
           (:wat::core::let
             [g (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
                   (:wat::core::add n 1))]
-            (:wat::holon::Atom g)))
+            (:wat::holon::to-holon g)))
     "#;
     let err = startup_err(src);
     assert!(
         err.contains("TypeMismatch"),
-        "Atom on Fn type (non-atomizable K analog) must fail with TypeMismatch; got: {}",
+        "to-holon on Fn type (non-atomizable K analog) must fail with TypeMismatch; got: {}",
         err
     );
     assert!(
-        err.contains(":wat::holon::Atom"),
-        "TypeMismatch must name the callee :wat::holon::Atom; got: {}",
+        err.contains(":wat::holon::to-holon"),
+        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
         err
     );
 }

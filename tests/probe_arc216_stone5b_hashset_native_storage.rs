@@ -14,7 +14,7 @@
 //! 5. `HashSet/conj` returns new HashSet with element; dedupe preserved
 //! 6. `HashSet/dissoc` — not yet a verb; probe documents expected error
 //! 7. Nested HashSet — `HashSet<HashSet<i64>>` construction + element lookup
-//! 8. HashSet round-trip through `:wat::holon::Atom` + `atom-value` (Stone 216.1 contract)
+//! 8. HashSet round-trip through `:wat::holon::to-holon` + `from-holon` (Stone 216.1 contract)
 //! 9. HashSet inside HashMap as VALUE — `HashMap<keyword, HashSet<i64>>`
 //! 10. HashSet inside HashMap as KEY — `HashMap<HashSet<i64>, String>`
 
@@ -284,18 +284,18 @@ fn probe_7_nested_hashset() {
     assert_eq!(n2, 1, "duplicate inner HashSet deduped");
 }
 
-// ─── Probe 8 — HashSet round-trip through Atom + atom-value ──────────────────
+// ─── Probe 8 — HashSet round-trip through to-holon + from-holon ──────────────────
 
 #[test]
 fn probe_8_atom_round_trip() {
-    // Stone 216.1 contract preserved: HashSet → Atom (Bundle of bare atoms) → atom-value.
+    // Stone 216.1 contract preserved: HashSet → to-holon (Bundle of bare atoms) → from-holon.
     // Stone 216.5b: value_to_atom iterates s.iter() (Values directly, not String keys).
     let n = run_i64(r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [s     (:wat::core::HashSet :wat::core::i64 10 20 30)
-             atom  (:wat::holon::Atom s)
-             back  (:wat::core::atom-value atom)]
+             atom  (:wat::holon::to-holon s)
+             back  (:wat::holon::from-holon atom)]
             (:wat::core::HashSet/length back)))
     "#);
     assert_eq!(n, 3, "round-trip preserves length");
@@ -305,8 +305,8 @@ fn probe_8_atom_round_trip() {
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [s     (:wat::core::HashSet :wat::core::i64 10 20 30)
-             atom  (:wat::holon::Atom s)
-             back  (:wat::core::atom-value atom)]
+             atom  (:wat::holon::to-holon s)
+             back  (:wat::holon::from-holon atom)]
             (:wat::core::contains? back 20)))
     "#), "round-trip preserves membership");
 }

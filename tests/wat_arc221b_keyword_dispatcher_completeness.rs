@@ -5,7 +5,7 @@
 //!
 //! Sites covered:
 //!   1. `watast_to_holon` Keyword arm (runtime.rs:13959) — `WatAST::Keyword →
-//!      HolonAST::Keyword`; tested via `:wat::holon::from-watast` on a quoted keyword.
+//!      HolonAST::Keyword`; tested via `:wat::holon::from-wat` on a quoted keyword.
 //!   2. Value→HolonAST second dispatcher (runtime.rs:14018) — keyword Value lowers
 //!      via the direct-primitive dispatcher (tested indirectly via `signature-of-defn`;
 //!      that path exercises the 14018 dispatcher through `holon_to_watast` round-trip).
@@ -79,7 +79,7 @@ fn run(src: &str) -> Vec<String> {
 
 // ─── Probe 1 — `watast_to_holon` Keyword arm (runtime.rs:13959) ─────────────
 
-/// `(:wat::holon::from-watast (:wat::core::quote :foo))` calls `watast_to_holon`
+/// `(:wat::holon::from-wat (:wat::core::quote :foo))` calls `watast_to_holon`
 /// on a `WatAST::Keyword(":foo")`. Stone 221.4b maps it to `HolonAST::Keyword("foo")`
 /// (no leading colon). EDN write emits `#wat-edn.holon/Keyword "foo"` — NOT
 /// `#wat-edn.holon/Symbol ":foo"` (the retired pre-arc-221 convention).
@@ -89,7 +89,7 @@ fn probe_1_watast_to_holon_keyword_arm_produces_keyword_leaf() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [h   (:wat::holon::from-watast (:wat::core::quote :foo))
+            [h   (:wat::holon::from-wat (:wat::core::quote :foo))
              edn (:wat::edn::write h)]
             (:wat::kernel::println edn)))
     "##;
@@ -155,10 +155,10 @@ fn probe_2_holon_leaf_keyword_produces_keyword_leaf() {
 /// We cannot directly inspect the inner HolonAST variant via `show` (it renders as
 /// `<HolonAST>`). Instead we verify:
 /// (a) the step result is AlreadyTerminal (keyword recognized as value-shape), AND
-/// (b) `from-watast(quote :outcome)` equals `from-watast(quote :outcome)` — both
+/// (b) `from-wat(quote :outcome)` equals `from-wat(quote :outcome)` — both
 ///     must produce the same `HolonAST::Keyword("outcome")` identity.
 ///
-/// The structural match confirms the `eval-step!` keyword path and the `from-watast`
+/// The structural match confirms the `eval-step!` keyword path and the `from-wat`
 /// keyword path produce compatible outputs (both Stone 221.4b fixes together).
 #[test]
 fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
@@ -184,14 +184,14 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
         line_a
     );
 
-    // Part B: from-watast(quote :outcome) and from-watast(quote :outcome) are equal
+    // Part B: from-wat(quote :outcome) and from-wat(quote :outcome) are equal
     // (same Keyword identity — both go through Stone 221.4b watast_to_holon).
     let src_b = r##"
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [h1  (:wat::holon::from-watast (:wat::core::quote :outcome))
-             h2  (:wat::holon::from-watast (:wat::core::quote :outcome))
+            [h1  (:wat::holon::from-wat (:wat::core::quote :outcome))
+             h2  (:wat::holon::from-wat (:wat::core::quote :outcome))
              eq  (:wat::core::= h1 h2)]
             (:wat::kernel::println (:wat::edn::write eq))))
     "##;
@@ -287,7 +287,7 @@ fn probe_5_holon_leaf_unit_produces_nil_leaf() {
 // ─── Probe 6 — `watast_to_holon` Keyword round-trip distinctness ─────────────
 
 /// Two distinct keywords lower to distinct `HolonAST::Keyword` leaves.
-/// `from-watast(quote :foo)` ≠ `from-watast(quote :bar)`.
+/// `from-wat(quote :foo)` ≠ `from-wat(quote :bar)`.
 /// This guards against collapsing all keywords to the same encoding.
 #[test]
 fn probe_6_watast_to_holon_keyword_distinct_identities() {
@@ -295,8 +295,8 @@ fn probe_6_watast_to_holon_keyword_distinct_identities() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [h1  (:wat::holon::from-watast (:wat::core::quote :foo))
-             h2  (:wat::holon::from-watast (:wat::core::quote :bar))
+            [h1  (:wat::holon::from-wat (:wat::core::quote :foo))
+             h2  (:wat::holon::from-wat (:wat::core::quote :bar))
              eq  (:wat::core::= h1 h2)]
             (:wat::kernel::println (:wat::edn::write (:wat::core::not eq)))))
     "##;

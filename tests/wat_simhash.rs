@@ -68,8 +68,8 @@ fn simhash_deterministic_same_ast() {
           (:wat::core::let
             [a
               (:wat::holon::Bind
-                (:wat::holon::Atom "role")
-                (:wat::holon::Atom "filler"))
+                (:wat::holon::to-holon "role")
+                (:wat::holon::to-holon "filler"))
              k1 (:wat::holon::simhash a)
              k2 (:wat::holon::simhash a)]
             (:wat::kernel::println
@@ -86,8 +86,8 @@ fn simhash_atom_zero_stable() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [k1 (:wat::holon::simhash (:wat::holon::Atom 0))
-             k2 (:wat::holon::simhash (:wat::holon::Atom 0))]
+            [k1 (:wat::holon::simhash (:wat::holon::to-holon 0))
+             k2 (:wat::holon::simhash (:wat::holon::to-holon 0))]
             (:wat::kernel::println
               (:wat::core::if (:wat::core::= k1 k2) -> :wat::core::String "yes" "no"))))
     "##;
@@ -107,12 +107,12 @@ fn simhash_same_shape_zero_hamming() {
           (:wat::core::let
             [a
               (:wat::holon::Bind
-                (:wat::holon::Atom "role")
-                (:wat::holon::Atom "filler"))
+                (:wat::holon::to-holon "role")
+                (:wat::holon::to-holon "filler"))
              b
               (:wat::holon::Bind
-                (:wat::holon::Atom "role")
-                (:wat::holon::Atom "filler"))
+                (:wat::holon::to-holon "role")
+                (:wat::holon::to-holon "filler"))
              k1 (:wat::holon::simhash a)
              k2 (:wat::holon::simhash b)]
             (:wat::kernel::println
@@ -134,8 +134,8 @@ fn simhash_distinct_atoms_distinct_keys() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [alpha (:wat::holon::Atom "alpha")
-             beta (:wat::holon::Atom "beta")
+            [alpha (:wat::holon::to-holon "alpha")
+             beta (:wat::holon::to-holon "beta")
              k-a (:wat::holon::simhash alpha)
              k-b (:wat::holon::simhash beta)]
             (:wat::kernel::println
@@ -152,7 +152,7 @@ fn simhash_result_works_in_arithmetic() {
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let
-            [k (:wat::holon::simhash (:wat::holon::Atom "x"))
+            [k (:wat::holon::simhash (:wat::holon::to-holon "x"))
              doubled (:wat::core::+ k k)]
             ;; Just checking the type-checker accepts arithmetic on
             ;; the result. Print "ok" if we got here.

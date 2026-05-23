@@ -12,10 +12,10 @@
 //! ## The 14 probes
 //!
 //! Forward direction:
-//!  1. `(:wat::holon::Atom {:foo 42 :bar 99})` → `HolonAST::Bundle` of 2 Bind children
+//!  1. `(:wat::holon::to-holon{:foo 42 :bar 99})` → `HolonAST::Bundle` of 2 Bind children
 //!
 //! Reverse direction:
-//!  2. `(:wat::core::atom-value <bundle>)` → HashMap; length = 2; :foo key present
+//!  2. `(:wat::holon::from-holon<bundle>)` → HashMap; length = 2; :foo key present
 //!
 //! Edge cases:
 //!  3. Empty map `{}` + consumer declares HashMap → empty HashMap (via `-> :T` form)
@@ -39,8 +39,8 @@
 //!  9. HashMap<keyword, HashSet<i64>> round-trips (composes with Stone 216.1)
 //!
 //! Check-level atomizable predicate:
-//! 10. `(:wat::holon::Atom m)` for atomizable K+V type-checks cleanly
-//! 11. `(:wat::holon::Atom fn-value)` — non-atomizable type fails at check (TypeMismatch)
+//! 10. `(:wat::holon::to-holon m)` for atomizable K+V type-checks cleanly
+//! 11. `(:wat::holon::to-holon fn-value)` — non-atomizable type fails at check (TypeMismatch)
 //!
 //! HolonRepresentable Rust-side:
 //! 12. `HashMap<String, String>` satisfies `HolonRepresentable` at compile time; roundtrip correct
@@ -101,7 +101,7 @@ fn startup_err(src: &str) -> String {
 
 // ─── Probe 1 — Forward: HashMap → HolonAST::Bundle of Bind children ──────────
 
-/// `(:wat::holon::Atom {:foo 42 :bar 99})` produces a `HolonAST::Bundle`
+/// `(:wat::holon::to-holon{:foo 42 :bar 99})` produces a `HolonAST::Bundle`
 /// containing two Bind children (one per key-value pair: Bind(Symbol(:foo), I64(42))
 /// and Bind(Symbol(:bar), I64(99))).
 /// Bundle child count equals the HashMap's entry count.
@@ -112,7 +112,7 @@ fn probe_1_forward_hashmap_to_bundle() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   {:foo 42 :bar 99}
-             h   (:wat::holon::Atom m)
+             h   (:wat::holon::to-holon m)
              cs  (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -125,7 +125,7 @@ fn probe_1_forward_hashmap_to_bundle() {
 
 // ─── Probe 2 — Reverse: Bundle → HashMap round-trip ──────────────────────────
 
-/// `(:wat::core::atom-value <bundle>)` on a keyword-keyed map Bundle reconstructs
+/// `(:wat::holon::from-holon<bundle>)` on a keyword-keyed map Bundle reconstructs
 /// a `HashMap`. Length = 2; contains-key? :foo returns true.
 /// Arc 216 Stone 3 reverse direction (eval_atom_value all-Bind → HashMap).
 #[test]
@@ -135,8 +135,8 @@ fn probe_2_reverse_bundle_to_hashmap_roundtrip() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   {:foo 42 :bar 99}
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_len), 2, "round-trip must preserve length 2");
@@ -146,8 +146,8 @@ fn probe_2_reverse_bundle_to_hashmap_roundtrip() {
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [m   {:foo 42 :bar 99}
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/contains-key? rv :foo)))
     "#;
     assert!(
@@ -160,8 +160,8 @@ fn probe_2_reverse_bundle_to_hashmap_roundtrip() {
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [m   {:foo 42 :bar 99}
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/contains-key? rv :bar)))
     "#;
     assert!(
@@ -184,7 +184,7 @@ fn probe_3_empty_map_roundtrip_consumer_declared() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             h   (:wat::holon::Atom m)
+             h   (:wat::holon::to-holon m)
              cs  (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -200,8 +200,8 @@ fn probe_3_empty_map_roundtrip_consumer_declared() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h -> :wat::core::HashMap)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h -> :wat::core::HashMap)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
@@ -222,8 +222,8 @@ fn probe_4_multi_k_types() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :a 1 :b 2)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_keyword), 2, "HashMap<keyword,i64> round-trip: length 2");
@@ -233,8 +233,8 @@ fn probe_4_multi_k_types() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::String :wat::core::i64 "x" 10 "y" 20)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_string), 2, "HashMap<String,i64> round-trip: length 2");
@@ -244,8 +244,8 @@ fn probe_4_multi_k_types() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_i64), 2, "HashMap<i64,String> round-trip: length 2");
@@ -255,8 +255,8 @@ fn probe_4_multi_k_types() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::bool :wat::core::i64 true 1 false 0)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_bool), 2, "HashMap<bool,i64> round-trip: length 2");
@@ -273,8 +273,8 @@ fn probe_5_multi_v_types() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   {:foo 42}
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_i64), 1, "HashMap<keyword,i64> V=i64 round-trip: length 1");
@@ -284,8 +284,8 @@ fn probe_5_multi_v_types() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::String :name "alice" :city "paris")
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_string), 2, "HashMap<keyword,String> V=String round-trip: length 2");
@@ -295,8 +295,8 @@ fn probe_5_multi_v_types() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::bool :active true :disabled false)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_bool), 2, "HashMap<keyword,bool> V=bool round-trip: length 2");
@@ -306,8 +306,8 @@ fn probe_5_multi_v_types() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::keyword :role :admin :mode :active)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_kw), 2, "HashMap<keyword,keyword> V=keyword round-trip: length 2");
@@ -325,8 +325,8 @@ fn probe_6_non_keyword_keys_i64_string() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_len), 2, "HashMap<i64,String> round-trip: length 2");
@@ -336,8 +336,8 @@ fn probe_6_non_keyword_keys_i64_string() {
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/contains-key? rv 100)))
     "#;
     assert!(
@@ -360,8 +360,8 @@ fn probe_7_nested_map_roundtrip() {
           (:wat::core::let
             [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1 :y 2)
              outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
-             h     (:wat::holon::Atom outer)
-             rv    (:wat::core::atom-value h)]
+             h     (:wat::holon::to-holon outer)
+             rv    (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_outer_len), 1, "nested map outer length = 1");
@@ -372,7 +372,7 @@ fn probe_7_nested_map_roundtrip() {
           (:wat::core::let
             [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1 :y 2)
              outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
-             h     (:wat::holon::Atom outer)
+             h     (:wat::holon::to-holon outer)
              cs    (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -396,8 +396,8 @@ fn probe_8_mixed_nesting_hashmap_of_vec() {
           (:wat::core::let
             [v   (:wat::core::Vector :wat::core::i64 10 20 30)
              m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data v)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
@@ -412,7 +412,7 @@ fn probe_8_mixed_nesting_hashmap_of_vec() {
           (:wat::core::let
             [v   (:wat::core::Vector :wat::core::i64 10 20 30)
              m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data v)
-             h   (:wat::holon::Atom m)
+             h   (:wat::holon::to-holon m)
              cs  (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -436,8 +436,8 @@ fn probe_9_mixed_nesting_hashmap_of_hashset() {
           (:wat::core::let
             [s   (:wat::core::HashSet :wat::core::i64 1 2 3)
              m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data s)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
@@ -452,7 +452,7 @@ fn probe_9_mixed_nesting_hashmap_of_hashset() {
           (:wat::core::let
             [s   (:wat::core::HashSet :wat::core::i64 1 2 3)
              m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data s)
-             h   (:wat::holon::Atom m)
+             h   (:wat::holon::to-holon m)
              cs  (:wat::holon::Bundle/children h)]
             (:wat::core::length cs)))
     "#;
@@ -465,7 +465,7 @@ fn probe_9_mixed_nesting_hashmap_of_hashset() {
 
 // ─── Probe 10 — Check passes for atomizable K+V types ───────────────────────
 
-/// `(:wat::holon::Atom m)` for a HashMap with atomizable K and V type-checks cleanly.
+/// `(:wat::holon::to-holon m)` for a HashMap with atomizable K and V type-checks cleanly.
 /// `is_atomizable(HashMap<keyword, i64>)` → YES (both K and V are primitive atomizable).
 /// `is_atomizable(HashMap<keyword, HashMap<keyword, i64>>)` → YES (recursive predicate).
 #[test]
@@ -474,7 +474,7 @@ fn probe_10_check_passes_atomizable_k_v() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :a 1)]
-            (:wat::holon::Atom m)
+            (:wat::holon::to-holon m)
             1))
     "#;
     assert_eq!(
@@ -489,7 +489,7 @@ fn probe_10_check_passes_atomizable_k_v() {
           (:wat::core::let
             [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1)
              outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
-             h     (:wat::holon::Atom outer)]
+             h     (:wat::holon::to-holon outer)]
             1))
     "#;
     assert_eq!(
@@ -501,7 +501,7 @@ fn probe_10_check_passes_atomizable_k_v() {
 
 // ─── Probe 11 — Check fails for non-atomizable type ──────────────────────────
 
-/// `(:wat::holon::Atom fn-value)` where the value is a function type fails at check.
+/// `(:wat::holon::to-holon fn-value)` where the value is a function type fails at check.
 /// Function types are not in the atomizable set (DESIGN Q6).
 /// The predicate `is_atomizable(Fn(...)->...)` = false; check emits TypeMismatch.
 ///
@@ -514,7 +514,7 @@ fn probe_11_check_fails_non_atomizable() {
         (:wat::core::define (:user::compute -> :wat::core::nil)
           (:wat::core::let
             [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
-            (:wat::holon::Atom f)))
+            (:wat::holon::to-holon f)))
     "#;
     let err = startup_err(src);
     assert!(
@@ -522,9 +522,10 @@ fn probe_11_check_fails_non_atomizable() {
         "Atom on non-atomizable type must fail with TypeMismatch; got: {}",
         err
     );
+    // Arc 225 Stone 225.1: callee is now :wat::holon::to-holon (polymorphic UP verb).
     assert!(
-        err.contains(":wat::holon::Atom"),
-        "TypeMismatch must name the callee :wat::holon::Atom; got: {}",
+        err.contains(":wat::holon::to-holon"),
+        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
         err
     );
 }
@@ -667,8 +668,8 @@ fn probe_13_shape_disambiguation_non_sequential_i64() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 0 "a" 5 "b")
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
@@ -693,8 +694,8 @@ fn probe_14_empty_bundle_disambiguation_consumer_declares_hashmap() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h)]
             (:wat::core::HashSet/length rv)))
     "#;
     assert_eq!(
@@ -708,8 +709,8 @@ fn probe_14_empty_bundle_disambiguation_consumer_declares_hashmap() {
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let
             [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             h   (:wat::holon::Atom m)
-             rv  (:wat::core::atom-value h -> :wat::core::HashMap)]
+             h   (:wat::holon::to-holon m)
+             rv  (:wat::holon::from-holon h -> :wat::core::HashMap)]
             (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
