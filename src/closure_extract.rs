@@ -1728,6 +1728,11 @@ fn encode_value_with_path(
             "encoding for captured Value of kind {} not implemented in slice 1",
             v.type_name()
         ))),
+        // Arc 233 Stone 233.2.a — Tracked transparency: delegate to inner.
+        // Provenance is local-context metadata; not part of the closure encoding.
+        Value::Tracked { inner, .. } => {
+            encode_value_with_path(inner, binding_name, path, state)
+        }
     }
 }
 

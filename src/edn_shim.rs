@@ -1674,6 +1674,9 @@ pub fn value_to_edn_with(
         // Arc 220 — typed Char → EDN character literal.
         // `char` is `Copy`; `OwnedValue::Char` already exists in wat-edn.
         Value::wat__core__Char(c) => OwnedValue::Char(*c),
+        // Arc 233 Stone 233.2.a — Tracked transparency: delegate to inner.
+        // Provenance is local-context metadata; not part of the EDN wire format.
+        Value::Tracked { inner, .. } => value_to_edn_with(inner, types),
     }
 }
 

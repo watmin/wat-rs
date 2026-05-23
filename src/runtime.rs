@@ -632,6 +632,19 @@ pub enum Value {
     /// conj = PREPEND (Clojure semantic; distinct from Vector conj = APPEND).
     /// Constructed via `(:wat::core::List/of ...)` or `'(...)` literal.
     wat__core__List(std::sync::Arc<std::collections::LinkedList<Value>>),
+    /// Arc 233 Stone 233.2.a — transparent provenance wrapper.
+    ///
+    /// Carries an inner `Value` plus a `Provenance` record describing WHERE the
+    /// value came from. Transparent for all behavioral contracts:
+    /// `Eq`/`Hash`/`PartialEq`/`Display`/`Debug` all unwrap to the inner value.
+    ///
+    /// Opt-in: producers that care wrap their return value in `Value::Tracked`;
+    /// producers that don't emit bare values. No behavioral change to existing
+    /// code — `Value::inner()` + `Value::provenance()` are the access points.
+    Tracked {
+        inner: Box<Value>,
+        provenance: Provenance,
+    },
 }
 
 /// Arc 220 Stone 220.4 — shared sequence equality helper.
@@ -705,7 +718,9 @@ where
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         use std::sync::Arc;
-        match (self, other) {
+        // Arc 233 Stone 233.2.a — Tracked transparency: always compare inner values.
+        // inner() recurses through Tracked-of-Tracked, so the match never sees Tracked.
+        match (self.inner(), other.inner()) {
             // --- Atomizable primitives ---
             (Value::bool(a), Value::bool(b)) => a == b,
             (Value::i64(a), Value::i64(b)) => a == b,
@@ -821,18 +836,22 @@ impl Eq for Value {}
 /// correct.
 impl std::hash::Hash for Value {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Arc 233 Stone 233.2.a — Tracked transparency (Trap 1 discipline).
+        // Unwrap Tracked BEFORE discriminant tagging. inner() recurses through
+        // Tracked-of-Tracked. The match below never sees a Tracked variant.
+        let unwrapped = self.inner();
         // Arc 220 Stone 220.4 — sequence types (Vec + List) skip the
         // global discriminant and use hash_sequence (shared SEQ_TAG + element
         // iteration) so that `List(1,2,3)` and `Vector(1,2,3)` hash equal per
         // EDN spec §282-289 (cross-type sequence equality). Early-return before
         // the discriminant fires for these two variants only.
-        match self {
+        match unwrapped {
             Value::Vec(xs) => return hash_sequence(xs.iter(), state),
             Value::wat__core__List(xs) => return hash_sequence(xs.iter(), state),
             _ => {}
         }
-        std::mem::discriminant(self).hash(state);
-        match self {
+        std::mem::discriminant(unwrapped).hash(state);
+        match unwrapped {
             // --- Atomizable primitives ---
             Value::bool(b) => b.hash(state),
             Value::i64(n) => n.hash(state),
@@ -987,6 +1006,12 @@ impl std::hash::Hash for Value {
                  src/check.rs:3623 should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
+            // Arc 233 Stone 233.2.a — inner() guarantees this arm is never reached at
+            // runtime (inner() recurses through Tracked). Required for exhaustiveness.
+            Value::Tracked { .. } => unreachable!(
+                "Value::Tracked reached Hash match via unwrapped path — \
+                 inner() invariant violated: inner() must never return Tracked."
+            ),
         }
     }
 }
@@ -1130,6 +1155,31 @@ impl Value {
             Value::wat__core__Char(_) => "wat::core::Char",
             // Arc 220 Stone 220.4
             Value::wat__core__List(_) => "wat::core::List",
+            // Arc 233 Stone 233.2.a — Tracked is transparent; delegate to inner.
+            Value::Tracked { inner, .. } => inner.type_name(),
+        }
+    }
+
+    /// Arc 233 Stone 233.2.a — return `&Value` with `Tracked` unwrapped recursively.
+    ///
+    /// If `self` is `Tracked`, returns `inner.inner()` (handles Tracked-of-Tracked).
+    /// Otherwise returns `self`. Never returns a `Value::Tracked`.
+    pub fn inner(&self) -> &Value {
+        match self {
+            Value::Tracked { inner, .. } => inner.inner(),
+            other => other,
+        }
+    }
+
+    /// Arc 233 Stone 233.2.a — return the `Provenance` attached to this Value.
+    ///
+    /// If `self` is `Tracked`, returns the wrapper's provenance (outermost only;
+    /// does not recurse into nested `Tracked` wrappers). Otherwise returns
+    /// `Provenance::Unknown`.
+    pub fn provenance(&self) -> Provenance {
+        match self {
+            Value::Tracked { provenance, .. } => provenance.clone(),
+            _ => Provenance::Unknown,
         }
     }
 }
@@ -1625,14 +1675,25 @@ impl SymbolTable {
 
 /// Provenance of a Value — where it came from.
 ///
-/// Stone 233.1 ships only `Unknown`. Stone 233.2 adds variants:
-/// `Literal { span }` — the value appeared as a literal in source
-/// `SymbolBound { binding_site, head_site }` — bound via let; trace via span
-/// `RuntimeBuilt { producer, head_site }` — built by `keyword/from-string`,
+/// Stone 233.1 ships only `Unknown`. Stone 233.2.a adds three variants:
+/// - `Provenance::Literal { span }` — the value appeared as a literal in source.
+/// - `Provenance::SymbolBound { binding_span, head_span }` — bound via let-symbol lookup.
+/// - `Provenance::RuntimeBuilt { producer, call_span }` — built by `keyword/from-string`,
 ///   `from-holon`, mailbox payload, etc.
 #[derive(Debug, Clone)]
 pub enum Provenance {
+    /// Default — no provenance information attached.
     Unknown,
+    /// Value appeared as a literal in source.
+    /// E.g., `:foo` in `(let [k :foo] ...)` has `Literal { span: <:foo's span> }`.
+    Literal { span: Span },
+    /// Value resolved from a Symbol lookup; the binding_span is where the binding
+    /// was defined; head_span is where the symbol appeared in the call.
+    SymbolBound { binding_span: Span, head_span: Span },
+    /// Value was constructed by a producer function at runtime.
+    /// E.g., `(keyword/from-string s)` returns a keyword with
+    /// `RuntimeBuilt { producer: ":wat::core::keyword/from-string", call_span }`.
+    RuntimeBuilt { producer: &'static str, call_span: Span },
 }
 
 /// Snapshot of a value attached to a runtime error for diagnostic richness.
@@ -1652,13 +1713,13 @@ pub struct ValueSnapshot {
 
 impl ValueSnapshot {
     /// Construct from a runtime Value at error-creation time. Uses
-    /// existing `render_value` for the rendered field; `Provenance::Unknown`
-    /// always in v1.
+    /// existing `render_value` for the rendered field. Arc 233 Stone 233.2.a:
+    /// extracts Provenance from Tracked wrapper; bare Values get Unknown.
     pub fn of(v: &Value) -> Self {
         ValueSnapshot {
-            type_name: v.type_name(),
-            rendered: render_value(v, 0),
-            provenance: Provenance::Unknown,
+            type_name: v.inner().type_name(),
+            rendered: render_value(v.inner(), 0),
+            provenance: v.provenance(),
         }
     }
 
@@ -17452,7 +17513,9 @@ fn render_value(v: &Value, depth: usize) -> String {
     if depth > SHOW_MAX_DEPTH {
         return "…".to_string();
     }
-    match v {
+    // Arc 233 Stone 233.2.a — Tracked transparency: unwrap before matching.
+    // inner() recurses through Tracked-of-Tracked. The match below never sees Tracked.
+    match v.inner() {
         // ── Primitive leaves ──────────────────────────────────────
         Value::Unit => "()".to_string(),
         Value::bool(b) => if *b { "true" } else { "false" }.to_string(),
@@ -17624,6 +17687,12 @@ fn render_value(v: &Value, depth: usize) -> String {
             let parts: Vec<String> = xs.iter().map(|v| render_value(v, depth + 1)).collect();
             format!("({})", parts.join(" "))
         }
+        // Arc 233 Stone 233.2.a — inner() guarantees this arm is never reached at
+        // runtime (inner() recurses through Tracked). Required for exhaustiveness.
+        Value::Tracked { .. } => unreachable!(
+            "Value::Tracked reached render_value match via v.inner() path — \
+             inner() invariant violated: inner() must never return Tracked."
+        ),
     }
 }
 
