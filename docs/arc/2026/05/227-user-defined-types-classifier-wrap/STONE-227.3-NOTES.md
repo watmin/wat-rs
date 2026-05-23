@@ -1,6 +1,36 @@
 # Notes for Stone 227.3 — inheritance via classifier-chain + is-a? predicate
 
-**Status:** Future-stone scoping notes. Authored 2026-05-22 night during Stone 227.2 v2 sonnet flight, after user articulated the lineage-as-List intuition + presence? predicate composition.
+> **FORWARD-CORRECTION 2026-05-22 night (later):** This notes doc was doctrine-violating. User caught it: *"why is the :extends limited to a single value? ... is this actually :implements ?"*
+>
+> **Stone 227.3 as designed below is RETIRED.** The typed-entities doctrine explicitly rejects class hierarchies (per `project_typed_entities_doctrine`: *"OO without class hierarchy"*). I introduced `:extends` reflexively from Java muscle memory.
+>
+> **The honest substrate answer for ALL inheritance use cases:**
+> - **Field reuse** → has-a composition: `(defrecord :ns::B [parent <- :ns::A, extra <- :i64])`
+> - **Method reuse** → protocol membership via arc 232 `extend-type` (multi-protocol is natural; set-based not chain-based)
+> - **Polymorphic substitution** → `:wat::holon::satisfies?` predicate (protocol membership check)
+> - **Constructor chaining** → composition (parent record as field; no chaining needed)
+>
+> **What this means in code:**
+>
+> ```
+> ;; NO :extends
+> (defrecord :ns::U8 [value <- :wat::core::i64])
+>
+> ;; U8 implements multiple protocols via separate extend-type calls (arc 232)
+> (extend-type :ns::U8 :wat::core::Number ...)
+> (extend-type :ns::U8 :ns::Serializable ...)
+>
+> ;; "is U8 a Number?" — protocol membership, NOT lineage walk
+> (:wat::holon::satisfies? u8-instance :wat::core::Number)  ; → true
+> ```
+>
+> **The body below is preserved as historical record per `feedback_inscription_immutable`** — the Java-OO reflexive design lives on disk so future-self learns from it. The CORRECT direction lives at `docs/arc/2026/05/232-defprotocol-extend-type/DESIGN.md` (arc 232 stub already claimed).
+>
+> **No replacement Stone 227.3 is planned.** Arc 232 covers protocols; defrecord stays data-only. The is-a? predicate becomes `satisfies?` (membership in extend-type registry) — already sketched in arc 232's DESIGN.
+>
+> ---
+
+**Status (historical — superseded by retirement above):** Future-stone scoping notes. Authored 2026-05-22 night during Stone 227.2 v2 sonnet flight, after user articulated the lineage-as-List intuition + presence? predicate composition.
 
 ## What 227.2 v2 ships (multi-field defrecord with field-list mandate)
 
