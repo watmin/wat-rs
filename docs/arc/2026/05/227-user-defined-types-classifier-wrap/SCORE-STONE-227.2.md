@@ -128,3 +128,17 @@ Per `feedback_no_known_defect_left_unfixed` — "future arc when X surfaces" IS 
 The SCORE body above is unchanged per `feedback_inscription_immutable`. The Deltas remain as honest deltas of the stone; this addendum elevates them from "future consideration" framing to filed-substrate-flaw status with task IDs.
 
 We do not accept flaws.
+
+---
+
+## Addendum 2026-05-23 — Stone 227.2 v3 supersedes (append-only per feedback_inscription_immutable)
+
+Stone 227.2 v3 has been completed. The body above records Stone 227.2 v2 faithfully and is NOT modified.
+
+**Disconfirmation of Tasks #477 and #478 by empirical probes:**
+
+Task #477 claimed `~@(let [...] ...)` splice does not work at macro expand time. DISCONFIRMED. Two diagnostic probes committed at `c18fa6b` + `72367f1` prove:
+- `tests/probe_diagnostic_macro_splice_from_let.rs` probe 2: `~@(let [forms (map xs fn)] forms)` splices `Vec<WatAST>` built via `:wat::core::map` + runtime quasiquote. The substrate IS capable; v2's STOP-5b was sonnet discovery failure.
+- `tests/probe_diagnostic_bundle_result_compose.rs` probe 1: `Bind(Atom, Result/expect(Bundle(items)))` composes correctly, producing canonical `Bind(Atom, Bundle(...))` instance shape.
+
+**Stone 227.2 v3 scope:** Rewrite `wat/holon/defrecord.wat` with canonical defrecord for ALL N including N>=2. STOP-5b framing deleted. Flat-Bind workaround deleted. Bundle + Result/expect composition ships. 35/35 probe tests pass (25 migrated v2 tests + 10 new v3 tests for N=2, N=3, canonical shape, cross-namespace N=2, type-check N=2). SCORE written at `SCORE-STONE-227.2-v3.md`.
