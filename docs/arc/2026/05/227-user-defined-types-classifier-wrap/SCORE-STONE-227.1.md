@@ -113,3 +113,14 @@ The duck has a measurable shape. Users name new ducks in namespaces they own. Th
 - Arc 227 Stone 227.3+ — multimethod dispatch integration with arc 146/147
 - Arc 227 Stone 227.4 — USER-GUIDE chapter on user-defined types via classifier-wrap
 - Any user-surface code that declares domain types in their own namespace
+
+## Addendum 2026-05-22 night — Stone 227.1b rename (defclass → defrecord)
+
+Per user direction post-ship: defclass renamed to defrecord. Rationale: "class" implies methods + mutable state; "record" is honest about immutable data-only. Locks the honest name before arc 232 (defprotocol) builds on it.
+
+- Macro: `:wat::holon::defclass` → `:wat::holon::defrecord` (HARD CUT — no alias)
+- File: `wat/holon/defclass.wat` → `wat/holon/defrecord.wat`
+- Probe: `tests/probe_arc227_stone1_defclass.rs` → `tests/probe_arc227_stone1_defrecord.rs`
+- Commit: [TBD by orchestrator]
+
+This SCORE doc's body above remains unchanged as historical record per `feedback_inscription_immutable`.

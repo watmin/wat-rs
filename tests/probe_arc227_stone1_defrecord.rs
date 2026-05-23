@@ -1,6 +1,6 @@
-//! Arc 227 Stone 227.1 — User-defined types via `:wat::holon::defclass` macro.
+//! Arc 227 Stone 227.1 — User-defined types via `:wat::holon::defrecord` macro.
 //!
-//! Verifies that `:wat::holon::defclass` correctly generates:
+//! Verifies that `:wat::holon::defrecord` correctly generates:
 //!   - A constructor in the user-declared namespace (accepts `:wat::holon::HolonAST`)
 //!   - A predicate in the user-declared namespace
 //!   - Classifier-wrapped instances: `Bind(Atom("ns::Name"), Atom(data))`
@@ -11,7 +11,7 @@
 //! ## Doctrine
 //!
 //! Per [[typed-entities-doctrine]] + `feedback_fqdn_is_the_namespace`:
-//!   - `(:wat::holon::defclass :myapp::Voltage)` generates `:myapp::Voltage` (constructor)
+//!   - `(:wat::holon::defrecord :myapp::Voltage)` generates `:myapp::Voltage` (constructor)
 //!     and `:myapp::is-Voltage?` (predicate) — entirely in the user-declared namespace.
 //!   - The substrate NEVER inserts into `:user::*` or any auto-namespace.
 //!   - Classifier string = FQDN without leading colon ("myapp::Voltage").
@@ -23,11 +23,11 @@
 //!
 //!   - Stone 226.1 (`e7ba909`): `:wat::holon::is?` + `:wat::holon::is-Map?` etc. live.
 //!   - Stone 225.1: `:wat::holon::Bind` + `:wat::holon::Atom` + `:wat::holon::to-holon`.
-//!   - Stone 227.1 (THIS): `:wat::holon::defclass` macro in `wat/holon/defclass.wat`.
+//!   - Stone 227.1 (THIS): `:wat::holon::defrecord` macro in `wat/holon/defrecord.wat`.
 //!
 //! ## Test structure
 //!
-//!   Test 1 — single FQDN defclass: construct + query (positive + negative)
+//!   Test 1 — single FQDN defrecord: construct + query (positive + negative)
 //!   Test 2 — cross-namespace independence (appA vs appB)
 //!   Test 3 — multiple distinct types in same namespace (Celsius vs Kelvin)
 //!   Test 4 — user type distinct from built-in types (MyMap vs Map)
@@ -74,17 +74,17 @@ fn expect_startup_err(src: &str) -> String {
         .unwrap_or_else(|| "no error (startup succeeded)".to_string())
 }
 
-// ─── Test 1: Single FQDN defclass — construct + predicate ────────────────────
+// ─── Test 1: Single FQDN defrecord — construct + predicate ────────────────────
 
-/// `(:wat::holon::defclass :test::Voltage)` mints a constructor.
+/// `(:wat::holon::defrecord :test::Voltage)` mints a constructor.
 /// `(:test::Voltage (to-holon 5.0))` constructs an instance.
 /// `(:test::is-Voltage? instance)` returns true.
 ///
 /// Arc 227 Stone 227.1 — basic positive case.
 #[test]
-fn probe_defclass_single_fqdn_positive() {
+fn probe_defrecord_single_fqdn_positive() {
     let src = r#"
-        (:wat::holon::defclass :test::Voltage)
+        (:wat::holon::defrecord :test::Voltage)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::Voltage (:wat::holon::to-holon 5.0))]
@@ -92,7 +92,7 @@ fn probe_defclass_single_fqdn_positive() {
     "#;
     assert!(
         run_bool(src),
-        "is-Voltage? must return true for a Voltage instance constructed by defclass"
+        "is-Voltage? must return true for a Voltage instance constructed by defrecord"
     );
 }
 
@@ -100,9 +100,9 @@ fn probe_defclass_single_fqdn_positive() {
 ///
 /// Arc 227 Stone 227.1 — predicate returns false for non-instance.
 #[test]
-fn probe_defclass_single_fqdn_negative() {
+fn probe_defrecord_single_fqdn_negative() {
     let src = r#"
-        (:wat::holon::defclass :test::Voltage)
+        (:wat::holon::defrecord :test::Voltage)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:test::is-Voltage? (:wat::holon::to-holon "random-string")))
     "#;
@@ -119,10 +119,10 @@ fn probe_defclass_single_fqdn_negative() {
 ///
 /// Arc 227 Stone 227.1 — FQDN collision-freedom: appA positive.
 #[test]
-fn probe_defclass_cross_namespace_app_a_positive() {
+fn probe_defrecord_cross_namespace_app_a_positive() {
     let src = r#"
-        (:wat::holon::defclass :appA::Voltage)
-        (:wat::holon::defclass :appB::Voltage)
+        (:wat::holon::defrecord :appA::Voltage)
+        (:wat::holon::defrecord :appB::Voltage)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [a-instance (:appA::Voltage (:wat::holon::to-holon 42))]
@@ -139,10 +139,10 @@ fn probe_defclass_cross_namespace_app_a_positive() {
 ///
 /// Arc 227 Stone 227.1 — cross-namespace discrimination is honest.
 #[test]
-fn probe_defclass_cross_namespace_discrimination() {
+fn probe_defrecord_cross_namespace_discrimination() {
     let src = r#"
-        (:wat::holon::defclass :appA::Voltage)
-        (:wat::holon::defclass :appB::Voltage)
+        (:wat::holon::defrecord :appA::Voltage)
+        (:wat::holon::defrecord :appB::Voltage)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [b-instance (:appB::Voltage (:wat::holon::to-holon 42))]
@@ -161,10 +161,10 @@ fn probe_defclass_cross_namespace_discrimination() {
 ///
 /// Arc 227 Stone 227.1 — same-namespace independence.
 #[test]
-fn probe_defclass_same_namespace_celsius_positive() {
+fn probe_defrecord_same_namespace_celsius_positive() {
     let src = r#"
-        (:wat::holon::defclass :test::Celsius)
-        (:wat::holon::defclass :test::Kelvin)
+        (:wat::holon::defrecord :test::Celsius)
+        (:wat::holon::defrecord :test::Kelvin)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [c (:test::Celsius (:wat::holon::to-holon 100.0))]
@@ -180,10 +180,10 @@ fn probe_defclass_same_namespace_celsius_positive() {
 ///
 /// Arc 227 Stone 227.1 — same-namespace cross-discrimination.
 #[test]
-fn probe_defclass_same_namespace_cross_discrimination() {
+fn probe_defrecord_same_namespace_cross_discrimination() {
     let src = r#"
-        (:wat::holon::defclass :test::Celsius)
-        (:wat::holon::defclass :test::Kelvin)
+        (:wat::holon::defrecord :test::Celsius)
+        (:wat::holon::defrecord :test::Kelvin)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [c (:test::Celsius (:wat::holon::to-holon 100.0))]
@@ -202,9 +202,9 @@ fn probe_defclass_same_namespace_cross_discrimination() {
 ///
 /// Arc 227 Stone 227.1 — user types work independently of built-in types.
 #[test]
-fn probe_defclass_user_type_vs_builtin_user_positive() {
+fn probe_defrecord_user_type_vs_builtin_user_positive() {
     let src = r#"
-        (:wat::holon::defclass :test::MyMap)
+        (:wat::holon::defrecord :test::MyMap)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::MyMap (:wat::holon::to-holon "data"))]
@@ -221,9 +221,9 @@ fn probe_defclass_user_type_vs_builtin_user_positive() {
 ///
 /// Arc 227 Stone 227.1 — user types don't masquerade as built-in types.
 #[test]
-fn probe_defclass_user_type_vs_builtin_not_map() {
+fn probe_defrecord_user_type_vs_builtin_not_map() {
     let src = r#"
-        (:wat::holon::defclass :test::MyMap)
+        (:wat::holon::defrecord :test::MyMap)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::MyMap (:wat::holon::to-holon "data"))]
@@ -242,9 +242,9 @@ fn probe_defclass_user_type_vs_builtin_not_map() {
 ///
 /// Arc 227 Stone 227.1 — polymorphic is? works for user classifier names.
 #[test]
-fn probe_defclass_polymorphic_is_fqdn_positive() {
+fn probe_defrecord_polymorphic_is_fqdn_positive() {
     let src = r#"
-        (:wat::holon::defclass :test::Voltage)
+        (:wat::holon::defrecord :test::Voltage)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::Voltage (:wat::holon::to-holon 5.0))]
@@ -261,9 +261,9 @@ fn probe_defclass_polymorphic_is_fqdn_positive() {
 ///
 /// Arc 227 Stone 227.1 — classifier is FQDN-qualified; basename alone is insufficient.
 #[test]
-fn probe_defclass_polymorphic_is_bare_basename_negative() {
+fn probe_defrecord_polymorphic_is_bare_basename_negative() {
     let src = r#"
-        (:wat::holon::defclass :test::Voltage)
+        (:wat::holon::defrecord :test::Voltage)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::Voltage (:wat::holon::to-holon 5.0))]
@@ -282,9 +282,9 @@ fn probe_defclass_polymorphic_is_bare_basename_negative() {
 ///
 /// Arc 227 Stone 227.1 — constructor enforces HolonAST input at the type boundary.
 #[test]
-fn probe_defclass_constructor_typed_rejects_non_holon() {
+fn probe_defrecord_constructor_typed_rejects_non_holon() {
     let err = expect_startup_err(r#"
-        (:wat::holon::defclass :test::Voltage)
+        (:wat::holon::defrecord :test::Voltage)
         (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
           (:test::Voltage 5.0))
     "#);
@@ -305,9 +305,9 @@ fn probe_defclass_constructor_typed_rejects_non_holon() {
 ///
 /// Arc 227 Stone 227.1 — multi-segment namespace handled correctly.
 #[test]
-fn probe_defclass_multi_segment_namespace_positive() {
+fn probe_defrecord_multi_segment_namespace_positive() {
     let src = r#"
-        (:wat::holon::defclass :awesome::lib::Sensor)
+        (:wat::holon::defrecord :awesome::lib::Sensor)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:awesome::lib::Sensor (:wat::holon::to-holon 42))]
@@ -323,9 +323,9 @@ fn probe_defclass_multi_segment_namespace_positive() {
 ///
 /// Arc 227 Stone 227.1 — multi-segment classifier string is FQDN-qualified.
 #[test]
-fn probe_defclass_multi_segment_polymorphic_is() {
+fn probe_defrecord_multi_segment_polymorphic_is() {
     let src = r#"
-        (:wat::holon::defclass :awesome::lib::Sensor)
+        (:wat::holon::defrecord :awesome::lib::Sensor)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:awesome::lib::Sensor (:wat::holon::to-holon 42))]
@@ -345,9 +345,9 @@ fn probe_defclass_multi_segment_polymorphic_is() {
 ///
 /// Arc 227 Stone 227.1 — predicate naming rule correctness.
 #[test]
-fn probe_defclass_predicate_name_shape() {
+fn probe_defrecord_predicate_name_shape() {
     let src = r#"
-        (:wat::holon::defclass :test::BasisPoint)
+        (:wat::holon::defrecord :test::BasisPoint)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::BasisPoint (:wat::holon::to-holon 25))]
@@ -365,9 +365,9 @@ fn probe_defclass_predicate_name_shape() {
 ///
 /// Arc 227 Stone 227.1 — i64 payload construction.
 #[test]
-fn probe_defclass_i64_payload() {
+fn probe_defrecord_i64_payload() {
     let src = r#"
-        (:wat::holon::defclass :test::Count)
+        (:wat::holon::defrecord :test::Count)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::Count (:wat::holon::to-holon 99))]
@@ -386,10 +386,10 @@ fn probe_defclass_i64_payload() {
 ///
 /// Arc 227 Stone 227.1 — full symmetric cross-type discrimination.
 #[test]
-fn probe_defclass_cross_type_discrimination_kelvin_positive() {
+fn probe_defrecord_cross_type_discrimination_kelvin_positive() {
     let src = r#"
-        (:wat::holon::defclass :test::Celsius)
-        (:wat::holon::defclass :test::Kelvin)
+        (:wat::holon::defrecord :test::Celsius)
+        (:wat::holon::defrecord :test::Kelvin)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [k (:test::Kelvin (:wat::holon::to-holon 373.15))]
@@ -403,15 +403,15 @@ fn probe_defclass_cross_type_discrimination_kelvin_positive() {
 
 // ─── Test 11: No :user::* insertion ──────────────────────────────────────────
 
-/// defclass NEVER inserts into :user::* — only into the user-declared namespace.
+/// defrecord NEVER inserts into :user::* — only into the user-declared namespace.
 /// The test verifies that `:test::is-Celsius?` is defined (not `:user::is-Celsius?`).
 ///
 /// Arc 227 Stone 227.1 — STOP-8 compliance: no auto-namespace insertion.
 #[test]
-fn probe_defclass_no_user_namespace_insertion() {
-    // Verify :test::Celsius exists and works — confirming defclass used the user namespace
+fn probe_defrecord_no_user_namespace_insertion() {
+    // Verify :test::Celsius exists and works — confirming defrecord used the user namespace
     let src = r#"
-        (:wat::holon::defclass :test::Celsius)
+        (:wat::holon::defrecord :test::Celsius)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [c (:test::Celsius (:wat::holon::to-holon 273.15))]
@@ -429,10 +429,10 @@ fn probe_defclass_no_user_namespace_insertion() {
 ///
 /// Arc 227 Stone 227.1 — both appA and appB predicates work; independent.
 #[test]
-fn probe_defclass_cross_namespace_app_b_positive() {
+fn probe_defrecord_cross_namespace_app_b_positive() {
     let src = r#"
-        (:wat::holon::defclass :appA::Voltage)
-        (:wat::holon::defclass :appB::Voltage)
+        (:wat::holon::defrecord :appA::Voltage)
+        (:wat::holon::defrecord :appB::Voltage)
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [b-instance (:appB::Voltage (:wat::holon::to-holon 99))]
