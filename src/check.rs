@@ -4976,6 +4976,17 @@ fn infer_list(
             ":wat::config::set-redef!" | ":wat::config::set-eval-redef!" => {
                 return infer_config_set_bool(k, args, head_span, env, locals, fresh, subst, errors);
             }
+            // Arc 232 Stone 232.0 — :wat::core::apply.
+            // Shape: (:wat::core::apply -> :T <head> <a1>...<an> <args-vec>)
+            // Type-check: validate arity (≥ 3), infer head + leading args +
+            // spread-vec for side-effects, extract declared return type from
+            // the [-> :T] annotation. The actual call target type is not
+            // statically resolvable (the head is a runtime keyword value);
+            // the declared return type is trusted per the arc-108 typed-expect
+            // pattern (caller annotates; checker enforces annotation shape).
+            ":wat::core::apply" => {
+                return infer_apply(args, head_span, env, locals, fresh, subst, errors);
+            }
             ":wat::core::if" => return infer_if(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::cond" => return infer_cond(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, head_span, env, locals, fresh, subst, errors),
@@ -8995,6 +9006,103 @@ fn infer_kernel_readln(
             return None;
         }
     };
+    Some(declared_ty)
+}
+
+// ─── Arc 232 Stone 232.0 — :wat::core::apply ────────────────────────────────
+
+/// `(:wat::core::apply -> :T <head> <a1>...<an> <args-vec>)` — arc 232.0.
+///
+/// Type-checker handler. Shape contract (mirrors arc-108's
+/// `:wat::core::Result/expect -> :T <value> <msg>` typed-expect pattern):
+/// - Arity >= 4 (`->`, `:T`, head, spread-vec; leading args optional).
+/// - `args[0]` — MUST be the `->` symbol.
+/// - `args[1]` — MUST be the declared return type keyword (`:T`).
+/// - `args[2]` — head expression (inferred; produces :wat::core::keyword or fn).
+/// - `args[3..n-1]` — zero or more leading positional args (inferred for
+///   side-effects; types trusted at runtime per head's contract).
+/// - `args[n-1]` — MUST be the spread vector (inferred for side-effects;
+///   must resolve to :wat::core::Vector at runtime).
+///
+/// The return type is the declared `:T` from the inline annotation. The checker
+/// does not statically resolve the keyword-head's concrete type — that is
+/// runtime-dynamic. Mirrors arc-108's typed-expect pattern: caller annotates,
+/// checker enforces annotation shape.
+fn infer_apply(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    // Arity check: need at minimum (->, :T, head, spread-vec).
+    if args.len() < 4 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::apply".into(),
+            reason: format!(
+                "expected (:wat::core::apply -> :T <head> <a1>...<an> <args-vec>); \
+                 got {} arg(s) — minimum 4 (`->`, `:T`, head, spread-vec)",
+                args.len()
+            ),
+            span: head_span.clone(),
+        });
+        return None;
+    }
+
+    // Validate args[0] = `->` symbol (inline typed-expect pattern; arc 108).
+    match &args[0] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::apply".into(),
+                reason: "position 1 must be the `->` symbol (inline return-type annotation)".into(),
+                span: other.span().clone(),
+            });
+            return None;
+        }
+    }
+
+    // Parse args[1] = declared return type keyword.
+    let declared_ty = match &args[1] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::apply".into(),
+                    reason: format!(
+                        "declared type {:?} failed to parse: {}",
+                        k.as_str(),
+                        e
+                    ),
+                    span: args[1].span().clone(),
+                });
+                return None;
+            }
+        },
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::apply".into(),
+                reason: "position 2 must be a type keyword `:T` (e.g. `:wat::core::i64`)".into(),
+                span: other.span().clone(),
+            });
+            return None;
+        }
+    };
+
+    // Infer head (args[2]) for side-effects (symbol resolution, etc.).
+    let _ = infer(&args[2], env, locals, fresh, subst, errors);
+
+    // Infer leading positional args (args[3..n-1]) for side-effects.
+    let leading = &args[3..args.len() - 1];
+    for a in leading {
+        let _ = infer(a, env, locals, fresh, subst, errors);
+    }
+
+    // Infer spread vector (args[n-1]) for side-effects.
+    let _ = infer(&args[args.len() - 1], env, locals, fresh, subst, errors);
+
     Some(declared_ty)
 }
 
@@ -16727,6 +16835,24 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: hashset_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 232 Stone 232.0 — :wat::core::apply.
+    // The TypeScheme registered here is a sentinel for completeness;
+    // the actual type inference is handled by the special-case
+    // `infer_apply` branch in `infer_list` (which extracts the declared
+    // return type from the [-> :T] annotation vector). The scheme here
+    // uses keyword + T as a minimal surface: it is NOT reached via the
+    // standard infer_call path because infer_list intercepts first.
+    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    env.register(
+        ":wat::core::apply".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![keyword_ty()],
+            ret: t_var(),
             rest_param_type: None,
         },
     );

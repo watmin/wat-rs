@@ -4480,6 +4480,12 @@ fn dispatch_keyword_head(
         }
     }
     match head {
+        // Arc 232 Stone 232.0 — `:wat::core::apply` substrate primitive.
+        // Universal escape hatch: takes a keyword head + [-> :T] annotation +
+        // optional leading positional args + a trailing :Vector (spread as
+        // trailing args). Routes EARLY before all other arms so apply is
+        // unambiguous at the dispatch level.
+        ":wat::core::apply" => eval_apply(args, env, sym, list_span.clone()),
         // Language forms
         // Arc 157 slice 1a-ii — config setters. These are top-level forms
         // that update the SymbolTable carrier flags at freeze time (via
@@ -7131,6 +7137,264 @@ fn eval_keyword_from_string(
     }
     // Prepend ':' to form the canonical keyword string.
     Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s.as_str()))))
+}
+
+// ─── Arc 232 Stone 232.0 — :wat::core::apply ────────────────────────────────
+
+/// Validate the `[-> :T]` annotation vector that `:wat::core::apply` expects
+/// at position 1. Returns `Ok(())` on a valid shape; returns
+/// `Err(MalformedForm)` on any structural violation. Extracted as a helper
+/// so both the fn-valued fast path and the keyword-valued slow path can reuse
+/// the same validation without duplication.
+/// `:wat::core::apply` — dynamic keyword-head invocation (Clojure's apply
+/// contract; convergence #16).
+///
+/// Shape (inline `-> :T` typed-expect pattern; mirrors
+/// `:wat::core::Result/expect -> :T <value> <msg>` from arc 108):
+///
+///   `(:wat::core::apply -> :T <head> <a1>...<an> <args-vec>)`
+///
+/// - `->`       : MUST be the `->` symbol (position 0; inline annotation marker).
+/// - `:T`       : MUST be a type keyword (position 1; declared return type).
+///                Consumed by the checker; runtime validates shape only.
+/// - `head`     : expression at position 2; evaluates to `:wat::core::keyword`
+///                (FQDN of callable) OR `:wat::core::fn` (Arc 009 lift / let-bound).
+/// - `a1..an`   : zero or more leading positional args (positions 3..n-1).
+/// - `args-vec` : LAST positional arg MUST be `:wat::core::Vector`; its
+///                elements are spread as trailing args. May be empty.
+///
+/// Two head-dispatch paths:
+///   • `Value::wat__core__fn`     — Arc 009 lift OR let-bound fn-value;
+///                                   dispatched directly via `apply_function`.
+///   • `Value::wat__core__keyword` — runtime-built keyword (e.g. via
+///                                   `keyword/from-string`); dispatched via the
+///                                   full keyword-name lookup chain (functions /
+///                                   def-bound / dispatch_registry / substrate).
+/// Other head types rejected with TypeMismatch.
+///
+/// Dispatch chain (mirrors `dispatch_keyword_head`'s `other` arm):
+/// 1. `sym.functions` (user-defined functions / defn)
+/// 2. `sym.runtime_def_values` (def-bound callable values)
+/// 3. dispatch_registry (dispatch entities)
+/// 4. `dispatch_substrate_impl` (pre-evaluated substrate arithmetic arms)
+/// 5. Error — UnknownFunction
+///
+/// Special-form rejection: if head names a declaration form or language
+/// special form, error immediately with MalformedForm diagnostic (STOP-8).
+fn eval_apply(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: Span,
+) -> Result<Value, RuntimeError> {
+    // Arity check: at minimum (->, :T, head, args-vec) = 4 args.
+    if args.len() < 4 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::apply".into(),
+            reason: format!(
+                "expected (:wat::core::apply -> :T <head> <a1>...<an> <args-vec>); \
+                 got {} arg(s) — minimum 4 (`->`, `:T`, head, spread-vec)",
+                args.len()
+            ),
+            span: list_span,
+        });
+    }
+
+    // Step 1 — validate inline `-> :T` annotation (positions 0 and 1).
+    // The declared type is consumed by the checker; at runtime we verify
+    // shape only.
+    match &args[0] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::apply".into(),
+                reason: format!(
+                    "position 1 must be the `->` symbol (inline return-type annotation); got {}",
+                    ast_variant_name(other)
+                ),
+                span: other.span().clone(),
+            });
+        }
+    }
+    match &args[1] {
+        WatAST::Keyword(_, _) => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::apply".into(),
+                reason: format!(
+                    "position 2 must be a type keyword `:T` (e.g. `:wat::core::i64`); got {}",
+                    ast_variant_name(other)
+                ),
+                span: other.span().clone(),
+            });
+        }
+    }
+
+    // Step 2 — evaluate head (args[2]).
+    //
+    // Arc 009 "names are values": a literal keyword that names a registered
+    // user define evaluates to `Value::wat__core__fn`; runtime-built keywords
+    // remain `Value::wat__core__keyword`. Both are valid apply heads.
+    let head_val = eval(&args[2], env, sym)?;
+
+    // Step 3 — evaluate leading positional args (positions 3..last).
+    // Leading = args[3..args.len()-1]. With no leading args this slice is empty.
+    let leading_ast = &args[3..args.len() - 1];
+    let mut combined: Vec<Value> = leading_ast
+        .iter()
+        .map(|a| eval(a, env, sym))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Step 4 — evaluate last arg; must be :wat::core::Vector (spread).
+    let spread_ast = &args[args.len() - 1];
+    let spread_val = eval(spread_ast, env, sym)?;
+    let spread_vec = match spread_val {
+        Value::Vec(ref v) => v.clone(),
+        ref other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::apply".into(),
+                expected: "wat::core::Vector",
+                got: other.type_name(),
+                span: spread_ast.span().clone(),
+            });
+        }
+    };
+    combined.extend((*spread_vec).iter().cloned());
+
+    // Step 5 — fast path: fn-valued head (Arc 009 lift OR let-bound fn).
+    if let Value::wat__core__fn(ref func) = head_val {
+        return apply_function(func.clone(), combined, sym, list_span);
+    }
+
+    // Step 6 — keyword-valued head: extract name + dispatch chain.
+    let head_kw = match head_val {
+        Value::wat__core__keyword(ref k) => k.clone(),
+        ref other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::apply".into(),
+                expected: "wat::core::keyword",
+                got: other.type_name(),
+                span: args[2].span().clone(),
+            });
+        }
+    };
+
+    // Step 7 — special-form rejection (STOP-8). Apply cannot dispatch to
+    // declaration forms or language special forms — they require AST-level
+    // structural parsing that eval_apply does not perform. Attempting to
+    // apply them would silently misfire; reject with a clean diagnostic.
+    const SPECIAL_FORMS: &[&str] = &[
+        ":wat::core::def",
+        ":wat::core::def-restricted",
+        ":wat::core::define",
+        ":wat::core::defn",
+        ":wat::core::fn",
+        ":wat::core::let",
+        ":wat::core::if",
+        ":wat::core::cond",
+        ":wat::core::do",
+        ":wat::core::match",
+        ":wat::core::quote",
+        ":wat::core::quasiquote",
+    ];
+    if SPECIAL_FORMS.contains(&head_kw.as_str()) {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::apply".into(),
+            reason: format!(
+                "cannot apply special form {:?} — apply only dispatches callable \
+                 verbs and user-defined functions, not declaration or language forms",
+                head_kw.as_str()
+            ),
+            span: list_span,
+        });
+    }
+
+    // Step 7 — dispatch (mirrors dispatch_keyword_head's `other` arm).
+    // (a) User-defined function (defn / define registered in sym.functions).
+    let canonical = canonical_callable_name(head_kw.as_str());
+    if let Some(func) = sym.get(canonical) {
+        return apply_function(func.clone(), combined, sym, list_span);
+    }
+
+    // (b) def-bound callable value.
+    if let Some(v) = sym.runtime_def_values.get(head_kw.as_str()) {
+        match v {
+            Value::wat__core__fn(f) => {
+                return apply_function(f.clone(), combined, sym, list_span);
+            }
+            other_val => {
+                return Err(RuntimeError::NotCallable {
+                    got: other_val.type_name(),
+                    span: list_span,
+                });
+            }
+        }
+    }
+
+    // (c) dispatch registry (type-dispatch entities declared in core.wat).
+    if let Some(reg) = &sym.dispatch_registry {
+        if let Some(mm) = reg.get(head_kw.as_str()) {
+            return eval_dispatch_call_with_vals(mm, combined, &list_span, sym);
+        }
+    }
+
+    // (d) substrate arithmetic / dispatch-impl verbs (pre-evaluated path).
+    if let Some(result) = dispatch_substrate_impl(head_kw.as_str(), &combined) {
+        return result;
+    }
+
+    // (e) Nothing found — UnknownFunction with the keyword name.
+    Err(RuntimeError::UnknownFunction(
+        head_kw.as_str().to_string(),
+        list_span,
+    ))
+}
+
+/// Helper for `eval_apply`: dispatch a dispatch entity with pre-evaluated
+/// argument values, bypassing the `eval`-per-arg step of `eval_dispatch_call`.
+fn eval_dispatch_call_with_vals(
+    mm: &crate::dispatch::Dispatch,
+    vals: Vec<Value>,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let surface_arity = mm.arms.first().map(|a| a.pattern.len()).unwrap_or(0);
+    if vals.len() != surface_arity {
+        return Err(RuntimeError::ArityMismatch {
+            op: mm.name.clone(),
+            expected: surface_arity,
+            got: vals.len(),
+            span: list_span.clone(),
+        });
+    }
+    for arm in &mm.arms {
+        if vals
+            .iter()
+            .zip(arm.pattern.iter())
+            .all(|(v, p)| value_matches_type_pattern(v, p))
+        {
+            let canonical = canonical_callable_name(&arm.impl_name);
+            if let Some(f) = sym.get(canonical) {
+                return apply_function(f.clone(), vals, sym, list_span.clone());
+            }
+            if let Some(result) = dispatch_substrate_impl(&arm.impl_name, &vals) {
+                return result;
+            }
+            return Err(RuntimeError::UnknownFunction(
+                arm.impl_name.clone(),
+                list_span.clone(),
+            ));
+        }
+    }
+    let actual: Vec<&str> = vals.iter().map(|v| v.type_name()).collect();
+    Err(RuntimeError::MalformedForm {
+        head: mm.name.clone(),
+        reason: format!(
+            "no dispatch arm matched the call; got args ({})",
+            actual.join(", ")
+        ),
+        span: list_span.clone(),
+    })
 }
 
 /// `:wat::core::=` — structural equality. Composites (Vec, Tuple,
