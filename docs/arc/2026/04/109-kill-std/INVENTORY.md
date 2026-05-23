@@ -1414,6 +1414,27 @@ allocations can't satisfy `'static`).
 Same shape applies to `TypeMismatch`, `UnknownFunction`, and any
 other `&'static str` error field across `RuntimeError`.
 
+### Span coverage vs runtime-derived gap (refinement 2026-05-23)
+
+`Span` (src/span.rs:48) DOES carry `file: Arc<String>` + `line: i64` +
+`col: i64` — for user-source calls the diagnostic can jump to the call
+form. Three cases:
+
+| Case | Span shows | Source reveals value? | Inline-render needed? |
+|---|---|---|---|
+| Literal head: `(:bad 1 2)` | the call form | YES (`:bad` is in source) | NO |
+| Symbol-bound head: `(let [k :bad] (k 1 2))` | the call form | YES (one trace-back to let) | NO |
+| Runtime-built head: `(apply (keyword/from-string s) ...)` | the call form | **NO — content is dynamic** | **YES** |
+
+The third case is what § O is really for. Literal + symbol-bound cases
+are span-sufficient. Runtime-derived values (from `keyword/from-string`,
+pipelines, mailbox payloads, deserialized EDN, etc.) need inline-render
+in the error because the source can't reveal them.
+
+This sharpens scope: don't sweep ALL `&'static str` fields — sweep the
+ones where the value source is RUNTIME-DERIVED (caller can't grep for
+it). Audit case-by-case.
+
 ### Target
 
 Audit substrate error variants. For each `got` / `expected` field
