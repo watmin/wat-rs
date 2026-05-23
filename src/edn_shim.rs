@@ -1730,13 +1730,35 @@ fn opaque_nil(ns: &str, name: &str) -> OwnedValue {
 
 /// Render a HolonAST as a tagged EDN value. Primitives unwrap to
 /// their EDN equivalent inside the tag; composites recurse.
+///
+/// Arc 230: Symbol/Keyword/Tag/Nil variants retired. Those forms now
+/// exist as `Bind(Atom(String(cls)), Atom(String(val)))` compositions.
+/// We intercept them before the generic Bind arm so that the EDN
+/// round-trip writer emits the familiar `#wat-edn.holon/Keyword` etc.
+/// tags (the reader reconstructs via the updated constructors).
 fn holon_ast_to_edn(h: &holon::HolonAST) -> OwnedValue {
     use holon::HolonAST;
-    match h {
-        HolonAST::Symbol(s) => OwnedValue::Tagged(
+    // Arc 230: intercept Symbol/Keyword/Tag/Nil compositions before generic dispatch.
+    if let Some(s) = h.as_symbol() {
+        return OwnedValue::Tagged(
             Tag::ns("wat-edn.holon", "Symbol"),
             Box::new(OwnedValue::String(std::borrow::Cow::Owned(s.to_string()))),
-        ),
+        );
+    }
+    if let Some(s) = h.as_keyword() {
+        return OwnedValue::Tagged(
+            Tag::ns("wat-edn.holon", "Keyword"),
+            Box::new(OwnedValue::Keyword(Keyword::new(s))),
+        );
+    }
+    if let Some(s) = h.as_tag() {
+        return OwnedValue::Tagged(
+            Tag::ns("wat-edn.holon", "Tag"),
+            Box::new(OwnedValue::String(std::borrow::Cow::Owned(s.to_string()))),
+        );
+    }
+    // Note: is_nil() = as_symbol() == Some("nil"), handled by the Symbol arm above.
+    match h {
         HolonAST::String(s) => OwnedValue::Tagged(
             Tag::ns("wat-edn.holon", "String"),
             Box::new(OwnedValue::String(std::borrow::Cow::Owned(s.to_string()))),
@@ -1805,28 +1827,9 @@ fn holon_ast_to_edn(h: &holon::HolonAST) -> OwnedValue {
         ),
         // Arc 221 Stone 221.2 — Char primitive leaf. Encodes as
         // #wat-edn.holon/Char containing an EDN character literal.
-        // Mirrors the pattern: leaf tag + primitive payload.
         HolonAST::Char(c) => OwnedValue::Tagged(
             Tag::ns("wat-edn.holon", "Char"),
             Box::new(OwnedValue::Char(*c)),
-        ),
-        // Arc 221 Stone 221.4 — Keyword primitive leaf (Stone 221.3 holon-rs fa48b39).
-        // Stored content has no leading colon; add it back as EDN keyword.
-        HolonAST::Keyword(s) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Keyword"),
-            Box::new(OwnedValue::Keyword(Keyword::new(s.as_ref()))),
-        ),
-        // Arc 221 Stone 221.4 — Nil primitive leaf (Stone 221.3 holon-rs fa48b39).
-        // Maps to EDN nil — the unit payload for the tagged form.
-        HolonAST::Nil => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Nil"),
-            Box::new(OwnedValue::Nil),
-        ),
-        // Arc 221 Stone 221.4 — Tag dispatch-marker leaf (Stone 221.3 holon-rs fa48b39).
-        // Stored content has no leading '#'; emit as EDN string payload under the tag.
-        HolonAST::Tag(s) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.holon", "Tag"),
-            Box::new(OwnedValue::String(std::borrow::Cow::Owned(s.to_string()))),
         ),
         HolonAST::SlotMarker { min, max } => OwnedValue::Tagged(
             Tag::ns("wat-edn.holon", "SlotMarker"),
@@ -1889,17 +1892,15 @@ fn edn_to_holon_ast_natural(edn: &OwnedValue) -> Result<Arc<holon::HolonAST>, Ed
         }
         // Bare primitives — best-effort lift to the matching leaf.
         OwnedValue::Keyword(k) => {
-            // Arc 221 Stone 221.4b — EDN keyword reader emits HolonAST::Keyword,
-            // not HolonAST::Symbol. Stone 221.3 (holon-rs fa48b39) minted
-            // HolonAST::Keyword; stored content has NO leading colon.
+            // Arc 230: HolonAST::keyword() now produces Bind composition.
+            // Arc 221 Stone 221.4b — EDN keyword maps to HolonAST::keyword() (no leading colon).
             // Mirror `keyword_from_wat_path`'s inverse — EDN keyword `foo/bar`
-            // (namespace `foo`, name `bar`) maps to wat-path `foo::bar` (no colon;
-            // HolonAST::keyword() stores the stripped form).
+            // (namespace `foo`, name `bar`) maps to wat-path `foo::bar`.
             let s = match k.namespace() {
                 Some(ns) => format!("{}::{}", ns.replace('.', "::"), k.name()),
                 None => k.name().to_string(),
             };
-            Ok(Arc::new(HolonAST::Keyword(Arc::from(s))))
+            Ok(Arc::new(HolonAST::keyword(&s)))
         }
         OwnedValue::String(s) => {
             Ok(Arc::new(HolonAST::String(Arc::from(s.as_ref()))))
@@ -1927,8 +1928,10 @@ fn edn_holon_tag_to_ast(
 ) -> Result<Arc<holon::HolonAST>, EdnReadError> {
     use holon::HolonAST;
     match (name, body) {
+        // Arc 230: Symbol/Keyword/Nil/Tag variants retired; constructors produce
+        // Bind(Atom(String(cls)), Atom(String(val))) compositions.
         ("Symbol", OwnedValue::String(s)) => {
-            Ok(Arc::new(HolonAST::Symbol(Arc::from(s.as_ref()))))
+            Ok(Arc::new(HolonAST::symbol(s.as_ref())))
         }
         ("String", OwnedValue::String(s)) => {
             Ok(Arc::new(HolonAST::String(Arc::from(s.as_ref()))))
@@ -1938,15 +1941,15 @@ fn edn_holon_tag_to_ast(
         ("Bool", OwnedValue::Bool(b)) => Ok(Arc::new(HolonAST::Bool(*b))),
         // Arc 221 Stone 221.2 — Char leaf round-trip (mirrors holon_ast_to_edn Char arm).
         ("Char", OwnedValue::Char(c)) => Ok(Arc::new(HolonAST::Char(*c))),
-        // Arc 221 Stone 221.4 — Keyword/Nil/Tag leaf round-trips (Stone 221.3 holon-rs fa48b39).
-        // Keyword: stored content has no leading colon; HolonAST::Keyword(s) stores it stripped.
+        // Arc 230: Keyword/Nil/Tag use updated constructors (produce Bind compositions).
+        // Keyword: stored content has no leading colon; keyword() strips it.
         ("Keyword", OwnedValue::Keyword(kw)) => {
-            Ok(Arc::new(HolonAST::Keyword(Arc::from(kw.name()))))
+            Ok(Arc::new(HolonAST::keyword(kw.name())))
         }
-        ("Nil", OwnedValue::Nil) => Ok(Arc::new(HolonAST::Nil)),
-        // Tag: stored content has no leading '#'; reconstruct from the string payload.
+        ("Nil", OwnedValue::Nil) => Ok(Arc::new(HolonAST::nil())),
+        // Tag: stored content has no leading '#'; reconstruct via tag() constructor.
         ("Tag", OwnedValue::String(s)) => {
-            Ok(Arc::new(HolonAST::Tag(Arc::from(s.as_ref()))))
+            Ok(Arc::new(HolonAST::tag(s.as_ref())))
         }
         ("Atom", inner) => {
             let child = edn_to_holon_ast(inner)?;
@@ -2135,13 +2138,15 @@ pub fn read_holon_ast_natural(s: &str) -> Result<Arc<holon::HolonAST>, EdnReadEr
 /// `#wat-edn.holon/String "request_count"`.
 fn holon_ast_to_edn_notag(h: &holon::HolonAST) -> OwnedValue {
     use holon::HolonAST;
+    // Arc 230: Symbol composition is Bind(Atom(String("Symbol")), Atom(String(s))).
+    // as_symbol() recognises the composition; pass the content through keyword_from_wat_path
+    // (same semantics as the old HolonAST::Symbol(s) arm — Symbol stored colon-prefixed
+    // keywords in the old encoding; in the new encoding the symbol content carries the
+    // raw identifier or colon-prefixed keyword string).
+    if let Some(s) = h.as_symbol() {
+        return keyword_from_wat_path(s);
+    }
     match h {
-        // HolonAST::Symbol stores the colon-prefixed form for keywords
-        // (e.g. ":asset") — same convention runtime.rs:6865 keys off of
-        // for the to-watast round-trip. Pass s through directly; the
-        // older `format!(":{}", s)` here was double-prefixing the colon
-        // and producing `::asset`-shaped EDN output.
-        HolonAST::Symbol(s) => keyword_from_wat_path(s),
         HolonAST::String(s) => OwnedValue::String(std::borrow::Cow::Owned(s.to_string())),
         HolonAST::I64(n) => OwnedValue::Integer(*n),
         HolonAST::F64(x) => OwnedValue::Float(*x),

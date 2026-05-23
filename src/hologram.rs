@@ -223,17 +223,14 @@ fn find_first_thermometer(ast: &HolonAST) -> Option<(f64, f64, f64)> {
         }
         HolonAST::Atom(inner) => find_first_thermometer(inner),
         // Leaves that don't carry a Thermometer.
-        HolonAST::Symbol(_)
-        | HolonAST::String(_)
+        // Arc 230: Symbol/Keyword/Tag/Nil variants retired — they are Bind compositions
+        // handled by the Bind arm above (which recurses into children). The raw carriers
+        // are the only primitive non-recursive leaves remaining.
+        HolonAST::String(_)
         | HolonAST::I64(_)
         | HolonAST::F64(_)
         | HolonAST::Bool(_)
-        // Arc 221 Stone 221.2 — Char is a primitive leaf; no Thermometer.
         | HolonAST::Char(_)
-        // Arc 221 Stone 221.4 — Keyword/Nil/Tag are primitive leaves; no Thermometer.
-        | HolonAST::Keyword(_)
-        | HolonAST::Nil
-        | HolonAST::Tag(_)
         | HolonAST::SlotMarker { .. } => None,
     }
 }

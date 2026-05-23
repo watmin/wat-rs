@@ -254,11 +254,13 @@ fn probe_4_edn_write_keyword_leaf_emits_keyword_tag() {
     );
 }
 
-// ─── Probe 5 — Value::Unit consistency — `:wat::holon::leaf` Nil (runtime.rs:20938) ─
+// ─── Probe 5 — Value::Unit consistency — `:wat::holon::leaf` nil (arc 230) ──────
 
+/// Arc 230 — `nil()` is now `Bind(Atom("Symbol"), Atom("nil"))`.
 /// `(:wat::holon::leaf :wat::core::nil)` where `:wat::core::nil` evaluates to
-/// `Value::Unit` (wat's nil). The `Value::Unit` arm (Stone 221.4b Option A) maps
-/// it to `HolonAST::Nil`. EDN write emits `#wat-edn.holon/Nil`.
+/// `Value::Unit` (wat's nil). The `Value::Unit` arm maps it to `HolonAST::nil()`
+/// which is the Bind composition. EDN write emits `#wat-edn.holon/Symbol "nil"`.
+/// Pre-arc-230 this emitted `#wat-edn.holon/Nil`; the Nil variant is retired.
 #[test]
 fn probe_5_holon_leaf_unit_produces_nil_leaf() {
     let src = r##"
@@ -272,14 +274,10 @@ fn probe_5_holon_leaf_unit_produces_nil_leaf() {
     let out = run(src);
     assert_eq!(out.len(), 1, "expected 1 output line, got: {:?}", out);
     let line = &out[0];
+    // Arc 230: nil = Bind(Atom("Symbol"), Atom("nil")) → serializes as #wat-edn.holon/Symbol "nil".
     assert!(
-        line.contains("Nil"),
-        "expected #wat-edn.holon/Nil in output, got: {}",
-        line
-    );
-    assert!(
-        !line.contains("Symbol"),
-        "output must NOT contain Symbol for nil — retired pre-arc-221 convention, got: {}",
+        line.contains("Symbol") && line.contains("nil"),
+        "expected #wat-edn.holon/Symbol \"nil\" in output (arc 230 nil composition), got: {}",
         line
     );
 }

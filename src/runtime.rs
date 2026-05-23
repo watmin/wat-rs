@@ -8488,7 +8488,18 @@ fn holon_ast_extract(
     target_ty: &crate::types::TypeExpr,
 ) -> Option<Value> {
     let candidate = match h {
-        HolonAST::Symbol(s) => Value::wat__core__keyword(Arc::new(s.to_string())),
+        // Arc 230: Symbol composition Bind(Atom("Symbol"), Atom(s)) → keyword Value.
+        // as_symbol() recognises the composition; legacy Symbol(s) variant retired.
+        _ if h.as_symbol().is_some() => {
+            let s = h.as_symbol().unwrap();
+            Value::wat__core__keyword(Arc::new(s.to_string()))
+        }
+        // Arc 230: Keyword composition → keyword Value (with leading colon restored).
+        _ if h.as_keyword().is_some() => {
+            let s = h.as_keyword().unwrap();
+            Value::wat__core__keyword(Arc::new(format!(":{}", s)))
+        }
+        // Arc 230: Nil composition (= symbol("nil")) is caught by as_symbol() above.
         HolonAST::String(s) => Value::String(Arc::new(s.to_string())),
         HolonAST::I64(n) => Value::i64(*n),
         HolonAST::F64(x) => Value::f64(*x),
@@ -8496,6 +8507,7 @@ fn holon_ast_extract(
         // Atom(inner) unwraps one layer — the inner HolonAST becomes a HolonAST Value.
         HolonAST::Atom(inner) => Value::holon__HolonAST(inner.clone()),
         // Composite variants (Bind, Bundle, Permute, Thermometer, Blend) → None.
+        // Note: Symbol/Keyword/Nil compositions ARE Bind variants but are caught above.
         _ => return None,
     };
     // Type-mismatch check: the extracted Value must satisfy the declared :T.
@@ -11570,19 +11582,18 @@ fn eval_rename_callable_name(
             span: args[0].span().clone(),
         });
     }
-    // Arc 221 Stone 221.4b — children[0] is HolonAST::Keyword (not Symbol).
-    // watast_to_holon at Stone 221.4b converts WatAST::Keyword → HolonAST::Keyword;
-    // stored content has NO leading colon (HolonAST::keyword() strips it).
-    let first_str = match &children[0] {
-        HolonAST::Keyword(s) => s.as_ref(),
-        _ => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: "Keyword as first Bundle child (the function name, arc 221 doctrine)",
-                got: "non-Keyword first child",
-                span: args[0].span().clone(),
-            });
-        }
+    // Arc 230: children[0] is a Keyword composition (Bind(Atom("Keyword"), Atom(s))).
+    // Arc 221 Stone 221.4b established Keyword as first Bundle child.
+    // as_keyword() recognises the Bind composition.
+    let first_str = if let Some(s) = children[0].as_keyword() {
+        s
+    } else {
+        return Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Keyword composition as first Bundle child (the function name, arc 230 doctrine)",
+            got: "non-Keyword first child",
+            span: args[0].span().clone(),
+        });
     };
 
     // Split name at `<` to preserve type-param suffix.
@@ -11667,21 +11678,27 @@ fn eval_extract_arg_names(
     let mut names: Vec<Value> = Vec::new();
     // Skip children[0] (function name symbol); walk from index 1.
     for child in children.iter().skip(1) {
+        // Arc 230: Symbol composition recognised via as_symbol().
+        if let Some(s) = child.as_symbol() {
+            if s == "->" {
+                break; // Arrow sentinel — stop collecting.
+            }
+            // Bare symbol at top level (rare but possible) — skip.
+            continue;
+        }
         match child {
-            // Arrow symbol — stop collecting.
-            HolonAST::Symbol(s) if s.as_ref() == "->" => break,
-            // Arg-pair Bundle: [Symbol(arg_name), Symbol(type)].
+            // Arg-pair Bundle: [Symbol(arg_name), type_ast].
+            // Arc 230: pair[0] is a Symbol composition; as_symbol() extracts the name.
             HolonAST::Bundle(pair) if pair.len() == 2 => {
-                if let HolonAST::Symbol(arg_name) = &pair[0] {
-                    // Return as HolonAST::symbol so value_to_watast →
-                    // holon_to_watast emits WatAST::Symbol (variable
-                    // reference) for bare names and WatAST::Keyword for
-                    // `:keyword`-shaped names. Both are spliced correctly.
+                if let Some(arg_name) = pair[0].as_symbol() {
+                    // Return as HolonAST::symbol composition so value_to_watast →
+                    // holon_to_watast emits WatAST::Symbol (variable reference)
+                    // for bare names and WatAST::Keyword for `:keyword`-shaped names.
                     names.push(Value::holon__HolonAST(Arc::new(
-                        HolonAST::symbol(arg_name.as_ref()),
+                        HolonAST::symbol(arg_name),
                     )));
                 }
-                // If first child isn't a Symbol, skip (not a recognised pair).
+                // If first child isn't a Symbol composition, skip (not a recognised pair).
             }
             // Any other shape: skip.
             _ => {}
@@ -11742,13 +11759,18 @@ fn eval_extract_arg_types(
     let mut types: Vec<Value> = Vec::new();
     // Skip children[0] (function name symbol); walk from index 1.
     for child in children.iter().skip(1) {
+        // Arc 230: Symbol composition recognised via as_symbol().
+        if let Some(s) = child.as_symbol() {
+            if s == "->" {
+                break; // Arrow sentinel — stop collecting.
+            }
+            continue; // Bare symbol at top level — skip.
+        }
         match child {
-            // Arrow symbol — stop collecting.
-            HolonAST::Symbol(s) if s.as_ref() == "->" => break,
             // Arg-pair Bundle: [Symbol(arg_name), type_ast].
             // Extract pair[1] (the structured type AST per slice 1 emission rules).
             HolonAST::Bundle(pair) if pair.len() == 2 => {
-                // pair[0] is the arg name (Symbol); pair[1] is the type AST.
+                // pair[0] is the arg name (Symbol composition); pair[1] is the type AST.
                 // Wrap pair[1] as a Value::holon__HolonAST so callers can
                 // recurse via Bundle/children for parametric decomposition.
                 types.push(Value::holon__HolonAST(Arc::new(pair[1].clone())));
@@ -13515,14 +13537,20 @@ fn try_match_pattern(
 // See comment on `hashset_conj_inner` for rationale.
 #[allow(clippy::mutable_key_type)]
 fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, RuntimeError> {
+    // Arc 230: Symbol/Keyword/Nil/Tag variants retired. Recognise via accessors.
+    // Symbol composition → keyword Value (Symbol carried colon-prefixed keywords).
+    if let Some(s) = item.as_symbol() {
+        // nil composition (symbol("nil")) → Value::Unit.
+        if s == "nil" {
+            return Ok(Value::Unit);
+        }
+        return Ok(Value::wat__core__keyword(Arc::new(s.to_string())));
+    }
+    // Keyword composition → keyword Value with leading colon restored.
+    if let Some(s) = item.as_keyword() {
+        return Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s))));
+    }
     match item {
-        HolonAST::Symbol(s) => Ok(Value::wat__core__keyword(Arc::new(s.to_string()))),
-        // Arc 221 Stone 221.4b — HolonAST::Keyword leaf → wat keyword Value.
-        // HolonAST::keyword() strips the leading colon; restore it for the Value round-trip.
-        // Symmetric inverse of the keyword() constructor (Stone 221.3 holon-rs fa48b39).
-        HolonAST::Keyword(s) => Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s)))),
-        // Arc 221 Stone 221.4b — HolonAST::Nil leaf → Value::Unit (wat's nil).
-        HolonAST::Nil => Ok(Value::Unit),
         // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
         HolonAST::Char(c) => Ok(Value::wat__core__Char(*c)),
         HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
@@ -13813,14 +13841,21 @@ fn eval_holon_from_holon(
             });
         }
     };
+    // Arc 230: Symbol/Keyword/Nil variants retired. Recognise via accessors.
+    // These checks must come before the `match &*holon` because the compositions
+    // are Bind variants that would otherwise fall to the classifier-dispatch arm.
+    if let Some(s) = holon.as_symbol() {
+        // nil composition (symbol("nil")) → Value::Unit.
+        if s == "nil" {
+            return Ok(Value::Unit);
+        }
+        return Ok(Value::wat__core__keyword(Arc::new(s.to_string())));
+    }
+    if let Some(s) = holon.as_keyword() {
+        // Keyword composition: restore leading colon for the Value round-trip.
+        return Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s))));
+    }
     match &*holon {
-        HolonAST::Symbol(s) => Ok(Value::wat__core__keyword(Arc::new(s.to_string()))),
-        // Arc 221 Stone 221.4b — HolonAST::Keyword leaf → wat keyword Value.
-        // HolonAST::keyword() strips the leading colon; restore it for the Value round-trip.
-        // Symmetric inverse of the keyword() constructor (Stone 221.3 holon-rs fa48b39).
-        HolonAST::Keyword(s) => Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s)))),
-        // Arc 221 Stone 221.4b — HolonAST::Nil leaf → Value::Unit (wat's nil).
-        HolonAST::Nil => Ok(Value::Unit),
         // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
         HolonAST::Char(c) => Ok(Value::wat__core__Char(*c)),
         HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
@@ -14092,12 +14127,10 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         // no leading colon). Pre-arc-221 used HolonAST::symbol(k.as_str()) which
         // violated the honest-primitive discipline; retired here.
         Value::wat__core__keyword(k) => HolonAST::keyword(&k),
-        // Arc 221 Stone 221.4 — Value::Unit (wat's nil) → HolonAST::Nil leaf.
-        // Stone 221.3 minted HolonAST::Nil in holon-rs commit fa48b39.
-        // Value::Unit is the runtime representation of :wat::core::nil.
-        // Pre-arc-221 would have used Symbol("nil"); HolonAST::Nil is the
-        // proper primitive leaf per arc 221 doctrine.
-        Value::Unit => HolonAST::Nil,
+        // Arc 230: Value::Unit (wat's nil) → HolonAST::nil() composition.
+        // Arc 221 minted HolonAST::Nil; arc 230 supersedes with Bind composition.
+        // HolonAST::nil() = Bind(Atom(String("Symbol")), Atom(String("nil"))).
+        Value::Unit => HolonAST::nil(),
         // Arc 221 Stone 221.4 — Uuid → HolonAST::Bind(Tag("uuid"), String(hex)).
         // Closes arc 207 false-flag (5-day-latent gap since 2026-05-17).
         // Uses tagged composition per arc 221 doctrine correction — bare-leaf
@@ -14326,15 +14359,12 @@ fn eval_holon_leaf(
         Value::f64(x) => HolonAST::f64(x),
         Value::bool(b) => HolonAST::bool_(b),
         Value::String(s) => HolonAST::string(s.as_str()),
-        // Arc 221 Stone 221.4b — Keyword primitive → HolonAST::Keyword leaf.
-        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
-        // HolonAST::keyword() strips the leading colon (Stone 221.3 holon-rs fa48b39).
+        // Arc 230: Keyword → HolonAST::keyword() composition (Bind(Atom("Keyword"), Atom(s))).
+        // keyword() strips the leading colon; same semantics as arc 221 Stone 221.4b.
         Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str()),
-        // Arc 221 Stone 221.4b — Value::Unit (wat nil) → HolonAST::Nil leaf.
-        // Option A: aligned with value_to_atom (Stone 221.4) for consistency.
-        // Per the four-questions: obvious+simple+honest all YES — three dispatchers
-        // agreeing on nil-as-Nil is more honest than asymmetric TypeMismatch.
-        Value::Unit => HolonAST::Nil,
+        // Arc 230: Value::Unit (wat nil) → HolonAST::nil() composition.
+        // HolonAST::nil() = Bind(Atom("Symbol"), Atom("nil")); supersedes HolonAST::Nil.
+        Value::Unit => HolonAST::nil(),
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
@@ -15062,23 +15092,40 @@ fn eval_therm_form(
 }
 
 fn holon_to_watast(h: &HolonAST) -> WatAST {
+    // Arc 230: Symbol/Keyword/Nil/Tag variants retired; check via accessors
+    // before the generic match so the Bind arm handles generic compositions.
+    // Symbol composition: bare identifier or colon-prefixed keyword.
+    if let Some(s) = h.as_symbol() {
+        // nil is a Symbol composition — round-trip as :wat::core::nil.
+        if s == "nil" {
+            return WatAST::Keyword(":wat::core::nil".into(), Span::unknown());
+        }
+        // Colon-prefixed → keyword; bare → symbol identifier.
+        if s.starts_with(':') {
+            return WatAST::Keyword(s.to_string(), Span::unknown());
+        } else {
+            return WatAST::Symbol(crate::identifier::Identifier::bare(s.to_string()), Span::unknown());
+        }
+    }
+    // Keyword composition: restore leading colon for round-trip.
+    if let Some(s) = h.as_keyword() {
+        return WatAST::Keyword(format!(":{}", s), Span::unknown());
+    }
+    // Tag composition: non-round-trip debug render (no :wat::holon::Tag constructor).
+    if let Some(s) = h.as_tag() {
+        return WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::holon::Tag".into(), Span::unknown()),
+                WatAST::StringLit(s.to_string(), Span::unknown()),
+            ],
+            Span::unknown(),
+        );
+    }
     match h {
         HolonAST::I64(n) => WatAST::IntLit(*n, Span::unknown()),
         HolonAST::F64(x) => WatAST::FloatLit(*x, Span::unknown()),
         HolonAST::Bool(b) => WatAST::BoolLit(*b, Span::unknown()),
         HolonAST::String(s) => WatAST::StringLit(s.to_string(), Span::unknown()),
-        // Per the lab convention (also enforced by HolonAST::keyword): a
-        // Symbol whose content begins with `:` came from a keyword;
-        // anything else came from a bare wat identifier. We use that
-        // prefix to decide which WatAST variant to emit, preserving the
-        // `to-wat → eval-ast!` round-trip for both shapes.
-        HolonAST::Symbol(s) => {
-            if s.starts_with(':') {
-                WatAST::Keyword(s.to_string(), Span::unknown())
-            } else {
-                WatAST::Symbol(crate::identifier::Identifier::bare(s.to_string()), Span::unknown())
-            }
-        }
         HolonAST::Bundle(items) => WatAST::List(
             items.iter().map(holon_to_watast).collect(),
             Span::unknown(),
@@ -15087,8 +15134,7 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
             vec![
                 // Arc 225 Stone 225.1 — `:wat::holon::Atom` is now the narrow constructor
                 // (HolonAST → HolonAST::Atom). `to-wat` emits it here because the round-trip
-                // `(to-wat h → eval-ast!)` must reconstruct the same HolonAST shape;
-                // the round-trip input for Atom(inner) IS a HolonAST, so the narrow Atom is correct.
+                // `(to-wat h → eval-ast!)` must reconstruct the same HolonAST shape.
                 WatAST::Keyword(":wat::holon::Atom".into(), Span::unknown()),
                 holon_to_watast(inner),
             ],
@@ -15132,7 +15178,6 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
         // Arc 221 Stone 221.2 — Char primitive leaf. WatAST has no CharLit
         // variant; render as (:wat::core::Char/of "c") so that
         // `(eval-ast! (to-wat char-holon))` round-trips via Char/of.
-        // The one-char string preserves the Unicode codepoint faithfully.
         HolonAST::Char(c) => WatAST::List(
             vec![
                 WatAST::Keyword(":wat::core::Char/of".into(), Span::unknown()),
@@ -15140,35 +15185,7 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
             ],
             Span::unknown(),
         ),
-        // Arc 221 Stone 221.4 — Keyword primitive leaf (Stone 221.3 holon-rs fa48b39).
-        // Stored content has no leading colon; add it back for the WatAST::Keyword form.
-        // Round-trip safe: WatAST::Keyword(":foo") eval'd → Value::keyword with colon.
-        HolonAST::Keyword(s) => WatAST::Keyword(format!(":{}", s), Span::unknown()),
-        // Arc 221 Stone 221.4 — Nil primitive leaf (Stone 221.3 holon-rs fa48b39).
-        // :wat::core::nil at eval position → Value::Unit (the nil value) per runtime:4358.
-        // Round-trip safe via the established keyword-eval path.
-        HolonAST::Nil => WatAST::Keyword(":wat::core::nil".into(), Span::unknown()),
-        // Arc 221 Stone 221.4 — Tag dispatch-marker leaf (Stone 221.3 holon-rs fa48b39).
-        // Tag is a substrate-internal Bind composition marker; not a user-facing WAT value.
-        // Non-round-trip (no :wat::holon::Tag constructor registered), like SlotMarker.
-        // Renders as debug-legible list for inspection; eval-ast! on this form will error
-        // with unknown constructor (intentional — Tags are substrate internals, not user forms).
-        HolonAST::Tag(s) => WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::holon::Tag".into(), Span::unknown()),
-                WatAST::StringLit(s.to_string(), Span::unknown()),
-            ],
-            Span::unknown(),
-        ),
-        // SlotMarker (arc 073) is a substrate-internal sentinel returned
-        // by `:wat::holon::term::template`. It surfaces here as a debug-
-        // legible list, but the rendering is INTENTIONALLY non-round-
-        // trippable: `:wat::holon::SlotMarker` is not registered as a
-        // from-wat constructor, so `(eval-ast! (to-wat template))`
-        // on a template-bearing form will fail at re-parse with an
-        // unknown-constructor error. Templates are query keys, not
-        // values; this rendering supports inspection without reopening
-        // the user-spoofing door arc 073's option-a closed.
+        // SlotMarker (arc 073) is a substrate-internal sentinel. Non-round-trippable.
         HolonAST::SlotMarker { min, max } => WatAST::List(
             vec![
                 WatAST::Keyword(":wat::holon::SlotMarker".into(), Span::unknown()),
@@ -16234,24 +16251,25 @@ fn eval_holon_statement_length(
         });
     }
     let ast = require_holon(":wat::holon::statement-length", eval(&args[0], env, sym)?)?;
-    let n = match &*ast {
-        HolonAST::Symbol(_)
-        | HolonAST::String(_)
-        | HolonAST::I64(_)
-        | HolonAST::F64(_)
-        | HolonAST::Bool(_)
-        // Arc 221 Stone 221.2 — Char is a primitive leaf; statement-length = 1.
-        | HolonAST::Char(_)
-        // Arc 221 Stone 221.4 — Keyword/Nil/Tag are primitive leaves; statement-length = 1.
-        | HolonAST::Keyword(_)
-        | HolonAST::Nil
-        | HolonAST::Tag(_)
-        | HolonAST::Atom(_)
-        | HolonAST::Permute(_, _)
-        | HolonAST::Thermometer { .. }
-        | HolonAST::SlotMarker { .. } => 1,
-        HolonAST::Bind(_, _) | HolonAST::Blend(_, _, _, _) => 2,
-        HolonAST::Bundle(children) => children.len(),
+    // Arc 230 — Symbol/Keyword/Tag/Nil are now Bind compositions; intercept before
+    // the generic match so they return 1 (conceptual leaf) not 2 (Bind structural count).
+    let n = if ast.as_symbol().is_some() || ast.as_keyword().is_some() || ast.as_tag().is_some() {
+        1
+    } else {
+        match &*ast {
+            HolonAST::String(_)
+            | HolonAST::I64(_)
+            | HolonAST::F64(_)
+            | HolonAST::Bool(_)
+            // Arc 221 Stone 221.2 — Char is a primitive leaf; statement-length = 1.
+            | HolonAST::Char(_)
+            | HolonAST::Atom(_)
+            | HolonAST::Permute(_, _)
+            | HolonAST::Thermometer { .. }
+            | HolonAST::SlotMarker { .. } => 1,
+            HolonAST::Bind(_, _) | HolonAST::Blend(_, _, _, _) => 2,
+            HolonAST::Bundle(children) => children.len(),
+        }
     };
     Ok(Value::i64(n as i64))
 }
@@ -21507,9 +21525,9 @@ fn value_to_holon(op: &'static str, v: Value) -> Result<Value, RuntimeError> {
         // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
         // HolonAST::keyword() strips the leading colon (Stone 221.3 holon-rs fa48b39).
         Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str()),
-        // Arc 221 Stone 221.4b — Value::Unit (wat nil) → HolonAST::Nil leaf.
-        // Option A: aligned with value_to_atom + :wat::holon::leaf for consistency.
-        Value::Unit => HolonAST::Nil,
+        // Arc 230 — Value::Unit (wat nil) → HolonAST::nil() composition.
+        // nil() = Bind(Atom("Symbol"), Atom("nil")); supersedes HolonAST::Nil (retired).
+        Value::Unit => HolonAST::nil(),
         // Already a HolonAST — pass through unchanged. Eval-ast!'s
         // contract is "return the form's value as a HolonAST." If
         // it's already a HolonAST, return it directly; wrapping
