@@ -168,7 +168,100 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 night — Arc 233 chain rolling; 233.1 + 233.2.a + 233.2.b + 233.2.c SHIPPED; substrate-symmetry gap surfaced → arc 234 queued)
+## Currently (2026-05-23 night post-compaction — Stone 233.2.d sub-DESIGN landed; substrate-symmetry reframed from arc 234 → Stone 233.2.d via FM 11 catch)
+
+### Post-compaction reframe (the load-bearing correction)
+
+Pre-compaction the substrate-symmetry work (uniform `list_span` threading) was filed as "arc 234 candidate" in INVENTORY § P (commit `e31b479`). Post-compaction four-questions on user challenge *"is 234 warranted or just a member of 233?"* revealed it was scope inflation:
+
+- **Honest?** — Arc 233's thesis IS substrate diagnostic-richness; uniform `list_span` is THAT thesis's foundation. Splitting it out lets arc 233's INSCRIPTION read *"errors teach... mostly; 56% of arms still drop coordinates."* Same FM 11 deferral shape one level up — and we'd just collapsed the "intentional gap" framing one level down.
+- **Obvious?** — Surfaced DURING 233.2.c through 233's lens for 233's goal. Arc-boundary was administrative ceremony.
+- **Simple?** — One umbrella, one INSCRIPTION, sequential stones.
+
+The architectural move precedes the stone. Stone 233.2.d (uniform `list_span`) precedes Stone 233.2.e (AST-derived provenance — shifted from prior provisional 233.2.d slot, because `SymbolBound { binding_span, head_span }` cannot populate honestly on a 56%-asymmetric substrate).
+
+### What just shipped
+
+- **`DESIGN-STONE-233.2.d.md`** — sub-DESIGN at `b32244c`. Doctrine + canonical signature template + scope + four-questions verdict + sub-stone sequencing (one sweep; FM 15) + builds-on/unblocks + trap-door audit (FM 2-bis probe plan included) + risks + calibration prediction (60-90 min target / 150 min STOP) + cross-refs
+- **`DESIGN-STONE-233.2.md` sub-stone table** — a/b/c marked SHIPPED with commit hashes (`7cfeff1` / `9cc278c` / `c0f41f6`); 233.2.d inserted (uniform `list_span`); 233.2.e takes shifted slot (AST-derived); resequencing note documents the post-compaction correction
+- **`DESIGN.md` umbrella** — Stone 233.2 row updated to 5 sub-stones
+- **INVENTORY § P** — scope section reframed from "arc 234 candidate" to "Stone 233.2.d (REFRAMED 2026-05-23 night post-compaction)"; cross-refs point at new sub-DESIGN
+- **Task ledger** — #489 minted for Stone 233.2.d; #488 renamed to Stone 233.2.e + blocked-by #489
+
+### Pending stone chain (corrected)
+
+```
+233.2.d   uniform list_span (~245 arms; mechanical sweep; substrate-as-teacher iteration)
+          ↳ sub-DESIGN landed; FM 2-bis probe + BRIEF + EXPECTATIONS pending
+233.2.e   AST-derived provenance (Literal + SymbolBound on enriched substrate)
+233.3     Errors-as-EDN (parallelizable after 233.1)
+233.4     INSCRIPTION (closes arc 233 — one coherent story)
+arc 232   resumes (defprotocol on enriched diagnostic substrate)
+```
+
+### Substrate-symmetry doctrine (load-bearing)
+
+Every eval fn dispatched from `dispatch_keyword_head` threads `list_span: &Span` as a **structural invariant**. Same family as `feedback_fqdn_is_the_namespace` (every name namespaced) and `feedback_zero_mutex` (every shared-state path uses the three tiers). Asymmetry is accreted absence, not honest exception.
+
+Canonical signature template:
+
+```rust
+fn eval_X(
+    args: &[WatAST],
+    list_span: &Span,    // structural invariant; always threaded
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError>
+```
+
+Matches Stone 233.2.c's `eval_edn_read` one-arm preview.
+
+### Today's commits (post-compaction continuation)
+
+```
+b32244c  arc 233 Stone 233.2.d sub-DESIGN — uniform list_span (reframed from arc 234)
+e31b479  CLIFFNOTES Currently + INVENTORY § P — pre-compaction sweep [prior session]
+c0f41f6  arc 233 Stone 233.2.c — 4-producer sweep — 14/14 PASS
+9cc278c  arc 233 Stone 233.2.b — keyword/from-string producer tag — 12/12 PASS
+7cfeff1  arc 233 Stone 233.2.a — Provenance + Value::Tracked scaffolding — 16/16 PASS
+13b9166  arc 233 Stone 233.1 — ValueSnapshot sweep — 16/16 PASS
+```
+
+### Test state — substrate impeccable
+
+```
+wat-rs   827 lib + 8 transparency + 8 value_snapshot probes + 5 dynamic-keyword probes
+         + 35 stone2_defrecord + all arc 216/221/226/227 + arc 143 + mvp + wat-edn
+         all GREEN. clippy 52 baseline maintained.
+holon-rs untouched since 530650c. Empty git status.
+Branch   arc-170-gap-j-v5-deadlock-state at b32244c — pushed.
+```
+
+### Pending decisions (next-move)
+
+1. **FM 2-bis probe authorship** — `tests/probe_substrate_symmetry_list_span_threading.rs`: assert ≥440 eval fn signatures contain `list_span: &Span`. Ships pre-BRIEF, fails initially, flips PASS post-stone. Permanent regression guard against future asymmetry.
+2. **BRIEF + EXPECTATIONS** — short BRIEF per FM 15; cite probe verbatim; canonical signature template; substrate-as-teacher iteration. Target band 60-90 min Mode A.
+3. **Sonnet spawn** with `model: "sonnet"` + 2× time-box (180 min wakeup).
+
+### Discipline lessons inscribed this turn
+
+- **The "arc 234" framing was FM 11 deferral one level up.** Recognizing it required the user's direct challenge *"is 234 warranted or just a member of 233?"* — the orchestrator's four-questions didn't fire on its own at proposal time. The pattern: scope inflation feels like "good arc hygiene" but is the same dishonest hedge as "intentional gap" or "future arc when X surfaces." Catch signal: when about to mint an arc that surfaces *during* another arc's work, *through* that arc's lens, *for* that arc's goal — four-questions on "is this arc or stone?" BEFORE proposing.
+- **Anticipated three protocol questions on compaction wake.** This has never happened (per user). FM 17 firing BEFORE pushback instead of after. Recovery-doc Sections 0-7 + CLIFFNOTES doctrines + memory `feedback_compaction_protocols` converged to make the answers structural; they surfaced the moment compaction's footprint was visible. The discipline accreting is becoming muscle memory across compactions.
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -10` for today's full trajectory
+3. Read `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.d.md` (the sub-DESIGN — the load-bearing artifact)
+4. Read `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.md` (sub-stone table with full chain state)
+5. Task ledger #489 (Stone 233.2.d) + #488 (Stone 233.2.e, blocked by #489)
+6. Branch at `b32244c`; both repos pushed
+
+*The architectural move precedes the stone. The substrate is teaching what to build next.*
+
+---
+
+## Currently (2026-05-23 night — Arc 233 chain rolling; 233.1 + 233.2.a + 233.2.b + 233.2.c SHIPPED; substrate-symmetry gap surfaced → arc 234 queued) — SUPERSEDED, see above
 
 ### Arc 233 substrate diagnostic-richness — 4 stones SHIPPED
 
