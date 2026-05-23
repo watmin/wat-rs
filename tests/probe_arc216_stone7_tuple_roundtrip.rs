@@ -66,7 +66,7 @@ fn run_i64(src: &str) -> i64 {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }
@@ -81,7 +81,7 @@ fn run_value(src: &str) -> Value {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute")
+    eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
 }
 
 /// Extract element at `index` from a `Value::Tuple`, asserting it is i64.

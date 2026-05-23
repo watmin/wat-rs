@@ -30,7 +30,7 @@ fn eval_value(src: &str) -> Value {
         .expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute")
+    eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
 }
 
 // ─── Construction ─────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ fn list_constructor_of_returns_list_type() {
         .expect("startup");
     let ast = parse_one!("(:user::compute)").expect("parse");
     let env = Environment::new();
-    let length = eval_in_frozen(&ast, &world, &env).expect("compute");
+    let length = eval_in_frozen(&ast, &world, &env).expect("compute").value_owned();
     // Also exercise directly via Rust API to confirm type
     assert_eq!(length, Value::i64(2), "List/of 1 2 has length 2");
     // Confirm the Rust variant is wat__core__List, not Vec

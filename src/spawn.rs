@@ -36,7 +36,7 @@ use crate::freeze::{
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::runtime::{
     eval, extract_panic_payload, Environment, RuntimeError, SpawnOutcome, StructValue, SymbolTable,
-    Value,
+    TrackedValue, Value,
 };
 use crate::sandbox::resolve_sandbox_loader;
 
@@ -279,8 +279,8 @@ fn arity_2(op: &str, args: &[WatAST], list_span: &crate::span::Span) -> Result<(
     Ok(())
 }
 
-fn expect_string(op: &str, v: Value, span: crate::span::Span) -> Result<String, RuntimeError> {
-    match v {
+fn expect_string(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result<String, RuntimeError> {
+    match tv.value_owned() {
         Value::String(s) => Ok((*s).clone()),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
@@ -293,10 +293,10 @@ fn expect_string(op: &str, v: Value, span: crate::span::Span) -> Result<String, 
 
 fn expect_option_string(
     op: &str,
-    v: Value,
+    tv: TrackedValue,
     span: crate::span::Span,
 ) -> Result<Option<String>, RuntimeError> {
-    match v {
+    match tv.value_owned() {
         Value::Option(opt) => match &*opt {
             Some(Value::String(s)) => Ok(Some((**s).clone())),
             Some(other) => Err(RuntimeError::TypeMismatch {
@@ -316,8 +316,8 @@ fn expect_option_string(
     }
 }
 
-fn expect_vec_ast(op: &str, v: Value, span: crate::span::Span) -> Result<Vec<WatAST>, RuntimeError> {
-    match v {
+fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result<Vec<WatAST>, RuntimeError> {
+    match tv.value_owned() {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items.iter() {

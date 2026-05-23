@@ -37,7 +37,7 @@ use wat::rust_deps::{
     downcast_ref_opaque, rust_opaque_arc, RustDispatch, RustScheme, RustSymbol, SchemeCtx,
     ThreadOwnedCell,
 };
-use wat::runtime::{eval, Environment, RuntimeError, StructValue, SymbolTable, Value};
+use wat::runtime::{eval, Environment, RuntimeError, StructValue, SymbolTable, Value, ValueSnapshot};
 use wat::types::{expand_alias, EnumDef, EnumVariant, TypeDef, TypeEnv, TypeExpr};
 
 use wat_sqlite::WatSqliteDb;
@@ -261,7 +261,7 @@ fn dispatch_auto_install(
             span: wat::span::Span::unknown(),
         });
     }
-    let db_val = eval(&args[0], env, sym)?;
+    let db_val = eval(&args[0], env, sym)?.value_owned();
     let enum_name = eval_keyword(OP, &args[1], env, sym)?;
     let schema = lookup_schema(OP, &enum_name)?;
     let inner = rust_opaque_arc(&db_val, TYPE_PATH, OP, args[0].span().clone())?;
@@ -337,9 +337,9 @@ fn dispatch_auto_dispatch(
             span: wat::span::Span::unknown(),
         });
     }
-    let db_val = eval(&args[0], env, sym)?;
+    let db_val = eval(&args[0], env, sym)?.value_owned();
     let enum_name = eval_keyword(OP, &args[1], env, sym)?;
-    let entry = eval(&args[2], env, sym)?;
+    let entry = eval(&args[2], env, sym)?.value_owned();
     let schema = lookup_schema(OP, &enum_name)?;
     let ev = match &entry {
         Value::Enum(ev) => ev.clone(),
@@ -399,7 +399,8 @@ fn dispatch_auto_dispatch(
         .map(|(i, (v, t))| value_to_tosql(OP, &enum_name, &ev.variant_name, i, v, t, sym))
         .collect::<Result<_, _>>()?;
     let inner = rust_opaque_arc(&db_val, TYPE_PATH, OP, args[0].span().clone())?;
-    let cell: &ThreadOwnedCell<WatSqliteDb> = downcast_ref_opaque(&inner, TYPE_PATH, OP, args[0].span().clone())?;
+    let cell: &ThreadOwnedCell<WatSqliteDb> =
+        downcast_ref_opaque(&inner, TYPE_PATH, OP, args[0].span().clone())?;
     let sql = av.insert_sql.clone();
     cell.with_mut(OP, args[0].span().clone(), move |db| {
         let mut stmt = db.conn.prepare_cached(&sql).unwrap_or_else(|e| {
@@ -679,13 +680,13 @@ fn eval_keyword(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
-    let v = eval(ast, env, sym)?;
+    let v = eval(ast, env, sym)?.value_owned();
     match v {
         Value::wat__core__keyword(s) => Ok((*s).clone()),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: ":wat::core::keyword",
-            got: other.type_name(),
+            got: ValueSnapshot::of(&other),
             span: ast.span().clone(),
         }),
     }

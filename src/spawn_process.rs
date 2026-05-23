@@ -109,7 +109,7 @@ pub fn eval_kernel_spawn_process(
     // `:wat::kernel::fork-program-ast` (see src/fork.rs:574). Macros
     // construct the program shape internally; user-facing surface
     // remains body-only.
-    let forms = match eval(&args[0], env, sym)? {
+    let forms = match eval(&args[0], env, sym)?.value_owned() {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items.iter() {

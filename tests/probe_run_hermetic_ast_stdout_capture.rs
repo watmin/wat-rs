@@ -81,7 +81,7 @@ fn probe_run_hermetic_ast_child_stdout_captured() {
     let call = wat::parse_one!("(:probe::ast::capture-stdout)").expect("parse call");
     let env = Environment::new();
     let result = eval_in_frozen(&call, &world, &env)
-        .expect("probe::ast::capture-stdout should run without panicking");
+        .expect("probe::ast::capture-stdout should run without panicking").value_owned();
 
     // result is :wat::kernel::RunResult { stdout stderr failure }
     let sv = match &result {

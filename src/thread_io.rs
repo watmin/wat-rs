@@ -184,7 +184,7 @@ fn require_one_arg(
             span: Span::unknown(),
         });
     }
-    eval(&args[0], env, sym)
+    eval(&args[0], env, sym).map(|tv| tv.value_owned())
 }
 
 /// `(:wat::kernel::println v)` → `:wat::core::nil`. Serialize `v`

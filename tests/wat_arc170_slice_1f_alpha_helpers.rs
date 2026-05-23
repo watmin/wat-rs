@@ -28,7 +28,6 @@
 
 use std::sync::Arc;
 
-use crossbeam_channel::bounded;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, RuntimeError, Value};
@@ -36,6 +35,7 @@ use wat::thread_io::{
     install_thread_io, uninstall_thread_io, ThreadIO,
     StdInServiceEvent, StdOutServiceEvent, StdErrServiceEvent,
 };
+use wat::typed_channel::{bounded, Sender, Receiver};
 
 // Arc 170 slice 1f-ι — the readln contract now requires a `-> :T`
 // annotation and the bridge reply payload is a raw `String` (was
@@ -69,14 +69,14 @@ fn freeze_skeleton() -> wat::freeze::FrozenWorld {
 struct TestRig {
     io: Option<ThreadIO>,
     /// service-side: receive StdOutServiceEvent from println.
-    out_rx: crossbeam_channel::Receiver<StdOutServiceEvent>,
-    out_ack_tx: crossbeam_channel::Sender<()>,
+    out_rx: Receiver<StdOutServiceEvent>,
+    out_ack_tx: Sender<()>,
     /// service-side: receive StdErrServiceEvent from eprintln.
-    err_rx: crossbeam_channel::Receiver<StdErrServiceEvent>,
-    err_ack_tx: crossbeam_channel::Sender<()>,
+    err_rx: Receiver<StdErrServiceEvent>,
+    err_ack_tx: Sender<()>,
     /// service-side: receive StdInServiceEvent from readln.
-    stdin_rx: crossbeam_channel::Receiver<StdInServiceEvent>,
-    stdin_reply_tx: crossbeam_channel::Sender<String>,
+    stdin_rx: Receiver<StdInServiceEvent>,
+    stdin_reply_tx: Sender<String>,
 }
 
 fn build_rig() -> TestRig {
@@ -209,7 +209,7 @@ fn row_d_println_populated_sends_serialized_string() {
     let env = Environment::new();
     let result = run_with_thread_io(&mut rig, || eval_in_frozen(&ast, &world, &env));
 
-    assert!(matches!(result, Ok(Value::Unit)), "got {:?}", result);
+    assert!(matches!(result.expect("eval should succeed").value_owned(), Value::Unit), "expected Unit");
     let received = tester.join().expect("tester joins");
     assert_eq!(received, "42");
 }
@@ -237,7 +237,7 @@ fn row_e_eprintln_populated_sends_serialized_string() {
     let env = Environment::new();
     let result = run_with_thread_io(&mut rig, || eval_in_frozen(&ast, &world, &env));
 
-    assert!(matches!(result, Ok(Value::Unit)), "got {:?}", result);
+    assert!(matches!(result.expect("eval should succeed").value_owned(), Value::Unit), "expected Unit");
     let received = tester.join().expect("tester joins");
     // EDN-quoted: a wat String renders as "\"hello\"".
     assert_eq!(received, "\"hello\"");
@@ -327,7 +327,7 @@ fn row_g_println_polymorphic_value_types() {
         let env = Environment::new();
         let result = run_with_thread_io(&mut rig, || eval_in_frozen(&ast, &world, &env));
 
-        assert!(matches!(result, Ok(Value::Unit)), "src={:?} got {:?}", src, result);
+        assert!(matches!(result.expect("eval should succeed").value_owned(), Value::Unit), "src={:?}", src);
         let received = tester.join().expect("tester joins");
         assert_eq!(received, *expected, "src={:?}", src);
     }

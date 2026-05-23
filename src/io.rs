@@ -26,7 +26,7 @@
 //! `:wat::test::*` sit on top.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, TrackedValue, Value};
 use crate::rust_deps::ThreadOwnedCell;
 use crate::span::Span;
 use std::sync::Arc;
@@ -707,8 +707,8 @@ fn arity(op: &str, args: &[WatAST], n: usize) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-fn expect_reader(op: &str, v: Value, span: Span) -> Result<Arc<dyn WatReader>, RuntimeError> {
-    match v {
+fn expect_reader(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatReader>, RuntimeError> {
+    match tv.value_owned() {
         Value::io__IOReader(r) => Ok(r),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
@@ -719,8 +719,8 @@ fn expect_reader(op: &str, v: Value, span: Span) -> Result<Arc<dyn WatReader>, R
     }
 }
 
-fn expect_writer(op: &str, v: Value, span: Span) -> Result<Arc<dyn WatWriter>, RuntimeError> {
-    match v {
+fn expect_writer(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatWriter>, RuntimeError> {
+    match tv.value_owned() {
         Value::io__IOWriter(w) => Ok(w),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
@@ -731,8 +731,8 @@ fn expect_writer(op: &str, v: Value, span: Span) -> Result<Arc<dyn WatWriter>, R
     }
 }
 
-fn expect_i64(op: &str, v: Value, span: Span) -> Result<i64, RuntimeError> {
-    match v {
+fn expect_i64(op: &str, tv: TrackedValue, span: Span) -> Result<i64, RuntimeError> {
+    match tv.value_owned() {
         Value::i64(n) => Ok(n),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
@@ -743,8 +743,8 @@ fn expect_i64(op: &str, v: Value, span: Span) -> Result<i64, RuntimeError> {
     }
 }
 
-fn expect_string(op: &str, v: Value, span: Span) -> Result<Arc<String>, RuntimeError> {
-    match v {
+fn expect_string(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<String>, RuntimeError> {
+    match tv.value_owned() {
         Value::String(s) => Ok(s),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
@@ -755,8 +755,8 @@ fn expect_string(op: &str, v: Value, span: Span) -> Result<Arc<String>, RuntimeE
     }
 }
 
-fn expect_vec_u8(op: &str, v: Value, span: Span) -> Result<Vec<u8>, RuntimeError> {
-    match v {
+fn expect_vec_u8(op: &str, tv: TrackedValue, span: Span) -> Result<Vec<u8>, RuntimeError> {
+    match tv.value_owned() {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items.iter() {
@@ -923,7 +923,7 @@ pub fn eval_iowriter_open_file(
     use std::os::fd::OwnedFd;
     let op = ":wat::io::IOWriter/open-file";
     arity(op, args, 1)?;
-    let path = match crate::runtime::eval(&args[0], env, sym)? {
+    let path = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -1314,7 +1314,7 @@ pub fn eval_io_temp_file_path(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::TempFile/path";
     arity(op, args, 1)?;
-    let v = eval(&args[0], env, sym)?;
+    let v = eval(&args[0], env, sym)?.value_owned();
     let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempFile", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempFile> =
         crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempFile", op, args[0].span().clone())?;
@@ -1343,7 +1343,7 @@ pub fn eval_io_temp_dir_path(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::TempDir/path";
     arity(op, args, 1)?;
-    let v = eval(&args[0], env, sym)?;
+    let v = eval(&args[0], env, sym)?.value_owned();
     let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempDir", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempDir> =
         crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempDir", op, args[0].span().clone())?;

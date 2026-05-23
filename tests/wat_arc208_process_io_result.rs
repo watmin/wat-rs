@@ -164,7 +164,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
     let world = freeze_ok(PARENT_SRC);
     let spawn_call = build_spawn_process_call(ECHO_SERVER);
     let env = Environment::new();
-    let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds");
+    let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
 
     let env2 = Environment::new().child().bind("server", server).build();
 
@@ -186,7 +186,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
     .expect("println-AST parses");
 
     let sent_result = eval(&println_ast, &env2, world.symbols())
-        .expect("Process/println eval should succeed");
+        .expect("Process/println eval should succeed").value_owned();
     let sent_inner = unwrap_ok(sent_result, "Process/println Ok");
     assert!(
         matches!(sent_inner, Value::Unit),
@@ -213,7 +213,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
     .expect("readln+drain AST parses");
 
     let reply_result = eval(&readln_drain_ast, &env2, world.symbols())
-        .expect("Process/readln+drain eval should succeed");
+        .expect("Process/readln+drain eval should succeed").value_owned();
     let reply_inner = unwrap_ok(reply_result, "Process/readln Ok");
     match reply_inner {
         Value::String(s) => assert_eq!(
@@ -239,14 +239,14 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
     let world = freeze_ok(PARENT_SRC);
     let spawn_call = build_spawn_process_call(IMMEDIATE_EXIT_SERVER);
     let env = Environment::new();
-    let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds");
+    let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
 
     // Drain and join first so the subprocess is definitely dead.
     let env2 = Environment::new().child().bind("server", server).build();
     let djoin_ast = wat::parse_one!("(:wat::kernel::Process/drain-and-join server)")
         .expect("drain-and-join AST parses");
     let _djoin = eval(&djoin_ast, &env2, world.symbols())
-        .expect("Process/drain-and-join should succeed");
+        .expect("Process/drain-and-join should succeed").value_owned();
 
     // Now re-spawn a fresh server that exits immediately and attempt
     // to write to it after a drain (guarantees dead peer).
@@ -255,7 +255,7 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
         &Environment::new(),
         world.symbols(),
     )
-    .expect("second spawn-process succeeds");
+    .expect("second spawn-process succeeds").value_owned();
 
     let env3 = Environment::new().child().bind("server2", server2).build();
 
@@ -276,7 +276,7 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
     .expect("println-dead AST parses");
 
     let outcome = eval(&println_dead_ast, &env3, world.symbols())
-        .expect("Process/println on dead peer should return Result, not panic");
+        .expect("Process/println on dead peer should return Result, not panic").value_owned();
 
     let chain = unwrap_err_chain(outcome, "Process/println dead peer");
     match chain {
@@ -305,7 +305,7 @@ fn arc208_t4_process_readln_returns_err_on_dead_peer() {
         &Environment::new(),
         world.symbols(),
     )
-    .expect("spawn-process succeeds");
+    .expect("spawn-process succeeds").value_owned();
 
     let env = Environment::new().child().bind("server", server).build();
 
@@ -326,7 +326,7 @@ fn arc208_t4_process_readln_returns_err_on_dead_peer() {
     .expect("readln-dead AST parses");
 
     let outcome = eval(&readln_dead_ast, &env, world.symbols())
-        .expect("Process/readln on dead peer should return Result, not panic");
+        .expect("Process/readln on dead peer should return Result, not panic").value_owned();
 
     let chain = unwrap_err_chain(outcome, "Process/readln dead peer");
     match chain {
@@ -355,7 +355,7 @@ fn arc208_t5_err_chain_head_is_channel_disconnected() {
         &Environment::new(),
         world.symbols(),
     )
-    .expect("spawn-process succeeds");
+    .expect("spawn-process succeeds").value_owned();
 
     let env = Environment::new().child().bind("server", server).build();
 
@@ -376,7 +376,7 @@ fn arc208_t5_err_chain_head_is_channel_disconnected() {
     .expect("readln chain AST parses");
 
     let outcome = eval(&readln_chain_ast, &env, world.symbols())
-        .expect("Process/readln dead peer returns Result");
+        .expect("Process/readln dead peer returns Result").value_owned();
 
     let chain = unwrap_err_chain(outcome, "T5 readln chain");
     // Chain is Vec<ProcessDiedError>; extract head.

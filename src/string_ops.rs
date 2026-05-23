@@ -137,7 +137,7 @@ pub fn eval_string_join(
             span,
         });
     }
-    let sep = match eval(&args[0], env, sym)? {
+    let sep = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -148,7 +148,7 @@ pub fn eval_string_join(
             });
         }
     };
-    let pieces = match eval(&args[1], env, sym)? {
+    let pieces = match eval(&args[1], env, sym)?.value_owned() {
         Value::Vec(items) => items,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -208,7 +208,7 @@ pub fn eval_string_concat(
     let mut total = 0usize;
     let mut pieces: Vec<Arc<String>> = Vec::with_capacity(args.len());
     for arg in args {
-        match eval(arg, env, sym)? {
+        match eval(arg, env, sym)?.value_owned() {
             Value::String(s) => {
                 total += s.len();
                 pieces.push(s);
@@ -304,8 +304,8 @@ pub fn eval_uuid_typed_v5(
             },
         });
     }
-    let ns_val = eval(&args[0], env, sym)?;
-    let name_val = eval(&args[1], env, sym)?;
+    let ns_val = eval(&args[0], env, sym)?.value_owned();
+    let name_val = eval(&args[1], env, sym)?.value_owned();
     let ns_uuid = match &ns_val {
         Value::wat__core__Uuid(u) => *u,
         _ => {
@@ -355,7 +355,7 @@ pub fn eval_uuid_typed_from_string(
             },
         });
     }
-    let s_val = eval(&args[0], env, sym)?;
+    let s_val = eval(&args[0], env, sym)?.value_owned();
     let s = match &s_val {
         Value::String(s) => s.as_str().to_string(),
         _ => {
@@ -397,7 +397,7 @@ pub fn eval_uuid_typed_to_string(
             },
         });
     }
-    let u_val = eval(&args[0], env, sym)?;
+    let u_val = eval(&args[0], env, sym)?.value_owned();
     let u = match &u_val {
         Value::wat__core__Uuid(u) => *u,
         _ => {
@@ -469,7 +469,7 @@ pub fn eval_char_of(
             span,
         });
     }
-    let val = eval(&args[0], env, sym)?;
+    let val = eval(&args[0], env, sym)?.value_owned();
     let s = match val {
         Value::String(s) => (*s).clone(),
         other => {
@@ -531,7 +531,7 @@ pub fn eval_list_of(
 ) -> Result<Value, RuntimeError> {
     let mut items = std::collections::LinkedList::new();
     for arg in args {
-        items.push_back(crate::runtime::eval(arg, env, sym)?);
+        items.push_back(crate::runtime::eval(arg, env, sym)?.value_owned());
     }
     Ok(Value::wat__core__List(std::sync::Arc::new(items)))
 }
@@ -580,7 +580,7 @@ fn one_string(
             span,
         });
     }
-    match eval(&args[0], env, sym)? {
+    match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => Ok((*s).clone()),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
@@ -609,7 +609,7 @@ fn two_strings(
             span,
         });
     }
-    let a = match eval(&args[0], env, sym)? {
+    let a = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -620,7 +620,7 @@ fn two_strings(
             });
         }
     };
-    let b = match eval(&args[1], env, sym)? {
+    let b = match eval(&args[1], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {

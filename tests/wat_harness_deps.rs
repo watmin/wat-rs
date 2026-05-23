@@ -71,8 +71,8 @@ fn harness_composes_multiple_deps_into_user_source() {
         let env = Environment::new();
         let ast_a = wat::parse_one!("(:user::test::dep-a::label)").expect("parse a");
         let ast_b = wat::parse_one!("(:user::test::dep-b::label)").expect("parse b");
-        let val_a = eval_in_frozen(&ast_a, &world, &env).expect("eval a");
-        let val_b = eval_in_frozen(&ast_b, &world, &env).expect("eval b");
+        let val_a = eval_in_frozen(&ast_a, &world, &env).expect("eval a").value_owned();
+        let val_b = eval_in_frozen(&ast_b, &world, &env).expect("eval b").value_owned();
         assert!(matches!(val_a, Value::String(ref s) if &**s == "A"), "expected dep-a to return 'A'; got {:?}", val_a);
         assert!(matches!(val_b, Value::String(ref s) if &**s == "B"), "expected dep-b to return 'B'; got {:?}", val_b);
     });
@@ -94,7 +94,7 @@ fn harness_same_deps_usable_from_different_entry_source() {
         let world = h.world();
         let env = Environment::new();
         let ast = wat::parse_one!("(:user::test::dep-a::label)").expect("parse dep-a");
-        let val = eval_in_frozen(&ast, &world, &env).expect("eval dep-a");
+        let val = eval_in_frozen(&ast, &world, &env).expect("eval dep-a").value_owned();
         assert!(matches!(val, Value::String(ref s) if &**s == "A"),
                 "expected dep-a to return 'A'; got {:?}", val);
     });

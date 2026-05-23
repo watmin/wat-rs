@@ -23,7 +23,7 @@ fn run(src: &str) -> Value {
         startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute")
+    eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
 }
 
 fn assert_bool(v: Value, expected: bool, ctx: &str) {

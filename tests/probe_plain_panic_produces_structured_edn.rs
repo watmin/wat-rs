@@ -93,7 +93,7 @@ fn probe_plain_panic_produces_structured_edn() {
     let world = freeze_ok(outer_src);
     let ast = wat::parse_one!("(:probe::plain-panic)").expect("parse");
     let env = Environment::new();
-    let result = eval_in_frozen(&ast, &world, &env).expect("outer should not panic");
+    let result = eval_in_frozen(&ast, &world, &env).expect("outer should not panic").value_owned();
 
     let msg = failure_message(&result);
 

@@ -578,7 +578,7 @@ fn process_struct_has_typed_channel_fields_at_indices_4_and_5() {
     let rx_value = receiver_from_pipe(stdout_reader.clone());
 
     let (handle_tx, handle_rx) =
-        crossbeam_channel::bounded::<wat::runtime::SpawnOutcome>(1);
+        wat::typed_channel::bounded::<wat::runtime::SpawnOutcome>(1);
     drop(handle_tx);
 
     let process = Value::Struct(Arc::new(StructValue {
@@ -658,7 +658,7 @@ fn wat_kernel_send_recv_dispatches_through_pipefd_transport() {
 
     let send_ast = wat::parse_one!("(:wat::kernel::send tx 7)").expect("parse send");
     let send_result =
-        eval(&send_ast, &env, world.symbols()).expect("send eval should succeed");
+        eval(&send_ast, &env, world.symbols()).expect("send eval should succeed").value_owned();
     // Expected: Result.Ok(:())
     match send_result {
         Value::Result(res) => match &*res {
@@ -670,7 +670,7 @@ fn wat_kernel_send_recv_dispatches_through_pipefd_transport() {
 
     let recv_ast = wat::parse_one!("(:wat::kernel::recv rx)").expect("parse recv");
     let recv_result =
-        eval(&recv_ast, &env, world.symbols()).expect("recv eval should succeed");
+        eval(&recv_ast, &env, world.symbols()).expect("recv eval should succeed").value_owned();
     // Expected: Result.Ok(:(Some 7))
     match recv_result {
         Value::Result(res) => match &*res {
@@ -693,7 +693,7 @@ fn wat_kernel_recv_pipefd_returns_none_on_writer_close() {
     let env = Environment::new().child().bind("rx", rx).build();
     let recv_ast = wat::parse_one!("(:wat::kernel::recv rx)").expect("parse");
     let recv_result =
-        eval(&recv_ast, &env, world.symbols()).expect("recv eval should succeed");
+        eval(&recv_ast, &env, world.symbols()).expect("recv eval should succeed").value_owned();
     // Expected: Result.Ok(:None)
     match recv_result {
         Value::Result(res) => match &*res {
@@ -852,7 +852,7 @@ fn wat_kernel_sender_close_dispatch_via_eval() {
     let close_ast =
         wat::parse_one!("(:wat::kernel::Sender/close tx)").expect("parse Sender/close");
     let close_result =
-        eval(&close_ast, &env, world.symbols()).expect("Sender/close eval should succeed");
+        eval(&close_ast, &env, world.symbols()).expect("Sender/close eval should succeed").value_owned();
     assert!(
         matches!(close_result, Value::Unit),
         "Sender/close should return nil, got {:?}",
@@ -862,7 +862,7 @@ fn wat_kernel_sender_close_dispatch_via_eval() {
     // (:wat::kernel::send tx 99) → Result.Err(disconnected)
     let send_ast = wat::parse_one!("(:wat::kernel::send tx 99)").expect("parse send");
     let send_result =
-        eval(&send_ast, &env, world.symbols()).expect("send-after-close eval should not panic");
+        eval(&send_ast, &env, world.symbols()).expect("send-after-close eval should not panic").value_owned();
     match send_result {
         Value::Result(res) => match &*res {
             Err(_) => {} // any Err is correct — ChannelDisconnected shape

@@ -45,7 +45,7 @@ use chrono::{DateTime, SecondsFormat, TimeZone, Utc};
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, TrackedValue, Value};
 use crate::span::Span;
 
 // ─── Constructors ────────────────────────────────────────────────────
@@ -462,7 +462,7 @@ pub(crate) fn eval_time_sub(
         });
     }
     let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let b = eval(&args[1], env, sym)?.value_owned();
     let a_inst = require_instant(OP, a)?;
     match b {
         Value::Duration(ns) => {
@@ -532,7 +532,7 @@ pub(crate) fn eval_time_add(
         });
     }
     let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let b = eval(&args[1], env, sym)?.value_owned();
     let a_inst = require_instant(OP, a)?;
     let ns = match b {
         Value::Duration(ns) => ns,
@@ -925,8 +925,8 @@ pub(crate) fn eval_time_days_from_now(
 
 // ─── Helpers — local to this module ─────────────────────────────────
 
-fn require_i64(op: &'static str, v: Value) -> Result<i64, RuntimeError> {
-    match v {
+fn require_i64(op: &'static str, tv: TrackedValue) -> Result<i64, RuntimeError> {
+    match tv.value_owned() {
         Value::i64(n) => Ok(n),
         // arc 138: no span — require_i64 receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
@@ -938,8 +938,8 @@ fn require_i64(op: &'static str, v: Value) -> Result<i64, RuntimeError> {
     }
 }
 
-fn require_string(op: &'static str, v: Value) -> Result<String, RuntimeError> {
-    match v {
+fn require_string(op: &'static str, tv: TrackedValue) -> Result<String, RuntimeError> {
+    match tv.value_owned() {
         Value::String(s) => Ok((*s).clone()),
         // arc 138: no span — require_string receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
@@ -951,8 +951,8 @@ fn require_string(op: &'static str, v: Value) -> Result<String, RuntimeError> {
     }
 }
 
-fn require_instant(op: &'static str, v: Value) -> Result<DateTime<Utc>, RuntimeError> {
-    match v {
+fn require_instant(op: &'static str, tv: TrackedValue) -> Result<DateTime<Utc>, RuntimeError> {
+    match tv.value_owned() {
         Value::Instant(dt) => Ok(dt),
         // arc 138: no span — require_instant receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
@@ -964,8 +964,8 @@ fn require_instant(op: &'static str, v: Value) -> Result<DateTime<Utc>, RuntimeE
     }
 }
 
-fn require_duration(op: &'static str, v: Value) -> Result<i64, RuntimeError> {
-    match v {
+fn require_duration(op: &'static str, tv: TrackedValue) -> Result<i64, RuntimeError> {
+    match tv.value_owned() {
         Value::Duration(ns) => Ok(ns),
         // arc 138: no span — require_duration receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {

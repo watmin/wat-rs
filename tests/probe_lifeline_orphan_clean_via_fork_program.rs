@@ -218,7 +218,7 @@ fn probe_lifeline_orphan_clean_via_fork_program() {
         );
         let env = Environment::new();
         let process = match eval(&call, &env, supervisor_world.symbols()) {
-            Ok(p) => p,
+            Ok(p) => p.value_owned(),
             Err(e) => {
                 // Write sentinel pid=0 so test doesn't hang on pid_pipe read.
                 let bytes = 0i32.to_le_bytes();

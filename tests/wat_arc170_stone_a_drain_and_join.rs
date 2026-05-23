@@ -149,14 +149,14 @@ fn stone_a_process_drain_and_join_clean_exit_returns_ok() {
     "#;
     let call = build_spawn_process_call(child);
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     // Rebind into a child env so we can reference the Process struct by
     // name from a hand-built drain-and-join AST.
     let env2 = Environment::new().child().bind("proc", process).build();
     let call_djoin = wat::parse_one!("(:wat::kernel::Process/drain-and-join proc)")
         .expect("drain-and-join AST parses");
     let outcome = eval(&call_djoin, &env2, world.symbols())
-        .expect("Process/drain-and-join should succeed");
+        .expect("Process/drain-and-join should succeed").value_owned();
     assert_result_ok_unit(&outcome, "Process/drain-and-join clean exit");
 }
 
@@ -228,12 +228,12 @@ fn stone_a_process_drain_and_join_panic_returns_err() {
     "#;
     let call = build_spawn_process_call(child);
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let env2 = Environment::new().child().bind("proc", process).build();
     let call_djoin = wat::parse_one!("(:wat::kernel::Process/drain-and-join proc)")
         .expect("drain-and-join AST parses");
     let outcome = eval(&call_djoin, &env2, world.symbols())
-        .expect("Process/drain-and-join should return Result (not Rust-panic)");
+        .expect("Process/drain-and-join should return Result (not Rust-panic)").value_owned();
     let chain = unwrap_result_err(&outcome, "Process/drain-and-join panic");
     match chain {
         Value::Vec(v) => assert!(

@@ -37,7 +37,7 @@ fn run(src: &str) -> Value {
     let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new())).expect("startup");
     let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run")
+    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
 fn collected_i64(src: &str) -> Vec<i64> {

@@ -1082,7 +1082,7 @@ fn unquote_argument(
                     reason: format!("computed unquote eval failed: {}", e),
                     span: span.clone(),
                 }
-            })?;
+            })?.value_owned();
             crate::runtime::value_to_watast(",(expr)", val, span.clone()).map_err(|e| {
                 MacroError::MalformedTemplate {
                     reason: format!("computed unquote value_to_watast failed: {}", e),
@@ -1153,7 +1153,7 @@ fn splice_argument(
                     ),
                     span: span.clone(),
                 }
-            })?;
+            })?.value_owned();
             // Result must be a Vec; extract elements, convert each to WatAST.
             match val {
                 crate::runtime::Value::Vec(elems) => {

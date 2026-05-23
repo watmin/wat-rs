@@ -45,7 +45,7 @@ fn run_bool(src: &str) -> bool {
     .expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
     }
@@ -61,7 +61,7 @@ fn run_string(src: &str) -> String {
     .expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::String(s) => s.as_str().to_owned(),
         other => panic!("expected String; got {:?}", other),
     }

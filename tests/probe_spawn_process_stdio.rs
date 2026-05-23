@@ -72,7 +72,7 @@ fn probe_spawn_process_stdio() {
         Span::unknown(),
     );
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let types = world.symbols().types().map(|a| a.as_ref());
 
     // Parent reads from Process/stdout via Receiver/from-pipe.

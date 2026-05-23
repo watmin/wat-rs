@@ -50,7 +50,7 @@ fn run_i64(src: &str) -> i64 {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }
@@ -62,7 +62,7 @@ fn run_bool(src: &str) -> bool {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
     }
@@ -211,7 +211,7 @@ fn probe_6_non_keyword_key_accepted_with_inferred_k() {
         .expect("int-keyed map must type-check successfully");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::i64(n) => assert_eq!(n, 1, "int-keyed map must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -258,7 +258,7 @@ fn probe_8_struct_pattern_preserved() {
         .expect("startup should succeed — arc 169 struct destructure still works");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::String(s) => assert_eq!(s.as_str(), "kept", "struct destructure must bind outcome field"),
         other => panic!("expected String; got {:?}", other),
     }

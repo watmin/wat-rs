@@ -56,7 +56,7 @@ fn run(src: &str) -> Value {
         .expect("startup");
     let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run")
+    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
 // ─── Test 1 — simple defn: add(2,3)=5 ────────────────────────────────────────

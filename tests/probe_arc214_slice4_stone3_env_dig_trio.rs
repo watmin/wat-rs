@@ -95,7 +95,7 @@ fn run_option_string(src: &str) -> Option<String> {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::Option(o) => match &*o {
             Some(Value::String(s)) => Some((**s).clone()),
             Some(other) => panic!("expected Option<String> inner String; got {:?}", other),
@@ -112,7 +112,7 @@ fn run_option_i64(src: &str) -> Option<i64> {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::Option(o) => match &*o {
             Some(Value::i64(n)) => Some(*n),
             Some(other) => panic!("expected Option<i64> inner i64; got {:?}", other),
@@ -129,7 +129,7 @@ fn run_option_none(src: &str) {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::Option(o) => {
             if o.is_some() {
                 panic!("expected None; got Some({:?})", o);
@@ -146,7 +146,7 @@ fn run_string(src: &str) -> String {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::String(s) => (*s).clone(),
         other => panic!("expected String; got {:?}", other),
     }
@@ -159,7 +159,7 @@ fn run_i64(src: &str) -> i64 {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }
@@ -443,7 +443,7 @@ fn probe_10_multiple_t_types() {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let env_rt = Environment::new();
-    match eval_in_frozen(&ast, &world, &env_rt).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env_rt).expect("compute").value_owned() {
         Value::Option(o) => match &*o {
             Some(Value::bool(b)) => assert!(*b, "flag must be true"),
             other => panic!("expected Some(bool); got {:?}", other),
@@ -464,7 +464,7 @@ fn probe_10_multiple_t_types() {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let env_rt = Environment::new();
-    match eval_in_frozen(&ast, &world, &env_rt).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env_rt).expect("compute").value_owned() {
         Value::Option(o) => match &*o {
             Some(Value::wat__core__keyword(_)) => {} // success
             other => panic!("expected Some(keyword); got {:?}", other),

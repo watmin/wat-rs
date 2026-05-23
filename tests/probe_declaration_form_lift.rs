@@ -82,7 +82,7 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
         wat::span::Span::unknown(),
     );
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("launch should evaluate");
+    let process = eval(&call, &env, world.symbols()).expect("launch should evaluate").value_owned();
     let handle = match &process {
         wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Process" => {
             match &s.fields[3] {

@@ -200,7 +200,7 @@ fn t3_runtime_argv_ambient_eval_arm_produces_vector() {
     let ast = wat::parse_one!("(:wat::runtime::argv)").expect("parse argv expr");
     let env = Environment::new();
     let result =
-        eval_in_frozen(&ast, &world, &env).expect("(:wat::runtime::argv) evaluates");
+        eval_in_frozen(&ast, &world, &env).expect("(:wat::runtime::argv) evaluates").value_owned();
     match result {
         Value::Vec(_) => {} // Shape proven; contents depend on what earlier tests set
         other => panic!("expected Value::Vec from (:wat::runtime::argv); got {:?}", other),
@@ -224,7 +224,7 @@ fn t3_runtime_current_thread_eval_arm_produces_string() {
         .expect("parse current-thread expr");
     let env = Environment::new();
     let result = eval_in_frozen(&ast, &world, &env)
-        .expect("(:wat::runtime::current-thread) evaluates");
+        .expect("(:wat::runtime::current-thread) evaluates").value_owned();
     match result {
         Value::String(_) => {}
         other => panic!(

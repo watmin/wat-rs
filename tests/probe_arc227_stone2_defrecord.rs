@@ -98,7 +98,7 @@ fn run_bool(src: &str) -> bool {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
     }
@@ -670,7 +670,7 @@ fn probe_zero_field_instance_uses_empty_bundle() {
             .expect("startup should succeed");
         let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
         let env = Environment::new();
-        match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
             Value::i64(n) => n,
             other => panic!("expected i64; got {:?}", other),
         }
@@ -719,7 +719,7 @@ fn probe_one_field_instance_uses_bundle_with_one_bind() {
             .expect("startup should succeed");
         let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
         let env = Environment::new();
-        match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
             Value::i64(n) => n,
             other => panic!("expected i64; got {:?}", other),
         }
@@ -789,7 +789,7 @@ fn probe_two_field_instance_bundle_has_two_binds() {
             .expect("startup should succeed");
         let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
         let env = Environment::new();
-        match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
             Value::i64(n) => n,
             other => panic!("expected i64; got {:?}", other),
         }
@@ -860,7 +860,7 @@ fn probe_three_field_instance_bundle_has_three_binds() {
             .expect("startup should succeed");
         let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
         let env = Environment::new();
-        match eval_in_frozen(&ast, &world, &env).expect("compute") {
+        match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
             Value::i64(n) => n,
             other => panic!("expected i64; got {:?}", other),
         }

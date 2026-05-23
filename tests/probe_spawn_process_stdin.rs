@@ -93,7 +93,7 @@ fn probe_spawn_process_stdin() {
         Span::unknown(),
     );
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let types = world.symbols().types().map(|a| a.as_ref());
 
     // Parent sends 41 via Sender/from-pipe wrapping Process/stdin (IOWriter).

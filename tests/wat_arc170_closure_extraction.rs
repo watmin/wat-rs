@@ -86,7 +86,7 @@ fn invoke_via_entry_form(
 ) -> Value {
     let env = Environment::new();
     let fn_value = eval(entry_form, &env, fresh.symbols())
-        .expect("entry_form eval should succeed");
+        .expect("entry_form eval should succeed").value_owned();
     let func = match fn_value {
         Value::wat__core__fn(f) => f,
         other => panic!("entry_form did not evaluate to a fn Value; got {:?}", other),

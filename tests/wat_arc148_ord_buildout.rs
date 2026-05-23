@@ -45,7 +45,7 @@ fn run_bool(src: &str) -> bool {
         .expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::bool(b) => b,
         other => panic!("expected :wat::core::bool; got {:?}", other),
     }

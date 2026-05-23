@@ -71,7 +71,7 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
     );
     let env = Environment::new();
     let process = wat::runtime::eval(&call, &env, world.symbols())
-        .expect("launch should evaluate");
+        .expect("launch should evaluate").value_owned();
     let handle = match &process {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => match &s.fields[3] {
             Value::wat__kernel__ProgramHandle(h) => h.clone(),
@@ -198,7 +198,7 @@ fn probe_def_at_top_level_still_works() {
     let world = freeze_ok(src);
     let call = wat::parse_one!("(:my::compute)").expect("parse");
     let env = Environment::new();
-    let v = eval_in_frozen(&call, &world, &env).expect("compute should succeed");
+    let v = eval_in_frozen(&call, &world, &env).expect("compute should succeed").value_owned();
     match v {
         Value::i64(n) => assert_eq!(n, 42, "expected 42; got {}", n),
         other => panic!("expected Value::i64(42); got {:?}", other),

@@ -47,7 +47,7 @@ fn run(src: &str) -> Value {
         .expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute")
+    eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
 }
 
 /// Asserts startup fails and returns `format!("{}\n---\n{:?}", e, e)`.

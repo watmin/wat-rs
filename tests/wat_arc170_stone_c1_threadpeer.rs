@@ -92,7 +92,7 @@ fn stone_c1_thread_peer_verb_dispatch_round_trips_i64() {
     let write_call = wat::parse_one!("(:wat::kernel::Thread/println peer_a 42)")
         .expect("println AST parses");
     let write_outcome = eval(&write_call, &env_w, world.symbols())
-        .expect("Thread/println should return Ok(nil)");
+        .expect("Thread/println should return Ok(nil)").value_owned();
     assert!(
         matches!(write_outcome, Value::Unit),
         "Thread/println must return Unit (== nil); got {:?}",
@@ -107,7 +107,7 @@ fn stone_c1_thread_peer_verb_dispatch_round_trips_i64() {
     let read_call = wat::parse_one!("(:wat::kernel::Thread/readln peer_b)")
         .expect("readln AST parses");
     let read_outcome = eval(&read_call, &env_r, world.symbols())
-        .expect("Thread/readln should surface the i64");
+        .expect("Thread/readln should surface the i64").value_owned();
     match read_outcome {
         Value::i64(n) => assert_eq!(n, 42, "round-tripped i64 must be 42; got {}", n),
         other => panic!("expected Value::i64(42); got {:?}", other),
@@ -135,7 +135,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
     let write_i64 = wat::parse_one!("(:wat::kernel::Thread/println peer_a 7)")
         .expect("println AST parses");
     let w1 = eval(&write_i64, &env_aw, world.symbols())
-        .expect("Thread/println i64 should succeed");
+        .expect("Thread/println i64 should succeed").value_owned();
     assert!(matches!(w1, Value::Unit), "Unit expected; got {:?}", w1);
 
     let env_br = Environment::new()
@@ -145,7 +145,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
     let read_i64 = wat::parse_one!("(:wat::kernel::Thread/readln peer_b)")
         .expect("readln AST parses");
     let r1 = eval(&read_i64, &env_br, world.symbols())
-        .expect("Thread/readln should surface the i64");
+        .expect("Thread/readln should surface the i64").value_owned();
     match r1 {
         Value::i64(n) => assert_eq!(n, 7, "peer B's I = i64; got {}", n),
         other => panic!("peer B must read i64 (its I); got {:?}", other),
@@ -159,7 +159,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
     let write_str = wat::parse_one!(r#"(:wat::kernel::Thread/println peer_b "pong")"#)
         .expect("println string AST parses");
     let w2 = eval(&write_str, &env_bw, world.symbols())
-        .expect("Thread/println String should succeed");
+        .expect("Thread/println String should succeed").value_owned();
     assert!(matches!(w2, Value::Unit), "Unit expected; got {:?}", w2);
 
     let env_ar = Environment::new()
@@ -169,7 +169,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
     let read_str = wat::parse_one!("(:wat::kernel::Thread/readln peer_a)")
         .expect("readln AST parses");
     let r2 = eval(&read_str, &env_ar, world.symbols())
-        .expect("Thread/readln should surface the String");
+        .expect("Thread/readln should surface the String").value_owned();
     match r2 {
         Value::String(s) => assert_eq!(
             s.as_str(),

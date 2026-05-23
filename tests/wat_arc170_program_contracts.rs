@@ -274,7 +274,7 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
     "#,
     );
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let types = world.symbols().types().map(|a| a.as_ref());
     // Parent sends 41 to child via Sender/from-pipe wrapping Process/stdin (IOWriter).
     let stdin_writer = process_stdin_field(&process);
@@ -699,7 +699,7 @@ fn t10_spawn_thread_unchanged_positive_control() {
         wat::span::Span::unknown(),
     );
     let env = Environment::new();
-    let thread = eval(&call, &env, world.symbols()).expect("spawn-thread succeeds");
+    let thread = eval(&call, &env, world.symbols()).expect("spawn-thread succeeds").value_owned();
     let types = world.symbols().types().map(|a| a.as_ref());
     // Thread<I,O> field order: input(0), output(1), join(2)
     let (input, output) = match &thread {
@@ -769,7 +769,7 @@ fn t12_spawn_process_child_emits_without_recv() {
     "#,
     );
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let types = world.symbols().types().map(|a| a.as_ref());
     // Parent reads from Process/stdout via Receiver/from-pipe.
     let stdout_reader = process_stdout_field(&process);
@@ -801,7 +801,7 @@ fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
     "#,
     );
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let handle = process_handle_field(&process);
     // Drop process Struct → stdin/stdout/stderr pipes close; child exits 0.
     drop(process);
@@ -826,7 +826,7 @@ fn t14_spawn_process_wait_handle_is_idempotent() {
     "#,
     );
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let handle = process_handle_field(&process);
     // Drop process → tx drops → child's rx disconnects → child returns nil → exit 0.
     drop(process);
@@ -858,7 +858,7 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     "#,
     );
     let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let types = world.symbols().types().map(|a| a.as_ref());
     let handle = process_handle_field(&process);
     // Parent reads from Process/stdout via Receiver/from-pipe.
@@ -1216,7 +1216,7 @@ fn t16_spawn_process_sequential_spawns_no_fd_zombie_leak() {
             (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
         "#,
         );
-        let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds");
+        let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
         let handle = process_handle_field(&process);
         // Drop process → child exits 0.
         drop(process);

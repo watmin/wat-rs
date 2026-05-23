@@ -73,7 +73,7 @@ fn run_i64(src: &str) -> i64 {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }
@@ -85,7 +85,7 @@ fn run_bool(src: &str) -> bool {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute") {
+    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
     }

@@ -35,7 +35,7 @@ fn run(src: &str) -> Value {
         .expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute")
+    eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
 }
 
 fn run_err(src: &str) -> String {

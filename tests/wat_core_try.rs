@@ -34,7 +34,7 @@ fn run(src: &str) -> Value {
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run")
+    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
 fn check_errors(src: &str) -> Vec<CheckError> {

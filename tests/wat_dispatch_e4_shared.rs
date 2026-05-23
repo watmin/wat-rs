@@ -61,7 +61,7 @@ fn run(src: &str) -> Value {
         .expect("startup");
     let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run")
+    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
 #[test]
@@ -125,7 +125,7 @@ fn shared_handle_survives_thread_crossing() {
         .expect("startup");
     let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let env = Environment::new();
-    let greeting_value = eval_in_frozen(&ast, &world, &env).expect("compute should run");
+    let greeting_value = eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned();
 
     // Ship the Value into a spawned thread. scope=shared → no guard,
     // so downcast + method call should succeed on the child thread.

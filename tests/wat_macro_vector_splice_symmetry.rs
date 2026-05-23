@@ -54,7 +54,7 @@ fn run_compute(src: &str) -> Value {
     let world = freeze(&src);
     let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run")
+    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
 // ─── Gap 1 — Vector-bound symbol splices through ~@ ───────────────────

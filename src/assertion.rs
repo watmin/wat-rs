@@ -31,7 +31,7 @@
 //! is public for that reason.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, snapshot_call_stack, Environment, FrameInfo, RuntimeError, SymbolTable, Value};
+use crate::runtime::{eval, snapshot_call_stack, Environment, FrameInfo, RuntimeError, SymbolTable, TrackedValue, Value};
 use crate::span::Span;
 
 /// Structured payload panic'd by [`eval_kernel_assertion_failed`] and
@@ -114,7 +114,7 @@ pub fn eval_kernel_assertion_failed(
         });
     }
 
-    let message = match eval(&args[0], env, sym)? {
+    let message = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -159,8 +159,8 @@ pub fn eval_kernel_assertion_failed(
 
 /// Unwrap an `Option<String>` Value into a Rust `Option<String>`,
 /// refusing payloads with non-String `Some` variants.
-fn eval_opt_string(op: &str, v: Value) -> Result<Option<String>, RuntimeError> {
-    match v {
+fn eval_opt_string(op: &str, tv: TrackedValue) -> Result<Option<String>, RuntimeError> {
+    match tv.value_owned() {
         Value::Option(opt) => match &*opt {
             None => Ok(None),
             Some(Value::String(s)) => Ok(Some((**s).clone())),

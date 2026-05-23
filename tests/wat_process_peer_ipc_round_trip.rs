@@ -162,7 +162,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
     "#;
     let spawn_call = build_spawn_process_call(server_program_src);
     let server = eval(&spawn_call, &Environment::new(), world.symbols())
-        .expect("spawn-process should hand back a Process Struct");
+        .expect("spawn-process should hand back a Process Struct").value_owned();
 
     // Bind the server Process Value into the eval environment. The
     // rest of the round-trip lives in one embedded wat source — the
@@ -210,7 +210,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
     // via the match-on-Err arm, which calls assertion-failed! → RuntimeError.
     // The server stderr is surfaced for diagnostic via the Err(e) arm below.
     let reply = match eval(&round_trip, &env, world.symbols()) {
-        Ok(v) => v,
+        Ok(v) => v.value_owned(),
         Err(e) => {
             let stderr_text = drain_server_stderr(&server);
             panic!(

@@ -123,7 +123,7 @@ fn require_one_arg(
             span: crate::span::Span::unknown(),
         });
     }
-    eval(&args[0], env, sym)
+    eval(&args[0], env, sym).map(|tv| tv.value_owned())
 }
 
 /// `(:wat::edn::write-notag v)` → `:String`. Tagless EDN. Drops

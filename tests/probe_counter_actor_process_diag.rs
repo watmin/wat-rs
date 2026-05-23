@@ -80,7 +80,7 @@ fn probe_counter_subprocess_minimal() {
     let world = freeze_ok("");
     let spawn_call = build_spawn_process_call(server_program_src);
     let process = eval(&spawn_call, &Environment::new(), world.symbols())
-        .expect("spawn-process should succeed");
+        .expect("spawn-process should succeed").value_owned();
 
     // Close stdin by dropping (no stdin write; subprocess exits cleanly)
     let exit_code = join_process(&process);
@@ -131,7 +131,7 @@ fn probe_counter_subprocess_with_defn() {
     let world = freeze_ok("");
     let spawn_call = build_spawn_process_call(server_program_src);
     let process = eval(&spawn_call, &Environment::new(), world.symbols())
-        .expect("spawn-process should succeed");
+        .expect("spawn-process should succeed").value_owned();
 
     let exit_code = join_process(&process);
     let stderr = drain_stderr(&process);
@@ -197,7 +197,7 @@ fn probe_counter_subprocess_full_process_peer() {
     let world = freeze_ok(parent_src);
     let spawn_call = build_spawn_process_call(server_program_src);
     let process = eval(&spawn_call, &Environment::new(), world.symbols())
-        .expect("spawn-process should succeed");
+        .expect("spawn-process should succeed").value_owned();
 
     // Bind process and exercise via embedded wat code
     let env = Environment::new().child().bind("proc", process.clone()).build();
@@ -237,7 +237,7 @@ fn probe_counter_subprocess_full_process_peer() {
     .expect("client code parses");
 
     let result = match eval(&client_code, &env, world.symbols()) {
-        Ok(v) => v,
+        Ok(tv) => tv.value_owned(),
         Err(e) => {
             let stderr = drain_stderr(&process);
             panic!("client eval failed: {}\nprocess stderr:\n{}", e, stderr);

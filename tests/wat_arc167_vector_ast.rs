@@ -131,7 +131,7 @@ fn vector_at_value_position_works_after_arc215() {
         .expect("arc 215 stone 2: [1 2 3] at value position must type-check");
     let ast = parse_one!("(:my::probe)").expect("parse probe call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("eval probe") {
+    match eval_in_frozen(&ast, &world, &env).expect("eval probe").value_owned() {
         Value::i64(n) => assert_eq!(n, 3, "length of [1 2 3] must be 3"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -162,7 +162,7 @@ fn vector_at_value_position_in_define_body_works_after_arc215() {
         .expect("arc 215 stone 2: [1 2 3] in define body must type-check");
     let ast = parse_one!("(:my::probe)").expect("parse probe call");
     let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("eval probe") {
+    match eval_in_frozen(&ast, &world, &env).expect("eval probe").value_owned() {
         Value::i64(n) => assert_eq!(n, 3, "length must be 3"),
         other => panic!("expected i64; got {:?}", other),
     }

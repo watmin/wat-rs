@@ -65,7 +65,7 @@ use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
     apply_function, register_defines, register_stdlib_defines, EncodingCtx, Environment,
-    RuntimeError, SymbolTable, Value,
+    RuntimeError, SymbolTable, TrackedValue, Value,
 };
 use crate::span::Span;
 use crate::thread_io::ThreadId;
@@ -359,7 +359,7 @@ impl FrozenWorld {
                     "set-presence-sigma! body failed to evaluate: {}",
                     e
                 ))
-            })?;
+            })?.value_owned();
             let func = match v {
                 crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
@@ -388,7 +388,7 @@ impl FrozenWorld {
                     "set-coincident-sigma! body failed to evaluate: {}",
                     e
                 ))
-            })?;
+            })?.value_owned();
             let func = match v {
                 crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
@@ -1261,7 +1261,7 @@ pub fn eval_in_frozen(
     ast: &WatAST,
     frozen: &FrozenWorld,
     env: &Environment,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     refuse_mutation_forms(ast)?;
     crate::runtime::eval(ast, env, frozen.symbols())
 }
@@ -1286,7 +1286,7 @@ pub fn eval_digest_in_frozen(
     env: &Environment,
     algo: &str,
     expected_hex: &str,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     // Compute the canonical-EDN bytes and verify against expected.
     let bytes = crate::hash::canonical_edn_wat(ast);
     crate::hash::verify_source_hash(&bytes, algo, expected_hex).map_err(|err| {
@@ -1318,7 +1318,7 @@ pub fn eval_signed_in_frozen(
     algo: &str,
     sig_b64: &str,
     pubkey_b64: &str,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(
         |err| RuntimeError::EvalVerificationFailed { err },
     )?;
@@ -1658,7 +1658,7 @@ mod tests {
         let ast = crate::parse_one!("(:my::app::triple 7)").unwrap();
         let env = Environment::new();
         let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
-        assert!(matches!(result, Value::i64(21)));
+        assert!(matches!(result.value(), Value::i64(21)));
     }
 
     #[test]
@@ -1676,7 +1676,7 @@ mod tests {
         .unwrap();
         let env = Environment::new();
         let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
-        assert!(matches!(result, Value::holon__HolonAST(_)));
+        assert!(matches!(result.value(), Value::holon__HolonAST(_)));
     }
 
     #[test]
@@ -1868,7 +1868,7 @@ mod tests {
         let result =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
                 .expect("eval ok");
-        assert!(matches!(result, Value::i64(42)));
+        assert!(matches!(result.value(), Value::i64(42)));
     }
 
     #[test]
@@ -1945,7 +1945,7 @@ mod tests {
             &pk,
         )
         .expect("eval ok");
-        assert!(matches!(result, Value::i64(42)));
+        assert!(matches!(result.value(), Value::i64(42)));
     }
 
     #[test]

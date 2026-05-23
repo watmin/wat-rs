@@ -47,7 +47,9 @@ fn run_compute(src: &str) -> Result<Value, String> {
         .map_err(|e| format!("startup: {:?}", e))?;
     let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("parse: {:?}", e))?;
     let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).map_err(|e| format!("eval: {:?}", e))
+    eval_in_frozen(&ast, &world, &env)
+        .map(|tv| tv.value_owned())
+        .map_err(|e| format!("eval: {:?}", e))
 }
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────

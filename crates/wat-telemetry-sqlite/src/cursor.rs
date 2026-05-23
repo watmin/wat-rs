@@ -57,7 +57,7 @@ use rusqlite::{Connection, OpenFlags};
 use wat::ast::WatAST;
 use wat::edn_shim::{read_holon_ast_natural, read_holon_ast_tagged};
 use wat::runtime::{
-    eval, Environment, EnumValue, RuntimeError, StructValue, SymbolTable, Value,
+    eval, Environment, EnumValue, RuntimeError, StructValue, SymbolTable, Value, ValueSnapshot,
 };
 use wat::rust_deps::{
     downcast_ref_opaque, rust_opaque_arc, RustDispatch, RustScheme, RustSymbol, SchemeCtx,
@@ -110,7 +110,7 @@ fn parse_time_constraints(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::Vector<wat::telemetry::TimeConstraint>",
-                got: other.type_name(),
+                got: ValueSnapshot::of(other),
                 // arc 138: no span — parse_time_constraints receives &Value, no WatAST trace available
                 span: wat::span::Span::unknown(),
             });
@@ -125,7 +125,7 @@ fn parse_time_constraints(
                 return Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: ":wat::telemetry::TimeConstraint",
-                    got: other.type_name(),
+                    got: ValueSnapshot::of(other),
                     // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
                     span: wat::span::Span::unknown(),
                 });
@@ -727,13 +727,13 @@ fn eval_handle_and_constraints(
             span: wat::span::Span::unknown(),
         });
     }
-    let handle_val = eval(&args[0], env, sym)?;
+    let handle_val = eval(&args[0], env, sym)?.value_owned();
     let inner = rust_opaque_arc(&handle_val, READ_HANDLE_PATH, op, args[0].span().clone())?;
     let cell: &ThreadOwnedCell<ReadHandle> = downcast_ref_opaque(&inner, READ_HANDLE_PATH, op, args[0].span().clone())?;
     let path = cell.with_ref(op, |h| h.path())?;
     let handle = ReadHandle::open(path);
 
-    let constraints_val = eval(&args[1], env, sym)?;
+    let constraints_val = eval(&args[1], env, sym)?.value_owned();
     let narrowing = parse_time_constraints(op, time_col, &constraints_val)?;
     Ok((handle, narrowing))
 }
@@ -787,7 +787,7 @@ fn with_cursor_step<C: Send + Sync + 'static>(
             span: wat::span::Span::unknown(),
         });
     }
-    let cur_val = eval(&args[0], env, sym)?;
+    let cur_val = eval(&args[0], env, sym)?.value_owned();
     let inner = rust_opaque_arc(&cur_val, cursor_path, op, args[0].span().clone())?;
     let cell: &ThreadOwnedCell<C> = downcast_ref_opaque(&inner, cursor_path, op, args[0].span().clone())?;
     cell.with_ref(op, step)

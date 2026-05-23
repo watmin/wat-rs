@@ -298,7 +298,7 @@ pub fn eval_kernel_wait_child(
             span: crate::span::Span::unknown(),
         });
     }
-    let handle = match eval(&args[0], env, sym)? {
+    let handle = match eval(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__ChildHandle(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -559,7 +559,7 @@ pub fn eval_kernel_fork_program_ast(
 
     // Evaluate the forms argument — same unwrap pattern as
     // run-sandboxed-ast.
-    let forms = match eval(&args[0], env, sym)? {
+    let forms = match eval(&args[0], env, sym)?.value_owned() {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items.iter() {
@@ -1115,7 +1115,7 @@ pub fn eval_kernel_fork_program(
         });
     }
 
-    let src = match eval(&args[0], env, sym)? {
+    let src = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -1127,7 +1127,7 @@ pub fn eval_kernel_fork_program(
         }
     };
 
-    let scope_opt: Option<String> = match eval(&args[1], env, sym)? {
+    let scope_opt: Option<String> = match eval(&args[1], env, sym)?.value_owned() {
         Value::Option(opt) => match &*opt {
             Some(Value::String(s)) => Some((**s).clone()),
             Some(other) => {

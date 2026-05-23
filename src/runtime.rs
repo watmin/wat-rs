@@ -2884,7 +2884,7 @@ fn register_runtime_defs_form(
                 return Ok(());
             }
             let sym_ref: &SymbolTable = sym;
-            let value = eval(expr, env, sym_ref)?;
+            let value = eval_inner(expr, env, sym_ref)?;
             if let Value::wat__core__fn(ref func) = value {
                 sym.functions.insert(name.clone(), func.clone());
             }
@@ -2917,7 +2917,7 @@ fn register_runtime_defs_form(
             // sym must be passed as immutable here for eval; the write
             // to runtime_def_values happens after.
             let sym_ref: &SymbolTable = sym;
-            let value = eval(expr, env, sym_ref)?;
+            let value = eval_inner(expr, env, sym_ref)?;
             // Arc 170 Gap D — if the evaluated value is a fn (possibly with
             // a `closed_env` captured from enclosing let-bindings), also
             // update `sym.functions` with the properly-evaluated fn. This
@@ -2976,7 +2976,7 @@ fn register_runtime_defs_form(
                 if let WatAST::Symbol(ident, _) = binder {
                     let binding_name = ident.name.clone();
                     let sym_ref: &SymbolTable = sym;
-                    let value = eval(rhs, &scope, sym_ref)?;
+                    let value = eval_inner(rhs, &scope, sym_ref)?;
                     scope = scope.child().bind(binding_name, value).build();
                 }
                 // Non-Symbol binder (Vector destructure) — skip env extension;
@@ -4194,7 +4194,7 @@ fn eval_tail(
 ) -> Result<Value, RuntimeError> {
     let (items, list_span) = match ast {
         WatAST::List(items, span) if !items.is_empty() => (items, span.clone()),
-        _ => return eval(ast, env, sym),
+        _ => return eval_inner(ast, env, sym),
     };
     let args = &items[1..];
     match &items[0] {
@@ -4214,7 +4214,7 @@ fn eval_tail(
                     let func = sym.get(other).expect("contains_key above").clone();
                     emit_tail_call(func, args, env, sym, list_span)
                 }
-                _ => eval(ast, env, sym),
+                _ => eval_inner(ast, env, sym),
             }
         }
         // Bare-symbol head: a fn-valued local binding. `Some`,
@@ -4225,7 +4225,7 @@ fn eval_tail(
             if let Some(Value::wat__core__fn(f)) = env.lookup(ident.as_str()) {
                 emit_tail_call(f, args, env, sym, list_span)
             } else {
-                eval(ast, env, sym)
+                eval_inner(ast, env, sym)
             }
         }
         // Inline fn-literal head `((fn ...) args)`. Evaluate
@@ -4233,7 +4233,7 @@ fn eval_tail(
         // call; otherwise delegate to `apply_value` with the
         // already-evaluated callee so we don't re-evaluate.
         WatAST::List(_, _) => {
-            let callee = eval(&items[0], env, sym)?;
+            let callee = eval_inner(&items[0], env, sym)?;
             match callee {
                 Value::wat__core__fn(f) => emit_tail_call(f, args, env, sym, list_span),
                 other => apply_value(&other, args, env, sym),
@@ -4241,7 +4241,7 @@ fn eval_tail(
         }
         // Literal head (int/float/bool/string) — not callable; let
         // eval raise the right error.
-        _ => eval(ast, env, sym),
+        _ => eval_inner(ast, env, sym),
     }
 }
 
@@ -4261,7 +4261,7 @@ fn emit_tail_call(
 ) -> Result<Value, RuntimeError> {
     let vals = raw_args
         .iter()
-        .map(|a| eval(a, env, sym))
+        .map(|a| eval_inner(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
     Err(RuntimeError::TailCall { func, args: vals, call_span })
 }
@@ -4317,7 +4317,7 @@ fn eval_if_tail(
             });
         }
     }
-    let cond_val = eval(&args[0], env, sym)?;
+    let cond_val = eval_inner(&args[0], env, sym)?;
     match cond_val {
         Value::bool(true) => eval_tail(&args[3], env, sym),
         Value::bool(false) => eval_tail(&args[4], env, sym),
@@ -4391,7 +4391,7 @@ fn eval_let_tail(
     }
     let last_idx = body.len() - 1;
     for form in &body[..last_idx] {
-        let _ = eval(form, &scope, sym)?;
+        let _ = eval_inner(form, &scope, sym)?;
     }
     eval_tail(&body[last_idx], &scope, sym)
 }
@@ -4415,7 +4415,7 @@ fn eval_do_tail(
     }
     let last_idx = args.len() - 1;
     for arg in &args[..last_idx] {
-        let _ = eval(arg, env, sym)?;
+        let _ = eval_inner(arg, env, sym)?;
     }
     eval_tail(&args[last_idx], env, sym)
 }
@@ -4471,7 +4471,7 @@ fn eval_match_tail(
             });
         }
     }
-    let scrutinee = eval(&args[0], env, sym)?;
+    let scrutinee = eval_inner(&args[0], env, sym)?;
     for arm in &args[3..] {
         let arm_items = match arm {
             WatAST::List(items, _) => items,
@@ -4508,8 +4508,10 @@ fn eval_match_tail(
     })
 }
 
-/// Evaluate a single form in the given scope.
-pub fn eval(
+/// Evaluate a single form in the given scope. Internal implementation;
+/// returns bare Value for recursive calls inside the runtime.
+/// Public boundary is `eval` (returns TrackedValue).
+pub(crate) fn eval_inner(
     ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
@@ -4532,7 +4534,7 @@ pub fn eval(
         WatAST::Vector(items, _) => {
             let elems = items
                 .iter()
-                .map(|a| eval(a, env, sym))
+                .map(|a| eval_inner(a, env, sym))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(Value::Vec(Arc::new(elems)))
         }
@@ -4613,6 +4615,29 @@ pub fn eval(
     }
 }
 
+/// Public eval boundary — returns `Result<TrackedValue, RuntimeError>`.
+///
+/// Calls `eval_inner` and wraps the result at the eval boundary:
+/// - If the inner result is `Value::Tracked { inner, provenance }`, unwrap
+///   into `TrackedValue::new(*inner, provenance)` — preserving producer-attached
+///   provenance from Stones 233.2.b/c without requiring producer migration yet.
+/// - Otherwise, wrap with `Provenance::Unknown` via `TrackedValue::from`.
+///
+/// Internal eval callers use `eval_inner` directly (returning bare `Value`).
+/// This is the ONLY public eval boundary; external callers always receive
+/// `TrackedValue`. See Stone 233.2.i in arc 233 (substrate-errors-as-values).
+pub fn eval(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<TrackedValue, RuntimeError> {
+    let value = eval_inner(ast, env, sym)?;
+    Ok(match value {
+        Value::Tracked { inner, provenance } => TrackedValue::new(*inner, provenance),
+        other => TrackedValue::from(other),
+    })
+}
+
 fn eval_list(
     items: &[WatAST],
     list_span: &Span,
@@ -4654,7 +4679,7 @@ fn eval_list(
         }
         WatAST::List(_, _) => {
             // Inline fn call: ((fn ...) arg1 arg2)
-            let callee = eval(head, env, sym)?;
+            let callee = eval_inner(head, env, sym)?;
             apply_value(&callee, rest, env, sym)
         }
         other => Err(RuntimeError::MalformedForm {
@@ -5660,7 +5685,7 @@ fn dispatch_keyword_head(
                         };
                         let vals = args
                             .iter()
-                            .map(|a| eval(a, env, sym))
+                            .map(|a| eval_inner(a, env, sym))
                             .collect::<Result<Vec<_>, _>>()?;
                         return apply_function(func, vals, sym, list_span.clone());
                     }
@@ -5688,7 +5713,7 @@ fn dispatch_keyword_head(
             };
             let vals = args
                 .iter()
-                .map(|a| eval(a, env, sym))
+                .map(|a| eval_inner(a, env, sym))
                 .collect::<Result<Vec<_>, _>>()?;
             apply_function(func, vals, sym, list_span.clone())
         }
@@ -5773,7 +5798,7 @@ fn eval_dispatch_call(
     }
     let vals: Vec<Value> = args
         .iter()
-        .map(|a| eval(a, env, sym))
+        .map(|a| eval_inner(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
 
     for arm in &mm.arms {
@@ -6106,9 +6131,9 @@ fn eval_let(
     }
     let last_idx = body.len() - 1;
     for form in &body[..last_idx] {
-        let _ = eval(form, &scope, sym)?;
+        let _ = eval_inner(form, &scope, sym)?;
     }
-    eval(&body[last_idx], &scope, sym)
+    eval_inner(&body[last_idx], &scope, sym)
 }
 
 /// Apply a single parsed `LetBinding` to a scope, returning the
@@ -6121,11 +6146,11 @@ fn bind_let_binding(
 ) -> Result<Environment, RuntimeError> {
     match binding {
         LetBinding::Single { name, rhs } => {
-            let value = eval(rhs, scope, sym)?;
+            let value = eval_inner(rhs, scope, sym)?;
             Ok(scope.child().bind(name, value).build())
         }
         LetBinding::Destructure { names, rhs } => {
-            let value = eval(rhs, scope, sym)?;
+            let value = eval_inner(rhs, scope, sym)?;
             let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
             let mut builder = scope.child();
             for (name, elem) in names.into_iter().zip(elements.into_iter()) {
@@ -6145,7 +6170,7 @@ fn bind_let_binding(
         // posture is defense-in-depth — clear diagnostics for
         // programs that reach here without having been checked.
         LetBinding::StructDestructure { field_names, rhs } => {
-            let value = eval(rhs, scope, sym)?;
+            let value = eval_inner(rhs, scope, sym)?;
             let sv = match &value {
                 Value::Struct(sv) => sv.clone(),
                 other => {
@@ -6245,9 +6270,9 @@ fn eval_do(
     }
     let last_idx = args.len() - 1;
     for arg in &args[..last_idx] {
-        let _ = eval(arg, env, sym)?;
+        let _ = eval_inner(arg, env, sym)?;
     }
-    eval(&args[last_idx], env, sym)
+    eval_inner(&args[last_idx], env, sym)
 }
 
 /// Verify `value` is a tuple of the expected arity and return its
@@ -6473,10 +6498,10 @@ fn eval_if(
             });
         }
     }
-    let cond_val = eval(&args[0], env, sym)?;
+    let cond_val = eval_inner(&args[0], env, sym)?;
     match cond_val {
-        Value::bool(true) => eval(&args[3], env, sym),
-        Value::bool(false) => eval(&args[4], env, sym),
+        Value::bool(true) => eval_inner(&args[3], env, sym),
+        Value::bool(false) => eval_inner(&args[4], env, sym),
         other => Err(RuntimeError::BadCondition {
             got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
@@ -6513,7 +6538,7 @@ fn eval_cond(
         // `:else` arm — last-only; its body is always evaluated.
         if let WatAST::Keyword(k, _) = &items[0] {
             if k == ":else" {
-                return eval(&items[1], env, sym);
+                return eval_inner(&items[1], env, sym);
             }
         }
         // Test arm — evaluate test; truthy → body; falsy → next arm.
@@ -6526,8 +6551,8 @@ fn eval_cond(
                 span: arm.span().clone(),
             });
         }
-        match eval(&items[0], env, sym)? {
-            Value::bool(true) => return eval(&items[1], env, sym),
+        match eval_inner(&items[0], env, sym)? {
+            Value::bool(true) => return eval_inner(&items[1], env, sym),
             Value::bool(false) => continue,
             other => {
                 return Err(RuntimeError::BadCondition {
@@ -6574,7 +6599,7 @@ fn eval_cond_tail(
                 span: arm.span().clone(),
             });
         }
-        match eval(&items[0], env, sym)? {
+        match eval_inner(&items[0], env, sym)? {
             Value::bool(true) => return eval_tail(&items[1], env, sym),
             Value::bool(false) => continue,
             other => {
@@ -6703,8 +6728,8 @@ where
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     // Arc 233 Stone 233.2.c — use .inner() for Tracked-transparency: a Value::Tracked
     // wrapping an i64 (e.g., from eval_holon_from_holon) must be transparent to arithmetic.
     match (a.inner(), b.inner()) {
@@ -6744,7 +6769,7 @@ fn eval_u8_cast(
         });
     }
     let arg_span = args[0].span().clone();
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     match v {
         Value::i64(n) => {
             if !(0..=255).contains(&n) {
@@ -6788,8 +6813,8 @@ where
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     match (a, b) {
         (Value::f64(x), Value::f64(y)) => Ok(Value::f64(op(x, y, &b_span)?)),
         (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::TypeMismatch {
@@ -6835,8 +6860,8 @@ where
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     match (a, b) {
         (Value::i64(x), Value::f64(y)) => Ok(Value::f64(op(x as f64, y, &b_span)?)),
         (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::TypeMismatch {
@@ -6879,8 +6904,8 @@ where
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     match (a, b) {
         (Value::f64(x), Value::i64(y)) => Ok(Value::f64(op(x, y as f64, &b_span)?)),
         (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::TypeMismatch {
@@ -6924,7 +6949,7 @@ fn eval_one_arg<T>(
         });
     }
     let arg_span = args[0].span().clone();
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     extract(v).map_err(|other| RuntimeError::TypeMismatch {
         op: head.into(),
         expected,
@@ -7047,7 +7072,7 @@ fn eval_f64_round(
     }
     let arg0_span = args[0].span().clone();
     let arg1_span = args[1].span().clone();
-    let v = match eval(&args[0], env, sym)? {
+    let v = match eval_inner(&args[0], env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -7058,7 +7083,7 @@ fn eval_f64_round(
             });
         }
     };
-    let digits = match eval(&args[1], env, sym)? {
+    let digits = match eval_inner(&args[1], env, sym)? {
         Value::i64(d) => d,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -7107,7 +7132,7 @@ fn eval_f64_unary(
         });
     }
     let arg_span = args[0].span().clone();
-    let v = match eval(&args[0], env, sym)? {
+    let v = match eval_inner(&args[0], env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -7145,7 +7170,7 @@ fn eval_f64_clamp(
     let mut vs = [0.0_f64; 3];
     for (i, slot) in vs.iter_mut().enumerate() {
         let arg_span = args[i].span().clone();
-        *slot = match eval(&args[i], env, sym)? {
+        *slot = match eval_inner(&args[i], env, sym)? {
             Value::f64(x) => x,
             other => {
                 return Err(RuntimeError::TypeMismatch {
@@ -7448,19 +7473,19 @@ fn eval_apply(
     // Arc 009 "names are values": a literal keyword that names a registered
     // user define evaluates to `Value::wat__core__fn`; runtime-built keywords
     // remain `Value::wat__core__keyword`. Both are valid apply heads.
-    let head_val = eval(&args[2], env, sym)?;
+    let head_val = eval_inner(&args[2], env, sym)?;
 
     // Step 3 — evaluate leading positional args (positions 3..last).
     // Leading = args[3..args.len()-1]. With no leading args this slice is empty.
     let leading_ast = &args[3..args.len() - 1];
     let mut combined: Vec<Value> = leading_ast
         .iter()
-        .map(|a| eval(a, env, sym))
+        .map(|a| eval_inner(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
 
     // Step 4 — evaluate last arg; must be :wat::core::Vector (spread).
     let spread_ast = &args[args.len() - 1];
-    let spread_val = eval(spread_ast, env, sym)?;
+    let spread_val = eval_inner(spread_ast, env, sym)?;
     let spread_vec = match spread_val {
         Value::Vec(ref v) => v.clone(),
         ref other => {
@@ -7632,8 +7657,8 @@ fn eval_eq(
         });
     }
     let a_span = args[0].span().clone();
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     match values_equal(&a, &b) {
         Some(eq) => Ok(Value::bool(eq)),
         None => Err(RuntimeError::TypeMismatch {
@@ -7971,8 +7996,8 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
         });
     }
     let a_span = args[0].span().clone();
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     let order = match values_compare(&a, &b) {
         Some(o) => o,
         None => {
@@ -8150,7 +8175,7 @@ fn eval_arithmetic_variadic(
     // 1-ary handling.
     if args.len() == 1 {
         let arg_span = args[0].span().clone();
-        let v = eval(&args[0], env, sym)?;
+        let v = eval_inner(&args[0], env, sym)?;
         if op.one_ary_inserts_identity() {
             // Build identity matching the arg's type, then run a
             // single binary pair (identity OP arg).
@@ -8181,11 +8206,11 @@ fn eval_arithmetic_variadic(
     } else {
         // 2+-ary: fold left.
         let first_span = args[0].span().clone();
-        let mut acc = eval(&args[0], env, sym)?;
+        let mut acc = eval_inner(&args[0], env, sym)?;
         let mut acc_span = first_span;
         for arg in &args[1..] {
             let arg_span = arg.span().clone();
-            let v = eval(arg, env, sym)?;
+            let v = eval_inner(arg, env, sym)?;
             acc = apply_arith_pair(op, head, &acc, &v, &acc_span, &arg_span)?;
             acc_span = arg_span;
         }
@@ -8208,7 +8233,7 @@ fn eval_not(
         });
     }
     let arg_span = args[0].span().clone();
-    match eval(&args[0], env, sym)? {
+    match eval_inner(&args[0], env, sym)? {
         Value::bool(b) => Ok(Value::bool(!b)),
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::not".into(),
@@ -8228,7 +8253,7 @@ fn eval_and(
     // Short-circuit: false wins.
     for arg in args {
         let arg_span = arg.span().clone();
-        match eval(arg, env, sym)? {
+        match eval_inner(arg, env, sym)? {
             Value::bool(false) => return Ok(Value::bool(false)),
             Value::bool(true) => continue,
             other => {
@@ -8252,7 +8277,7 @@ fn eval_or(
 ) -> Result<Value, RuntimeError> {
     for arg in args {
         let arg_span = arg.span().clone();
-        match eval(arg, env, sym)? {
+        match eval_inner(arg, env, sym)? {
             Value::bool(true) => return Ok(Value::bool(true)),
             Value::bool(false) => continue,
             other => {
@@ -8300,7 +8325,7 @@ fn eval_list_ctor(
     }
     let items = args[1..]
         .iter()
-        .map(|a| eval(a, env, sym))
+        .map(|a| eval_inner(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Value::Vec(Arc::new(items)))
 }
@@ -8335,7 +8360,7 @@ fn eval_tuple_ctor(
     }
     let items = args
         .iter()
-        .map(|a| eval(a, env, sym))
+        .map(|a| eval_inner(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Value::Tuple(Arc::new(items)))
 }
@@ -8456,7 +8481,7 @@ fn eval_vector_length(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     vector_length_inner(&v)
 }
 
@@ -8474,7 +8499,7 @@ fn eval_hashmap_length(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     hashmap_length_inner(&v)
 }
 
@@ -8492,7 +8517,7 @@ fn eval_hashset_length(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     hashset_length_inner(&v)
 }
 
@@ -8576,7 +8601,7 @@ fn eval_vector_empty_q(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     vector_empty_q_inner(&v)
 }
 
@@ -8594,7 +8619,7 @@ fn eval_hashmap_empty_q(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     hashmap_empty_q_inner(&v)
 }
 
@@ -8612,7 +8637,7 @@ fn eval_hashset_empty_q(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     hashset_empty_q_inner(&v)
 }
 
@@ -8708,8 +8733,8 @@ fn eval_vector_contains_q(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let item = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let item = eval_inner(&args[1], env, sym)?;
     vector_contains_q_inner(&container, &item)
 }
 
@@ -8727,8 +8752,8 @@ fn eval_hashmap_contains_key_q(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let key = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let key = eval_inner(&args[1], env, sym)?;
     hashmap_contains_key_q_inner(&container, &key)
 }
 
@@ -8746,8 +8771,8 @@ fn eval_hashset_contains_q(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let item = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let item = eval_inner(&args[1], env, sym)?;
     hashset_contains_q_inner(&container, &item)
 }
 
@@ -8851,8 +8876,8 @@ fn eval_vector_get(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let index = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let index = eval_inner(&args[1], env, sym)?;
     vector_get_inner(&container, &index)
 }
 
@@ -8870,8 +8895,8 @@ fn eval_hashmap_get(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let key = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let key = eval_inner(&args[1], env, sym)?;
     hashmap_get_inner(&container, &key)
 }
 
@@ -8891,7 +8916,7 @@ fn eval_list_length(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     list_length_inner(&v)
 }
 
@@ -8909,7 +8934,7 @@ fn eval_list_empty_q(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     list_empty_q_inner(&v)
 }
 
@@ -8927,8 +8952,8 @@ fn eval_list_contains_q(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let item = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let item = eval_inner(&args[1], env, sym)?;
     list_contains_q_inner(&container, &item)
 }
 
@@ -8946,8 +8971,8 @@ fn eval_list_get(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let index = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let index = eval_inner(&args[1], env, sym)?;
     list_get_inner(&container, &index)
 }
 
@@ -8965,8 +8990,8 @@ fn eval_list_conj(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let item = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let item = eval_inner(&args[1], env, sym)?;
     list_conj_inner(&container, &item)
 }
 
@@ -9134,8 +9159,8 @@ fn eval_program_env_get(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
-    let env_val = eval(&args[0], env, sym)?;
-    let key_val = eval(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?;
+    let key_val = eval_inner(&args[1], env, sym)?;
     let result = program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())?;
     Ok(Value::Option(Arc::new(result)))
 }
@@ -9161,8 +9186,8 @@ fn eval_program_env_expect_get(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
-    let env_val = eval(&args[0], env, sym)?;
-    let key_val = eval(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?;
+    let key_val = eval_inner(&args[1], env, sym)?;
     let key_str = format!("{:?}", &args[1]); // source-level key name for diagnostic
     match program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())? {
         Some(v) => Ok(v),
@@ -9210,11 +9235,11 @@ fn eval_program_env_get_default(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 3, 4)?;
-    let env_val = eval(&args[0], env, sym)?;
-    let key_val = eval(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?;
+    let key_val = eval_inner(&args[1], env, sym)?;
     match program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())? {
         Some(v) => Ok(v),
-        None => eval(&args[2], env, sym),
+        None => eval_inner(&args[2], env, sym),
     }
 }
 
@@ -9350,8 +9375,8 @@ fn eval_program_env_dig(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
-    let env_val = eval(&args[0], env, sym)?;
-    let path_val = eval(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?;
+    let path_val = eval_inner(&args[1], env, sym)?;
     // Extract the map from env. Stone 216.5c — HashMap<Value, Value> native.
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
@@ -9401,8 +9426,8 @@ fn eval_program_env_expect_dig(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
-    let env_val = eval(&args[0], env, sym)?;
-    let path_val = eval(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?;
+    let path_val = eval_inner(&args[1], env, sym)?;
     let path_str = format!("{:?}", &args[1]); // source-level path for diagnostic
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
@@ -9472,8 +9497,8 @@ fn eval_program_env_dig_default(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 3, 4)?;
-    let env_val = eval(&args[0], env, sym)?;
-    let path_val = eval(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?;
+    let path_val = eval_inner(&args[1], env, sym)?;
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
         other => {
@@ -9498,7 +9523,7 @@ fn eval_program_env_dig_default(
     };
     match program_env_dig_walk(OP, &map, &path_items, &target_ty, args[1].span())? {
         Some(v) => Ok(v),
-        None => eval(&args[2], env, sym),
+        None => eval_inner(&args[2], env, sym),
     }
 }
 
@@ -9587,8 +9612,8 @@ fn eval_vector_conj(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let item = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let item = eval_inner(&args[1], env, sym)?;
     vector_conj_inner(&container, &item)
 }
 
@@ -9606,8 +9631,8 @@ fn eval_hashset_conj(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let item = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let item = eval_inner(&args[1], env, sym)?;
     hashset_conj_inner(&container, &item)
 }
 
@@ -9766,9 +9791,9 @@ fn eval_hashmap_assoc(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let k = eval(&args[1], env, sym)?;
-    let v = eval(&args[2], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let k = eval_inner(&args[1], env, sym)?;
+    let v = eval_inner(&args[2], env, sym)?;
     hashmap_assoc_inner(&container, &k, &v)
 }
 
@@ -9786,8 +9811,8 @@ fn eval_hashmap_dissoc(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
-    let k = eval(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
+    let k = eval_inner(&args[1], env, sym)?;
     hashmap_dissoc_inner(&container, &k)
 }
 
@@ -9805,7 +9830,7 @@ fn eval_hashmap_keys(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
     hashmap_keys_inner(&container)
 }
 
@@ -9823,7 +9848,7 @@ fn eval_hashmap_values(
             span: Span::unknown(),
         });
     }
-    let container = eval(&args[0], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?;
     hashmap_values_inner(&container)
 }
 
@@ -9841,8 +9866,8 @@ fn eval_vector_concat(
             span: Span::unknown(),
         });
     }
-    let left = eval(&args[0], env, sym)?;
-    let right = eval(&args[1], env, sym)?;
+    let left = eval_inner(&args[0], env, sym)?;
+    let right = eval_inner(&args[1], env, sym)?;
     vector_concat_inner(&left, &right)
 }
 
@@ -10139,7 +10164,7 @@ fn eval_vec_reverse(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::core::reverse", eval(&args[0], env, sym)?)?;
+    let xs = require_vec(":wat::core::reverse", eval_inner(&args[0], env, sym)?)?;
     let mut out = (*xs).clone();
     out.reverse();
     Ok(Value::Vec(Arc::new(out)))
@@ -10162,8 +10187,8 @@ fn eval_vec_range(
             span: list_span.clone(),
         });
     }
-    let start = require_i64(":wat::core::range", eval(&args[0], env, sym)?)?;
-    let end = require_i64(":wat::core::range", eval(&args[1], env, sym)?)?;
+    let start = require_i64(":wat::core::range", eval_inner(&args[0], env, sym)?)?;
+    let end = require_i64(":wat::core::range", eval_inner(&args[1], env, sym)?)?;
     let items: Vec<Value> = if start <= end {
         (start..end).map(Value::i64).collect()
     } else {
@@ -10189,8 +10214,8 @@ fn eval_vec_take(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::core::take", eval(&args[0], env, sym)?)?;
-    let n = require_i64(":wat::core::take", eval(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::core::take", eval_inner(&args[0], env, sym)?)?;
+    let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?)?;
     let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
     let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
     Ok(Value::Vec(Arc::new(out)))
@@ -10213,8 +10238,8 @@ fn eval_vec_drop(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::core::drop", eval(&args[0], env, sym)?)?;
-    let n = require_i64(":wat::core::drop", eval(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::core::drop", eval_inner(&args[0], env, sym)?)?;
+    let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?)?;
     let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
     let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
     Ok(Value::Vec(Arc::new(out)))
@@ -10255,8 +10280,8 @@ fn eval_vec_sort_by(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
-    let f = eval(&args[1], env, sym)?;
+    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?)?;
+    let f = eval_inner(&args[1], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10339,8 +10364,8 @@ fn eval_vec_map(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(":wat::core::map", eval(&args[0], env, sym)?)?;
-    let f = eval(&args[1], env, sym)?;
+    let xs = require_vec(":wat::core::map", eval_inner(&args[0], env, sym)?)?;
+    let f = eval_inner(&args[1], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10378,9 +10403,9 @@ fn eval_vec_foldl(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(":wat::core::foldl", eval(&args[0], env, sym)?)?;
-    let mut acc = eval(&args[1], env, sym)?;
-    let f = eval(&args[2], env, sym)?;
+    let xs = require_vec(":wat::core::foldl", eval_inner(&args[0], env, sym)?)?;
+    let mut acc = eval_inner(&args[1], env, sym)?;
+    let f = eval_inner(&args[2], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10417,9 +10442,9 @@ fn eval_vec_foldr(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(":wat::core::foldr", eval(&args[0], env, sym)?)?;
-    let mut acc = eval(&args[1], env, sym)?;
-    let f = eval(&args[2], env, sym)?;
+    let xs = require_vec(":wat::core::foldr", eval_inner(&args[0], env, sym)?)?;
+    let mut acc = eval_inner(&args[1], env, sym)?;
+    let f = eval_inner(&args[2], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10455,8 +10480,8 @@ fn eval_vec_filter(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(":wat::core::filter", eval(&args[0], env, sym)?)?;
-    let f = eval(&args[1], env, sym)?;
+    let xs = require_vec(":wat::core::filter", eval_inner(&args[0], env, sym)?)?;
+    let f = eval_inner(&args[1], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10504,8 +10529,8 @@ fn eval_list_zip(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::std::list::zip", eval(&args[0], env, sym)?)?;
-    let ys = require_vec(":wat::std::list::zip", eval(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::std::list::zip", eval_inner(&args[0], env, sym)?)?;
+    let ys = require_vec(":wat::std::list::zip", eval_inner(&args[1], env, sym)?)?;
     let n = xs.len().min(ys.len());
     let mut out = Vec::with_capacity(n);
     for (x, y) in xs.iter().zip(ys.iter()).take(n) {
@@ -10532,8 +10557,8 @@ fn eval_list_window(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::std::list::window", eval(&args[0], env, sym)?)?;
-    let n = require_i64(":wat::std::list::window", eval(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::std::list::window", eval_inner(&args[0], env, sym)?)?;
+    let n = require_i64(":wat::std::list::window", eval_inner(&args[1], env, sym)?)?;
     if n <= 0 {
         return Ok(Value::Vec(Arc::new(Vec::new())));
     }
@@ -10565,8 +10590,8 @@ fn eval_list_remove_at(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::std::list::remove-at", eval(&args[0], env, sym)?)?;
-    let i = require_i64(":wat::std::list::remove-at", eval(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::std::list::remove-at", eval_inner(&args[0], env, sym)?)?;
+    let i = require_i64(":wat::std::list::remove-at", eval_inner(&args[1], env, sym)?)?;
     if i < 0 || (i as usize) >= xs.len() {
         return Ok(Value::Vec(xs));
     }
@@ -10692,8 +10717,8 @@ fn eval_hashmap_ctor(
     let mut map: std::collections::HashMap<Value, Value> =
         std::collections::HashMap::with_capacity(pairs.len() / 2);
     for pair in pairs.chunks(2) {
-        let k = eval(&pair[0], env, sym)?;
-        let v = eval(&pair[1], env, sym)?;
+        let k = eval_inner(&pair[0], env, sym)?;
+        let v = eval_inner(&pair[1], env, sym)?;
         if !value_is_key_hashable(&k) {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::HashMap".into(),
@@ -10756,7 +10781,7 @@ fn eval_hashset_ctor(
     // Guard: reject opaque-handle variants (would hit unreachable!() in Hash).
     let mut set: HashSet<Value> = HashSet::with_capacity(args.len() - 1);
     for a in &args[1..] {
-        let v = eval(a, env, sym)?;
+        let v = eval_inner(a, env, sym)?;
         if !value_is_set_hashable(&v) {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::HashSet".into(),
@@ -10873,7 +10898,7 @@ fn walk_quasiquote(
             // Unquote — fires at depth 1; preserves+peels deeper.
             if let Some(arg) = match_qq_head(items, ":wat::core::unquote") {
                 if depth == 1 {
-                    let v = eval(arg, env, sym)?;
+                    let v = eval_inner(arg, env, sym)?;
                     return value_to_watast(":wat::core::unquote", v, span.clone());
                 }
                 let inner = walk_quasiquote(arg, env, sym, depth - 1)?;
@@ -10983,7 +11008,7 @@ fn eval_struct_to_form(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     let s = match v {
         Value::Struct(s) => s,
         other => {
@@ -11700,7 +11725,7 @@ fn eval_lookup_define(
     let name = if let WatAST::Keyword(k, _) = &args[0] {
         k.clone()
     } else {
-        let v = eval(&args[0], env, sym)?;
+        let v = eval_inner(&args[0], env, sym)?;
         match name_from_keyword_or_fn(&v) {
             Some(n) => n,
             None => {
@@ -11792,7 +11817,7 @@ fn eval_signature_of_defn(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     let name = match name_from_keyword_or_fn(&v) {
         Some(n) => n,
         None => {
@@ -11913,7 +11938,7 @@ fn eval_signature_of_fn(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     let f = match v {
         Value::wat__core__fn(f) => f,
         other => {
@@ -11953,7 +11978,7 @@ fn eval_body_of(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     let name = match name_from_keyword_or_fn(&v) {
         Some(n) => n,
         None => {
@@ -12065,9 +12090,9 @@ fn eval_rename_callable_name(
         });
     }
     // Eval all three args.
-    let head_val = eval(&args[0], env, sym)?;
-    let from_val = eval(&args[1], env, sym)?;
-    let to_val = eval(&args[2], env, sym)?;
+    let head_val = eval_inner(&args[0], env, sym)?;
+    let from_val = eval_inner(&args[1], env, sym)?;
+    let to_val = eval_inner(&args[2], env, sym)?;
 
     // Extract HolonAST from head arg.
     let holon_arc = match head_val {
@@ -12198,7 +12223,7 @@ fn eval_extract_arg_names(
             span: Span::unknown(),
         });
     }
-    let head_val = eval(&args[0], env, sym)?;
+    let head_val = eval_inner(&args[0], env, sym)?;
     let holon_arc = match head_val {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -12280,7 +12305,7 @@ fn eval_extract_arg_types(
             span: Span::unknown(),
         });
     }
-    let head_val = eval(&args[0], env, sym)?;
+    let head_val = eval_inner(&args[0], env, sym)?;
     let holon_arc = match head_val {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -12349,7 +12374,7 @@ fn eval_bundle_children(
             span: Span::unknown(),
         });
     }
-    let arg_val = eval(&args[0], env, sym)?;
+    let arg_val = eval_inner(&args[0], env, sym)?;
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -12397,7 +12422,7 @@ fn eval_bundle_first(
             span: Span::unknown(),
         });
     }
-    let arg_val = eval(&args[0], env, sym)?;
+    let arg_val = eval_inner(&args[0], env, sym)?;
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -12468,7 +12493,7 @@ fn eval_form_matches(
     // so callers can write `(matches? maybe-event (:Foo ...))`
     // against `:Option<Value>` directly. None / non-Struct / wrong
     // type → false.
-    let subject = eval(&args[0], env, sym)?;
+    let subject = eval_inner(&args[0], env, sym)?;
     let subject = match subject {
         Value::Option(opt) => match (*opt).clone() {
             Some(v) => v,
@@ -12597,14 +12622,14 @@ fn walk_match_clause(
                 // ?var already bound — fall through to comparison.
             }
             // Equality comparison. eval both sides; structural equality.
-            let a = eval(left, &env, sym)?;
-            let b = eval(right, &env, sym)?;
+            let a = eval_inner(left, &env, sym)?;
+            let b = eval_inner(right, &env, sym)?;
             let eq = values_equal(&a, &b).unwrap_or(false);
             Ok((eq, env))
         }
         RawClause::Compare { op, left, right } => {
-            let a = eval(left, &env, sym)?;
-            let b = eval(right, &env, sym)?;
+            let a = eval_inner(left, &env, sym)?;
+            let b = eval_inner(right, &env, sym)?;
             match op {
                 CompareOp::NotEq => {
                     let eq = values_equal(&a, &b).unwrap_or(false);
@@ -12688,7 +12713,7 @@ fn walk_match_clause(
             Ok((!p, entry_env))
         }
         RawClause::Where(body) => {
-            let v = eval(body, &env, sym)?;
+            let v = eval_inner(body, &env, sym)?;
             match v {
                 Value::bool(b) => Ok((b, env)),
                 other => Err(RuntimeError::TypeMismatch {
@@ -12748,7 +12773,7 @@ fn eval_macroexpand_1(
             span: Span::unknown(),
         });
     }
-    let ast = match eval(&args[0], env, sym)? {
+    let ast = match eval_inner(&args[0], env, sym)? {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -12792,7 +12817,7 @@ fn eval_macroexpand(
             span: Span::unknown(),
         });
     }
-    let mut ast = match eval(&args[0], env, sym)? {
+    let mut ast = match eval_inner(&args[0], env, sym)? {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -12861,7 +12886,7 @@ fn eval_positional_accessor(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     match v {
         Value::Tuple(items) => items.get(index).cloned().ok_or_else(|| {
             RuntimeError::MalformedForm {
@@ -12907,7 +12932,7 @@ fn eval_vec_last(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::core::last", eval(&args[0], env, sym)?)?;
+    let xs = require_vec(":wat::core::last", eval_inner(&args[0], env, sym)?)?;
     Ok(Value::Option(Arc::new(xs.last().cloned())))
 }
 
@@ -12933,8 +12958,8 @@ fn eval_vec_find_last_index(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
-    let f = eval(&args[1], env, sym)?;
+    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?)?;
+    let f = eval_inner(&args[1], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -12994,7 +13019,7 @@ fn eval_f64_reduce(
         });
     }
     let arg_span = args[0].span().clone();
-    let xs = require_vec(op, eval(&args[0], env, sym)?)?;
+    let xs = require_vec(op, eval_inner(&args[0], env, sym)?)?;
     let mut iter = xs.iter();
     let init = match iter.next() {
         Some(Value::f64(x)) => *x,
@@ -13043,7 +13068,7 @@ fn eval_vec_rest(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     match v {
         Value::Vec(xs) => {
             if xs.is_empty() {
@@ -13095,8 +13120,8 @@ fn eval_list_map_with_index(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::std::list::map-with-index", eval(&args[0], env, sym)?)?;
-    let f = eval(&args[1], env, sym)?;
+    let xs = require_vec(":wat::std::list::map-with-index", eval_inner(&args[0], env, sym)?)?;
+    let f = eval_inner(&args[1], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -13141,7 +13166,7 @@ fn eval_some_ctor(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     Ok(Value::Option(Arc::new(Some(v))))
 }
 
@@ -13162,7 +13187,7 @@ fn eval_ok_ctor(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     Ok(Value::Result(Arc::new(Ok(v))))
 }
 
@@ -13183,7 +13208,7 @@ fn eval_err_ctor(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     Ok(Value::Result(Arc::new(Err(v))))
 }
 
@@ -13224,7 +13249,7 @@ fn eval_try(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     match v {
         Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
             Ok(std::result::Result::Ok(ok)) => Ok(ok),
@@ -13274,7 +13299,7 @@ fn eval_option_try(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     match v {
         Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
             Ok(Some(inner)) => Ok(inner),
@@ -13324,7 +13349,7 @@ fn eval_option_expect(
             span: list_span.clone(),
         });
     }
-    let opt = eval(&args[2], env, sym)?;
+    let opt = eval_inner(&args[2], env, sym)?;
     match opt {
         Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
             Ok(Some(v)) => Ok(v),
@@ -13360,7 +13385,7 @@ fn eval_result_expect(
             span: list_span.clone(),
         });
     }
-    let res = eval(&args[2], env, sym)?;
+    let res = eval_inner(&args[2], env, sym)?;
     match res {
         Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
             Ok(std::result::Result::Ok(ok)) => Ok(ok),
@@ -13424,7 +13449,7 @@ fn expect_panic(
     location: crate::span::Span,
     upstream_chain: Option<Vec<Value>>,
 ) -> Result<Value, RuntimeError> {
-    let msg = match eval(msg_ast, env, sym)? {
+    let msg = match eval_inner(msg_ast, env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -13484,7 +13509,7 @@ fn eval_kernel_raise(
             span: Span::unknown(),
         });
     }
-    let data = eval(&args[0], env, sym)?;
+    let data = eval_inner(&args[0], env, sym)?;
     match &data {
         Value::holon__HolonAST(_) => {}
         other => {
@@ -13558,7 +13583,7 @@ fn eval_struct_new(
     };
     let mut fields = Vec::with_capacity(args.len() - 1);
     for arg in &args[1..] {
-        fields.push(eval(arg, env, sym)?);
+        fields.push(eval_inner(arg, env, sym)?);
     }
     Ok(Value::Struct(Arc::new(StructValue { type_name, fields })))
 }
@@ -13629,7 +13654,7 @@ fn eval_variant(
     };
     let mut fields = Vec::with_capacity(args.len() - 2);
     for arg in &args[2..] {
-        fields.push(eval(arg, env, sym)?);
+        fields.push(eval_inner(arg, env, sym)?);
     }
     Ok(Value::Enum(Arc::new(EnumValue {
         type_path,
@@ -13667,7 +13692,7 @@ fn eval_struct_field(
             span: list_span.clone(),
         });
     }
-    let struct_val = eval(&args[0], env, sym)?;
+    let struct_val = eval_inner(&args[0], env, sym)?;
     let inner = match struct_val {
         Value::Struct(s) => s,
         other => {
@@ -13791,7 +13816,7 @@ fn eval_match(
             });
         }
     }
-    let scrutinee = eval(&args[0], env, sym)?;
+    let scrutinee = eval_inner(&args[0], env, sym)?;
     for arm in &args[3..] {
         let arm_items = match arm {
             WatAST::List(items, _) => items,
@@ -13819,7 +13844,7 @@ fn eval_match(
         let pattern = &arm_items[0];
         let body = &arm_items[1];
         if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env)? {
-            return eval(body, &arm_env, sym);
+            return eval_inner(body, &arm_env, sym);
         }
     }
     Err(RuntimeError::PatternMatchFailed {
@@ -14374,7 +14399,7 @@ fn eval_holon_from_holon(
     } else {
         false
     };
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     let holon = match v {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -14686,7 +14711,7 @@ fn eval_holon_atom_constructor(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     wrap_holon_as_atom(v, args[0].span())
 }
 
@@ -14736,7 +14761,7 @@ fn eval_holon_to_holon(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     to_holon_inner(v, args[0].span())
 }
 
@@ -14983,7 +15008,7 @@ fn eval_holon_leaf(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     let h = match v {
         Value::i64(n) => HolonAST::i64(n),
         Value::f64(x) => HolonAST::f64(x),
@@ -15035,7 +15060,7 @@ fn eval_holon_from_wat(
             span: list_span.clone(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     let h = match v {
         Value::wat__WatAST(a) => watast_to_holon(&a),
         other => {
@@ -15088,7 +15113,7 @@ fn eval_holon_to_wat(
             span: list_span.clone(),
         });
     }
-    let h = match eval(&args[0], env, sym)? {
+    let h = match eval_inner(&args[0], env, sym)? {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15124,7 +15149,7 @@ fn eval_term_template(
             span: list_span.clone(),
         });
     }
-    let h = match eval(&args[0], env, sym)? {
+    let h = match eval_inner(&args[0], env, sym)? {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15158,7 +15183,7 @@ fn eval_term_slots(
             span: list_span.clone(),
         });
     }
-    let h = match eval(&args[0], env, sym)? {
+    let h = match eval_inner(&args[0], env, sym)? {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15193,7 +15218,7 @@ fn eval_term_ranges(
             span: list_span.clone(),
         });
     }
-    let h = match eval(&args[0], env, sym)? {
+    let h = match eval_inner(&args[0], env, sym)? {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15243,7 +15268,7 @@ fn eval_term_matches_q(
             span: list_span.clone(),
         });
     }
-    let q = match eval(&args[0], env, sym)? {
+    let q = match eval_inner(&args[0], env, sym)? {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15254,7 +15279,7 @@ fn eval_term_matches_q(
             });
         }
     };
-    let s = match eval(&args[1], env, sym)? {
+    let s = match eval_inner(&args[1], env, sym)? {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15316,7 +15341,7 @@ fn eval_presence_floor(
             span: list_span.clone(),
         });
     }
-    let d = require_i64(OP, eval(&args[0], env, sym)?)?;
+    let d = require_i64(OP, eval_inner(&args[0], env, sym)?)?;
     if d <= 0 {
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
@@ -15347,7 +15372,7 @@ fn eval_coincident_floor(
             span: list_span.clone(),
         });
     }
-    let d = require_i64(OP, eval(&args[0], env, sym)?)?;
+    let d = require_i64(OP, eval_inner(&args[0], env, sym)?)?;
     if d <= 0 {
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
@@ -15411,7 +15436,7 @@ fn eval_hologram_make(
             span: list_span.clone(),
         });
     }
-    let filter = require_fn(OP, eval(&args[0], env, sym)?)?;
+    let filter = require_fn(OP, eval_inner(&args[0], env, sym)?)?;
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let h = crate::hologram::Hologram::make(ctx.dim_count, filter);
     Ok(Value::Hologram(Arc::new(
@@ -15439,8 +15464,8 @@ fn eval_hologram_put(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
-    let key = match eval(&args[1], env, sym)? {
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
+    let key = match eval_inner(&args[1], env, sym)? {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15451,7 +15476,7 @@ fn eval_hologram_put(
             });
         }
     };
-    let val = match eval(&args[2], env, sym)? {
+    let val = match eval_inner(&args[2], env, sym)? {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15487,8 +15512,8 @@ fn eval_hologram_get(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
-    let probe = match eval(&args[1], env, sym)? {
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
+    let probe = match eval_inner(&args[1], env, sym)? {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15533,8 +15558,8 @@ fn eval_hologram_find(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
-    let probe = match eval(&args[1], env, sym)? {
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
+    let probe = match eval_inner(&args[1], env, sym)? {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15579,8 +15604,8 @@ fn eval_hologram_remove(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
-    let key = match eval(&args[1], env, sym)? {
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
+    let key = match eval_inner(&args[1], env, sym)? {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15617,7 +15642,7 @@ fn eval_hologram_len(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
     let n = store.with_ref(OP, |s| s.len() as i64)?;
     Ok(Value::i64(n))
 }
@@ -15643,7 +15668,7 @@ fn eval_hologram_capacity(
             span: Span::unknown(),
         });
     }
-    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
     let cap = store.with_ref(OP, |s| s.capacity() as i64)?;
     Ok(Value::i64(cap))
 }
@@ -15669,7 +15694,7 @@ fn eval_therm_form(
             span: list_span.clone(),
         });
     }
-    let low = match eval(&args[0], env, sym)? {
+    let low = match eval_inner(&args[0], env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15680,7 +15705,7 @@ fn eval_therm_form(
             });
         }
     };
-    let high = match eval(&args[1], env, sym)? {
+    let high = match eval_inner(&args[1], env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15691,7 +15716,7 @@ fn eval_therm_form(
             });
         }
     };
-    let value = match eval(&args[2], env, sym)? {
+    let value = match eval_inner(&args[2], env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15842,8 +15867,8 @@ fn eval_algebra_bind(
             span: list_span.clone(),
         });
     }
-    let a = require_holon(":wat::holon::Bind", eval(&args[0], env, sym)?)?;
-    let b = require_holon(":wat::holon::Bind", eval(&args[1], env, sym)?)?;
+    let a = require_holon(":wat::holon::Bind", eval_inner(&args[0], env, sym)?)?;
+    let b = require_holon(":wat::holon::Bind", eval_inner(&args[1], env, sym)?)?;
 
     // No AST-level simplification. MAP's bind self-inverse — Bind(Bind(x,y),x) →
     // y — is a VECTOR-level identity (and per 058-024's rejection text, holds
@@ -15897,7 +15922,7 @@ fn eval_algebra_bundle(
             span: list_span.clone(),
         });
     }
-    let list = match eval(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15973,8 +15998,8 @@ fn eval_algebra_permute(
             span: list_span.clone(),
         });
     }
-    let child = require_holon(":wat::holon::Permute", eval(&args[0], env, sym)?)?;
-    let k = match eval(&args[1], env, sym)? {
+    let child = require_holon(":wat::holon::Permute", eval_inner(&args[0], env, sym)?)?;
+    let k = match eval_inner(&args[1], env, sym)? {
         Value::i64(n) => i32::try_from(n).map_err(|_| RuntimeError::TypeMismatch {
             op: ":wat::holon::Permute".into(),
             expected: "i32 step (integer fitting in i32)",
@@ -16026,9 +16051,9 @@ fn eval_algebra_thermometer(
             span: list_span.clone(),
         });
     }
-    let v = require_numeric(":wat::holon::Thermometer", eval(&args[0], env, sym)?, list_span)?;
-    let mn = require_numeric(":wat::holon::Thermometer", eval(&args[1], env, sym)?, list_span)?;
-    let mx = require_numeric(":wat::holon::Thermometer", eval(&args[2], env, sym)?, list_span)?;
+    let v = require_numeric(":wat::holon::Thermometer", eval_inner(&args[0], env, sym)?, list_span)?;
+    let mn = require_numeric(":wat::holon::Thermometer", eval_inner(&args[1], env, sym)?, list_span)?;
+    let mx = require_numeric(":wat::holon::Thermometer", eval_inner(&args[2], env, sym)?, list_span)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(v, mn, mx))))
 }
 
@@ -16046,10 +16071,10 @@ fn eval_algebra_blend(
             span: list_span.clone(),
         });
     }
-    let a = require_holon(":wat::holon::Blend", eval(&args[0], env, sym)?)?;
-    let b = require_holon(":wat::holon::Blend", eval(&args[1], env, sym)?)?;
-    let w1 = require_numeric(":wat::holon::Blend", eval(&args[2], env, sym)?, list_span)?;
-    let w2 = require_numeric(":wat::holon::Blend", eval(&args[3], env, sym)?, list_span)?;
+    let a = require_holon(":wat::holon::Blend", eval_inner(&args[0], env, sym)?)?;
+    let b = require_holon(":wat::holon::Blend", eval_inner(&args[1], env, sym)?)?;
+    let w1 = require_numeric(":wat::holon::Blend", eval_inner(&args[2], env, sym)?, list_span)?;
+    let w2 = require_numeric(":wat::holon::Blend", eval_inner(&args[3], env, sym)?, list_span)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend((*a).clone(), (*b).clone(), w1, w2))))
 }
 
@@ -16083,7 +16108,7 @@ fn eval_algebra_map(
             span: list_span.clone(),
         });
     }
-    let list = match eval(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16126,7 +16151,7 @@ fn eval_algebra_set(
             span: list_span.clone(),
         });
     }
-    let list = match eval(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16170,7 +16195,7 @@ fn eval_algebra_vector(
             span: list_span.clone(),
         });
     }
-    let list = match eval(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16219,7 +16244,7 @@ fn eval_algebra_list(
             span: list_span.clone(),
         });
     }
-    let list = match eval(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16264,7 +16289,7 @@ fn eval_algebra_tuple(
             span: list_span.clone(),
         });
     }
-    let list = match eval(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16351,8 +16376,8 @@ fn eval_holon_is_predicate(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
-    let class_val = eval(&args[1], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
+    let class_val = eval_inner(&args[1], env, sym)?;
     let class_name = match class_val {
         Value::String(s) => s,
         other => {
@@ -16390,7 +16415,7 @@ fn eval_holon_is_map_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Map"),
         _ => false,
@@ -16417,7 +16442,7 @@ fn eval_holon_is_set_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Set"),
         _ => false,
@@ -16445,7 +16470,7 @@ fn eval_holon_is_vector_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Vector"),
         _ => false,
@@ -16472,7 +16497,7 @@ fn eval_holon_is_list_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("List"),
         _ => false,
@@ -16500,7 +16525,7 @@ fn eval_holon_is_tuple_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tuple"),
         _ => false,
@@ -16529,7 +16554,7 @@ fn eval_holon_is_symbol_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Symbol"),
         _ => false,
@@ -16556,7 +16581,7 @@ fn eval_holon_is_keyword_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Keyword"),
         _ => false,
@@ -16583,7 +16608,7 @@ fn eval_holon_is_tag_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tag"),
         _ => false,
@@ -16614,7 +16639,7 @@ fn eval_holon_is_nil_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?;
     let matches = match value_val {
         Value::holon__HolonAST(h) => h.is_nil(),
         _ => false,
@@ -16709,8 +16734,8 @@ fn eval_algebra_cosine(
             span: list_span.clone(),
         });
     }
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     let (vt, vr) = pair_values_to_vectors(":wat::holon::cosine", a, b, sym, list_span)?;
     Ok(Value::f64(Similarity::cosine(&vt, &vr)))
 }
@@ -16742,8 +16767,8 @@ fn eval_algebra_presence_q(
             span: list_span.clone(),
         });
     }
-    let target = require_holon(":wat::holon::presence?", eval(&args[0], env, sym)?)?;
-    let reference = require_holon(":wat::holon::presence?", eval(&args[1], env, sym)?)?;
+    let target = require_holon(":wat::holon::presence?", eval_inner(&args[0], env, sym)?)?;
+    let reference = require_holon(":wat::holon::presence?", eval_inner(&args[1], env, sym)?)?;
     let ctx = require_encoding_ctx(":wat::holon::presence?", sym, list_span)?;
 
     // Arc 037 slice 3: normalize UP via ambient router. Presence
@@ -16798,8 +16823,8 @@ fn eval_algebra_coincident_q(
             span: list_span.clone(),
         });
     }
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     // Arc 061 — polymorphic over (HolonAST, Vector) pairs in any
     // combination, mirroring arc 052's `cosine` shape. Pre-encoded
     // Vector inputs short-circuit the encoding step; mixed inputs
@@ -16845,8 +16870,8 @@ fn eval_algebra_coincident_explain(
             span: list_span.clone(),
         });
     }
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     let (va, vb) = pair_values_to_vectors(OP, a, b, sym, list_span)?;
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let dim = va.dimensions();
@@ -16934,7 +16959,7 @@ fn run_ast_arg_for_eval_coincident(
     sym: &SymbolTable,
     op: &'static str,
 ) -> Result<Value, RuntimeError> {
-    let ast = match eval(arg, env, sym)? {
+    let ast = match eval_inner(arg, env, sym)? {
         Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -17198,7 +17223,7 @@ fn eval_holon_statement_length(
             span: list_span.clone(),
         });
     }
-    let ast = require_holon(":wat::holon::statement-length", eval(&args[0], env, sym)?)?;
+    let ast = require_holon(":wat::holon::statement-length", eval_inner(&args[0], env, sym)?)?;
     // Arc 230 — Symbol/Keyword/Tag/Nil are now Bind compositions; intercept before
     // the generic match so they return 1 (conceptual leaf) not 2 (Bind structural count).
     let n = if ast.as_symbol().is_some() || ast.as_keyword().is_some() || ast.as_tag().is_some() {
@@ -17238,8 +17263,8 @@ fn eval_algebra_dot(
     }
     // Arc 052 — polymorphic input: HolonAST or Vector in either
     // position. Same dim-resolution rule as cosine.
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     let (vx, vy) = pair_values_to_vectors(":wat::holon::dot", a, b, sym, list_span)?;
     Ok(Value::f64(Similarity::dot(&vx, &vy)))
 }
@@ -17285,7 +17310,7 @@ fn eval_algebra_simhash(
             span: list_span.clone(),
         });
     }
-    let target = eval(&args[0], env, sym)?;
+    let target = eval_inner(&args[0], env, sym)?;
     let ctx = require_encoding_ctx(":wat::holon::simhash", sym, list_span)?;
     // Arc 052 — polymorphic input: HolonAST encodes at router-picked d;
     // Vector uses its native dim directly.
@@ -17350,7 +17375,7 @@ fn eval_holon_encode(
             span: list_span.clone(),
         });
     }
-    let target = require_holon(":wat::holon::encode", eval(&args[0], env, sym)?)?;
+    let target = require_holon(":wat::holon::encode", eval_inner(&args[0], env, sym)?)?;
     let ctx = require_encoding_ctx(":wat::holon::encode", sym, list_span)?;
     let enc = ctx.encoders.get(ctx.dim_count);
     let v = encode(&target, &enc.vm, &enc.scalar);
@@ -17401,7 +17426,7 @@ fn eval_holon_vector_bytes(
             span: list_span.clone(),
         });
     }
-    let v = require_vector(OP, eval(&args[0], env, sym)?)?;
+    let v = require_vector(OP, eval_inner(&args[0], env, sym)?)?;
     let dim = v.dimensions();
     let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError::TypeMismatch {
         op: OP.into(),
@@ -17474,7 +17499,7 @@ fn eval_holon_bytes_vector(
         });
     }
     // Pull the byte vector contents out as Vec<u8>.
-    let xs = match eval(&args[0], env, sym)? {
+    let xs = match eval_inner(&args[0], env, sym)? {
         Value::Vec(xs) => xs,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -17571,7 +17596,7 @@ fn eval_bytes_to_hex(
             span: list_span.clone(),
         });
     }
-    let xs = match eval(&args[0], env, sym)? {
+    let xs = match eval_inner(&args[0], env, sym)? {
         Value::Vec(xs) => xs,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -17637,7 +17662,7 @@ fn eval_bytes_from_hex(
             span: list_span.clone(),
         });
     }
-    let s = match eval(&args[0], env, sym)? {
+    let s = match eval_inner(&args[0], env, sym)? {
         Value::String(s) => s,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -17720,7 +17745,7 @@ fn eval_show(
             span: Span::unknown(),
         });
     }
-    let v = eval(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?;
     Ok(Value::String(Arc::new(render_value(&v, 0))))
 }
 
@@ -17955,8 +17980,8 @@ fn eval_holon_vector_bind(
             span: list_span.clone(),
         });
     }
-    let va = require_vector(":wat::holon::vector-bind", eval(&args[0], env, sym)?)?;
-    let vb = require_vector(":wat::holon::vector-bind", eval(&args[1], env, sym)?)?;
+    let va = require_vector(":wat::holon::vector-bind", eval_inner(&args[0], env, sym)?)?;
+    let vb = require_vector(":wat::holon::vector-bind", eval_inner(&args[1], env, sym)?)?;
     if va.dimensions() != vb.dimensions() {
         return Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::vector-bind".into(),
@@ -17990,7 +18015,7 @@ fn eval_holon_vector_bundle(
             span: list_span.clone(),
         });
     }
-    let vec_value = eval(&args[0], env, sym)?;
+    let vec_value = eval_inner(&args[0], env, sym)?;
     let elements = match vec_value {
         Value::Vec(v) => v,
         other => {
@@ -18054,10 +18079,10 @@ fn eval_holon_vector_blend(
             span: list_span.clone(),
         });
     }
-    let va = require_vector(":wat::holon::vector-blend", eval(&args[0], env, sym)?)?;
-    let vb = require_vector(":wat::holon::vector-blend", eval(&args[1], env, sym)?)?;
-    let w1 = require_numeric(":wat::holon::vector-blend", eval(&args[2], env, sym)?, list_span)?;
-    let w2 = require_numeric(":wat::holon::vector-blend", eval(&args[3], env, sym)?, list_span)?;
+    let va = require_vector(":wat::holon::vector-blend", eval_inner(&args[0], env, sym)?)?;
+    let vb = require_vector(":wat::holon::vector-blend", eval_inner(&args[1], env, sym)?)?;
+    let w1 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[2], env, sym)?, list_span)?;
+    let w2 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[3], env, sym)?, list_span)?;
     if va.dimensions() != vb.dimensions() {
         return Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::vector-blend".into(),
@@ -18091,8 +18116,8 @@ fn eval_holon_vector_permute(
             span: list_span.clone(),
         });
     }
-    let v = require_vector(":wat::holon::vector-permute", eval(&args[0], env, sym)?)?;
-    let k_val = eval(&args[1], env, sym)?;
+    let v = require_vector(":wat::holon::vector-permute", eval_inner(&args[0], env, sym)?)?;
+    let k_val = eval_inner(&args[1], env, sym)?;
     let k = match k_val {
         Value::i64(n) => n as i32,
         other => {
@@ -18145,8 +18170,8 @@ fn eval_subspace_new(
             span: list_span.clone(),
         });
     }
-    let dim = require_i64(":wat::holon::OnlineSubspace/new", eval(&args[0], env, sym)?)?;
-    let k = require_i64(":wat::holon::OnlineSubspace/new", eval(&args[1], env, sym)?)?;
+    let dim = require_i64(":wat::holon::OnlineSubspace/new", eval_inner(&args[0], env, sym)?)?;
+    let k = require_i64(":wat::holon::OnlineSubspace/new", eval_inner(&args[1], env, sym)?)?;
     let s = holon::OnlineSubspace::new(dim as usize, k as usize);
     Ok(Value::OnlineSubspace(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(s),
@@ -18167,7 +18192,7 @@ fn eval_subspace_dim(
             span: list_span.clone(),
         });
     }
-    let s = require_subspace(":wat::holon::OnlineSubspace/dim", eval(&args[0], env, sym)?, list_span)?;
+    let s = require_subspace(":wat::holon::OnlineSubspace/dim", eval_inner(&args[0], env, sym)?, list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/dim", |s| s.dim())?;
     Ok(Value::i64(n as i64))
 }
@@ -18186,7 +18211,7 @@ fn eval_subspace_k(
             span: list_span.clone(),
         });
     }
-    let s = require_subspace(":wat::holon::OnlineSubspace/k", eval(&args[0], env, sym)?, list_span)?;
+    let s = require_subspace(":wat::holon::OnlineSubspace/k", eval_inner(&args[0], env, sym)?, list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/k", |s| s.k())?;
     Ok(Value::i64(n as i64))
 }
@@ -18205,7 +18230,7 @@ fn eval_subspace_n(
             span: list_span.clone(),
         });
     }
-    let s = require_subspace(":wat::holon::OnlineSubspace/n", eval(&args[0], env, sym)?, list_span)?;
+    let s = require_subspace(":wat::holon::OnlineSubspace/n", eval_inner(&args[0], env, sym)?, list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/n", |s| s.n())?;
     Ok(Value::i64(n as i64))
 }
@@ -18226,7 +18251,7 @@ fn eval_subspace_threshold(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/threshold",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let t = s.with_ref(":wat::holon::OnlineSubspace/threshold", |s| s.threshold())?;
@@ -18249,7 +18274,7 @@ fn eval_subspace_eigenvalues(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/eigenvalues",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let xs = s.with_ref(":wat::holon::OnlineSubspace/eigenvalues", |s| s.eigenvalues())?;
@@ -18272,10 +18297,10 @@ fn eval_subspace_update(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/update",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
-    let v = require_vector(":wat::holon::OnlineSubspace/update", eval(&args[1], env, sym)?)?;
+    let v = require_vector(":wat::holon::OnlineSubspace/update", eval_inner(&args[1], env, sym)?)?;
     let xs = v.to_f64();
     let residual = s.with_mut(":wat::holon::OnlineSubspace/update", list_span.clone(), |s| s.update(&xs))?;
     Ok(Value::f64(residual))
@@ -18297,12 +18322,12 @@ fn eval_subspace_residual(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/residual",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/residual",
-        eval(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?,
     )?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/residual", |s| s.residual(&xs))?;
@@ -18325,12 +18350,12 @@ fn eval_subspace_project(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/project",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/project",
-        eval(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?,
     )?;
     let xs = v.to_f64();
     let projected = s.with_ref(":wat::holon::OnlineSubspace/project", |s| s.project(&xs))?;
@@ -18353,12 +18378,12 @@ fn eval_subspace_reconstruct(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/reconstruct",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/reconstruct",
-        eval(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?,
     )?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/reconstruct", |s| {
@@ -18399,7 +18424,7 @@ fn eval_reckoner_new_discrete(
             span: list_span.clone(),
         });
     }
-    let name_val = eval(&args[0], env, sym)?;
+    let name_val = eval_inner(&args[0], env, sym)?;
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
@@ -18411,10 +18436,10 @@ fn eval_reckoner_new_discrete(
             })
         }
     };
-    let dims = require_i64(":wat::holon::Reckoner/new-discrete", eval(&args[1], env, sym)?)?;
+    let dims = require_i64(":wat::holon::Reckoner/new-discrete", eval_inner(&args[1], env, sym)?)?;
     let recalib =
-        require_i64(":wat::holon::Reckoner/new-discrete", eval(&args[2], env, sym)?)?;
-    let labels_val = eval(&args[3], env, sym)?;
+        require_i64(":wat::holon::Reckoner/new-discrete", eval_inner(&args[2], env, sym)?)?;
+    let labels_val = eval_inner(&args[3], env, sym)?;
     let label_asts: Vec<HolonAST> = match labels_val {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
@@ -18462,7 +18487,7 @@ fn eval_reckoner_new_continuous(
             span: list_span.clone(),
         });
     }
-    let name_val = eval(&args[0], env, sym)?;
+    let name_val = eval_inner(&args[0], env, sym)?;
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
@@ -18474,16 +18499,16 @@ fn eval_reckoner_new_continuous(
             })
         }
     };
-    let dims = require_i64(":wat::holon::Reckoner/new-continuous", eval(&args[1], env, sym)?)?;
+    let dims = require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[1], env, sym)?)?;
     let recalib =
-        require_i64(":wat::holon::Reckoner/new-continuous", eval(&args[2], env, sym)?)?;
+        require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[2], env, sym)?)?;
     let default_value = require_numeric(
         ":wat::holon::Reckoner/new-continuous",
-        eval(&args[3], env, sym)?,
+        eval_inner(&args[3], env, sym)?,
         list_span,
     )?;
     let buckets =
-        require_i64(":wat::holon::Reckoner/new-continuous", eval(&args[4], env, sym)?)?;
+        require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[4], env, sym)?)?;
     let r = holon::Reckoner::new(
         &name,
         dims as usize,
@@ -18513,12 +18538,12 @@ fn eval_reckoner_observe(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/observe", eval(&args[0], env, sym)?, list_span)?;
-    let v = require_vector(":wat::holon::Reckoner/observe", eval(&args[1], env, sym)?)?;
-    let label_idx = require_i64(":wat::holon::Reckoner/observe", eval(&args[2], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/observe", eval_inner(&args[0], env, sym)?, list_span)?;
+    let v = require_vector(":wat::holon::Reckoner/observe", eval_inner(&args[1], env, sym)?)?;
+    let label_idx = require_i64(":wat::holon::Reckoner/observe", eval_inner(&args[2], env, sym)?)?;
     let weight = require_numeric(
         ":wat::holon::Reckoner/observe",
-        eval(&args[3], env, sym)?,
+        eval_inner(&args[3], env, sym)?,
         list_span,
     )?;
     r.with_mut(":wat::holon::Reckoner/observe", list_span.clone(), |r| {
@@ -18547,8 +18572,8 @@ fn eval_reckoner_predict(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/predict", eval(&args[0], env, sym)?, list_span)?;
-    let v = require_vector(":wat::holon::Reckoner/predict", eval(&args[1], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/predict", eval_inner(&args[0], env, sym)?, list_span)?;
+    let v = require_vector(":wat::holon::Reckoner/predict", eval_inner(&args[1], env, sym)?)?;
     let pred = r.with_ref(":wat::holon::Reckoner/predict", |r| r.predict(&v))?;
     // Pack scores as Vec<(i64, f64)> tuples.
     let scores: Vec<Value> = pred
@@ -18593,13 +18618,13 @@ fn eval_reckoner_resolve(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/resolve", eval(&args[0], env, sym)?, list_span)?;
+    let r = require_reckoner(":wat::holon::Reckoner/resolve", eval_inner(&args[0], env, sym)?, list_span)?;
     let conviction = require_numeric(
         ":wat::holon::Reckoner/resolve",
-        eval(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?,
         list_span,
     )?;
-    let correct_val = eval(&args[2], env, sym)?;
+    let correct_val = eval_inner(&args[2], env, sym)?;
     let correct = match correct_val {
         Value::bool(b) => b,
         other => {
@@ -18632,7 +18657,7 @@ fn eval_reckoner_curve(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/curve", eval(&args[0], env, sym)?, list_span)?;
+    let r = require_reckoner(":wat::holon::Reckoner/curve", eval_inner(&args[0], env, sym)?, list_span)?;
     let curve = r.with_mut(":wat::holon::Reckoner/curve", list_span.clone(), |r| r.curve())?;
     Ok(match curve {
         Some((a, b)) => Value::Option(Arc::new(Some(Value::Tuple(Arc::new(vec![
@@ -18658,7 +18683,7 @@ fn eval_reckoner_labels(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/labels", eval(&args[0], env, sym)?, list_span)?;
+    let r = require_reckoner(":wat::holon::Reckoner/labels", eval_inner(&args[0], env, sym)?, list_span)?;
     let labels = r.with_ref(":wat::holon::Reckoner/labels", |r| r.labels())?;
     let xs: Vec<Value> = labels
         .into_iter()
@@ -18681,7 +18706,7 @@ fn eval_reckoner_dims(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/dims", eval(&args[0], env, sym)?, list_span)?;
+    let r = require_reckoner(":wat::holon::Reckoner/dims", eval_inner(&args[0], env, sym)?, list_span)?;
     let n = r.with_ref(":wat::holon::Reckoner/dims", |r| r.dims())?;
     Ok(Value::i64(n as i64))
 }
@@ -18747,7 +18772,7 @@ fn eval_engram_name(
             span: list_span.clone(),
         });
     }
-    let e = require_engram(":wat::holon::Engram/name", eval(&args[0], env, sym)?, list_span)?;
+    let e = require_engram(":wat::holon::Engram/name", eval_inner(&args[0], env, sym)?, list_span)?;
     let s = e.with_ref(":wat::holon::Engram/name", |e| e.name().to_string())?;
     Ok(Value::String(Arc::new(s)))
 }
@@ -18768,7 +18793,7 @@ fn eval_engram_eigenvalue_signature(
     }
     let e = require_engram(
         ":wat::holon::Engram/eigenvalue-signature",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let xs =
@@ -18792,7 +18817,7 @@ fn eval_engram_n(
             span: list_span.clone(),
         });
     }
-    let e = require_engram(":wat::holon::Engram/n", eval(&args[0], env, sym)?, list_span)?;
+    let e = require_engram(":wat::holon::Engram/n", eval_inner(&args[0], env, sym)?, list_span)?;
     let n = e.with_ref(":wat::holon::Engram/n", |e| e.n())?;
     Ok(Value::i64(n as i64))
 }
@@ -18811,8 +18836,8 @@ fn eval_engram_residual(
             span: list_span.clone(),
         });
     }
-    let e = require_engram(":wat::holon::Engram/residual", eval(&args[0], env, sym)?, list_span)?;
-    let v = require_vector(":wat::holon::Engram/residual", eval(&args[1], env, sym)?)?;
+    let e = require_engram(":wat::holon::Engram/residual", eval_inner(&args[0], env, sym)?, list_span)?;
+    let v = require_vector(":wat::holon::Engram/residual", eval_inner(&args[1], env, sym)?)?;
     let xs = v.to_f64();
     let r = e.with_mut(":wat::holon::Engram/residual", list_span.clone(), |e| e.residual(&xs))?;
     Ok(Value::f64(r))
@@ -18833,7 +18858,7 @@ fn eval_library_new(
             span: list_span.clone(),
         });
     }
-    let dim = require_i64(":wat::holon::EngramLibrary/new", eval(&args[0], env, sym)?)?;
+    let dim = require_i64(":wat::holon::EngramLibrary/new", eval_inner(&args[0], env, sym)?)?;
     let lib = holon::EngramLibrary::new(dim as usize);
     Ok(Value::EngramLibrary(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(lib),
@@ -18859,11 +18884,11 @@ fn eval_library_add(
             span: list_span.clone(),
         });
     }
-    let lib = require_engram_library(":wat::holon::EngramLibrary/add", eval(&args[0], env, sym)?, list_span)?;
-    let name = require_string(":wat::holon::EngramLibrary/add", eval(&args[1], env, sym)?, list_span)?;
+    let lib = require_engram_library(":wat::holon::EngramLibrary/add", eval_inner(&args[0], env, sym)?, list_span)?;
+    let name = require_string(":wat::holon::EngramLibrary/add", eval_inner(&args[1], env, sym)?, list_span)?;
     let subspace = require_subspace(
         ":wat::holon::EngramLibrary/add",
-        eval(&args[2], env, sym)?,
+        eval_inner(&args[2], env, sym)?,
         list_span,
     )?;
     // EngramLibrary::add takes &OnlineSubspace by reference; we have
@@ -18893,20 +18918,20 @@ fn eval_library_match_vec(
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/match-vec",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let probe = require_vector(
         ":wat::holon::EngramLibrary/match-vec",
-        eval(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?,
     )?;
     let top_k = require_i64(
         ":wat::holon::EngramLibrary/match-vec",
-        eval(&args[2], env, sym)?,
+        eval_inner(&args[2], env, sym)?,
     )?;
     let prefilter_k = require_i64(
         ":wat::holon::EngramLibrary/match-vec",
-        eval(&args[3], env, sym)?,
+        eval_inner(&args[3], env, sym)?,
     )?;
     let xs = probe.to_f64();
     let matches = lib.with_mut(":wat::holon::EngramLibrary/match-vec", list_span.clone(), |lib| {
@@ -18940,7 +18965,7 @@ fn eval_library_len(
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/len",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let n = lib.with_ref(":wat::holon::EngramLibrary/len", |lib| lib.len())?;
@@ -18963,12 +18988,12 @@ fn eval_library_contains(
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/contains",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let name = require_string(
         ":wat::holon::EngramLibrary/contains",
-        eval(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?,
         list_span,
     )?;
     let b = lib.with_ref(":wat::holon::EngramLibrary/contains", |lib| {
@@ -18993,7 +19018,7 @@ fn eval_library_names(
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/names",
-        eval(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?,
         list_span,
     )?;
     let names = lib.with_ref(":wat::holon::EngramLibrary/names", |lib| {
@@ -19039,7 +19064,7 @@ fn apply_value(
     };
     let vals = args
         .iter()
-        .map(|a| eval(a, env, sym))
+        .map(|a| eval_inner(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
     apply_function(func, vals, sym, crate::rust_caller_span!())
 }
@@ -19558,7 +19583,7 @@ fn eval_make_bounded_queue(
             span: args[0].span().clone(),
         });
     }
-    let capacity = match eval(&args[1], env, sym)? {
+    let capacity = match eval_inner(&args[1], env, sym)? {
         Value::i64(n) if n >= 0 => n as usize,
         Value::i64(n) => {
             return Err(RuntimeError::MalformedForm {
@@ -19642,7 +19667,7 @@ fn eval_kernel_send(
             span: list_span.clone(),
         });
     }
-    let sender = match eval(&args[0], env, sym)? {
+    let sender = match eval_inner(&args[0], env, sym)? {
         Value::wat__kernel__Sender(s) => s,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -19653,7 +19678,7 @@ fn eval_kernel_send(
             });
         }
     };
-    let msg = eval(&args[1], env, sym)?;
+    let msg = eval_inner(&args[1], env, sym)?;
     // Arc 111 slice 1 — return type is Result<(), ThreadDiedError>.
     // Arc 170 slice 1c — dispatch on the transport (Crossbeam vs
     // PipeFd). Both transports surface disconnect via the same
@@ -19700,7 +19725,7 @@ fn eval_kernel_sender_close(
             span: list_span.clone(),
         });
     }
-    let sender = match eval(&args[0], env, sym)? {
+    let sender = match eval_inner(&args[0], env, sym)? {
         Value::wat__kernel__Sender(s) => s,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -19734,7 +19759,7 @@ fn eval_kernel_recv(
             span: list_span.clone(),
         });
     }
-    let receiver = match eval(&args[0], env, sym)? {
+    let receiver = match eval_inner(&args[0], env, sym)? {
         Value::wat__kernel__Receiver(r) => r,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -19811,7 +19836,7 @@ fn eval_kernel_try_recv(
             span: list_span.clone(),
         });
     }
-    let receiver = match eval(&args[0], env, sym)? {
+    let receiver = match eval_inner(&args[0], env, sym)? {
         Value::wat__kernel__Receiver(r) => r,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -19900,7 +19925,7 @@ fn eval_kernel_drop(
             span: list_span.clone(),
         });
     }
-    let handle = eval(&args[0], env, sym)?;
+    let handle = eval_inner(&args[0], env, sym)?;
     match handle {
         Value::wat__kernel__Sender(_) | Value::wat__kernel__Receiver(_) => {
             // Intentional no-op. The Arc we just evaluated into
@@ -19938,7 +19963,7 @@ fn eval_math_unary(
             span: list_span.clone(),
         });
     }
-    let x = match eval(&args[0], env, sym)? {
+    let x = match eval_inner(&args[0], env, sym)? {
         Value::f64(x) => x,
         Value::i64(n) => n as f64,
         other => {
@@ -19989,7 +20014,7 @@ fn eval_stat_mean(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
+    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?)?;
     if xs.is_empty() {
         return Ok(Value::Option(Arc::new(None)));
     }
@@ -20031,7 +20056,7 @@ fn eval_stat_variance(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
+    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?)?;
     if xs.is_empty() {
         return Ok(Value::Option(Arc::new(None)));
     }
@@ -20118,7 +20143,7 @@ fn eval_handle_pool_new(
             span: list_span.clone(),
         });
     }
-    let name = match eval(&args[0], env, sym)? {
+    let name = match eval_inner(&args[0], env, sym)? {
         Value::String(s) => s,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20129,7 +20154,7 @@ fn eval_handle_pool_new(
             });
         }
     };
-    let handles = match eval(&args[1], env, sym)? {
+    let handles = match eval_inner(&args[1], env, sym)? {
         Value::Vec(v) => v,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20178,7 +20203,7 @@ fn eval_handle_pool_pop(
             span: list_span.clone(),
         });
     }
-    let (name, rx) = match eval(&args[0], env, sym)? {
+    let (name, rx) = match eval_inner(&args[0], env, sym)? {
         Value::wat__kernel__HandlePool { name, rx } => (name, rx),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20223,7 +20248,7 @@ fn eval_handle_pool_finish(
             span: list_span.clone(),
         });
     }
-    let (name, rx) = match eval(&args[0], env, sym)? {
+    let (name, rx) = match eval_inner(&args[0], env, sym)? {
         Value::wat__kernel__HandlePool { name, rx } => (name, rx),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20276,7 +20301,7 @@ fn eval_kernel_select(
             span: list_span.clone(),
         });
     }
-    let items = match eval(&args[0], env, sym)? {
+    let items = match eval_inner(&args[0], env, sym)? {
         Value::Vec(v) => v,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20449,7 +20474,7 @@ fn eval_kernel_process_join_result(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?;
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20538,7 +20563,7 @@ fn eval_kernel_process_drain_and_join(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?;
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20655,7 +20680,7 @@ fn eval_kernel_process_stdin(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?;
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20698,7 +20723,7 @@ fn eval_kernel_process_stdout(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?;
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20741,7 +20766,7 @@ fn eval_kernel_process_stderr(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?;
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20809,7 +20834,7 @@ fn eval_kernel_spawn_thread(
             Some(f) => f.clone(),
             None => return Err(RuntimeError::UnknownFunction(k.clone(), kspan.clone())),
         },
-        _ => match eval(&args[0], env, sym)? {
+        _ => match eval_inner(&args[0], env, sym)? {
             Value::wat__core__fn(f) => f,
             other => {
                 return Err(RuntimeError::TypeMismatch {
@@ -20960,7 +20985,7 @@ fn eval_kernel_thread_join_result(
             span: list_span.clone(),
         });
     }
-    let thread_value = eval(&args[0], env, sym)?;
+    let thread_value = eval_inner(&args[0], env, sym)?;
     let thread_struct = match thread_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
         other => {
@@ -21043,7 +21068,7 @@ fn eval_kernel_thread_drain_and_join(
             span: list_span.clone(),
         });
     }
-    let thread_value = eval(&args[0], env, sym)?;
+    let thread_value = eval_inner(&args[0], env, sym)?;
     let thread_struct = match thread_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
         other => {
@@ -21238,7 +21263,7 @@ fn eval_kernel_thread_println(
             });
         }
     };
-    let payload = eval(&args[1], env, sym)?;
+    let payload = eval_inner(&args[1], env, sym)?;
     match crate::typed_channel::typed_send(
         sender_inner.as_ref(),
         payload,
@@ -21265,7 +21290,7 @@ fn eval_thread_peer_struct(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Arc<StructValue>, RuntimeError> {
-    let peer_value = eval(subject_ast, env, sym)?;
+    let peer_value = eval_inner(subject_ast, env, sym)?;
     match peer_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::ThreadPeer" => Ok(s),
         other => Err(RuntimeError::TypeMismatch {
@@ -21392,7 +21417,7 @@ fn eval_kernel_process_println(
             });
         }
     };
-    let payload = eval(&args[1], env, sym)?;
+    let payload = eval_inner(&args[1], env, sym)?;
     match crate::typed_channel::typed_send(
         sender_inner.as_ref(),
         payload,
@@ -21418,7 +21443,7 @@ fn eval_process_peer_struct(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Arc<StructValue>, RuntimeError> {
-    let peer_value = eval(subject_ast, env, sym)?;
+    let peer_value = eval_inner(subject_ast, env, sym)?;
     match peer_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::ProcessPeer" => Ok(s),
         other => Err(RuntimeError::TypeMismatch {
@@ -21453,7 +21478,7 @@ fn eval_kernel_sender_from_pipe(
             span: list_span.clone(),
         });
     }
-    let writer = match eval(&args[0], env, sym)? {
+    let writer = match eval_inner(&args[0], env, sym)? {
         Value::io__IOWriter(w) => w,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -21489,7 +21514,7 @@ fn eval_kernel_receiver_from_pipe(
             span: list_span.clone(),
         });
     }
-    let reader = match eval(&args[0], env, sym)? {
+    let reader = match eval_inner(&args[0], env, sym)? {
         Value::io__IOReader(r) => r,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -21527,8 +21552,8 @@ fn eval_kernel_process_send(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval(&args[0], env, sym)?;
-    let value = eval(&args[1], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?;
+    let value = eval_inner(&args[1], env, sym)?;
 
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
@@ -21603,7 +21628,7 @@ fn eval_kernel_process_recv(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?;
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -22066,7 +22091,7 @@ fn eval_died_error_message(
             span: list_span.clone(),
         });
     }
-    let val = eval(&args[0], env, sym)?;
+    let val = eval_inner(&args[0], env, sym)?;
     match val {
         Value::Enum(ev) if ev.type_path == expected_type_path => {
             match ev.variant_name.as_str() {
@@ -22186,7 +22211,7 @@ fn eval_kernel_extract_panics(
             span: list_span.clone(),
         });
     }
-    let lines = match eval(&args[0], env, sym)? {
+    let lines = match eval_inner(&args[0], env, sym)? {
         Value::Vec(items) => items,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -22245,7 +22270,7 @@ fn eval_died_error_to_failure(
             span: list_span.clone(),
         });
     }
-    let val = eval(&args[0], env, sym)?;
+    let val = eval_inner(&args[0], env, sym)?;
     match val {
         Value::Enum(ev) if ev.type_path == expected_type_path => {
             match ev.variant_name.as_str() {
@@ -22453,7 +22478,7 @@ fn eval_form_ast(
     // the post-eval HolonAST wrap (arc 066) are all "dynamic
     // evaluation" concerns.
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let value = eval(&args[0], env, sym)?;
+        let value = eval_inner(&args[0], env, sym)?;
         let ast = match value {
             Value::wat__WatAST(a) => a,
             other => {
@@ -22582,7 +22607,7 @@ fn eval_form_step(
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let value = eval(&args[0], env, sym)?;
+        let value = eval_inner(&args[0], env, sym)?;
         let ast = match value {
             Value::wat__WatAST(a) => a,
             other => {
@@ -22638,7 +22663,7 @@ fn eval_walk(
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let form_value = eval(&args[0], env, sym)?;
+        let form_value = eval_inner(&args[0], env, sym)?;
         let mut current_form: Arc<WatAST> = match form_value {
             Value::wat__WatAST(a) => a,
             other => {
@@ -22650,8 +22675,8 @@ fn eval_walk(
                 });
             }
         };
-        let mut acc = eval(&args[1], env, sym)?;
-        let visit_value = eval(&args[2], env, sym)?;
+        let mut acc = eval_inner(&args[1], env, sym)?;
+        let visit_value = eval_inner(&args[2], env, sym)?;
         let visit_func = match visit_value {
             Value::wat__core__fn(f) => f,
             other => {
@@ -23235,7 +23260,7 @@ fn step_descend_then_fire(
     }
     // All args canonical — fire.
     let form = WatAST::List(items.to_vec(), list_span.clone());
-    let v = eval(&form, env, sym)?;
+    let v = eval_inner(&form, env, sym)?;
     let h_val = value_to_holon(":wat::eval-step!", v)?;
     let h = match h_val {
         Value::holon__HolonAST(h) => (*h).clone(),
@@ -23278,7 +23303,7 @@ fn step_holon_descend_then_fire(
     // wrap_as_eval_result surfaces the capacity overflow as the
     // outer EvalError. (Q9 of arc 068 DESIGN.)
     let form = WatAST::List(items.to_vec(), list_span.clone());
-    let v = eval(&form, env, sym)?;
+    let v = eval_inner(&form, env, sym)?;
     let v = match v {
         Value::Result(r) => match Arc::try_unwrap(r).unwrap_or_else(|a| (*a).clone()) {
             Ok(inner) => inner,
@@ -24076,7 +24101,7 @@ fn expect_string_value(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
-    match eval(arg, env, sym)? {
+    match eval_inner(arg, env, sym)? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
@@ -24142,7 +24167,7 @@ fn resolve_verify_payload(
         }
     };
     match iface {
-        ":wat::verify::string" => match eval(locator_ast, env, sym)? {
+        ":wat::verify::string" => match eval_inner(locator_ast, env, sym)? {
             Value::String(s) => Ok((*s).clone()),
             other => Err(RuntimeError::TypeMismatch {
                 op: ":wat::verify::string".into(),
@@ -24151,7 +24176,7 @@ fn resolve_verify_payload(
                 span: locator_ast.span().clone(),
             }),
         },
-        ":wat::verify::file-path" => match eval(locator_ast, env, sym)? {
+        ":wat::verify::file-path" => match eval_inner(locator_ast, env, sym)? {
             Value::String(s) => {
                 let loader = sym.source_loader().ok_or_else(|| {
                     RuntimeError::NoSourceLoader {
@@ -24289,7 +24314,7 @@ fn run_constrained(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     refuse_mutation_forms_in(ast)?;
-    eval(ast, env, sym)
+    eval_inner(ast, env, sym)
 }
 
 fn refuse_mutation_forms_in(ast: &WatAST) -> Result<(), RuntimeError> {
@@ -24422,7 +24447,7 @@ mod tests {
         let env = Environment::new();
         let mut last = Value::Unit;
         for form in &rest {
-            last = eval(form, &env, &sym)?;
+            last = eval_inner(form, &env, &sym)?;
         }
         Ok(last)
     }
@@ -24439,7 +24464,7 @@ mod tests {
         )
         .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
-        eval(&ast, &Environment::new(), stdlib_sym)
+        eval_inner(&ast, &Environment::new(), stdlib_sym)
     }
 
     /// Same as [`eval_expr`] but clones the shared stdlib SymbolTable
@@ -24462,7 +24487,7 @@ mod tests {
         )
         .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
-        eval(&ast, &Environment::new(), &sym)
+        eval_inner(&ast, &Environment::new(), &sym)
     }
 
     // ─── Literals ───────────────────────────────────────────────────────
@@ -25321,7 +25346,7 @@ mod tests {
             "program",
             Value::wat__WatAST(Arc::new(ast_to_bind)),
         ).build();
-        eval(&form, &env, &SymbolTable::new())
+        eval_inner(&form, &env, &SymbolTable::new())
     }
 
     /// Unwrap the outer `Value::Result(Ok(v))` from an eval-family
@@ -25413,7 +25438,7 @@ mod tests {
         // NOT a RuntimeError unwind — the eval-family Result-wrap
         // per the 2026-04-20 INSCRIPTION.
         let form = crate::parse_one!(r#"(:wat::eval-ast! "oops")"#).unwrap();
-        let result = eval(&form, &Environment::new(), &SymbolTable::new()).unwrap();
+        let result = eval_inner(&form, &Environment::new(), &SymbolTable::new()).unwrap();
         let (kind, msg) = eval_err_kind_and_message(result);
         assert_eq!(kind, "type-mismatch");
         assert!(msg.contains("eval-ast!"));
@@ -25655,7 +25680,7 @@ mod tests {
     fn eval_with_ctx(src: &str, dims: usize) -> Result<Value, RuntimeError> {
         let ast = crate::parse_one!(src).expect("parse ok");
         let sym = test_sym_with_ctx(dims);
-        eval(&ast, &Environment::new(), &sym)
+        eval_inner(&ast, &Environment::new(), &sym)
     }
 
     #[test]
@@ -25737,7 +25762,7 @@ mod tests {
     fn dot_wrong_arity() {
         // Arc 225 Stone 225.1 — to-holon lifts string primitive.
         let ast = crate::parse_one!(r#"(:wat::holon::dot (:wat::holon::to-holon "a"))"#).unwrap();
-        let err = eval(&ast, &Environment::new(), &test_sym_with_ctx(1024)).unwrap_err();
+        let err = eval_inner(&ast, &Environment::new(), &test_sym_with_ctx(1024)).unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
@@ -26547,7 +26572,7 @@ mod tests {
                  (:wat::holon::to-holon "b"))"#
         )
         .unwrap();
-        let err = eval(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
+        let err = eval_inner(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
         assert!(matches!(
             err,
             RuntimeError::NoEncodingCtx { op, .. } if op == ":wat::holon::cosine"
@@ -26935,7 +26960,7 @@ mod tests {
     fn eval_with_binding(src: &str, name: &str, value: Value) -> Result<Value, RuntimeError> {
         let ast = crate::parse_one!(src).expect("parse ok");
         let env = Environment::new().child().bind(name, value).build();
-        eval(&ast, &env, &SymbolTable::new())
+        eval_inner(&ast, &env, &SymbolTable::new())
     }
 
     fn pair(a: Value, b: Value) -> Value {
@@ -29493,7 +29518,7 @@ mod tests {
         let env = Environment::new();
         let mut last = Value::Unit;
         for form in &rest {
-            last = eval(form, &env, &sym)?;
+            last = eval_inner(form, &env, &sym)?;
         }
         Ok(last)
     }
@@ -29926,7 +29951,7 @@ mod tests {
         ]));
         let env = Environment::new().child().bind("rxs", rxs).build();
         let ast = crate::parse_one!("(:wat::kernel::select rxs)").expect("parse");
-        let result = eval(&ast, &env, &SymbolTable::new()).expect("select");
+        let result = eval_inner(&ast, &env, &SymbolTable::new()).expect("select");
         match result {
             Value::Tuple(items) => {
                 assert_eq!(items.len(), 2);
@@ -30160,7 +30185,7 @@ mod tests {
         let call = crate::parse_one!("(:my::helper)").expect("parse call");
 
         let env = Environment::new();
-        let result = eval(&call, &env, &inner_sym);
+        let result = eval_inner(&call, &env, &inner_sym);
 
         match result {
             Err(RuntimeError::SandboxScopeLeak { offending_name, .. }) => {
@@ -30190,7 +30215,7 @@ mod tests {
         let call = crate::parse_one!("(:totally::made::up::name)").expect("parse call");
 
         let env = Environment::new();
-        let result = eval(&call, &env, &inner_sym);
+        let result = eval_inner(&call, &env, &inner_sym);
 
         match result {
             Err(RuntimeError::UnknownFunction(name, _)) => {
@@ -30215,7 +30240,7 @@ mod tests {
 
         let call = crate::parse_one!("(:my::helper)").expect("parse call");
         let env = Environment::new();
-        let result = eval(&call, &env, &inner_sym);
+        let result = eval_inner(&call, &env, &inner_sym);
 
         match result {
             Err(RuntimeError::UnknownFunction(name, _)) => {
