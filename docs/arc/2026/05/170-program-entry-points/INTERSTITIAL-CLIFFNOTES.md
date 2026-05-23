@@ -168,7 +168,71 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 evening — Stone 232.0 SHIPPED + arc 232 PAUSED + strategic pivot to arc 233 substrate diagnostic-richness)
+## Currently (2026-05-23 night — Stone 233.1 SHIPPED + 233.2 scope corrected to Value-level via four-questions audit)
+
+### Stone 233.1 SHIPPED at `13b9166` — 16/16 PASS, ~22 min sonnet
+
+ValueSnapshot minted + 3 RuntimeError variants swept (NotCallable + TypeMismatch + BadCondition; 282+ construction sites across 12 files). Display now reads `{type_name} `{rendered}`` — the offending value's content is inline. Honest delta: BadCondition runtime trigger unreachable from wat (type-checker enforces bool conditions universally); Rust sweep complete + lib test if_non_bool_rejected covers the path. Calibration: well under 90-180 min predicted band.
+
+### Stone 233.2 scope corrected via four-questions audit
+
+**Initially proposed Option A (AST-derived provenance only) — REJECTED on Honest verdict.**
+
+The four-questions revealed Option A's "smaller scope" framing was an L2-disguised-as-discipline reach. The runtime-built case (e.g., keyword from `keyword/from-string`) that the user explicitly named as load-bearing in INVENTORY § O would have stayed at `Unknown` provenance under Option A — the diagnostic-poverty case doesn't close. Per `feedback_refuse_easy_solutions`: wat's identity refuses L2 when L4 is in scope.
+
+**Corrected to Option B — full Value-level provenance via Shape C (Value::Tracked wrapper variant).**
+
+Sub-DESIGN at `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.md`. Implementation shape locked: ONE new Value variant `Tracked { inner: Box<Value>, provenance: Provenance }` with transparency contracts (Eq/Hash/Display/HolonRepresentable all unwrap Tracked). Producers opt-in by wrapping their return values; consumers query via `Value::inner()` + `Value::provenance()` helpers.
+
+Sliced into 4 sub-stones:
+
+- **233.2.a** — Mint Provenance enum + Value::Tracked + transparency contracts. Baseline maintained; no behavioral change yet. The scaffolding piece.
+- **233.2.b** — Tag at `keyword/from-string` producer. Minimum-viable proof; probe demonstrates runtime-built case teaches.
+- **233.2.c** — Sweep additional producers (`from-holon`, EDN-reader, mailbox-recv, etc.).
+- **233.2.d** — AST-derived provenance for let-bindings + literals.
+
+Each sub-stone atomic + independently shippable. Calibration discipline holds.
+
+### Arc 232 — still PAUSED at Stone 232.0a (substrate work not yet shipped)
+
+defprotocol resumes after arc 233 ships (233.2 minimum; ideally 233.2.b for the producer-tag pattern).
+
+### Today's commits (chronological — post-compaction continuation)
+
+```
+[earlier]      189b033 → 846fab7  arc 225/228/230/226/227 chain
+e0e8b8e        arc 224 Stone 224.5 BRIEF + EXPECTATIONS
+5af897d        arc 224 Stone 224.5 SHIPPED — 14/15 PASS
+5c7dddf        arc 232 call-by-name GAP — probe + FINDING
+c641cc7        arc 232 Stone 232.0 BRIEF + EXPECTATIONS
+50e82d9        arc 232 Stone 232.0 SHIPPED — apply primitive
+b41a845        INTERSTITIAL Song #24 I Stand Alone
+9e25955        CLIFFNOTES Song #24 row
+abca0aa        Song #24 time-scale forward-correction
+84b6abc        arc 109 INVENTORY § N — post-arc-220 EDN-aware follow-ups
+57e3b0c → 9df0abd  arc 109 INVENTORY § O — diagnostic-richness backlog
+96bb6f4        arc 232 Stone 232.0a probe + DESIGN ordering
+747c7c7        arc 233 OPENED — substrate diagnostic-richness pivot; arc 232 PAUSED
+0351306        arc 233 Stone 233.1 BRIEF + EXPECTATIONS + failing probe
+13b9166        arc 233 Stone 233.1 SHIPPED — 16/16 PASS (ValueSnapshot sweep)
+[this commit]  arc 233 Stone 233.2 sub-DESIGN + four-questions correction
+```
+
+### Pending user decisions
+
+1. **Producer scope for 233.2.b** — start with `keyword/from-string` alone (proposed; highest payoff, calibratable) or sweep all known producers in one sub-stone? My read: just `keyword/from-string` for 233.2.b; 233.2.c sweeps the rest with the pattern established.
+2. **Draft Stone 233.2.a BRIEF** — scaffolding sub-stone (mint Provenance enum + Value::Tracked + transparency contracts). Lib tests baseline maintained; no behavioral change yet.
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. Read `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.md` (the sub-DESIGN with implementation shape locked)
+3. Read `docs/arc/2026/05/233-substrate-errors-as-values/SCORE-STONE-233.1.md` (what 233.1 shipped)
+4. `git log --oneline | head -10` for today's trajectory
+
+---
+
+## Currently (2026-05-23 evening — Stone 232.0 SHIPPED + arc 232 PAUSED + strategic pivot to arc 233 substrate diagnostic-richness) — SUPERSEDED, see above
 
 ### The pivot
 
