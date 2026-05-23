@@ -165,7 +165,91 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 evening — typed-entities doctrine LANDED; substrate fully resolved; 12 true primitives)
+## Currently (2026-05-22 late — arc 225 Stone 225.1 v3 SHIPPED; bridge family clean; 5-arc chain in flight)
+
+### Arc 225 Stone 225.1 v3 — SHIPPED at `189b033`
+
+All 5 deliverables green in ~68 min wall-clock (well under 180-300 min target):
+
+```
+(:wat::holon::Atom h)        — narrow constructor; ONLY HolonAST input
+(:wat::holon::to-holon v)    — NEW polymorphic UP from any Value
+(:wat::holon::from-holon h)  — renamed from :wat::core::atom-value
+(:wat::holon::from-wat ast)  — renamed from :wat::holon::from-watast
+(:wat::holon::to-wat h)      — renamed from :wat::holon::to-watast
+```
+
+Retired (HARD CUT — no aliases): `:wat::core::atom-value`, `:wat::holon::from-watast`, `:wat::holon::to-watast`, all polymorphic `:wat::holon::Atom` arms (i64/f64/bool/String/keyword/Unit/WatAST/Vec/HashMap/HashSet — now live in `to-holon`).
+
+### Test summary (post Stone 225.1 v3)
+
+- `cargo build --release -p wat` — 0 errors
+- `cargo test --release --lib -p wat [skip 5 signal]` — 827/827 PASS
+- `cargo test --release -p wat-edn` — 23+1 PASS
+- 24 integration test suites green
+- 2 pre-existing failures verified via git-stash (probe_arc214_slice4 stones 2/3 probes 4 + 10 — holon_ast_extract Keyword arm gap; arc 221 left extraction-side incomplete; Task #467 filed)
+- 4 pre-existing wat-level runner failures (2 struct_to_form + 2 flaky subprocess timeouts)
+- holon-rs untouched
+
+### New finding (Delta 1 from Stone 225.1 SCORE)
+
+**`holon_ast_extract` Keyword arm gap** — `src/runtime.rs`: arc 221 minted `HolonAST::Keyword` + handlers but didn't add the reverse-extraction arm. Anything that stores a keyword via HolonAST + tries to extract via `Env/get` or `Env/dig` returns `None` (silent miss). Filed as Task #467 — discrete stone, independent of arc 225/228/230 chain.
+
+### Permanent doctrinal record (Delta 3 from Stone 225.1 SCORE)
+
+**Algebra-path vs runtime-path tier distinction** — the substrate has TWO distinct paths that both reference `:wat::holon::Atom`:
+
+- **Runtime path** (`src/runtime.rs`): the narrowed `:wat::holon::Atom` verb (arc 225) + `:wat::holon::to-holon` / `from-holon` / `from-wat` / `to-wat` bridge ops. Dispatched via eval dispatch table. Tests using `startup_from_source` / `invoke_user_main` / `eval_in_frozen` exercise this path.
+- **Algebra path** (`src/lower.rs`): `:wat::holon::Atom` as a PRIMITIVE algebra name for string/keyword/number → vector lowering. Dispatched via `eval_algebra_source`. Tests in `tests/mvp_end_to_end.rs` exercise this path. **The algebra-tier name `Atom` is CORRECT and must NOT be renamed to `to-holon`** — these are two different tiers with two different purposes.
+
+Load-bearing for future stone authors. Inscribed in `SCORE-STONE-225.1.md` section "Algebra-path vs runtime-path distinction (permanent record)."
+
+### Chain status (post Stone 225.1 v3)
+
+```
+arc 220 (waits)
+  └→ arc 221 ✓ Phase B substrate COMPLETE; INSCRIPTION blocked on {222, 223, 224}
+       ├→ arc 222 pending — EDN-form named constructors + 3×2 topology (DESIGN at d15ff27)
+       ├→ arc 223 pending — WatAST primitive-layer honesty (DESIGN earlier)
+       └→ arc 224 ✓ casts + aggregate; INSCRIPTION blocked on arc 225
+            └→ arc 225 ✓ substrate work COMPLETE (Stone 225.1 v3 SHIPPED at 189b033)
+               Stone 225.2 INSCRIPTION blocked on arc 228 closing
+                └→ arc 228 (NEXT — substrate collection classifier-wrap;
+                              DESIGN at docs/arc/2026/05/228-collection-classifier-wrap/)
+                     └→ arc 230 (substrate variant retirement — BIG;
+                                  touches holon-rs; DESIGN at .../230-substrate-variant-retirement/)
+                          └→ arc 226 (type predicates as VSA similarity; stub)
+                               └→ arc 227 (user-defined types via classifier-wrap; stub)
+```
+
+Independent / parallel-OK:
+- arc 222 (sibling under 221 — EDN-form constructors)
+- arc 223 (sibling under 221 — WatAST honesty)
+- arc 229 (deferred per user — quasiquote evaluator + splice; small + concrete)
+
+### Pending user direction
+
+Last orchestrator message offered:
+- **(a)** Continue depth-first — draft arc 228 Stone 228.1 BRIEF + spawn sonnet (keep velocity)
+- **(b)** Pause + checkpoint — substantial doctrine work shipped today; rest
+
+User has not responded; autonomous loop respecting irreversible-action discipline (no sonnet spawn without explicit direction).
+
+### Branch
+
+`arc-170-gap-j-v5-deadlock-state`
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -15` for today's commit trajectory (1f02674 / 1940bc9 / 189b033 are the load-bearing commits)
+3. Read `docs/arc/2026/05/225-atomize-materialize-rename/SCORE-STONE-225.1.md` for full Stone 225.1 v3 details
+4. Read `docs/arc/2026/05/228-collection-classifier-wrap/DESIGN.md` for the next arc's plan
+5. Check task #466 (completed) + #467 (filed Keyword arm gap)
+
+---
+
+## Currently (2026-05-23 evening — typed-entities doctrine LANDED; substrate fully resolved; 12 true primitives) — SUPERSEDED, see above
 
 ### THE substrate doctrine (load-bearing 2026-05-23 evening)
 
