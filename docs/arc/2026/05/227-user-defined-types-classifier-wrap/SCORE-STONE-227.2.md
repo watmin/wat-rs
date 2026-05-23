@@ -113,3 +113,18 @@ The file was renamed via `git mv tests/probe_arc227_stone1_defrecord.rs tests/pr
 - **Actual runtime:** ~90 min (at target band edge; substantial analysis of macros.rs/runtime.rs required)
 - **Within prediction band:** YES — at the lower end of target band
 - **Key time sinks:** `~@fields` splice inside computed unquote analysis (~20 min); Bundle-Result incompatibility with Bind discovery (~15 min); iterating on the correct `from-wat(quote fields) + statement-length` approach (~20 min)
+
+## Addendum 2026-05-23 (immediately post-ship) — Deltas escalated to filed substrate-flaw tasks
+
+Per user direction post-score-review:
+
+> *"i disagree - what are these - we do not accept flaws - we have several enqueued to be address - no more depth"*
+
+Per `feedback_no_known_defect_left_unfixed` — "future arc when X surfaces" IS the failure pattern. Both Deltas in this SCORE were composed-around honestly within the stone's scope BUT they are SUBSTRATE FLAWS that require named follow-up arcs. Filed:
+
+- **Task #477** — `~@fields` splice doesn't penetrate computed unquote `~(let ...)`. Forced ~50 lines of Bundle-introspection ceremony where `~@fields` should suffice. Located in `src/macros.rs` (splice handling per arc 200 / arc 029 family). Likely arc 233+ territory.
+- **Task #478** — `:wat::holon::Bundle` returns `Result<HolonAST, CapacityExceeded>`, incompatible with `:wat::holon::Bind`'s bare HolonAST input. Forced `Atom(nil)` + flat `Bind` workaround in defrecord constructor body — NO Bundle in user-facing instance encoding. Blocks multi-field defrecord ergonomics + arc 232 protocol dispatcher synthesis. Lean fix: Bundle returns bare HolonAST, panics on cardinality exceeded (matches Atom/Bind/Permute panic-on-misuse pattern). Located in `src/runtime.rs` `eval_algebra_bundle` (arc 228). Likely arc 233+ territory.
+
+The SCORE body above is unchanged per `feedback_inscription_immutable`. The Deltas remain as honest deltas of the stone; this addendum elevates them from "future consideration" framing to filed-substrate-flaw status with task IDs.
+
+We do not accept flaws.

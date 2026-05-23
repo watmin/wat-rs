@@ -271,6 +271,11 @@ aa2b9f1  arc 227 Stone 227.1b — defclass → defrecord rename SHIPPED (HARD CU
 | 473 | ✓ | Stone 227.1 v3 (defclass) |
 | 474 | in_progress | FUTURE arc 232+ — defprotocol + extend-type (stub claimed) |
 | 475 | ✓ | Stone 227.1b — defclass → defrecord rename (HARD CUT) |
+| 476 | ✓ | Stone 227.2 v2 — mandate field-list on defrecord (HARD CUT; LLM-first) |
+| 477 | pending | SUBSTRATE FLAW — `~@` splice doesn't penetrate computed unquote `~(let ...)`; forced Bundle-introspection workaround in Stone 227.2 v2; src/macros.rs (splice handling); likely arc 233+ |
+| 478 | pending | SUBSTRATE FLAW — :wat::holon::Bundle returns Result<HolonAST, CapacityExceeded>; incompatible with Bind's bare HolonAST input; blocks multi-field defrecord ergonomics + arc 232; lean fix: bare HolonAST + panic-on-overflow; src/runtime.rs eval_algebra_bundle; likely arc 233+ |
+
+**Substrate-flaw discipline:** Per `feedback_no_known_defect_left_unfixed` — Tasks #477 + #478 are FILED SUBSTRATE FLAWS, not "future consideration." Both surfaced during Stone 227.2 v2 sonnet flight; both composed-around honestly within stone scope; both elevated to named tracking with fix-direction sketched. We do not accept flaws.
 
 ### Wat-reveals-holon dynamic — 5TH application complete
 
