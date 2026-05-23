@@ -222,6 +222,73 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
     }
 }
 
+// ─── Probe 7 (arc 233 Stone 233.2.c) — from-holon produces tagged Value ─────
+//
+// :wat::holon::from-holon (eval_holon_from_holon @ src/runtime.rs:14229)
+// converts a HolonAST to a Value. The resulting Value is "runtime-built"
+// from the substrate-internal HolonAST representation — diagnostic poverty
+// surfaces when this value flows into an error site without provenance.
+//
+// After Stone 233.2.c: from-holon wraps return with Provenance::RuntimeBuilt
+// { producer: ":wat::holon::from-holon", call_span }.
+//
+// Currently FAILS — from-holon emits bare Values; error has no producer info.
+// After 233.2.c ships, PASSES — error shows from-holon as the producer.
+#[test]
+fn probe_7_from_holon_produces_tagged_value() {
+    let src = r#"
+(:wat::core::define (:user::compute -> :wat::core::i64)
+  (:wat::core::let
+    [holon-rep (:wat::holon::to-holon "not-a-callable-string")]
+    (:wat::core::let
+      [v (:wat::holon::from-holon holon-rep)]
+      (v 1 2))))
+"#;
+    match run_compute(src) {
+        Ok(v) => panic!("Probe 7: expected error; got {:?}", v),
+        Err(e) => {
+            println!("Probe 7 error: {}", e);
+            assert!(
+                e.contains("from-holon"),
+                "Probe 7: error should mention the from-holon producer; got: {}",
+                e
+            );
+        }
+    }
+}
+
+// ─── Probe 8 (arc 233 Stone 233.2.c) — edn::read produces tagged Value ──────
+//
+// :wat::edn::read (eval_edn_read @ src/edn_shim.rs:191) parses an EDN string
+// to a Value. The result is "runtime-built" from external (potentially
+// untrusted) input — diagnostic poverty surfaces when it flows to an error.
+//
+// After Stone 233.2.c: edn::read wraps return with Provenance::RuntimeBuilt
+// { producer: ":wat::edn::read", call_span }.
+//
+// Currently FAILS — edn::read emits bare Values.
+// After 233.2.c ships, PASSES — error shows edn::read as the producer.
+#[test]
+fn probe_8_edn_read_produces_tagged_value() {
+    let src = r#"
+(:wat::core::define (:user::compute -> :wat::core::i64)
+  (:wat::core::let
+    [v (:wat::edn::read "\"not-a-callable\"")]
+    (v 1 2)))
+"#;
+    match run_compute(src) {
+        Ok(v) => panic!("Probe 8: expected error; got {:?}", v),
+        Err(e) => {
+            println!("Probe 8 error: {}", e);
+            assert!(
+                e.contains("edn::read") || e.contains("edn/read"),
+                "Probe 8: error should mention the edn::read producer; got: {}",
+                e
+            );
+        }
+    }
+}
+
 // ─── Honest delta: BadCondition runtime trigger ─────────────────────────────
 //
 // RuntimeError::BadCondition is promoted to ValueSnapshot at the Rust enum
