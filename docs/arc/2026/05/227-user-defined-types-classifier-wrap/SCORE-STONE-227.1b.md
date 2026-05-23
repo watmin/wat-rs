@@ -85,3 +85,11 @@ The comment on stdlib.rs line 74 reads "renamed from defclass per Stone 227.1b".
 - **Predicted runtime:** 15-45 min target, 90 min upper bound
 - **Actual runtime:** ~10 min (well inside target band)
 - **Within prediction band:** YES — faster than target, consistent with "rename-only" scope calibration note in EXPECTATIONS
+
+---
+
+## Addendum 2026-05-23 — Stone 227.2 v2 supersedes (append-only per feedback_inscription_immutable)
+
+Stone 227.2 v2 has been completed. The body above records Stone 227.1b (rename) faithfully and is NOT modified.
+
+**Stone 227.2 v2 scope:** Mandate field-list on defrecord. Single-arg `(defrecord :fqdn)` RETIRED (HARD CUT). New 2-arg form `(defrecord <fqdn> <field-list>)`. Empty `[]` = zero-arg tagged unit. Single-field `[name <- :Type]` = typed one-arg constructor. N≥2 fields deferred (STOP-5b). 25/25 probe tests pass. SCORE written at `SCORE-STONE-227.2.md`.

@@ -71,13 +71,15 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/holon/Trigram.wat",
         source: include_str!("../wat/holon/Trigram.wat"),
     },
-    // Arc 227 Stone 227.1 — :wat::holon::defrecord macro (renamed from defclass per Stone 227.1b). Mints user-defined
-    // classifier-wrapped types in user-declared namespaces. Single-arg form;
-    // expands to constructor + predicate pair. Depends on :wat::holon::Bind,
-    // :wat::holon::Atom, :wat::holon::to-holon (arc 225 substrate),
-    // :wat::holon::is? (arc 226 substrate), and :wat::core::keyword/*
-    // reflection primitives. Loads after Trigram so all holon-tier
-    // predecessors are registered first.
+    // Arc 227 Stone 227.2 v2 — :wat::holon::defrecord macro (renamed from defclass per Stone
+    // 227.1b). Mints user-defined classifier-wrapped types in user-declared namespaces.
+    // Mandated 2-arg form: (defrecord <fqdn> <field-list>). Empty [] = zero-arg tagged unit
+    // constructor. Single-field [name <- :Type] = one-arg typed constructor. N>1 fields
+    // deferred (STOP-5b). Expands to constructor + predicate pair. Depends on
+    // :wat::holon::Bind, :wat::holon::Atom, :wat::holon::to-holon (arc 225 substrate),
+    // :wat::holon::is? (arc 226 substrate), :wat::holon::from-wat / to-wat /
+    // Bundle/first / statement-length, and :wat::core::keyword/* reflection primitives.
+    // Single-arg (defrecord :fqdn) form RETIRED (HARD CUT per Stone 227.2 v2).
     WatSource {
         path: "wat/holon/defrecord.wat",
         source: include_str!("../wat/holon/defrecord.wat"),
