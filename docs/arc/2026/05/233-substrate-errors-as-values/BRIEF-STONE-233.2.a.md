@@ -370,6 +370,56 @@ Per arc 232.0's lessons + the sub-DESIGN's audit section:
 - **Implementation shape locked** — Shape C from sub-DESIGN. No wrap-in-TrackedValue-struct. No per-variant fields.
 - **HashMap correctness is correctness-critical** — Contract 3 verifies bare/tracked Values hash + lookup identically. Don't ship without this passing.
 
+### Specific traps flagged from pre-spawn audit (2026-05-23 night)
+
+**Trap 1 — Hash impl recursion + discriminant tagging discipline.**
+
+`impl Hash for Value` at `src/runtime.rs:794` uses `std::mem::discriminant` tagging FIRST, then per-variant payload hashing. If your transparency impl writes:
+
+```rust
+fn hash<H: Hasher>(&self, state: &mut H) {
+    std::mem::discriminant(self).hash(state);  // ← WRONG: includes Tracked's discriminant
+    match self {
+        Value::Tracked { inner, .. } => inner.hash(state),
+        // ... per-variant
+    }
+}
+```
+
+Contract 3 breaks: `bare.hash() != tracked.hash()` because Tracked has its own discriminant.
+
+**Correct pattern:** apply `self.inner()` BEFORE the discriminant tag, AND in the match:
+
+```rust
+fn hash<H: Hasher>(&self, state: &mut H) {
+    let unwrapped = self.inner();  // recursively unwraps Tracked
+    std::mem::discriminant(unwrapped).hash(state);
+    match unwrapped {
+        // ... per-variant; NO Tracked arm needed (inner() never returns Tracked)
+    }
+}
+```
+
+`Value::inner()` recurses through Tracked-of-Tracked layers, so the match never sees a Tracked variant. The match's exhaustiveness check is satisfied without a Tracked arm. Discriminant tagging operates on the unwrapped variant.
+
+Apply the same `self.inner()` + `other.inner()` discipline throughout `impl PartialEq for Value` at line 705.
+
+**Trap 2 — unreachable!() arms for non-hashable variants.**
+
+`src/runtime.rs:10404+` documents `unreachable!()` Hash arms for opaque variants (Sender / Receiver / fn / RustOpaque / etc.) — these are NOT atomizable per `is_atomizable` (src/check.rs:3623). The static guarantee is that only atomizable Values reach Hash contexts.
+
+If `inner()` returns one of these variants (because someone wrapped an opaque Value in Tracked), the `unreachable!()` will fire. That's CORRECT behavior — opaque Values shouldn't be Hash keys regardless of Tracked wrapping. The Tracked unwrap doesn't change the atomizability contract.
+
+Verification: Contract 3's tests use atomizable variants only (i64, keyword). Don't test Tracked-wrapping-an-opaque-Value — that's not a supported case.
+
+**Trap 3 — Existing tests with `_` catch-all match arms.**
+
+Most tests construct Values directly + don't match. But some may use `match value { Value::X(...) => ..., _ => panic!("unexpected") }` patterns. After Tracked addition, a `_` arm would silently accept Tracked instead of panicking. This is BEHAVIORAL not COMPILE-TIME — cargo build won't catch it.
+
+Audit: grep `tests/` and `src/` for `match` arms over `Value` that end in `_ =>`. For each, decide: does the test EXPECT Tracked to be accepted (transparently) or REJECTED (panic)? In v1, no producers tag, so no test should encounter Tracked unexpectedly. If sonnet adds new tests that construct Tracked, those need explicit assertions.
+
+Low risk in 233.2.a because no producers emit Tracked yet. Flag for 233.2.b+.
+
 ## Scope reminders
 
 - Mode `model: "sonnet"` (orchestrator sets explicitly)
