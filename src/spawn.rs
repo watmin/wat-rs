@@ -24,6 +24,7 @@
 use crate::ast::WatAST;
 use crate::config::Config;
 use crate::fork::make_pipe;
+use crate::span::Span;
 use crate::freeze::{
     invoke_user_main, startup_from_forms, startup_from_forms_with_inherit, startup_from_source,
     validate_user_main_signature, FrozenWorld,
@@ -59,15 +60,12 @@ use std::sync::Arc;
 /// plus a `ProgramHandle<()>` the caller `join`s on.
 pub fn eval_kernel_spawn_program(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-program";
-    let list_span = args
-        .first()
-        .map(|a| a.span().clone())
-        .unwrap_or_else(crate::span::Span::unknown);
-    arity_2(OP, args, &list_span)?;
+    arity_2(OP, args, list_span)?;
 
     let src = expect_string(OP, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let scope_opt =
@@ -91,15 +89,12 @@ pub fn eval_kernel_spawn_program(
 /// preambles — matches arc 031's run-sandboxed-ast discipline.
 pub fn eval_kernel_spawn_program_ast(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-program-ast";
-    let list_span = args
-        .first()
-        .map(|a| a.span().clone())
-        .unwrap_or_else(crate::span::Span::unknown);
-    arity_2(OP, args, &list_span)?;
+    arity_2(OP, args, list_span)?;
 
     let forms = expect_vec_ast(OP, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let scope_opt =

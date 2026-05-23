@@ -98,6 +98,7 @@ pub struct AssertionPayload {
 /// failure is never reached.
 pub fn eval_kernel_assertion_failed(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

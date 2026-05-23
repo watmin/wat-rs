@@ -4689,7 +4689,7 @@ fn dispatch_keyword_head(
         // function values (Clojure-faithful lowercase verb; mirrors
         // arc 154's let retirement recipe). Routes to `eval_fn`
         // (formerly `eval_lambda`).
-        ":wat::core::fn" => eval_fn(args, env),
+        ":wat::core::fn" => eval_fn(args, list_span, env),
         // Arc 155 slice 2 — `:wat::core::lambda` dispatch arm retired.
         // Single-letform vocabulary; lambda is dead (Clojure-faithful;
         // `fn` replaces `lambda` per user direction 2026-05-07).
@@ -4700,25 +4700,25 @@ fn dispatch_keyword_head(
         ":wat::core::if" => eval_if(args, list_span, env, sym),
         ":wat::core::cond" => eval_cond(args, list_span, env, sym),
         ":wat::core::quote" => eval_quote(args, list_span),
-        ":wat::core::quasiquote" => eval_quasiquote(args, env, sym),
-        ":wat::core::struct->form" => eval_struct_to_form(args, env, sym),
+        ":wat::core::quasiquote" => eval_quasiquote(args, list_span, env, sym),
+        ":wat::core::struct->form" => eval_struct_to_form(args, list_span, env, sym),
         // Arc 143 slice 1 — runtime introspection: look up a named
         // callable by keyword and return its AST representation.
-        ":wat::runtime::lookup-define" => eval_lookup_define(args, env, sym),
-        ":wat::runtime::signature-of-defn" => eval_signature_of_defn(args, env, sym),
-        ":wat::runtime::signature-of-fn" => eval_signature_of_fn(args, env, sym),
-        ":wat::runtime::body-of" => eval_body_of(args, env, sym),
+        ":wat::runtime::lookup-define" => eval_lookup_define(args, list_span, env, sym),
+        ":wat::runtime::signature-of-defn" => eval_signature_of_defn(args, list_span, env, sym),
+        ":wat::runtime::signature-of-fn" => eval_signature_of_fn(args, list_span, env, sym),
+        ":wat::runtime::body-of" => eval_body_of(args, list_span, env, sym),
         // Arc 143 slice 3 — HolonAST manipulation primitives.
-        ":wat::runtime::rename-callable-name" => eval_rename_callable_name(args, env, sym),
-        ":wat::runtime::extract-arg-names" => eval_extract_arg_names(args, env, sym),
+        ":wat::runtime::rename-callable-name" => eval_rename_callable_name(args, list_span, env, sym),
+        ":wat::runtime::extract-arg-names" => eval_extract_arg_names(args, list_span, env, sym),
         // Arc 201 slice 5 — type-direction sibling of extract-arg-names.
-        ":wat::runtime::extract-arg-types" => eval_extract_arg_types(args, env, sym),
+        ":wat::runtime::extract-arg-types" => eval_extract_arg_types(args, list_span, env, sym),
         // Arc 201 slice 2 — general-purpose Bundle accessors. The
         // leaf-unwrap counterpart (`:wat::core::atom-value`) was already
         // minted by arc 057; SCORE-SLICE-2 § Sibling check documents the
         // decision to reuse it rather than mint `Atom/value` as a duplicate.
-        ":wat::holon::Bundle/children" => eval_bundle_children(args, env, sym),
-        ":wat::holon::Bundle/first" => eval_bundle_first(args, env, sym),
+        ":wat::holon::Bundle/children" => eval_bundle_children(args, list_span, env, sym),
+        ":wat::holon::Bundle/first" => eval_bundle_first(args, list_span, env, sym),
         // Arc 170 slice 1e — ambient runtime values per REALIZATIONS
         // pass 7 (drop stdio params from `:user::main`; argv +
         // current-thread move to ambient).
@@ -4727,10 +4727,10 @@ fn dispatch_keyword_head(
         // Arc 098 — Clara-style single-item pattern matcher.
         // Both type checker and runtime walk the same pattern grammar
         // via the shared classifier in `crate::form_match`.
-        ":wat::form::matches?" => eval_form_matches(args, env, sym),
-        ":wat::core::forms" => Ok(eval_forms(args)?),
-        ":wat::core::macroexpand-1" => eval_macroexpand_1(args, env, sym),
-        ":wat::core::macroexpand" => eval_macroexpand(args, env, sym),
+        ":wat::form::matches?" => eval_form_matches(args, list_span, env, sym),
+        ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
+        ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
+        ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),
         ":wat::holon::from-holon" => eval_holon_from_holon(args, list_span, env, sym),
         ":wat::core::match" => eval_match(args, list_span, env, sym),
         // Arc 109 slice 1j — § D' Option/Result method forms.
@@ -4771,7 +4771,7 @@ fn dispatch_keyword_head(
         }
         // Vec last + find-last-index. Arc 047.
         ":wat::core::last" => eval_vec_last(args, list_span, env, sym),
-        ":wat::core::find-last-index" => eval_vec_find_last_index(args, env, sym),
+        ":wat::core::find-last-index" => eval_vec_find_last_index(args, list_span, env, sym),
         ":wat::core::rest" => eval_vec_rest(args, list_span, env, sym),
         ":wat::std::list::map-with-index" => eval_list_map_with_index(args, list_span, env, sym),
 
@@ -4801,41 +4801,41 @@ fn dispatch_keyword_head(
         // String basics — per-type ops under :wat::core::string namespace,
         // following the :wat::core::i64 namespace precedent. Char-oriented.
         ":wat::core::string::contains?" => {
-            crate::string_ops::eval_string_contains(args, env, sym)
+            crate::string_ops::eval_string_contains(args, list_span, env, sym)
         }
         ":wat::core::string::starts-with?" => {
-            crate::string_ops::eval_string_starts_with(args, env, sym)
+            crate::string_ops::eval_string_starts_with(args, list_span, env, sym)
         }
         ":wat::core::string::ends-with?" => {
-            crate::string_ops::eval_string_ends_with(args, env, sym)
+            crate::string_ops::eval_string_ends_with(args, list_span, env, sym)
         }
-        ":wat::core::string::length" => crate::string_ops::eval_string_length(args, env, sym),
-        ":wat::core::string::trim" => crate::string_ops::eval_string_trim(args, env, sym),
-        ":wat::core::string::split" => crate::string_ops::eval_string_split(args, env, sym),
-        ":wat::core::string::join" => crate::string_ops::eval_string_join(args, env, sym),
-        ":wat::core::string::concat" => crate::string_ops::eval_string_concat(args, env, sym),
+        ":wat::core::string::length" => crate::string_ops::eval_string_length(args, list_span, env, sym),
+        ":wat::core::string::trim" => crate::string_ops::eval_string_trim(args, list_span, env, sym),
+        ":wat::core::string::split" => crate::string_ops::eval_string_split(args, list_span, env, sym),
+        ":wat::core::string::join" => crate::string_ops::eval_string_join(args, list_span, env, sym),
+        ":wat::core::string::concat" => crate::string_ops::eval_string_concat(args, list_span, env, sym),
 
         // Arc 207 slice 2 — typed `:wat::core::Uuid` constructors + accessors.
         // Five verbs: v4 (random), v5 (deterministic SHA-1 with typed namespace),
         // from-string (parse-safe, canonical-only → Option<Uuid>),
         // to-string (canonical render), nil (zero-UUID sentinel).
-        ":wat::core::Uuid/v4" => crate::string_ops::eval_uuid_typed_v4(args, env, sym),
-        ":wat::core::Uuid/v5" => crate::string_ops::eval_uuid_typed_v5(args, env, sym),
-        ":wat::core::Uuid/from-string" => crate::string_ops::eval_uuid_typed_from_string(args, env, sym),
-        ":wat::core::Uuid/to-string" => crate::string_ops::eval_uuid_typed_to_string(args, env, sym),
-        ":wat::core::Uuid/nil" => crate::string_ops::eval_uuid_typed_nil(args, env, sym),
+        ":wat::core::Uuid/v4" => crate::string_ops::eval_uuid_typed_v4(args, list_span, env, sym),
+        ":wat::core::Uuid/v5" => crate::string_ops::eval_uuid_typed_v5(args, list_span, env, sym),
+        ":wat::core::Uuid/from-string" => crate::string_ops::eval_uuid_typed_from_string(args, list_span, env, sym),
+        ":wat::core::Uuid/to-string" => crate::string_ops::eval_uuid_typed_to_string(args, list_span, env, sym),
+        ":wat::core::Uuid/nil" => crate::string_ops::eval_uuid_typed_nil(args, list_span, env, sym),
 
         // Arc 220 slice 2 — typed `:wat::core::Char` constructor.
         // One verb: `Char/of` (from length-1 BMP String).
-        ":wat::core::Char/of" => crate::string_ops::eval_char_of(args, env, sym),
+        ":wat::core::Char/of" => crate::string_ops::eval_char_of(args, list_span, env, sym),
 
         // Arc 220 Stone 220.4 — typed `:wat::core::List` constructor.
         // Variadic: `List/of` takes 0 or more args and builds a LinkedList.
-        ":wat::core::List/of" => crate::string_ops::eval_list_of(args, env, sym),
+        ":wat::core::List/of" => crate::string_ops::eval_list_of(args, list_span, env, sym),
 
         // Regex — pattern matching. Lives in its own :wat::core::regex::*
         // namespace since the regex crate is a distinct concern.
-        ":wat::core::regex::matches?" => crate::string_ops::eval_regex_matches(args, env, sym),
+        ":wat::core::regex::matches?" => crate::string_ops::eval_regex_matches(args, list_span, env, sym),
 
         // Float arithmetic — strict f64. No promotion from i64.
         ":wat::core::f64::+'2" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b)),
@@ -4970,8 +4970,8 @@ fn dispatch_keyword_head(
 
         // Boolean
         ":wat::core::not" => eval_not(args, list_span, env, sym),
-        ":wat::core::and" => eval_and(args, env, sym),
-        ":wat::core::or" => eval_or(args, env, sym),
+        ":wat::core::and" => eval_and(args, list_span, env, sym),
+        ":wat::core::or" => eval_or(args, list_span, env, sym),
 
         // List construction
         // Arc 163 slice 3d — `:wat::core::Vector` is canonical;
@@ -4979,7 +4979,7 @@ fn dispatch_keyword_head(
         // arms retired. Type-checker Pattern 2 poison (check.rs:3840,
         // 3858) still surfaces friendly redirect for users typing
         // legacy keywords; runtime arm gone for defense-in-depth.
-        ":wat::core::Vector" => eval_list_ctor(args, env, sym),
+        ":wat::core::Vector" => eval_list_ctor(args, list_span, env, sym),
         // Arc 146 slice 3 — `:wat::core::conj` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch_keyword_head
         // guard above intercepts before reaching this arm; the
@@ -4989,66 +4989,66 @@ fn dispatch_keyword_head(
         // per slice 1f's vec→Vector playbook completed. Legacy
         // `:wat::core::tuple` arm retired; Pattern 2 poison in
         // check.rs handles any remaining consumer sites at type-check.
-        ":wat::core::Tuple" => eval_tuple_ctor(args, env, sym),
+        ":wat::core::Tuple" => eval_tuple_ctor(args, list_span, env, sym),
         // Arc 146 slice 2 — `:wat::core::length` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch routes to one of
         // these per-Type impls by inspecting the arg's value tag.
         // Direct calls to the per-Type names are also legal and
         // bypass the dispatch hop.
-        ":wat::core::Vector/length" => eval_vector_length(args, env, sym),
-        ":wat::core::HashMap/length" => eval_hashmap_length(args, env, sym),
-        ":wat::core::HashSet/length" => eval_hashset_length(args, env, sym),
+        ":wat::core::Vector/length" => eval_vector_length(args, list_span, env, sym),
+        ":wat::core::HashMap/length" => eval_hashmap_length(args, list_span, env, sym),
+        ":wat::core::HashSet/length" => eval_hashset_length(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List per-Type ops.
-        ":wat::core::List/length" => eval_list_length(args, env, sym),
+        ":wat::core::List/length" => eval_list_length(args, list_span, env, sym),
         // Arc 146 slice 3 — empty? / contains? / get / conj are now
         // Dispatches (declared in `wat/core.wat`). Per-Type impls also
         // directly callable; the dispatch_keyword_head guard above
         // intercepts the polymorphic surface name first.
-        ":wat::core::Vector/empty?" => eval_vector_empty_q(args, env, sym),
-        ":wat::core::HashMap/empty?" => eval_hashmap_empty_q(args, env, sym),
-        ":wat::core::HashSet/empty?" => eval_hashset_empty_q(args, env, sym),
+        ":wat::core::Vector/empty?" => eval_vector_empty_q(args, list_span, env, sym),
+        ":wat::core::HashMap/empty?" => eval_hashmap_empty_q(args, list_span, env, sym),
+        ":wat::core::HashSet/empty?" => eval_hashset_empty_q(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List empty?
-        ":wat::core::List/empty?" => eval_list_empty_q(args, env, sym),
-        ":wat::core::Vector/contains?" => eval_vector_contains_q(args, env, sym),
-        ":wat::core::HashMap/contains-key?" => eval_hashmap_contains_key_q(args, env, sym),
-        ":wat::core::HashSet/contains?" => eval_hashset_contains_q(args, env, sym),
+        ":wat::core::List/empty?" => eval_list_empty_q(args, list_span, env, sym),
+        ":wat::core::Vector/contains?" => eval_vector_contains_q(args, list_span, env, sym),
+        ":wat::core::HashMap/contains-key?" => eval_hashmap_contains_key_q(args, list_span, env, sym),
+        ":wat::core::HashSet/contains?" => eval_hashset_contains_q(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List contains?
-        ":wat::core::List/contains?" => eval_list_contains_q(args, env, sym),
-        ":wat::core::Vector/get" => eval_vector_get(args, env, sym),
-        ":wat::core::HashMap/get" => eval_hashmap_get(args, env, sym),
+        ":wat::core::List/contains?" => eval_list_contains_q(args, list_span, env, sym),
+        ":wat::core::Vector/get" => eval_vector_get(args, list_span, env, sym),
+        ":wat::core::HashMap/get" => eval_hashmap_get(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List get
-        ":wat::core::List/get" => eval_list_get(args, env, sym),
+        ":wat::core::List/get" => eval_list_get(args, list_span, env, sym),
         // Arc 214 Slice 4 Stone 4.2 — :wat::program::Env accessor trio.
-        ":wat::program::Env/get" => eval_program_env_get(args, env, sym),
-        ":wat::program::Env/expect-get" => eval_program_env_expect_get(args, env, sym),
-        ":wat::program::Env/get-default" => eval_program_env_get_default(args, env, sym),
+        ":wat::program::Env/get" => eval_program_env_get(args, list_span, env, sym),
+        ":wat::program::Env/expect-get" => eval_program_env_expect_get(args, list_span, env, sym),
+        ":wat::program::Env/get-default" => eval_program_env_get_default(args, list_span, env, sym),
         // Arc 214 Slice 4 Stone 4.3 — :wat::program::Env multi-step dig trio.
-        ":wat::program::Env/dig" => eval_program_env_dig(args, env, sym),
-        ":wat::program::Env/expect-dig" => eval_program_env_expect_dig(args, env, sym),
-        ":wat::program::Env/dig-default" => eval_program_env_dig_default(args, env, sym),
-        ":wat::core::Vector/conj" => eval_vector_conj(args, env, sym),
-        ":wat::core::HashSet/conj" => eval_hashset_conj(args, env, sym),
+        ":wat::program::Env/dig" => eval_program_env_dig(args, list_span, env, sym),
+        ":wat::program::Env/expect-dig" => eval_program_env_expect_dig(args, list_span, env, sym),
+        ":wat::program::Env/dig-default" => eval_program_env_dig_default(args, list_span, env, sym),
+        ":wat::core::Vector/conj" => eval_vector_conj(args, list_span, env, sym),
+        ":wat::core::HashSet/conj" => eval_hashset_conj(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List/conj PREPENDS (Clojure semantic; distinct from Vector/conj = APPEND)
-        ":wat::core::List/conj" => eval_list_conj(args, env, sym),
+        ":wat::core::List/conj" => eval_list_conj(args, list_span, env, sym),
         // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat.
         // Single-impl-per-container ops. Surface short names
         // (:assoc / :dissoc / :keys / :values / :concat) become user-define
         // aliases via `wat/core-aliases.wat`; they delegate to these per-Type
         // impls (each is also directly callable as `:HashMap/assoc` etc.).
-        ":wat::core::HashMap/assoc" => eval_hashmap_assoc(args, env, sym),
-        ":wat::core::HashMap/dissoc" => eval_hashmap_dissoc(args, env, sym),
-        ":wat::core::HashMap/keys" => eval_hashmap_keys(args, env, sym),
-        ":wat::core::HashMap/values" => eval_hashmap_values(args, env, sym),
-        ":wat::core::Vector/concat" => eval_vector_concat(args, env, sym),
+        ":wat::core::HashMap/assoc" => eval_hashmap_assoc(args, list_span, env, sym),
+        ":wat::core::HashMap/dissoc" => eval_hashmap_dissoc(args, list_span, env, sym),
+        ":wat::core::HashMap/keys" => eval_hashmap_keys(args, list_span, env, sym),
+        ":wat::core::HashMap/values" => eval_hashmap_values(args, list_span, env, sym),
+        ":wat::core::Vector/concat" => eval_vector_concat(args, list_span, env, sym),
         ":wat::core::reverse" => eval_vec_reverse(args, list_span, env, sym),
         ":wat::core::range" => eval_vec_range(args, list_span, env, sym),
         ":wat::core::take" => eval_vec_take(args, list_span, env, sym),
         ":wat::core::drop" => eval_vec_drop(args, list_span, env, sym),
-        ":wat::core::sort-by" => eval_vec_sort_by(args, env, sym),
-        ":wat::core::map" => eval_vec_map(args, env, sym),
-        ":wat::core::foldl" => eval_vec_foldl(args, env, sym),
-        ":wat::core::foldr" => eval_vec_foldr(args, env, sym),
-        ":wat::core::filter" => eval_vec_filter(args, env, sym),
+        ":wat::core::sort-by" => eval_vec_sort_by(args, list_span, env, sym),
+        ":wat::core::map" => eval_vec_map(args, list_span, env, sym),
+        ":wat::core::foldl" => eval_vec_foldl(args, list_span, env, sym),
+        ":wat::core::foldr" => eval_vec_foldr(args, list_span, env, sym),
+        ":wat::core::filter" => eval_vec_filter(args, list_span, env, sym),
         ":wat::std::list::zip" => eval_list_zip(args, list_span, env, sym),
         ":wat::std::list::window" => eval_list_window(args, list_span, env, sym),
         ":wat::std::list::remove-at" => eval_list_remove_at(args, list_span, env, sym),
@@ -5071,16 +5071,16 @@ fn dispatch_keyword_head(
         // substrate (arc 008 slice 2). Two wat-level types; multiple
         // concrete backings (real stdio, StringIo). Byte-oriented
         // primitives with char-level conveniences.
-        ":wat::io::IOReader/from-bytes" => crate::io::eval_ioreader_from_bytes(args, env, sym),
-        ":wat::io::IOReader/from-string" => crate::io::eval_ioreader_from_string(args, env, sym),
+        ":wat::io::IOReader/from-bytes" => crate::io::eval_ioreader_from_bytes(args, list_span, env, sym),
+        ":wat::io::IOReader/from-string" => crate::io::eval_ioreader_from_string(args, list_span, env, sym),
         ":wat::io::IOReader/read" => crate::io::eval_ioreader_read(args, env, sym, list_span),
         ":wat::io::IOReader/read-all" => crate::io::eval_ioreader_read_all(args, env, sym, list_span),
         ":wat::io::IOReader/read-line" => crate::io::eval_ioreader_read_line(args, env, sym, list_span),
         ":wat::io::IOReader/rewind" => crate::io::eval_ioreader_rewind(args, env, sym, list_span),
-        ":wat::io::IOWriter/new" => crate::io::eval_iowriter_new(args, env, sym),
-        ":wat::io::IOWriter/open-file" => crate::io::eval_iowriter_open_file(args, env, sym),
-        ":wat::io::IOWriter/to-bytes" => crate::io::eval_iowriter_to_bytes(args, env, sym),
-        ":wat::io::IOWriter/to-string" => crate::io::eval_iowriter_to_string(args, env, sym),
+        ":wat::io::IOWriter/new" => crate::io::eval_iowriter_new(args, list_span, env, sym),
+        ":wat::io::IOWriter/open-file" => crate::io::eval_iowriter_open_file(args, list_span, env, sym),
+        ":wat::io::IOWriter/to-bytes" => crate::io::eval_iowriter_to_bytes(args, list_span, env, sym),
+        ":wat::io::IOWriter/to-string" => crate::io::eval_iowriter_to_string(args, list_span, env, sym),
         ":wat::io::IOWriter/write" => crate::io::eval_iowriter_write(args, env, sym, list_span),
         ":wat::io::IOWriter/write-all" => crate::io::eval_iowriter_write_all(args, env, sym, list_span),
         ":wat::io::IOWriter/write-string" => crate::io::eval_iowriter_write_string(args, env, sym, list_span),
@@ -5088,11 +5088,11 @@ fn dispatch_keyword_head(
         // Arc 093 — auto-deleting temp file / temp dir wrappers
         // around Rust's `tempfile` crate. Drop unlinks the
         // file/dir when the wat value's Arc-count reaches zero.
-        ":wat::io::TempFile/new" => crate::io::eval_io_temp_file_new(args, env, sym),
-        ":wat::io::TempFile/path" => crate::io::eval_io_temp_file_path(args, env, sym),
-        ":wat::io::TempDir/new" => crate::io::eval_io_temp_dir_new(args, env, sym),
-        ":wat::io::TempDir/path" => crate::io::eval_io_temp_dir_path(args, env, sym),
-        ":wat::io::read-file" => crate::io::eval_io_read_file(args, env, sym),
+        ":wat::io::TempFile/new" => crate::io::eval_io_temp_file_new(args, list_span, env, sym),
+        ":wat::io::TempFile/path" => crate::io::eval_io_temp_file_path(args, list_span, env, sym),
+        ":wat::io::TempDir/new" => crate::io::eval_io_temp_dir_new(args, list_span, env, sym),
+        ":wat::io::TempDir/path" => crate::io::eval_io_temp_dir_path(args, list_span, env, sym),
+        ":wat::io::read-file" => crate::io::eval_io_read_file(args, list_span, env, sym),
         ":wat::io::IOWriter/println" => crate::io::eval_iowriter_println(args, env, sym, list_span),
         ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym, list_span),
         ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym, list_span),
@@ -5156,7 +5156,7 @@ fn dispatch_keyword_head(
         ":wat::holon::Hologram/find" => eval_hologram_find(args, list_span, env, sym),
         ":wat::holon::Hologram/remove" => eval_hologram_remove(args, list_span, env, sym),
         ":wat::holon::Hologram/len" => eval_hologram_len(args, list_span, env, sym),
-        ":wat::holon::Hologram/capacity" => eval_hologram_capacity(args, env, sym),
+        ":wat::holon::Hologram/capacity" => eval_hologram_capacity(args, list_span, env, sym),
 
         // Therm-form constructor (arc 076 slice 2). Caller passes their
         // natural domain bounds; the form carries them; the Hologram
@@ -5194,13 +5194,13 @@ fn dispatch_keyword_head(
         ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, list_span, env, sym),
         ":wat::core::Bytes::to-hex" => eval_bytes_to_hex(args, list_span, env, sym),
         ":wat::core::Bytes::from-hex" => eval_bytes_from_hex(args, list_span, env, sym),
-        ":wat::core::show" => eval_show(args, env, sym),
-        ":wat::edn::write" => crate::edn_shim::eval_edn_write(args, env, sym),
-        ":wat::edn::write-pretty" => crate::edn_shim::eval_edn_write_pretty(args, env, sym),
-        ":wat::edn::write-json" => crate::edn_shim::eval_edn_write_json(args, env, sym),
-        ":wat::edn::write-notag" => crate::edn_shim::eval_edn_write_notag(args, env, sym),
+        ":wat::core::show" => eval_show(args, list_span, env, sym),
+        ":wat::edn::write" => crate::edn_shim::eval_edn_write(args, list_span, env, sym),
+        ":wat::edn::write-pretty" => crate::edn_shim::eval_edn_write_pretty(args, list_span, env, sym),
+        ":wat::edn::write-json" => crate::edn_shim::eval_edn_write_json(args, list_span, env, sym),
+        ":wat::edn::write-notag" => crate::edn_shim::eval_edn_write_notag(args, list_span, env, sym),
         ":wat::edn::write-json-natural" => {
-            crate::edn_shim::eval_edn_write_json_natural(args, env, sym)
+            crate::edn_shim::eval_edn_write_json_natural(args, list_span, env, sym)
         }
         ":wat::edn::read" => crate::edn_shim::eval_edn_read(args, list_span, env, sym),
         ":wat::holon::vector-bind" => eval_holon_vector_bind(args, list_span, env, sym),
@@ -5271,9 +5271,9 @@ fn dispatch_keyword_head(
         // block-on-completion lockstep. Slices 1f-β / γ / δ ship
         // the wat-side service implementations + orchestrator;
         // these primitives are the substrate surface users call.
-        ":wat::kernel::println" => crate::thread_io::eval_kernel_println(args, env, sym),
-        ":wat::kernel::eprintln" => crate::thread_io::eval_kernel_eprintln(args, env, sym),
-        ":wat::kernel::readln" => crate::thread_io::eval_kernel_readln(args, env, sym),
+        ":wat::kernel::println" => crate::thread_io::eval_kernel_println(args, list_span, env, sym),
+        ":wat::kernel::eprintln" => crate::thread_io::eval_kernel_eprintln(args, list_span, env, sym),
+        ":wat::kernel::readln" => crate::thread_io::eval_kernel_readln(args, list_span, env, sym),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),
         // Arc 170 slice 3 Gap B — explicit EOF on send side without
         // dropping the Sender Value. Idempotent. Returns nil.
@@ -5414,19 +5414,19 @@ fn dispatch_keyword_head(
         // Vec<String> survives, where it earns its keep as the
         // test assertion target.
         ":wat::kernel::assertion-failed!" => {
-            crate::assertion::eval_kernel_assertion_failed(args, env, sym)
+            crate::assertion::eval_kernel_assertion_failed(args, list_span, env, sym)
         }
-        ":wat::kernel::raise!" => eval_kernel_raise(args, env, sym),
+        ":wat::kernel::raise!" => eval_kernel_raise(args, list_span, env, sym),
         ":wat::kernel::make-bounded-channel" => eval_make_bounded_queue(args, env, sym, list_span),
         ":wat::kernel::make-unbounded-channel" => eval_make_unbounded_queue(args, list_span),
-        ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args),
+        ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args, list_span),
         ":wat::kernel::fork-program-ast" => {
-            crate::fork::eval_kernel_fork_program_ast(args, env, sym)
+            crate::fork::eval_kernel_fork_program_ast(args, list_span, env, sym)
         }
-        ":wat::kernel::fork-program" => crate::fork::eval_kernel_fork_program(args, env, sym),
-        ":wat::kernel::spawn-program" => crate::spawn::eval_kernel_spawn_program(args, env, sym),
+        ":wat::kernel::fork-program" => crate::fork::eval_kernel_fork_program(args, list_span, env, sym),
+        ":wat::kernel::spawn-program" => crate::spawn::eval_kernel_spawn_program(args, list_span, env, sym),
         ":wat::kernel::spawn-program-ast" => {
-            crate::spawn::eval_kernel_spawn_program_ast(args, env, sym)
+            crate::spawn::eval_kernel_spawn_program_ast(args, list_span, env, sym)
         }
         // Arc 170 slice 2 — `:wat::kernel::spawn-process` takes a fn
         // satisfying the `:user::process` contract and forks an OS
@@ -5438,7 +5438,7 @@ fn dispatch_keyword_head(
         // fork-program / spawn-program arms above stay unchanged
         // during the sweep window; slice 4 retires them.
         ":wat::kernel::spawn-process" => {
-            crate::spawn_process::eval_kernel_spawn_process(args, env, sym)
+            crate::spawn_process::eval_kernel_spawn_process(args, list_span, env, sym)
         }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
@@ -5503,74 +5503,74 @@ fn dispatch_keyword_head(
         // Time primitives — arc 056. World-observing (`now`) +
         // pure converters at `:wat::time::*`, sibling of `:wat::io::*`
         // rather than nested under `:wat::std::*`.
-        ":wat::time::now" => crate::time::eval_time_now(args),
-        ":wat::time::at" => crate::time::eval_time_at(args, env, sym),
-        ":wat::time::at-millis" => crate::time::eval_time_at_millis(args, env, sym),
-        ":wat::time::at-nanos" => crate::time::eval_time_at_nanos(args, env, sym),
-        ":wat::time::from-iso8601" => crate::time::eval_time_from_iso8601(args, env, sym),
-        ":wat::time::to-iso8601" => crate::time::eval_time_to_iso8601(args, env, sym),
-        ":wat::time::epoch-seconds" => crate::time::eval_time_epoch_seconds(args, env, sym),
-        ":wat::time::epoch-millis" => crate::time::eval_time_epoch_millis(args, env, sym),
-        ":wat::time::epoch-nanos" => crate::time::eval_time_epoch_nanos(args, env, sym),
+        ":wat::time::now" => crate::time::eval_time_now(args, list_span),
+        ":wat::time::at" => crate::time::eval_time_at(args, list_span, env, sym),
+        ":wat::time::at-millis" => crate::time::eval_time_at_millis(args, list_span, env, sym),
+        ":wat::time::at-nanos" => crate::time::eval_time_at_nanos(args, list_span, env, sym),
+        ":wat::time::from-iso8601" => crate::time::eval_time_from_iso8601(args, list_span, env, sym),
+        ":wat::time::to-iso8601" => crate::time::eval_time_to_iso8601(args, list_span, env, sym),
+        ":wat::time::epoch-seconds" => crate::time::eval_time_epoch_seconds(args, list_span, env, sym),
+        ":wat::time::epoch-millis" => crate::time::eval_time_epoch_millis(args, list_span, env, sym),
+        ":wat::time::epoch-nanos" => crate::time::eval_time_epoch_nanos(args, list_span, env, sym),
 
         // Arc 097 — Duration constructors. Each takes :i64 and
         // returns a Value::Duration (non-negative nanoseconds).
         // Negative input panics; i64 overflow panics.
-        ":wat::time::Nanosecond" => crate::time::eval_time_unit_nanosecond(args, env, sym),
-        ":wat::time::Microsecond" => crate::time::eval_time_unit_microsecond(args, env, sym),
-        ":wat::time::Millisecond" => crate::time::eval_time_unit_millisecond(args, env, sym),
-        ":wat::time::Second" => crate::time::eval_time_unit_second(args, env, sym),
-        ":wat::time::Minute" => crate::time::eval_time_unit_minute(args, env, sym),
-        ":wat::time::Hour" => crate::time::eval_time_unit_hour(args, env, sym),
-        ":wat::time::Day" => crate::time::eval_time_unit_day(args, env, sym),
+        ":wat::time::Nanosecond" => crate::time::eval_time_unit_nanosecond(args, list_span, env, sym),
+        ":wat::time::Microsecond" => crate::time::eval_time_unit_microsecond(args, list_span, env, sym),
+        ":wat::time::Millisecond" => crate::time::eval_time_unit_millisecond(args, list_span, env, sym),
+        ":wat::time::Second" => crate::time::eval_time_unit_second(args, list_span, env, sym),
+        ":wat::time::Minute" => crate::time::eval_time_unit_minute(args, list_span, env, sym),
+        ":wat::time::Hour" => crate::time::eval_time_unit_hour(args, list_span, env, sym),
+        ":wat::time::Day" => crate::time::eval_time_unit_day(args, list_span, env, sym),
 
         // Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
         // `:wat::time::-` dispatches on RHS variant: Instant - Duration
         // → Instant; Instant - Instant → Duration. `:wat::time::+` is
         // single-arm Instant + Duration → Instant. Same shape as
         // ActiveSupport's time1 - time2 / time - 1.hour.
-        ":wat::time::-" => crate::time::eval_time_sub(args, env, sym),
-        ":wat::time::+" => crate::time::eval_time_add(args, env, sym),
+        ":wat::time::-" => crate::time::eval_time_sub(args, list_span, env, sym),
+        ":wat::time::+" => crate::time::eval_time_add(args, list_span, env, sym),
 
         // Arc 097 slice 3 — ActiveSupport-flavored "X ago" / "X from now"
         // composers. Each takes Duration; computes Instant relative to
         // wall-clock now.
-        ":wat::time::ago" => crate::time::eval_time_ago(args, env, sym),
-        ":wat::time::from-now" => crate::time::eval_time_from_now(args, env, sym),
+        ":wat::time::ago" => crate::time::eval_time_ago(args, list_span, env, sym),
+        ":wat::time::from-now" => crate::time::eval_time_from_now(args, list_span, env, sym),
 
         // Arc 097 slice 4 — pre-composed unit-ago / unit-from-now
         // sugars. 14 helpers (7 units × {ago, from-now}). Each takes
         // :i64 and returns Instant relative to wall-clock now.
         ":wat::time::nanoseconds-ago" => {
-            crate::time::eval_time_nanoseconds_ago(args, env, sym)
+            crate::time::eval_time_nanoseconds_ago(args, list_span, env, sym)
         }
         ":wat::time::microseconds-ago" => {
-            crate::time::eval_time_microseconds_ago(args, env, sym)
+            crate::time::eval_time_microseconds_ago(args, list_span, env, sym)
         }
         ":wat::time::milliseconds-ago" => {
-            crate::time::eval_time_milliseconds_ago(args, env, sym)
+            crate::time::eval_time_milliseconds_ago(args, list_span, env, sym)
         }
-        ":wat::time::seconds-ago" => crate::time::eval_time_seconds_ago(args, env, sym),
-        ":wat::time::minutes-ago" => crate::time::eval_time_minutes_ago(args, env, sym),
-        ":wat::time::hours-ago" => crate::time::eval_time_hours_ago(args, env, sym),
-        ":wat::time::days-ago" => crate::time::eval_time_days_ago(args, env, sym),
+        ":wat::time::seconds-ago" => crate::time::eval_time_seconds_ago(args, list_span, env, sym),
+        ":wat::time::minutes-ago" => crate::time::eval_time_minutes_ago(args, list_span, env, sym),
+        ":wat::time::hours-ago" => crate::time::eval_time_hours_ago(args, list_span, env, sym),
+        ":wat::time::days-ago" => crate::time::eval_time_days_ago(args, list_span, env, sym),
         ":wat::time::nanoseconds-from-now" => {
-            crate::time::eval_time_nanoseconds_from_now(args, env, sym)
+            crate::time::eval_time_nanoseconds_from_now(args, list_span, env, sym)
         }
         ":wat::time::microseconds-from-now" => {
-            crate::time::eval_time_microseconds_from_now(args, env, sym)
+            crate::time::eval_time_microseconds_from_now(args, list_span, env, sym)
         }
         ":wat::time::milliseconds-from-now" => {
-            crate::time::eval_time_milliseconds_from_now(args, env, sym)
+            crate::time::eval_time_milliseconds_from_now(args, list_span, env, sym)
         }
         ":wat::time::seconds-from-now" => {
-            crate::time::eval_time_seconds_from_now(args, env, sym)
+            crate::time::eval_time_seconds_from_now(args, list_span, env, sym)
         }
         ":wat::time::minutes-from-now" => {
-            crate::time::eval_time_minutes_from_now(args, env, sym)
+            crate::time::eval_time_minutes_from_now(args, list_span, env, sym)
         }
-        ":wat::time::hours-from-now" => crate::time::eval_time_hours_from_now(args, env, sym),
-        ":wat::time::days-from-now" => crate::time::eval_time_days_from_now(args, env, sym),
+        ":wat::time::hours-from-now" => crate::time::eval_time_hours_from_now(args, list_span, env, sym),
+        ":wat::time::days-from-now" => crate::time::eval_time_days_from_now(args, list_span, env, sym),
 
         // :rust::* — dispatch through the rust-deps registry. Each
         // symbol's shim handles its own arg evaluation and marshaling.
@@ -5780,7 +5780,7 @@ fn eval_dispatch_call(
 /// user-source `:wat::core::lambda` form. Nothing routes lambda here at
 /// runtime. This function is reached only via the `:wat::core::fn`
 /// dispatch arm (src/runtime.rs — the only active entry point).
-fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
+fn eval_fn(args: &[WatAST], list_span: &Span, env: &Environment) -> Result<Value, RuntimeError> {
     // Arc 167 — flat-shape fn-form consumer; arc 168 — implicit-do body.
     // Canonical form: (:wat::core::fn ARGS-VECTOR -> :RET-TYPE body...)
     //   args[0] = ARGS-VECTOR (WatAST::Vector with name <- :T triples)
@@ -8176,6 +8176,7 @@ fn eval_not(
 
 fn eval_and(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8200,6 +8201,7 @@ fn eval_and(
 
 fn eval_or(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8229,6 +8231,7 @@ fn eval_or(
 /// elements could drive inference, so the shape never depends on context.
 fn eval_list_ctor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8273,6 +8276,7 @@ fn eval_list_ctor(
 /// spelling per slice 1f's vec→Vector playbook completed.
 fn eval_tuple_ctor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8395,6 +8399,7 @@ fn hashset_length_inner(v: &Value) -> Result<Value, RuntimeError> {
 
 fn eval_vector_length(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8412,6 +8417,7 @@ fn eval_vector_length(
 
 fn eval_hashmap_length(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8429,6 +8435,7 @@ fn eval_hashmap_length(
 
 fn eval_hashset_length(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8512,6 +8519,7 @@ fn list_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
 
 fn eval_vector_empty_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8529,6 +8537,7 @@ fn eval_vector_empty_q(
 
 fn eval_hashmap_empty_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8546,6 +8555,7 @@ fn eval_hashmap_empty_q(
 
 fn eval_hashset_empty_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8641,6 +8651,7 @@ fn hashset_contains_q_inner(container: &Value, item: &Value) -> Result<Value, Ru
 
 fn eval_vector_contains_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8659,6 +8670,7 @@ fn eval_vector_contains_q(
 
 fn eval_hashmap_contains_key_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8677,6 +8689,7 @@ fn eval_hashmap_contains_key_q(
 
 fn eval_hashset_contains_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8781,6 +8794,7 @@ fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value, RuntimeErr
 
 fn eval_vector_get(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8799,6 +8813,7 @@ fn eval_vector_get(
 
 fn eval_hashmap_get(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8819,6 +8834,7 @@ fn eval_hashmap_get(
 
 fn eval_list_length(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8836,6 +8852,7 @@ fn eval_list_length(
 
 fn eval_list_empty_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8853,6 +8870,7 @@ fn eval_list_empty_q(
 
 fn eval_list_contains_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8871,6 +8889,7 @@ fn eval_list_contains_q(
 
 fn eval_list_get(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8889,6 +8908,7 @@ fn eval_list_get(
 
 fn eval_list_conj(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9054,6 +9074,7 @@ fn parse_arrow_ty(
 /// `Some(v)`. Returns `None` for missing key or HolonAST → T mismatch.
 fn eval_program_env_get(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9080,6 +9101,7 @@ fn eval_program_env_get(
 /// HolonAST → T mismatch. The diagnostic names the key and env context.
 fn eval_program_env_expect_get(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9128,6 +9150,7 @@ fn eval_program_env_expect_get(
 /// check time via `infer_program_env_get_default`).
 fn eval_program_env_get_default(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9267,6 +9290,7 @@ fn program_env_dig_walk(
 /// limitation), multi-step behaves as single-step on well-typed Envs.
 fn eval_program_env_dig(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9317,6 +9341,7 @@ fn eval_program_env_dig(
 /// HolonAST → T mismatch.  The diagnostic names the full path.
 fn eval_program_env_expect_dig(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9387,6 +9412,7 @@ fn eval_program_env_expect_dig(
 /// check time via `infer_program_env_dig_default`).
 fn eval_program_env_dig_default(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9504,6 +9530,7 @@ fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeE
 
 fn eval_vector_conj(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9522,6 +9549,7 @@ fn eval_vector_conj(
 
 fn eval_hashset_conj(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9681,6 +9709,7 @@ fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, RuntimeErro
 
 fn eval_hashmap_assoc(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9700,6 +9729,7 @@ fn eval_hashmap_assoc(
 
 fn eval_hashmap_dissoc(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9718,6 +9748,7 @@ fn eval_hashmap_dissoc(
 
 fn eval_hashmap_keys(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9735,6 +9766,7 @@ fn eval_hashmap_keys(
 
 fn eval_hashmap_values(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9752,6 +9784,7 @@ fn eval_hashmap_values(
 
 fn eval_vector_concat(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10162,6 +10195,7 @@ fn eval_vec_drop(
 /// negligible.
 fn eval_vec_sort_by(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10247,6 +10281,7 @@ fn eval_vec_sort_by(
 /// `f` must be a callable Value (fn or define-registered).
 fn eval_vec_map(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10285,6 +10320,7 @@ fn eval_vec_map(
 /// `:wat::core::foldr` ships alongside — see [`eval_vec_foldr`].
 fn eval_vec_foldl(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10323,6 +10359,7 @@ fn eval_vec_foldl(
 /// so the call stack is bounded by iteration, not recursion.
 fn eval_vec_foldr(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10360,6 +10397,7 @@ fn eval_vec_foldr(
 /// which `pred` returns `:bool true`. `pred` signature: `T -> :bool`.
 fn eval_vec_filter(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10746,6 +10784,7 @@ fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> 
 /// at depth 1.
 fn eval_quasiquote(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10884,6 +10923,7 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, Runtime
 ///   (/info wlog wu (:wat::core::struct->form paper-resolved))
 fn eval_struct_to_form(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11587,6 +11627,7 @@ pub fn lookup_form<'a>(
 /// For unknown names, returns `:None`.
 fn eval_lookup_define(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11693,6 +11734,7 @@ fn eval_lookup_define(
 /// For unknown names, returns `:None`.
 fn eval_signature_of_defn(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11813,6 +11855,7 @@ fn eval_signature_of_defn(
 /// `:ThreadPeer<I,O>` types structurally without symbol-table lookup.
 fn eval_signature_of_fn(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11852,6 +11895,7 @@ fn eval_signature_of_fn(
 /// For unknown names, returns `:None`.
 fn eval_body_of(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11962,6 +12006,7 @@ fn split_type_params(s: &str) -> (&str, &str) {
 /// 6. Rebuild Bundle with [new_keyword, children[1..]].
 fn eval_rename_callable_name(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -12095,6 +12140,7 @@ fn eval_rename_callable_name(
 /// 4. Return Vec<Value::holon__HolonAST> wrapping each Symbol leaf.
 fn eval_extract_arg_names(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -12176,6 +12222,7 @@ fn eval_extract_arg_names(
 /// a shared walker parameterised on slot index.
 fn eval_extract_arg_types(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -12244,6 +12291,7 @@ fn eval_extract_arg_types(
 /// decomposition surface.
 fn eval_bundle_children(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -12291,6 +12339,7 @@ fn eval_bundle_children(
 ///   structurally — there is no `Option<HolonAST>` wrap at this surface).
 fn eval_bundle_first(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -12354,6 +12403,7 @@ fn eval_bundle_first(
 /// user errors.
 fn eval_form_matches(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -12624,7 +12674,7 @@ fn walk_match_clause(
 /// Like `quote`, this is a special form — arguments are NOT
 /// evaluated. The type checker returns `:wat::core::Vector<wat::WatAST>`
 /// unconditionally; see `check.rs::infer_list` for the handling.
-fn eval_forms(args: &[WatAST]) -> Result<Value, RuntimeError> {
+fn eval_forms(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
     let items: Vec<Value> = args
         .iter()
         .map(|a| Value::wat__WatAST(Arc::new(a.clone())))
@@ -12638,6 +12688,7 @@ fn eval_forms(args: &[WatAST]) -> Result<Value, RuntimeError> {
 /// return the result. Otherwise return the input unchanged.
 fn eval_macroexpand_1(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -12681,6 +12732,7 @@ fn eval_macroexpand_1(
 /// stops changing (bounded by EXPANSION_DEPTH_LIMIT to catch cycles).
 fn eval_macroexpand(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -12821,6 +12873,7 @@ fn eval_vec_last(
 /// Mirrors Rust's `iter().rposition(pred)`.
 fn eval_vec_find_last_index(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -13371,6 +13424,7 @@ fn expect_panic(
 /// `:T` (never returns; same convention as assertion-failed!).
 fn eval_kernel_raise(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -15529,6 +15583,7 @@ fn eval_hologram_len(
 /// capacity.
 fn eval_hologram_capacity(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -17605,6 +17660,7 @@ fn decode_nibble(b: u8) -> Option<u8> {
 /// renderer; per-variant dispatch via [`render_value`].
 fn eval_show(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

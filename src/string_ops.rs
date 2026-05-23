@@ -23,11 +23,13 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use crate::span::Span;
 use std::sync::Arc;
 
 /// `(:wat::core::string::contains? haystack needle)` → `:bool`.
 pub fn eval_string_contains(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -38,6 +40,7 @@ pub fn eval_string_contains(
 /// `(:wat::core::string::starts-with? haystack prefix)` → `:bool`.
 pub fn eval_string_starts_with(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -48,6 +51,7 @@ pub fn eval_string_starts_with(
 /// `(:wat::core::string::ends-with? haystack suffix)` → `:bool`.
 pub fn eval_string_ends_with(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -62,6 +66,7 @@ pub fn eval_string_ends_with(
 /// length, encode through `:wat::core::Vector<u8>` and use that vec's `length`.
 pub fn eval_string_length(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -72,6 +77,7 @@ pub fn eval_string_length(
 /// `(:wat::core::string::trim s)` → `:String`.
 pub fn eval_string_trim(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -88,6 +94,7 @@ pub fn eval_string_trim(
 /// through `Vec<u8>` via the IO layer.
 pub fn eval_string_split(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -113,6 +120,7 @@ pub fn eval_string_split(
 /// first (the uniform thing), pieces second (the per-call thing).
 pub fn eval_string_join(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -183,6 +191,7 @@ pub fn eval_string_join(
 /// concat semantics worth special-casing).
 pub fn eval_string_concat(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -255,6 +264,7 @@ fn is_canonical_uuid_string(s: &str) -> bool {
 /// `:wat::core::Uuid` value — NOT a string. Arc 207 slice 2.
 pub fn eval_uuid_typed_v4(
     args: &[WatAST],
+    list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -277,6 +287,7 @@ pub fn eval_uuid_typed_v4(
 /// Returns a typed `:wat::core::Uuid`. Arc 207 slice 2.
 pub fn eval_uuid_typed_v5(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -327,6 +338,7 @@ pub fn eval_uuid_typed_v5(
 /// simple (no-hyphen), or otherwise non-canonical input. Arc 207 slice 2.
 pub fn eval_uuid_typed_from_string(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -368,6 +380,7 @@ pub fn eval_uuid_typed_from_string(
 /// Renders as canonical 8-4-4-4-12 lowercase hyphenated form. Arc 207 slice 2.
 pub fn eval_uuid_typed_to_string(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -404,6 +417,7 @@ pub fn eval_uuid_typed_to_string(
 /// Returns the nil UUID (`00000000-0000-0000-0000-000000000000`). Arc 207 slice 2.
 pub fn eval_uuid_typed_nil(
     args: &[WatAST],
+    list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -438,6 +452,7 @@ pub fn eval_uuid_typed_nil(
 /// Arc 220 slice 2.
 pub fn eval_char_of(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -510,6 +525,7 @@ pub fn eval_char_of(
 /// is variadic rather than fixed-arity.
 pub fn eval_list_of(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -530,6 +546,7 @@ pub fn eval_list_of(
 /// bracket, invalid escape) get the regex crate's own diagnostic.
 pub fn eval_regex_matches(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

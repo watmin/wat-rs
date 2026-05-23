@@ -71,6 +71,7 @@ fn span_prefix(span: &Span) -> String {
 /// `(:wat::edn::write v)` → `:String`. Compact single-line EDN.
 pub fn eval_edn_write(
     args: &[WatAST],
+    list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -83,6 +84,7 @@ pub fn eval_edn_write(
 /// `(:wat::edn::write-pretty v)` → `:String`. Multi-line indented EDN.
 pub fn eval_edn_write_pretty(
     args: &[WatAST],
+    list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -96,6 +98,7 @@ pub fn eval_edn_write_pretty(
 /// round-trip-safe sentinel-tagged-object convention.
 pub fn eval_edn_write_json(
     args: &[WatAST],
+    list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -134,6 +137,7 @@ fn require_one_arg(
 /// reconstruction signal). For round-trip use the tagged form.
 pub fn eval_edn_write_notag(
     args: &[WatAST],
+    list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -157,6 +161,7 @@ pub fn eval_edn_write_notag(
 /// for round-trip-safe JSON encoding.
 pub fn eval_edn_write_json_natural(
     args: &[WatAST],
+    list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

@@ -46,11 +46,12 @@ use std::sync::Arc;
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use crate::span::Span;
 
 // ─── Constructors ────────────────────────────────────────────────────
 
 /// `(:wat::time::now) -> :wat::time::Instant` — current wall-clock time.
-pub(crate) fn eval_time_now(args: &[WatAST]) -> Result<Value, RuntimeError> {
+pub(crate) fn eval_time_now(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::now";
     if !args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
@@ -68,6 +69,7 @@ pub(crate) fn eval_time_now(args: &[WatAST]) -> Result<Value, RuntimeError> {
 /// pre-epoch and behave per chrono.
 pub(crate) fn eval_time_at(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -97,6 +99,7 @@ pub(crate) fn eval_time_at(
 /// `(:wat::time::at-millis epoch-ms:i64) -> :wat::time::Instant`.
 pub(crate) fn eval_time_at_millis(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -127,6 +130,7 @@ pub(crate) fn eval_time_at_millis(
 /// i64 ns saturates at year ~2262.
 pub(crate) fn eval_time_at_nanos(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -149,17 +153,17 @@ pub(crate) fn eval_time_at_nanos(
 /// (the practical ISO 8601 subset).
 pub(crate) fn eval_time_from_iso8601(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::from-iso8601";
     if args.len() != 1 {
-        // arc 138: no span — eval_time_from_iso8601 has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let s = require_string(OP, eval(&args[0], env, sym)?)?;
@@ -177,17 +181,17 @@ pub(crate) fn eval_time_from_iso8601(
 /// clamped to `[0, 9]`; output always UTC (`Z` suffix).
 pub(crate) fn eval_time_to_iso8601(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::to-iso8601";
     if args.len() != 2 {
-        // arc 138: no span — eval_time_to_iso8601 has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let inst = require_instant(OP, eval(&args[0], env, sym)?)?;
@@ -220,17 +224,17 @@ pub(crate) fn eval_time_to_iso8601(
 /// sub-second precision lost.
 pub(crate) fn eval_time_epoch_seconds(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::epoch-seconds";
     if args.len() != 1 {
-        // arc 138: no span — eval_time_epoch_seconds has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let inst = require_instant(OP, eval(&args[0], env, sym)?)?;
@@ -240,17 +244,17 @@ pub(crate) fn eval_time_epoch_seconds(
 /// `(:wat::time::epoch-millis i:Instant) -> :i64`. Truncating to ms.
 pub(crate) fn eval_time_epoch_millis(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::epoch-millis";
     if args.len() != 1 {
-        // arc 138: no span — eval_time_epoch_millis has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let inst = require_instant(OP, eval(&args[0], env, sym)?)?;
@@ -262,17 +266,17 @@ pub(crate) fn eval_time_epoch_millis(
 /// (i.e., before ~1677 or after ~2262).
 pub(crate) fn eval_time_epoch_nanos(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::epoch-nanos";
     if args.len() != 1 {
-        // arc 138: no span — eval_time_epoch_nanos has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let inst = require_instant(OP, eval(&args[0], env, sym)?)?;
@@ -312,16 +316,16 @@ fn unit_constructor(
     op: &'static str,
     unit_nanos: i64,
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
-        // arc 138: no span — unit_constructor has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let n = require_i64(op, eval(&args[0], env, sym)?)?;
@@ -351,64 +355,71 @@ fn unit_constructor(
 /// `(:wat::time::Nanosecond n:i64) -> :wat::time::Duration`.
 pub(crate) fn eval_time_unit_nanosecond(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_constructor(":wat::time::Nanosecond", 1, args, env, sym)
+    unit_constructor(":wat::time::Nanosecond", 1, args, list_span, env, sym)
 }
 
 /// `(:wat::time::Microsecond n:i64) -> :wat::time::Duration`.
 pub(crate) fn eval_time_unit_microsecond(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_constructor(":wat::time::Microsecond", NANOS_PER_MICRO, args, env, sym)
+    unit_constructor(":wat::time::Microsecond", NANOS_PER_MICRO, args, list_span, env, sym)
 }
 
 /// `(:wat::time::Millisecond n:i64) -> :wat::time::Duration`.
 pub(crate) fn eval_time_unit_millisecond(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_constructor(":wat::time::Millisecond", NANOS_PER_MILLI, args, env, sym)
+    unit_constructor(":wat::time::Millisecond", NANOS_PER_MILLI, args, list_span, env, sym)
 }
 
 /// `(:wat::time::Second n:i64) -> :wat::time::Duration`.
 pub(crate) fn eval_time_unit_second(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_constructor(":wat::time::Second", NANOS_PER_SECOND, args, env, sym)
+    unit_constructor(":wat::time::Second", NANOS_PER_SECOND, args, list_span, env, sym)
 }
 
 /// `(:wat::time::Minute n:i64) -> :wat::time::Duration`.
 pub(crate) fn eval_time_unit_minute(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_constructor(":wat::time::Minute", NANOS_PER_MINUTE, args, env, sym)
+    unit_constructor(":wat::time::Minute", NANOS_PER_MINUTE, args, list_span, env, sym)
 }
 
 /// `(:wat::time::Hour n:i64) -> :wat::time::Duration`.
 pub(crate) fn eval_time_unit_hour(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_constructor(":wat::time::Hour", NANOS_PER_HOUR, args, env, sym)
+    unit_constructor(":wat::time::Hour", NANOS_PER_HOUR, args, list_span, env, sym)
 }
 
 /// `(:wat::time::Day n:i64) -> :wat::time::Duration`.
 pub(crate) fn eval_time_unit_day(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_constructor(":wat::time::Day", NANOS_PER_DAY, args, env, sym)
+    unit_constructor(":wat::time::Day", NANOS_PER_DAY, args, list_span, env, sym)
 }
 
 // ─── Arc 097 — Polymorphic Instant ± Duration arithmetic ────────────
@@ -437,17 +448,17 @@ pub(crate) fn eval_time_unit_day(
 /// `(:wat::time::- a b)` — polymorphic on RHS variant.
 pub(crate) fn eval_time_sub(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::-";
     if args.len() != 2 {
-        // arc 138: no span — eval_time_sub has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let a = eval(&args[0], env, sym)?;
@@ -507,17 +518,17 @@ pub(crate) fn eval_time_sub(
 /// `(:wat::time::+ instant duration) -> Instant`.
 pub(crate) fn eval_time_add(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::+";
     if args.len() != 2 {
-        // arc 138: no span — eval_time_add has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let a = eval(&args[0], env, sym)?;
@@ -557,17 +568,17 @@ pub(crate) fn eval_time_add(
 /// `(:wat::time::- (:wat::time::now) duration)`.
 pub(crate) fn eval_time_ago(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::ago";
     if args.len() != 1 {
-        // arc 138: no span — eval_time_ago has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let ns = require_duration(OP, eval(&args[0], env, sym)?)?;
@@ -588,17 +599,17 @@ pub(crate) fn eval_time_ago(
 /// to `(:wat::time::+ (:wat::time::now) duration)`.
 pub(crate) fn eval_time_from_now(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::from-now";
     if args.len() != 1 {
-        // arc 138: no span — eval_time_from_now has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let ns = require_duration(OP, eval(&args[0], env, sym)?)?;
@@ -631,16 +642,16 @@ fn unit_ago(
     op: &'static str,
     unit_nanos: i64,
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
-        // arc 138: no span — unit_ago has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let n = require_i64(op, eval(&args[0], env, sym)?)?;
@@ -677,16 +688,16 @@ fn unit_from_now(
     op: &'static str,
     unit_nanos: i64,
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
-        // arc 138: no span — unit_from_now has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let n = require_i64(op, eval(&args[0], env, sym)?)?;
@@ -723,14 +734,16 @@ fn unit_from_now(
 
 pub(crate) fn eval_time_nanoseconds_ago(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_ago(":wat::time::nanoseconds-ago", 1, args, env, sym)
+    unit_ago(":wat::time::nanoseconds-ago", 1, args, list_span, env, sym)
 }
 
 pub(crate) fn eval_time_microseconds_ago(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -738,6 +751,7 @@ pub(crate) fn eval_time_microseconds_ago(
         ":wat::time::microseconds-ago",
         NANOS_PER_MICRO,
         args,
+        list_span,
         env,
         sym,
     )
@@ -745,6 +759,7 @@ pub(crate) fn eval_time_microseconds_ago(
 
 pub(crate) fn eval_time_milliseconds_ago(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -752,6 +767,7 @@ pub(crate) fn eval_time_milliseconds_ago(
         ":wat::time::milliseconds-ago",
         NANOS_PER_MILLI,
         args,
+        list_span,
         env,
         sym,
     )
@@ -759,6 +775,7 @@ pub(crate) fn eval_time_milliseconds_ago(
 
 pub(crate) fn eval_time_seconds_ago(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -766,6 +783,7 @@ pub(crate) fn eval_time_seconds_ago(
         ":wat::time::seconds-ago",
         NANOS_PER_SECOND,
         args,
+        list_span,
         env,
         sym,
     )
@@ -773,6 +791,7 @@ pub(crate) fn eval_time_seconds_ago(
 
 pub(crate) fn eval_time_minutes_ago(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -780,6 +799,7 @@ pub(crate) fn eval_time_minutes_ago(
         ":wat::time::minutes-ago",
         NANOS_PER_MINUTE,
         args,
+        list_span,
         env,
         sym,
     )
@@ -787,32 +807,36 @@ pub(crate) fn eval_time_minutes_ago(
 
 pub(crate) fn eval_time_hours_ago(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_ago(":wat::time::hours-ago", NANOS_PER_HOUR, args, env, sym)
+    unit_ago(":wat::time::hours-ago", NANOS_PER_HOUR, args, list_span, env, sym)
 }
 
 pub(crate) fn eval_time_days_ago(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_ago(":wat::time::days-ago", NANOS_PER_DAY, args, env, sym)
+    unit_ago(":wat::time::days-ago", NANOS_PER_DAY, args, list_span, env, sym)
 }
 
 // ─── Per-unit from-now helpers ──────────────────────────────────────
 
 pub(crate) fn eval_time_nanoseconds_from_now(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_from_now(":wat::time::nanoseconds-from-now", 1, args, env, sym)
+    unit_from_now(":wat::time::nanoseconds-from-now", 1, args, list_span, env, sym)
 }
 
 pub(crate) fn eval_time_microseconds_from_now(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -820,6 +844,7 @@ pub(crate) fn eval_time_microseconds_from_now(
         ":wat::time::microseconds-from-now",
         NANOS_PER_MICRO,
         args,
+        list_span,
         env,
         sym,
     )
@@ -827,6 +852,7 @@ pub(crate) fn eval_time_microseconds_from_now(
 
 pub(crate) fn eval_time_milliseconds_from_now(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -834,6 +860,7 @@ pub(crate) fn eval_time_milliseconds_from_now(
         ":wat::time::milliseconds-from-now",
         NANOS_PER_MILLI,
         args,
+        list_span,
         env,
         sym,
     )
@@ -841,6 +868,7 @@ pub(crate) fn eval_time_milliseconds_from_now(
 
 pub(crate) fn eval_time_seconds_from_now(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -848,6 +876,7 @@ pub(crate) fn eval_time_seconds_from_now(
         ":wat::time::seconds-from-now",
         NANOS_PER_SECOND,
         args,
+        list_span,
         env,
         sym,
     )
@@ -855,6 +884,7 @@ pub(crate) fn eval_time_seconds_from_now(
 
 pub(crate) fn eval_time_minutes_from_now(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -862,6 +892,7 @@ pub(crate) fn eval_time_minutes_from_now(
         ":wat::time::minutes-from-now",
         NANOS_PER_MINUTE,
         args,
+        list_span,
         env,
         sym,
     )
@@ -869,6 +900,7 @@ pub(crate) fn eval_time_minutes_from_now(
 
 pub(crate) fn eval_time_hours_from_now(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -876,6 +908,7 @@ pub(crate) fn eval_time_hours_from_now(
         ":wat::time::hours-from-now",
         NANOS_PER_HOUR,
         args,
+        list_span,
         env,
         sym,
     )
@@ -883,10 +916,11 @@ pub(crate) fn eval_time_hours_from_now(
 
 pub(crate) fn eval_time_days_from_now(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_from_now(":wat::time::days-from-now", NANOS_PER_DAY, args, env, sym)
+    unit_from_now(":wat::time::days-from-now", NANOS_PER_DAY, args, list_span, env, sym)
 }
 
 // ─── Helpers — local to this module ─────────────────────────────────

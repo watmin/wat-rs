@@ -63,6 +63,7 @@
 
 use crate::ast::WatAST;
 use crate::config::Config;
+use crate::span::Span;
 use crate::fork::{child_post_fork_init, make_pipe, spawn_lifelined, ChildHandleInner};
 use crate::freeze::{
     invoke_user_main, startup_from_forms, startup_from_forms_with_inherit,
@@ -90,6 +91,7 @@ use crate::fork::{
 /// (:user::main -> :nil) ...)`). Returns `:wat::kernel::Process<I,O>`.
 pub fn eval_kernel_spawn_process(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

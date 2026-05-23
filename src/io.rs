@@ -793,6 +793,7 @@ fn bytes_to_vec_u8_value(bytes: Vec<u8>) -> Value {
 /// `(:wat::io::IOReader/from-bytes <Vec<u8>>)` → `:wat::io::IOReader`.
 pub fn eval_ioreader_from_bytes(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -806,6 +807,7 @@ pub fn eval_ioreader_from_bytes(
 /// `(:wat::io::IOReader/from-string <String>)` → `:wat::io::IOReader`.
 pub fn eval_ioreader_from_string(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -889,6 +891,7 @@ pub fn eval_ioreader_rewind(
 /// `(:wat::io::IOWriter/new)` → `:wat::io::IOWriter` (empty).
 pub fn eval_iowriter_new(
     args: &[WatAST],
+    list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -913,6 +916,7 @@ pub fn eval_iowriter_new(
 /// at construction-time is an environment error worth halting on.
 pub fn eval_iowriter_open_file(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -946,6 +950,7 @@ pub fn eval_iowriter_open_file(
 /// doesn't snapshot (returns MalformedForm).
 pub fn eval_iowriter_to_bytes(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -961,6 +966,7 @@ pub fn eval_iowriter_to_bytes(
 /// decode of the accumulated buffer; `:None` if not valid UTF-8.
 pub fn eval_iowriter_to_string(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1161,7 +1167,7 @@ pub fn eval_iowriter_close(
 /// byte stream between wat threads or into a child process);
 /// load-bearing for `:wat::kernel::fork-program-ast` (slice 2) which
 /// allocates three pipes per fork call.
-pub fn eval_kernel_pipe(args: &[WatAST]) -> Result<Value, RuntimeError> {
+pub fn eval_kernel_pipe(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
     use std::os::fd::FromRawFd;
     let op = ":wat::kernel::pipe";
     arity(op, args, 0)?;
@@ -1289,6 +1295,7 @@ impl WatTempDir {
 
 pub fn eval_io_temp_file_new(
     _args: &[WatAST],
+    list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1301,6 +1308,7 @@ pub fn eval_io_temp_file_new(
 
 pub fn eval_io_temp_file_path(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1316,6 +1324,7 @@ pub fn eval_io_temp_file_path(
 
 pub fn eval_io_temp_dir_new(
     _args: &[WatAST],
+    list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1328,6 +1337,7 @@ pub fn eval_io_temp_dir_new(
 
 pub fn eval_io_temp_dir_path(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1358,6 +1368,7 @@ pub fn eval_io_temp_dir_path(
 // script that wants to operate on file content as a string.
 pub fn eval_io_read_file(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

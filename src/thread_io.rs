@@ -193,6 +193,7 @@ fn require_one_arg(
 /// return `Value::Unit` (the `:wat::core::nil` value).
 pub fn eval_kernel_println(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -222,6 +223,7 @@ pub fn eval_kernel_println(
 /// channel pair.
 pub fn eval_kernel_eprintln(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -276,6 +278,7 @@ pub fn eval_kernel_eprintln(
 /// [`crate::edn_shim::edn_to_typed_value`].
 pub fn eval_kernel_readln(
     args: &[WatAST],
+    list_span: &Span,
     _env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

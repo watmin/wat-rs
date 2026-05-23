@@ -29,6 +29,7 @@ use crate::freeze::{
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, ScopedLoader, SourceLoader};
 use crate::runtime::{eval, Environment, RuntimeError, StructValue, SymbolTable, Value};
+use crate::span::Span;
 
 use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -541,6 +542,7 @@ fn emit_structured_exit(
 /// reader + stderr reader).
 pub fn eval_kernel_fork_program_ast(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1098,6 +1100,7 @@ pub fn fork_program_from_source(
 /// same shape as `fork-program-ast`.
 pub fn eval_kernel_fork_program(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
