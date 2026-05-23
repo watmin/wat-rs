@@ -14148,6 +14148,100 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 226 Stone 226.1 — type predicates via classifier-name match.
+    // `(is? value class-name)` — polymorphic; accepts any classifier name as String.
+    // 9 convenience forms for the classifier-wrapped typed entities.
+    // v1 is structural exact-match; VSA similarity scoring deferred to 226.2+.
+    env.register(
+        ":wat::holon::is?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty(), string_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::is-Map?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::is-Set?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::is-Vector?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::is-List?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::is-Tuple?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::is-Symbol?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::is-Keyword?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::is-Tag?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::is-Nil?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
 
     // Cosine measurement — the retrieval scalar (FOUNDATION 1718 +
     // OPEN-QUESTIONS line 419). Algebra-substrate operation (input is

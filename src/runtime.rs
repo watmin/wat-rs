@@ -4953,6 +4953,20 @@ fn dispatch_keyword_head(
         ":wat::holon::Vector" => eval_algebra_vector(args, list_span, env, sym),
         ":wat::holon::List" => eval_algebra_list(args, list_span, env, sym),
         ":wat::holon::Tuple" => eval_algebra_tuple(args, list_span, env, sym),
+        // Arc 226 Stone 226.1 — type predicates via classifier-name match (VSA v1).
+        // `(is? value class-name)` — polymorphic: accepts any classifier name as String.
+        // Convenience forms for each of the 9 classifier-wrapped typed entities.
+        // v1 is STRUCTURAL exact-match on classifier name; VSA similarity scoring deferred to 226.2+.
+        ":wat::holon::is?" => eval_holon_is_predicate(args, list_span, env, sym),
+        ":wat::holon::is-Map?" => eval_holon_is_map_q(args, list_span, env, sym),
+        ":wat::holon::is-Set?" => eval_holon_is_set_q(args, list_span, env, sym),
+        ":wat::holon::is-Vector?" => eval_holon_is_vector_q(args, list_span, env, sym),
+        ":wat::holon::is-List?" => eval_holon_is_list_q(args, list_span, env, sym),
+        ":wat::holon::is-Tuple?" => eval_holon_is_tuple_q(args, list_span, env, sym),
+        ":wat::holon::is-Symbol?" => eval_holon_is_symbol_q(args, list_span, env, sym),
+        ":wat::holon::is-Keyword?" => eval_holon_is_keyword_q(args, list_span, env, sym),
+        ":wat::holon::is-Tag?" => eval_holon_is_tag_q(args, list_span, env, sym),
+        ":wat::holon::is-Nil?" => eval_holon_is_nil_q(args, list_span, env, sym),
 
         // Term decomposition (arc 073). Read the form's structure as a
         // Prolog term: template (the cell type), slots (the tuning
@@ -15672,6 +15686,323 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
             span: Span::unknown(),
         }),
     }
+}
+
+// ─── Arc 226 Stone 226.1 — Type predicates (classifier-name match) ───────────
+//
+// Type checking emerges from VSA similarity — per [[typed-entities-doctrine]]:
+//   (is-X? value) ≡ similarity(value's class atom vector, prototype-of-X vector)
+//
+// Stone 226.1 ships v1: EXACT STRUCTURAL MATCH on classifier name.
+// The classifier name IS a perfect VSA similarity probe in the degenerate
+// (exact-match) case — two identical atom strings produce identical vectors,
+// cosine = 1.0. Future stones 226.2+ add threshold-tunable continuous scoring.
+//
+// All functions share the same shape:
+//   1. Evaluate the HolonAST argument.
+//   2. Call `extract_classifier` (arc 228 helper) to recover the classifier name.
+//   3. Compare against the expected class name (or check `is_nil()` for Nil).
+//   4. Return `Value::bool(matches)`.
+//
+// Non-HolonAST values (bare i64, String, etc.) are accepted but return false —
+// the absence of a classifier is an honest "not this type" signal.
+
+/// `(:wat::holon::is? value class-name) -> :bool` — polymorphic type predicate.
+///
+/// Arc 226 Stone 226.1. Accepts any classifier-wrapped HolonAST as `value` and
+/// a `String` as `class-name`. Calls `extract_classifier`; compares the result
+/// against `class-name`. Returns `true` iff the outermost classifier matches.
+///
+/// For non-HolonAST values (bare i64, String, bool, etc.), returns `false` —
+/// the absence of a classifier is "not of the named type."
+///
+/// Examples:
+///   `(is? (:wat::holon::to-holon {:a 1}) "Map")` → true
+///   `(is? (:wat::holon::to-holon #{1 2}) "Map")` → false
+fn eval_holon_is_predicate(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is?";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let class_val = eval(&args[1], env, sym)?;
+    let class_name = match class_val {
+        Value::String(s) => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "String (classifier name)",
+                got: other.type_name(),
+                span: args[1].span().clone(),
+            });
+        }
+    };
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some(class_name.as_str()),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
+}
+
+/// `(:wat::holon::is-Map? value) -> :bool` — Map classifier predicate.
+///
+/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
+/// classifier is "Map" (i.e., `Bind(Atom("Map"), Bundle(...))`).
+fn eval_holon_is_map_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is-Map?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Map"),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
+}
+
+/// `(:wat::holon::is-Set? value) -> :bool` — Set classifier predicate.
+///
+/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
+/// classifier is "Set" (i.e., `Bind(Atom("Set"), Bundle(...))`).
+fn eval_holon_is_set_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is-Set?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Set"),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
+}
+
+/// `(:wat::holon::is-Vector? value) -> :bool` — Vector classifier predicate.
+///
+/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
+/// classifier is "Vector". Distinct from `is-Tuple?` — classifier is the sole
+/// discriminator (arc 228 substrate distinction).
+fn eval_holon_is_vector_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is-Vector?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Vector"),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
+}
+
+/// `(:wat::holon::is-List? value) -> :bool` — List classifier predicate.
+///
+/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
+/// classifier is "List" (sequential items, no positional Bind keys).
+fn eval_holon_is_list_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is-List?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("List"),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
+}
+
+/// `(:wat::holon::is-Tuple? value) -> :bool` — Tuple classifier predicate.
+///
+/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
+/// classifier is "Tuple". Distinct from `is-Vector?` — classifier is the sole
+/// discriminator (arc 228 substrate distinction).
+fn eval_holon_is_tuple_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is-Tuple?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tuple"),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
+}
+
+/// `(:wat::holon::is-Symbol? value) -> :bool` — Symbol classifier predicate.
+///
+/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
+/// classifier is "Symbol" (post-arc-230 Bind composition: `Bind(Atom("Symbol"), Atom(name))`).
+/// Note: Nil also has classifier "Symbol" (it is `symbol("nil")`); `is-Symbol?`
+/// returns true for nil-valued forms. Use `is-Nil?` for the nil-specific check.
+fn eval_holon_is_symbol_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is-Symbol?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Symbol"),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
+}
+
+/// `(:wat::holon::is-Keyword? value) -> :bool` — Keyword classifier predicate.
+///
+/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
+/// classifier is "Keyword" (post-arc-230 Bind composition: `Bind(Atom("Keyword"), Atom(name))`).
+fn eval_holon_is_keyword_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is-Keyword?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Keyword"),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
+}
+
+/// `(:wat::holon::is-Tag? value) -> :bool` — Tag classifier predicate.
+///
+/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
+/// classifier is "Tag" (post-arc-230 Bind composition: `Bind(Atom("Tag"), Atom(name))`).
+fn eval_holon_is_tag_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is-Tag?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tag"),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
+}
+
+/// `(:wat::holon::is-Nil? value) -> :bool` — Nil predicate.
+///
+/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST that satisfies
+/// `HolonAST::is_nil()` — i.e., the composition `Bind(Atom("Symbol"), Atom("nil"))`.
+///
+/// Per arc 230 nil doctrine: nil = symbol("nil"). The classifier is "Symbol" AND
+/// the inner content is "nil". This is stricter than `is-Symbol?` (which returns
+/// true for any Symbol, including nil); `is-Nil?` is the nil-specific predicate.
+fn eval_holon_is_nil_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::is-Nil?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let value_val = eval(&args[0], env, sym)?;
+    let matches = match value_val {
+        Value::holon__HolonAST(h) => h.is_nil(),
+        _ => false,
+    };
+    Ok(Value::bool(matches))
 }
 
 /// Arc 052 — polymorphic-input helper for cosine/dot. Accepts
