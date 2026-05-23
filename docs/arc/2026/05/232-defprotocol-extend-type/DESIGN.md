@@ -1,8 +1,24 @@
-# FUTURE notes — defprotocol + extend-type (the metaprogramming layer)
+# Arc 232 — defprotocol + extend-type (the metaprogramming layer)
 
-**Status:** Model notes. Not yet a real arc. Captured 2026-05-22 night when user recognized: *"this extend idea... this is just a macro who writes a method into the things's namespace so dispatch can work? ... i did so much meta programming ruby - shit like this all the time.. i didn't realize .. wow ... yes .. i want this."*
+**Status:** STUB. Claimed 2026-05-22 night. Number reserved; design substrate inscribed; active work begins when triggered.
 
-**Trigger:** Dialogue after Stone 227.1 v3 (defclass single-data) shipped. User asked "what is the purpose of protocol?"; the discussion arrived at: protocol = open-extension polymorphic dispatch over types you may not own. User: *"we are getting very close to clojure now."*
+**Predecessors:**
+- arc 226 ✓ — `:wat::holon::is?` + `extract_classifier` (the dispatch primitives this arc consumes)
+- arc 228 ✓ — collection classifier-wrap (so types HAVE classifiers to dispatch on)
+- arc 230 ✓ — variant retirement (uniform classifier encoding everywhere)
+- arc 227 ✓ — defrecord (user-defined types exist to extend)
+
+**Open trigger:** when a real use case writes the same classifier-cond dispatch THREE times. Likely surfaced by Truth Engine (per `project_truth_engine`), MTG enterprise (per `project_mtg_next`), or trading-lab v2. Until then, ad-hoc cond chains are honest; defrecord + namespace-bound methods cover the v1 surface.
+
+## Origin
+
+Dialogue 2026-05-22 night, after Stone 227.1 v3 (defclass single-data) shipped:
+
+> *"this extend idea... this is just a macro who writes a method into the things's namespace so dispatch can work? ... i did so much meta programming ruby - shit like this all the time.. i didn't realize .. wow ... yes .. i want this."*
+>
+> *"we are getting very close to clojure now."*
+
+The realization: the typed-entities doctrine + arc 226 dispatch + arc 230 uniform encoding makes defprotocol natural to host. Open extension via macro-generated defns. Same shape as Ruby's `define_method` / `class_eval`, but compile-time instead of runtime. The Clojure convergence becomes explicit.
 
 ## What this IS (Ruby intuition mapped)
 
@@ -147,8 +163,8 @@ arc 225 ✓ bridge naming (Atom narrow; to-holon/from-holon)
 arc 228 ✓ collection classifier-wrap (Map/Set/Vector/...)
 arc 230 ✓ variant retirement (Symbol/Keyword/Tag/Nil as Bind compositions)
 arc 226 ✓ type predicates (:wat::holon::is?, extract_classifier dispatch)
-arc 227 ✓ defrecord (user-defined types via classifier-wrap; THIS arc)
-arc 232? — defprotocol + extend-type (THIS notes doc; future)
+arc 227 ✓ defrecord (user-defined types via classifier-wrap)
+arc 232   defprotocol + extend-type (THIS arc — stub claimed; design pending)
 ```
 
 Each arc layers on the previous:
@@ -170,6 +186,18 @@ Each arc layers on the previous:
 7. **Extending built-in types** — `extend-type :wat::holon::Vector :ns::Formattable ...` should work; the Vector classifier is "Vector" (from arc 228); dispatch routes accordingly. Verify substrate doesn't refuse.
 8. **The substrate primitive `call-by-name`** — does it exist? Does arc 201's reflection cover it? Investigate.
 
+## Stub work-items (when arc activates)
+
+| Stone | Purpose |
+|---|---|
+| 232.1 | Pre-flight grep — verify `call-by-name` / reflection primitives + lock mangling convention via `/gaze` |
+| 232.2 | `:wat::holon::defprotocol` defmacro + auto-generated polymorphic dispatcher (per method) |
+| 232.3 | `:wat::holon::extend-type` defmacro + (optional) extension registry for compile-time verification |
+| 232.4 | Built-in-type extension proof (extend `:wat::holon::Vector` or similar with a sample protocol) |
+| 232.5 | INSCRIPTION + USER-GUIDE chapter |
+
+Estimated chain depth ~5 stones. Likely small once triggered (substrate primitives already in place).
+
 ## Out-of-scope for arc 232 itself (subsequent stones)
 
 - Performance optimization (cache dispatcher lookups; Clojure does this via invokevirtual + class-cache)
@@ -178,7 +206,9 @@ Each arc layers on the previous:
 - Protocol inheritance / extends (one protocol extending another)
 - Generic algorithms over multiple protocols (`(map-formattable seq)`)
 
-## When to OPEN arc 232
+## When to BEGIN active work on arc 232
+
+The arc number is CLAIMED + a stub design exists (this doc). Active work begins when one of these triggers fires:
 
 **Heuristic:** when a real use case writes the same classifier-cond dispatch THREE times. Until then, defprotocol is theory; cond chains are honest.
 
@@ -187,7 +217,7 @@ Likely triggers:
 - MTG enterprise (per `project_mtg_next`) — card types, effect types, zone types — all want cross-cutting operations (cost, resolve, target)
 - Trading lab v2 — order types, asset types — natural cross-cutting
 
-When one of these surfaces 3+ cond-on-classifier chains, **arc 232 opens** with this notes doc as the design substrate.
+When one of these surfaces 3+ cond-on-classifier chains, **arc 232's active work begins** with this DESIGN.md as the design substrate.
 
 ## What this realization MEANS for wat-on-Rust identity
 
