@@ -1292,6 +1292,78 @@ Cross-references:
 
 **Note on Section H (line 357 + 429):** the existing claim *"`String::*` stays"* is about NAMESPACE (they don't move out of `:wat::core::*`), not verb-shape. The verb-shape rename above is consistent with that — symbols stay in `:wat::core::*`, just with `String/verb` shape instead of `string::verb`. Section H needs an update to remove the now-stale `String::concat` example writing in `::` form.
 
+## P. Substrate-symmetry — uniform `list_span` threading across dispatch table
+
+**Surfaced 2026-05-23 night** (during arc 233 Stone 233.2.c, when sonnet plumbed `list_span` through `eval_edn_read` and user audited the dispatch table).
+
+### The gap
+
+`dispatch_keyword_head` (src/runtime.rs) routes ~439 wat verb keywords to their eval fns. **245 of those 439 arms (56%) don't pass `list_span` to the called eval fn.** The other 194 do. The asymmetry is historical accretion, not principled design.
+
+### Why this matters
+
+`list_span` is the span of the whole call form (the list `(:verb args...)`). Eval fns use it for:
+
+- Error construction (TypeMismatch / NotCallable / MalformedForm all need spans)
+- Provenance tagging (arc 233 — `Provenance::RuntimeBuilt { producer, call_span }` needs the call's span)
+- Stack-trace context (nested errors propagate up)
+
+Threading is added case-by-case as each fn needs it. Result: when arc 233 wanted to tag `:wat::edn::read`, sonnet had to plumb `list_span` mid-stone — a one-off signature change that should have been universal.
+
+### The "intentional gap" framing was hand-waving
+
+User audit drove the four-questions on each "doesn't need list_span" category:
+
+| Category | "Would it act on list_span if given it?" |
+|---|---|
+| `:wat::core::fn` (constructs fn-value) | YES — attach as defined-at provenance; reflection benefits |
+| `:wat::core::quasiquote` (constructs AST template) | YES — template-was-written-here context |
+| `:wat::core::do` / `let` (nested evaluators) | YES — block-level stack-trace context |
+| `DeclarationInExpressionPosition` (hard-error path) | YES — error coordinates point at misplaced form |
+| Pure ops using args[0].span() | YES — list_span (whole form) is uniformly more informative |
+| Reflection ops (signature-of-*, lookup-define) | YES — failures gain call-site coords |
+| Decomposers (Bundle/children, first/second/third) | YES — failures gain call-site coords |
+| Result/Option/expect family | YES — typed-expect failures gain richer span |
+
+**The "genuinely don't need" category collapses to zero.** Every arm benefits.
+
+### Scope (arc 234 candidate)
+
+- ~245 dispatch arms updated to pass `list_span` to their called eval fn
+- ~245 eval fn signatures gain `list_span: &Span` parameter (most won't use it initially — pure addition)
+- Sweep is purely mechanical (no semantic change for fns that don't yet use the new param)
+- Calibration: large mechanical sweep; sonnet ~60-120 min on similar precedent shape
+
+### The doctrine
+
+Every eval fn dispatched from `dispatch_keyword_head` threads `list_span` as a STRUCTURAL INVARIANT. Same family as `feedback_fqdn_is_the_namespace` (every name is namespaced) and `feedback_zero_mutex` (every shared-state path uses the three tiers). Asymmetry is not honest exception; it is accreted absence.
+
+The standard fn signature becomes:
+
+```rust
+fn eval_X(
+    args: &[WatAST],
+    list_span: &Span,    // ← structural invariant; always threaded
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError>
+```
+
+### Build-on (not block) arc 233 progress
+
+233.2.x producer-tagging work composes cleanly with arc 234. Sonnet's 233.2.c edn::read signature plumb already uses the canonical (args, list_span, env, sym) ordering — arc 234 extends the same convention to remaining arms. NO REWORK.
+
+### Status
+
+**Filed 2026-05-23 night as arc 234 candidate.** Predecessors: none structural. Ships parallel-with or after any 233.2.x sub-stone. Recommended order: 233.2.d (AST-derived) → arc 234 (uniform threading) → 233.3 (Errors-as-EDN) → 233.4 (INSCRIPTION). defprotocol (arc 232 resume) benefits from both fully-tagged producers AND uniform threading.
+
+### Cross-references
+
+- arc 224 — substrate-naming-honesty (same family at a different layer)
+- arc 233 sub-DESIGN — Shape C (Value::Tracked) + 5-producer pattern
+- `feedback_refuse_easy_solutions` — the "intentional gap" framing was the L2 reach this discipline catches
+- `feedback_no_known_defect_left_unfixed` — file + ship, don't defer indefinitely
+
 ## Cross-references
 
 - Arc 005 — stdlib naming audit (the inventory this arc updates).

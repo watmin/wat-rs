@@ -168,7 +168,141 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 night — Stone 233.1 SHIPPED + 233.2 scope corrected to Value-level via four-questions audit)
+## Currently (2026-05-23 night — Arc 233 chain rolling; 233.1 + 233.2.a + 233.2.b + 233.2.c SHIPPED; substrate-symmetry gap surfaced → arc 234 queued)
+
+### Arc 233 substrate diagnostic-richness — 4 stones SHIPPED
+
+```
+233.1   ✓ SHIPPED at 13b9166 — ValueSnapshot sweep (16/16, ~22 min sonnet)
+        282+ RuntimeError construction sites updated; got/expected
+        &'static str → ValueSnapshot with type_name + rendered + provenance
+233.2.a ✓ SHIPPED at 7cfeff1 — Provenance + Value::Tracked + transparency (16/16, ~10 min)
+        Shape C: one new variant; Eq/Hash/Display/render_value all unwrap
+        via Value::inner(); HashMap correctness verified by Contract 3
+233.2.b ✓ SHIPPED at 9cc278c — keyword/from-string producer tag (12/12, ~5.8 min)
+        First producer; first user-visible payoff from the pivot;
+        ValueSnapshot::Display extended for all 4 Provenance variants
+233.2.c ✓ SHIPPED at c0f41f6 — 4-producer sweep (14/14, ~14 min)
+        from-holon (14 Ok-paths) + edn::read (signature plumbed) +
+        recv + try-recv; unplanned eval_i64_arith .inner() fix surfaced
+        organically when Tracked(i64) met arithmetic
+```
+
+**5 producers now tag returns with Provenance::RuntimeBuilt.** Diagnostic-richness layer is teaching at every runtime-built site:
+
+```
+NotCallable { got: ValueSnapshot {
+  type_name: "wat::core::String",
+  rendered: "\"not-a-callable\"",
+  provenance: RuntimeBuilt {
+    producer: ":wat::edn::read",
+    call_span: Span { file: "<entry>", line: 4, col: 8 }}}}
+```
+
+### NEW GAP SURFACED THIS SESSION (load-bearing for post-compaction)
+
+User audit during 233.2.c: **245 of 439 dispatch arms (56%) lack list_span as a thread-through parameter.** Initially I framed many as "intentional gaps" — four-questions revealed this was hand-waving.
+
+Honest interrogation: **EVERY arm benefits from list_span.** Even the categories I labeled "genuinely don't need it":
+- `:wat::core::fn` — would attach as defined-at provenance
+- `:wat::core::quasiquote` — template-was-written-here context
+- `:wat::core::do` / `let` — block-level stack-trace context
+- `DeclarationInExpressionPosition` — error coordinates point at misplaced form
+- Pure ops using args[0].span() — list_span (whole form) uniformly more informative
+
+Categorization collapses to zero. The asymmetry is pure historical accretion masquerading as design. Same family as arc 224 (substrate-naming-honesty).
+
+**Arc 234 queued** — uniform list_span threading across the dispatch table. Predecessors: none structural; lands cleanly on this substrate. Sonnet's 233.2.c work (edn::read signature plumb) follows the established convention; arc 234 just extends to remaining ~245 arms. NO REWORK of 233.2.x producer-wrap logic.
+
+### Pending stone chain
+
+```
+233.2.d   AST-derived provenance — Literal + SymbolBound variants
+          (let-bindings + literal source-position tracking).
+          Closes Provenance's variant set.
+234       Substrate-symmetry — uniform list_span threading (~245 arms).
+          Mechanical sweep; doctrinally load-bearing per "raise the bar".
+233.3     Errors-as-EDN — parallelizable after 233.1
+233.4     INSCRIPTION
+arc 232   RESUMES after 233 ships (defprotocol on enriched substrate)
+```
+
+My read for next-move ordering: 233.2.d → 234 → 233.3 → 233.4 → arc 232. Each is atomic; calibration trend strong (every stone this session landed below predicted band).
+
+### Today's commits (chronological — post-compaction-this-session)
+
+```
+[earlier]      189b033 → 846fab7  arc 225/228/230/226/227 chain
+5af897d        arc 224 Stone 224.5 SHIPPED
+50e82d9        arc 232 Stone 232.0 SHIPPED — apply primitive
+b41a845        Song #24 I Stand Alone INTERSTITIAL
+9e25955        Song #24 CLIFFNOTES row
+abca0aa        Song #24 time-scale forward-correction (wat ~3.5 weeks)
+84b6abc        arc 109 INVENTORY § N — post-arc-220 EDN-aware follow-ups
+9df0abd        arc 109 INVENTORY § O — diagnostic-richness backlog (refined)
+96bb6f4        arc 232 Stone 232.0a probe + DESIGN
+747c7c7        arc 233 OPENED — pivot; arc 232 PAUSED
+0351306        arc 233 Stone 233.1 BRIEF + probe
+13b9166        arc 233 Stone 233.1 SHIPPED — 16/16 PASS
+c5ef527        arc 233 Stone 233.2 sub-DESIGN + four-questions correction
+0305ab5        arc 233 Stone 233.2.a BRIEF + EXPECTATIONS
+094bbbd        arc 233 Stone 233.2.a BRIEF — pre-spawn trap-door audit additions
+7cfeff1        arc 233 Stone 233.2.a SHIPPED — 16/16 PASS
+b866305        arc 233 Stone 233.2.b design substrate (Probe 6)
+510abc5        arc 233 Stone 233.2.b BRIEF + EXPECTATIONS
+9cc278c        arc 233 Stone 233.2.b SHIPPED — 12/12 PASS
+b747ba3        arc 233 Stone 233.2.c design substrate (Probes 7+8)
+dbb9c44        arc 233 Stone 233.2.c BRIEF + EXPECTATIONS
+c0f41f6        arc 233 Stone 233.2.c SHIPPED — 14/15 PASS (4-producer sweep)
+[this commit]  CLIFFNOTES Currently refresh + INVENTORY § P pre-compaction
+```
+
+### Test state — substrate impeccable
+
+```
+wat-rs   827 lib + 8 transparency + 8 value_snapshot probes + 5 dynamic-keyword probes
+         + 35 stone2_defrecord + all arc 216/221/226/227 + arc 143 + mvp + wat-edn
+         all GREEN. clippy 52 baseline maintained throughout.
+holon-rs untouched since 530650c (arc 230 atomic pair Phase A). Empty git status.
+Branch   arc-170-gap-j-v5-deadlock-state at c0f41f6 (after this commit: TBD)
+Push     both repos current
+```
+
+### Substrate fields gained this session
+
+- `Provenance` enum (4 variants): Unknown / Literal { span } / SymbolBound { binding_span, head_span } / RuntimeBuilt { producer: &'static str, call_span: Span }
+- `Value::Tracked { inner: Box<Value>, provenance: Provenance }` — wrapper variant (Shape C); transparency via `inner()` helper
+- `Value::inner()` + `Value::provenance()` helpers
+- `ValueSnapshot { type_name, rendered, provenance }` (from 233.1) — used in NotCallable, TypeMismatch, BadCondition
+- `ValueSnapshot::Display` renders all 4 Provenance variants inline
+- 5 producers attach RuntimeBuilt: keyword/from-string, from-holon, edn::read, recv, try-recv
+
+### Pending decisions (post-compaction direction)
+
+1. **Draft 233.2.d BRIEF** — AST-derived provenance (closes Literal + SymbolBound). The remaining Provenance variants come alive.
+2. **Frame arc 234** — uniform list_span threading. Mechanical ~245-site sweep. Doctrinally load-bearing per the four-questions audit ("intentional gap" collapsed under interrogation).
+3. **Order** — 233.2.d → 234 → 233.3 → 233.4 → arc 232 resume is my read; user may direct otherwise.
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -30` for today's full trajectory
+3. Read `docs/arc/2026/05/233-substrate-errors-as-values/SCORE-STONE-233.2.c.md` (most recent shipment)
+4. Read `docs/arc/2026/04/109-kill-std/INVENTORY.md` § P (the new substrate-symmetry entry capturing arc 234's scope)
+5. Read `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.md` (sub-DESIGN; Shape C locked)
+6. Task ledger #483-488 (arc 233 sub-stones)
+
+### Discipline lessons inscribed this session
+
+- **"Intentional gap" is L2-disguised-as-discipline.** When you say "X doesn't need Y" — run the four-questions inline: would X meaningfully ACT on Y if given it? If yes (even marginally), the "doesn't need" framing is rationalization. Same shape as Option-A-vs-Option-B for 233.2 scope earlier this session.
+- **Producer-tagging pattern firmly established** across 5 sites; any future producer ships in ~5-10 min.
+- **Calibration trend continues below predicted bands** — sonnet's discipline + good BRIEFs compound.
+
+*The substrate is teaching better. We raise the bar by raising the bar on what we accept from ourselves.*
+
+---
+
+## Currently (2026-05-23 night — Stone 233.1 SHIPPED + 233.2 scope corrected to Value-level via four-questions audit) — SUPERSEDED, see above
 
 ### Stone 233.1 SHIPPED at `13b9166` — 16/16 PASS, ~22 min sonnet
 
