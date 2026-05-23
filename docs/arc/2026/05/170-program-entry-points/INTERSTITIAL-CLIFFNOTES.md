@@ -167,7 +167,153 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-22 night — TYPED-ENTITIES CHAIN COMPLETE + defrecord/defservice doctrine inscribed + arc 232 stub claimed)
+## Currently (2026-05-23 — TYPED-ENTITIES CHAIN COMPLETE + Stone 227.2 v3 CANONICAL DEFRECORD SHIPPED + FM 2-bis discipline inscribed)
+
+### Stone 227.2 v3 SHIPPED at `846fab7` — canonical defrecord for ALL N
+
+After v2 (`b4509cb`) shipped INCOMPLETE with STOP-5b framing (N≥2 panicked at expand-time), user pushback drove the FM 2-bis discipline + empirical probes + v3 BRIEF + clean shipment.
+
+**Canonical instance shape now structural per typed-entities doctrine (NON-NEGOTIABLE):**
+
+```
+N=0: Bind(Atom("ns::Tag"), Bundle())
+N=1: Bind(Atom("ns::W"),   Bundle(Bind(Atom("v"),  Atom(value))))
+N=2: Bind(Atom("ns::P"),   Bundle(Bind(Atom("a"), Atom(av)), Bind(Atom("b"), Atom(bv))))
+N=3+: Bind(Atom("ns::T"),  Bundle(... N field-Binds ...))
+```
+
+**Test verification:** 35/35 PASS including `probe_two_field_construct_with_typed_args` + `probe_three_field_construct_with_typed_args` + `probe_cross_namespace_distinct_classifiers_n2` + 7 more N≥2 verification fns. Independent verification per FM 2-bis confirmed before commit.
+
+### FM 2-bis discipline INSCRIBED at `47472de` (COMPACTION-AMNESIA-RECOVERY.md)
+
+**Worked example from this session.** v2's failure exposed: orchestrator-side discipline gap where BRIEF asserts non-trivial compositions without empirical verification → sonnet hits discovery failures → "STOP-5b deferred" framing covers partial-ship → orchestrator rubber-stamps SCORE.
+
+**The discipline now structural:**
+1. For non-trivial substrate compositions named in a BRIEF, write a `tests/probe_diagnostic_<topic>.rs` that proves the composition empirically BEFORE the BRIEF
+2. Commit the probe; cite verbatim in BRIEF as "the working pattern sonnet must mirror"
+3. STOP triggers are REJECTION criteria — never permission-to-defer slots
+4. EXPECTATIONS rows bind 1:1 to specific test fns
+5. Independent verification per FM 2-bis before commit
+
+**Anti-pattern signal phrases banned in future BRIEFs:**
+- "STOP-X (substrate lacks ergonomic Y): surface as finding"
+- "if Z cannot be expressed cleanly..."
+- "if this approach doesn't work, fall back to..."
+
+### Diagnostic probes — permanent design substrate
+
+```
+tests/probe_diagnostic_macro_splice_from_let.rs    (c18fa6b)
+  Probe 2: ~@(let [forms (map xs (fn [x] `<watast>))] forms) WORKS
+
+tests/probe_diagnostic_bundle_result_compose.rs    (72367f1)
+  Probe 1: Bind(classifier, Result/expect(Bundle([items]))) WORKS
+```
+
+These probes DISCONFIRMED Tasks #477 + #478 (both filed as "substrate flaws"; both proved sonnet discovery failures via probe). Permanent in tests/ as design substrate for any future macro composing splice + iteration + WatAST construction + Result discipline.
+
+### THE CHAIN — final state today (8 substrate stones + 1 retirement)
+
+```
+arc 225 ✓ Stone 225.1 v3 SHIPPED at 189b033 (~68 min)
+   bridge naming family
+
+arc 228 ✓ Stone 228.1 SHIPPED at 29cc984 (~36 min)
+   collection classifier-wrap
+
+arc 230 ✓ Stone 230.1 SHIPPED — ATOMIC PAIR (~30 min)
+   holon-rs Phase A at 530650c + wat-rs Phase B at 9f70959
+   substrate algebra 16 → 12 true primitives
+
+arc216 stone4 cleanup at 59edf67
+
+arc 226 ✓ Stone 226.1 SHIPPED at e7ba909 (~11 min)
+   type predicates
+
+arc 227 ✓ Stone 227.1 v3 SHIPPED at 0956d25 (~18 min)
+   defclass macro (historical name)
+
+arc 227 ✓ Stone 227.1b SHIPPED at aa2b9f1 (~5 min)
+   defclass → defrecord rename (HARD CUT)
+
+arc 227 ✗ Stone 227.2 v2 INCOMPLETE at b4509cb (~52 min)
+   N=0/N=1 worked; N≥2 panicked with STOP-5b framing; SUPERSEDED
+
+arc 227 ✗ Stone 227.3 RETIRED at f89996a
+   Java-OO :extends drift caught by user's :extends/:implements probe;
+   arc 232 absorbs use cases via extend-type + satisfies?
+
+arc 227 ✓ Stone 227.2 v3 SHIPPED at 846fab7 (~23 min)
+   CANONICAL DEFRECORD for ALL N; first-attempt N≥2 success
+```
+
+### Substrate-flaw filings — all resolved
+
+```
+#467 — holon_ast_extract Keyword arm gap — still pending (may be subsumed by arc 230)
+#469 — from-holon -> :T type hint propagation — still pending (orthogonal)
+#477 — ~@ splice doesn't penetrate computed unquote — DISCONFIRMED at c18fa6b
+#478 — Bundle returns Result blocks Bind compose — DISCONFIRMED at 72367f1
+```
+
+### Convergences inscribed today
+
+**#15 (NEW; Song #23 Raven's Flight)** — the four-corner Clojure surface (defrecord + defprotocol + extend-type + satisfies?) crystallized as DEEPENING of #7's general "Clojure protocols" recognition. We arrived where Hickey stood, by entirely different constraint paths. Per `user_no_literature`.
+
+### Today's commits (chronological)
+
+```
+189b033  arc 225 Stone 225.1 v3 — bridge naming
+29cc984  arc 228 Stone 228.1 — collection classifier-wrap
+9f70959 + 530650c  arc 230 atomic-commit pair — variant retirement
+59edf67  arc216 stone4 cleanup
+e7ba909  arc 226 Stone 226.1 — type predicates
+0956d25  arc 227 Stone 227.1 v3 — defclass
+aa2b9f1  arc 227 Stone 227.1b — rename to defrecord
+b4509cb  arc 227 Stone 227.2 v2 (SUPERSEDED — incomplete)
+cf1f861 + c3cf395 + 064aae7  arc 232 stub claimed
+1c1ce06  Stone 227.2 notes — Clojure idiom square brackets
+260c59b → f89996a  arc 227 Stone 227.3 retired (Java-OO drift caught)
+c8dffa1 → 5a80f38  Song #23 Raven's Flight INTERSTITIAL + voice rewrite
+72a7ad5  defrecord/defservice doctrine inscribed
+c18fa6b + 72367f1  diagnostic probes (FM 2-bis evidence)
+47472de  COMPACTION-AMNESIA-RECOVERY FM 2-bis inscribed
+d39130c  Stone 227.2 v3 BRIEF + EXPECTATIONS
+846fab7  Stone 227.2 v3 SHIPPED — canonical defrecord
+```
+
+### Test state — substrate is impeccable
+
+- holon-rs: 271+19 tests PASS, clippy clean, untouched since 530650c
+- wat-rs: 822/822 lib tests + 35/35 stone2_defrecord + 2/2 diagnostic probes + all arc 216/221/226/227 + arc 143 + mvp + wat-edn — all green
+- HEAD at `846fab7` on `arc-170-gap-j-v5-deadlock-state` branch
+- Both repos PUSHED to origin
+
+### Memory inscriptions today (user profile; not git-tracked)
+
+- `project_typed_entities_doctrine` — the substrate doctrine
+- `project_defrecord_defservice_doctrine` — the mutex vs immutable distinction (NEW)
+- Indices in MEMORY.md updated
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -30` for today's commit trajectory
+3. Read SCORE-STONE-227.2-v3.md (the closure shipment)
+4. Read `tests/probe_diagnostic_macro_splice_from_let.rs` + `tests/probe_diagnostic_bundle_result_compose.rs` (design substrate for any future composition stone)
+5. Read `docs/COMPACTION-AMNESIA-RECOVERY.md` § FM 2-bis (the load-bearing discipline that fixed itself this session)
+6. Task ledger #466-#479 (TaskList + this file)
+7. arc 232 DESIGN.md stub (`docs/arc/2026/05/232-defprotocol-extend-type/DESIGN.md`) — next territory when triggered
+
+### Standing by post-compaction
+
+The substrate is canonical. The discipline is inscribed. The probes are permanent. The convergence with Clojure is named. The ravens have flown the night.
+
+*See you on the other side.*
+
+---
+
+## Currently (2026-05-22 night — TYPED-ENTITIES CHAIN COMPLETE + defrecord/defservice doctrine inscribed + arc 232 stub claimed) — SUPERSEDED, see above
 
 ### THE CHAIN IS COMPLETE — 6 substrate stones shipped this session
 
