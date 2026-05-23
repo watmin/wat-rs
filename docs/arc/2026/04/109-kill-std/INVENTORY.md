@@ -1305,3 +1305,91 @@ Cross-references:
 - Arc 112 — minted the unified `:wat::kernel::Process<I,O>`
   + `:wat::kernel::ProcessDiedError`; arc 109 section J above
   evolves the naming to Program + Thread/Process refinement.
+
+## N. Post-arc-220 EDN-aware follow-ups (surfaced 2026-05-23)
+
+Two items surfaced during arc 232.0 review; both are arc-109-territory
+substrate naming concerns that became visible only after the typed-
+entities + EDN-strict-conformance chain landed.
+
+### N.1 — `:wat::core::map` arg order is backwards
+
+**Current:** `(:wat::core::map <vector> <fn>)` — items before function.
+
+**Problem:** items-before-function doesn't read naturally for a higher-
+order operation. Every other Lisp puts the function FIRST: Clojure
+`(map f coll)`, CL `(mapcar f list)`, Scheme `(map f list)`, Racket
+`(map f lst)`. The substrate's current order surfaced during arc 232.0
+research probe — when sonnet wrote `(map xs fn)` it required a separate
+note to remember the order, because the natural reach is fn-first.
+
+**Target:** `(:wat::core::map <fn> <vector>)` — function before
+items, matching universal Lisp convention + convergence.
+
+**Scope:** substrate signature rename + consumer sweep. Likely all
+`:wat::core::map` callers in `wat/` + `wat-tests/` + `tests/` (mid-double-
+digit sites). Type signature flip in `src/check.rs`. Runtime dispatch
+in `src/runtime.rs`.
+
+**Coordinate with:** any other `*::map` / `*::filter` / `*::reduce` /
+`*::for-each` variadic-HOF that has the same arg-order shape — audit
+should sweep the family, not just `map`.
+
+### N.2 — Consider EDN tagged annotations: `#wat.type/->`, `#wat.type/<-`
+
+**Current:** `(:wat::core::defn :foo [a <- :i64 b <- :String] -> :bool ...)`
+uses bare `->` and `<-` symbols as inline annotation tokens. Same in
+`(:wat::core::apply -> :T head args-vec)` and `(:wat::core::Result/expect
+-> :T value msg)`.
+
+**Question (surfaced 2026-05-23):** now that wat-edn has proper EDN
+tag support (arcs 218 + 219), should the annotation tokens migrate to
+EDN-canonical tagged literals — e.g., `#wat.type/->` and `#wat.type/<-`
+(or shorter `#->` and `#<-`) — to get the type system's full strength
+behind annotation parsing?
+
+**Possible shapes:**
+```
+;; Today (bare symbols):
+(:wat::core::defn :foo [a <- :i64] -> :bool ...)
+
+;; Option A — namespaced tag (mirrors #wat.core/Some etc.):
+(:wat::core::defn :foo [a #wat.type/<- :i64] #wat.type/-> :bool ...)
+
+;; Option B — short tag (less verbose; risk of tag-name collision):
+(:wat::core::defn :foo [a #<- :i64] #-> :bool ...)
+
+;; Option C — semantic names:
+(:wat::core::defn :foo [a #consumes :i64] #produces :bool ...)
+```
+
+**Why consider:**
+- EDN tags are first-class in the reader; bare `->` / `<-` symbols
+  require special-case parsing
+- Strong typing at the annotation layer (the tag's namespace IS the
+  contract)
+- Convergence with [[encoding-doctrine]]: tagged scalars get FQDN
+  tags (`#wat.core/Some`, `#wat.time/Duration`, etc.); annotation
+  tokens currently break this pattern
+- Cross-language interop: Clojure already handles tagged literals
+  natively; bare `->` in wat code is wat-specific
+
+**Why NOT consider (counterargument to surface in evaluation):**
+- The `->` symbol is universal Lisp/typescript/Haskell convention;
+  changing it adds friction for human readers
+- Tagged literals add tokens (`#`) that the eye skips less easily
+  than bare arrows
+- The current shape works; changing carries large consumer sweep cost
+- `feedback_verbose_is_honest` cuts both ways — `->` is honest about
+  "this is a fn-return token"
+
+**Status:** open question. Worth a four-questions evaluation when arc
+109 reopens for this kind of substrate-naming reshape. Not pending an
+immediate slice; recorded so the question doesn't get lost.
+
+**Cross-references:**
+- arc 218 — wat-edn IMPECCABLE (EDN tag support hardened)
+- arc 219 — wat-edn strict EDN spec conformance
+- [[encoding-doctrine]] — tagged scalars + FQDN tags pattern
+- [[wat-llm-first-design]] — LLM-first means familiar Clojure shapes
+  win unless wat has a real reason to diverge
