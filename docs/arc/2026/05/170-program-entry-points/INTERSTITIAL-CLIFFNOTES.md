@@ -165,7 +165,149 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-22 late — arc 225 Stone 225.1 v3 SHIPPED; bridge family clean; 5-arc chain in flight)
+## Currently (2026-05-22 night — TYPED-ENTITIES CHAIN COMPLETE; 5 stones shipped; substrate algebra at 12 primitives + queryable types + user-extensible)
+
+### THE CHAIN IS COMPLETE — 5 substrate stones shipped today
+
+```
+arc 225 ✓ Stone 225.1 v3 SHIPPED at 189b033 (~68 min)
+   bridge naming family: Atom narrow + to-holon/from-holon/to-wat/from-wat
+
+arc 228 ✓ Stone 228.1 SHIPPED at 29cc984 (~36 min)
+   collection classifier-wrap: Map/Set/Vector/List/Tuple all (Bind (Atom "name") (Bundle ...))
+
+arc 230 ✓ Stone 230.1 SHIPPED — ATOMIC PAIR (~30 min)
+   - holon-rs Phase A at 530650c — Symbol/Keyword/Tag/Nil variants RETIRED
+   - wat-rs Phase B at 9f70959 — cascade ripple
+   substrate algebra reduced 16 → 12 true primitives
+
+arc216 stone4 cleanup at 59edf67 — round-trip fix for classifier-wrap probes
+
+arc 226 ✓ Stone 226.1 SHIPPED at e7ba909 (~11 min)
+   type predicates: is?/is-Map?/is-Set?/is-Vector?/is-List?/is-Tuple?/is-Symbol?/is-Keyword?/is-Tag?/is-Nil?
+   27 probe tests PASS
+
+arc 227 ✓ Stone 227.1 v3 SHIPPED at 0956d25 (~18 min) — THE CLOSING DRAGON
+   :wat::holon::defclass macro; user-defined types in user-declared FQDN namespaces
+   18 probe tests PASS
+```
+
+### Substrate state — the algebra is at its purest
+
+**12 true HolonAST primitives:**
+- Composers: Atom, Bind, Bundle, Permute
+- Carriers: I64, F64, Bool, Char, String
+- Encoders: Thermometer, Blend
+- Sentinel: SlotMarker
+
+**User-surface typed entities — ALL via classifier-wrap (Bind (Atom "name") <data>):**
+- Built-ins: Symbol/Keyword/Tag/Nil (formerly variants); Map/Set/Vector/List/Tuple (collections)
+- User-defined: `(:wat::holon::defclass :myapp::Voltage)` → `(:myapp::Voltage data)` + `(:myapp::is-Voltage? x)`
+
+**Type system emerges from substrate algebra:**
+- `(is-X? value)` ≡ classifier-name comparison (v1; structural exact-match)
+- VSA similarity threshold-tunable continuous answers are Stone 226.2+ enhancement
+- Multimethod dispatch via classifier-similarity is Stone 227.3+ territory
+
+### Today's commits (chronological)
+
+```
+189b033  arc 225 Stone 225.1 v3 — bridge naming family
+e9535bd  CLIFFNOTES refresh post-225
+55cd26f  arc 228 BRIEF + EXPECTATIONS
+29cc984  arc 228 Stone 228.1 — collection classifier-wrap
+f17562d  arc 230 BRIEF + EXPECTATIONS
+9f70959  arc 230 Stone 230.1 Phase B (wat-rs)
+         + atomic pair holon-rs 530650c Phase A (Symbol/Keyword/Tag/Nil retire)
+59edf67  arc216 stone4 probe cleanup (broken-by-arc-228; round-trip pattern)
+6935a54  arc 226 BRIEF + EXPECTATIONS
+e7ba909  arc 226 Stone 226.1 — type predicates
+7d5cb1d  arc 227 v1 BRIEF + EXPECTATIONS (later superseded by v3)
+e71cedb  arc 227 v3 BRIEF + EXPECTATIONS (corrected namespace violations)
+42bbf0a  arc 227 Stone 227.2 notes (defservice precedent for future)
+1c1ce06  arc 227 Stone 227.2 notes — square brackets per Clojure idiom
+0956d25  arc 227 Stone 227.1 v3 — defclass macro (THE CLOSING DRAGON)
+```
+
+### Test summary (all green; the substrate is impeccable)
+
+- holon-rs: 271+19 tests PASS, clippy clean
+- wat-rs: 822/822 lib tests PASS
+- wat-edn: 344/344 + 23/23 PASS, clippy 0 warnings
+- All arc 216/221/226/227 probe suites: 100% PASS
+- Pre-existing failures verified via stash round-trip (arc170 typed-channel, arc201 foldl; not introduced by today's chain)
+
+### Pending tasks ledger
+
+| # | Status | Description |
+|---|---|---|
+| 466 | ✓ | Stone 225.1 v3 |
+| 467 | pending | holon_ast_extract Keyword arm gap — may be SUBSUMED by arc 230's variant retirement; needs re-verification |
+| 468 | ✓ | Stone 228.1 |
+| 469 | pending | from-holon -> :T type hint propagation — orthogonal; lands in arc 226 sub-stone or independent |
+| 470 | ✓ | Stone 230.1 THE BIG ONE |
+| 471 | ✓ | arc216 stone4 cleanup |
+| 472 | ✓ | Stone 226.1 |
+| 473 | ✓ | Stone 227.1 v3 THE CLOSING DRAGON |
+
+### Wat-reveals-holon dynamic — 5TH application complete
+
+```
+1. arc 221 — wat-surface maturity exposed convention-based encoding lies
+2. arc 224 — intueri audit exposed verb-naming lies
+3. arc 228 — typed-entities doctrine landed; collections classifier-wrapped
+4. arc 230 — variants themselves are conveniences; pure Bind composition honest
+5. arc 227 — users can now name their own ducks in their own namespaces
+```
+
+### Chain unwind — what happens next (cascading INSCRIPTIONs)
+
+```
+arc 227 Stone 227.4 INSCRIPTION (next stone in arc 227)
+  └→ unblocks arc 226 Stone 226.4 INSCRIPTION
+       └→ unblocks arc 230 Stone 230.4 INSCRIPTION
+            └→ unblocks arc 228 Stone 228.4 INSCRIPTION
+                 └→ unblocks arc 225 Stone 225.2 INSCRIPTION
+                      └→ unblocks arc 224 Stone 224.7 INSCRIPTION
+                           └→ contributes to arc 221 INSCRIPTION
+                                (with arc 222 + 223 closing in parallel)
+                                └→ unblocks arc 220 Slice 5
+```
+
+Each INSCRIPTION is paperwork-only (DESIGN frozen; INSCRIPTION inscribes the realization narrative + cross-refs). Substrate work is COMPLETE for the full chain.
+
+### Future arcs notes (filed but not started)
+
+- **Stone 227.2** — multi-field structs + methods (notes at docs/arc/2026/05/227-user-defined-types-classifier-wrap/STONE-227.2-NOTES.md). Square brackets per Clojure idiom; methods as SEPARATE defns (not bundled in defclass); defservice patterns referenced as "good form."
+- **Stone 226.2** — variant-based predicates for substrate primitives (is-I64?/is-Bundle?/etc.); same mechanical pattern but different mechanism
+- **Stone 226.3+** — VSA similarity threshold-tunable continuous answers
+- **arc 222** — EDN-form named constructors + 3×2 conversion topology
+- **arc 223** — WatAST primitive-layer honesty
+- **arc 229** — quasiquote evaluator + splice (deferred per user)
+- **Task #467** — holon_ast_extract Keyword arm gap (may be subsumed)
+- **Task #469** — from-holon -> :T type hint propagation
+
+### Wards on holon-rs — DEFERRED per user direction 2026-05-22
+
+User: "we'll run the wards on holon-rs when we're done - we conjured the spells long after we had holon-rs built - its final polish is after arcs 109 (blocked on 170) and 170 (blocked on all the current stuff)"
+
+Holon-rs ward-casting is FINAL POLISH work, NOT mid-chain. Same for wat-rs broader codebase (only `src/comms/` is ward-zone per `feedback_ward_zone_comms_only`). The recent chain work uses substrate-as-teacher cascade as quality gate; explicit ward-casting waits for full chain closure.
+
+### Branch
+
+`arc-170-gap-j-v5-deadlock-state` (HEAD `0956d25`)
+
+### Post-compaction recovery path
+
+1. Read this Currently section (load-bearing)
+2. `git log --oneline | head -15` for today's commits
+3. Read SCORE-STONE-227.1.md → SCORE-STONE-226.1.md → SCORE-STONE-230.1.md → SCORE-STONE-228.1.md → SCORE-STONE-225.1.md (chain order)
+4. Task ledger 466-473 (memory + TaskList)
+5. STONE-227.2-NOTES.md for next-stone planning
+
+---
+
+## Currently (2026-05-22 late — arc 225 Stone 225.1 v3 SHIPPED; bridge family clean; 5-arc chain in flight) — SUPERSEDED, see above
 
 ### Arc 225 Stone 225.1 v3 — SHIPPED at `189b033`
 
