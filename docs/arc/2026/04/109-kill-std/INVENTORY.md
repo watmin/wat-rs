@@ -1468,6 +1468,107 @@ immediate slice; recorded so the question doesn't get lost.
 - [[wat-llm-first-design]] — LLM-first means familiar Clojure shapes
   win unless wat has a real reason to diverge
 
+### N.3 — Type-annotation syntax: consider Clojure `^Type` over current `:Type`
+
+**Surfaced 2026-05-23 evening** (user prompt + Grok research notes).
+
+**Current:** wat uses `:Type` keywords as the annotation token, with bare `->` / `<-` direction markers:
+
+```
+(:wat::core::defn :add [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::i64::+ a b))
+
+(:wat::core::apply -> :wat::core::i64 plus [2 3])
+
+(:wat::core::Result/expect -> :wat::core::String value msg)
+```
+
+The annotation token IS the type's namespaced keyword. Direction is carried by separator tokens (`<-` for arg-binding, `->` for return-type).
+
+**Candidate (Clojure-style hints):** use `^Type` (the metadata reader macro) as the annotation token; drop direction-marker tokens:
+
+```clojure
+;; Clojure precedent (verbatim from Grok research notes):
+(defn add ^long [^long a ^long b]
+  (+ a b))
+
+(defn round ^double [^double d ^long precision]
+  (let [factor (Math/pow 10 precision)]
+    (/ (Math/floor (* d factor)) factor)))
+```
+
+Adapted to wat shape (with FQDN type names per [[fqdn-is-the-namespace]]):
+
+```
+(:wat::core::defn :add ^:wat::core::i64 [^:wat::core::i64 a ^:wat::core::i64 b]
+  (:wat::core::i64::+ a b))
+
+(:wat::core::apply ^:wat::core::i64 plus [2 3])
+
+(:wat::core::Result/expect ^:wat::core::String value msg)
+```
+
+OR shorter (if wat's namespacing remains visible elsewhere; this is a separate question):
+
+```
+(:wat::core::defn :add ^i64 [^i64 a ^i64 b] ...)
+```
+
+**Position convention (Clojure precedent):**
+- Return type: BEFORE the arg vector (`(defn name ^Ret [^Arg a] body)`)
+- Arg types: BEFORE each parameter name in the vector (`[^Type1 a ^Type2 b]`)
+- Multi-arity supports per-arity return hints (each `(^Ret [args] body)` clause)
+- Locals: same syntax (`(let [^Type s expr] ...)`)
+
+**Why consider:**
+
+- **LLM-first alignment** — Clojure is in the training corpus at scale; `^Type` is the universally-known type-hint syntax for any Lisp+JVM LLM has seen. Per [[wat-llm-first-design]]: familiar Clojure shapes win unless wat has a real reason to diverge.
+- **Visual distinction** — `^Type` reads as METADATA (because it IS in Clojure); `:Type` reads as a value (because keywords ARE values in our grammar). Type hints aren't values — they're contract markers. Different semantic class deserves different syntactic marker.
+- **Drops direction tokens** — `<-` and `->` separators retire. Position carries direction: pre-vector = return, in-vector before param = arg. Fewer tokens; cleaner parse.
+- **Convergence with N.2 question** — if `->` / `<-` retire entirely (because `^Type` carries the role), N.2's "should `->` / `<-` migrate to EDN tags?" dissolves.
+- **Aligns with reader-macro precedent** — wat already supports `'` reader macro (arc 220 Slice 3). Adding `^` as a metadata-attachment reader macro extends an existing pattern rather than inventing a new mechanism.
+
+**Why NOT consider (counterargument to surface in evaluation):**
+
+- **Substrate churn** — `:Type` is currently woven through every typed defn / apply / Result/expect / typealias / fn body. Migration ripples wide. Substrate-as-teacher cascade (FM 15) is the working path, but the scope is substantial.
+- **Reader-macro complexity** — `^` reader macro semantically attaches metadata to the FOLLOWING form. wat's current HolonAST encoding doesn't model metadata-as-side-data; carrier would need design (similar to how Stone 233.2's TrackedValue carries Provenance). Could be implemented as `(:wat::ast::with-type-hint <Type> <form>)` via parser desugaring.
+- **Convention vs structural** — Clojure's `^Type` is OPTIONAL (performance hint; not type-checked at runtime). wat's `:Type` is MANDATORY (consumed by `check.rs` type-checker). Same syntax, different contract; could mislead Clojure-experienced readers expecting opt-in semantics.
+- **Locality preservation** — current `[a <- :i64]` reads "a binds to an i64-typed value." Clojure's `[^long a]` reads "a, with a hint that it's long." The current shape is arguably more LITERAL about the binding semantics; the `^` shape is more IDIOMATIC.
+
+**Positional semantics convergence question** (open sub-question):
+
+If wat adopts `^Type` placement convention, does the return-type-BEFORE-arg-vector position also adopt? Or does wat keep return type AFTER arg vector (current shape)?
+
+```
+;; Clojure-style position (return before args):
+(:wat::core::defn :add ^:wat::core::i64 [^:wat::core::i64 a ^:wat::core::i64 b] body)
+
+;; wat-current-style position (return after args):
+(:wat::core::defn :add [^:wat::core::i64 a ^:wat::core::i64 b] ^:wat::core::i64 body)
+```
+
+The Clojure-style position has reflection precedent (multi-arity allows different return types per arity; harder to express otherwise). wat may want the same expressive shape for future multi-arity work.
+
+**Decision shape (deferred to four-questions evaluation):**
+
+If this question opens for slice work, the four-questions interrogation should evaluate:
+1. **Obvious?** — does `^Type` read as type-hint vs Clojure-precedent ergonomics offset the deviation from current `:Type` keyword grammar?
+2. **Simple?** — is the reader-macro + HolonAST metadata-carrier design simpler than current keyword-token design, or just different?
+3. **Honest?** — does adopting Clojure syntax while changing the contract (optional → mandatory) introduce signal that contradicts the source idiom?
+4. **Good UX?** — for LLM co-authors trained on Clojure: lower-friction; for wat-experienced humans: higher-friction during transition.
+
+**Status:** open question. Worth a four-questions evaluation when arc 109 (or a successor arc) reopens this surface. Not pending an immediate slice; recorded so the question doesn't get lost. If shipped, supersedes the bare-`->`/`<-` annotation grammar (currently set in arc 108) AND likely supersedes N.2 (which considered tagged-literal versions of the same tokens).
+
+**Cross-references:**
+
+- N.2 above — EDN tagged annotations (`#wat.type/->`, `#wat.type/<-`) — same problem space; this question subsumes the answer if `^Type` retires the direction tokens entirely
+- arc 108 — typed expect; established the current `-> :T` inline annotation grammar
+- arc 220 Slice 3 — `'` reader macro precedent (form-start quote); shows reader-macro extensibility
+- [[wat-llm-first-design]] — Clojure-familiarity argument
+- [[fqdn-is-the-namespace]] — FQDN type names regardless of which annotation marker
+- [[encoding-doctrine]] — `^Type` is metadata, not value; encoding doctrine governs how metadata attaches to AST nodes
+- Grok research notes (user-shared 2026-05-23 evening) — verbatim Clojure type-hint precedent + multi-arity examples
+
 ## O. Diagnostic message richness — include value content alongside type names
 
 **Surfaced 2026-05-23** (during arc 232.0 call-by-name research probe).
