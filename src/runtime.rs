@@ -1102,8 +1102,8 @@ impl Value {
             // type_name. The wat-level type checker enforces the
             // tier distinction structurally; runtime type_name names
             // the user-visible kind, not the internal transport.
-            Value::wat__kernel__Sender(_) => "rust::crossbeam_channel::Sender",
-            Value::wat__kernel__Receiver(_) => "rust::crossbeam_channel::Receiver",
+            Value::wat__kernel__Sender(_) => "wat::kernel::Sender",
+            Value::wat__kernel__Receiver(_) => "wat::kernel::Receiver",
             Value::wat__std__HashMap(_) => "wat::core::HashMap",
             Value::wat__std__HashSet(_) => "wat::core::HashSet",
             Value::RustOpaque(inner) => inner.type_path,
@@ -19022,7 +19022,7 @@ fn eval_kernel_send(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::send".into(),
-                expected: "rust::crossbeam_channel::Sender",
+                expected: "wat::kernel::Sender",
                 got: other.type_name(),
                 span: args[0].span().clone(),
             });
@@ -19114,7 +19114,7 @@ fn eval_kernel_recv(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::recv".into(),
-                expected: "rust::crossbeam_channel::Receiver",
+                expected: "wat::kernel::Receiver",
                 got: other.type_name(),
                 span: args[0].span().clone(),
             });
@@ -19182,7 +19182,7 @@ fn eval_kernel_try_recv(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::try-recv".into(),
-                expected: "rust::crossbeam_channel::Receiver",
+                expected: "wat::kernel::Receiver",
                 got: other.type_name(),
                 span: args[0].span().clone(),
             });
@@ -19268,7 +19268,7 @@ fn eval_kernel_drop(
         }
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::kernel::drop".into(),
-            expected: "rust::crossbeam_channel::Sender | rust::crossbeam_channel::Receiver",
+            expected: "wat::kernel::Sender | wat::kernel::Receiver",
             got: other.type_name(),
             span: args[0].span().clone(),
         }),
@@ -19683,7 +19683,7 @@ fn eval_kernel_select(
             other => {
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::kernel::select".into(),
-                    expected: "rust::crossbeam_channel::Receiver",
+                    expected: "wat::kernel::Receiver",
                     got: other.type_name(),
                     // arc 138: no span — iterating over Vec<Value>; no per-element AST span
                     span: args[0].span().clone(),

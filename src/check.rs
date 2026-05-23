@@ -139,13 +139,13 @@ pub enum CheckError {
     /// Arc 117 — a `let` binding-block contains BOTH a Thread/Process
     /// binding (a value one calls `Thread/join-result` / `Process/
     /// join-result` on) AND a sibling binding whose alias-resolved
-    /// type contains a Sender-bearing parametric (`Sender`,
-    /// `QueueSender`, `QueuePair`, `HandlePool`), AND that let's
-    /// extent contains a join-result call on the Thread. The
-    /// Sender-bearing sibling holds a clone alive past the join site;
-    /// the worker can't see EOF; the join blocks forever. The fix is
-    /// structural: nest the Sender-bearing bindings in an inner
-    /// `let` whose body returns the Thread.
+    /// type contains a Sender-bearing parametric (`wat::kernel::Sender`,
+    /// channel `pair()`, `HandlePool`), AND that let's extent contains
+    /// a join-result call on the Thread. The Sender-bearing sibling
+    /// holds a clone alive past the join site; the worker can't see
+    /// EOF; the join blocks forever. The fix is structural: nest the
+    /// Sender-bearing bindings in an inner `let` whose body returns
+    /// the Thread.
     ScopeDeadlock {
         /// Name of the Thread (or Process) binding being joined.
         thread_binding: String,
@@ -3526,7 +3526,7 @@ fn check_let_for_scope_deadlock(
             thread_bindings.push((name, span));
             continue;
         }
-        if let Some(kind) = type_contains_sender_kind(&parsed, types) {
+        if let Some(kind) = sender_kind_in_type(&parsed, types) {
             sender_bearing_bindings.push((name, kind));
         }
     }
@@ -3672,22 +3672,29 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
     }
 }
 
-/// Does this type, after alias resolution and recursive descent into
-/// arguments and tuple elements, contain a `:wat::kernel::QueueSender<T>`
-/// ANYWHERE in its structure? Returns "QueueSender" on hit.
+/// What sender-bearing kind, if any, does this type contain? Walks the
+/// type after alias resolution and recursive descent into arguments and
+/// tuple elements. Returns the kind string on hit, `None` if no
+/// Sender-bearing shape is present.
 ///
-/// Why QueueSender (and not also bare `Sender`, `HandlePool`):
-///   - `:wat::kernel::QueuePair<T>` is a typealias to
-///     `:(QueueSender<T>, QueueReceiver<T>)`. `expand_alias` unwraps
-///     it; after resolution, only QueueSender shows up. Detecting
-///     QueueSender catches both the explicit `QueuePair` case and
-///     any direct `QueueSender` binding.
-///   - `:rust::crossbeam_channel::Sender<T>` (the raw substrate
-///     primitive) is NOT flagged in isolation — it appears in many
-///     non-deadlocking shapes (e.g., a Sender alongside a Thread
-///     for unrelated state). Caller-allocated wat-level pairs always
-///     surface as `QueueSender<T>` after alias resolution, which IS
-///     the deadlock anchor.
+/// Why `wat::kernel::Sender` (and not also bare
+/// `rust::crossbeam_channel::Sender` in isolation, or `HandlePool`
+/// unconditionally):
+///   - `:wat::kernel::Channel<T>` is the canonical channel pair —
+///     `expand_alias` resolves it to `:(Sender<T>, Receiver<T>)`.
+///     Detecting `wat::kernel::Sender` catches both the explicit
+///     `Channel` case (after unwrapping) and any direct `Sender`
+///     binding.
+///   - `:rust::crossbeam_channel::Sender<T>` (the alias-resolution
+///     head after `expand_alias` unrolls `wat::kernel::Sender`) is
+///     also matched — arc 133: inference-time paths may carry the
+///     expanded form. Matching both spellings avoids false-negatives
+///     in `check_let_for_scope_deadlock_inferred`.
+///   - `:rust::crossbeam_channel::Sender<T>` is NOT flagged in
+///     isolation for non-wat-kernel paths — it appears in many
+///     non-deadlocking shapes. The surface-check-first ordering
+///     ensures `Console.wat` and similar programs don't
+///     false-positive.
 ///   - `:wat::kernel::HandlePool<T>` IS flagged when T contains
 ///     a Sender — arc 131 lifted the exclusion. The previous
 ///     narrowing avoided false-positives on Console's tests, but
@@ -3697,7 +3704,7 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
 ///     handle-drop ordering; arc 131 makes the discipline
 ///     structural rather than voluntary. Returns "HandlePool"
 ///     on hit so the diagnostic names the offending kind.
-fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static str> {
+fn sender_kind_in_type(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static str> {
     // Match wat-level Sender-anchor heads at the SURFACE first — `expand_alias`
     // would unwrap `Channel` → `(Sender, Receiver)` and then
     // `Sender` → `rust::crossbeam_channel::Sender`, which is too generic
@@ -3729,7 +3736,7 @@ fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static 
         // Sender — pass through silently.
         if head.as_str() == "wat::kernel::HandlePool" {
             for arg in args {
-                if type_contains_sender_kind(arg, types).is_some() {
+                if sender_kind_in_type(arg, types).is_some() {
                     return Some("HandlePool");
                 }
             }
@@ -3740,14 +3747,14 @@ fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static 
         let peeled = crate::types::expand_alias(ty, types);
         if let TypeExpr::Parametric { head: h2, .. } = &peeled {
             if h2 != head {
-                return type_contains_sender_kind(&peeled, types);
+                return sender_kind_in_type(&peeled, types);
             }
         } else if !matches!(peeled, TypeExpr::Parametric { .. }) {
-            return type_contains_sender_kind(&peeled, types);
+            return sender_kind_in_type(&peeled, types);
         }
         // Recurse into args (handles e.g. `Vec<QueueSender<T>>`).
         for arg in args {
-            if let Some(k) = type_contains_sender_kind(arg, types) {
+            if let Some(k) = sender_kind_in_type(arg, types) {
                 return Some(k);
             }
         }
@@ -3755,7 +3762,7 @@ fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static 
     }
     if let TypeExpr::Tuple(elements) = ty {
         for e in elements {
-            if let Some(k) = type_contains_sender_kind(e, types) {
+            if let Some(k) = sender_kind_in_type(e, types) {
                 return Some(k);
             }
         }
@@ -3771,7 +3778,7 @@ fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static 
                 }
             }
         }
-        return type_contains_sender_kind(&peeled, types);
+        return sender_kind_in_type(&peeled, types);
     }
     None
 }
@@ -4531,7 +4538,7 @@ fn parse_binding_for_pair_check(binding: &WatAST) -> Option<(String, String, Wat
 }
 
 /// Does this type, after alias resolution, denote a `Sender<T>` end
-/// of a channel? Mirrors arc 117's `type_contains_sender_kind` but
+/// of a channel? Mirrors arc 117's `sender_kind_in_type` but
 /// returns a bool focused on the SURFACE type — we want the
 /// argument's own type to BE a Sender, not contain one.
 ///
@@ -9698,7 +9705,7 @@ fn find_binding_span(name: &str, bindings: &[WatAST]) -> Span {
 ///
 /// Classification is identical to the structural walker:
 ///   - `type_is_thread_kind` → Thread binding (join-result target)
-///   - `type_contains_sender_kind` → Sender-bearing binding (deadlock anchor)
+///   - `sender_kind_in_type` → Sender-bearing binding (deadlock anchor)
 ///
 /// Scope: the `extended` map contains names from outer scopes (passed
 /// into `infer_let` as `locals`) as well as this let's own
@@ -9786,7 +9793,7 @@ fn check_let_for_scope_deadlock_inferred(
             thread_bindings.push((name.clone(), span));
             continue;
         }
-        if let Some(kind) = type_contains_sender_kind(ty, types) {
+        if let Some(kind) = sender_kind_in_type(ty, types) {
             sender_bearing_bindings.push((name.clone(), kind));
         }
     }
@@ -15831,7 +15838,7 @@ fn register_builtins(env: &mut CheckEnv) {
     //   lookup-define  — full (:define <head> <body>) AST
     //   signature-of-defn — head only
     //   body-of        — body only (:None for substrate primitives)
-    let symbol_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
     let opt_holon_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
         args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
@@ -15840,7 +15847,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::lookup-define".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![symbol_ty()],
+            params: vec![keyword_ty()],
             ret: opt_holon_ty(),
             rest_param_type: None,
         },
@@ -15849,7 +15856,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::signature-of-defn".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![symbol_ty()],
+            params: vec![keyword_ty()],
             ret: opt_holon_ty(),
             rest_param_type: None,
         },
@@ -15858,7 +15865,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::body-of".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![symbol_ty()],
+            params: vec![keyword_ty()],
             ret: opt_holon_ty(),
             rest_param_type: None,
         },
@@ -15907,7 +15914,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::rename-callable-name".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![holon_ty(), symbol_ty(), symbol_ty()],
+            params: vec![holon_ty(), keyword_ty(), keyword_ty()],
             ret: holon_ty(),
             rest_param_type: None,
         },
