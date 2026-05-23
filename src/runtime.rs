@@ -1696,6 +1696,51 @@ pub enum Provenance {
     RuntimeBuilt { producer: &'static str, call_span: Span },
 }
 
+/// TrackedValue — the eval-boundary type pairing a Value with its Provenance.
+///
+/// Parallel to Value::Tracked variant during the Shape A pivot (Stone 233.2.h
+/// scaffolds; 233.2.i flips eval signature; 233.2.j migrates producers;
+/// 233.2.k retires Value::Tracked).
+///
+/// NOT derived: Eq/PartialEq/Hash — callers compare .value()/.provenance()
+/// explicitly. TrackedValue is a transient eval-boundary handoff, not a
+/// HashMap key or collection element.
+#[derive(Clone, Debug)]
+pub struct TrackedValue {
+    value: Value,
+    provenance: Provenance,
+}
+
+impl TrackedValue {
+    /// Construct a TrackedValue from a value + provenance.
+    pub fn new(value: Value, provenance: Provenance) -> Self {
+        Self { value, provenance }
+    }
+
+    /// Borrow the inner Value.
+    pub fn value(&self) -> &Value {
+        &self.value
+    }
+
+    /// Borrow the provenance metadata.
+    pub fn provenance(&self) -> &Provenance {
+        &self.provenance
+    }
+
+    /// Consume self, yielding the bare Value.
+    pub fn value_owned(self) -> Value {
+        self.value
+    }
+}
+
+/// `Value::into()` wraps with Provenance::Unknown — adapter for sites
+/// that produce bare Values without producer-level provenance.
+impl From<Value> for TrackedValue {
+    fn from(value: Value) -> Self {
+        Self::new(value, Provenance::Unknown)
+    }
+}
+
 /// Snapshot of a value attached to a runtime error for diagnostic richness.
 ///
 /// Carries the value's type name (cheap; static) AND a rendered form
