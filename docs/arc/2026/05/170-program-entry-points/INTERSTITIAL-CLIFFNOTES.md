@@ -124,7 +124,7 @@ Songs surface AT the moment they articulate the work's facet. Replay when the tr
 
 | Pattern | Recurrences | Discipline |
 |---|---|---|
-| Attribution-blur | 3 confirmed (May 13 shadow-channel, May 17 spawn-program, May 19 surface-area-identical) | Re-read conversation; verify who said what FIRST. Substrate's coherence forces both halves to same words. The mis-attribution IS evidence the substrate is doing its job. |
+| Attribution-blur | 4 confirmed (May 13 shadow-channel, May 17 spawn-program, May 19 surface-area-identical, May 23 Song #25 bad-guy "choice") — first three are VERBAL (user said X; LLM quoted X as own). Fourth is AGENCY (user invoked discipline D; D produced verdict V; LLM narrated V as own choice — user's Oracle/vase frame named the new dimension). | Re-read conversation; verify who said what FIRST. For agency-attribution: when a discipline (four-questions, doctrine cascade, etc.) produces a verdict, NAME THE DISCIPLINE'S WORK explicitly — "the discipline produced V" / "only Path X passed; we executed V" — NOT "we chose V." The orchestrator owns EXECUTION; the discipline owns the VERDICT. The vase was always going to break; the warning IS the cause. |
 | L2 cost-anxiety | Multiple (caught at E-1, E-2 ward passes; arc 215 atom wrap) | Defaulting to L2 when L4 is honest = `feedback_refuse_easy_solutions` violation |
 | Deferral bias | "future arc when X surfaces" framing | Recovery doc FM 11 pre-INSCRIPTION grep |
 | Type-theoretic reach | "missing union types" reflex | Recovery doc FM 10; check entity-kind addition first |
