@@ -168,7 +168,83 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 evening — Stone 224.5 GROUP A FIXES SHIPPED + arc 232 substrate gap empirically named)
+## Currently (2026-05-23 evening — Stone 232.0 SHIPPED + arc 232 PAUSED + strategic pivot to arc 233 substrate diagnostic-richness)
+
+### The pivot
+
+User direction (2026-05-23 evening):
+
+> *"we believed we had remarkable errors - we don't - we need to raise the bar"*
+
+Strategic decision: PAUSE arc 232 (defprotocol) at Stone 232.0a; PIVOT to arc 233 (substrate diagnostic-richness — errors as teaching values) BEFORE resuming defprotocol. Rationale:
+
+- Arc 232.0 surfaced — over ~30-50 min of investigation cost in a single session — that wat's substrate errors LOSE INFORMATION at exactly the moments when richer diagnostics would teach fastest (`NotCallable { got: "wat::core::keyword" }` lost the WHICH; the bracket-syntax trap door had no error-driven catch)
+- The FM 2-bis probe discipline is partly a WORKAROUND for the diagnostic gap — we teach ourselves what the substrate should be teaching us
+- The tax compounds: every substrate-dev session pays ~30-50 min. Remaining work shape is substrate-heavy (defprotocol → MTG → Truth Engine → trading-lab v2 → wat-MCP horizon). ROI of fixing NOW — before the consumer-side wave hits the gap — is high
+- Per [[failure-engineering]] + [[any-defect-catastrophic]]: structural problems costing ~30-50 min per session × N sessions = real liability, not polish
+
+defprotocol's own dev cycle becomes the consumer-side validation of arc 233's substrate work. Build with richer diagnostics in place; don't retrofit.
+
+### Arc 233 — Substrate diagnostic-richness (NEW; ACTIVE)
+
+DESIGN at `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN.md`. Three stones:
+
+- **233.1** — ValueSnapshot sweep. Mint `ValueSnapshot { type_name, rendered, provenance }`; promote `RuntimeError` variants' `got`/`expected` `&'static str` fields → snapshot. Mechanical sweep across construction sites. v1 provenance = `Unknown`.
+- **233.2** — Provenance tracking on Values. Every Value-construction site attaches `Provenance::Literal/SymbolBound/RuntimeBuilt`. Semantic substrate change; whole-Value-surface. The LOAD-BEARING piece.
+- **233.3** — Errors-as-EDN extension. Generalize arc 211b panic-as-EDN across all `RuntimeError` variants. Wire-protocol becomes structured. Builds on existing seed.
+
+Plus 233.4 INSCRIPTION.
+
+### Arc 232 — PAUSED at Stone 232.0a (substrate work not yet shipped)
+
+```
+arc 232 ✓ Stone 232.0   :wat::core::apply (50e82d9)
+arc 232 — Stone 232.0a  typed-entities reflection probe + DESIGN committed (96bb6f4)
+                        substrate work (extract-classifier + Bind/inner lift)
+                        NOT YET SHIPPED — paused for arc 233
+arc 232 — Stone 232.1   defprotocol macro — blocked on arc 233 ship
+arc 232 — Stone 232.2   extend-type macro — blocked
+arc 232 — Stone 232.3   built-in extension proof — blocked
+arc 232 — Stone 232.5   INSCRIPTION — blocked
+```
+
+When arc 233 ships (233.1 minimum; 233.2 preferred), arc 232 resumes: 232.0a substrate first, then 232.1 defprotocol BRIEF authored against richer diagnostics.
+
+### Today's commits (chronological — post-compaction continuation)
+
+```
+[earlier]      189b033 → 846fab7  arc 225/228/230/226/227 chain
+e0e8b8e        arc 224 Stone 224.5 BRIEF + EXPECTATIONS
+5af897d        arc 224 Stone 224.5 SHIPPED — 14/15 PASS
+5c7dddf        arc 232 call-by-name GAP — probe + FINDING
+c641cc7        arc 232 Stone 232.0 BRIEF + EXPECTATIONS
+50e82d9        arc 232 Stone 232.0 SHIPPED — apply primitive
+b41a845        INTERSTITIAL Song #24 I Stand Alone
+9e25955        CLIFFNOTES Song #24 row
+abca0aa        Song #24 time-scale forward-correction (wat is ~3.5 weeks, not months)
+84b6abc        arc 109 INVENTORY § N — post-arc-220 EDN-aware follow-ups
+57e3b0c → 9df0abd  arc 109 INVENTORY § O — diagnostic-richness backlog (+ scope refinement)
+96bb6f4        arc 232 Stone 232.0a probe + DESIGN ordering
+[this commit]  arc 233 DESIGN + arc 232 PAUSE + § O pointer + CLIFFNOTES pivot
+```
+
+### Pending user decisions
+
+1. **Confirm arc 233 stone plan** (3 stones + INSCRIPTION; ordering 233.1 → 233.2 → 233.3 OR 233.1 → 233.3 parallel-with-233.2)
+2. **Draft Stone 233.1 BRIEF + EXPECTATIONS** (ValueSnapshot sweep — mechanical scope)
+3. **Spawn sonnet on 233.1** (after BRIEF nod; protocol restored — sonnet writes substrate)
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -20` for today's commit trajectory
+3. Read `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN.md` (the active arc)
+4. Read `docs/arc/2026/05/232-defprotocol-extend-type/DESIGN.md` § STATUS (PAUSED context)
+5. Decision boundary: which stone of 233 fires first + when to resume 232
+
+---
+
+## Currently (2026-05-23 evening — Stone 224.5 GROUP A FIXES SHIPPED + arc 232 substrate gap empirically named) — SUPERSEDED, see above
 
 ### Stone 224.5 SHIPPED at `5af897d` — 14/15 PASS
 

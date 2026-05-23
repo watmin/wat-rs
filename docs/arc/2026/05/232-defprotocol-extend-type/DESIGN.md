@@ -186,7 +186,25 @@ Each arc layers on the previous:
 7. **Extending built-in types** — `extend-type :wat::holon::Vector :ns::Formattable ...` should work; the Vector classifier is "Vector" (from arc 228); dispatch routes accordingly. Verify substrate doesn't refuse.
 8. **The substrate primitive `call-by-name`** — does it exist? Does arc 201's reflection cover it? Investigate.
 
-## Work-items (chain ordering; arc now ACTIVE)
+## STATUS — PAUSED at Stone 232.0a (2026-05-23 evening)
+
+Arc 232 is PAUSED pending arc 233 (substrate diagnostic-richness) completion.
+
+**Rationale:** Stone 232.0 + the call-by-name research surfaced — over ~30-50 min of investigation cost — that wat's substrate errors lose information at exactly the moments when richer diagnostics would teach fastest. The diagnostic-richness gap is a structural tax that compounds across every substrate-dev session. defprotocol is exactly the consumer that will surface diagnostic edge cases; building it with the new diagnostic substrate in place (rather than retrofitting) is the strategic move.
+
+**Resume conditions:** arc 233 ships Stone 233.1 (ValueSnapshot) at minimum. 233.2 (Provenance) preferred — defprotocol method-body errors benefit most from runtime-value provenance tracking.
+
+**What has shipped from arc 232:**
+- Stone 232.0 — `:wat::core::apply` substrate primitive (commit `50e82d9`)
+
+**What is staged but NOT shipped:**
+- Stone 232.0a — typed-entities reflection layer (probe + DESIGN committed at `96bb6f4`; substrate work NOT yet shipped)
+
+When arc 232 resumes, Stone 232.0a substrate work ships first; then Stone 232.1 (defprotocol macro) BRIEF gets authored against the richer diagnostics + the typed-entities reflection layer.
+
+See `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN.md` for the diagnostic-richness arc.
+
+## Work-items (chain ordering; arc PAUSED at 232.0a; resumes after arc 233)
 
 | Stone | Purpose | Status |
 |---|---|---|

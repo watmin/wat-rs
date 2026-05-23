@@ -1469,6 +1469,20 @@ inherits it.
 
 ### Status
 
-Open backlog item. Sized: medium (mechanical audit + sweep across
-RuntimeError variants + call sites). Could ship as its own arc OR
-fold into an arc-109 § N substrate-polish stone when one opens.
+**ACTIVE — work moved to [arc 233](../../../05/233-substrate-errors-as-values/DESIGN.md) 2026-05-23 evening.**
+
+User direction (2026-05-23):
+> *"we believed we had remarkable errors - we don't - we need to raise the bar"*
+
+Arc 233 takes the full diagnostic-richness work as three stones:
+- 233.1 — ValueSnapshot sweep (closes the inline-value gap; ~§ O's original scope)
+- 233.2 — Provenance tracking on Values (closes the WHO gap; runtime-derived case)
+- 233.3 — Errors-as-EDN extension (closes the cross-boundary wire-protocol gap)
+
+Strategic pivot — arc 232 (defprotocol) paused at Stone 232.0a;
+defprotocol resumes after arc 233 ships so its dev cycle benefits
+from the richer diagnostics.
+
+§ O entry here STAYS as historical record of the gap's surfacing +
+the original scope-bound write-up. Arc 233's DESIGN is the
+implementation plan.
