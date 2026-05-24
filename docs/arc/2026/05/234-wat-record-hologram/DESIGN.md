@@ -1,6 +1,6 @@
 # Arc 234 — wat-record: the holographic dual-form
 
-**Status:** DESIGN draft (2026-05-23 night latest). Not claimed; awaiting user decision on whether to open.
+**Status:** ACTIVE (2026-05-24 — arc opened; Stone 234.0 in flight). Originally drafted 2026-05-23 night.
 
 **Origin dialogue:** post-Stone-232.0a + Stone 232.1 in-flight; design exploration starting from "is there a reason we can't have defrecord and defprotocol for :wat::core?" and ending at the hologram model. The user named the strangeness — possibly the project's first "no prior great has been here" moment.
 
