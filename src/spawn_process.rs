@@ -448,9 +448,13 @@ fn spawn_process_child_branch(
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Ok(Err(runtime_err)) => {
+            // Arc 233 Stone 233.3 — HARD CUT: EDN-serialized RuntimeError.
+            let runtime_edn = wat_edn::write(
+                &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err)
+            );
             emit_structured_exit(
                 Some(&world),
-                crate::runtime::process_died_error_runtime_value(format!("{}", runtime_err)),
+                crate::runtime::process_died_error_runtime_value(runtime_edn),
             );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }

@@ -195,6 +195,13 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
 }
 
 /// Convert a [`Span`] to `{:file "..." :line N :col N}`.
+///
+/// Promoted to `pub(crate)` as `span_to_edn` (arc 233 Stone 233.3) so
+/// `runtime_error_edn` can reuse the helper without duplicating it.
+pub(crate) fn span_to_edn(span: &Span) -> OwnedValue {
+    span_to_map(span)
+}
+
 fn span_to_map(span: &Span) -> OwnedValue {
     OwnedValue::Map(vec![
         (

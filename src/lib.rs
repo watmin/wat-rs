@@ -82,6 +82,7 @@ pub mod parser;
 pub mod resolve;
 pub mod restriction_entry;
 pub mod runtime;
+pub mod runtime_error_edn;
 pub mod rust_deps;
 pub mod sandbox;
 pub mod spawn;

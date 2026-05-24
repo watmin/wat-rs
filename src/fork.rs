@@ -862,10 +862,16 @@ fn child_branch(
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Ok(Err(runtime_err)) => {
-            // Arc 170 slice 1i — structured RuntimeError.
+            // Arc 233 Stone 233.3 — HARD CUT: EDN-serialized RuntimeError
+            // replaces the Display-text string inside the ProcessDiedError
+            // envelope. Structured fields flow over the wire as machine-
+            // consumable EDN rather than opaque text.
+            let runtime_edn = wat_edn::write(
+                &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err)
+            );
             emit_structured_exit(
                 Some(&world),
-                crate::runtime::process_died_error_runtime_value(format!("{}", runtime_err)),
+                crate::runtime::process_died_error_runtime_value(runtime_edn),
             );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
@@ -1340,10 +1346,13 @@ fn child_branch_from_source(
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Ok(Err(runtime_err)) => {
-            // Arc 170 slice 1i — structured RuntimeError.
+            // Arc 233 Stone 233.3 — HARD CUT: EDN-serialized RuntimeError.
+            let runtime_edn = wat_edn::write(
+                &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err)
+            );
             emit_structured_exit(
                 Some(&world),
-                crate::runtime::process_died_error_runtime_value(format!("{}", runtime_err)),
+                crate::runtime::process_died_error_runtime_value(runtime_edn),
             );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
