@@ -1182,6 +1182,24 @@ impl Value {
             _ => Provenance::Unknown,
         }
     }
+
+    /// Arc 233 Stone 233.2.j — convert a Value into TrackedValue.
+    ///
+    /// If `self` is `Value::Tracked { inner, provenance }`, the provenance is
+    /// EXTRACTED: the result carries the real provenance, and `.value()` returns
+    /// the bare inner Value. This allows environment lookups to transparently
+    /// propagate provenance through `eval_inner`'s Symbol arm without the
+    /// inner Value remaining wrapped.
+    ///
+    /// Bare Values (all non-Tracked variants) get `Provenance::Unknown`.
+    /// Used by eval_inner's leaf arms (literals) and the Symbol-lookup arm
+    /// (where the environment may store Value::Tracked for provenance preservation).
+    pub fn into_tracked(self) -> TrackedValue {
+        match self {
+            Value::Tracked { inner, provenance } => TrackedValue::new(*inner, provenance),
+            other => TrackedValue::from(other),
+        }
+    }
 }
 
 /// A callable. `define`-registered functions have `name = Some(path)`
@@ -1787,6 +1805,17 @@ impl ValueSnapshot {
             type_name,
             rendered: description,
             provenance: Provenance::Unknown,
+        }
+    }
+
+    /// Arc 233 Stone 233.2.j — construct from a TrackedValue, reading both
+    /// the inner value (for type_name + rendered) and the attached provenance.
+    /// Sibling to `of(&Value)` which gives Provenance::Unknown for bare Values.
+    pub fn of_tracked(tv: &TrackedValue) -> Self {
+        ValueSnapshot {
+            type_name: tv.value().inner().type_name(),
+            rendered: render_value(tv.value().inner(), 0),
+            provenance: tv.provenance().clone(),
         }
     }
 }
@@ -2884,7 +2913,7 @@ fn register_runtime_defs_form(
                 return Ok(());
             }
             let sym_ref: &SymbolTable = sym;
-            let value = eval_inner(expr, env, sym_ref)?;
+            let value = eval_inner(expr, env, sym_ref)?.value_owned();
             if let Value::wat__core__fn(ref func) = value {
                 sym.functions.insert(name.clone(), func.clone());
             }
@@ -2917,7 +2946,7 @@ fn register_runtime_defs_form(
             // sym must be passed as immutable here for eval; the write
             // to runtime_def_values happens after.
             let sym_ref: &SymbolTable = sym;
-            let value = eval_inner(expr, env, sym_ref)?;
+            let value = eval_inner(expr, env, sym_ref)?.value_owned();
             // Arc 170 Gap D — if the evaluated value is a fn (possibly with
             // a `closed_env` captured from enclosing let-bindings), also
             // update `sym.functions` with the properly-evaluated fn. This
@@ -2976,7 +3005,7 @@ fn register_runtime_defs_form(
                 if let WatAST::Symbol(ident, _) = binder {
                     let binding_name = ident.name.clone();
                     let sym_ref: &SymbolTable = sym;
-                    let value = eval_inner(rhs, &scope, sym_ref)?;
+                    let value = eval_inner(rhs, &scope, sym_ref)?.value_owned();
                     scope = scope.child().bind(binding_name, value).build();
                 }
                 // Non-Symbol binder (Vector destructure) — skip env extension;
@@ -4194,7 +4223,7 @@ fn eval_tail(
 ) -> Result<Value, RuntimeError> {
     let (items, list_span) = match ast {
         WatAST::List(items, span) if !items.is_empty() => (items, span.clone()),
-        _ => return eval_inner(ast, env, sym),
+        _ => return eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
     };
     let args = &items[1..];
     match &items[0] {
@@ -4214,7 +4243,7 @@ fn eval_tail(
                     let func = sym.get(other).expect("contains_key above").clone();
                     emit_tail_call(func, args, env, sym, list_span)
                 }
-                _ => eval_inner(ast, env, sym),
+                _ => eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
             }
         }
         // Bare-symbol head: a fn-valued local binding. `Some`,
@@ -4225,7 +4254,7 @@ fn eval_tail(
             if let Some(Value::wat__core__fn(f)) = env.lookup(ident.as_str()) {
                 emit_tail_call(f, args, env, sym, list_span)
             } else {
-                eval_inner(ast, env, sym)
+                eval_inner(ast, env, sym).map(|tv| tv.value_owned())
             }
         }
         // Inline fn-literal head `((fn ...) args)`. Evaluate
@@ -4233,7 +4262,7 @@ fn eval_tail(
         // call; otherwise delegate to `apply_value` with the
         // already-evaluated callee so we don't re-evaluate.
         WatAST::List(_, _) => {
-            let callee = eval_inner(&items[0], env, sym)?;
+            let callee = eval_inner(&items[0], env, sym)?.value_owned();
             match callee {
                 Value::wat__core__fn(f) => emit_tail_call(f, args, env, sym, list_span),
                 other => apply_value(&other, args, env, sym),
@@ -4241,7 +4270,7 @@ fn eval_tail(
         }
         // Literal head (int/float/bool/string) — not callable; let
         // eval raise the right error.
-        _ => eval_inner(ast, env, sym),
+        _ => eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
     }
 }
 
@@ -4261,7 +4290,7 @@ fn emit_tail_call(
 ) -> Result<Value, RuntimeError> {
     let vals = raw_args
         .iter()
-        .map(|a| eval_inner(a, env, sym))
+        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
         .collect::<Result<Vec<_>, _>>()?;
     Err(RuntimeError::TailCall { func, args: vals, call_span })
 }
@@ -4317,7 +4346,7 @@ fn eval_if_tail(
             });
         }
     }
-    let cond_val = eval_inner(&args[0], env, sym)?;
+    let cond_val = eval_inner(&args[0], env, sym)?.value_owned();
     match cond_val {
         Value::bool(true) => eval_tail(&args[3], env, sym),
         Value::bool(false) => eval_tail(&args[4], env, sym),
@@ -4471,7 +4500,7 @@ fn eval_match_tail(
             });
         }
     }
-    let scrutinee = eval_inner(&args[0], env, sym)?;
+    let scrutinee = eval_inner(&args[0], env, sym)?.value_owned();
     for arm in &args[3..] {
         let arm_items = match arm {
             WatAST::List(items, _) => items,
@@ -4509,18 +4538,18 @@ fn eval_match_tail(
 }
 
 /// Evaluate a single form in the given scope. Internal implementation;
-/// returns bare Value for recursive calls inside the runtime.
-/// Public boundary is `eval` (returns TrackedValue).
+/// returns TrackedValue (Arc 233 Stone 233.2.j: cascaded from eval boundary).
+/// Public boundary is `eval` (direct passthrough post-233.2.j).
 pub(crate) fn eval_inner(
     ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     match ast {
-        WatAST::IntLit(n, _) => Ok(Value::i64(*n)),
-        WatAST::FloatLit(x, _) => Ok(Value::f64(*x)),
-        WatAST::BoolLit(b, _) => Ok(Value::bool(*b)),
-        WatAST::StringLit(s, _) => Ok(Value::String(Arc::new(s.clone()))),
+        WatAST::IntLit(n, _) => Ok(Value::i64(*n).into_tracked()),
+        WatAST::FloatLit(x, _) => Ok(Value::f64(*x).into_tracked()),
+        WatAST::BoolLit(b, _) => Ok(Value::bool(*b).into_tracked()),
+        WatAST::StringLit(s, _) => Ok(Value::String(Arc::new(s.clone())).into_tracked()),
         // Arc 215 stone 2 — `[...]` vector literals at expression position.
         // Check.rs already type-checked these items via infer_list_constructor
         // (T inferred from first element; all elements unified). At runtime,
@@ -4534,9 +4563,9 @@ pub(crate) fn eval_inner(
         WatAST::Vector(items, _) => {
             let elems = items
                 .iter()
-                .map(|a| eval_inner(a, env, sym))
+                .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(Value::Vec(Arc::new(elems)))
+            Ok(Value::Vec(Arc::new(elems)).into_tracked())
         }
         // Arc 169 slice 1 — struct-pattern brace-forms are
         // consumed only in `:wat::core::let` binding-position
@@ -4560,7 +4589,7 @@ pub(crate) fn eval_inner(
             // evaluation here returns the singleton value.
             // Special-case is narrow: only the exact FQDN string.
             if k == ":wat::core::nil" {
-                return Ok(Value::Unit);
+                return Ok(Value::Unit.into_tracked());
             }
             // `:None` is the nullary constructor of the built-in
             // `:Option<T>` enum (058-030). Special-cased here so users
@@ -4573,7 +4602,7 @@ pub(crate) fn eval_inner(
             // retires (poisoned at type-check time, runtime keeps
             // working).
             if k == ":None" || k == ":wat::core::None" {
-                return Ok(Value::Option(Arc::new(None)));
+                return Ok(Value::Option(Arc::new(None)).into_tracked());
             }
             // Arc 048 — user-enum unit variants. Pre-built EnumValues
             // sit in `sym.unit_variants` keyed by their full keyword
@@ -4581,7 +4610,7 @@ pub(crate) fn eval_inner(
             // return the variant value directly (no function call).
             // Mirrors the `:None` shortcut for Option.
             if let Some(ev) = sym.unit_variants.get(k) {
-                return Ok(Value::Enum(Arc::new(ev.clone())));
+                return Ok(Value::Enum(Arc::new(ev.clone())).into_tracked());
             }
             // Arc 157 — top-level `def` bindings. A keyword that was
             // bound via `(:wat::core::def :name expr)` at top-level
@@ -4593,7 +4622,7 @@ pub(crate) fn eval_inner(
             // def-bound closure is returned as the stored Value rather
             // than re-lifted through `sym.get`).
             if let Some(v) = sym.runtime_def_values.get(k) {
-                return Ok(v.clone());
+                return Ok(v.clone().into_tracked());
             }
             // Arc 009 — names are values. If the keyword is a registered
             // user/stdlib define, lift it to a callable Function value.
@@ -4604,46 +4633,47 @@ pub(crate) fn eval_inner(
             // runtime; they can pass the type check but won't evaluate
             // to a Function until a caller demands that extension.
             if let Some(func) = sym.get(k) {
-                return Ok(Value::wat__core__fn(func.clone()));
+                return Ok(Value::wat__core__fn(func.clone()).into_tracked());
             }
-            Ok(Value::wat__core__keyword(Arc::new(k.clone())))
+            Ok(Value::wat__core__keyword(Arc::new(k.clone())).into_tracked())
         }
         WatAST::Symbol(ident, span) => env
             .lookup(ident.as_str())
-            .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone())),
+            .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone()))
+            .map(|v| v.into_tracked()),
+        // Arc 233 Stone 233.2.j: eval_list now returns TrackedValue (producers propagate
+        // TrackedValue directly; non-producer arms wrap with .into_tracked()).
         WatAST::List(items, span) => eval_list(items, span, env, sym),
     }
 }
 
 /// Public eval boundary — returns `Result<TrackedValue, RuntimeError>`.
 ///
-/// Calls `eval_inner` and wraps the result at the eval boundary:
-/// - If the inner result is `Value::Tracked { inner, provenance }`, unwrap
-///   into `TrackedValue::new(*inner, provenance)` — preserving producer-attached
-///   provenance from Stones 233.2.b/c without requiring producer migration yet.
-/// - Otherwise, wrap with `Provenance::Unknown` via `TrackedValue::from`.
+/// Arc 233 Stone 233.2.j: direct passthrough to eval_inner, which now returns
+/// TrackedValue directly. The pre-233.2.j unwrap-and-rewrap of Value::Tracked
+/// is removed entirely — eval_inner never produces Value::Tracked variants;
+/// producers construct TrackedValue::new directly.
 ///
-/// Internal eval callers use `eval_inner` directly (returning bare `Value`).
 /// This is the ONLY public eval boundary; external callers always receive
-/// `TrackedValue`. See Stone 233.2.i in arc 233 (substrate-errors-as-values).
+/// `TrackedValue`. See arc 233 Stone 233.2.j (substrate-errors-as-values).
 pub fn eval(
     ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<TrackedValue, RuntimeError> {
-    let value = eval_inner(ast, env, sym)?;
-    Ok(match value {
-        Value::Tracked { inner, provenance } => TrackedValue::new(*inner, provenance),
-        other => TrackedValue::from(other),
-    })
+    eval_inner(ast, env, sym)
 }
 
+// Arc 233 Stone 233.2.j: eval_list now returns TrackedValue so producer provenance
+// (from eval_keyword_from_string, eval_holon_from_holon, eval_edn_read) propagates
+// through dispatch_keyword_head to eval_inner without losing the attached provenance.
+// Non-producer arms wrap their bare Value return with .into_tracked() (Provenance::Unknown).
 fn eval_list(
     items: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     // `()` evaluates to Unit. Natural reading: the empty list /
     // empty tuple IS the unit value. Lets `(if cond do-work ())`
     // cleanly express "if else unit" without awkward placeholder
@@ -4651,7 +4681,7 @@ fn eval_list(
     // the value level.
     let head = match items.first() {
         Some(h) => h,
-        None => return Ok(Value::Unit),
+        None => return Ok(Value::Unit.into_tracked()),
     };
     let rest = &items[1..];
 
@@ -4660,27 +4690,28 @@ fn eval_list(
     // The bare forms continue to work at runtime; type-check time
     // surfaces the migration hint via Pattern 2 poison.
     match head {
-        WatAST::Keyword(k, _) if k == ":wat::core::Some" => return eval_some_ctor(rest, list_span, env, sym),
-        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => return eval_ok_ctor(rest, list_span, env, sym),
-        WatAST::Keyword(k, _) if k == ":wat::core::Err" => return eval_err_ctor(rest, list_span, env, sym),
+        WatAST::Keyword(k, _) if k == ":wat::core::Some" => return eval_some_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
+        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => return eval_ok_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
+        WatAST::Keyword(k, _) if k == ":wat::core::Err" => return eval_err_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
         _ => {}
     }
     match head {
+        // dispatch_keyword_head now returns TrackedValue (propagates producer provenance).
         WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, list_span, env, sym),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, list_span, env, sym),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, list_span, env, sym),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, list_span, env, sym),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
         WatAST::Symbol(ident, span) => {
             // Bare symbol as head — look up a callable in the env.
             let callee = env
                 .lookup(ident.as_str())
                 .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone()))?;
-            apply_value(&callee, rest, env, sym)
+            apply_value(&callee, rest, env, sym).map(|v| v.into_tracked())
         }
         WatAST::List(_, _) => {
             // Inline fn call: ((fn ...) arg1 arg2)
-            let callee = eval_inner(head, env, sym)?;
-            apply_value(&callee, rest, env, sym)
+            let callee = eval_inner(head, env, sym)?.value_owned();
+            apply_value(&callee, rest, env, sym).map(|v| v.into_tracked())
         }
         other => Err(RuntimeError::MalformedForm {
             head: ast_variant_name(other).into(),
@@ -4690,22 +4721,47 @@ fn eval_list(
     }
 }
 
+// Arc 233 Stone 233.2.j: dispatch_keyword_head returns TrackedValue so
+// producer provenance (eval_keyword_from_string, eval_holon_from_holon,
+// eval_edn_read) propagates to eval_inner without Value::Tracked wrapping.
+// Routes the 3 producers directly (they return TrackedValue); all other
+// arms go through dispatch_keyword_head_value and wrap with .into_tracked().
 fn dispatch_keyword_head(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     // Arc 146 slice 1 — dispatch dispatch. If `head` names a
     // registered dispatch, route to arm-pattern matching against
     // the args' value tags (per Q3 of the BRIEF: dispatchs win over
     // substrate-fixed forms).
     if let Some(reg) = &sym.dispatch_registry {
         if let Some(mm) = reg.get(head) {
-            return eval_dispatch_call(mm, args, list_span, env, sym);
+            return eval_dispatch_call(mm, args, list_span, env, sym).map(|v| v.into_tracked());
         }
     }
+    // 3 producers: return TrackedValue directly (provenance preserved).
+    match head {
+        ":wat::core::keyword/from-string" => return eval_keyword_from_string(args, list_span, env, sym),
+        ":wat::holon::from-holon" => return eval_holon_from_holon(args, list_span, env, sym),
+        ":wat::edn::read" => return crate::edn_shim::eval_edn_read(args, list_span, env, sym),
+        _ => {}
+    }
+    // All other arms: dispatch through value-returning inner and wrap.
+    dispatch_keyword_head_value(head, args, list_span, env, sym).map(|v| v.into_tracked())
+}
+
+// Inner dispatch: returns Result<Value, RuntimeError>.
+// Called by dispatch_keyword_head for all non-producer arms.
+fn dispatch_keyword_head_value(
+    head: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
     match head {
         // Arc 232 Stone 232.0 — `:wat::core::apply` substrate primitive.
         // Universal escape hatch: takes a keyword head + [-> :T] annotation +
@@ -4801,7 +4857,7 @@ fn dispatch_keyword_head(
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),
-        ":wat::holon::from-holon" => eval_holon_from_holon(args, list_span, env, sym),
+        // ":wat::holon::from-holon" is routed by dispatch_keyword_head directly (producer).
         ":wat::core::match" => eval_match(args, list_span, env, sym),
         // Arc 109 slice 1j — § D' Option/Result method forms.
         // Three retiring verbs (Pattern 2): pre-slice spellings still
@@ -4995,7 +5051,7 @@ fn dispatch_keyword_head(
         ":wat::core::string::to-bool" => eval_string_to_bool(args, list_span, env, sym),
         // Arc 170 slice 3 Gap A — keyword reflection primitives.
         ":wat::core::keyword/to-string" => eval_keyword_to_string(args, list_span, env, sym),
-        ":wat::core::keyword/from-string" => eval_keyword_from_string(args, list_span, env, sym),
+        // ":wat::core::keyword/from-string" is routed by dispatch_keyword_head directly (producer).
 
         // Comparison — return :bool
         ":wat::core::=" => eval_eq(head, args, list_span, env, sym),
@@ -5272,7 +5328,7 @@ fn dispatch_keyword_head(
         ":wat::edn::write-json-natural" => {
             crate::edn_shim::eval_edn_write_json_natural(args, list_span, env, sym)
         }
-        ":wat::edn::read" => crate::edn_shim::eval_edn_read(args, list_span, env, sym),
+        // ":wat::edn::read" is routed by dispatch_keyword_head directly (producer).
         ":wat::holon::vector-bind" => eval_holon_vector_bind(args, list_span, env, sym),
         ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, list_span, env, sym),
         ":wat::holon::vector-blend" => eval_holon_vector_blend(args, list_span, env, sym),
@@ -5685,7 +5741,7 @@ fn dispatch_keyword_head(
                         };
                         let vals = args
                             .iter()
-                            .map(|a| eval_inner(a, env, sym))
+                            .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
                             .collect::<Result<Vec<_>, _>>()?;
                         return apply_function(func, vals, sym, list_span.clone());
                     }
@@ -5713,7 +5769,7 @@ fn dispatch_keyword_head(
             };
             let vals = args
                 .iter()
-                .map(|a| eval_inner(a, env, sym))
+                .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
                 .collect::<Result<Vec<_>, _>>()?;
             apply_function(func, vals, sym, list_span.clone())
         }
@@ -5798,7 +5854,7 @@ fn eval_dispatch_call(
     }
     let vals: Vec<Value> = args
         .iter()
-        .map(|a| eval_inner(a, env, sym))
+        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
         .collect::<Result<Vec<_>, _>>()?;
 
     for arm in &mm.arms {
@@ -6133,7 +6189,7 @@ fn eval_let(
     for form in &body[..last_idx] {
         let _ = eval_inner(form, &scope, sym)?;
     }
-    eval_inner(&body[last_idx], &scope, sym)
+    eval_inner(&body[last_idx], &scope, sym).map(|tv| tv.value_owned())
 }
 
 /// Apply a single parsed `LetBinding` to a scope, returning the
@@ -6146,11 +6202,25 @@ fn bind_let_binding(
 ) -> Result<Environment, RuntimeError> {
     match binding {
         LetBinding::Single { name, rhs } => {
-            let value = eval_inner(rhs, scope, sym)?;
+            // Arc 233 Stone 233.2.j provenance preservation: if the RHS eval
+            // returned a non-Unknown provenance (i.e., a producer tagged this
+            // value), preserve it by re-wrapping as Value::Tracked so that
+            // ValueSnapshot::of can extract it when the bound value flows
+            // into an error site (e.g., NotCallable). Bare Values (Unknown
+            // provenance) pass through as-is — no overhead for the common case.
+            let tv = eval_inner(rhs, scope, sym)?;
+            let provenance = tv.provenance().clone();
+            let value = match provenance {
+                Provenance::Unknown => tv.value_owned(),
+                _ => Value::Tracked { // #[probe-3-exempt: let-binding provenance preservation — expires at Stone 233.2.k]
+                    inner: Box::new(tv.value_owned()),
+                    provenance,
+                },
+            };
             Ok(scope.child().bind(name, value).build())
         }
         LetBinding::Destructure { names, rhs } => {
-            let value = eval_inner(rhs, scope, sym)?;
+            let value = eval_inner(rhs, scope, sym)?.value_owned();
             let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
             let mut builder = scope.child();
             for (name, elem) in names.into_iter().zip(elements.into_iter()) {
@@ -6170,7 +6240,7 @@ fn bind_let_binding(
         // posture is defense-in-depth — clear diagnostics for
         // programs that reach here without having been checked.
         LetBinding::StructDestructure { field_names, rhs } => {
-            let value = eval_inner(rhs, scope, sym)?;
+            let value = eval_inner(rhs, scope, sym)?.value_owned();
             let sv = match &value {
                 Value::Struct(sv) => sv.clone(),
                 other => {
@@ -6272,7 +6342,7 @@ fn eval_do(
     for arg in &args[..last_idx] {
         let _ = eval_inner(arg, env, sym)?;
     }
-    eval_inner(&args[last_idx], env, sym)
+    eval_inner(&args[last_idx], env, sym).map(|tv| tv.value_owned())
 }
 
 /// Verify `value` is a tuple of the expected arity and return its
@@ -6498,10 +6568,10 @@ fn eval_if(
             });
         }
     }
-    let cond_val = eval_inner(&args[0], env, sym)?;
+    let cond_val = eval_inner(&args[0], env, sym)?.value_owned();
     match cond_val {
-        Value::bool(true) => eval_inner(&args[3], env, sym),
-        Value::bool(false) => eval_inner(&args[4], env, sym),
+        Value::bool(true) => eval_inner(&args[3], env, sym).map(|tv| tv.value_owned()),
+        Value::bool(false) => eval_inner(&args[4], env, sym).map(|tv| tv.value_owned()),
         other => Err(RuntimeError::BadCondition {
             got: ValueSnapshot::of(&other),
             span: args[0].span().clone(),
@@ -6538,7 +6608,7 @@ fn eval_cond(
         // `:else` arm — last-only; its body is always evaluated.
         if let WatAST::Keyword(k, _) = &items[0] {
             if k == ":else" {
-                return eval_inner(&items[1], env, sym);
+                return eval_inner(&items[1], env, sym).map(|tv| tv.value_owned());
             }
         }
         // Test arm — evaluate test; truthy → body; falsy → next arm.
@@ -6551,8 +6621,8 @@ fn eval_cond(
                 span: arm.span().clone(),
             });
         }
-        match eval_inner(&items[0], env, sym)? {
-            Value::bool(true) => return eval_inner(&items[1], env, sym),
+        match eval_inner(&items[0], env, sym)?.value_owned() {
+            Value::bool(true) => return eval_inner(&items[1], env, sym).map(|tv| tv.value_owned()),
             Value::bool(false) => continue,
             other => {
                 return Err(RuntimeError::BadCondition {
@@ -6599,7 +6669,7 @@ fn eval_cond_tail(
                 span: arm.span().clone(),
             });
         }
-        match eval_inner(&items[0], env, sym)? {
+        match eval_inner(&items[0], env, sym)?.value_owned() {
             Value::bool(true) => return eval_tail(&items[1], env, sym),
             Value::bool(false) => continue,
             other => {
@@ -6730,20 +6800,18 @@ where
     let b_span = args[1].span().clone();
     let a = eval_inner(&args[0], env, sym)?;
     let b = eval_inner(&args[1], env, sym)?;
-    // Arc 233 Stone 233.2.c — use .inner() for Tracked-transparency: a Value::Tracked
-    // wrapping an i64 (e.g., from eval_holon_from_holon) must be transparent to arithmetic.
-    match (a.inner(), b.inner()) {
+    match (a.value(), b.value()) {
         (Value::i64(x), Value::i64(y)) => Ok(Value::i64(op(*x, *y, &b_span)?)),
         (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: ValueSnapshot::of(&a),
+            got: ValueSnapshot::of(a.value()),
             span: a_span,
         }),
         (_, _) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: ValueSnapshot::of(&b),
+            got: ValueSnapshot::of(b.value()),
             span: b_span,
         }),
     }
@@ -6769,7 +6837,7 @@ fn eval_u8_cast(
         });
     }
     let arg_span = args[0].span().clone();
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
         Value::i64(n) => {
             if !(0..=255).contains(&n) {
@@ -6813,8 +6881,8 @@ where
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
     match (a, b) {
         (Value::f64(x), Value::f64(y)) => Ok(Value::f64(op(x, y, &b_span)?)),
         (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::TypeMismatch {
@@ -6860,8 +6928,8 @@ where
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
     match (a, b) {
         (Value::i64(x), Value::f64(y)) => Ok(Value::f64(op(x as f64, y, &b_span)?)),
         (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::TypeMismatch {
@@ -6904,8 +6972,8 @@ where
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
     match (a, b) {
         (Value::f64(x), Value::i64(y)) => Ok(Value::f64(op(x, y as f64, &b_span)?)),
         (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::TypeMismatch {
@@ -6949,7 +7017,7 @@ fn eval_one_arg<T>(
         });
     }
     let arg_span = args[0].span().clone();
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     extract(v).map_err(|other| RuntimeError::TypeMismatch {
         op: head.into(),
         expected,
@@ -7072,7 +7140,7 @@ fn eval_f64_round(
     }
     let arg0_span = args[0].span().clone();
     let arg1_span = args[1].span().clone();
-    let v = match eval_inner(&args[0], env, sym)? {
+    let v = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -7083,7 +7151,7 @@ fn eval_f64_round(
             });
         }
     };
-    let digits = match eval_inner(&args[1], env, sym)? {
+    let digits = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::i64(d) => d,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -7132,7 +7200,7 @@ fn eval_f64_unary(
         });
     }
     let arg_span = args[0].span().clone();
-    let v = match eval_inner(&args[0], env, sym)? {
+    let v = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -7170,7 +7238,7 @@ fn eval_f64_clamp(
     let mut vs = [0.0_f64; 3];
     for (i, slot) in vs.iter_mut().enumerate() {
         let arg_span = args[i].span().clone();
-        *slot = match eval_inner(&args[i], env, sym)? {
+        *slot = match eval_inner(&args[i], env, sym)?.value_owned() {
             Value::f64(x) => x,
             other => {
                 return Err(RuntimeError::TypeMismatch {
@@ -7335,12 +7403,13 @@ fn eval_keyword_to_string(
 /// diagnostic if the string starts with ':'.
 ///
 /// Round-trip property: `(from-string (to-string k)) == k` for any keyword `k`.
+// Arc 233 Stone 233.2.j: returns TrackedValue directly (no Value::Tracked wrap).
 fn eval_keyword_from_string(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     let s = eval_one_arg(
         ":wat::core::keyword/from-string",
         args,
@@ -7365,16 +7434,12 @@ fn eval_keyword_from_string(
         });
     }
     // Prepend ':' to form the canonical keyword string.
-    // Arc 233 Stone 233.2.b: wrap in Tracked with RuntimeBuilt provenance so
-    // diagnostic errors (e.g., NotCallable) can report the producer origin.
+    // Arc 233 Stone 233.2.j: construct TrackedValue directly (no Value::Tracked wrap).
     let kw = Value::wat__core__keyword(Arc::new(format!(":{}", s.as_str())));
-    Ok(Value::Tracked {
-        inner: Box::new(kw),
-        provenance: Provenance::RuntimeBuilt {
-            producer: ":wat::core::keyword/from-string",
-            call_span: list_span.clone(),
-        },
-    })
+    Ok(TrackedValue::new(kw, Provenance::RuntimeBuilt {
+        producer: ":wat::core::keyword/from-string",
+        call_span: list_span.clone(),
+    }))
 }
 
 // ─── Arc 232 Stone 232.0 — :wat::core::apply ────────────────────────────────
@@ -7473,19 +7538,19 @@ fn eval_apply(
     // Arc 009 "names are values": a literal keyword that names a registered
     // user define evaluates to `Value::wat__core__fn`; runtime-built keywords
     // remain `Value::wat__core__keyword`. Both are valid apply heads.
-    let head_val = eval_inner(&args[2], env, sym)?;
+    let head_val = eval_inner(&args[2], env, sym)?.value_owned();
 
     // Step 3 — evaluate leading positional args (positions 3..last).
     // Leading = args[3..args.len()-1]. With no leading args this slice is empty.
     let leading_ast = &args[3..args.len() - 1];
     let mut combined: Vec<Value> = leading_ast
         .iter()
-        .map(|a| eval_inner(a, env, sym))
+        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
         .collect::<Result<Vec<_>, _>>()?;
 
     // Step 4 — evaluate last arg; must be :wat::core::Vector (spread).
     let spread_ast = &args[args.len() - 1];
-    let spread_val = eval_inner(spread_ast, env, sym)?;
+    let spread_val = eval_inner(spread_ast, env, sym)?.value_owned();
     let spread_vec = match spread_val {
         Value::Vec(ref v) => v.clone(),
         ref other => {
@@ -7500,12 +7565,12 @@ fn eval_apply(
     combined.extend((*spread_vec).iter().cloned());
 
     // Step 5 — fast path: fn-valued head (Arc 009 lift OR let-bound fn).
-    if let Value::wat__core__fn(func) = head_val.inner() {
+    if let Value::wat__core__fn(func) = &head_val {
         return apply_function(func.clone(), combined, sym, list_span);
     }
 
     // Step 6 — keyword-valued head: extract name + dispatch chain.
-    let head_kw = match head_val.inner() {
+    let head_kw = match &head_val {
         Value::wat__core__keyword(k) => k.clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -7657,8 +7722,8 @@ fn eval_eq(
         });
     }
     let a_span = args[0].span().clone();
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
     match values_equal(&a, &b) {
         Some(eq) => Ok(Value::bool(eq)),
         None => Err(RuntimeError::TypeMismatch {
@@ -7996,8 +8061,8 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
         });
     }
     let a_span = args[0].span().clone();
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
     let order = match values_compare(&a, &b) {
         Some(o) => o,
         None => {
@@ -8175,7 +8240,7 @@ fn eval_arithmetic_variadic(
     // 1-ary handling.
     if args.len() == 1 {
         let arg_span = args[0].span().clone();
-        let v = eval_inner(&args[0], env, sym)?;
+        let v = eval_inner(&args[0], env, sym)?.value_owned();
         if op.one_ary_inserts_identity() {
             // Build identity matching the arg's type, then run a
             // single binary pair (identity OP arg).
@@ -8206,11 +8271,11 @@ fn eval_arithmetic_variadic(
     } else {
         // 2+-ary: fold left.
         let first_span = args[0].span().clone();
-        let mut acc = eval_inner(&args[0], env, sym)?;
+        let mut acc = eval_inner(&args[0], env, sym)?.value_owned();
         let mut acc_span = first_span;
         for arg in &args[1..] {
             let arg_span = arg.span().clone();
-            let v = eval_inner(arg, env, sym)?;
+            let v = eval_inner(arg, env, sym)?.value_owned();
             acc = apply_arith_pair(op, head, &acc, &v, &acc_span, &arg_span)?;
             acc_span = arg_span;
         }
@@ -8233,7 +8298,7 @@ fn eval_not(
         });
     }
     let arg_span = args[0].span().clone();
-    match eval_inner(&args[0], env, sym)? {
+    match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::bool(b) => Ok(Value::bool(!b)),
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::not".into(),
@@ -8253,7 +8318,7 @@ fn eval_and(
     // Short-circuit: false wins.
     for arg in args {
         let arg_span = arg.span().clone();
-        match eval_inner(arg, env, sym)? {
+        match eval_inner(arg, env, sym)?.value_owned() {
             Value::bool(false) => return Ok(Value::bool(false)),
             Value::bool(true) => continue,
             other => {
@@ -8277,7 +8342,7 @@ fn eval_or(
 ) -> Result<Value, RuntimeError> {
     for arg in args {
         let arg_span = arg.span().clone();
-        match eval_inner(arg, env, sym)? {
+        match eval_inner(arg, env, sym)?.value_owned() {
             Value::bool(true) => return Ok(Value::bool(true)),
             Value::bool(false) => continue,
             other => {
@@ -8325,7 +8390,7 @@ fn eval_list_ctor(
     }
     let items = args[1..]
         .iter()
-        .map(|a| eval_inner(a, env, sym))
+        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Value::Vec(Arc::new(items)))
 }
@@ -8360,7 +8425,7 @@ fn eval_tuple_ctor(
     }
     let items = args
         .iter()
-        .map(|a| eval_inner(a, env, sym))
+        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Value::Tuple(Arc::new(items)))
 }
@@ -8481,7 +8546,7 @@ fn eval_vector_length(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     vector_length_inner(&v)
 }
 
@@ -8499,7 +8564,7 @@ fn eval_hashmap_length(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     hashmap_length_inner(&v)
 }
 
@@ -8517,7 +8582,7 @@ fn eval_hashset_length(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     hashset_length_inner(&v)
 }
 
@@ -8601,7 +8666,7 @@ fn eval_vector_empty_q(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     vector_empty_q_inner(&v)
 }
 
@@ -8619,7 +8684,7 @@ fn eval_hashmap_empty_q(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     hashmap_empty_q_inner(&v)
 }
 
@@ -8637,7 +8702,7 @@ fn eval_hashset_empty_q(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     hashset_empty_q_inner(&v)
 }
 
@@ -8733,8 +8798,8 @@ fn eval_vector_contains_q(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let item = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let item = eval_inner(&args[1], env, sym)?.value_owned();
     vector_contains_q_inner(&container, &item)
 }
 
@@ -8752,8 +8817,8 @@ fn eval_hashmap_contains_key_q(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let key = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let key = eval_inner(&args[1], env, sym)?.value_owned();
     hashmap_contains_key_q_inner(&container, &key)
 }
 
@@ -8771,8 +8836,8 @@ fn eval_hashset_contains_q(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let item = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let item = eval_inner(&args[1], env, sym)?.value_owned();
     hashset_contains_q_inner(&container, &item)
 }
 
@@ -8876,8 +8941,8 @@ fn eval_vector_get(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let index = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let index = eval_inner(&args[1], env, sym)?.value_owned();
     vector_get_inner(&container, &index)
 }
 
@@ -8895,8 +8960,8 @@ fn eval_hashmap_get(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let key = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let key = eval_inner(&args[1], env, sym)?.value_owned();
     hashmap_get_inner(&container, &key)
 }
 
@@ -8916,7 +8981,7 @@ fn eval_list_length(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     list_length_inner(&v)
 }
 
@@ -8934,7 +8999,7 @@ fn eval_list_empty_q(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     list_empty_q_inner(&v)
 }
 
@@ -8952,8 +9017,8 @@ fn eval_list_contains_q(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let item = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let item = eval_inner(&args[1], env, sym)?.value_owned();
     list_contains_q_inner(&container, &item)
 }
 
@@ -8971,8 +9036,8 @@ fn eval_list_get(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let index = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let index = eval_inner(&args[1], env, sym)?.value_owned();
     list_get_inner(&container, &index)
 }
 
@@ -8990,8 +9055,8 @@ fn eval_list_conj(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let item = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let item = eval_inner(&args[1], env, sym)?.value_owned();
     list_conj_inner(&container, &item)
 }
 
@@ -9159,8 +9224,8 @@ fn eval_program_env_get(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
-    let env_val = eval_inner(&args[0], env, sym)?;
-    let key_val = eval_inner(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let key_val = eval_inner(&args[1], env, sym)?.value_owned();
     let result = program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())?;
     Ok(Value::Option(Arc::new(result)))
 }
@@ -9186,8 +9251,8 @@ fn eval_program_env_expect_get(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
-    let env_val = eval_inner(&args[0], env, sym)?;
-    let key_val = eval_inner(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let key_val = eval_inner(&args[1], env, sym)?.value_owned();
     let key_str = format!("{:?}", &args[1]); // source-level key name for diagnostic
     match program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())? {
         Some(v) => Ok(v),
@@ -9235,11 +9300,11 @@ fn eval_program_env_get_default(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 3, 4)?;
-    let env_val = eval_inner(&args[0], env, sym)?;
-    let key_val = eval_inner(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let key_val = eval_inner(&args[1], env, sym)?.value_owned();
     match program_env_lookup(OP, &env_val, &key_val, &target_ty, args[1].span())? {
         Some(v) => Ok(v),
-        None => eval_inner(&args[2], env, sym),
+        None => eval_inner(&args[2], env, sym).map(|tv| tv.value_owned()),
     }
 }
 
@@ -9375,8 +9440,8 @@ fn eval_program_env_dig(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
-    let env_val = eval_inner(&args[0], env, sym)?;
-    let path_val = eval_inner(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let path_val = eval_inner(&args[1], env, sym)?.value_owned();
     // Extract the map from env. Stone 216.5c — HashMap<Value, Value> native.
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
@@ -9426,8 +9491,8 @@ fn eval_program_env_expect_dig(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
-    let env_val = eval_inner(&args[0], env, sym)?;
-    let path_val = eval_inner(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let path_val = eval_inner(&args[1], env, sym)?.value_owned();
     let path_str = format!("{:?}", &args[1]); // source-level path for diagnostic
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
@@ -9497,8 +9562,8 @@ fn eval_program_env_dig_default(
         });
     }
     let target_ty = parse_arrow_ty(OP, args, 3, 4)?;
-    let env_val = eval_inner(&args[0], env, sym)?;
-    let path_val = eval_inner(&args[1], env, sym)?;
+    let env_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let path_val = eval_inner(&args[1], env, sym)?.value_owned();
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
         other => {
@@ -9523,7 +9588,7 @@ fn eval_program_env_dig_default(
     };
     match program_env_dig_walk(OP, &map, &path_items, &target_ty, args[1].span())? {
         Some(v) => Ok(v),
-        None => eval_inner(&args[2], env, sym),
+        None => eval_inner(&args[2], env, sym).map(|tv| tv.value_owned()),
     }
 }
 
@@ -9612,8 +9677,8 @@ fn eval_vector_conj(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let item = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let item = eval_inner(&args[1], env, sym)?.value_owned();
     vector_conj_inner(&container, &item)
 }
 
@@ -9631,8 +9696,8 @@ fn eval_hashset_conj(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let item = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let item = eval_inner(&args[1], env, sym)?.value_owned();
     hashset_conj_inner(&container, &item)
 }
 
@@ -9791,9 +9856,9 @@ fn eval_hashmap_assoc(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let k = eval_inner(&args[1], env, sym)?;
-    let v = eval_inner(&args[2], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let k = eval_inner(&args[1], env, sym)?.value_owned();
+    let v = eval_inner(&args[2], env, sym)?.value_owned();
     hashmap_assoc_inner(&container, &k, &v)
 }
 
@@ -9811,8 +9876,8 @@ fn eval_hashmap_dissoc(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
-    let k = eval_inner(&args[1], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let k = eval_inner(&args[1], env, sym)?.value_owned();
     hashmap_dissoc_inner(&container, &k)
 }
 
@@ -9830,7 +9895,7 @@ fn eval_hashmap_keys(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
     hashmap_keys_inner(&container)
 }
 
@@ -9848,7 +9913,7 @@ fn eval_hashmap_values(
             span: Span::unknown(),
         });
     }
-    let container = eval_inner(&args[0], env, sym)?;
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
     hashmap_values_inner(&container)
 }
 
@@ -9866,8 +9931,8 @@ fn eval_vector_concat(
             span: Span::unknown(),
         });
     }
-    let left = eval_inner(&args[0], env, sym)?;
-    let right = eval_inner(&args[1], env, sym)?;
+    let left = eval_inner(&args[0], env, sym)?.value_owned();
+    let right = eval_inner(&args[1], env, sym)?.value_owned();
     vector_concat_inner(&left, &right)
 }
 
@@ -10164,7 +10229,7 @@ fn eval_vec_reverse(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::core::reverse", eval_inner(&args[0], env, sym)?)?;
+    let xs = require_vec(":wat::core::reverse", eval_inner(&args[0], env, sym)?.value_owned())?;
     let mut out = (*xs).clone();
     out.reverse();
     Ok(Value::Vec(Arc::new(out)))
@@ -10187,8 +10252,8 @@ fn eval_vec_range(
             span: list_span.clone(),
         });
     }
-    let start = require_i64(":wat::core::range", eval_inner(&args[0], env, sym)?)?;
-    let end = require_i64(":wat::core::range", eval_inner(&args[1], env, sym)?)?;
+    let start = require_i64(":wat::core::range", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let end = require_i64(":wat::core::range", eval_inner(&args[1], env, sym)?.value_owned())?;
     let items: Vec<Value> = if start <= end {
         (start..end).map(Value::i64).collect()
     } else {
@@ -10214,8 +10279,8 @@ fn eval_vec_take(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::core::take", eval_inner(&args[0], env, sym)?)?;
-    let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::core::take", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?.value_owned())?;
     let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
     let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
     Ok(Value::Vec(Arc::new(out)))
@@ -10238,8 +10303,8 @@ fn eval_vec_drop(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::core::drop", eval_inner(&args[0], env, sym)?)?;
-    let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::core::drop", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?.value_owned())?;
     let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
     let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
     Ok(Value::Vec(Arc::new(out)))
@@ -10280,8 +10345,8 @@ fn eval_vec_sort_by(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?)?;
-    let f = eval_inner(&args[1], env, sym)?;
+    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10364,8 +10429,8 @@ fn eval_vec_map(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(":wat::core::map", eval_inner(&args[0], env, sym)?)?;
-    let f = eval_inner(&args[1], env, sym)?;
+    let xs = require_vec(":wat::core::map", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10403,9 +10468,9 @@ fn eval_vec_foldl(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(":wat::core::foldl", eval_inner(&args[0], env, sym)?)?;
-    let mut acc = eval_inner(&args[1], env, sym)?;
-    let f = eval_inner(&args[2], env, sym)?;
+    let xs = require_vec(":wat::core::foldl", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
+    let f = eval_inner(&args[2], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10442,9 +10507,9 @@ fn eval_vec_foldr(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(":wat::core::foldr", eval_inner(&args[0], env, sym)?)?;
-    let mut acc = eval_inner(&args[1], env, sym)?;
-    let f = eval_inner(&args[2], env, sym)?;
+    let xs = require_vec(":wat::core::foldr", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
+    let f = eval_inner(&args[2], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10480,8 +10545,8 @@ fn eval_vec_filter(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(":wat::core::filter", eval_inner(&args[0], env, sym)?)?;
-    let f = eval_inner(&args[1], env, sym)?;
+    let xs = require_vec(":wat::core::filter", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -10529,8 +10594,8 @@ fn eval_list_zip(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::std::list::zip", eval_inner(&args[0], env, sym)?)?;
-    let ys = require_vec(":wat::std::list::zip", eval_inner(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::std::list::zip", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let ys = require_vec(":wat::std::list::zip", eval_inner(&args[1], env, sym)?.value_owned())?;
     let n = xs.len().min(ys.len());
     let mut out = Vec::with_capacity(n);
     for (x, y) in xs.iter().zip(ys.iter()).take(n) {
@@ -10557,8 +10622,8 @@ fn eval_list_window(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::std::list::window", eval_inner(&args[0], env, sym)?)?;
-    let n = require_i64(":wat::std::list::window", eval_inner(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::std::list::window", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let n = require_i64(":wat::std::list::window", eval_inner(&args[1], env, sym)?.value_owned())?;
     if n <= 0 {
         return Ok(Value::Vec(Arc::new(Vec::new())));
     }
@@ -10590,8 +10655,8 @@ fn eval_list_remove_at(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::std::list::remove-at", eval_inner(&args[0], env, sym)?)?;
-    let i = require_i64(":wat::std::list::remove-at", eval_inner(&args[1], env, sym)?)?;
+    let xs = require_vec(":wat::std::list::remove-at", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let i = require_i64(":wat::std::list::remove-at", eval_inner(&args[1], env, sym)?.value_owned())?;
     if i < 0 || (i as usize) >= xs.len() {
         return Ok(Value::Vec(xs));
     }
@@ -10717,8 +10782,8 @@ fn eval_hashmap_ctor(
     let mut map: std::collections::HashMap<Value, Value> =
         std::collections::HashMap::with_capacity(pairs.len() / 2);
     for pair in pairs.chunks(2) {
-        let k = eval_inner(&pair[0], env, sym)?;
-        let v = eval_inner(&pair[1], env, sym)?;
+        let k = eval_inner(&pair[0], env, sym)?.value_owned();
+        let v = eval_inner(&pair[1], env, sym)?.value_owned();
         if !value_is_key_hashable(&k) {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::HashMap".into(),
@@ -10781,7 +10846,7 @@ fn eval_hashset_ctor(
     // Guard: reject opaque-handle variants (would hit unreachable!() in Hash).
     let mut set: HashSet<Value> = HashSet::with_capacity(args.len() - 1);
     for a in &args[1..] {
-        let v = eval_inner(a, env, sym)?;
+        let v = eval_inner(a, env, sym)?.value_owned();
         if !value_is_set_hashable(&v) {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::HashSet".into(),
@@ -10898,7 +10963,7 @@ fn walk_quasiquote(
             // Unquote — fires at depth 1; preserves+peels deeper.
             if let Some(arg) = match_qq_head(items, ":wat::core::unquote") {
                 if depth == 1 {
-                    let v = eval_inner(arg, env, sym)?;
+                    let v = eval_inner(arg, env, sym)?.value_owned();
                     return value_to_watast(":wat::core::unquote", v, span.clone());
                 }
                 let inner = walk_quasiquote(arg, env, sym, depth - 1)?;
@@ -11008,7 +11073,7 @@ fn eval_struct_to_form(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     let s = match v {
         Value::Struct(s) => s,
         other => {
@@ -11725,7 +11790,7 @@ fn eval_lookup_define(
     let name = if let WatAST::Keyword(k, _) = &args[0] {
         k.clone()
     } else {
-        let v = eval_inner(&args[0], env, sym)?;
+        let v = eval_inner(&args[0], env, sym)?.value_owned();
         match name_from_keyword_or_fn(&v) {
             Some(n) => n,
             None => {
@@ -11817,7 +11882,7 @@ fn eval_signature_of_defn(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     let name = match name_from_keyword_or_fn(&v) {
         Some(n) => n,
         None => {
@@ -11938,7 +12003,7 @@ fn eval_signature_of_fn(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     let f = match v {
         Value::wat__core__fn(f) => f,
         other => {
@@ -11978,7 +12043,7 @@ fn eval_body_of(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     let name = match name_from_keyword_or_fn(&v) {
         Some(n) => n,
         None => {
@@ -12090,9 +12155,9 @@ fn eval_rename_callable_name(
         });
     }
     // Eval all three args.
-    let head_val = eval_inner(&args[0], env, sym)?;
-    let from_val = eval_inner(&args[1], env, sym)?;
-    let to_val = eval_inner(&args[2], env, sym)?;
+    let head_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let from_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let to_val = eval_inner(&args[2], env, sym)?.value_owned();
 
     // Extract HolonAST from head arg.
     let holon_arc = match head_val {
@@ -12223,7 +12288,7 @@ fn eval_extract_arg_names(
             span: Span::unknown(),
         });
     }
-    let head_val = eval_inner(&args[0], env, sym)?;
+    let head_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match head_val {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -12305,7 +12370,7 @@ fn eval_extract_arg_types(
             span: Span::unknown(),
         });
     }
-    let head_val = eval_inner(&args[0], env, sym)?;
+    let head_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match head_val {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -12374,7 +12439,7 @@ fn eval_bundle_children(
             span: Span::unknown(),
         });
     }
-    let arg_val = eval_inner(&args[0], env, sym)?;
+    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -12422,7 +12487,7 @@ fn eval_bundle_first(
             span: Span::unknown(),
         });
     }
-    let arg_val = eval_inner(&args[0], env, sym)?;
+    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -12493,7 +12558,7 @@ fn eval_form_matches(
     // so callers can write `(matches? maybe-event (:Foo ...))`
     // against `:Option<Value>` directly. None / non-Struct / wrong
     // type → false.
-    let subject = eval_inner(&args[0], env, sym)?;
+    let subject = eval_inner(&args[0], env, sym)?.value_owned();
     let subject = match subject {
         Value::Option(opt) => match (*opt).clone() {
             Some(v) => v,
@@ -12622,14 +12687,14 @@ fn walk_match_clause(
                 // ?var already bound — fall through to comparison.
             }
             // Equality comparison. eval both sides; structural equality.
-            let a = eval_inner(left, &env, sym)?;
-            let b = eval_inner(right, &env, sym)?;
+            let a = eval_inner(left, &env, sym)?.value_owned();
+            let b = eval_inner(right, &env, sym)?.value_owned();
             let eq = values_equal(&a, &b).unwrap_or(false);
             Ok((eq, env))
         }
         RawClause::Compare { op, left, right } => {
-            let a = eval_inner(left, &env, sym)?;
-            let b = eval_inner(right, &env, sym)?;
+            let a = eval_inner(left, &env, sym)?.value_owned();
+            let b = eval_inner(right, &env, sym)?.value_owned();
             match op {
                 CompareOp::NotEq => {
                     let eq = values_equal(&a, &b).unwrap_or(false);
@@ -12713,7 +12778,7 @@ fn walk_match_clause(
             Ok((!p, entry_env))
         }
         RawClause::Where(body) => {
-            let v = eval_inner(body, &env, sym)?;
+            let v = eval_inner(body, &env, sym)?.value_owned();
             match v {
                 Value::bool(b) => Ok((b, env)),
                 other => Err(RuntimeError::TypeMismatch {
@@ -12773,7 +12838,7 @@ fn eval_macroexpand_1(
             span: Span::unknown(),
         });
     }
-    let ast = match eval_inner(&args[0], env, sym)? {
+    let ast = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -12817,7 +12882,7 @@ fn eval_macroexpand(
             span: Span::unknown(),
         });
     }
-    let mut ast = match eval_inner(&args[0], env, sym)? {
+    let mut ast = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -12886,7 +12951,7 @@ fn eval_positional_accessor(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
         Value::Tuple(items) => items.get(index).cloned().ok_or_else(|| {
             RuntimeError::MalformedForm {
@@ -12932,7 +12997,7 @@ fn eval_vec_last(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::core::last", eval_inner(&args[0], env, sym)?)?;
+    let xs = require_vec(":wat::core::last", eval_inner(&args[0], env, sym)?.value_owned())?;
     Ok(Value::Option(Arc::new(xs.last().cloned())))
 }
 
@@ -12958,8 +13023,8 @@ fn eval_vec_find_last_index(
             span: Span::unknown(),
         });
     }
-    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?)?;
-    let f = eval_inner(&args[1], env, sym)?;
+    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -13019,7 +13084,7 @@ fn eval_f64_reduce(
         });
     }
     let arg_span = args[0].span().clone();
-    let xs = require_vec(op, eval_inner(&args[0], env, sym)?)?;
+    let xs = require_vec(op, eval_inner(&args[0], env, sym)?.value_owned())?;
     let mut iter = xs.iter();
     let init = match iter.next() {
         Some(Value::f64(x)) => *x,
@@ -13068,7 +13133,7 @@ fn eval_vec_rest(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
         Value::Vec(xs) => {
             if xs.is_empty() {
@@ -13120,8 +13185,8 @@ fn eval_list_map_with_index(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(":wat::std::list::map-with-index", eval_inner(&args[0], env, sym)?)?;
-    let f = eval_inner(&args[1], env, sym)?;
+    let xs = require_vec(":wat::std::list::map-with-index", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -13166,7 +13231,7 @@ fn eval_some_ctor(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     Ok(Value::Option(Arc::new(Some(v))))
 }
 
@@ -13187,7 +13252,7 @@ fn eval_ok_ctor(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     Ok(Value::Result(Arc::new(Ok(v))))
 }
 
@@ -13208,7 +13273,7 @@ fn eval_err_ctor(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     Ok(Value::Result(Arc::new(Err(v))))
 }
 
@@ -13249,7 +13314,7 @@ fn eval_try(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
         Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
             Ok(std::result::Result::Ok(ok)) => Ok(ok),
@@ -13299,7 +13364,7 @@ fn eval_option_try(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
         Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
             Ok(Some(inner)) => Ok(inner),
@@ -13349,7 +13414,7 @@ fn eval_option_expect(
             span: list_span.clone(),
         });
     }
-    let opt = eval_inner(&args[2], env, sym)?;
+    let opt = eval_inner(&args[2], env, sym)?.value_owned();
     match opt {
         Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
             Ok(Some(v)) => Ok(v),
@@ -13385,7 +13450,7 @@ fn eval_result_expect(
             span: list_span.clone(),
         });
     }
-    let res = eval_inner(&args[2], env, sym)?;
+    let res = eval_inner(&args[2], env, sym)?.value_owned();
     match res {
         Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
             Ok(std::result::Result::Ok(ok)) => Ok(ok),
@@ -13449,7 +13514,7 @@ fn expect_panic(
     location: crate::span::Span,
     upstream_chain: Option<Vec<Value>>,
 ) -> Result<Value, RuntimeError> {
-    let msg = match eval_inner(msg_ast, env, sym)? {
+    let msg = match eval_inner(msg_ast, env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -13509,7 +13574,7 @@ fn eval_kernel_raise(
             span: Span::unknown(),
         });
     }
-    let data = eval_inner(&args[0], env, sym)?;
+    let data = eval_inner(&args[0], env, sym)?.value_owned();
     match &data {
         Value::holon__HolonAST(_) => {}
         other => {
@@ -13583,7 +13648,7 @@ fn eval_struct_new(
     };
     let mut fields = Vec::with_capacity(args.len() - 1);
     for arg in &args[1..] {
-        fields.push(eval_inner(arg, env, sym)?);
+        fields.push(eval_inner(arg, env, sym)?.value_owned());
     }
     Ok(Value::Struct(Arc::new(StructValue { type_name, fields })))
 }
@@ -13654,7 +13719,7 @@ fn eval_variant(
     };
     let mut fields = Vec::with_capacity(args.len() - 2);
     for arg in &args[2..] {
-        fields.push(eval_inner(arg, env, sym)?);
+        fields.push(eval_inner(arg, env, sym)?.value_owned());
     }
     Ok(Value::Enum(Arc::new(EnumValue {
         type_path,
@@ -13692,7 +13757,7 @@ fn eval_struct_field(
             span: list_span.clone(),
         });
     }
-    let struct_val = eval_inner(&args[0], env, sym)?;
+    let struct_val = eval_inner(&args[0], env, sym)?.value_owned();
     let inner = match struct_val {
         Value::Struct(s) => s,
         other => {
@@ -13816,7 +13881,7 @@ fn eval_match(
             });
         }
     }
-    let scrutinee = eval_inner(&args[0], env, sym)?;
+    let scrutinee = eval_inner(&args[0], env, sym)?.value_owned();
     for arm in &args[3..] {
         let arm_items = match arm {
             WatAST::List(items, _) => items,
@@ -13844,7 +13909,7 @@ fn eval_match(
         let pattern = &arm_items[0];
         let body = &arm_items[1];
         if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env)? {
-            return eval_inner(body, &arm_env, sym);
+            return eval_inner(body, &arm_env, sym).map(|tv| tv.value_owned());
         }
     }
     Err(RuntimeError::PatternMatchFailed {
@@ -14345,13 +14410,14 @@ fn extract_classifier_inner_bundle(holon: &HolonAST) -> Option<&Vec<HolonAST>> {
 /// - Other composite → TypeMismatch.
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // See comment on `hashset_conj_inner` for rationale.
+// Arc 233 Stone 233.2.j: returns TrackedValue directly (no Value::Tracked wrap).
 #[allow(clippy::mutable_key_type)]
 fn eval_holon_from_holon(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     const OP: &str = ":wat::holon::from-holon";
     // Accepts 1 arg (no type hint) or 3 args with optional `-> :T` annotation
     // for disambiguating empty Bundle: `(from-holon h -> :wat::core::HashMap<K,V>)`.
@@ -14399,7 +14465,7 @@ fn eval_holon_from_holon(
     } else {
         false
     };
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     let holon = match v {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -14414,80 +14480,31 @@ fn eval_holon_from_holon(
     // Arc 230: Symbol/Keyword/Nil variants retired. Recognise via accessors.
     // These checks must come before the `match &*holon` because the compositions
     // are Bind variants that would otherwise fall to the classifier-dispatch arm.
+    // Arc 233 Stone 233.2.j: construct TrackedValue::new directly (no Value::Tracked wrap).
+    let prov = || Provenance::RuntimeBuilt {
+        producer: ":wat::holon::from-holon",
+        call_span: list_span.clone(),
+    };
     if let Some(s) = holon.as_symbol() {
         // nil composition (symbol("nil")) → Value::Unit.
         if s == "nil" {
-            return Ok(Value::Tracked {
-                inner: Box::new(Value::Unit),
-                provenance: Provenance::RuntimeBuilt {
-                    producer: ":wat::holon::from-holon",
-                    call_span: list_span.clone(),
-                },
-            });
+            return Ok(TrackedValue::new(Value::Unit, prov()));
         }
-        return Ok(Value::Tracked {
-            inner: Box::new(Value::wat__core__keyword(Arc::new(s.to_string()))),
-            provenance: Provenance::RuntimeBuilt {
-                producer: ":wat::holon::from-holon",
-                call_span: list_span.clone(),
-            },
-        });
+        return Ok(TrackedValue::new(Value::wat__core__keyword(Arc::new(s.to_string())), prov()));
     }
     if let Some(s) = holon.as_keyword() {
         // Keyword composition: restore leading colon for the Value round-trip.
-        return Ok(Value::Tracked {
-            inner: Box::new(Value::wat__core__keyword(Arc::new(format!(":{}", s)))),
-            provenance: Provenance::RuntimeBuilt {
-                producer: ":wat::holon::from-holon",
-                call_span: list_span.clone(),
-            },
-        });
+        return Ok(TrackedValue::new(Value::wat__core__keyword(Arc::new(format!(":{}", s))), prov()));
     }
     match &*holon {
         // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
-        // Arc 233 Stone 233.2.c — wrap each return in Tracked with RuntimeBuilt provenance.
-        HolonAST::Char(c) => Ok(Value::Tracked {
-            inner: Box::new(Value::wat__core__Char(*c)),
-            provenance: Provenance::RuntimeBuilt {
-                producer: ":wat::holon::from-holon",
-                call_span: list_span.clone(),
-            },
-        }),
-        HolonAST::String(s) => Ok(Value::Tracked {
-            inner: Box::new(Value::String(Arc::new(s.to_string()))),
-            provenance: Provenance::RuntimeBuilt {
-                producer: ":wat::holon::from-holon",
-                call_span: list_span.clone(),
-            },
-        }),
-        HolonAST::I64(n) => Ok(Value::Tracked {
-            inner: Box::new(Value::i64(*n)),
-            provenance: Provenance::RuntimeBuilt {
-                producer: ":wat::holon::from-holon",
-                call_span: list_span.clone(),
-            },
-        }),
-        HolonAST::F64(x) => Ok(Value::Tracked {
-            inner: Box::new(Value::f64(*x)),
-            provenance: Provenance::RuntimeBuilt {
-                producer: ":wat::holon::from-holon",
-                call_span: list_span.clone(),
-            },
-        }),
-        HolonAST::Bool(b) => Ok(Value::Tracked {
-            inner: Box::new(Value::bool(*b)),
-            provenance: Provenance::RuntimeBuilt {
-                producer: ":wat::holon::from-holon",
-                call_span: list_span.clone(),
-            },
-        }),
-        HolonAST::Atom(inner) => Ok(Value::Tracked {
-            inner: Box::new(Value::holon__HolonAST(inner.clone())),
-            provenance: Provenance::RuntimeBuilt {
-                producer: ":wat::holon::from-holon",
-                call_span: list_span.clone(),
-            },
-        }),
+        // Arc 233 Stone 233.2.j — use TrackedValue::new directly.
+        HolonAST::Char(c) => Ok(TrackedValue::new(Value::wat__core__Char(*c), prov())),
+        HolonAST::String(s) => Ok(TrackedValue::new(Value::String(Arc::new(s.to_string())), prov())),
+        HolonAST::I64(n) => Ok(TrackedValue::new(Value::i64(*n), prov())),
+        HolonAST::F64(x) => Ok(TrackedValue::new(Value::f64(*x), prov())),
+        HolonAST::Bool(b) => Ok(TrackedValue::new(Value::bool(*b), prov())),
+        HolonAST::Atom(inner) => Ok(TrackedValue::new(Value::holon__HolonAST(inner.clone()), prov())),
         // Arc 228 Stone 228.1 — classifier-dispatch replaces arc 216 heuristic Bundle dispatch.
         // The outermost form is now Bind(Atom(String(name)), Bundle(items)) for all collections.
         // Dispatch by classifier name:
@@ -14541,13 +14558,7 @@ fn eval_holon_from_holon(
                                 }
                             }
                         }
-                        Ok(Value::Tracked {
-                            inner: Box::new(Value::wat__std__HashMap(Arc::new(map))),
-                            provenance: Provenance::RuntimeBuilt {
-                                producer: ":wat::holon::from-holon",
-                                call_span: list_span.clone(),
-                            },
-                        })
+                        Ok(TrackedValue::new(Value::wat__std__HashMap(Arc::new(map)), prov()))
                     }
                     "Set" => {
                         // Set: inner Bundle contains bare items → HashSet.
@@ -14556,13 +14567,7 @@ fn eval_holon_from_holon(
                             let v = from_holon_item(item, OP, args[0].span())?;
                             set.insert(v);
                         }
-                        Ok(Value::Tracked {
-                            inner: Box::new(Value::wat__std__HashSet(Arc::new(set))),
-                            provenance: Provenance::RuntimeBuilt {
-                                producer: ":wat::holon::from-holon",
-                                call_span: list_span.clone(),
-                            },
-                        })
+                        Ok(TrackedValue::new(Value::wat__std__HashSet(Arc::new(set)), prov()))
                     }
                     "Vector" => {
                         // Vector: inner Bundle contains positional Bind(I64, _) pairs → Vec.
@@ -14597,13 +14602,7 @@ fn eval_holon_from_holon(
                         }
                         pairs.sort_by_key(|(k, _)| *k);
                         let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                        Ok(Value::Tracked {
-                            inner: Box::new(Value::Vec(Arc::new(elems))),
-                            provenance: Provenance::RuntimeBuilt {
-                                producer: ":wat::holon::from-holon",
-                                call_span: list_span.clone(),
-                            },
-                        })
+                        Ok(TrackedValue::new(Value::Vec(Arc::new(elems)), prov()))
                     }
                     "List" => {
                         // List: inner Bundle contains sequential bare items → wat::core::List.
@@ -14613,13 +14612,7 @@ fn eval_holon_from_holon(
                             let v = from_holon_item(item, OP, args[0].span())?;
                             list.push_back(v);
                         }
-                        Ok(Value::Tracked {
-                            inner: Box::new(Value::wat__core__List(Arc::new(list))),
-                            provenance: Provenance::RuntimeBuilt {
-                                producer: ":wat::holon::from-holon",
-                                call_span: list_span.clone(),
-                            },
-                        })
+                        Ok(TrackedValue::new(Value::wat__core__List(Arc::new(list)), prov()))
                     }
                     "Tuple" => {
                         // Tuple: inner Bundle contains positional Bind(I64, _) pairs → Tuple.
@@ -14655,13 +14648,7 @@ fn eval_holon_from_holon(
                         }
                         pairs.sort_by_key(|(k, _)| *k);
                         let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                        Ok(Value::Tracked {
-                            inner: Box::new(Value::Tuple(Arc::new(elems))),
-                            provenance: Provenance::RuntimeBuilt {
-                                producer: ":wat::holon::from-holon",
-                                call_span: list_span.clone(),
-                            },
-                        })
+                        Ok(TrackedValue::new(Value::Tuple(Arc::new(elems)), prov()))
                     }
                     _ => {
                         Err(RuntimeError::TypeMismatch {
@@ -14711,7 +14698,7 @@ fn eval_holon_atom_constructor(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     wrap_holon_as_atom(v, args[0].span())
 }
 
@@ -14761,7 +14748,7 @@ fn eval_holon_to_holon(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     to_holon_inner(v, args[0].span())
 }
 
@@ -15008,7 +14995,7 @@ fn eval_holon_leaf(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     let h = match v {
         Value::i64(n) => HolonAST::i64(n),
         Value::f64(x) => HolonAST::f64(x),
@@ -15060,7 +15047,7 @@ fn eval_holon_from_wat(
             span: list_span.clone(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     let h = match v {
         Value::wat__WatAST(a) => watast_to_holon(&a),
         other => {
@@ -15113,7 +15100,7 @@ fn eval_holon_to_wat(
             span: list_span.clone(),
         });
     }
-    let h = match eval_inner(&args[0], env, sym)? {
+    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15149,7 +15136,7 @@ fn eval_term_template(
             span: list_span.clone(),
         });
     }
-    let h = match eval_inner(&args[0], env, sym)? {
+    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15183,7 +15170,7 @@ fn eval_term_slots(
             span: list_span.clone(),
         });
     }
-    let h = match eval_inner(&args[0], env, sym)? {
+    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15218,7 +15205,7 @@ fn eval_term_ranges(
             span: list_span.clone(),
         });
     }
-    let h = match eval_inner(&args[0], env, sym)? {
+    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15268,7 +15255,7 @@ fn eval_term_matches_q(
             span: list_span.clone(),
         });
     }
-    let q = match eval_inner(&args[0], env, sym)? {
+    let q = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15279,7 +15266,7 @@ fn eval_term_matches_q(
             });
         }
     };
-    let s = match eval_inner(&args[1], env, sym)? {
+    let s = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15341,7 +15328,7 @@ fn eval_presence_floor(
             span: list_span.clone(),
         });
     }
-    let d = require_i64(OP, eval_inner(&args[0], env, sym)?)?;
+    let d = require_i64(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     if d <= 0 {
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
@@ -15372,7 +15359,7 @@ fn eval_coincident_floor(
             span: list_span.clone(),
         });
     }
-    let d = require_i64(OP, eval_inner(&args[0], env, sym)?)?;
+    let d = require_i64(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     if d <= 0 {
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
@@ -15436,7 +15423,7 @@ fn eval_hologram_make(
             span: list_span.clone(),
         });
     }
-    let filter = require_fn(OP, eval_inner(&args[0], env, sym)?)?;
+    let filter = require_fn(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let h = crate::hologram::Hologram::make(ctx.dim_count, filter);
     Ok(Value::Hologram(Arc::new(
@@ -15464,8 +15451,8 @@ fn eval_hologram_put(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
-    let key = match eval_inner(&args[1], env, sym)? {
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let key = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15476,7 +15463,7 @@ fn eval_hologram_put(
             });
         }
     };
-    let val = match eval_inner(&args[2], env, sym)? {
+    let val = match eval_inner(&args[2], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15512,8 +15499,8 @@ fn eval_hologram_get(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
-    let probe = match eval_inner(&args[1], env, sym)? {
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let probe = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15558,8 +15545,8 @@ fn eval_hologram_find(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
-    let probe = match eval_inner(&args[1], env, sym)? {
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let probe = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15604,8 +15591,8 @@ fn eval_hologram_remove(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
-    let key = match eval_inner(&args[1], env, sym)? {
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let key = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15642,7 +15629,7 @@ fn eval_hologram_len(
             span: list_span.clone(),
         });
     }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let n = store.with_ref(OP, |s| s.len() as i64)?;
     Ok(Value::i64(n))
 }
@@ -15668,7 +15655,7 @@ fn eval_hologram_capacity(
             span: Span::unknown(),
         });
     }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?)?;
+    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let cap = store.with_ref(OP, |s| s.capacity() as i64)?;
     Ok(Value::i64(cap))
 }
@@ -15694,7 +15681,7 @@ fn eval_therm_form(
             span: list_span.clone(),
         });
     }
-    let low = match eval_inner(&args[0], env, sym)? {
+    let low = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15705,7 +15692,7 @@ fn eval_therm_form(
             });
         }
     };
-    let high = match eval_inner(&args[1], env, sym)? {
+    let high = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15716,7 +15703,7 @@ fn eval_therm_form(
             });
         }
     };
-    let value = match eval_inner(&args[2], env, sym)? {
+    let value = match eval_inner(&args[2], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15867,8 +15854,8 @@ fn eval_algebra_bind(
             span: list_span.clone(),
         });
     }
-    let a = require_holon(":wat::holon::Bind", eval_inner(&args[0], env, sym)?)?;
-    let b = require_holon(":wat::holon::Bind", eval_inner(&args[1], env, sym)?)?;
+    let a = require_holon(":wat::holon::Bind", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let b = require_holon(":wat::holon::Bind", eval_inner(&args[1], env, sym)?.value_owned())?;
 
     // No AST-level simplification. MAP's bind self-inverse — Bind(Bind(x,y),x) →
     // y — is a VECTOR-level identity (and per 058-024's rejection text, holds
@@ -15922,7 +15909,7 @@ fn eval_algebra_bundle(
             span: list_span.clone(),
         });
     }
-    let list = match eval_inner(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -15998,8 +15985,8 @@ fn eval_algebra_permute(
             span: list_span.clone(),
         });
     }
-    let child = require_holon(":wat::holon::Permute", eval_inner(&args[0], env, sym)?)?;
-    let k = match eval_inner(&args[1], env, sym)? {
+    let child = require_holon(":wat::holon::Permute", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let k = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::i64(n) => i32::try_from(n).map_err(|_| RuntimeError::TypeMismatch {
             op: ":wat::holon::Permute".into(),
             expected: "i32 step (integer fitting in i32)",
@@ -16051,9 +16038,9 @@ fn eval_algebra_thermometer(
             span: list_span.clone(),
         });
     }
-    let v = require_numeric(":wat::holon::Thermometer", eval_inner(&args[0], env, sym)?, list_span)?;
-    let mn = require_numeric(":wat::holon::Thermometer", eval_inner(&args[1], env, sym)?, list_span)?;
-    let mx = require_numeric(":wat::holon::Thermometer", eval_inner(&args[2], env, sym)?, list_span)?;
+    let v = require_numeric(":wat::holon::Thermometer", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
+    let mn = require_numeric(":wat::holon::Thermometer", eval_inner(&args[1], env, sym)?.value_owned(), list_span)?;
+    let mx = require_numeric(":wat::holon::Thermometer", eval_inner(&args[2], env, sym)?.value_owned(), list_span)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(v, mn, mx))))
 }
 
@@ -16071,10 +16058,10 @@ fn eval_algebra_blend(
             span: list_span.clone(),
         });
     }
-    let a = require_holon(":wat::holon::Blend", eval_inner(&args[0], env, sym)?)?;
-    let b = require_holon(":wat::holon::Blend", eval_inner(&args[1], env, sym)?)?;
-    let w1 = require_numeric(":wat::holon::Blend", eval_inner(&args[2], env, sym)?, list_span)?;
-    let w2 = require_numeric(":wat::holon::Blend", eval_inner(&args[3], env, sym)?, list_span)?;
+    let a = require_holon(":wat::holon::Blend", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let b = require_holon(":wat::holon::Blend", eval_inner(&args[1], env, sym)?.value_owned())?;
+    let w1 = require_numeric(":wat::holon::Blend", eval_inner(&args[2], env, sym)?.value_owned(), list_span)?;
+    let w2 = require_numeric(":wat::holon::Blend", eval_inner(&args[3], env, sym)?.value_owned(), list_span)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend((*a).clone(), (*b).clone(), w1, w2))))
 }
 
@@ -16108,7 +16095,7 @@ fn eval_algebra_map(
             span: list_span.clone(),
         });
     }
-    let list = match eval_inner(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16151,7 +16138,7 @@ fn eval_algebra_set(
             span: list_span.clone(),
         });
     }
-    let list = match eval_inner(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16195,7 +16182,7 @@ fn eval_algebra_vector(
             span: list_span.clone(),
         });
     }
-    let list = match eval_inner(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16244,7 +16231,7 @@ fn eval_algebra_list(
             span: list_span.clone(),
         });
     }
-    let list = match eval_inner(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16289,7 +16276,7 @@ fn eval_algebra_tuple(
             span: list_span.clone(),
         });
     }
-    let list = match eval_inner(&args[0], env, sym)? {
+    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -16376,8 +16363,8 @@ fn eval_holon_is_predicate(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
-    let class_val = eval_inner(&args[1], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let class_val = eval_inner(&args[1], env, sym)?.value_owned();
     let class_name = match class_val {
         Value::String(s) => s,
         other => {
@@ -16415,7 +16402,7 @@ fn eval_holon_is_map_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Map"),
         _ => false,
@@ -16442,7 +16429,7 @@ fn eval_holon_is_set_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Set"),
         _ => false,
@@ -16470,7 +16457,7 @@ fn eval_holon_is_vector_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Vector"),
         _ => false,
@@ -16497,7 +16484,7 @@ fn eval_holon_is_list_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("List"),
         _ => false,
@@ -16525,7 +16512,7 @@ fn eval_holon_is_tuple_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tuple"),
         _ => false,
@@ -16554,7 +16541,7 @@ fn eval_holon_is_symbol_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Symbol"),
         _ => false,
@@ -16581,7 +16568,7 @@ fn eval_holon_is_keyword_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Keyword"),
         _ => false,
@@ -16608,7 +16595,7 @@ fn eval_holon_is_tag_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tag"),
         _ => false,
@@ -16639,7 +16626,7 @@ fn eval_holon_is_nil_q(
             span: list_span.clone(),
         });
     }
-    let value_val = eval_inner(&args[0], env, sym)?;
+    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => h.is_nil(),
         _ => false,
@@ -16734,8 +16721,8 @@ fn eval_algebra_cosine(
             span: list_span.clone(),
         });
     }
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
     let (vt, vr) = pair_values_to_vectors(":wat::holon::cosine", a, b, sym, list_span)?;
     Ok(Value::f64(Similarity::cosine(&vt, &vr)))
 }
@@ -16767,8 +16754,8 @@ fn eval_algebra_presence_q(
             span: list_span.clone(),
         });
     }
-    let target = require_holon(":wat::holon::presence?", eval_inner(&args[0], env, sym)?)?;
-    let reference = require_holon(":wat::holon::presence?", eval_inner(&args[1], env, sym)?)?;
+    let target = require_holon(":wat::holon::presence?", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let reference = require_holon(":wat::holon::presence?", eval_inner(&args[1], env, sym)?.value_owned())?;
     let ctx = require_encoding_ctx(":wat::holon::presence?", sym, list_span)?;
 
     // Arc 037 slice 3: normalize UP via ambient router. Presence
@@ -16823,8 +16810,8 @@ fn eval_algebra_coincident_q(
             span: list_span.clone(),
         });
     }
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
     // Arc 061 — polymorphic over (HolonAST, Vector) pairs in any
     // combination, mirroring arc 052's `cosine` shape. Pre-encoded
     // Vector inputs short-circuit the encoding step; mixed inputs
@@ -16870,8 +16857,8 @@ fn eval_algebra_coincident_explain(
             span: list_span.clone(),
         });
     }
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
     let (va, vb) = pair_values_to_vectors(OP, a, b, sym, list_span)?;
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let dim = va.dimensions();
@@ -16959,7 +16946,7 @@ fn run_ast_arg_for_eval_coincident(
     sym: &SymbolTable,
     op: &'static str,
 ) -> Result<Value, RuntimeError> {
-    let ast = match eval_inner(arg, env, sym)? {
+    let ast = match eval_inner(arg, env, sym)?.value_owned() {
         Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -17223,7 +17210,7 @@ fn eval_holon_statement_length(
             span: list_span.clone(),
         });
     }
-    let ast = require_holon(":wat::holon::statement-length", eval_inner(&args[0], env, sym)?)?;
+    let ast = require_holon(":wat::holon::statement-length", eval_inner(&args[0], env, sym)?.value_owned())?;
     // Arc 230 — Symbol/Keyword/Tag/Nil are now Bind compositions; intercept before
     // the generic match so they return 1 (conceptual leaf) not 2 (Bind structural count).
     let n = if ast.as_symbol().is_some() || ast.as_keyword().is_some() || ast.as_tag().is_some() {
@@ -17263,8 +17250,8 @@ fn eval_algebra_dot(
     }
     // Arc 052 — polymorphic input: HolonAST or Vector in either
     // position. Same dim-resolution rule as cosine.
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
     let (vx, vy) = pair_values_to_vectors(":wat::holon::dot", a, b, sym, list_span)?;
     Ok(Value::f64(Similarity::dot(&vx, &vy)))
 }
@@ -17310,7 +17297,7 @@ fn eval_algebra_simhash(
             span: list_span.clone(),
         });
     }
-    let target = eval_inner(&args[0], env, sym)?;
+    let target = eval_inner(&args[0], env, sym)?.value_owned();
     let ctx = require_encoding_ctx(":wat::holon::simhash", sym, list_span)?;
     // Arc 052 — polymorphic input: HolonAST encodes at router-picked d;
     // Vector uses its native dim directly.
@@ -17375,7 +17362,7 @@ fn eval_holon_encode(
             span: list_span.clone(),
         });
     }
-    let target = require_holon(":wat::holon::encode", eval_inner(&args[0], env, sym)?)?;
+    let target = require_holon(":wat::holon::encode", eval_inner(&args[0], env, sym)?.value_owned())?;
     let ctx = require_encoding_ctx(":wat::holon::encode", sym, list_span)?;
     let enc = ctx.encoders.get(ctx.dim_count);
     let v = encode(&target, &enc.vm, &enc.scalar);
@@ -17426,7 +17413,7 @@ fn eval_holon_vector_bytes(
             span: list_span.clone(),
         });
     }
-    let v = require_vector(OP, eval_inner(&args[0], env, sym)?)?;
+    let v = require_vector(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let dim = v.dimensions();
     let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError::TypeMismatch {
         op: OP.into(),
@@ -17499,7 +17486,7 @@ fn eval_holon_bytes_vector(
         });
     }
     // Pull the byte vector contents out as Vec<u8>.
-    let xs = match eval_inner(&args[0], env, sym)? {
+    let xs = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(xs) => xs,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -17596,7 +17583,7 @@ fn eval_bytes_to_hex(
             span: list_span.clone(),
         });
     }
-    let xs = match eval_inner(&args[0], env, sym)? {
+    let xs = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(xs) => xs,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -17662,7 +17649,7 @@ fn eval_bytes_from_hex(
             span: list_span.clone(),
         });
     }
-    let s = match eval_inner(&args[0], env, sym)? {
+    let s = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::String(s) => s,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -17745,7 +17732,7 @@ fn eval_show(
             span: Span::unknown(),
         });
     }
-    let v = eval_inner(&args[0], env, sym)?;
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     Ok(Value::String(Arc::new(render_value(&v, 0))))
 }
 
@@ -17980,8 +17967,8 @@ fn eval_holon_vector_bind(
             span: list_span.clone(),
         });
     }
-    let va = require_vector(":wat::holon::vector-bind", eval_inner(&args[0], env, sym)?)?;
-    let vb = require_vector(":wat::holon::vector-bind", eval_inner(&args[1], env, sym)?)?;
+    let va = require_vector(":wat::holon::vector-bind", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let vb = require_vector(":wat::holon::vector-bind", eval_inner(&args[1], env, sym)?.value_owned())?;
     if va.dimensions() != vb.dimensions() {
         return Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::vector-bind".into(),
@@ -18015,7 +18002,7 @@ fn eval_holon_vector_bundle(
             span: list_span.clone(),
         });
     }
-    let vec_value = eval_inner(&args[0], env, sym)?;
+    let vec_value = eval_inner(&args[0], env, sym)?.value_owned();
     let elements = match vec_value {
         Value::Vec(v) => v,
         other => {
@@ -18079,10 +18066,10 @@ fn eval_holon_vector_blend(
             span: list_span.clone(),
         });
     }
-    let va = require_vector(":wat::holon::vector-blend", eval_inner(&args[0], env, sym)?)?;
-    let vb = require_vector(":wat::holon::vector-blend", eval_inner(&args[1], env, sym)?)?;
-    let w1 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[2], env, sym)?, list_span)?;
-    let w2 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[3], env, sym)?, list_span)?;
+    let va = require_vector(":wat::holon::vector-blend", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let vb = require_vector(":wat::holon::vector-blend", eval_inner(&args[1], env, sym)?.value_owned())?;
+    let w1 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[2], env, sym)?.value_owned(), list_span)?;
+    let w2 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[3], env, sym)?.value_owned(), list_span)?;
     if va.dimensions() != vb.dimensions() {
         return Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::vector-blend".into(),
@@ -18116,8 +18103,8 @@ fn eval_holon_vector_permute(
             span: list_span.clone(),
         });
     }
-    let v = require_vector(":wat::holon::vector-permute", eval_inner(&args[0], env, sym)?)?;
-    let k_val = eval_inner(&args[1], env, sym)?;
+    let v = require_vector(":wat::holon::vector-permute", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let k_val = eval_inner(&args[1], env, sym)?.value_owned();
     let k = match k_val {
         Value::i64(n) => n as i32,
         other => {
@@ -18170,8 +18157,8 @@ fn eval_subspace_new(
             span: list_span.clone(),
         });
     }
-    let dim = require_i64(":wat::holon::OnlineSubspace/new", eval_inner(&args[0], env, sym)?)?;
-    let k = require_i64(":wat::holon::OnlineSubspace/new", eval_inner(&args[1], env, sym)?)?;
+    let dim = require_i64(":wat::holon::OnlineSubspace/new", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let k = require_i64(":wat::holon::OnlineSubspace/new", eval_inner(&args[1], env, sym)?.value_owned())?;
     let s = holon::OnlineSubspace::new(dim as usize, k as usize);
     Ok(Value::OnlineSubspace(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(s),
@@ -18192,7 +18179,7 @@ fn eval_subspace_dim(
             span: list_span.clone(),
         });
     }
-    let s = require_subspace(":wat::holon::OnlineSubspace/dim", eval_inner(&args[0], env, sym)?, list_span)?;
+    let s = require_subspace(":wat::holon::OnlineSubspace/dim", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/dim", |s| s.dim())?;
     Ok(Value::i64(n as i64))
 }
@@ -18211,7 +18198,7 @@ fn eval_subspace_k(
             span: list_span.clone(),
         });
     }
-    let s = require_subspace(":wat::holon::OnlineSubspace/k", eval_inner(&args[0], env, sym)?, list_span)?;
+    let s = require_subspace(":wat::holon::OnlineSubspace/k", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/k", |s| s.k())?;
     Ok(Value::i64(n as i64))
 }
@@ -18230,7 +18217,7 @@ fn eval_subspace_n(
             span: list_span.clone(),
         });
     }
-    let s = require_subspace(":wat::holon::OnlineSubspace/n", eval_inner(&args[0], env, sym)?, list_span)?;
+    let s = require_subspace(":wat::holon::OnlineSubspace/n", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/n", |s| s.n())?;
     Ok(Value::i64(n as i64))
 }
@@ -18251,7 +18238,7 @@ fn eval_subspace_threshold(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/threshold",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let t = s.with_ref(":wat::holon::OnlineSubspace/threshold", |s| s.threshold())?;
@@ -18274,7 +18261,7 @@ fn eval_subspace_eigenvalues(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/eigenvalues",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let xs = s.with_ref(":wat::holon::OnlineSubspace/eigenvalues", |s| s.eigenvalues())?;
@@ -18297,10 +18284,10 @@ fn eval_subspace_update(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/update",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
-    let v = require_vector(":wat::holon::OnlineSubspace/update", eval_inner(&args[1], env, sym)?)?;
+    let v = require_vector(":wat::holon::OnlineSubspace/update", eval_inner(&args[1], env, sym)?.value_owned())?;
     let xs = v.to_f64();
     let residual = s.with_mut(":wat::holon::OnlineSubspace/update", list_span.clone(), |s| s.update(&xs))?;
     Ok(Value::f64(residual))
@@ -18322,12 +18309,12 @@ fn eval_subspace_residual(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/residual",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/residual",
-        eval_inner(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/residual", |s| s.residual(&xs))?;
@@ -18350,12 +18337,12 @@ fn eval_subspace_project(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/project",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/project",
-        eval_inner(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let projected = s.with_ref(":wat::holon::OnlineSubspace/project", |s| s.project(&xs))?;
@@ -18378,12 +18365,12 @@ fn eval_subspace_reconstruct(
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/reconstruct", |s| {
@@ -18424,7 +18411,7 @@ fn eval_reckoner_new_discrete(
             span: list_span.clone(),
         });
     }
-    let name_val = eval_inner(&args[0], env, sym)?;
+    let name_val = eval_inner(&args[0], env, sym)?.value_owned();
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
@@ -18436,10 +18423,10 @@ fn eval_reckoner_new_discrete(
             })
         }
     };
-    let dims = require_i64(":wat::holon::Reckoner/new-discrete", eval_inner(&args[1], env, sym)?)?;
+    let dims = require_i64(":wat::holon::Reckoner/new-discrete", eval_inner(&args[1], env, sym)?.value_owned())?;
     let recalib =
-        require_i64(":wat::holon::Reckoner/new-discrete", eval_inner(&args[2], env, sym)?)?;
-    let labels_val = eval_inner(&args[3], env, sym)?;
+        require_i64(":wat::holon::Reckoner/new-discrete", eval_inner(&args[2], env, sym)?.value_owned())?;
+    let labels_val = eval_inner(&args[3], env, sym)?.value_owned();
     let label_asts: Vec<HolonAST> = match labels_val {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
@@ -18487,7 +18474,7 @@ fn eval_reckoner_new_continuous(
             span: list_span.clone(),
         });
     }
-    let name_val = eval_inner(&args[0], env, sym)?;
+    let name_val = eval_inner(&args[0], env, sym)?.value_owned();
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
@@ -18499,16 +18486,16 @@ fn eval_reckoner_new_continuous(
             })
         }
     };
-    let dims = require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[1], env, sym)?)?;
+    let dims = require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[1], env, sym)?.value_owned())?;
     let recalib =
-        require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[2], env, sym)?)?;
+        require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[2], env, sym)?.value_owned())?;
     let default_value = require_numeric(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(&args[3], env, sym)?,
+        eval_inner(&args[3], env, sym)?.value_owned(),
         list_span,
     )?;
     let buckets =
-        require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[4], env, sym)?)?;
+        require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[4], env, sym)?.value_owned())?;
     let r = holon::Reckoner::new(
         &name,
         dims as usize,
@@ -18538,12 +18525,12 @@ fn eval_reckoner_observe(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/observe", eval_inner(&args[0], env, sym)?, list_span)?;
-    let v = require_vector(":wat::holon::Reckoner/observe", eval_inner(&args[1], env, sym)?)?;
-    let label_idx = require_i64(":wat::holon::Reckoner/observe", eval_inner(&args[2], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/observe", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
+    let v = require_vector(":wat::holon::Reckoner/observe", eval_inner(&args[1], env, sym)?.value_owned())?;
+    let label_idx = require_i64(":wat::holon::Reckoner/observe", eval_inner(&args[2], env, sym)?.value_owned())?;
     let weight = require_numeric(
         ":wat::holon::Reckoner/observe",
-        eval_inner(&args[3], env, sym)?,
+        eval_inner(&args[3], env, sym)?.value_owned(),
         list_span,
     )?;
     r.with_mut(":wat::holon::Reckoner/observe", list_span.clone(), |r| {
@@ -18572,8 +18559,8 @@ fn eval_reckoner_predict(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/predict", eval_inner(&args[0], env, sym)?, list_span)?;
-    let v = require_vector(":wat::holon::Reckoner/predict", eval_inner(&args[1], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/predict", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
+    let v = require_vector(":wat::holon::Reckoner/predict", eval_inner(&args[1], env, sym)?.value_owned())?;
     let pred = r.with_ref(":wat::holon::Reckoner/predict", |r| r.predict(&v))?;
     // Pack scores as Vec<(i64, f64)> tuples.
     let scores: Vec<Value> = pred
@@ -18618,13 +18605,13 @@ fn eval_reckoner_resolve(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/resolve", eval_inner(&args[0], env, sym)?, list_span)?;
+    let r = require_reckoner(":wat::holon::Reckoner/resolve", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let conviction = require_numeric(
         ":wat::holon::Reckoner/resolve",
-        eval_inner(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?.value_owned(),
         list_span,
     )?;
-    let correct_val = eval_inner(&args[2], env, sym)?;
+    let correct_val = eval_inner(&args[2], env, sym)?.value_owned();
     let correct = match correct_val {
         Value::bool(b) => b,
         other => {
@@ -18657,7 +18644,7 @@ fn eval_reckoner_curve(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/curve", eval_inner(&args[0], env, sym)?, list_span)?;
+    let r = require_reckoner(":wat::holon::Reckoner/curve", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let curve = r.with_mut(":wat::holon::Reckoner/curve", list_span.clone(), |r| r.curve())?;
     Ok(match curve {
         Some((a, b)) => Value::Option(Arc::new(Some(Value::Tuple(Arc::new(vec![
@@ -18683,7 +18670,7 @@ fn eval_reckoner_labels(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/labels", eval_inner(&args[0], env, sym)?, list_span)?;
+    let r = require_reckoner(":wat::holon::Reckoner/labels", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let labels = r.with_ref(":wat::holon::Reckoner/labels", |r| r.labels())?;
     let xs: Vec<Value> = labels
         .into_iter()
@@ -18706,7 +18693,7 @@ fn eval_reckoner_dims(
             span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/dims", eval_inner(&args[0], env, sym)?, list_span)?;
+    let r = require_reckoner(":wat::holon::Reckoner/dims", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = r.with_ref(":wat::holon::Reckoner/dims", |r| r.dims())?;
     Ok(Value::i64(n as i64))
 }
@@ -18772,7 +18759,7 @@ fn eval_engram_name(
             span: list_span.clone(),
         });
     }
-    let e = require_engram(":wat::holon::Engram/name", eval_inner(&args[0], env, sym)?, list_span)?;
+    let e = require_engram(":wat::holon::Engram/name", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let s = e.with_ref(":wat::holon::Engram/name", |e| e.name().to_string())?;
     Ok(Value::String(Arc::new(s)))
 }
@@ -18793,7 +18780,7 @@ fn eval_engram_eigenvalue_signature(
     }
     let e = require_engram(
         ":wat::holon::Engram/eigenvalue-signature",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let xs =
@@ -18817,7 +18804,7 @@ fn eval_engram_n(
             span: list_span.clone(),
         });
     }
-    let e = require_engram(":wat::holon::Engram/n", eval_inner(&args[0], env, sym)?, list_span)?;
+    let e = require_engram(":wat::holon::Engram/n", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = e.with_ref(":wat::holon::Engram/n", |e| e.n())?;
     Ok(Value::i64(n as i64))
 }
@@ -18836,8 +18823,8 @@ fn eval_engram_residual(
             span: list_span.clone(),
         });
     }
-    let e = require_engram(":wat::holon::Engram/residual", eval_inner(&args[0], env, sym)?, list_span)?;
-    let v = require_vector(":wat::holon::Engram/residual", eval_inner(&args[1], env, sym)?)?;
+    let e = require_engram(":wat::holon::Engram/residual", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
+    let v = require_vector(":wat::holon::Engram/residual", eval_inner(&args[1], env, sym)?.value_owned())?;
     let xs = v.to_f64();
     let r = e.with_mut(":wat::holon::Engram/residual", list_span.clone(), |e| e.residual(&xs))?;
     Ok(Value::f64(r))
@@ -18858,7 +18845,7 @@ fn eval_library_new(
             span: list_span.clone(),
         });
     }
-    let dim = require_i64(":wat::holon::EngramLibrary/new", eval_inner(&args[0], env, sym)?)?;
+    let dim = require_i64(":wat::holon::EngramLibrary/new", eval_inner(&args[0], env, sym)?.value_owned())?;
     let lib = holon::EngramLibrary::new(dim as usize);
     Ok(Value::EngramLibrary(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(lib),
@@ -18884,11 +18871,11 @@ fn eval_library_add(
             span: list_span.clone(),
         });
     }
-    let lib = require_engram_library(":wat::holon::EngramLibrary/add", eval_inner(&args[0], env, sym)?, list_span)?;
-    let name = require_string(":wat::holon::EngramLibrary/add", eval_inner(&args[1], env, sym)?, list_span)?;
+    let lib = require_engram_library(":wat::holon::EngramLibrary/add", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
+    let name = require_string(":wat::holon::EngramLibrary/add", eval_inner(&args[1], env, sym)?.value_owned(), list_span)?;
     let subspace = require_subspace(
         ":wat::holon::EngramLibrary/add",
-        eval_inner(&args[2], env, sym)?,
+        eval_inner(&args[2], env, sym)?.value_owned(),
         list_span,
     )?;
     // EngramLibrary::add takes &OnlineSubspace by reference; we have
@@ -18918,20 +18905,20 @@ fn eval_library_match_vec(
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let probe = require_vector(
         ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?.value_owned(),
     )?;
     let top_k = require_i64(
         ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(&args[2], env, sym)?,
+        eval_inner(&args[2], env, sym)?.value_owned(),
     )?;
     let prefilter_k = require_i64(
         ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(&args[3], env, sym)?,
+        eval_inner(&args[3], env, sym)?.value_owned(),
     )?;
     let xs = probe.to_f64();
     let matches = lib.with_mut(":wat::holon::EngramLibrary/match-vec", list_span.clone(), |lib| {
@@ -18965,7 +18952,7 @@ fn eval_library_len(
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/len",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let n = lib.with_ref(":wat::holon::EngramLibrary/len", |lib| lib.len())?;
@@ -18988,12 +18975,12 @@ fn eval_library_contains(
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/contains",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let name = require_string(
         ":wat::holon::EngramLibrary/contains",
-        eval_inner(&args[1], env, sym)?,
+        eval_inner(&args[1], env, sym)?.value_owned(),
         list_span,
     )?;
     let b = lib.with_ref(":wat::holon::EngramLibrary/contains", |lib| {
@@ -19018,7 +19005,7 @@ fn eval_library_names(
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/names",
-        eval_inner(&args[0], env, sym)?,
+        eval_inner(&args[0], env, sym)?.value_owned(),
         list_span,
     )?;
     let names = lib.with_ref(":wat::holon::EngramLibrary/names", |lib| {
@@ -19064,7 +19051,7 @@ fn apply_value(
     };
     let vals = args
         .iter()
-        .map(|a| eval_inner(a, env, sym))
+        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
         .collect::<Result<Vec<_>, _>>()?;
     apply_function(func, vals, sym, crate::rust_caller_span!())
 }
@@ -19583,7 +19570,7 @@ fn eval_make_bounded_queue(
             span: args[0].span().clone(),
         });
     }
-    let capacity = match eval_inner(&args[1], env, sym)? {
+    let capacity = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::i64(n) if n >= 0 => n as usize,
         Value::i64(n) => {
             return Err(RuntimeError::MalformedForm {
@@ -19667,7 +19654,7 @@ fn eval_kernel_send(
             span: list_span.clone(),
         });
     }
-    let sender = match eval_inner(&args[0], env, sym)? {
+    let sender = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__Sender(s) => s,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -19678,7 +19665,7 @@ fn eval_kernel_send(
             });
         }
     };
-    let msg = eval_inner(&args[1], env, sym)?;
+    let msg = eval_inner(&args[1], env, sym)?.value_owned();
     // Arc 111 slice 1 — return type is Result<(), ThreadDiedError>.
     // Arc 170 slice 1c — dispatch on the transport (Crossbeam vs
     // PipeFd). Both transports surface disconnect via the same
@@ -19725,7 +19712,7 @@ fn eval_kernel_sender_close(
             span: list_span.clone(),
         });
     }
-    let sender = match eval_inner(&args[0], env, sym)? {
+    let sender = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__Sender(s) => s,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -19759,7 +19746,7 @@ fn eval_kernel_recv(
             span: list_span.clone(),
         });
     }
-    let receiver = match eval_inner(&args[0], env, sym)? {
+    let receiver = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__Receiver(r) => r,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -19783,16 +19770,11 @@ fn eval_kernel_recv(
     );
     match outcome {
         crate::typed_channel::RecvOutcome::Value(v) => {
-            // Arc 233 Stone 233.2.c — tag the received value with RuntimeBuilt provenance
-            // so errors propagating from recv-produced Values surface the producer origin.
-            let tagged = Value::Tracked {
-                inner: Box::new(v),
-                provenance: Provenance::RuntimeBuilt {
-                    producer: ":wat::kernel::recv",
-                    call_span: list_span.clone(),
-                },
-            };
-            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(tagged)))))))
+            // Arc 233 Stone 233.2.j — planned honest delta: producer provenance is lost
+            // here because the surrounding Value::Option is structurally Value-typed;
+            // converting to TrackedValue would require flipping Option's inner type
+            // (out of scope). Arc 233 Stone 233.2.e revisits via AST-derived provenance.
+            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
         }
         crate::typed_channel::RecvOutcome::Disconnected => {
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
@@ -19836,7 +19818,7 @@ fn eval_kernel_try_recv(
             span: list_span.clone(),
         });
     }
-    let receiver = match eval_inner(&args[0], env, sym)? {
+    let receiver = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__Receiver(r) => r,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -19860,16 +19842,11 @@ fn eval_kernel_try_recv(
     );
     match outcome {
         crate::typed_channel::RecvOutcome::Value(v) => {
-            // Arc 233 Stone 233.2.c — tag the received value with RuntimeBuilt provenance
-            // so errors propagating from try-recv-produced Values surface the producer origin.
-            let tagged = Value::Tracked {
-                inner: Box::new(v),
-                provenance: Provenance::RuntimeBuilt {
-                    producer: ":wat::kernel::try-recv",
-                    call_span: list_span.clone(),
-                },
-            };
-            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(tagged)))))))
+            // Arc 233 Stone 233.2.j — planned honest delta: producer provenance is lost
+            // here because the surrounding Value::Option is structurally Value-typed;
+            // converting to TrackedValue would require flipping Option's inner type
+            // (out of scope). Arc 233 Stone 233.2.e revisits via AST-derived provenance.
+            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
         }
         crate::typed_channel::RecvOutcome::Disconnected => {
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
@@ -19925,7 +19902,7 @@ fn eval_kernel_drop(
             span: list_span.clone(),
         });
     }
-    let handle = eval_inner(&args[0], env, sym)?;
+    let handle = eval_inner(&args[0], env, sym)?.value_owned();
     match handle {
         Value::wat__kernel__Sender(_) | Value::wat__kernel__Receiver(_) => {
             // Intentional no-op. The Arc we just evaluated into
@@ -19963,7 +19940,7 @@ fn eval_math_unary(
             span: list_span.clone(),
         });
     }
-    let x = match eval_inner(&args[0], env, sym)? {
+    let x = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::f64(x) => x,
         Value::i64(n) => n as f64,
         other => {
@@ -20014,7 +19991,7 @@ fn eval_stat_mean(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?)?;
+    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     if xs.is_empty() {
         return Ok(Value::Option(Arc::new(None)));
     }
@@ -20056,7 +20033,7 @@ fn eval_stat_variance(
             span: list_span.clone(),
         });
     }
-    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?)?;
+    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     if xs.is_empty() {
         return Ok(Value::Option(Arc::new(None)));
     }
@@ -20143,7 +20120,7 @@ fn eval_handle_pool_new(
             span: list_span.clone(),
         });
     }
-    let name = match eval_inner(&args[0], env, sym)? {
+    let name = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::String(s) => s,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20154,7 +20131,7 @@ fn eval_handle_pool_new(
             });
         }
     };
-    let handles = match eval_inner(&args[1], env, sym)? {
+    let handles = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::Vec(v) => v,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20203,7 +20180,7 @@ fn eval_handle_pool_pop(
             span: list_span.clone(),
         });
     }
-    let (name, rx) = match eval_inner(&args[0], env, sym)? {
+    let (name, rx) = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__HandlePool { name, rx } => (name, rx),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20248,7 +20225,7 @@ fn eval_handle_pool_finish(
             span: list_span.clone(),
         });
     }
-    let (name, rx) = match eval_inner(&args[0], env, sym)? {
+    let (name, rx) = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__HandlePool { name, rx } => (name, rx),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20301,7 +20278,7 @@ fn eval_kernel_select(
             span: list_span.clone(),
         });
     }
-    let items = match eval_inner(&args[0], env, sym)? {
+    let items = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(v) => v,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -20474,7 +20451,7 @@ fn eval_kernel_process_join_result(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval_inner(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20563,7 +20540,7 @@ fn eval_kernel_process_drain_and_join(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval_inner(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20680,7 +20657,7 @@ fn eval_kernel_process_stdin(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval_inner(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20723,7 +20700,7 @@ fn eval_kernel_process_stdout(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval_inner(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20766,7 +20743,7 @@ fn eval_kernel_process_stderr(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval_inner(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -20834,7 +20811,7 @@ fn eval_kernel_spawn_thread(
             Some(f) => f.clone(),
             None => return Err(RuntimeError::UnknownFunction(k.clone(), kspan.clone())),
         },
-        _ => match eval_inner(&args[0], env, sym)? {
+        _ => match eval_inner(&args[0], env, sym)?.value_owned() {
             Value::wat__core__fn(f) => f,
             other => {
                 return Err(RuntimeError::TypeMismatch {
@@ -20985,7 +20962,7 @@ fn eval_kernel_thread_join_result(
             span: list_span.clone(),
         });
     }
-    let thread_value = eval_inner(&args[0], env, sym)?;
+    let thread_value = eval_inner(&args[0], env, sym)?.value_owned();
     let thread_struct = match thread_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
         other => {
@@ -21068,7 +21045,7 @@ fn eval_kernel_thread_drain_and_join(
             span: list_span.clone(),
         });
     }
-    let thread_value = eval_inner(&args[0], env, sym)?;
+    let thread_value = eval_inner(&args[0], env, sym)?.value_owned();
     let thread_struct = match thread_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
         other => {
@@ -21263,7 +21240,7 @@ fn eval_kernel_thread_println(
             });
         }
     };
-    let payload = eval_inner(&args[1], env, sym)?;
+    let payload = eval_inner(&args[1], env, sym)?.value_owned();
     match crate::typed_channel::typed_send(
         sender_inner.as_ref(),
         payload,
@@ -21290,7 +21267,7 @@ fn eval_thread_peer_struct(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Arc<StructValue>, RuntimeError> {
-    let peer_value = eval_inner(subject_ast, env, sym)?;
+    let peer_value = eval_inner(subject_ast, env, sym)?.value_owned();
     match peer_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::ThreadPeer" => Ok(s),
         other => Err(RuntimeError::TypeMismatch {
@@ -21417,7 +21394,7 @@ fn eval_kernel_process_println(
             });
         }
     };
-    let payload = eval_inner(&args[1], env, sym)?;
+    let payload = eval_inner(&args[1], env, sym)?.value_owned();
     match crate::typed_channel::typed_send(
         sender_inner.as_ref(),
         payload,
@@ -21443,7 +21420,7 @@ fn eval_process_peer_struct(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Arc<StructValue>, RuntimeError> {
-    let peer_value = eval_inner(subject_ast, env, sym)?;
+    let peer_value = eval_inner(subject_ast, env, sym)?.value_owned();
     match peer_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::ProcessPeer" => Ok(s),
         other => Err(RuntimeError::TypeMismatch {
@@ -21478,7 +21455,7 @@ fn eval_kernel_sender_from_pipe(
             span: list_span.clone(),
         });
     }
-    let writer = match eval_inner(&args[0], env, sym)? {
+    let writer = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::io__IOWriter(w) => w,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -21514,7 +21491,7 @@ fn eval_kernel_receiver_from_pipe(
             span: list_span.clone(),
         });
     }
-    let reader = match eval_inner(&args[0], env, sym)? {
+    let reader = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::io__IOReader(r) => r,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -21552,8 +21529,8 @@ fn eval_kernel_process_send(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval_inner(&args[0], env, sym)?;
-    let value = eval_inner(&args[1], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
+    let value = eval_inner(&args[1], env, sym)?.value_owned();
 
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
@@ -21628,7 +21605,7 @@ fn eval_kernel_process_recv(
             span: list_span.clone(),
         });
     }
-    let proc_value = eval_inner(&args[0], env, sym)?;
+    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
@@ -22091,7 +22068,7 @@ fn eval_died_error_message(
             span: list_span.clone(),
         });
     }
-    let val = eval_inner(&args[0], env, sym)?;
+    let val = eval_inner(&args[0], env, sym)?.value_owned();
     match val {
         Value::Enum(ev) if ev.type_path == expected_type_path => {
             match ev.variant_name.as_str() {
@@ -22211,7 +22188,7 @@ fn eval_kernel_extract_panics(
             span: list_span.clone(),
         });
     }
-    let lines = match eval_inner(&args[0], env, sym)? {
+    let lines = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(items) => items,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -22270,7 +22247,7 @@ fn eval_died_error_to_failure(
             span: list_span.clone(),
         });
     }
-    let val = eval_inner(&args[0], env, sym)?;
+    let val = eval_inner(&args[0], env, sym)?.value_owned();
     match val {
         Value::Enum(ev) if ev.type_path == expected_type_path => {
             match ev.variant_name.as_str() {
@@ -22478,7 +22455,7 @@ fn eval_form_ast(
     // the post-eval HolonAST wrap (arc 066) are all "dynamic
     // evaluation" concerns.
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let value = eval_inner(&args[0], env, sym)?;
+        let value = eval_inner(&args[0], env, sym)?.value_owned();
         let ast = match value {
             Value::wat__WatAST(a) => a,
             other => {
@@ -22607,7 +22584,7 @@ fn eval_form_step(
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let value = eval_inner(&args[0], env, sym)?;
+        let value = eval_inner(&args[0], env, sym)?.value_owned();
         let ast = match value {
             Value::wat__WatAST(a) => a,
             other => {
@@ -22663,7 +22640,7 @@ fn eval_walk(
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let form_value = eval_inner(&args[0], env, sym)?;
+        let form_value = eval_inner(&args[0], env, sym)?.value_owned();
         let mut current_form: Arc<WatAST> = match form_value {
             Value::wat__WatAST(a) => a,
             other => {
@@ -22675,8 +22652,8 @@ fn eval_walk(
                 });
             }
         };
-        let mut acc = eval_inner(&args[1], env, sym)?;
-        let visit_value = eval_inner(&args[2], env, sym)?;
+        let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
+        let visit_value = eval_inner(&args[2], env, sym)?.value_owned();
         let visit_func = match visit_value {
             Value::wat__core__fn(f) => f,
             other => {
@@ -23260,7 +23237,7 @@ fn step_descend_then_fire(
     }
     // All args canonical — fire.
     let form = WatAST::List(items.to_vec(), list_span.clone());
-    let v = eval_inner(&form, env, sym)?;
+    let v = eval_inner(&form, env, sym)?.value_owned();
     let h_val = value_to_holon(":wat::eval-step!", v)?;
     let h = match h_val {
         Value::holon__HolonAST(h) => (*h).clone(),
@@ -23303,7 +23280,7 @@ fn step_holon_descend_then_fire(
     // wrap_as_eval_result surfaces the capacity overflow as the
     // outer EvalError. (Q9 of arc 068 DESIGN.)
     let form = WatAST::List(items.to_vec(), list_span.clone());
-    let v = eval_inner(&form, env, sym)?;
+    let v = eval_inner(&form, env, sym)?.value_owned();
     let v = match v {
         Value::Result(r) => match Arc::try_unwrap(r).unwrap_or_else(|a| (*a).clone()) {
             Ok(inner) => inner,
@@ -24101,7 +24078,7 @@ fn expect_string_value(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
-    match eval_inner(arg, env, sym)? {
+    match eval_inner(arg, env, sym)?.value_owned() {
         Value::String(s) => Ok((*s).clone()),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
@@ -24167,7 +24144,7 @@ fn resolve_verify_payload(
         }
     };
     match iface {
-        ":wat::verify::string" => match eval_inner(locator_ast, env, sym)? {
+        ":wat::verify::string" => match eval_inner(locator_ast, env, sym)?.value_owned() {
             Value::String(s) => Ok((*s).clone()),
             other => Err(RuntimeError::TypeMismatch {
                 op: ":wat::verify::string".into(),
@@ -24176,7 +24153,7 @@ fn resolve_verify_payload(
                 span: locator_ast.span().clone(),
             }),
         },
-        ":wat::verify::file-path" => match eval_inner(locator_ast, env, sym)? {
+        ":wat::verify::file-path" => match eval_inner(locator_ast, env, sym)?.value_owned() {
             Value::String(s) => {
                 let loader = sym.source_loader().ok_or_else(|| {
                     RuntimeError::NoSourceLoader {
@@ -24314,7 +24291,7 @@ fn run_constrained(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     refuse_mutation_forms_in(ast)?;
-    eval_inner(ast, env, sym)
+    eval_inner(ast, env, sym).map(|tv| tv.value_owned())
 }
 
 fn refuse_mutation_forms_in(ast: &WatAST) -> Result<(), RuntimeError> {
@@ -24447,7 +24424,7 @@ mod tests {
         let env = Environment::new();
         let mut last = Value::Unit;
         for form in &rest {
-            last = eval_inner(form, &env, &sym)?;
+            last = eval_inner(form, &env, &sym)?.value_owned();
         }
         Ok(last)
     }
@@ -24464,7 +24441,7 @@ mod tests {
         )
         .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
-        eval_inner(&ast, &Environment::new(), stdlib_sym)
+        eval_inner(&ast, &Environment::new(), stdlib_sym).map(|tv| tv.value_owned())
     }
 
     /// Same as [`eval_expr`] but clones the shared stdlib SymbolTable
@@ -24487,7 +24464,7 @@ mod tests {
         )
         .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
-        eval_inner(&ast, &Environment::new(), &sym)
+        eval_inner(&ast, &Environment::new(), &sym).map(|tv| tv.value_owned())
     }
 
     // ─── Literals ───────────────────────────────────────────────────────
@@ -25346,7 +25323,7 @@ mod tests {
             "program",
             Value::wat__WatAST(Arc::new(ast_to_bind)),
         ).build();
-        eval_inner(&form, &env, &SymbolTable::new())
+        eval_inner(&form, &env, &SymbolTable::new()).map(|tv| tv.value_owned())
     }
 
     /// Unwrap the outer `Value::Result(Ok(v))` from an eval-family
@@ -25438,7 +25415,7 @@ mod tests {
         // NOT a RuntimeError unwind — the eval-family Result-wrap
         // per the 2026-04-20 INSCRIPTION.
         let form = crate::parse_one!(r#"(:wat::eval-ast! "oops")"#).unwrap();
-        let result = eval_inner(&form, &Environment::new(), &SymbolTable::new()).unwrap();
+        let result = eval_inner(&form, &Environment::new(), &SymbolTable::new()).unwrap().value_owned();
         let (kind, msg) = eval_err_kind_and_message(result);
         assert_eq!(kind, "type-mismatch");
         assert!(msg.contains("eval-ast!"));
@@ -25680,7 +25657,7 @@ mod tests {
     fn eval_with_ctx(src: &str, dims: usize) -> Result<Value, RuntimeError> {
         let ast = crate::parse_one!(src).expect("parse ok");
         let sym = test_sym_with_ctx(dims);
-        eval_inner(&ast, &Environment::new(), &sym)
+        eval_inner(&ast, &Environment::new(), &sym).map(|tv| tv.value_owned())
     }
 
     #[test]
@@ -26960,7 +26937,7 @@ mod tests {
     fn eval_with_binding(src: &str, name: &str, value: Value) -> Result<Value, RuntimeError> {
         let ast = crate::parse_one!(src).expect("parse ok");
         let env = Environment::new().child().bind(name, value).build();
-        eval_inner(&ast, &env, &SymbolTable::new())
+        eval_inner(&ast, &env, &SymbolTable::new()).map(|tv| tv.value_owned())
     }
 
     fn pair(a: Value, b: Value) -> Value {
@@ -29518,7 +29495,7 @@ mod tests {
         let env = Environment::new();
         let mut last = Value::Unit;
         for form in &rest {
-            last = eval_inner(form, &env, &sym)?;
+            last = eval_inner(form, &env, &sym)?.value_owned();
         }
         Ok(last)
     }
@@ -29951,7 +29928,7 @@ mod tests {
         ]));
         let env = Environment::new().child().bind("rxs", rxs).build();
         let ast = crate::parse_one!("(:wat::kernel::select rxs)").expect("parse");
-        let result = eval_inner(&ast, &env, &SymbolTable::new()).expect("select");
+        let result = eval_inner(&ast, &env, &SymbolTable::new()).expect("select").value_owned();
         match result {
             Value::Tuple(items) => {
                 assert_eq!(items.len(), 2);

@@ -23,7 +23,11 @@ use regex::Regex;
 use std::fs;
 
 const RUNTIME_PATH: &str = "src/runtime.rs";
-const DISPATCH_FN_SIGNATURE: &str = "fn dispatch_keyword_head(";
+// Stone 233.2.j split dispatch_keyword_head into two functions:
+// - dispatch_keyword_head: handles the 3 TrackedValue producers (short match)
+// - dispatch_keyword_head_value: the full dispatch table (350+ arms)
+// The symmetry invariant applies to the full table, so probe the value-returning fn.
+const DISPATCH_FN_SIGNATURE: &str = "fn dispatch_keyword_head_value(";
 const MATCH_HEADER: &str = "match head {";
 
 #[derive(Debug)]

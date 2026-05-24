@@ -188,12 +188,13 @@ pub fn eval_edn_write_json_natural(
 ///   - `#inst` (handled by wat-edn parser) → `Value::Instant`.
 ///   - Other tags → `EdnReadError::UnknownTag` panic; consumer sees
 ///     the path that failed.
+// Arc 233 Stone 233.2.j: returns TrackedValue directly (no Value::Tracked wrap).
 pub fn eval_edn_read(
     args: &[WatAST],
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
+) -> Result<crate::runtime::TrackedValue, RuntimeError> {
     const OP: &str = ":wat::edn::read";
     let v = require_one_arg(OP, args, env, sym)?;
     let s = match &v {
@@ -224,13 +225,14 @@ pub fn eval_edn_read(
             span: crate::span::Span::unknown(),
         }
     })?;
-    Ok(Value::Tracked {
-        inner: Box::new(result),
-        provenance: crate::runtime::Provenance::RuntimeBuilt {
+    // Arc 233 Stone 233.2.j: construct TrackedValue::new directly (no Value::Tracked wrap).
+    Ok(crate::runtime::TrackedValue::new(
+        result,
+        crate::runtime::Provenance::RuntimeBuilt {
             producer: ":wat::edn::read",
             call_span: list_span.clone(),
         },
-    })
+    ))
 }
 
 /// Errors surfaced by [`read_edn`] / [`edn_to_value`] when an EDN
