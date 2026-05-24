@@ -1,4 +1,4 @@
-//! Diagnostic probe — Stone 234.1.5 variant rename + `:wat::record::Record` namespace promotion.
+//! Diagnostic probe — Stone 234.1.5 variant rename + `:wat::record` namespace promotion.
 //!
 //! FM 2-bis empirical probe authored BEFORE the Stone 234.1.5 BRIEF. Verifies the
 //! corrective stone that renames `Value::wat_record` → `Value::wat__record` (per
@@ -13,11 +13,11 @@
 //!   1. Variant compile-pass — `Value::wat__record { ... }` constructible via Rust helper
 //!   2. type_name() returns `"wat::record"` (was `"wat::core::wat_record"`)
 //!   3. Eq + Hash consistency under rename — equal records hash equal
-//!   4. Type registration accepts `[v <- :wat::record::Record]` — wat source type-checks
+//!   4. Type registration accepts `[v <- :wat::record]` — wat source type-checks
 //!   5. class_fqdn extraction returns user-named class (eval_type integration preserved)
 //!
 //! Initial state: 5/5 FAIL with compile-error on `Value::wat__record` OR type-check error
-//! on `[v <- :wat::record::Record]`.
+//! on `[v <- :wat::record]`.
 //!
 //! Post-stone: 5/5 PASS.
 
@@ -145,13 +145,13 @@ fn probe_3_eq_hash_consistency_under_rename() {
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
 //
-// Type registration accepts `[v <- :wat::record::Record]` — declaring this type
+// Type registration accepts `[v <- :wat::record]` — declaring this type
 // annotation in a wat source must parse + type-check cleanly. Verifies the check.rs
 // TypeDef registration shipped in this stone.
 #[test]
 fn probe_4_namespace_type_registration() {
     let src = r#"
-(:wat::core::define (:user::accept-record [_v <- :wat::record::Record] -> :wat::core::nil)
+(:wat::core::define (:user::accept-record [_v <- :wat::record] -> :wat::core::nil)
   :wat::core::nil)
 
 (:wat::core::define (:user::compute -> :wat::core::nil)
@@ -160,7 +160,7 @@ fn probe_4_namespace_type_registration() {
     match run_compute(src) {
         Ok(_) => {} // PASS — startup_from_source accepted the type annotation
         Err(e) => panic!(
-            "Probe 4: :wat::record::Record annotation must type-check cleanly; got: {}",
+            "Probe 4: :wat::record annotation must type-check cleanly; got: {}",
             e
         ),
     }

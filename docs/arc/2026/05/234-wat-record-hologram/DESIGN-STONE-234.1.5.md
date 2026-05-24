@@ -78,15 +78,17 @@ Value::wat__record { holon_form, .. } => {
 
 (Was: `"wat_record".hash(state);` — tag updates for honesty + cross-variant distinctness.)
 
-### D5 — Mint `:wat::record::Record` as opaque umbrella type in check.rs
+### D5 — Mint `:wat::record` as opaque umbrella type in check.rs (namespace-doubles-as-type)
 
-Per arc 109 type registration pattern (mirror how `:wat::core::String`, `:wat::core::struct`, `:wat::holon::HolonAST`, `:wat::kernel::Sender`, etc. are registered as primitive types). `:wat::record::Record` is the type FQDN; instances of any record class (`:myapp::Voltage`, `:myapp::Account`, etc.) ARE `:wat::record::Record` at the umbrella tier.
+Per arc 109 type registration pattern (mirror how `:wat::core::String`, `:wat::core::struct`, `:wat::holon::HolonAST`, `:wat::kernel::Sender`, etc. are registered as primitive types). `:wat::record` is the type FQDN; instances of any record class (`:myapp::Voltage`, `:myapp::Account`, etc.) ARE `:wat::record` at the umbrella tier.
 
-Pascal-Case `Record` per existing precedent for type leaves (Vector / HashMap / Option / Sender / HolonAST). Lowercase namespace `:wat::record::*` per existing top-level peer pattern (`:wat::holon::*`, `:wat::kernel::*`).
+**Why namespace-doubles-as-type instead of `:wat::record::Record`** (user caught this 2026-05-24 mid-flight): the existing `:wat::<cluster>::<TypeLeaf>` precedent works when cluster name and type name are DIFFERENT words (`:wat::holon::HolonAST`, `:wat::kernel::Sender`, `:wat::core::Vector` — cluster is the domain; type is the specific concept). For records, the cluster IS the concept — there's no separate word. `:wat::record::Record` stutters ("record record"). The honest fix: `:wat::record` itself is the bare-leaf type AND the namespace prefix. Parser handles cleanly — `:wat::record` with no trailing `::` is the bare TypeDef; `:wat::record::X` is a sub-path FQDN. check.rs registers `:wat::record` as the opaque TypeDef.
+
+This is novel (no precedent for bare-FQDN-as-type), but the alternative is forced stutter. Honest > precedent when precedent breaks the underlying principle.
 
 ### D6 — Per-class type registration is Stone 234.2b's job
 
-Stone 234.1.5 only registers the umbrella `:wat::record::Record`. Per-class types like `:myapp::Voltage` (as alias of `:wat::record::Record` with class_fqdn invariant) are 234.2b's work when the defrecord macro fires.
+Stone 234.1.5 only registers the umbrella `:wat::record`. Per-class types like `:myapp::Voltage` (as alias of `:wat::record` with class_fqdn invariant) are 234.2b's work when the defrecord macro fires.
 
 ### D7 — render_value arm: render as `<class_fqdn{field0, field1, ...}>`
 
@@ -149,7 +151,7 @@ NOTE: the probe filename stays `probe_arc234_stone1_wat_record_variant.rs` (hist
 
 **`src/check.rs` (1 site — NEW):**
 
-16. New TypeDef registration for `:wat::record::Record` as opaque primitive type. Mirror existing primitive type registration pattern (e.g., how `:wat::core::String` or `:wat::holon::HolonAST` are registered).
+16. New TypeDef registration for `:wat::record` as opaque primitive type. Mirror existing primitive type registration pattern (e.g., how `:wat::core::String` or `:wat::holon::HolonAST` are registered).
 
 **`tests/probe_arc234_stone1_wat_record_variant.rs` (~7 sites — helper + 7 test fns):**
 
@@ -161,14 +163,14 @@ NOTE: the probe filename stays `probe_arc234_stone1_wat_record_variant.rs` (hist
 
 ## FM 2-bis probe plan
 
-The probe at `tests/probe_arc234_stone15_namespace_promotion.rs` verifies BOTH the rename + the namespace registration. Initial state: FAIL (compile-error on `Value::wat__record` — variant doesn't exist yet; type-check error on `[v <- :wat::record::Record]` — type not registered yet). Post-stone: PASS.
+The probe at `tests/probe_arc234_stone15_namespace_promotion.rs` verifies BOTH the rename + the namespace registration. Initial state: FAIL (compile-error on `Value::wat__record` — variant doesn't exist yet; type-check error on `[v <- :wat::record]` — type not registered yet). Post-stone: PASS.
 
 5 probe contracts:
 
 1. **Variant compile-pass** — `Value::wat__record { ... }` constructible via Rust helper (verifies the renamed variant exists)
 2. **type_name() returns `"wat::record"`** — verifies D2 + D5 in lockstep (the type FQDN the variant returns matches the umbrella registered in check.rs)
 3. **Eq + Hash consistency under rename** — two same-args wat__records compare equal AND hash-equal (regression guard against Stone 221.5 invariants surviving the rename)
-4. **Type registration accepts `[v <- :wat::record::Record]`** — wat source declaring this type annotation parses + type-checks cleanly (verifies the check.rs TypeDef registration)
+4. **Type registration accepts `[v <- :wat::record]`** — wat source declaring this type annotation parses + type-checks cleanly (verifies the check.rs TypeDef registration)
 5. **`(:wat::core::type <wat__record-instance>)` returns class_fqdn** — Stone 234.0 + 234.1 integration end-to-end preserved through rename (regression guard combining Stone 234.0's polymorphic type primitive + Stone 234.1.5's renamed variant)
 
 Initial FAIL signal: 5/5 with compile-error or UnknownType.
@@ -214,7 +216,7 @@ The grep `grep -nE "Value::wat_record|\bwat_record\b" src/ tests/` is the canoni
 
 - New substrate primitives (`:wat::record::of`, `:wat::record::field-at`, `:wat::record::def`, `:wat::record::is?`, `:wat::record::to-map`) — Stone 234.2a (β.iii)
 - defrecord macro — Stone 234.2b
-- Per-class type registration (`:myapp::Voltage` as alias of `:wat::record::Record`) — Stone 234.2b
+- Per-class type registration (`:myapp::Voltage` as alias of `:wat::record`) — Stone 234.2b
 - Polymorphic verb extensions — Stone 234.3
 - `:wat::holon::to-holon` wat__record arm extension — later stone (probably 234.3 or earlier)
 - Stone 234.2a in-flight artifacts revision (`db39ebd` + `7113c51`) — β.ii orchestrator paperwork after β.i ships

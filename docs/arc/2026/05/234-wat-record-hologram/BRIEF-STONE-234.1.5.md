@@ -2,7 +2,7 @@
 
 ## What we're doing
 
-Rename Stone 234.1's `Value::wat_record` → `Value::wat__record` (per arc 109 `__` FQDN convention; matches `Value::wat__core__Uuid`/`wat__core__Char`/`wat__std__HashMap` family) and register `:wat::record::Record` as opaque umbrella type in check.rs — promoting the record concept-cluster to top-level `:wat::record::*` namespace (peer of `:wat::holon::*`/`:wat::kernel::*`/`:wat::config::*`/`:wat::test::*`).
+Rename Stone 234.1's `Value::wat_record` → `Value::wat__record` (per arc 109 `__` FQDN convention; matches `Value::wat__core__Uuid`/`wat__core__Char`/`wat__std__HashMap` family) and register `:wat::record` as opaque umbrella type in check.rs — promoting the record concept-cluster to top-level `:wat::record::*` namespace (peer of `:wat::holon::*`/`:wat::kernel::*`/`:wat::config::*`/`:wat::test::*`).
 
 NO new primitives. NO new behavior. Pure rename + type registration + cascade update.
 
@@ -30,7 +30,7 @@ Stone 234.1.5 is the **stepping-stone foundation** that subsequent stones (234.2
 
 10. **`src/closure_extract.rs:1716,1718-1719`** — 2 sites (D8 cascade).
 
-11. **`src/check.rs`** — TypeDef registration mechanism. Mirror existing primitive type registration (e.g., how `:wat::core::String` or `:wat::holon::HolonAST` are registered). NEW site: register `:wat::record::Record` as opaque type (D5).
+11. **`src/check.rs`** — TypeDef registration mechanism. Mirror existing primitive type registration (e.g., how `:wat::core::String` or `:wat::holon::HolonAST` are registered). NEW site: register `:wat::record` as opaque type (D5).
 
 ## Implementation surface
 
@@ -89,7 +89,7 @@ Stone 234.1.5 is the **stepping-stone foundation** that subsequent stones (234.2
 
 **`src/check.rs` (1 site — NEW):**
 
-13. **Register `:wat::record::Record` as opaque primitive TypeDef.** Mirror existing primitive type registration pattern (e.g., how `:wat::core::String`, `:wat::holon::HolonAST`, `:wat::kernel::Sender` are registered as opaque types). Look at how those four are registered + apply the same shape for `:wat::record::Record`.
+13. **Register `:wat::record` as opaque primitive TypeDef.** Mirror existing primitive type registration pattern (e.g., how `:wat::core::String`, `:wat::holon::HolonAST`, `:wat::kernel::Sender` are registered as opaque types). Look at how those four are registered + apply the same shape for `:wat::record`.
 
 **`tests/probe_arc234_stone1_wat_record_variant.rs` (~7 sites — helper + 7 test fns):**
 
@@ -101,7 +101,7 @@ Stone 234.1.5 is the **stepping-stone foundation** that subsequent stones (234.2
 
 - **No new substrate primitives** — `:wat::record::of`, `:wat::record::field-at`, `:wat::record::def`, `:wat::record::is?`, `:wat::record::to-map` are Stone 234.2a (β.iii)
 - **defrecord macro** — Stone 234.2b
-- **Per-class type registration** (`:myapp::Voltage` as `:wat::record::Record` alias) — Stone 234.2b
+- **Per-class type registration** (`:myapp::Voltage` as `:wat::record` alias) — Stone 234.2b
 - **Polymorphic verb extensions** — Stone 234.3
 - **`:wat::holon::to-holon` wat__record arm extension** — later stone
 - **Stone 234.2a in-flight artifacts at `db39ebd` + `7113c51`** — β.ii orchestrator paperwork AFTER β.i ships
