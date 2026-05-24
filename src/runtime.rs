@@ -633,6 +633,30 @@ pub enum Value {
     /// conj = PREPEND (Clojure semantic; distinct from Vector conj = APPEND).
     /// Constructed via `(:wat::core::List/of ...)` or `'(...)` literal.
     wat__core__List(std::sync::Arc<std::collections::LinkedList<Value>>),
+    /// Arc 234 Stone 234.1 — the holographic dual-form record.
+    ///
+    /// Carries both projections of an immutable record simultaneously:
+    /// - `struct_form` for Rust-fast field access (positional Vec)
+    /// - `holon_form` for VSA-aligned operations (HolonAST classifier-wrap)
+    ///
+    /// Field-type constraints (enforced at macro-expand time by defrecord)
+    /// guarantee the two forms are isomorphic. The wat-record IS the hologram.
+    ///
+    /// `class_fqdn` is the record's class name WITHOUT a leading colon,
+    /// e.g. `"myapp::Voltage"`. Identity lives in `holon_form` per Stone
+    /// 221.5 canonical bytes seed; Eq and Hash both delegate to it.
+    ///
+    /// Storage form only — user-facing constructor ships in Stone 234.2
+    /// (`:wat::core::defrecord` macro). Polymorphic verbs in Stone 234.3.
+    wat_record {
+        /// Record class FQDN — e.g. `"myapp::Voltage"` (no leading colon).
+        class_fqdn: Arc<String>,
+        /// Ordered field values in declaration order (fast Rust-side access).
+        struct_form: Arc<Vec<Value>>,
+        /// VSA-aligned dual form: `Bind(Atom(class), Bundle(field-Binds...))`.
+        /// Identity lives here; Eq and Hash delegate to this field.
+        holon_form: Arc<HolonAST>,
+    },
 }
 // Arc 233 Stone 233.2.k: Value::Tracked variant DELETED.
 // Environment now stores TrackedValue directly (Option A); provenance flows
@@ -786,6 +810,13 @@ impl PartialEq for Value {
             (Value::Engram(a), Value::Engram(b)) => Arc::ptr_eq(a, b),
             (Value::EngramLibrary(a), Value::EngramLibrary(b)) => Arc::ptr_eq(a, b),
             (Value::Hologram(a), Value::Hologram(b)) => Arc::ptr_eq(a, b),
+            // Arc 234 Stone 234.1 — wat_record: identity lives in holon_form (canonical
+            // bytes seed per Stone 221.5). Class_fqdn match checked first for short-circuit
+            // performance + structural honesty. struct_form is access optimization; not identity.
+            (Value::wat_record { class_fqdn: a_cls, holon_form: a_h, .. },
+             Value::wat_record { class_fqdn: b_cls, holon_form: b_h, .. }) => {
+                a_cls == b_cls && a_h == b_h
+            }
             // Cross-variant pairs are always unequal
             _ => false,
         }
@@ -992,6 +1023,13 @@ impl std::hash::Hash for Value {
                  src/check.rs:3623 should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
+            // Arc 234 Stone 234.1 — wat_record: hash delegates to holon_form (canonical form
+            // per Stone 221.5). Discriminant tag "wat_record" prevents cross-variant collisions.
+            // struct_form is access optimization; identity lives in holon_form.
+            Value::wat_record { holon_form, .. } => {
+                "wat_record".hash(state);
+                holon_form.hash(state);
+            }
         }
     }
 }
@@ -1135,6 +1173,8 @@ impl Value {
             Value::wat__core__Char(_) => "wat::core::Char",
             // Arc 220 Stone 220.4
             Value::wat__core__List(_) => "wat::core::List",
+            // Arc 234 Stone 234.1 — generic kind-string (per-instance FQDN via :wat::core::type).
+            Value::wat_record { .. } => "wat::core::wat_record",
         }
     }
 }
@@ -14417,7 +14457,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
 /// - Any other Value → `Value::type_name()` (existing Rust method; returns FQDN per
 ///   arc 224 Stone 224.5 naming audit).
 ///
-/// TODO: arc 234.1 adds a `Value::wat_record` arm here returning the record's class_fqdn.
+/// - `Value::wat_record { class_fqdn, .. }` → `class_fqdn` (per-instance FQDN; arc 234 Stone 234.1).
 fn eval_type(
     args: &[WatAST],
     list_span: &Span,
@@ -14439,6 +14479,10 @@ fn eval_type(
             extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
         }
         Value::Struct(sv) => sv.type_name.trim_start_matches(':').to_string(),
+        // Arc 234 Stone 234.1 — closes TODO marker. Returns class_fqdn directly
+        // (already FQDN without leading colon per convention). Per-instance FQDN,
+        // not the generic kind-string from type_name().
+        Value::wat_record { class_fqdn, .. } => class_fqdn.to_string(),
         other => other.type_name().to_string(),
     };
     Ok(Value::String(Arc::new(type_str)))
@@ -18168,6 +18212,29 @@ fn render_value(v: &Value, depth: usize) -> String {
         Value::wat__core__List(xs) => {
             let parts: Vec<String> = xs.iter().map(|v| render_value(v, depth + 1)).collect();
             format!("({})", parts.join(" "))
+        }
+        // Arc 234 Stone 234.1 — wat_record renders as `<class_fqdn{field0, field1, ...}>`.
+        // Uses class_fqdn for identity; struct_form for field values.
+        Value::wat_record { class_fqdn, struct_form, .. } => {
+            let mut out = format!("<{}", class_fqdn);
+            if !struct_form.is_empty() {
+                out.push('{');
+                let mut first = true;
+                for fv in struct_form.iter() {
+                    if !first {
+                        out.push_str(", ");
+                    }
+                    first = false;
+                    if out.len() >= SHOW_MAX_LEN {
+                        out.push('…');
+                        break;
+                    }
+                    out.push_str(&render_value(fv, depth + 1));
+                }
+                out.push('}');
+            }
+            out.push('>');
+            out
         }
     }
 }
