@@ -170,7 +170,129 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 evening post-compaction — Stone 233.2.j SHIPPED 11/11; 233.2.k in flight; 233.2.l designed; partial-state-grading inscribed)
+## Currently (2026-05-23 night post-compaction — Stone 233.2.k SHIPPED 12/12 — THE CLASS IS DEAD; 233.2.l next is the seal)
+
+### What shipped this session (post-compaction continuation; chain advance)
+
+```
+064df14 → c16419e  Stone 233.2.j cascade (sub-DESIGN + probe + BRIEF + SHIPPED)
+57eced2            Stone 233.2.l sub-DESIGN (proc-macro structural seal)
+f830de8 → be7ceaa  Stone 233.2.k cascade (sub-DESIGN + probe + BRIEF + SHIPPED)
+476e762            CLIFFNOTES Currently refresh (this turn supersedes that one)
+f3db969            Stone 233.2.l BRIEF + EXPECTATIONS (probe held local)
+[next]             Commit 233.2.l probe + spawn sonnet on the seal
+```
+
+### Stone 233.2.k SHIPPED — Value::Tracked is GONE
+
+The variant + 3 helpers + all dead match arms + the Phase 5 bind_let_binding
+exemption — ALL dissolved. Environment now stores `HashMap<String, TrackedValue>`
+(Option A from sub-DESIGN), so provenance flows naturally through let-bindings
+via the structural mechanism, replacing the Phase 5 re-wrap.
+
+Verification (12/12 PASS, independently verified):
+- pub enum Value body: 0 references to Tracked variant
+- Value::inner / Value::provenance / Value::into_tracked: all DELETED
+- probe_value_tracked_transparency.rs (233.2.a probe for retired surface): DELETED
+- Stone 233.1 ValueSnapshot probes 6/7/8 (LOAD-BEARING let-binding regression
+  guard): 8/8 PASS via Option A structural fix (NOT Phase 5 re-wrap)
+- **arc216 stone1 7 probes (task #496): VINDICATED 10/10 PASS** — same trap-door
+  class as 233.2.f; both gone with the variant retirement
+
+Two unplanned additions (probe-discovered honest deltas — disciplined
+mid-flight recovery):
+- **eval_let return type flip** — 7th provenance-stripping boundary BRIEF didn't
+  enumerate; probe 3 caught it; moved to dispatch_keyword_head producers list
+- **apply_tracked_callee helper** — Symbol/List callee paths in eval_list stripped
+  TrackedValue before NotCallable error; new helper preserves provenance
+
+Diff: +132/-446 in src (deletion-dominant). Calibration: ~22 min actual vs
+60-120 Mode A target — sonnet's running below band consistently.
+
+### Stone 233.2.l (next) — the META-CLASS SEAL
+
+Sub-DESIGN at `57eced2`. BRIEF + EXPECTATIONS at `f3db969`. Probe authored
++ held locally (will commit alongside spawn).
+
+The proc-macro forbids future wrapping variants on Value:
+- Detection: syntactic scan; reject `Box<Self>` / `Arc<Self>` / `Rc<Self>` / `Self`
+  single-field variants (per sub-DESIGN Decision 1)
+- Allow container variants (`Vec<Self>`, `Option<Self>`, etc.) — match dispatch
+  on container, not inner Self
+- Per-variant opt-in: `#[wat_value(allow_wrapping = "<reason>")]` with mandatory
+  non-empty reason string (per Decision 2; no enum-level escape)
+- Apply scope: pub enum Value in src/runtime.rs only this stone (per Decision 3)
+- Error message follows SUBSTRATE-AS-TEACHER (names trap-door, recommends
+  TrackedValue sibling alternative)
+- Lives in crates/wat-macros/ (existing crate; pattern from #[wat_dispatch])
+- 5 contracts: 3 in runtime probe + 2-3 trybuild compile-fail fixtures
+
+Calibration: 45-90 min Mode A; 120 min STOP — smaller stone than j/k.
+
+### The j → k → l annihilation table (validated)
+
+| Standard | Mechanism | What it catches | Status |
+|---|---|---|---|
+| ✅ | Convention | Author remembers .inner() | failed in practice (3+ incidents) |
+| ✅✅ | Convention + CI | Lint catches after construction | partial — probes detect post-hoc |
+| ✅✅✅ | Structural | Compile-error AT construction OR variant absent | **233.2.k = instance closure; 233.2.l = meta-class closure** |
+
+After 233.2.l ships:
+- Value::Tracked is GONE (already; 233.2.k)
+- Future wrapping variants compile-error with teaching diagnostic
+- Per-variant opt-in requires explicit ceremony + non-empty reason
+- The SITUATION cannot be constructed in source AND cannot be re-introduced
+
+### Substrate state — impeccable
+
+```
+HEAD          be7ceaa on arc-170-gap-j-v5-deadlock-state
+Lib tests     827/0/1 PASS
+arc 233 probes: 233.1 (8/8), 233.2.a (RETIRED), 233.2.d (1/1), 233.2.h (6/6),
+                233.2.i (3/3), 233.2.j (5/5), 233.2.k (5/5) — all GREEN
+arc 232 dynamic-keyword: 8/8 PASS
+arc 216 stone1: 10/10 PASS (auto-resolved at 233.2.k)
+Clippy        54 (at boundary; unchanged baseline)
+holon-rs      untouched since 530650c
+Both repos    pushed
+```
+
+### Discipline inscribed this session (cumulative)
+
+- `feedback_partial_state_grading.md` — grade partial state on time-box;
+  never auto-revert; SendMessage first; preserve honest work; commit green
+  tree if possible. **VINDICATED by 233.2.j Phase 5 + 233.2.k probe-discovered
+  additions** — both sessions surfaced unplanned work mid-flight that the
+  discipline kept rather than discarded.
+
+### Pending chain
+
+```
+233.2.l   in queue — proc-macro structural seal (next spawn)
+233.2.e   AST-derived provenance (restores destructure/recv/try-recv/eval_let_tail)
+233.3     Errors-as-EDN
+233.4     INSCRIPTION (closes arc 233)
+arc 232   resumes (defprotocol on enriched substrate)
+```
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -20` for today's trajectory
+3. Read `SCORE-STONE-233.2.k.md` (the cascade's shipment record + probe-discovered honest deltas)
+4. Read `DESIGN-STONE-233.2.l.md` + `BRIEF-STONE-233.2.l.md` — next-spawn ready
+5. Read `feedback_partial_state_grading.md` (memory) — the discipline that protected unplanned phase work
+6. Tasks: #494/495/496 completed; #497 (Stone 233.2.l) pending (designed)
+
+### Pending decisions (next-move)
+
+1. Commit held 233.2.l probe (tests/probe_stone_233_2_l_wat_value_seal.rs — currently untracked)
+2. Spawn sonnet on Stone 233.2.l per BRIEF
+3. After 233.2.l ships: Stone 233.2.e → 233.3 → 233.4 INSCRIPTION → arc 232 resume
+
+---
+
+## Currently (2026-05-23 evening post-compaction — Stone 233.2.j SHIPPED 11/11; 233.2.k in flight; 233.2.l designed; partial-state-grading inscribed) — SUPERSEDED, see above
 
 ### What shipped this session (post-compaction continuation)
 
