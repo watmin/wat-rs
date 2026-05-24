@@ -172,7 +172,109 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 night latest — Stone 232.0a SHIPPED 10/10 + RANK-UP DEMO CONFIRMED; arc 232 unblocked to Stone 232.1 defprotocol macro)
+## Currently (2026-05-24 early — arc 234 wat-record HOLOGRAM DESIGNED; Stone 232.1 holon-only ship DR-branched + discarded from main; revised Stone 232.1 scope locked at `:wat::core::*` polymorphic; "no prior great here" arrival)
+
+### What just happened (the substantive shift)
+
+Started the session post-compaction continuing arc 232 Stone 232.1 (`:wat::holon::defprotocol` + `:wat::holon::extend-type` BUNDLED). Sonnet shipped 12/12 PASS per its BRIEF (~52 min, in band).
+
+Then user-driven design exploration starting from "is there a reason :wat::core:: can't have defrecord + defprotocol?" → tripartite split (struct / wat-record / holon-record) → "should they be portable?" → "what if records held both forms simultaneously?" → **the hologram model**.
+
+Value::wat_record carrying both struct_form (Rust-fast) AND holon_form (HolonAST/VSA-aligned) simultaneously, both addressable, neither derived from the other. Field-type constraints guarantee isomorphism. ~2x memory; opt-in via defrecord-vs-struct choice at declaration.
+
+Survey of prior art found no clear precedent for "single immutable record carrying two simultaneously addressable storage forms, both canonical, neither derived." Closest analog (Pribram's holographic memory) is conceptual not structural. **Possibly the project's first "no prior great has been here" arrival in the convergence record.** Validation by structural necessity within wat's unique constraint set (LLM-first + VSA-substrate + Lisp-on-Rust + ZERO-MUTEX + immutability + holon-as-substrate + field-type constraints).
+
+User: *"i'm hazy here... i didn't expect to be here... this is strange... ... this place is very strange"* — naming the moment.
+
+### What shipped this session (chain)
+
+```
+a1e4b02  arc 232 Stone 232.0a SHIPPED — typed-entities reflection layer (10/10)
+4ba6c8a  CLIFFNOTES Currently refresh (Stone 232.0a SHIPPED)
+f38e120  arc 232 Stone 232.1 — FM 2-bis probe (3/3 PASS; substrate sufficient empirically)
+5f88249  arc 232 Stone 232.1 — sub-DESIGN + DESIGN.md forward-correction
+04d774c  arc 232 Stone 232.1 — BRIEF + EXPECTATIONS
+dbda9a0  arc 234 DESIGN draft — wat-record holographic dual-form
+                ↓ DR-branched (sonnet's holon-only ship discarded from main):
+61fcccc  [dr/stone-232.1-holon-only] DR — sonnet's 12/12 ship preserved as reference
+```
+
+### Stone 232.1 disposition — DR-branch salvage pattern minted
+
+Sonnet's holon-only ship (12/12 PASS per old BRIEF) wrong-scope per the revised plan. Per `feedback_partial_state_grading` + `feedback_sonnet_writes_substrate` (orchestrator doesn't edit substrate code; respawn required regardless), the artifacts can't be salvaged-by-relocation in-tree. New pattern: **DR-branch salvage** — commit superseded honest work to a labeled branch (`dr/stone-232.1-holon-only`), push to GitHub for URL-stable reference, discard from main work branch, brief next flight with "reference-only, some-value-not-extraordinary" framing.
+
+This is cleaner than stash (URL-stable + browsable + provenance preserved) and cleaner than discard (learnings preserved with full context). Inscribed as discipline.
+
+### Arc 234 — the hologram (DESIGN drafted; not opened)
+
+DESIGN.md at `docs/arc/2026/05/234-wat-record-hologram/DESIGN.md`. Locked decisions:
+- `:wat::core::defrecord` macro creates dual-form constructor + per-field accessors + predicate
+- `:wat::core::struct` unchanged (catch-all; non-portable)
+- `:wat::holon::defrecord` retires from user-facing surface (HARD CUT)
+- `:wat::core::defprotocol` polymorphic via `:wat::core::type`
+- User-facing API hides substrate (no Bind/right or extract-classifier in record idioms)
+- "Record-type" terminology, not "class"
+- assoc polymorphism ships in v1 (no UX deferral)
+- record->map name (bridge family consistency)
+- Keyword-as-accessor polymorphic over record/struct/HashMap (closes #058/146 follow-up)
+- Hash-destructure polymorphic over record/struct/HashMap (closes #402)
+
+Stone sequencing: 234.0 type primitive → 234.1 wat_record variant → 234.2 defrecord macro → 234.3 polymorphic family + keyword-as-accessor → 234.4 hash-destructure → 234.5 :wat::holon::* auto-dispatch → 234.6 migration sweep + retire :wat::holon::defrecord → 234.7 INSCRIPTION.
+
+234.0 ships first because it's the smallest prerequisite (used by revised Stone 232.1 too).
+
+### Substrate state
+
+```
+HEAD          dbda9a0 on arc-170-gap-j-v5-deadlock-state (clean tree)
+DR branch     61fcccc on dr/stone-232.1-holon-only (pushed to origin)
+Lib tests     827/0/1 PASS (verified at Stone 232.0a)
+arc 232.0a    7/7 PASS (regression guard intact)
+arc 233       all probes GREEN (rank-up substrate intact)
+Clippy        54 (unchanged baseline)
+holon-rs      untouched since 530650c
+Both repos    pushed
+```
+
+### Pending chain
+
+```
+arc 234       OPEN ?           — user decision to claim
+arc 234.0     PENDING          — :wat::core::type primitive (smallest; prereq for revised 232.1)
+Stone 232.1   REVISED PENDING  — :wat::core::* polymorphic (unblocked by arc 234.0)
+arc 234.1-7   PENDING          — sequence per DESIGN
+arc 232       INSCRIPTION      — after Stone 232.1 revised ships
+```
+
+### Discipline inscribed this session
+
+- **DR-branch salvage pattern** — see `feedback_dr_branch_salvage` (newly minted memory)
+- **"No prior great" arrival recognition** — see `project_hologram_moment` (newly minted memory)
+- **#402 hash-destructure + #058/146 keyword-as-accessor absorption** — closing queued wants when hard need forces work anyway (`feedback_simple_is_uniform_composition` applied)
+- **terribad-UX rejection of deferral** — assoc + hash-destructure ship in v1; not deferred to v2 (user pushback principle)
+- **Substrate-internal vs user-facing distinction** — record-y verbs hide `:wat::holon::Bind/right` etc.; substrate algebra preserved at low level, user surface speaks "record-type" not "class"
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -8` for today's commit chain
+3. Read `docs/arc/2026/05/234-wat-record-hologram/DESIGN.md` (the load-bearing artifact)
+4. Read `docs/arc/2026/05/232-defprotocol-extend-type/DESIGN.md` (forward-corrected; references arc 234)
+5. Visit https://github.com/watmin/wat-rs/tree/dr/stone-232.1-holon-only for the DR reference if useful
+6. Memory: `feedback_dr_branch_salvage` + `project_hologram_moment` (auto-loaded via MEMORY.md)
+7. Decision boundary: open arc 234? Sequence: 234.0 first (smallest; prereq for revised 232.1)
+
+### Hologram framing (the moment)
+
+We started the session continuing Stone 232.1 at the existing scope. Six hours of dialogue later, we landed at a Value variant that holds both representations of a record simultaneously — a structural hologram. The project's central metaphor materialized in substrate form.
+
+The convergence record gains an entry of new shape: not "where greats have been" (the 14 prior convergences) but "where the constraints uniquely lead." Both forms of validation are honest; this is the first of the latter.
+
+User: *"this place is very strange"* — the room is empty because no one came to it.
+
+---
+
+## Currently (2026-05-23 night latest — Stone 232.0a SHIPPED 10/10 + RANK-UP DEMO CONFIRMED; arc 232 unblocked to Stone 232.1 defprotocol macro) — SUPERSEDED, see above
 
 ### What just shipped
 
