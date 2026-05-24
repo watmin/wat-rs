@@ -188,12 +188,32 @@
                                                (:wat::core::string::concat
                                                  fqdn-str
                                                  "/"
-                                                 name-s))]
+                                                 name-s))
+                               msg-prefix   (:wat::core::string::concat
+                                               ":"
+                                               fqdn-str
+                                               "/"
+                                               name-s
+                                               ": expected receiver of class :"
+                                               fqdn-str
+                                               ", got class :")]
                               (:wat::core::quasiquote
                                 (:wat::core::defn
                                   (:wat::core::unquote accessor-name)
                                   [v <- :wat::Record] -> (:wat::core::unquote type-w)
-                                  (:wat::Record/field-at v (:wat::core::unquote fi)))))))]
+                                  (:wat::Record/field-at
+                                    (:wat::core::Option/expect -> :wat::Record
+                                      (:wat::core::if
+                                        (:wat::core::=
+                                          (:wat::core::type v)
+                                          (:wat::core::unquote fqdn-str))
+                                        -> :wat::core::Option<wat::Record>
+                                        (:wat::core::Some v)
+                                        :wat::core::None)
+                                      (:wat::core::string::concat
+                                        (:wat::core::unquote msg-prefix)
+                                        (:wat::core::type v)))
+                                    (:wat::core::unquote fi)))))))]
            accessors)
      (:wat::core::defn ~(:wat::core::let
                            [fqdn-str  (:wat::core::keyword/to-string fqdn)
