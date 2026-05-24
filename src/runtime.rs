@@ -648,7 +648,7 @@ pub enum Value {
     ///
     /// Storage form only — user-facing constructor ships in Stone 234.2
     /// (`:wat::core::defrecord` macro). Polymorphic verbs in Stone 234.3.
-    wat_record {
+    wat__Record {
         /// Record class FQDN — e.g. `"myapp::Voltage"` (no leading colon).
         class_fqdn: Arc<String>,
         /// Ordered field values in declaration order (fast Rust-side access).
@@ -810,11 +810,11 @@ impl PartialEq for Value {
             (Value::Engram(a), Value::Engram(b)) => Arc::ptr_eq(a, b),
             (Value::EngramLibrary(a), Value::EngramLibrary(b)) => Arc::ptr_eq(a, b),
             (Value::Hologram(a), Value::Hologram(b)) => Arc::ptr_eq(a, b),
-            // Arc 234 Stone 234.1 — wat_record: identity lives in holon_form (canonical
+            // Arc 234 Stone 234.1 — wat__Record: identity lives in holon_form (canonical
             // bytes seed per Stone 221.5). Class_fqdn match checked first for short-circuit
             // performance + structural honesty. struct_form is access optimization; not identity.
-            (Value::wat_record { class_fqdn: a_cls, holon_form: a_h, .. },
-             Value::wat_record { class_fqdn: b_cls, holon_form: b_h, .. }) => {
+            (Value::wat__Record { class_fqdn: a_cls, holon_form: a_h, .. },
+             Value::wat__Record { class_fqdn: b_cls, holon_form: b_h, .. }) => {
                 a_cls == b_cls && a_h == b_h
             }
             // Cross-variant pairs are always unequal
@@ -1023,11 +1023,11 @@ impl std::hash::Hash for Value {
                  src/check.rs:3623 should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            // Arc 234 Stone 234.1 — wat_record: hash delegates to holon_form (canonical form
-            // per Stone 221.5). Discriminant tag "wat_record" prevents cross-variant collisions.
+            // Arc 234 Stone 234.1 — wat__Record: hash delegates to holon_form (canonical form
+            // per Stone 221.5). Discriminant tag "wat__Record" prevents cross-variant collisions.
             // struct_form is access optimization; identity lives in holon_form.
-            Value::wat_record { holon_form, .. } => {
-                "wat_record".hash(state);
+            Value::wat__Record { holon_form, .. } => {
+                "wat__Record".hash(state);
                 holon_form.hash(state);
             }
         }
@@ -1174,7 +1174,7 @@ impl Value {
             // Arc 220 Stone 220.4
             Value::wat__core__List(_) => "wat::core::List",
             // Arc 234 Stone 234.1 — generic kind-string (per-instance FQDN via :wat::core::type).
-            Value::wat_record { .. } => "wat::core::wat_record",
+            Value::wat__Record { .. } => "wat::Record",
         }
     }
 }
@@ -14457,7 +14457,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
 /// - Any other Value → `Value::type_name()` (existing Rust method; returns FQDN per
 ///   arc 224 Stone 224.5 naming audit).
 ///
-/// - `Value::wat_record { class_fqdn, .. }` → `class_fqdn` (per-instance FQDN; arc 234 Stone 234.1).
+/// - `Value::wat__Record { class_fqdn, .. }` → `class_fqdn` (per-instance FQDN; arc 234 Stone 234.1).
 fn eval_type(
     args: &[WatAST],
     list_span: &Span,
@@ -14482,7 +14482,7 @@ fn eval_type(
         // Arc 234 Stone 234.1 — closes TODO marker. Returns class_fqdn directly
         // (already FQDN without leading colon per convention). Per-instance FQDN,
         // not the generic kind-string from type_name().
-        Value::wat_record { class_fqdn, .. } => class_fqdn.to_string(),
+        Value::wat__Record { class_fqdn, .. } => class_fqdn.to_string(),
         other => other.type_name().to_string(),
     };
     Ok(Value::String(Arc::new(type_str)))
@@ -18213,9 +18213,9 @@ fn render_value(v: &Value, depth: usize) -> String {
             let parts: Vec<String> = xs.iter().map(|v| render_value(v, depth + 1)).collect();
             format!("({})", parts.join(" "))
         }
-        // Arc 234 Stone 234.1 — wat_record renders as `<class_fqdn{field0, field1, ...}>`.
+        // Arc 234 Stone 234.1 — wat__Record renders as `<class_fqdn{field0, field1, ...}>`.
         // Uses class_fqdn for identity; struct_form for field values.
-        Value::wat_record { class_fqdn, struct_form, .. } => {
+        Value::wat__Record { class_fqdn, struct_form, .. } => {
             let mut out = format!("<{}", class_fqdn);
             if !struct_form.is_empty() {
                 out.push('{');

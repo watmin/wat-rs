@@ -151,7 +151,7 @@ fn probe_3_eq_hash_consistency_under_rename() {
 #[test]
 fn probe_4_namespace_type_registration() {
     let src = r#"
-(:wat::core::define (:user::accept-record [_v <- :wat::Record] -> :wat::core::nil)
+(:wat::core::define (:user::accept-record (_v :wat::Record) -> :wat::core::nil)
   :wat::core::nil)
 
 (:wat::core::define (:user::compute -> :wat::core::nil)

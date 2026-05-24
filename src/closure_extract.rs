@@ -1713,10 +1713,10 @@ fn encode_value_with_path(
             type_name: v.type_name().to_string(),
             path: path.clone(),
         }),
-        // Arc 234 Stone 234.1 — wat_record: no closure-extract encoding yet.
+        // Arc 234 Stone 234.1 — wat__Record: no closure-extract encoding yet.
         // Stone 234.2 ships defrecord macro + constructor; closure-extract
-        // for wat_record lands when the constructor form is available.
-        Value::wat_record { .. } => Err(ExtractionError::Internal(format!(
+        // for wat__Record lands when the constructor form is available.
+        Value::wat__Record { .. } => Err(ExtractionError::Internal(format!(
             "encoding for captured Value of kind {} not implemented (Stone 234.2+)",
             v.type_name()
         ))),

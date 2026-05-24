@@ -1,36 +1,36 @@
-//! Diagnostic probe — `Value::wat_record` variant scaffolding (arc 234 Stone 234.1).
+//! Diagnostic probe — `Value::wat__Record` variant scaffolding (arc 234 Stone 234.1).
 //!
 //! FM 2-bis empirical probe authored BEFORE the Stone 234.1 BRIEF. Verifies
 //! the substrate scaffolding for the wat-record hologram:
 //!
-//!   - `Value::wat_record { class_fqdn, struct_form, holon_form }` variant exists
+//!   - `Value::wat__Record { class_fqdn, struct_form, holon_form }` variant exists
 //!   - PartialEq impl delegates to holon_form (per Stone 221.5 canonical bytes
 //!     seed + arc 234 DESIGN equality section)
 //!   - Hash impl delegates to holon_form (consistent with Eq)
 //!   - Display impl renders `<class_fqdn>(<field_1>, <field_2>, ...)`
-//!   - Value::type_name() returns `"wat::core::wat_record"` (generic kind)
+//!   - Value::type_name() returns `"wat::Record"` (generic kind; Stone 234.1.5 rename)
 //!
 //! Stone 234.1 is the storage form ONLY. No user-facing constructor in this
-//! stone (defrecord macro is Stone 234.2). The probe constructs Value::wat_record
+//! stone (defrecord macro is Stone 234.2). The probe constructs Value::wat__Record
 //! directly via Rust API for property verification.
 //!
 //! `:wat::core::type` dispatch table extension (D6) is verified by:
-//!   - Sonnet ships the wat_record arm per the BRIEF (location: src/runtime.rs:14420
+//!   - Sonnet ships the wat__Record arm per the BRIEF (location: src/runtime.rs:14420
 //!     TODO marker from Stone 234.0)
 //!   - Stone 234.2's defrecord macro tests exercise the dispatch arm end-to-end
 //!     when wat-level constructors land
 //!
 //! Probe contracts (7):
 //!   1. Construction — variant literal compiles (variant exists with expected fields)
-//!   2. Eq same — two wat_records with same class + same holon_form return true
+//!   2. Eq same — two wat__Records with same class + same holon_form return true
 //!   3. Eq different class — same holon_form structure but different class returns false
 //!   4. Eq different fields — same class but different holon_form returns false
-//!   5. Hash same — two equal wat_records produce equal hashes (Eq/Hash consistency)
+//!   5. Hash same — two equal wat__Records produce equal hashes (Eq/Hash consistency)
 //!   6. Display contains class — format!("{}", record) contains the class_fqdn
-//!   7. type_name() generic — returns "wat::core::wat_record" (per-instance FQDN
+//!   7. type_name() generic — returns "wat::Record" (Stone 234.1.5 rename; per-instance FQDN
 //!      via :wat::core::type instead, verified in Stone 234.2)
 //!
-//! Initial state: COMPILE-FAILS (no Value::wat_record variant exists).
+//! Initial state: COMPILE-FAILS (no Value::wat__Record variant exists).
 //! Post-stone: COMPILES + all 7 contracts PASS.
 //!
 //! Outcomes:
@@ -66,7 +66,7 @@ fn make_holon_form(class: &str, fields: Vec<(&str, HolonAST)>) -> Arc<HolonAST> 
     ))
 }
 
-/// Construct a wat_record fixture for tests.
+/// Construct a wat__Record fixture for tests.
 fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
     let struct_form: Arc<Vec<Value>> = Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
     let holon_field_pairs: Vec<(&str, HolonAST)> = fields
@@ -75,7 +75,7 @@ fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
         .collect();
     let holon_form = make_holon_form(class, holon_field_pairs);
     let class_fqdn = Arc::new(class.to_string());
-    Value::wat_record {
+    Value::wat__Record {
         class_fqdn,
         struct_form,
         holon_form,
@@ -90,7 +90,7 @@ fn hash_value(v: &Value) -> u64 {
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
 //
-// `Value::wat_record { class_fqdn, struct_form, holon_form }` literal
+// `Value::wat__Record { class_fqdn, struct_form, holon_form }` literal
 // construction compiles (variant exists with expected fields). This is the
 // load-bearing existence check.
 #[test]
@@ -101,12 +101,12 @@ fn probe_1_variant_construction_compiles() {
     );
     // Match destructure proves the variant fields match expected names.
     match &r {
-        Value::wat_record { class_fqdn, struct_form, holon_form } => {
+        Value::wat__Record { class_fqdn, struct_form, holon_form } => {
             assert_eq!(class_fqdn.as_str(), "myapp::Voltage");
             assert_eq!(struct_form.len(), 1);
             assert!(!format!("{:?}", holon_form).is_empty());
         }
-        _ => panic!("Probe 1: expected Value::wat_record variant"),
+        _ => panic!("Probe 1: expected Value::wat__Record variant"),
     }
 }
 
@@ -124,7 +124,7 @@ fn probe_2_eq_same_class_same_holon_form() {
         "myapp::Voltage",
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
-    assert_eq!(a, b, "Probe 2: two wat_records with same class + holon_form should be equal");
+    assert_eq!(a, b, "Probe 2: two wat__Records with same class + holon_form should be equal");
 }
 
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ fn probe_3_eq_different_class() {
         "myapp::Celsius",
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
-    assert_ne!(a, b, "Probe 3: different class should make records unequal");
+    assert_ne!(a, b, "Probe 3: different class should make records unequal (wat__Record)");
 }
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ fn probe_4_eq_different_field_values() {
         "myapp::Voltage",
         vec![("magnitude", Value::f64(6.0), HolonAST::F64(6.0))],
     );
-    assert_ne!(a, b, "Probe 4: different field values should make records unequal");
+    assert_ne!(a, b, "Probe 4: different field values should make records unequal (wat__Record)");
 }
 
 // ─── Probe 5 ────────────────────────────────────────────────────────────────
@@ -175,11 +175,11 @@ fn probe_5_hash_eq_consistency() {
         "myapp::Voltage",
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
-    assert_eq!(a, b, "Probe 5: precondition — records must be equal for hash test");
+    assert_eq!(a, b, "Probe 5: precondition — wat__Records must be equal for hash test");
     assert_eq!(
         hash_value(&a),
         hash_value(&b),
-        "Probe 5: equal wat_records must produce equal hashes (Hash+Eq consistency)"
+        "Probe 5: equal wat__Records must produce equal hashes (Hash+Eq consistency)"
     );
 }
 
@@ -206,9 +206,9 @@ fn probe_6_debug_contains_class() {
 
 // ─── Probe 7 ────────────────────────────────────────────────────────────────
 //
-// Value::type_name() returns generic `"wat::core::wat_record"` (per D5).
+// Value::type_name() returns generic `"wat::Record"` (Stone 234.1.5 rename per D2).
 // The per-instance FQDN is reachable via `:wat::core::type` which gets the
-// wat_record arm in this stone (D6); end-to-end test of the dispatch arm
+// wat__Record arm in this stone (D6); end-to-end test of the dispatch arm
 // lands in Stone 234.2 when defrecord macro provides a wat-level constructor.
 #[test]
 fn probe_7_type_name_returns_generic_kind() {
@@ -218,7 +218,7 @@ fn probe_7_type_name_returns_generic_kind() {
     );
     assert_eq!(
         r.type_name(),
-        "wat::core::wat_record",
-        "Probe 7: Value::type_name() should return the generic kind \"wat::core::wat_record\"; per-instance FQDN reachable via :wat::core::type"
+        "wat::Record",
+        "Probe 7: Value::type_name() should return \"wat::Record\" (Stone 234.1.5 rename); per-instance FQDN reachable via :wat::core::type"
     );
 }

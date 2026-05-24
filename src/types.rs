@@ -1233,6 +1233,22 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
         restrictions: None,
     }));
+
+    // :wat::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
+    // wat-record hologram (Value::wat__Record). Pascal-Case namespace per
+    // the `::`/`/` semantic-split doctrine: the namespace IS the umbrella
+    // type; `::` verbs operate at the type tier (Record::of, Record::def,
+    // Record::is?); `/` methods operate on instances (Record/field-at,
+    // Record/to-map). Registered as opaque zero-field struct so the TypeEnv
+    // contains the path and `env.types().get(":wat::Record")` resolves
+    // cleanly. Per-class types (`:myapp::Voltage` as `:wat::Record` aliases)
+    // ship in Stone 234.2b when the defrecord macro lands.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::Record".into(),
+        type_params: vec![],
+        fields: vec![],
+        restrictions: None,
+    }));
 }
 
 /// Type-declaration errors.
