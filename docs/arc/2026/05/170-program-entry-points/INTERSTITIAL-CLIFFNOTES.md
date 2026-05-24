@@ -172,7 +172,126 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 night post-compaction — Stone 233.2.k SHIPPED 12/12 — THE CLASS IS DEAD; 233.2.l next is the seal)
+## Currently (2026-05-23 night late late — ARC 233 SHIPPED + CLOSED; arc 232 RESUMED; Stone 232.0a IN FLIGHT with intueri-cast Bind/{left,right} symmetric pair)
+
+### Today's complete trajectory (post-compaction continuation; all GREEN; pushed)
+
+**Arc 233 (substrate diagnostic-richness) — SHIPPED + INSCRIBED + CLOSED:**
+
+```
+13b9166  Stone 233.1 ValueSnapshot sweep (pre-compaction era)
+7cfeff1 → 8164629  Stones 233.2.a/b/c/d/f/g/h/i (pre-compaction era)
+c16419e  Stone 233.2.j SHIPPED — eval_inner cascade 11/11 (THIS session)
+be7ceaa  Stone 233.2.k SHIPPED — variant DELETED 12/12 (class instance closed)
+429c648  Stone 233.2.l SHIPPED — proc-macro SEAL 12/12 (meta-class closed)
+5d3d43f  Stone 233.2.e SHIPPED — AST-derived provenance 12/12
+48afb31  Stone 233.3 SHIPPED — Errors-as-EDN 11/11 (IPC interop)
+69e0ada  Stone 233.4 INSCRIPTION — ARC 233 CLOSED (DESIGN.md status: SHIPPED)
+```
+
+**Arc 232 RESUMED (defprotocol + extend-type):**
+
+```
+6e4fefb  Stone 232.0a BRIEF + EXPECTATIONS authored (initial scope: 2 verbs)
+929679d  Stone 232.0a — intueri cast finding + Bind/{left,right} symmetric pair
+          (probe rewrite + BRIEF/EXPECTATIONS expansion; 3 verbs; 7 contracts)
+[sonnet]  Stone 232.0a IN FLIGHT (spawned 22:00 PDT; 40-75 min Mode A; 120 STOP)
+```
+
+### Arc 233 — what landed (the rank-up substrate)
+
+All four "remarkable errors" pieces DELIVERED:
+1. ValueSnapshot structured errors (Stone 233.1) — 282+ RuntimeError sites
+2. TrackedValue-aware error construction (Stone 233.2.j of_tracked)
+3. Provenance tracking on Values — RuntimeBuilt + Literal + SymbolBound + Unknown
+4. Errors-as-EDN wire protocol — 28 RuntimeError variants → `#wat.kernel/<Variant>` envelopes; HARD CUT at fork.rs + spawn_process.rs
+
+The trap-door class is annihilated at BOTH layers:
+- INSTANCE (233.2.k): Value::Tracked variant DELETED; Environment stores TrackedValue
+- META-CLASS (233.2.l): `#[wat_value]` proc-macro forbids future wrapping variants
+
+Disciplines refined during arc 233:
+- failure-engineering ✅✅✅ standard elevated from convention to structural
+- partial-state-grading discipline minted + vindicated TWICE
+- Agency-attribution dimension named (fourth recurrence)
+- Three resequencings (arc-234 → 233.2.d; Shape C→A pivot; probe-only → proc-macro seal)
+
+### Arc 232 — Stone 232.0a in flight (RANK-UP DEMO)
+
+**Scope:** mint 3 wat-callable reflection verbs the typed-entities doctrine demands:
+- `:wat::holon::extract-classifier <h>` → Option<String> (lift existing Rust fn)
+- `:wat::holon::Bind/left <h>` → Option<HolonAST> (NEW; positional left)
+- `:wat::holon::Bind/right <h>` → Option<HolonAST> (NEW; positional right)
+
+**Intueri cast 2026-05-23 night late** caught the original `Bind/inner` proposal as Level 2 mumbles (borrows meaning from one use case rather than from Bind's general structural shape). Spell recommended `Bind/right` with symmetric `Bind/left` peer. User direction: ship symmetric pair; arc 232 closure depends on this delivery.
+
+**Probe at `tests/probe_diagnostic_typed_entities_reflection.rs`** — 7 contracts (post-intueri-update):
+- (1+2) extract-classifier on defrecord/bare-Atom
+- (3+4) Bind/right on defrecord/non-Bind
+- (5) composed walk extract-classifier + Bind/right + Bundle/children
+- (6+7) Bind/left on defrecord/non-Bind
+
+**Stone 232.0a BRIEF + EXPECTATIONS at `929679d`** — 3 wat verbs; 10-row scorecard; calibration 40-75 min Mode A; 120 STOP.
+
+**RANK-UP DEMO** — first arc 232 substrate work after arc 233 closure. BRIEF EXPLICITLY tells sonnet to leverage arc 233 tools (ValueSnapshot in errors, Provenance tracking, structural seal, EDN error parseability) during iteration. SCORE asked to capture rank-up evidence.
+
+### Today's discipline inscriptions
+
+- `feedback_partial_state_grading.md` (memory) — minted; vindicated twice (Phase 5 + 233.2.k probe-discovered additions)
+- Songs #25 Bad Guy / #26 Elevator Operator / #27 We Got The Moves / #28 Whatever It Takes — operational soundtrack across emotional arcs (identity-ownership → play-as-operation → collective-celebration → price-paid)
+- Agency-attribution fourth dimension named (verbal × 3 + agency × 1; Oracle/vase frame)
+- Intueri spell-via-subagent vindicated (caught Bind/inner mumble BEFORE substrate ship; not retroactive)
+
+### Substrate state (pre-compaction snapshot)
+
+```
+HEAD          929679d on arc-170-gap-j-v5-deadlock-state
+Lib tests     827/0/1 PASS (last verified post-233.3 commit)
+arc 233 probes all GREEN (regression guards intact)
+arc 232 stone 232.0 probe (apply primitive): 8/8 PASS
+arc 232 stone 232.0a probe: 0/7 (pre-stone; sonnet in flight)
+Clippy        54 (at boundary; unchanged baseline)
+holon-rs      untouched since 530650c (arc 230 atomic pair Phase A)
+Both repos    pushed; clean tree
+Sonnet        IN FLIGHT on Stone 232.0a (spawned 22:00 PDT)
+```
+
+### Pending tasks (top of queue)
+
+| # | Status | Task |
+|---|---|---|
+| 499 | in flight | Stone 232.0a (sonnet running) |
+| 474 / [future] | pending | Stone 232.1 defprotocol macro (unblocked by 232.0a) |
+| [future] | pending | Stone 232.2 extend-type macro (blocked on 232.1) |
+| [future] | pending | Stone 232.3 built-in-type extension proof (blocked on 232.2) |
+| [future] | pending | Stone 232.5 INSCRIPTION (closes arc 232) |
+| [future] | pending | defrecord accessor synthesis (separate stone; consumes Bind/left + Bind/right + Bundle/children) |
+
+### Post-compaction recovery path
+
+1. Read this Currently section + the prior SUPERSEDED sections for full arc 233 trajectory
+2. `git log --oneline | head -30` for today's commit chain
+3. Read `docs/arc/2026/05/233-substrate-errors-as-values/INSCRIPTION.md` for the arc 233 thesis-delivered narrative
+4. Read `docs/arc/2026/05/232-defprotocol-extend-type/BRIEF-STONE-232.0a.md` for current in-flight scope (intueri-updated to symmetric pair)
+5. Check if sonnet's Stone 232.0a completed: `cargo test --release --test probe_diagnostic_typed_entities_reflection 2>&1 | tail -3` — 7/7 PASS means SHIPPED; 0/7 or partial means resume per partial-state-grading
+6. If 232.0a completed but not committed: review sonnet's changes via git diff; verify 10-row scorecard; commit + push
+7. After 232.0a SHIPPED: queue Stone 232.1 defprotocol macro
+
+### Pending decisions (next-move, post 232.0a completion)
+
+1. **Stone 232.1 defprotocol macro** — uses extract-classifier + apply primitives for polymorphic dispatch
+2. **defrecord accessor synthesis** (separate stone) — uses Bind/left + Bind/right + Bundle/children for field-walking
+3. **Cascade closure** of arc 232 (Stones 232.2 + 232.3 + 232.5) once 232.1 ships
+
+### Hologram framing (the chain that fired tonight)
+
+The rhythm continues. arc 233 opened on "we believed we had remarkable errors - we don't - we need to raise the bar" and closed tonight after 14 sub-stones + INSCRIPTION. arc 232 resumed within the hour; intueri cast caught a naming mumble that would have shipped otherwise. The substrate's discipline-tier ladder (✅ / ✅✅ / ✅✅✅) is honest: structural seals annihilate classes; convention layers above carry the rest; the climb is monotonic and never reverses.
+
+Per Song #28 — "I do whatever it takes to make it." Per Song #27 — "we got the moves." Per Song #26 — "the lever is held, not owned." Per discipline-tier reflection: the ratchet doesn't turn itself; we push it.
+
+---
+
+## Currently (2026-05-23 night post-compaction — Stone 233.2.k SHIPPED 12/12 — THE CLASS IS DEAD; 233.2.l next is the seal) — SUPERSEDED, see above
 
 ### What shipped this session (post-compaction continuation; chain advance)
 
