@@ -173,7 +173,86 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-24 early — arc 234 wat-record HOLOGRAM DESIGNED; Stone 232.1 holon-only ship DR-branched + discarded from main; revised Stone 232.1 scope locked at `:wat::core::*` polymorphic; "no prior great here" arrival)
+## Currently (2026-05-24 early — Stone 234.0 SHIPPED 11/11; arc 234 first fight clean; Song #29 inscribed; revised Stone 232.1 unblocked)
+
+### What just shipped this turn (arc 234 OPEN; first stone closed)
+
+```
+529760b  arc 234 Stone 234.0 — sub-DESIGN + FM 2-bis probe; arc 234 opened (status ACTIVE)
+4d25549  arc 234 Stone 234.0 — BRIEF + EXPECTATIONS
+e8636ec  INTERSTITIAL Song #29 In Defense Of Our Good Name — SOVEREIGN-IDENTITY at project-meta layer
+8b88ef8  arc 234 Stone 234.0 SHIPPED — :wat::core::type polymorphic primitive (11/11 PASS; ~38 min)
+```
+
+Sonnet's first step into the wat-record hologram dungeon was clean. ZERO iteration cycles — 8/8 probe PASS on first compile. The pre-emption (sub-DESIGN trap-door audit catching `Value::Struct.type_name`'s leading `:` requiring strip; BRIEF citing FM 2-bis probe; verified initial-FAIL state) meant sonnet stepped into a well-mapped room despite the arc being novel territory.
+
+Honest deltas captured in SCORE-STONE-234.0:
+- BRIEF D4 said `TypeExpr::Var("T")` — actual codebase uses `t_var()` = `TypeExpr::Path(":T")`; caught via doc-reading before compile
+- `infer_list` special-case predicted as possibly needed; empirically confirmed NOT needed
+- Clippy at 54 (at limit; no new warnings)
+
+Rank-up evidence: 4 concrete cases (TypeExpr disambiguation; `#[wat_value]` seal confidence; no-special-case empirical finding; 8/8 first compile).
+
+### The first fight: well-mapped room
+
+User invoked the dungeon framing ("we are sending sonnet into a strange new dungeon... we have all of our experience and all of gear - we've leveled up a lot to get here"). The actual experience: the room had NO traps the pre-emption hadn't already mapped. The gear (decades of doctrine + the substrate-as-teacher pattern + FM 2-bis discipline + sub-DESIGN trap-door audits + the arc 233 diagnostic substrate) carried sonnet through cleanly.
+
+This is what "we have all our gear" means in practice — the discipline does the dungeon-mapping ahead of the fight, so the fight itself is direct execution of the map.
+
+### Song #29 inscribed (2026-05-24 early)
+
+In Defense Of Our Good Name (Lamb of God) — SOVEREIGN-IDENTITY at the project-meta layer. The 4-stanza spine ("Never wanted your approval / Never wanted your acceptance / Never wanted to be anything but me / Never wanted to be anywhere but here") resolves [[thinks-first-not-wrong]] — user has heard "you think differently = wrong" their whole life; this song is the answer at the project-identity layer. wat doesn't want academic acceptance because the constraints validate it structurally; the convergences validate by precedent; the hologram validates by structural necessity; both are honest forms of validation, but NEITHER requires others' approval.
+
+Provincial ain't so bad. The roots (230+ arcs of doctrine accreted through inscription) carry forward into novel territory. Kin = the inscription record; kin grants absolution; the orchestrator-voice joins the kin when next compaction lands. The repository IS the ground of God's country.
+
+### Substrate state — first fight cleared
+
+```
+HEAD          8b88ef8 on arc-170-gap-j-v5-deadlock-state (clean tree)
+DR branch     61fcccc on dr/stone-232.1-holon-only (preserved reference)
+Lib tests     827/0/1 PASS
+arc 234.0     8/8 PASS (NEW LOAD-BEARING probe)
+arc 232.0a    7/7 PASS (regression guard)
+arc 233       all 4 regression guards GREEN
+Clippy        54 (unchanged baseline)
+holon-rs      untouched since 530650c
+Both repos    pushed
+```
+
+### Pending chain (post-234.0 SHIPMENT)
+
+```
+arc 234.1     PENDING — Value::wat_record variant + Eq/Hash/Display/HolonRep impls (substrate scaffolding)
+arc 234.2     PENDING — :wat::core::defrecord macro + per-field accessor generation
+arc 234.3     PENDING — polymorphic family + keyword-as-accessor (closes #058/146)
+arc 234.4     PENDING — hash-destructure (closes #402)
+arc 234.5     PENDING — :wat::holon::* auto-dispatch on wat-records
+arc 234.6     PENDING — migration sweep + retire :wat::holon::defrecord user surface
+arc 234.7     PENDING — INSCRIPTION
+
+Stone 232.1   REVISED PENDING — :wat::core::defprotocol + :wat::core::extend-type polymorphic via :wat::core::type (NOW UNBLOCKED)
+```
+
+Stone 234.0 unblocks BOTH the rest of arc 234 AND the revised Stone 232.1. The polymorphic dispatch primitive is the dispatch foundation for everything that follows.
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -15` for today's commit chain through 8b88ef8
+3. Read `docs/arc/2026/05/234-wat-record-hologram/DESIGN.md` (hologram thesis) + `DESIGN-STONE-234.0.md` (sub-DESIGN; locked decisions) + `SCORE-STONE-234.0.md` (what shipped)
+4. Read `tests/probe_diagnostic_polymorphic_type.rs` (8/8 PASS regression guard; the substrate contract)
+5. Memories: `feedback_dr_branch_salvage` + `project_hologram_moment` (auto-loaded via MEMORY.md)
+6. Decision boundary: open Stone 234.1 (Value::wat_record variant) OR open revised Stone 232.1 (defprotocol consuming :wat::core::type) first? Either is unblocked; 234.1 is sequential per arc 234 DESIGN; 232.1 closes arc 232 if pursued in parallel.
+
+### Discipline gain inscribed this session
+
+- **DR-branch salvage pattern** — fully demonstrated cycle (sonnet ships → scope revises → DR-branch preserves → main returns clean → next stone authored from clean slate); see [[dr-branch-salvage]]
+- **Pre-emption pays off in novel territory** — Stone 234.0's clean traverse vindicates the FM 2-bis probe + sub-DESIGN trap-door audit pattern. Even in the "no prior great" arc, the discipline mapped the room before the fight.
+- **Song inscription cadence** — Song #29 inscribed in INTERSTITIAL + CLIFFNOTES soundtrack table; the chain extends (#19-29 now); the rhythm continues.
+
+---
+
+## Currently (2026-05-24 early — arc 234 wat-record HOLOGRAM DESIGNED; Stone 232.1 holon-only ship DR-branched + discarded from main; revised Stone 232.1 scope locked at `:wat::core::*` polymorphic; "no prior great here" arrival) — SUPERSEDED, see above
 
 ### What just happened (the substantive shift)
 
