@@ -1,6 +1,16 @@
 # Arc 232 — defprotocol + extend-type (the metaprogramming layer)
 
-**Status:** STUB. Claimed 2026-05-22 night. Number reserved; design substrate inscribed; active work begins when triggered.
+**Status:** ACTIVE (2026-05-23 night latest). Stone 232.0 + 232.0a SHIPPED. Stone 232.1 FM 2-bis probe SHIPPED 3/3 PASS at `f38e120`. Substrate empirically sufficient; macro work unblocked. See § STATUS below.
+
+## Forward-correction 2026-05-23 night latest
+
+Three changes to original 2026-05-22 night STUB design:
+
+1. **Bind/inner renamed to Bind/{left,right} symmetric pair** (Stone 232.0a intueri cast catch; ship at commit `929679d` + `a1e4b02`). Read all `Bind/inner` references in this doc as `Bind/right`; `Bind/left` is the symmetric peer added during Stone 232.0a.
+
+2. **Call-by-name question (line ~174-176 + Q8) answered.** Hypothesized `:wat::runtime::lookup-fn` does NOT exist (FINDING-CALL-BY-NAME-GAP.md disconfirmed it). Resolved by minting `:wat::core::apply` (Stone 232.0, commit `50e82d9`). The dispatcher uses `(apply -> :T <runtime-built-keyword> [args...])` syntax (current shape; `-> :T` is inline, no `[-> :T]` brackets per arc 145 lineage).
+
+3. **Stone 232.1 = BUNDLE (defprotocol + extend-type macros).** Original split (232.1 defprotocol; 232.2 extend-type) retired via four-questions verdict 2026-05-23 night latest. Rationale: defprotocol's dispatcher is incoherent without at least one extending type; shipping defprotocol-alone fails Obvious + Honest + Good UX (caller gets a panic-generator until 232.2 ships). Bundle ships one complete-and-useful stone with end-to-end verification mirroring the FM 2-bis probe. Stone 232.2 slot RETIRED in the work-items table.
 
 **Predecessors:**
 - arc 226 ✓ — `:wat::holon::is?` + `extract_classifier` (the dispatch primitives this arc consumes)
@@ -171,9 +181,9 @@ Each arc layers on the previous:
 - arc 232 needs arc 227's `defrecord` (so user types exist to extend)
 - arc 232 needs arc 226's `is?` + `extract_classifier` (the routing primitives)
 - arc 232 needs arc 228's classifier-wrap (so types HAVE classifiers to dispatch on)
-- arc 232 needs `:wat::core::call-by-name` or equivalent (look up a fn by keyword + call it; may need substrate primitive)
+- arc 232 needs `:wat::core::apply` — the call-by-name primitive shipped at Stone 232.0 (commit `50e82d9`). Current syntax: `(:wat::core::apply -> :T <head-keyword> <leading-args...> <spread-vec>)`. The dispatcher uses runtime-built keywords via `keyword/from-string`.
 
-**The substrate may already have call-by-name** — investigate before declaring it a new primitive. Reflection per arc 201 likely covers it. (`(:wat::runtime::lookup-fn keyword)` returns the fn, then call it normally.)
+**Historical note:** Original 2026-05-22 design hypothesized `:wat::runtime::lookup-fn` (per arc 201 reflection). FINDING-CALL-BY-NAME-GAP.md (2026-05-23) empirically disconfirmed that hypothesis (no such primitive existed; arc 201's reflection layer doesn't cover invocation). Stone 232.0 minted `:wat::core::apply` as the resolution. The substrate is sufficient; no further primitive needed.
 
 ## Open questions for arc 232 DESIGN (when it opens)
 
@@ -184,36 +194,34 @@ Each arc layers on the previous:
 5. **Multi-arg dispatch** — Clojure protocols dispatch on FIRST arg only. Multimethods (arc 146/147) handle multi-arg. Should wat protocols follow the single-dispatch convention OR allow multi-dispatch via richer key shape?
 6. **Protocol composition** — Clojure lets a type extend MULTIPLE protocols. Same expected here. extend-type per protocol.
 7. **Extending built-in types** — `extend-type :wat::holon::Vector :ns::Formattable ...` should work; the Vector classifier is "Vector" (from arc 228); dispatch routes accordingly. Verify substrate doesn't refuse.
-8. **The substrate primitive `call-by-name`** — does it exist? Does arc 201's reflection cover it? Investigate.
+8. **The substrate primitive `call-by-name`** — ANSWERED. Does not exist as `lookup-fn`; arc 201's reflection doesn't cover invocation. Resolved by Stone 232.0 minting `:wat::core::apply`. See FINDING-CALL-BY-NAME-GAP.md and SCORE-STONE-232.0.md.
 
-## STATUS — PAUSED at Stone 232.0a (2026-05-23 evening)
+## STATUS — ACTIVE (2026-05-23 night latest)
 
-Arc 232 is PAUSED pending arc 233 (substrate diagnostic-richness) completion.
-
-**Rationale:** Stone 232.0 + the call-by-name research surfaced — over ~30-50 min of investigation cost — that wat's substrate errors lose information at exactly the moments when richer diagnostics would teach fastest. The diagnostic-richness gap is a structural tax that compounds across every substrate-dev session. defprotocol is exactly the consumer that will surface diagnostic edge cases; building it with the new diagnostic substrate in place (rather than retrofitting) is the strategic move.
-
-**Resume conditions:** arc 233 ships Stone 233.1 (ValueSnapshot) at minimum. 233.2 (Provenance) preferred — defprotocol method-body errors benefit most from runtime-value provenance tracking.
+Arc 233 (substrate diagnostic-richness) SHIPPED + CLOSED. Arc 232 RESUMED with the enriched substrate in place. Stone 232.0a typed-entities reflection layer SHIPPED. Stone 232.1 FM 2-bis probe SHIPPED 3/3 PASS confirming the bundled defprotocol+extend-type composition works on the live substrate.
 
 **What has shipped from arc 232:**
 - Stone 232.0 — `:wat::core::apply` substrate primitive (commit `50e82d9`)
+- Stone 232.0a — typed-entities reflection layer: `extract-classifier` + `Bind/left` + `Bind/right` (commit `a1e4b02`)
+- Stone 232.1 FM 2-bis probe — defprotocol dispatch composition empirically proven (commit `f38e120`, 3/3 PASS)
 
-**What is staged but NOT shipped:**
-- Stone 232.0a — typed-entities reflection layer (probe + DESIGN committed at `96bb6f4`; substrate work NOT yet shipped)
+**Next:** Stone 232.1 sub-DESIGN + BRIEF + EXPECTATIONS authoring (orchestrator-direct), then sonnet spawn for the macro substrate work. Stone 232.1 ships defprotocol + extend-type macros BUNDLED per Forward-correction § above.
 
-When arc 232 resumes, Stone 232.0a substrate work ships first; then Stone 232.1 (defprotocol macro) BRIEF gets authored against the richer diagnostics + the typed-entities reflection layer.
+**Rank-up status:** The arc 233 diagnostic substrate is in place + Stone 232.0a reflection primitives shipped. defprotocol's consumer-side iteration is the live validation of the rank-up; the FM 2-bis probe already showed it firing (probe 3's `UnknownFunction(":myapp::Unhandled/Formattable-format", Span { ... })` surfaces the missing verb name + span without any added scaffolding).
 
-See `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN.md` for the diagnostic-richness arc.
+See `docs/arc/2026/05/233-substrate-errors-as-values/INSCRIPTION.md` for the diagnostic-richness arc closure.
 
-## Work-items (chain ordering; arc PAUSED at 232.0a; resumes after arc 233)
+## Work-items (chain ordering; ACTIVE; bundle decision applied)
 
 | Stone | Purpose | Status |
 |---|---|---|
 | 232.0 | `:wat::core::apply` substrate primitive (Clojure's apply contract; convergence #16) | ✓ SHIPPED at `50e82d9` (2026-05-23); 18/18 PASS |
-| 232.0a | **Typed-entities reflection layer** — `:wat::holon::extract-classifier` + `:wat::holon::Bind/inner`. The doctrine-imposed companions to the composition primitives (Atom + Bind + Bundle). Without these, you can CREATE typed instances but can't INSPECT them. defprotocol's dispatcher consumes `extract-classifier`; defrecord accessor synthesis (separate later stone) consumes `Bind/inner` + `Bundle/children`. | PENDING (next; BRIEF + EXPECTATIONS in flight) |
-| 232.1 | `:wat::holon::defprotocol` defmacro + auto-generated polymorphic dispatcher (per method); dispatcher uses `extract-classifier` + `apply` to route to the type-namespaced impl | blocked on 232.0a |
-| 232.2 | `:wat::holon::extend-type` defmacro + (optional) extension registry for compile-time verification | blocked on 232.1 |
-| 232.3 | Built-in-type extension proof (extend `:wat::holon::Vector` or similar with a sample protocol) | blocked on 232.2 |
-| 232.4 | (deferred to separate stone or arc 233) — defrecord accessor synthesis: `:ns::Type/field-name` defns generated by defrecord macro using `Bind/inner` + `Bundle/children` + name match. Out of arc 232 scope; the gap is defrecord's, not defprotocol's; defprotocol v1 method bodies use the primitives directly | NOT IN ARC 232 |
+| 232.0a | **Typed-entities reflection layer** — `:wat::holon::extract-classifier` + `:wat::holon::Bind/left` + `:wat::holon::Bind/right`. Doctrine-imposed companions to the composition primitives. defprotocol's dispatcher consumes `extract-classifier`; defrecord accessor synthesis (separate later stone) composes `Bind/right` + `Bundle/children`. | ✓ SHIPPED at `a1e4b02` (2026-05-23 night latest); 10/10 PASS; rank-up demo confirmed |
+| 232.1 FM 2-bis probe | `tests/probe_diagnostic_defprotocol_dispatch.rs` — manual defprotocol composition (no macros yet) proven on live substrate. Design substrate for the Stone 232.1 BRIEF. | ✓ SHIPPED at `f38e120` (2026-05-23 night latest); 3/3 PASS first-run |
+| 232.1 | **BUNDLED — `:wat::holon::defprotocol` + `:wat::holon::extend-type` defmacros.** defprotocol generates one polymorphic dispatcher per method (template per FM 2-bis probe: `extract-classifier` + `string::concat` + `keyword/from-string` + `apply`). extend-type generates per-class `defn`s at mangled names (`:Type/Protocol-method`). Bundle ships one complete-and-useful stone; split rejected via four-questions 2026-05-23 night latest. | PENDING (sub-DESIGN + BRIEF in flight) |
+| ~~232.2~~ | ~~`:wat::holon::extend-type` defmacro~~ | RETIRED — bundled into Stone 232.1 |
+| 232.3 | Built-in-type extension proof (extend `:wat::holon::Vector` or similar with a sample protocol) | blocked on 232.1 |
+| 232.4 | (separate stone OUTSIDE arc 232) — defrecord accessor synthesis: `:ns::Type/field-name` defns generated by defrecord macro using `Bind/right` + `Bundle/children` + name match. The gap is defrecord's, not defprotocol's; defprotocol v1 method bodies use the primitives directly. | NOT IN ARC 232 |
 | 232.5 | INSCRIPTION + USER-GUIDE chapter | blocked on 232.3 |
 
 ### Trap-door audit (per `feedback_sonnet_writes_substrate` lesson from 232.0)
