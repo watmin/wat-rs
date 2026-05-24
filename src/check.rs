@@ -3646,6 +3646,11 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
                 // is now consistent with the runtime Hash arm at src/runtime.rs:846
                 // (which shipped Stone 220.2).
                 | ":wat::core::Char"
+                // Arc 234 Stone 234.5 — wat::Record is atomizable via the hologram
+                // property: holon_form is pre-built at construction. to-holon on a record
+                // returns the holon_form directly; no recomputation. The atomizable gate
+                // must accept :wat::Record so (:wat::holon::to-holon r) type-checks.
+                | ":wat::Record"
                 // Type variables and inference sentinels — can't prove non-atomizable
                 | ":wat::type::Infer"
         ),
@@ -5491,12 +5496,17 @@ fn infer_list(
             }
             ":wat::holon::extract-classifier" => {
                 // Arc 232 Stone 232.0a — typed-entities reflection layer.
-                // (holon :HolonAST) -> :wat::core::Option<wat::core::String>
-                // Lifts existing Rust fn `extract_classifier` to a wat verb.
+                // For HolonAST args: (holon :HolonAST) -> :wat::core::Option<wat::core::String>
                 // Returns Some(class-name) for canonical-wrap shape
                 // (Bind (Atom <s>) <right>); None otherwise.
                 // HolonAST arg bypasses normal type-unification (same
                 // rationale as Bundle/children and extract-arg-names).
+                //
+                // Arc 234 Stone 234.5 — extended for :wat::Record args:
+                // (record :wat::Record) -> :wat::core::String
+                // Records always have a class_fqdn (mandatory at construction);
+                // the runtime returns Value::String directly (not Option).
+                // Return type is :String (not Option<String>) for record args.
                 if args.len() != 1 {
                     errors.push(CheckError::ArityMismatch {
                         callee: k.to_string(),
@@ -5506,7 +5516,15 @@ fn infer_list(
                     });
                 }
                 if args.len() >= 1 {
-                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                    if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                        let resolved = apply_subst(&arg_ty, subst);
+                        if matches!(&resolved, TypeExpr::Path(p) if p == ":wat::Record") {
+                            // Record arg → return type is String (classifier always present).
+                            return Some(TypeExpr::Path(":wat::core::String".into()));
+                        }
+                    } else {
+                        // Arg failed to infer; fall through to Option<String> default.
+                    }
                 }
                 return Some(TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
@@ -5608,11 +5626,24 @@ fn infer_list(
             ":wat::form::matches?" => {
                 return infer_form_matches(args, head_span, env, locals, fresh, subst, errors);
             }
+            // Arc 234 Stone 234.5 — Bind and Bundle accept :wat::Record in HolonAST
+            // positions. Custom handlers supersede the TypeScheme registrations at
+            // lines 14311 and 14328 (retained as documentation; dead code at these
+            // call sites). The handlers mirror infer_record_of's pattern (Stone
+            // 234.2a-CORRECTION): inference without cross-element unification.
+            ":wat::holon::Bind" => {
+                return infer_holon_bind(head_span, args, env, locals, fresh, subst, errors);
+            }
+            ":wat::holon::Bundle" => {
+                return infer_holon_bundle(head_span, args, env, locals, fresh, subst, errors);
+            }
             // Arc 052 — polymorphic algebra ops. Cosine and dot accept
             // HolonAST or Vector in either position; simhash accepts
             // HolonAST or Vector as its single argument. Arc 061
             // extends the polymorphism to coincident? (mirroring
             // cosine's shape; differs only in the bool return type).
+            // Arc 234 Stone 234.5 — extended to also accept :wat::Record via
+            // is_holon_or_vector (which now includes :wat::Record).
             ":wat::holon::cosine" | ":wat::holon::dot" => {
                 return infer_polymorphic_holon_pair_to_f64(
                     k, head_span, args, env, locals, fresh, subst, errors,
@@ -11490,10 +11521,14 @@ fn is_i64(t: &TypeExpr) -> bool {
 /// `:wat::holon::Vector` — the two algebra-tier value types accepted
 /// by polymorphic cosine / dot / simhash.
 fn is_holon_or_vector(t: &TypeExpr) -> bool {
+    // Arc 234 Stone 234.5 — extended to accept :wat::Record.
+    // Records carry a pre-built holon_form; the runtime auto-dispatches via
+    // pair_values_to_vectors (coerce_to_holon_ast pattern). Cosine and dot
+    // accept records natively; the hologram property makes them VSA operands.
     matches!(
         t,
         TypeExpr::Path(p)
-            if p == ":wat::holon::HolonAST" || p == ":wat::holon::Vector"
+            if p == ":wat::holon::HolonAST" || p == ":wat::holon::Vector" || p == ":wat::Record"
     )
 }
 
@@ -11534,7 +11569,7 @@ fn infer_polymorphic_holon_pair_to_f64(
             errors.push(CheckError::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
-                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                expected: ":wat::holon::HolonAST, :wat::Record, or :wat::holon::Vector".into(),
                 got: format_type(&resolved),
                 span: args[0].span().clone(),
             });
@@ -11546,13 +11581,163 @@ fn infer_polymorphic_holon_pair_to_f64(
             errors.push(CheckError::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
-                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                expected: ":wat::holon::HolonAST, :wat::Record, or :wat::holon::Vector".into(),
                 got: format_type(&resolved),
                 span: args[1].span().clone(),
             });
         }
     }
     Some(f64_ty)
+}
+
+/// Arc 234 Stone 234.5 — custom inference handler for `:wat::holon::Bind`.
+///
+/// Extends the TypeScheme (which accepted only `:wat::holon::HolonAST` in
+/// both positions) to also accept `:wat::Record`. The runtime auto-dispatches
+/// via `coerce_to_holon_ast`; the check layer mirrors this polymorphism.
+///
+/// Pattern: per `infer_record_of` (Stone 234.2a-CORRECTION) and
+/// `infer_polymorphic_holon_pair_to_f64` (arc 052). Custom dispatch arm in
+/// `match k.as_str()` takes precedence over the TypeScheme registration
+/// at line 14311 (which becomes dead code for `:wat::holon::Bind` calls
+/// when this arm is present; it is retained as documentation).
+fn infer_holon_bind(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let holon_ty = TypeExpr::Path(":wat::holon::HolonAST".into());
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::holon::Bind".into(),
+            expected: 2,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(holon_ty);
+    }
+    // Infer both args; accept HolonAST or wat::Record in either position.
+    // is_holon_or_vector now includes :wat::Record (Stone 234.5).
+    for (idx, arg) in args.iter().enumerate() {
+        if let Some(t) = infer(arg, env, locals, fresh, subst, errors) {
+            let resolved = apply_subst(&t, subst);
+            if !is_holon_or_record(&resolved) {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::holon::Bind".into(),
+                    param: format!("#{}", idx + 1),
+                    expected: ":wat::holon::HolonAST or :wat::Record".into(),
+                    got: format_type(&resolved),
+                    span: arg.span().clone(),
+                });
+            }
+        }
+    }
+    Some(holon_ty)
+}
+
+/// Arc 234 Stone 234.5 — predicate. Recognizes `:wat::holon::HolonAST`
+/// and `:wat::Record` — the two types accepted in Bind arg positions after
+/// Stone 234.5. Distinct from `is_holon_or_vector` (which also accepts
+/// `:wat::holon::Vector` for the cosine/dot algebra verbs).
+fn is_holon_or_record(t: &TypeExpr) -> bool {
+    matches!(
+        t,
+        TypeExpr::Path(p) if p == ":wat::holon::HolonAST" || p == ":wat::Record"
+    )
+}
+
+/// Arc 234 Stone 234.5 — custom inference handler for `:wat::holon::Bundle`.
+///
+/// Extends Bundle to accept a `Vector<T>` where each element T is either
+/// `:wat::holon::HolonAST` or `:wat::Record`. The TypeScheme (line 14328)
+/// declared `Vector<HolonAST>` and is retained as documentation; this
+/// dispatch arm supersedes it.
+///
+/// The element-level check mirrors `infer_record_of`'s heterogeneous-vec
+/// pattern (Stone 234.2a-CORRECTION): each element is inferred independently
+/// without cross-element unification, then validated against `is_holon_or_record`.
+fn infer_holon_bundle(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let result_ty = TypeExpr::Parametric {
+        head: "wat::core::Result".into(),
+        args: vec![
+            TypeExpr::Path(":wat::holon::HolonAST".into()),
+            TypeExpr::Path(":wat::holon::CapacityExceeded".into()),
+        ],
+    };
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::holon::Bundle".into(),
+            expected: 1,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(result_ty);
+    }
+    // Inspect the single arg — expect a Vector literal or :wat::core::vec call.
+    // Elements can be HolonAST or wat::Record (Stone 234.5 extension).
+    // Mirror infer_record_of's element-level independent inference.
+    match &args[0] {
+        WatAST::Vector(elems, _) => {
+            for elem in elems {
+                if let Some(t) = infer(elem, env, locals, fresh, subst, errors) {
+                    let resolved = apply_subst(&t, subst);
+                    if !is_holon_or_record(&resolved) {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::holon::Bundle".into(),
+                            param: "list element".into(),
+                            expected: ":wat::holon::HolonAST or :wat::Record".into(),
+                            got: format_type(&resolved),
+                            span: elem.span().clone(),
+                        });
+                    }
+                }
+            }
+        }
+        other => {
+            // General expression: infer then validate it's a Vector<T> where T is
+            // HolonAST or Record. For non-literal args, the TypeScheme's element
+            // type constraint must still be enforced at the call site.
+            // Pre-Stone-234.5 TypeScheme said Vector<HolonAST>; we now also accept
+            // Vector<Record>. Any other Vector<T> is rejected (TypeMismatch).
+            if let Some(t) = infer(other, env, locals, fresh, subst, errors) {
+                let resolved = apply_subst(&t, subst);
+                let ok = match &resolved {
+                    TypeExpr::Parametric { head, args: ta } if head == "wat::core::Vector" => {
+                        ta.len() == 1 && is_holon_or_record(&ta[0])
+                    }
+                    _ => false,
+                };
+                if !ok {
+                    errors.push(CheckError::TypeMismatch {
+                        callee: ":wat::holon::Bundle".into(),
+                        param: "#1".into(),
+                        expected: "wat::core::Vector<:wat::holon::HolonAST> or wat::core::Vector<:wat::Record>".into(),
+                        got: format_type(&resolved),
+                        span: other.span().clone(),
+                    });
+                }
+            }
+        }
+    }
+    Some(result_ty)
 }
 
 /// Arc 061 — polymorphic two-arg holon-algebra inference returning

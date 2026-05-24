@@ -14713,19 +14713,28 @@ fn eval_extract_classifier(
         });
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let holon_arc = match arg_val {
-        Value::holon__HolonAST(h) => h,
+    // Arc 234 Stone 234.5 — D3: auto-dispatch on wat::Record.
+    // Records always have a class_fqdn; return String directly (not Option).
+    // This is honest: a record's classifier is NEVER absent (mandatory at construction).
+    // HolonAST path returns Option<String> as before (classifier may be absent for
+    // structural HolonASTs that aren't typed-entity Binds).
+    match arg_val {
+        Value::wat__Record { class_fqdn, .. } => {
+            return Ok(Value::String(class_fqdn));
+        }
+        Value::holon__HolonAST(h) => {
+            let result = extract_classifier(&*h).map(|s| Value::String(Arc::new(s)));
+            return Ok(Value::Option(Arc::new(result)));
+        }
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
-                expected: "wat::holon::HolonAST",
+                expected: "wat::holon::HolonAST or wat::Record",
                 got: ValueSnapshot::of(&other),
                 span: args[0].span().clone(),
             });
         }
-    };
-    let result = extract_classifier(&*holon_arc).map(|s| Value::String(Arc::new(s)));
-    Ok(Value::Option(Arc::new(result)))
+    }
 }
 
 /// `(:wat::holon::Bind/left h)` — structural left-position accessor.
@@ -15354,10 +15363,18 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
             );
             return Ok(Value::holon__HolonAST(Arc::new(classified)));
         }
+        // Arc 234 Stone 234.5 — D2: the hologram bridge.
+        // Returns the record's pre-built holon_form directly (no recomputation).
+        // Per arc 234 DESIGN line 205: "polymorphic bridge accepts wat_records natively."
+        // The holon_form IS the canonical VSA representation; to-holon exposes it as-is.
+        // holon_form.as_ref().clone() is safe even with shared Arc (T1 trap-door pattern).
+        Value::wat__Record { holon_form, .. } => {
+            return Ok(Value::holon__HolonAST(Arc::new(holon_form.as_ref().clone())));
+        }
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::to-holon".into(),
-                expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, Tuple<T1,...>, HashMap<K,V>, or List<T>",
+                expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, Tuple<T1,...>, HashMap<K,V>, List<T>, or wat::Record",
                 got: ValueSnapshot::of(&other),
                 span: arg_span.clone(),
             });
@@ -16297,8 +16314,11 @@ fn eval_algebra_bind(
             span: list_span.clone(),
         });
     }
-    let a = require_holon(":wat::holon::Bind", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let b = require_holon(":wat::holon::Bind", eval_inner(&args[1], env, sym)?.value_owned())?;
+    // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for both args.
+    // Accepts Value::holon__HolonAST (existing) OR Value::wat__Record (NEW).
+    // Records flow through natively; auto-dispatch unwraps holon_form at the boundary.
+    let a = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[0], env, sym)?.value_owned(), &args[0].span())?;
+    let b = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[1], env, sym)?.value_owned(), &args[1].span())?;
 
     // No AST-level simplification. MAP's bind self-inverse — Bind(Bind(x,y),x) →
     // y — is a VECTOR-level identity (and per 058-024's rejection text, holds
@@ -16307,7 +16327,7 @@ fn eval_algebra_bind(
     // where the algebra acknowledges quantized noise. Bind always constructs
     // the Bind tree; the self-inverse is observable via vector-level presence
     // measurement. FOUNDATION 1718: the retrieval primitive is cosine.
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::bind((*a).clone(), (*b).clone()))))
+    Ok(Value::holon__HolonAST(Arc::new(HolonAST::bind(a, b))))
 }
 
 /// `(:wat::holon::Bundle <list-of-holons>)` — superposition, with
@@ -16363,11 +16383,14 @@ fn eval_algebra_bundle(
             });
         }
     };
+    // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for each child.
+    // Accepts Value::holon__HolonAST (existing) OR Value::wat__Record (NEW).
+    // Records in [r1 r2 r3] auto-unwrap to holon_form at the boundary.
+    // Span::unknown() per arc 138 discipline (we have Value, not WatAST).
     let children: Vec<HolonAST> = list
         .iter()
         .map(|v| {
-            require_holon(":wat::holon::Bundle list element", v.clone())
-                .map(|h| (*h).clone())
+            coerce_to_holon_ast(":wat::holon::Bundle list element", v.clone(), &Span::unknown())
         })
         .collect::<Result<Vec<HolonAST>, _>>()?;
 
@@ -16760,6 +16783,28 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
     }
 }
 
+/// Arc 234 Stone 234.5 — centralized "ensure HolonAST" helper (D1).
+///
+/// Accepts either a HolonAST value (existing case) OR a wat::Record value
+/// (NEW — auto-unwraps the pre-built holon_form). Records flow through VSA
+/// verbs natively without user-facing conversion calls; this helper is the
+/// single site that normalises the two representations into a HolonAST.
+///
+/// Pattern mirrored from T1 trap-door: `holon_form.as_ref().clone()` is
+/// safe even when the Arc is shared (proven at Stone 234.2a eval_record_field_at).
+fn coerce_to_holon_ast(op: &str, v: Value, arg_span: &Span) -> Result<HolonAST, RuntimeError> {
+    match v {
+        Value::holon__HolonAST(h) => Ok((*h).clone()),
+        Value::wat__Record { holon_form, .. } => Ok(holon_form.as_ref().clone()),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "HolonAST or wat::Record",
+            got: ValueSnapshot::of(&other),
+            span: arg_span.clone(),
+        }),
+    }
+}
+
 // ─── Arc 226 Stone 226.1 — Type predicates (classifier-name match) ───────────
 //
 // Type checking emerges from VSA similarity — per [[typed-entities-doctrine]]:
@@ -17098,6 +17143,17 @@ fn pair_values_to_vectors(
     list_span: &Span,
 ) -> Result<(holon::Vector, holon::Vector), RuntimeError> {
     let ctx = require_encoding_ctx(op, sym, list_span)?;
+    // Arc 234 Stone 234.5 — D3: normalize wat::Record → HolonAST before dispatch.
+    // Records carry a pre-built holon_form; coerce both sides so the existing
+    // HolonAST arms handle them. Vector arms are unchanged (no auto-dispatch needed).
+    let a = match a {
+        Value::wat__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
+        other => other,
+    };
+    let b = match b {
+        Value::wat__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
+        other => other,
+    };
     match (a, b) {
         (Value::Vector(va), Value::Vector(vb)) => {
             if va.dimensions() != vb.dimensions() {
@@ -17132,7 +17188,7 @@ fn pair_values_to_vectors(
         }
         (a, _) => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: "wat::holon::HolonAST or wat::holon::Vector",
+            expected: "wat::holon::HolonAST, wat::Record, or wat::holon::Vector",
             got: ValueSnapshot::of(&a),
             // arc 138: no span — takes Value pair, no AST in scope
             span: Span::unknown(),
@@ -17167,7 +17223,11 @@ fn eval_algebra_cosine(
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
     let (vt, vr) = pair_values_to_vectors(":wat::holon::cosine", a, b, sym, list_span)?;
-    Ok(Value::f64(Similarity::cosine(&vt, &vr)))
+    // Clamp to [-1, 1]: cosine similarity is mathematically bounded to this
+    // range, but floating-point arithmetic can produce values slightly outside
+    // (e.g., 1.0000000000000002 for identical vectors). Clamping is the honest
+    // substrate-level fix — the VSA semantics are defined on [-1, 1].
+    Ok(Value::f64(Similarity::cosine(&vt, &vr).clamp(-1.0, 1.0)))
 }
 
 /// `(:wat::holon::presence? target reference) -> :bool` — boolean
