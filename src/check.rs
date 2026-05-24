@@ -16950,6 +16950,26 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 234 Stone 234.0 — :wat::core::type.
+    // Polymorphic type-name extraction: forall T. T -> String.
+    // Accepts any Value variant; returns the record-type FQDN as String.
+    // The TypeScheme uses `:T` for the param (same `t_var()` convention
+    // as apply's sentinel) with a concrete String return — the type-checker
+    // sees this as "accepts any value, returns String."
+    // No `infer_list` special-case needed: unlike apply (which requires
+    // annotation-driven return-type extraction), type always returns
+    // :wat::core::String regardless of arg type — the standard
+    // infer_call path through register_builtins is sufficient.
+    env.register(
+        ":wat::core::type".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: TypeExpr::Path(":wat::core::String".into()),
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]

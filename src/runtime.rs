@@ -4815,6 +4815,13 @@ fn dispatch_keyword_head_value(
         // trailing args). Routes EARLY before all other arms so apply is
         // unambiguous at the dispatch level.
         ":wat::core::apply" => eval_apply(args, env, sym, list_span.clone()),
+        // Arc 234 Stone 234.0 — `:wat::core::type` polymorphic type-name primitive.
+        // Extracts a Value's record-type FQDN as a String, regardless of storage
+        // backend. Dispatch table: HolonAST classifier-wrap → extract_classifier;
+        // Struct → sv.type_name (colon stripped); other → Value::type_name().
+        // Consumed by defprotocol's polymorphic dispatcher (revised Stone 232.1)
+        // and all arc 234.x record-y verbs.
+        ":wat::core::type" => eval_type(args, list_span, env, sym),
         // Language forms
         // Arc 157 slice 1a-ii — config setters. These are top-level forms
         // that update the SymbolTable carrier flags at freeze time (via
@@ -14396,6 +14403,45 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
             span: op_span.clone(),
         }),
     }
+}
+
+/// `(:wat::core::type <any-value>) -> :wat::core::String` — arc 234 Stone 234.0.
+///
+/// Polymorphic runtime primitive that extracts a Value's record-type FQDN as a String.
+/// Works on every Value variant that exists at Stone 234.0 time. Dispatch table:
+///
+/// - `Value::holon__HolonAST(h)` → `extract_classifier(h)` (classifier-wrap FQDN)
+///   with fallback to `"wat::holon::HolonAST"` for non-classifier-wrapped HolonAST.
+/// - `Value::Struct(sv)` → `sv.type_name.trim_start_matches(':')` (per-instance FQDN,
+///   leading colon stripped for consistency with extract_classifier convention).
+/// - Any other Value → `Value::type_name()` (existing Rust method; returns FQDN per
+///   arc 224 Stone 224.5 naming audit).
+///
+/// TODO: arc 234.1 adds a `Value::wat_record` arm here returning the record's class_fqdn.
+fn eval_type(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::type";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let type_str = match &arg_val {
+        Value::holon__HolonAST(h) => {
+            extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
+        }
+        Value::Struct(sv) => sv.type_name.trim_start_matches(':').to_string(),
+        other => other.type_name().to_string(),
+    };
+    Ok(Value::String(Arc::new(type_str)))
 }
 
 /// Arc 228 Stone 228.1 — extract the classifier name from a classifier-wrapped HolonAST.
