@@ -1,4 +1,4 @@
-# EXPECTATIONS — Arc 234 Stone 234.2a — `:wat::core::wat-record/of` + `/field-at` substrate primitives
+# EXPECTATIONS — Arc 234 Stone 234.2a — `:wat::Record::of` + `/field-at` substrate primitives
 
 Mode A target: **12/12 PASS**. Every row binds to a specific verification command.
 
@@ -29,7 +29,7 @@ Mode A target: **12/12 PASS**. Every row binds to a specific verification comman
 - 2 eval fns: ~60-80 lines total (each ~30-40)
 - 2 dispatch arms in dispatcher: 2 lines + small comment block
 - 2 TypeScheme registrations in check.rs: ~20 lines
-- 1 TypeDef registration for `:wat::core::wat-record`: ~5-10 lines
+- 1 TypeDef registration for `:wat::Record`: ~5-10 lines
 - ~150 lines probe (already committed at `db39ebd`; no probe authoring time)
 - Compile + iterate cycles: ~2-4 rounds (substrate-as-teacher cascade SHALLOW because no variant addition)
 - SCORE writing: ~10 min
@@ -56,12 +56,12 @@ Capture in SCORE:
 - Cases where Stone 234.0's eval_type / Stone 234.1's variant fields / Stone 232.0's apply primitive shortened authoring
 - The substrate-as-teacher cascade depth (predicted shallow: 0-5 sites)
 - Any trap-door audit items that fired with concrete diagnostics
-- Did `wat-record/field-at` generic-T inference work cleanly OR need a check.rs adjustment
+- Did `record/field-at` generic-T inference work cleanly OR need a check.rs adjustment
 
 ## Out-of-scope rows (REJECTED)
 
 - defrecord macro (Stone 234.2b)
-- Per-class type registration (`:myapp::Voltage` as alias of `:wat::core::wat-record`)
+- Per-class type registration (`:myapp::Voltage` as alias of `:wat::Record`)
 - User-facing constructor verbs (`:myapp::Voltage`)
 - Predicates (`:myapp::is-Voltage?`)
 - Named per-field accessors (`:myapp::Voltage/magnitude`)
@@ -88,7 +88,7 @@ Capture in SCORE:
 
 ## SCORE doc
 
-`docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.2a.md` (NEW file per `feedback_inscription_immutable`).
+`docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.2a.md` (NEW file per `feedback_inscription_immutable`).
 
 SCORE expected to include:
 - 12-row scorecard with verbatim verification command outputs
@@ -102,10 +102,10 @@ SCORE expected to include:
 ## What this unblocks
 
 - **Stone 234.2b** — `:wat::core::defrecord` macro consumes these primitives. Macro emits:
-  - Per-class constructor as `(defn :myapp::Voltage [<args>] (:wat::core::wat-record/of "myapp::Voltage" [<args>] <holon-form>))`
-  - Per-field accessor as `(defn :myapp::Voltage/<field> [v <- :myapp::Voltage] -> :T (:wat::core::wat-record/field-at v <index>))`
+  - Per-class constructor as `(defn :myapp::Voltage [<args>] (:wat::Record::of "myapp::Voltage" [<args>] <holon-form>))`
+  - Per-field accessor as `(defn :myapp::Voltage/<field> [v <- :myapp::Voltage] -> :T (:wat::Record/field-at v <index>))`
 - **Stone 234.3** — record-y polymorphic verbs (assoc, record->map, record?, keyword-as-accessor) destructure wat_record via field access + use field-at + use of for reconstruction
-- **Per-class type registration in 234.2b** — `:myapp::Voltage` registered as alias of `:wat::core::wat-record` with class_fqdn invariant
+- **Per-class type registration in 234.2b** — `:myapp::Voltage` registered as alias of `:wat::Record` with class_fqdn invariant
 
 ## The third fight in arc 234's dungeon
 
@@ -115,11 +115,11 @@ The party-comp's complementarity (Inquisitor mark + Shadowdancer strike) has shi
 
 ## Cross-references
 
-- `docs/arc/2026/05/234-wat-record-hologram/BRIEF-STONE-234.2a.md` — paired BRIEF
-- `docs/arc/2026/05/234-wat-record-hologram/DESIGN-STONE-234.2a.md` — sub-DESIGN with 10 locked decisions
-- `docs/arc/2026/05/234-wat-record-hologram/DESIGN.md` — arc 234 umbrella
-- `docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.1.md` — variant-minting predecessor SCORE
-- `docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.0.md` — type-primitive predecessor SCORE
+- `docs/arc/2026/05/234-record-hologram/BRIEF-STONE-234.2a.md` — paired BRIEF
+- `docs/arc/2026/05/234-record-hologram/DESIGN-STONE-234.2a.md` — sub-DESIGN with 10 locked decisions
+- `docs/arc/2026/05/234-record-hologram/DESIGN.md` — arc 234 umbrella
+- `docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.1.md` — variant-minting predecessor SCORE
+- `docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.0.md` — type-primitive predecessor SCORE
 - `docs/arc/2026/05/232-defprotocol-extend-type/SCORE-STONE-232.0.md` — apply primitive precedent
 - `tests/probe_arc234_stone2a_wat_record_primitives.rs` — FM 2-bis probe (7 contracts; 7/7 FAIL verified at `db39ebd`)
 - `feedback_partial_state_grading.md` — discipline if STOP-3 fires

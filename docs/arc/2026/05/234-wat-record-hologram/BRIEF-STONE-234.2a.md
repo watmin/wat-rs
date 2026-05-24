@@ -1,37 +1,37 @@
-# BRIEF — Arc 234 Stone 234.2a — `:wat::core::wat-record/of` + `/field-at` substrate primitives
+# BRIEF — Arc 234 Stone 234.2a — `:wat::Record::of` + `/field-at` substrate primitives
 
 ## What we're doing
 
 Mint two substrate primitives that the Stone 234.2b defrecord macro will consume:
 
-- **`:wat::core::wat-record/of`** — constructor: `(class-fqdn struct-form holon-form) -> wat-record`
-- **`:wat::core::wat-record/field-at`** — positional accessor: `(wat-record index) -> field-value`
+- **`:wat::Record::of`** — constructor: `(class-fqdn struct-form holon-form) -> record`
+- **`:wat::Record/field-at`** — positional accessor: `(record index) -> field-value`
 
-Plus register `:wat::core::wat-record` as a check.rs-known opaque type so signatures can declare `[v <- :wat::core::wat-record]`.
+Plus register `:wat::Record` as a check.rs-known opaque type so signatures can declare `[v <- :wat::Record]`.
 
-Stone 234.0 minted `:wat::core::type` (substrate primitive). Stone 234.1 minted `Value::wat_record` variant (storage form). Stone 234.2a mints the **substrate verbs that construct and access** wat_record instances. Stone 234.2b (next) will build the defrecord macro that consumes these verbs.
+Stone 234.0 minted `:wat::core::type` (substrate primitive). Stone 234.1 minted `Value::wat__Record` variant (storage form). Stone 234.2a mints the **substrate verbs that construct and access** wat_record instances. Stone 234.2b (next) will build the defrecord macro that consumes these verbs.
 
 This is the substrate-then-macro pattern — same shape as arc 232 (Stone 232.0 minted `:wat::core::apply` primitive; Stone 232.1 builds defprotocol macro on top).
 
 ## Design substrate (READ FIRST; MANDATORY)
 
-1. **`docs/arc/2026/05/234-wat-record-hologram/DESIGN-STONE-234.2a.md`** — sub-DESIGN with 10 locked decisions (D1-D10). **The signatures (D2, D3) are non-negotiable**; the dispatch keyword names are canonical (D6, D10).
+1. **`docs/arc/2026/05/234-record-hologram/DESIGN-STONE-234.2a.md`** — sub-DESIGN with 10 locked decisions (D1-D10). **The signatures (D2, D3) are non-negotiable**; the dispatch keyword names are canonical (D6, D10).
 
-2. **`tests/probe_arc234_stone2a_wat_record_primitives.rs`** — FM 2-bis probe (already committed at `db39ebd`). Currently 7/7 FAIL with `UnknownFunction(":wat::core::wat-record/of")`. **The probe IS the success criterion** — flip 7/7 FAIL → 7/7 PASS.
+2. **`tests/probe_arc234_stone2a_wat_record_primitives.rs`** — FM 2-bis probe (already committed at `db39ebd`). Currently 7/7 FAIL with `UnknownFunction(":wat::Record::of")`. **The probe IS the success criterion** — flip 7/7 FAIL → 7/7 PASS.
 
-3. **`docs/arc/2026/05/234-wat-record-hologram/DESIGN.md`** — arc 234 umbrella; the hologram thesis context.
+3. **`docs/arc/2026/05/234-record-hologram/DESIGN.md`** — arc 234 umbrella; the hologram thesis context.
 
-4. **`docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.0.md`** — predecessor SCORE (`:wat::core::type` primitive); same substrate-primitive shape.
+4. **`docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.0.md`** — predecessor SCORE (`:wat::core::type` primitive); same substrate-primitive shape.
 
-5. **`docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.1.md`** — variant-minting predecessor SCORE; shows the variant fields wat-record/of populates.
+5. **`docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.1.md`** — variant-minting predecessor SCORE; shows the variant fields record/of populates.
 
 6. **`docs/arc/2026/05/232-defprotocol-extend-type/SCORE-STONE-232.0.md`** — apply primitive precedent; same substrate-then-macro pattern (apply ships substrate verb; defprotocol macro consumes it).
 
 7. **`src/runtime.rs:14421`** — `eval_type` fn (predecessor pattern; how Stone 234.0 added a new substrate primitive: eval fn + dispatch arm + TypeScheme).
 
-8. **`src/runtime.rs` (Stone 234.1 commit `5abf714`)** — `Value::wat_record` variant; the storage form wat-record/of populates + field-at reads.
+8. **`src/runtime.rs` (Stone 234.1 commit `5abf714`)** — `Value::wat__Record` variant; the storage form record/of populates + field-at reads.
 
-9. **`src/check.rs`** — TypeScheme registrations + TypeDef registration patterns. The `:wat::core::String` and `:wat::holon::HolonAST` primitive type registrations are precedents for opaque-umbrella `:wat::core::wat-record` registration.
+9. **`src/check.rs`** — TypeScheme registrations + TypeDef registration patterns. The `:wat::core::String` and `:wat::holon::HolonAST` primitive type registrations are precedents for opaque-umbrella `:wat::Record` registration.
 
 ## Implementation surface
 
@@ -44,7 +44,7 @@ This is the substrate-then-macro pattern — same shape as arc 232 (Stone 232.0 
 
    Construct + return:
    ```rust
-   Value::wat_record {
+   Value::wat__Record {
        class_fqdn: Arc::new(class_fqdn_clean),
        struct_form: arc_vec,
        holon_form: arc_h,
@@ -52,41 +52,41 @@ This is the substrate-then-macro pattern — same shape as arc 232 (Stone 232.0 
    ```
 
 2. **New `fn eval_wat_record_field_at`** (~25-35 lines) — arity check (2 args); evaluate args; extract:
-   - `wat-record` from `Value::wat_record { struct_form, .. }` arg 0
+   - `record` from `Value::wat__Record { struct_form, .. }` arg 0
    - `index: i64` from `Value::i64(n)` arg 1
    - Bounds-check; if out of bounds, return `RuntimeError::IndexOutOfBounds` per existing Vector/get pattern
    - Return `struct_form[index as usize].clone()`
 
 3. **Two new dispatch arms in `dispatch_keyword_head_value`** (or equivalent dispatcher):
    ```rust
-   ":wat::core::wat-record/of"        => eval_wat_record_of(args, list_span, env, sym),
-   ":wat::core::wat-record/field-at"  => eval_wat_record_field_at(args, list_span, env, sym),
+   ":wat::Record::of"        => eval_wat_record_of(args, list_span, env, sym),
+   ":wat::Record/field-at"  => eval_wat_record_field_at(args, list_span, env, sym),
    ```
 
 **`src/check.rs`:**
 
-1. **TypeDef registration for `:wat::core::wat-record`** (~5-10 lines) — mirror existing primitive type registration (e.g., how `:wat::core::String`, `:wat::holon::HolonAST` are registered). This is an OPAQUE type at check.rs level — per-class typing (`:myapp::Voltage` etc.) is Stone 234.2b's work.
+1. **TypeDef registration for `:wat::Record`** (~5-10 lines) — mirror existing primitive type registration (e.g., how `:wat::core::String`, `:wat::holon::HolonAST` are registered). This is an OPAQUE type at check.rs level — per-class typing (`:myapp::Voltage` etc.) is Stone 234.2b's work.
 
 2. **Two TypeScheme registrations in `register_builtins`** (~20 lines):
 
    ```rust
-   // :wat::core::wat-record/of
-   register(":wat::core::wat-record/of", TypeScheme {
+   // :wat::Record::of
+   register(":wat::Record::of", TypeScheme {
        type_params: vec!["T".into()],
        params: vec![
            TypeExpr::Path(":wat::core::String".into()),
            TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t_var()] },
            TypeExpr::Path(":wat::holon::HolonAST".into()),
        ],
-       ret: TypeExpr::Path(":wat::core::wat-record".into()),
+       ret: TypeExpr::Path(":wat::Record".into()),
        rest_param_type: None,
    });
 
-   // :wat::core::wat-record/field-at
-   register(":wat::core::wat-record/field-at", TypeScheme {
+   // :wat::Record/field-at
+   register(":wat::Record/field-at", TypeScheme {
        type_params: vec!["T".into()],
        params: vec![
-           TypeExpr::Path(":wat::core::wat-record".into()),
+           TypeExpr::Path(":wat::Record".into()),
            TypeExpr::Path(":wat::core::i64".into()),
        ],
        ret: t_var(),
@@ -108,20 +108,20 @@ The FM 2-bis probe at `tests/probe_arc234_stone2a_wat_record_primitives.rs` (com
 - **No accessor verbs** (`:myapp::Voltage/magnitude`) — 234.2b emits these via macro
 - **No polymorphic record-y verbs** (`assoc`, `record->map`, `record?`, keyword-as-accessor) — 234.3
 - **HolonAST enum** — unchanged (holon-rs frozen since 530650c per STOP-4)
-- **`Value::wat_record` variant** — unchanged from Stone 234.1; this stone CONSUMES it, doesn't modify it
+- **`Value::wat__Record` variant** — unchanged from Stone 234.1; this stone CONSUMES it, doesn't modify it
 - **Arc 233 deliverables** — unchanged; regression guards stay GREEN
 - **Arc 232.0a / Stone 234.0 / Stone 234.1** — unchanged; regression guards stay GREEN
 
 ## Out of scope (affirmative scope-bounding)
 
 - `:wat::core::defrecord` macro (Stone 234.2b)
-- Per-class type registration (`:myapp::Voltage` as `:wat::core::wat-record` alias with class_fqdn invariant)
+- Per-class type registration (`:myapp::Voltage` as `:wat::Record` alias with class_fqdn invariant)
 - User-facing constructor verbs (`:myapp::Voltage`)
 - Predicates (`:myapp::is-Voltage?`)
 - Named per-field accessors (`:myapp::Voltage/magnitude`)
 - Record-y polymorphic verbs (Stone 234.3)
 - Hash-destructure (Stone 234.4)
-- `:wat::holon::*` auto-dispatch on wat-records (Stone 234.5)
+- `:wat::holon::*` auto-dispatch on records (Stone 234.5)
 - Migration sweep + retire `:wat::holon::defrecord` user surface (Stone 234.6)
 - holon-rs — STOP-4
 - Parallel API or aliases — HARD CUT per D10
@@ -165,11 +165,11 @@ git -C /home/watmin/work/holon/holon-rs/ status --short                         
 
 3. **String class_fqdn extraction** — `Value::String(Arc<String>)` — standard. Leading-colon strip per D7: `class_fqdn_input.trim_start_matches(':').to_string()`.
 
-4. **Polymorphic generic-T return on `wat-record/field-at`** — TypeScheme uses `ret: t_var()`. The probe's wat-source uses recipient inference (let-binding or defn-return) to drive T's unification. If the type-checker can't infer T in the probe contexts, address by reading existing polymorphic primitives' check.rs handling (e.g., how `Vec/get` returns T) — DO NOT add custom apply-style annotation syntax. Just propagate inference correctly.
+4. **Polymorphic generic-T return on `record/field-at`** — TypeScheme uses `ret: t_var()`. The probe's wat-source uses recipient inference (let-binding or defn-return) to drive T's unification. If the type-checker can't infer T in the probe contexts, address by reading existing polymorphic primitives' check.rs handling (e.g., how `Vec/get` returns T) — DO NOT add custom apply-style annotation syntax. Just propagate inference correctly.
 
-5. **TypeDef registration for `:wat::core::wat-record`** — verify the registration approach matches existing primitive types. Likely a simple `register_type_alias` or similar; investigate the existing pattern in check.rs before authoring.
+5. **TypeDef registration for `:wat::Record`** — verify the registration approach matches existing primitive types. Likely a simple `register_type_alias` or similar; investigate the existing pattern in check.rs before authoring.
 
-6. **`#[wat_value]` seal on Value variant** — Stone 234.1 already passed the seal for `Value::wat_record`. Stone 234.2a does NOT modify Value; just adds eval fns that construct an existing variant. No seal concerns.
+6. **`#[wat_value]` seal on Value variant** — Stone 234.1 already passed the seal for `Value::wat__Record`. Stone 234.2a does NOT modify Value; just adds eval fns that construct an existing variant. No seal concerns.
 
 7. **No defrecord macro / no constructor verb / no per-class typing** — explicit out-of-scope. If sonnet finds itself reaching toward exposing a wat-level constructor `:myapp::Voltage` OR registering per-class types, STOP. The macro is Stone 234.2b.
 
@@ -188,18 +188,18 @@ git -C /home/watmin/work/holon/holon-rs/ status --short                         
 Per the SCORE methodology in EXPECTATIONS, include a Rank-Up Evidence section. The substrate-as-teacher cascade IS the empowering condition for the Helwalker/Streetfighter build. For Stone 234.2a specifically, the cascade should be shallow (no variant addition; just new fns + new dispatch arms). Capture cases where:
 
 - Stone 234.0's eval_type precedent shortened authoring time
-- Stone 234.1's Value::wat_record variant fields were straight-forward to populate
+- Stone 234.1's Value::wat__Record variant fields were straight-forward to populate
 - Stone 232.0's apply primitive precedent shaped the dispatch arm signature
 - `#[wat_value]` seal stayed quiet (no variant changes; no seal concerns)
 - Existing primitive registration patterns (`:wat::core::String`, etc.) made TypeDef registration mechanical
 
 ## Cross-references
 
-- `docs/arc/2026/05/234-wat-record-hologram/DESIGN-STONE-234.2a.md` — sub-DESIGN with 10 locked decisions
-- `docs/arc/2026/05/234-wat-record-hologram/EXPECTATIONS-STONE-234.2a.md` — paired scorecard
-- `docs/arc/2026/05/234-wat-record-hologram/DESIGN.md` — arc 234 umbrella
-- `docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.1.md` — variant-minting predecessor SCORE
-- `docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.0.md` — type-primitive predecessor SCORE
+- `docs/arc/2026/05/234-record-hologram/DESIGN-STONE-234.2a.md` — sub-DESIGN with 10 locked decisions
+- `docs/arc/2026/05/234-record-hologram/EXPECTATIONS-STONE-234.2a.md` — paired scorecard
+- `docs/arc/2026/05/234-record-hologram/DESIGN.md` — arc 234 umbrella
+- `docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.1.md` — variant-minting predecessor SCORE
+- `docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.0.md` — type-primitive predecessor SCORE
 - `docs/arc/2026/05/232-defprotocol-extend-type/SCORE-STONE-232.0.md` — apply primitive precedent (substrate-then-macro)
 - `tests/probe_arc234_stone2a_wat_record_primitives.rs` — FM 2-bis probe (7 contracts; 7/7 FAIL initial verified)
 - `src/runtime.rs:14421` — `eval_type` fn (substrate primitive precedent)
