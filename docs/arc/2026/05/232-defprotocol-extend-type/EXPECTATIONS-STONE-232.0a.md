@@ -7,7 +7,7 @@ Mode A target: **10/10 PASS**. Every row binds to a specific verification comman
 | # | Row | Binding verification | Expected |
 |---|---|---|---|
 | 1 | Compile clean | `cargo build --release -p wat 2>&1 \| tail -5` | 0 errors |
-| 2 | **232.0a probe FLIPS 0/5 → 5/5** | `cargo test --release --test probe_diagnostic_typed_entities_reflection 2>&1 \| tail -5` | `test result: ok. 5 passed; 0 failed` |
+| 2 | **232.0a probe FLIPS 0/7 → 7/7** | `cargo test --release --test probe_diagnostic_typed_entities_reflection 2>&1 \| tail -5` | `test result: ok. 7 passed; 0 failed` |
 | 3 | Lib tests baseline | `cargo test --release --lib -p wat --no-fail-fast 2>&1 \| tail -3` | ≥ 827 passed; 0 failed |
 | 4 | **Stone 233.3 probe** (the rank-up regression guard) | `cargo test --release --test probe_stone_233_3_runtime_error_edn 2>&1 \| tail -3` | `5 passed; 0 failed` |
 | 5 | **Stone 233.2.e probe** (provenance regression guard) | `cargo test --release --test probe_stone_233_2_e_ast_derived_provenance 2>&1 \| tail -3` | `5 passed; 0 failed` |
@@ -19,16 +19,16 @@ Mode A target: **10/10 PASS**. Every row binds to a specific verification comman
 
 ## Independent prediction
 
-**Target runtime:** 30–60 min Mode A
-**Upper bound:** 90 min (STOP-3)
-**Confidence:** high — small substrate work (2 wat verbs; 1 lifted from existing Rust fn; 1 new helper + verb). The bulk is dispatch-table wiring + Option<...> result construction + type-checker integration.
+**Target runtime:** 40–75 min Mode A
+**Upper bound:** 120 min (STOP-3)
+**Confidence:** high — small substrate work (3 wat verbs; 1 lifted from existing Rust fn; 2 new helpers + verbs forming symmetric pair). The bulk is dispatch-table wiring + Option<...> result construction + type-checker integration. Symmetric pair adds ~10-15 min vs original 2-verb plan.
 
 **Rationale:**
-- `fn bind_inner` helper (new): ~10 lines
+- `fn bind_left` + `fn bind_right` helpers (new): ~15 lines total
 - `eval_extract_classifier` (lift to wat verb): ~15 lines
-- `eval_bind_inner` (new wat verb): ~20 lines
-- Dispatch arms in dispatch_keyword_head_value (2 lines)
-- Type-checker integration in src/check.rs: ~10-20 lines (mirror Bundle/children pattern)
+- `eval_bind_left` + `eval_bind_right` (new wat verbs): ~35 lines total
+- Dispatch arms in dispatch_keyword_head_value (3 lines)
+- Type-checker integration in src/check.rs: ~15-25 lines (mirror Bundle/children pattern for all 3 verbs)
 - Verification + SCORE writing: ~10 min
 
 **Risks:**

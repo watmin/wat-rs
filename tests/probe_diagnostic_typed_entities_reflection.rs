@@ -7,21 +7,40 @@
 //! method bodies need to ACCESS fields. Both require reflection
 //! primitives that the substrate doesn't yet expose.
 //!
-//! Two new wat-callable verbs proposed for Stone 232.0a:
+//! Three new wat-callable verbs proposed for Stone 232.0a:
 //!
 //!   1. `:wat::holon::extract-classifier <h>` -> :Option<String>
 //!      Lifts the existing Rust fn `extract_classifier`
 //!      (src/runtime.rs:13986). Returns `Some(class-name)` for any
-//!      canonical-wrap shape `(Bind (Atom <s>) <inner>)`; `None`
+//!      canonical-wrap shape `(Bind (Atom <s>) <right>)`; `None`
 //!      otherwise. The DISPATCH primitive defprotocol's polymorphic
 //!      verb needs to route to per-type implementations.
 //!
-//!   2. `:wat::holon::Bind/inner <h>` -> :Option<HolonAST>
-//!      NEW Rust fn + wat verb. Returns `Some(inner)` for literal
-//!      `(Bind _ inner)`; `None` otherwise. Mirrors the existing
-//!      `Bundle/children` pattern (variant-narrow decomposer).
+//!   2. `:wat::holon::Bind/left <h>` -> :Option<HolonAST>
+//!      NEW Rust fn + wat verb. Returns `Some(left)` for literal
+//!      `(Bind left _)`; `None` otherwise. The LEFT position of a
+//!      Bind primitive. In classifier-wrap shape, holds the
+//!      `(Atom <ClassName>)`. In field-Bind shape, holds the
+//!      `(Atom <field-name>)`. Symmetric peer of Bind/right.
+//!
+//!   3. `:wat::holon::Bind/right <h>` -> :Option<HolonAST>
+//!      NEW Rust fn + wat verb. Returns `Some(right)` for literal
+//!      `(Bind _ right)`; `None` otherwise. The RIGHT position of a
+//!      Bind primitive. In classifier-wrap shape, holds the data
+//!      (typically a Bundle of field-Binds). In field-Bind shape,
+//!      holds the field's value. Mirrors the existing
+//!      `Bundle/children` pattern (variant-narrow decomposer naming
+//!      the STRUCTURAL fact, not the doctrine-conventional reading).
 //!      Composes with `Bundle/children` + name-match to walk a
 //!      defrecord instance to a named field.
+//!
+//! NAMING NOTE (per intueri cast 2026-05-23 night late): the original
+//! proposal was `Bind/inner` (asymmetric, borrowed from typed-entity
+//! doctrine convention). Intueri verdict: Level 2 (mumbles). Bind is a
+//! GENERAL two-position primitive; "inner" only makes sense in the
+//! classifier-wrap use case. `Bind/left` + `Bind/right` are positional,
+//! symmetric, honest about Bind's structural shape. Convention-based
+//! semantic verbs (extract-classifier) compose on top.
 //!
 //! These probes currently FAIL (verbs don't exist). After Stone 232.0a
 //! ships, they PASS. They become the regression guard against the
@@ -114,18 +133,18 @@ fn probe_2_extract_classifier_on_bare_atom() {
 
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
 //
-// `Bind/inner` on a defrecord instance returns Some(inner Bundle).
+// `Bind/right` on a defrecord instance returns Some(right Bundle).
 // The instance is `Bind(Atom("myapp::Voltage"), Bundle(field-binds))`;
-// `Bind/inner` should return the Bundle half.
+// `Bind/right` should return the Bundle half.
 #[test]
-fn probe_3_bind_inner_on_defrecord_instance() {
+fn probe_3_bind_right_on_defrecord_instance() {
     let src = r#"
 (:wat::holon::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
   (:wat::core::let
     [v (:myapp::Voltage 5.0)]
-    (:wat::holon::Bind/inner v)))
+    (:wat::holon::Bind/right v)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -143,15 +162,15 @@ fn probe_3_bind_inner_on_defrecord_instance() {
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
 //
-// `Bind/inner` on a non-Bind HolonAST returns None.
+// `Bind/right` on a non-Bind HolonAST returns None.
 // A bare Atom is not a Bind; should return None.
 #[test]
-fn probe_4_bind_inner_on_non_bind() {
+fn probe_4_bind_right_on_non_bind() {
     let src = r#"
 (:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
   (:wat::core::let
     [bare (:wat::holon::Atom (:wat::holon::to-holon 42))]
-    (:wat::holon::Bind/inner bare)))
+    (:wat::holon::Bind/right bare)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -169,7 +188,7 @@ fn probe_4_bind_inner_on_non_bind() {
 
 // ─── Probe 5 ────────────────────────────────────────────────────────────────
 //
-// Composed walk: extract-classifier + Bind/inner + Bundle/children to get
+// Composed walk: extract-classifier + Bind/right + Bundle/children to get
 // the field-Bind list from a defrecord instance. This is the exact
 // composition defrecord accessor synthesis (separate stone) will use to
 // generate `:ns::Type/field-name` accessors.
@@ -180,7 +199,7 @@ fn probe_4_bind_inner_on_non_bind() {
 //
 // Walk:
 //   1. extract-classifier → "myapp::Point"   (dispatch routing)
-//   2. Bind/inner → Bundle(field-binds)
+//   2. Bind/right → Bundle(field-binds)
 //   3. Bundle/children → Vector of 2 Binds (the field-Binds)
 //
 // Probe asserts the children Vector has length 2.
@@ -194,9 +213,9 @@ fn probe_5_composed_walk_to_field_binds() {
 (:wat::core::define (:user::compute -> :wat::core::i64)
   (:wat::core::let
     [p          (:myapp::Point 3 4)
-     inner-opt  (:wat::holon::Bind/inner p)
-     inner      (:wat::core::Option/expect -> :wat::holon::HolonAST inner-opt "inner missing")
-     children   (:wat::holon::Bundle/children inner)]
+     right-opt  (:wat::holon::Bind/right p)
+     right      (:wat::core::Option/expect -> :wat::holon::HolonAST right-opt "right missing")
+     children   (:wat::holon::Bundle/children right)]
     (:wat::core::Vector/length children)))
 "#;
     match run_compute(src) {
@@ -205,10 +224,73 @@ fn probe_5_composed_walk_to_field_binds() {
             println!("Probe 5 result: {}", s);
             assert!(
                 s.contains("2"),
-                "Probe 5: expected 2 field-Binds in inner Bundle; got: {}",
+                "Probe 5: expected 2 field-Binds in right Bundle; got: {}",
                 s
             );
         }
         Err(e) => panic!("Probe 5 FAILED: {}", e),
+    }
+}
+
+// ─── Probe 6 ────────────────────────────────────────────────────────────────
+//
+// `Bind/left` on a defrecord instance returns Some(left Atom).
+// The instance is `Bind(Atom("myapp::Voltage"), Bundle(field-binds))`;
+// `Bind/left` should return the Atom("myapp::Voltage") half.
+#[test]
+fn probe_6_bind_left_on_defrecord_instance() {
+    let src = r#"
+(:wat::holon::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
+
+(:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
+  (:wat::core::let
+    [v (:myapp::Voltage 5.0)]
+    (:wat::holon::Bind/left v)))
+"#;
+    match run_compute(src) {
+        Ok(v) => {
+            let s = format!("{:?}", v);
+            println!("Probe 6 result: {}", s);
+            // The left of a classifier-wrap is Atom(String("myapp::Voltage"));
+            // expect Some(...) wrapping an Atom whose Display surfaces the
+            // class name string.
+            assert!(
+                s.contains("Some") || s.contains("Atom"),
+                "Probe 6: expected Some(Atom...) for left of defrecord instance; got: {}",
+                s
+            );
+            assert!(
+                s.contains("Voltage") || s.contains("myapp"),
+                "Probe 6: expected classifier string ('Voltage' or 'myapp') in left; got: {}",
+                s
+            );
+        }
+        Err(e) => panic!("Probe 6 FAILED: {}", e),
+    }
+}
+
+// ─── Probe 7 ────────────────────────────────────────────────────────────────
+//
+// `Bind/left` on a non-Bind HolonAST returns None.
+// Symmetric peer of probe 4 (Bind/right on non-Bind).
+#[test]
+fn probe_7_bind_left_on_non_bind() {
+    let src = r#"
+(:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
+  (:wat::core::let
+    [bare (:wat::holon::Atom (:wat::holon::to-holon 42))]
+    (:wat::holon::Bind/left bare)))
+"#;
+    match run_compute(src) {
+        Ok(v) => {
+            let s = format!("{:?}", v);
+            println!("Probe 7 result: {}", s);
+            assert!(
+                s.contains("None"),
+                "Probe 7: expected None for non-Bind; got: {}",
+                s
+            );
+        }
+        Err(e) => panic!("Probe 7 FAILED: {}", e),
     }
 }
