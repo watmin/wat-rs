@@ -121,11 +121,15 @@ fn probe_3_let_bound_symbol_lookup_yields_symbol_bound_provenance() {
     // The binding_span and head_span should both be non-default (i.e., they
     // were extracted from actual source positions).
     if let Provenance::SymbolBound { binding_span, head_span } = tv.provenance() {
-        assert_ne!(
-            binding_span, head_span,
+        // Span::PartialEq always returns true per substrate contract (span.rs).
+        // Compare fields directly to verify the two spans are genuinely distinct
+        // source positions.
+        assert!(
+            binding_span.line != head_span.line || binding_span.col != head_span.col,
             "binding_span (let LHS x) and head_span (body x) should be \
-             DISTINCT source positions; both = {:?}",
-            binding_span
+             DISTINCT source positions; \
+             binding={:?} head={:?}",
+            binding_span, head_span
         );
     }
 }
@@ -144,7 +148,7 @@ fn probe_4_destructure_slot_lookup_yields_symbol_bound_provenance() {
     // Destructure: `(let [[a b] (tuple 1 2)] a)`. Slot `a` is bound at
     // its position in the LHS pattern. Lookup yields SymbolBound with
     // binding_span pointing at `a` in the pattern.
-    let ast = wat::parse_one!("(:wat::core::let [[a b] (:wat::core::tuple 1 2)] a)")
+    let ast = wat::parse_one!("(:wat::core::let [[a b] (:wat::core::Tuple 1 2)] a)")
         .expect("parse");
     let env = Environment::new();
 

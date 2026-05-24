@@ -1205,8 +1205,17 @@ pub struct Environment {
     inner: Arc<EnvCell>,
 }
 
+/// Arc 233 Stone 233.2.e: named struct carrying TrackedValue + binding_span.
+/// binding_span is the source position of the LHS name in the let binder
+/// (e.g., position of `x` in `(let [x 42] ...)`). Used by env.lookup to
+/// construct SymbolBound provenance at the lookup boundary.
+pub struct BoundEntry {
+    pub value: TrackedValue,
+    pub binding_span: Span,
+}
+
 struct EnvCell {
-    bindings: HashMap<String, TrackedValue>,
+    bindings: HashMap<String, BoundEntry>,
     parent: Option<Environment>,
 }
 
@@ -1227,11 +1236,45 @@ impl Environment {
         }
     }
 
-    pub fn lookup(&self, name: &str) -> Option<TrackedValue> {
-        if let Some(v) = self.inner.bindings.get(name) {
-            return Some(v.clone());
+    /// Look up a name in the environment, constructing SymbolBound provenance
+    /// at the lookup boundary for Unknown/Literal provenance values
+    /// (Arc 233 Stone 233.2.e).
+    ///
+    /// `head_span` is the source position where the symbol appears in the call
+    /// (e.g., position of `x` in `(some-fn x)`). The returned TrackedValue
+    /// carries SymbolBound { binding_span: <where x was bound>, head_span: <where x is used> }
+    /// when the stored value has Unknown or Literal provenance.
+    ///
+    /// Provenance replacement rule (honest reconciliation of Decision 2 with
+    /// Stone 233.2.k's regression guard):
+    /// - Unknown → SymbolBound (no prior context; binding IS the context)
+    /// - Literal → SymbolBound (literal's source position is embedded in the
+    ///   binding span; the symbol reference is the diagnostic context)
+    /// - RuntimeBuilt → keep RuntimeBuilt (producer context is more informative
+    ///   than the binding coordinates for errors on producer-built values)
+    /// - SymbolBound → replace with new SymbolBound (update binding/head context)
+    pub fn lookup(&self, name: &str, head_span: &Span) -> Option<TrackedValue> {
+        if let Some(entry) = self.inner.bindings.get(name) {
+            let value = entry.value.value().clone();
+            let provenance = match entry.value.provenance().clone() {
+                Provenance::RuntimeBuilt { producer, call_span } => {
+                    // RuntimeBuilt: keep producer provenance. The producer context is
+                    // more informative than binding coordinates for diagnostic errors.
+                    Provenance::RuntimeBuilt { producer, call_span }
+                }
+                _ => {
+                    // Unknown / Literal / SymbolBound: replace with SymbolBound.
+                    // The binding coordinates (where the name was defined +
+                    // where it is used) are the useful diagnostic context.
+                    Provenance::SymbolBound {
+                        binding_span: entry.binding_span.clone(),
+                        head_span: head_span.clone(),
+                    }
+                }
+            };
+            return Some(TrackedValue::new(value, provenance));
         }
-        self.inner.parent.as_ref().and_then(|p| p.lookup(name))
+        self.inner.parent.as_ref().and_then(|p| p.lookup(name, head_span))
     }
 }
 
@@ -1243,13 +1286,25 @@ impl Default for Environment {
 
 /// Builder that accumulates bindings, then freezes into an [`Environment`].
 pub struct EnvBuilder {
-    bindings: HashMap<String, TrackedValue>,
+    bindings: HashMap<String, BoundEntry>,
     parent: Option<Environment>,
 }
 
 impl EnvBuilder {
-    pub fn bind(mut self, name: impl Into<String>, tv: TrackedValue) -> Self {
-        self.bindings.insert(name.into(), tv);
+    /// Bind a name to a TrackedValue with its binding_span (Arc 233 Stone 233.2.e).
+    /// The binding_span is the source position of the LHS name in the let binder;
+    /// env.lookup uses it to construct SymbolBound provenance at lookup time.
+    pub fn bind(mut self, name: impl Into<String>, binding_span: Span, tv: TrackedValue) -> Self {
+        self.bindings.insert(name.into(), BoundEntry { value: tv, binding_span });
+        self
+    }
+
+    /// Bind a name without a meaningful source span (Unknown binding_span).
+    /// Used by sites that bind values without let-binder source coordinates
+    /// (e.g., function argument binding, matches? pattern binding).
+    /// These sites get Provenance::Unknown when the value is looked up.
+    pub fn bind_unknown_span(mut self, name: impl Into<String>, tv: TrackedValue) -> Self {
+        self.bindings.insert(name.into(), BoundEntry { value: tv, binding_span: Span::unknown() });
         self
     }
 
@@ -2949,7 +3004,7 @@ fn register_runtime_defs_form(
                     let binding_name = ident.name.clone();
                     let sym_ref: &SymbolTable = sym;
                     let tv = eval_inner(rhs, &scope, sym_ref)?;
-                    scope = scope.child().bind(binding_name, tv).build();
+                    scope = scope.child().bind_unknown_span(binding_name, tv).build();
                 }
                 // Non-Symbol binder (Vector destructure) — skip env extension;
                 // not load-bearing for def-splice-into-let-body.
@@ -4176,7 +4231,9 @@ fn eval_tail(
                 ":wat::core::if" => eval_if_tail(args, &list_span, env, sym),
                 ":wat::core::cond" => eval_cond_tail(args, &list_span, env, sym),
                 ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
-                ":wat::core::let" => eval_let_tail(args, &list_span, env, sym),
+                // Arc 233 Stone 233.2.e: eval_let_tail returns TrackedValue; unwrap to Value
+                // for eval_tail's caller (apply_function trampoline uses bare Value).
+                ":wat::core::let" => eval_let_tail(args, &list_span, env, sym).map(|tv| tv.value_owned()),
                 ":wat::core::do" => eval_do_tail(args, &list_span, env, sym),
                 // A user-defined function call in tail position — signal.
                 // Head resolves in sym.functions; anything else (kernel/
@@ -4193,8 +4250,8 @@ fn eval_tail(
         // `Ok`, `Err` are constructor symbols that are NEVER bound in
         // env, so `env.lookup` returns None for them and we delegate
         // to eval (which special-cases the three constructors).
-        WatAST::Symbol(ident, _) => {
-            if let Some(tv) = env.lookup(ident.as_str()) {
+        WatAST::Symbol(ident, span) => {
+            if let Some(tv) = env.lookup(ident.as_str(), span) {
                 if let Value::wat__core__fn(f) = tv.value() {
                     emit_tail_call(f.clone(), args, env, sym, list_span)
                 } else {
@@ -4312,12 +4369,19 @@ fn eval_if_tail(
 /// this body lived under `eval_let_star_tail` and dispatched on
 /// `:wat::core::let*` (historical; that dispatch arm is gone).
 /// Arc 168 — flat-vector bindings + implicit-do body (mirrors [`eval_let`]).
+/// Arc 233 Stone 233.2.e: flipped from Result<Value> → Result<TrackedValue>
+/// to close the 233.2.k honest delta (eval_let_tail was the remaining path
+/// that stripped provenance from tail-call let bodies). Callers that need
+/// bare Value use .value_owned().
+///
+/// Mirrors the 233.2.j eval_let pattern: the tail-call path now preserves
+/// provenance through the trampoline boundary.
 fn eval_let_tail(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     if args.is_empty() {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::let".into(),
@@ -4363,13 +4427,15 @@ fn eval_let_tail(
 
     let body = &args[1..];
     if body.is_empty() {
-        return Ok(Value::Unit);
+        return Ok(TrackedValue::from(Value::Unit));
     }
     let last_idx = body.len() - 1;
     for form in &body[..last_idx] {
         let _ = eval_inner(form, &scope, sym)?;
     }
-    eval_tail(&body[last_idx], &scope, sym)
+    // tail-call path: eval_tail returns Result<Value>; wrap with Unknown provenance.
+    // The trampoline path uses Value directly; TrackedValue wraps at this boundary.
+    eval_tail(&body[last_idx], &scope, sym).map(TrackedValue::from)
 }
 
 /// Tail-position twin of [`eval_do`]. Non-final forms are evaluated
@@ -4493,10 +4559,24 @@ pub(crate) fn eval_inner(
     sym: &SymbolTable,
 ) -> Result<TrackedValue, RuntimeError> {
     match ast {
-        WatAST::IntLit(n, _) => Ok(TrackedValue::from(Value::i64(*n))),
-        WatAST::FloatLit(x, _) => Ok(TrackedValue::from(Value::f64(*x))),
-        WatAST::BoolLit(b, _) => Ok(TrackedValue::from(Value::bool(*b))),
-        WatAST::StringLit(s, _) => Ok(TrackedValue::from(Value::String(Arc::new(s.clone())))),
+        // Arc 233 Stone 233.2.e: literal arms carry Provenance::Literal{span} so
+        // errors on literal values name their source position.
+        WatAST::IntLit(n, span) => Ok(TrackedValue::new(
+            Value::i64(*n),
+            Provenance::Literal { span: span.clone() },
+        )),
+        WatAST::FloatLit(x, span) => Ok(TrackedValue::new(
+            Value::f64(*x),
+            Provenance::Literal { span: span.clone() },
+        )),
+        WatAST::BoolLit(b, span) => Ok(TrackedValue::new(
+            Value::bool(*b),
+            Provenance::Literal { span: span.clone() },
+        )),
+        WatAST::StringLit(s, span) => Ok(TrackedValue::new(
+            Value::String(Arc::new(s.clone())),
+            Provenance::Literal { span: span.clone() },
+        )),
         // Arc 215 stone 2 — `[...]` vector literals at expression position.
         // Check.rs already type-checked these items via infer_list_constructor
         // (T inferred from first element; all elements unified). At runtime,
@@ -4507,12 +4587,17 @@ pub(crate) fn eval_inner(
         // retires that restriction. The `WatAST::Vector` AST node that the
         // parser produces for `[...]` is now also the runtime-evaluated form
         // for expression-position vector literals.
-        WatAST::Vector(items, _) => {
+        //
+        // Arc 233 Stone 233.2.e: vector literal carries Provenance::Literal{span}.
+        WatAST::Vector(items, span) => {
             let elems = items
                 .iter()
                 .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(TrackedValue::from(Value::Vec(Arc::new(elems))))
+            Ok(TrackedValue::new(
+                Value::Vec(Arc::new(elems)),
+                Provenance::Literal { span: span.clone() },
+            ))
         }
         // Arc 169 slice 1 — struct-pattern brace-forms are
         // consumed only in `:wat::core::let` binding-position
@@ -4528,15 +4613,21 @@ pub(crate) fn eval_inner(
                 .into(),
             span: span.clone(),
         }),
-        WatAST::Keyword(k, _) => {
+        WatAST::Keyword(k, span) => {
             // Arc 153 slice 1a — `:wat::core::nil` at value
             // position evaluates to `Value::Unit` (the nil
             // singleton). The infer hook in check.rs types this
             // keyword as `:wat::core::nil` (singleton type);
             // evaluation here returns the singleton value.
             // Special-case is narrow: only the exact FQDN string.
+            //
+            // Arc 233 Stone 233.2.e: nil/None keyword special-cases carry
+            // Provenance::Literal{span} (they appear as keyword literals in source).
             if k == ":wat::core::nil" {
-                return Ok(TrackedValue::from(Value::Unit));
+                return Ok(TrackedValue::new(
+                    Value::Unit,
+                    Provenance::Literal { span: span.clone() },
+                ));
             }
             // `:None` is the nullary constructor of the built-in
             // `:Option<T>` enum (058-030). Special-cased here so users
@@ -4549,7 +4640,10 @@ pub(crate) fn eval_inner(
             // retires (poisoned at type-check time, runtime keeps
             // working).
             if k == ":None" || k == ":wat::core::None" {
-                return Ok(TrackedValue::from(Value::Option(Arc::new(None))));
+                return Ok(TrackedValue::new(
+                    Value::Option(Arc::new(None)),
+                    Provenance::Literal { span: span.clone() },
+                ));
             }
             // Arc 048 — user-enum unit variants. Pre-built EnumValues
             // sit in `sym.unit_variants` keyed by their full keyword
@@ -4585,7 +4679,7 @@ pub(crate) fn eval_inner(
             Ok(TrackedValue::from(Value::wat__core__keyword(Arc::new(k.clone()))))
         }
         WatAST::Symbol(ident, span) => env
-            .lookup(ident.as_str())
+            .lookup(ident.as_str(), span)
             .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone())),
         // Arc 233 Stone 233.2.j: eval_list now returns TrackedValue (producers propagate
         // TrackedValue directly; non-producer arms wrap with .into_tracked()).
@@ -4651,8 +4745,9 @@ fn eval_list(
             // Bare symbol as head — look up a callable in the env.
             // Arc 233 Stone 233.2.k: keep TrackedValue so NotCallable errors
             // preserve producer provenance (of_tracked reads provenance intact).
+            // Arc 233 Stone 233.2.e: pass span so lookup constructs SymbolBound.
             let tv = env
-                .lookup(ident.as_str())
+                .lookup(ident.as_str(), span)
                 .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone()))?;
             apply_tracked_callee(tv, rest, env, sym)
         }
@@ -6155,24 +6250,24 @@ fn bind_let_binding(
     sym: &SymbolTable,
 ) -> Result<Environment, RuntimeError> {
     match binding {
-        LetBinding::Single { name, rhs } => {
+        LetBinding::Single { name, name_span, rhs } => {
             // Arc 233 Stone 233.2.k: Environment stores TrackedValue directly.
-            // No re-wrap needed — provenance flows structurally through the
-            // Environment storage. The Phase 5 exemption from Stone 233.2.j
-            // is dissolved permanently by this mechanism.
+            // Arc 233 Stone 233.2.e: bind with name_span so env.lookup can
+            // construct SymbolBound provenance when the name is referenced.
             let tv = eval_inner(rhs, scope, sym)?;
-            Ok(scope.child().bind(name, tv).build())
+            Ok(scope.child().bind(name, name_span, tv).build())
         }
         LetBinding::Destructure { names, rhs } => {
             let value = eval_inner(rhs, scope, sym)?.value_owned();
             let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
             let mut builder = scope.child();
-            for (name, elem) in names.into_iter().zip(elements.into_iter()) {
-                // Destructure slots get Unknown provenance — each slot has its
-                // own origin which we'd need separate tracking for (out of scope
-                // for 233.2.k; arc 233.2.e revisits if/when destructure
-                // provenance becomes load-bearing).
-                builder = builder.bind(name, TrackedValue::from(elem));
+            for ((name, name_span), elem) in names.into_iter().zip(elements.into_iter()) {
+                // Arc 233 Stone 233.2.e: each destructure slot is bound with its
+                // name_span from the LHS pattern. Lookup yields SymbolBound with
+                // binding_span pointing at the slot's position in the pattern.
+                // The per-element provenance within the tuple (deeper tracing)
+                // is out of scope per sub-DESIGN Decision 3.
+                builder = builder.bind(name, name_span, TrackedValue::from(elem));
             }
             Ok(builder.build())
         }
@@ -6222,7 +6317,7 @@ fn bind_let_binding(
                 }
             };
             let mut builder = scope.child();
-            for fname in &field_names {
+            for (fname, fname_span) in &field_names {
                 let idx = struct_def
                     .fields
                     .iter()
@@ -6258,7 +6353,8 @@ fn bind_let_binding(
                         ),
                         span: rhs.span().clone(),
                     })?;
-                builder = builder.bind(fname.clone(), TrackedValue::from(elem));
+                // Arc 233 Stone 233.2.e: bind with fname_span so lookup yields SymbolBound.
+                builder = builder.bind(fname.clone(), fname_span.clone(), TrackedValue::from(elem));
             }
             Ok(builder.build())
         }
@@ -6349,17 +6445,24 @@ fn destructure_tuple(
 ///   field-name AND the local binding-name). RHS must be a struct-
 ///   typed expression; each field name resolves against the struct
 ///   type's registered fields.
+/// Arc 233 Stone 233.2.e: added per-name spans to all three variants so
+/// bind_let_binding can store binding_span in BoundEntry and env.lookup
+/// can construct SymbolBound provenance at lookup time.
 enum LetBinding<'a> {
     Single {
         name: String,
+        /// Source position of the LHS name in the let binder (e.g., `x` in `[x 42]`).
+        name_span: Span,
         rhs: &'a WatAST,
     },
     Destructure {
-        names: Vec<String>,
+        /// Per-name spans for each slot in the destructure pattern (e.g., `a`, `b` in `[[a b] ...]`).
+        names: Vec<(String, Span)>,
         rhs: &'a WatAST,
     },
     StructDestructure {
-        field_names: Vec<String>,
+        /// Per-field-name spans for each slot in the struct destructure pattern.
+        field_names: Vec<(String, Span)>,
         rhs: &'a WatAST,
     },
 }
@@ -6380,16 +6483,19 @@ fn parse_let_binding<'a>(
     rhs: &'a WatAST,
 ) -> Result<LetBinding<'a>, RuntimeError> {
     match binder {
-        WatAST::Symbol(ident, _) => Ok(LetBinding::Single {
+        // Arc 233 Stone 233.2.e: extract name_span from WatAST::Symbol(_, span).
+        WatAST::Symbol(ident, name_span) => Ok(LetBinding::Single {
             name: ident.name.clone(),
+            name_span: name_span.clone(),
             rhs,
         }),
         WatAST::Vector(inner, _) => {
             // Destructure binder: every element must be a bare symbol.
+            // Arc 233 Stone 233.2.e: capture per-name spans for SymbolBound provenance.
             let mut names = Vec::with_capacity(inner.len());
             for item in inner {
                 match item {
-                    WatAST::Symbol(ident, _) => names.push(ident.name.clone()),
+                    WatAST::Symbol(ident, name_span) => names.push((ident.name.clone(), name_span.clone())),
                     other => {
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat::core::let".into(),
@@ -6418,11 +6524,12 @@ fn parse_let_binding<'a>(
             // caller that synthesizes a StructPattern with wrong
             // contents surfaces a clear diagnostic instead of
             // panicking deep in the runtime.
+            // Arc 233 Stone 233.2.e: capture per-field-name spans.
             let mut field_names = Vec::with_capacity(inner.len());
             for item in inner {
                 match item {
-                    WatAST::Symbol(ident, _) => {
-                        field_names.push(ident.name.clone())
+                    WatAST::Symbol(ident, name_span) => {
+                        field_names.push((ident.name.clone(), name_span.clone()))
                     }
                     other => {
                         return Err(RuntimeError::MalformedForm {
@@ -12604,7 +12711,7 @@ fn walk_match_clause(
             // Disambiguate binding vs equality by LHS shape and
             // whether the variable is already in scope.
             if let Some(var) = logic_var_name(left) {
-                if env.lookup(var).is_none() {
+                if env.lookup(var, left.span()).is_none() {
                     // Fresh ?var — binding.
                     let field_kw = keyword_payload(right).ok_or_else(|| {
                         RuntimeError::MalformedForm {
@@ -12629,7 +12736,7 @@ fn walk_match_clause(
                             return Ok((false, env));
                         }
                     };
-                    let new_env = env.child().bind(var.to_string(), TrackedValue::from(value)).build();
+                    let new_env = env.child().bind_unknown_span(var.to_string(), TrackedValue::from(value)).build();
                     return Ok((true, new_env));
                 }
                 // ?var already bound — fall through to comparison.
@@ -13926,7 +14033,7 @@ fn try_match_pattern(
         WatAST::Symbol(ident, _) if ident.as_str() == "_" => Ok(Some(outer.clone())),
         // Bare identifier — binds the scrutinee to that name.
         WatAST::Symbol(ident, _) => Ok(Some(
-            outer.child().bind(ident.as_str().to_string(), TrackedValue::from(value.clone())).build(),
+            outer.child().bind_unknown_span(ident.as_str().to_string(), TrackedValue::from(value.clone())).build(),
         )),
         // `(Some binder)` — matches Option(Some(v)), binds `binder` to v.
         WatAST::List(items, _) => {
@@ -19120,7 +19227,7 @@ pub fn apply_function(
         let mut drained = cur_args.drain(..);
         for name in cur_func.params.iter() {
             let value = drained.next().expect("arity checked above");
-            builder = builder.bind(name.clone(), TrackedValue::from(value));
+            builder = builder.bind_unknown_span(name.clone(), TrackedValue::from(value));
         }
         // Arc 150 — collect the remaining args (post-fixed) into a
         // Value::Vec and bind to the rest-name. For zero rest-args the
@@ -19128,7 +19235,7 @@ pub fn apply_function(
         // zero-rest-args coverage row.
         if let Some(rest_name) = &cur_func.rest_param {
             let rest: Vec<Value> = drained.collect();
-            builder = builder.bind(
+            builder = builder.bind_unknown_span(
                 rest_name.clone(),
                 TrackedValue::from(Value::Vec(Arc::new(rest))),
             );
@@ -25285,7 +25392,7 @@ mod tests {
         ast_to_bind: WatAST,
     ) -> Result<Value, RuntimeError> {
         let form = crate::parse_one!(body).expect("parse body");
-        let env = Environment::new().child().bind(
+        let env = Environment::new().child().bind_unknown_span(
             "program",
             TrackedValue::from(Value::wat__WatAST(Arc::new(ast_to_bind))),
         ).build();
@@ -26900,7 +27007,7 @@ mod tests {
     /// Helper: evaluate `src` in an env pre-bound with `name -> value`.
     fn eval_with_binding(src: &str, name: &str, value: Value) -> Result<Value, RuntimeError> {
         let ast = crate::parse_one!(src).expect("parse ok");
-        let env = Environment::new().child().bind(name, TrackedValue::from(value)).build();
+        let env = Environment::new().child().bind_unknown_span(name, TrackedValue::from(value)).build();
         eval_inner(&ast, &env, &SymbolTable::new()).map(|tv| tv.value_owned())
     }
 
@@ -29886,7 +29993,7 @@ mod tests {
             crate::typed_channel::receiver_from_crossbeam(rx0),
             crate::typed_channel::receiver_from_crossbeam(rx1),
         ]));
-        let env = Environment::new().child().bind("rxs", TrackedValue::from(rxs)).build();
+        let env = Environment::new().child().bind_unknown_span("rxs", TrackedValue::from(rxs)).build();
         let ast = crate::parse_one!("(:wat::kernel::select rxs)").expect("parse");
         let result = eval_inner(&ast, &env, &SymbolTable::new()).expect("select").value_owned();
         match result {

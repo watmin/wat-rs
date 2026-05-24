@@ -193,7 +193,7 @@ pub fn extract_closure(
     if let Some(closed_env) = &func.closed_env {
         let frees = std::mem::take(&mut state.unresolved_frees);
         for (name, span) in frees {
-            if let Some(tv) = closed_env.lookup(&name) {
+            if let Some(tv) = closed_env.lookup(&name, &span) {
                 // It's a captured local. Encode the value to AST and
                 // record. The captured value itself may carry types we
                 // need to extract; the type-walk phase below handles
