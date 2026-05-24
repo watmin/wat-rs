@@ -1,8 +1,8 @@
-# BRIEF — Arc 234 Stone 234.1.5 — variant rename + `:wat::record` namespace promotion
+# BRIEF — Arc 234 Stone 234.1.5 — variant rename + `:wat::Record` namespace promotion
 
 ## What we're doing
 
-Rename Stone 234.1's `Value::wat_record` → `Value::wat__record` (per arc 109 `__` FQDN convention; matches `Value::wat__core__Uuid`/`wat__core__Char`/`wat__std__HashMap` family) and register `:wat::record` as opaque umbrella type in check.rs — promoting the record concept-cluster to top-level `:wat::record::*` namespace (peer of `:wat::holon::*`/`:wat::kernel::*`/`:wat::config::*`/`:wat::test::*`).
+Rename Stone 234.1's `Value::wat_record` → `Value::wat__Record` (per arc 109 `__` FQDN convention; matches `Value::wat__core__Uuid`/`wat__core__Char`/`wat__std__HashMap` family) and register `:wat::Record` as opaque umbrella type in check.rs — promoting the record concept-cluster to top-level `:wat::Record::*` namespace (peer of `:wat::holon::*`/`:wat::kernel::*`/`:wat::config::*`/`:wat::test::*`).
 
 NO new primitives. NO new behavior. Pure rename + type registration + cascade update.
 
@@ -12,15 +12,15 @@ Stone 234.1.5 is the **stepping-stone foundation** that subsequent stones (234.2
 
 1. **`docs/arc/2026/05/234-wat-record-hologram/DESIGN-STONE-234.1.5.md`** — sub-DESIGN with 10 locked decisions (D1-D10). The variant rename target (D1) + type_name return (D2) + Hash discriminant (D4) + type registration (D5) are non-negotiable.
 
-2. **`tests/probe_arc234_stone15_namespace_promotion.rs`** — FM 2-bis probe (committed forthcoming). Currently 5/5 FAIL with `error[E0599]: no variant named 'wat__record' found for enum 'wat::Value'`. **The probe IS the success criterion** — flip 5/5 FAIL → 5/5 PASS.
+2. **`tests/probe_arc234_stone15_namespace_promotion.rs`** — FM 2-bis probe (committed forthcoming). Currently 5/5 FAIL with `error[E0599]: no variant named 'wat__Record' found for enum 'wat::Value'`. **The probe IS the success criterion** — flip 5/5 FAIL → 5/5 PASS.
 
-3. **`tests/probe_arc234_stone1_wat_record_variant.rs`** — Stone 234.1's regression guard. β.i updates the `make_record` helper to construct `Value::wat__record { ... }` (variant rename cascades into the probe). 7 contracts stay GREEN — they verify the renamed variant's behavior is identical.
+3. **`tests/probe_arc234_stone1_wat_record_variant.rs`** — Stone 234.1's regression guard. β.i updates the `make_record` helper to construct `Value::wat__Record { ... }` (variant rename cascades into the probe). 7 contracts stay GREEN — they verify the renamed variant's behavior is identical.
 
-4. **`docs/arc/2026/05/234-wat-record-hologram/DESIGN.md`** — arc 234 umbrella (has been pivoted to reflect `:wat::record::*` namespace; the sub-DESIGN cites the pivot).
+4. **`docs/arc/2026/05/234-wat-record-hologram/DESIGN.md`** — arc 234 umbrella (has been pivoted to reflect `:wat::Record::*` namespace; the sub-DESIGN cites the pivot).
 
 5. **`docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.1.md`** — predecessor SCORE (variant + cascade shipped). β.i's rename preserves all semantics.
 
-6. **`docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.0.md`** — Stone 234.0's polymorphic type primitive. The wat__record arm of `eval_type` preserves through rename per D3.
+6. **`docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.0.md`** — Stone 234.0's polymorphic type primitive. The wat__Record arm of `eval_type` preserves through rename per D3.
 
 7. **`src/runtime.rs:651`** — `Value::wat_record { ... }` variant definition (D1 target).
 
@@ -30,7 +30,7 @@ Stone 234.1.5 is the **stepping-stone foundation** that subsequent stones (234.2
 
 10. **`src/closure_extract.rs:1716,1718-1719`** — 2 sites (D8 cascade).
 
-11. **`src/check.rs`** — TypeDef registration mechanism. Mirror existing primitive type registration (e.g., how `:wat::core::String` or `:wat::holon::HolonAST` are registered). NEW site: register `:wat::record` as opaque type (D5).
+11. **`src/check.rs`** — TypeDef registration mechanism. Mirror existing primitive type registration (e.g., how `:wat::core::String` or `:wat::holon::HolonAST` are registered). NEW site: register `:wat::Record` as opaque type (D5).
 
 ## Implementation surface
 
@@ -46,18 +46,18 @@ Stone 234.1.5 is the **stepping-stone foundation** that subsequent stones (234.2
    }
 
    // AFTER:
-   wat__record {
+   wat__Record {
        class_fqdn: Arc<String>,
        struct_form: Arc<Vec<Value>>,
        holon_form: Arc<HolonAST>,
    }
    ```
 
-2. **Lines 816-817: Eq arm patterns.** `Value::wat_record { ... }` → `Value::wat__record { ... }` (both halves of the pair-pattern; the arm body unchanged).
+2. **Lines 816-817: Eq arm patterns.** `Value::wat_record { ... }` → `Value::wat__Record { ... }` (both halves of the pair-pattern; the arm body unchanged).
 
-3. **Line 1029: Hash arm pattern.** `Value::wat_record { ... }` → `Value::wat__record { ... }`.
+3. **Line 1029: Hash arm pattern.** `Value::wat_record { ... }` → `Value::wat__Record { ... }`.
 
-4. **Line 1030: Hash discriminant tag string.** `"wat_record"` → `"wat__record"` (D4 — honest tag matching the variant identifier).
+4. **Line 1030: Hash discriminant tag string.** `"wat_record"` → `"wat__Record"` (D4 — honest tag matching the variant identifier).
 
 5. **Line 1177: type_name arm.**
    ```rust
@@ -65,45 +65,45 @@ Stone 234.1.5 is the **stepping-stone foundation** that subsequent stones (234.2
    Value::wat_record { .. } => "wat::core::wat_record",
 
    // AFTER (D2):
-   Value::wat__record { .. } => "wat::record",
+   Value::wat__Record { .. } => "wat::Record",
    ```
 
 6. **Line 14485: eval_type arm pattern (D3 — body logic preserved verbatim).**
    ```rust
-   Value::wat__record { class_fqdn, .. } => class_fqdn.to_string(),
+   Value::wat__Record { class_fqdn, .. } => class_fqdn.to_string(),
    ```
 
-7. **Line 18218: render_value arm pattern.** `Value::wat_record { ... }` → `Value::wat__record { ... }` (body unchanged).
+7. **Line 18218: render_value arm pattern.** `Value::wat_record { ... }` → `Value::wat__Record { ... }` (body unchanged).
 
-8. **Lines 813, 1026-1027, 14460, 18216: doc-comment updates.** Variant references in comments — sonnet updates the `wat_record:` references to `wat__record:`. Historical "Arc 234 Stone 234.1" prefix STAYS (history is honest — Stone 234.1 minted the variant; β.i renames it).
+8. **Lines 813, 1026-1027, 14460, 18216: doc-comment updates.** Variant references in comments — sonnet updates the `wat_record:` references to `wat__Record:`. Historical "Arc 234 Stone 234.1" prefix STAYS (history is honest — Stone 234.1 minted the variant; β.i renames it).
 
 **`src/edn_shim.rs` (2 sites):**
 
-9. **Line 1697: render arm pattern.** `Value::wat_record { ... }` → `Value::wat__record { ... }`.
+9. **Line 1697: render arm pattern.** `Value::wat_record { ... }` → `Value::wat__Record { ... }`.
 10. **Line 1694: render comment update.**
 
 **`src/closure_extract.rs` (2 sites):**
 
-11. **Lines 1718-1719: cascade arm + error message.** `Value::wat_record { .. }` → `Value::wat__record { .. }`; error string updates per honesty.
+11. **Lines 1718-1719: cascade arm + error message.** `Value::wat_record { .. }` → `Value::wat__Record { .. }`; error string updates per honesty.
 12. **Line 1716: cascade comment.**
 
 **`src/check.rs` (1 site — NEW):**
 
-13. **Register `:wat::record` as opaque primitive TypeDef.** Mirror existing primitive type registration pattern (e.g., how `:wat::core::String`, `:wat::holon::HolonAST`, `:wat::kernel::Sender` are registered as opaque types). Look at how those four are registered + apply the same shape for `:wat::record`.
+13. **Register `:wat::Record` as opaque primitive TypeDef.** Mirror existing primitive type registration pattern (e.g., how `:wat::core::String`, `:wat::holon::HolonAST`, `:wat::kernel::Sender` are registered as opaque types). Look at how those four are registered + apply the same shape for `:wat::Record`.
 
 **`tests/probe_arc234_stone1_wat_record_variant.rs` (~7 sites — helper + 7 test fns):**
 
-14. **`make_record` helper:** construct `Value::wat__record { ... }` (line ~78 — variant pattern updated).
-15. **Test bodies (probes 1, 2, 3, 4, 5, 6, 7):** match patterns `Value::wat__record { ... }`.
-16. **Doc-comment headers in probe file:** `wat_record variant` → `wat__record variant` (honesty in test docs).
+14. **`make_record` helper:** construct `Value::wat__Record { ... }` (line ~78 — variant pattern updated).
+15. **Test bodies (probes 1, 2, 3, 4, 5, 6, 7):** match patterns `Value::wat__Record { ... }`.
+16. **Doc-comment headers in probe file:** `wat_record variant` → `wat__Record variant` (honesty in test docs).
 
 ## What does NOT change
 
-- **No new substrate primitives** — `:wat::record::of`, `:wat::record::field-at`, `:wat::record::def`, `:wat::record::is?`, `:wat::record::to-map` are Stone 234.2a (β.iii)
+- **No new substrate primitives** — `:wat::Record::of`, `:wat::Record::field-at`, `:wat::Record::def`, `:wat::Record::is?`, `:wat::Record::to-map` are Stone 234.2a (β.iii)
 - **defrecord macro** — Stone 234.2b
-- **Per-class type registration** (`:myapp::Voltage` as `:wat::record` alias) — Stone 234.2b
+- **Per-class type registration** (`:myapp::Voltage` as `:wat::Record` alias) — Stone 234.2b
 - **Polymorphic verb extensions** — Stone 234.3
-- **`:wat::holon::to-holon` wat__record arm extension** — later stone
+- **`:wat::holon::to-holon` wat__Record arm extension** — later stone
 - **Stone 234.2a in-flight artifacts at `db39ebd` + `7113c51`** — β.ii orchestrator paperwork AFTER β.i ships
 - **HolonAST enum** — unchanged (holon-rs frozen since `530650c` per STOP-4)
 - **Arc 233 deliverables** — unchanged; regression guards stay GREEN
@@ -116,7 +116,7 @@ Stone 234.1.5 is the **stepping-stone foundation** that subsequent stones (234.2
 - Per-class type registrations — Stone 234.2b
 - Polymorphic verb extensions — Stone 234.3
 - Hash-destructure — Stone 234.4
-- `:wat::holon::to-holon` auto-dispatch on wat__records — Stone 234.5
+- `:wat::holon::to-holon` auto-dispatch on wat__Records — Stone 234.5
 - Migration sweep — Stone 234.6
 - Stone 234.2a in-flight artifacts revision (β.ii orchestrator paperwork)
 - holon-rs — STOP-4

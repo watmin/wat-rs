@@ -1,23 +1,23 @@
-//! Diagnostic probe — Stone 234.1.5 variant rename + `:wat::record` namespace promotion.
+//! Diagnostic probe — Stone 234.1.5 variant rename + `:wat::Record` namespace promotion.
 //!
 //! FM 2-bis empirical probe authored BEFORE the Stone 234.1.5 BRIEF. Verifies the
-//! corrective stone that renames `Value::wat_record` → `Value::wat__record` (per
+//! corrective stone that renames `Value::wat_record` → `Value::wat__Record` (per
 //! arc 109 `__` FQDN convention; matches `Value::wat__core__Uuid`/`wat__core__Char`/
 //! `wat__std__HashMap` family) and promotes the record concept-cluster to top-level
-//! `:wat::record::*` namespace (peer of `:wat::holon::*`/`:wat::kernel::*`/etc.).
+//! `:wat::Record::*` namespace (peer of `:wat::holon::*`/`:wat::kernel::*`/etc.).
 //!
 //! Stone 234.1.5 is the foundation that every subsequent arc 234 stone operates on.
 //! NO new primitives. NO new behavior. Pure rename + type registration.
 //!
 //! Probe contracts (5):
-//!   1. Variant compile-pass — `Value::wat__record { ... }` constructible via Rust helper
-//!   2. type_name() returns `"wat::record"` (was `"wat::core::wat_record"`)
+//!   1. Variant compile-pass — `Value::wat__Record { ... }` constructible via Rust helper
+//!   2. type_name() returns `"wat::Record"` (was `"wat::core::wat_record"`)
 //!   3. Eq + Hash consistency under rename — equal records hash equal
-//!   4. Type registration accepts `[v <- :wat::record]` — wat source type-checks
+//!   4. Type registration accepts `[v <- :wat::Record]` — wat source type-checks
 //!   5. class_fqdn extraction returns user-named class (eval_type integration preserved)
 //!
-//! Initial state: 5/5 FAIL with compile-error on `Value::wat__record` OR type-check error
-//! on `[v <- :wat::record]`.
+//! Initial state: 5/5 FAIL with compile-error on `Value::wat__Record` OR type-check error
+//! on `[v <- :wat::Record]`.
 //!
 //! Post-stone: 5/5 PASS.
 
@@ -47,7 +47,7 @@ fn make_holon_form(class: &str, fields: Vec<(&str, HolonAST)>) -> Arc<HolonAST> 
     ))
 }
 
-/// Construct a wat__record fixture for tests. (Post-Stone-234.1.5 variant name.)
+/// Construct a wat__Record fixture for tests. (Post-Stone-234.1.5 variant name.)
 fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
     let struct_form: Arc<Vec<Value>> =
         Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
@@ -57,7 +57,7 @@ fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
         .collect();
     let holon_form = make_holon_form(class, holon_field_pairs);
     let class_fqdn = Arc::new(class.to_string());
-    Value::wat__record {
+    Value::wat__Record {
         class_fqdn,
         struct_form,
         holon_form,
@@ -86,7 +86,7 @@ fn run_compute(src: &str) -> Result<Value, String> {
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
 //
-// Variant compile-pass — `Value::wat__record { class_fqdn, struct_form, holon_form }`
+// Variant compile-pass — `Value::wat__Record { class_fqdn, struct_form, holon_form }`
 // constructible (variant exists with renamed identifier).
 #[test]
 fn probe_1_variant_compiles_and_constructs() {
@@ -95,17 +95,17 @@ fn probe_1_variant_compiles_and_constructs() {
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
     match &r {
-        Value::wat__record { class_fqdn, struct_form, .. } => {
+        Value::wat__Record { class_fqdn, struct_form, .. } => {
             assert_eq!(class_fqdn.as_str(), "myapp::Voltage");
             assert_eq!(struct_form.len(), 1);
         }
-        _ => panic!("Probe 1: expected Value::wat__record variant"),
+        _ => panic!("Probe 1: expected Value::wat__Record variant"),
     }
 }
 
 // ─── Probe 2 ────────────────────────────────────────────────────────────────
 //
-// type_name() returns `"wat::record"` — verifies D2 + D5 in lockstep. The renamed
+// type_name() returns `"wat::Record"` — verifies D2 + D5 in lockstep. The renamed
 // variant's type_name must match the umbrella FQDN registered in check.rs.
 #[test]
 fn probe_2_type_name_returns_wat_record() {
@@ -115,14 +115,14 @@ fn probe_2_type_name_returns_wat_record() {
     );
     assert_eq!(
         r.type_name(),
-        "wat::record",
+        "wat::Record",
         "Probe 2: type_name() must return \"wat::record\" (NOT old \"wat::core::wat_record\")"
     );
 }
 
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
 //
-// Eq + Hash consistency under rename — two same-args wat__records are equal AND
+// Eq + Hash consistency under rename — two same-args wat__Records are equal AND
 // hash-equal (Stone 221.5 canonical-bytes invariants survive the rename).
 #[test]
 fn probe_3_eq_hash_consistency_under_rename() {
@@ -135,23 +135,23 @@ fn probe_3_eq_hash_consistency_under_rename() {
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
 
-    assert_eq!(a, b, "Probe 3: two same-args wat__records must compare equal");
+    assert_eq!(a, b, "Probe 3: two same-args wat__Records must compare equal");
     assert_eq!(
         hash_value(&a),
         hash_value(&b),
-        "Probe 3: equal wat__records must hash equal (Hash/Eq consistency invariant)"
+        "Probe 3: equal wat__Records must hash equal (Hash/Eq consistency invariant)"
     );
 }
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
 //
-// Type registration accepts `[v <- :wat::record]` — declaring this type
+// Type registration accepts `[v <- :wat::Record]` — declaring this type
 // annotation in a wat source must parse + type-check cleanly. Verifies the check.rs
 // TypeDef registration shipped in this stone.
 #[test]
 fn probe_4_namespace_type_registration() {
     let src = r#"
-(:wat::core::define (:user::accept-record [_v <- :wat::record] -> :wat::core::nil)
+(:wat::core::define (:user::accept-record [_v <- :wat::Record] -> :wat::core::nil)
   :wat::core::nil)
 
 (:wat::core::define (:user::compute -> :wat::core::nil)
@@ -160,7 +160,7 @@ fn probe_4_namespace_type_registration() {
     match run_compute(src) {
         Ok(_) => {} // PASS — startup_from_source accepted the type annotation
         Err(e) => panic!(
-            "Probe 4: :wat::record annotation must type-check cleanly; got: {}",
+            "Probe 4: :wat::Record annotation must type-check cleanly; got: {}",
             e
         ),
     }
@@ -169,7 +169,7 @@ fn probe_4_namespace_type_registration() {
 // ─── Probe 5 ────────────────────────────────────────────────────────────────
 //
 // class_fqdn extraction returns user-named class — Stone 234.0's eval_type arm
-// behavior preserved through the rename (D3). The umbrella type_name() = "wat::record"
+// behavior preserved through the rename (D3). The umbrella type_name() = "wat::Record"
 // is separate from the per-instance class_fqdn = "myapp::Voltage".
 #[test]
 fn probe_5_class_fqdn_extraction_post_rename() {
@@ -178,18 +178,18 @@ fn probe_5_class_fqdn_extraction_post_rename() {
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
 
-    // type_name() returns the umbrella ("wat::record")
-    assert_eq!(r.type_name(), "wat::record");
+    // type_name() returns the umbrella ("wat::Record")
+    assert_eq!(r.type_name(), "wat::Record");
 
     // class_fqdn field carries the user-named class ("myapp::Voltage")
     match &r {
-        Value::wat__record { class_fqdn, .. } => {
+        Value::wat__Record { class_fqdn, .. } => {
             assert_eq!(
                 class_fqdn.as_str(),
                 "myapp::Voltage",
                 "Probe 5: class_fqdn extraction returns user-named class, NOT umbrella"
             );
         }
-        _ => panic!("Probe 5: expected Value::wat__record variant"),
+        _ => panic!("Probe 5: expected Value::wat__Record variant"),
     }
 }

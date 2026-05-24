@@ -1,4 +1,4 @@
-# EXPECTATIONS — Arc 234 Stone 234.1.5 — variant rename + `:wat::record` namespace promotion
+# EXPECTATIONS — Arc 234 Stone 234.1.5 — variant rename + `:wat::Record` namespace promotion
 
 Mode A target: **13/13 PASS**. Every row binds to a specific verification command.
 
@@ -63,7 +63,7 @@ Capture in SCORE:
 - defrecord macro (Stone 234.2b)
 - Per-class type registration (Stone 234.2b)
 - Polymorphic verb extensions (Stone 234.3)
-- `:wat::holon::to-holon` wat__record arm (later stone)
+- `:wat::holon::to-holon` wat__Record arm (later stone)
 - Hash-destructure (Stone 234.4)
 - Migration sweep (Stone 234.6)
 - holon-rs touched (STOP-4)
@@ -99,10 +99,10 @@ SCORE expected to include:
 
 ## What this unblocks
 
-- **β.ii (orchestrator paperwork)** — revise the now-superseded Stone 234.2a artifacts at `db39ebd` + `7113c51` to use `:wat::record::*` shape (sub-DESIGN, BRIEF, EXPECTATIONS, probe; rewritten under new namespace + `to-map` family)
-- **β.iii (revised Stone 234.2a)** — mint `:wat::record::of` + `:wat::record::field-at` substrate primitives + TypeSchemes on settled foundation
-- **Stone 234.2b** — defrecord macro (`:wat::record::def`) consumes settled `:wat::record::*` primitives + emits per-class types under `:wat::record::*` umbrella
-- **Stone 234.3** — polymorphic record-y verbs at `:wat::record::*` operate on settled wat__record variant
+- **β.ii (orchestrator paperwork)** — revise the now-superseded Stone 234.2a artifacts at `db39ebd` + `7113c51` to use `:wat::Record::*` shape (sub-DESIGN, BRIEF, EXPECTATIONS, probe; rewritten under new namespace + `to-map` family)
+- **β.iii (revised Stone 234.2a)** — mint `:wat::Record::of` + `:wat::Record::field-at` substrate primitives + TypeSchemes on settled foundation
+- **Stone 234.2b** — defrecord macro (`:wat::Record::def`) consumes settled `:wat::Record::*` primitives + emits per-class types under `:wat::Record::*` umbrella
+- **Stone 234.3** — polymorphic record-y verbs at `:wat::Record::*` operate on settled wat__Record variant
 - **Stones 234.4-6** — all operate on the settled foundation Stone 234.1.5 lands
 
 Six future stones inherit clean settled substrate. The interstitial ceremony cost (~15-30 min for β.i) is recouped multiple times over.

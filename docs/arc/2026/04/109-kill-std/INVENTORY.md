@@ -1674,20 +1674,33 @@ When a type LIVES IN `:wat::core::*` but is **composed FROM** core tooling rathe
 
 The pattern (per arc 234 Stone 234.1.5's precedent): foundational primitives stay in core; composed mechanisms get their own namespace.
 
-### Named candidate: `:wat::core::Uuid` → `:wat::Uuid`
+### Named candidate: `:wat::core::Uuid` → `:wat::Uuid::*` (Pascal-Case namespace)
 
-`:wat::core::Uuid` (minted arc 207 Stones 207.1 + 207.2) is composed of core tooling:
-- 128-bit value backed by `uuid::Uuid` (Rust crate); presented as bytes / hex string
-- Constructor verbs: `:wat::core::Uuid/from-string`, `:wat::core::Uuid/v4`, `:wat::core::Uuid/v5`, `:wat::core::Uuid/to-string`, `:wat::core::Uuid/nil`
-- Bridges to core String + Bytes; isn't a foundational data type
+**Promotion shape resolved 2026-05-24 late** through four intueri casts + user-articulated `::`/`/` semantic split doctrine (§ R below). The Uuid promotion lands at:
 
-User direction 2026-05-24 late: *"add a note to 109's backlog to move `:wat::core::Uuid` => `:wat::Uuid` — its composed of the core tooling."*
+```
+:wat::Uuid                  — the umbrella type (annotation: [v <- :wat::Uuid])
+:wat::Uuid::from-string     — constructor (namespace-tier; parses string into new Uuid)
+:wat::Uuid::v4              — constructor (namespace-tier; generates v4 Uuid)
+:wat::Uuid::v5              — constructor (namespace-tier; generates v5 Uuid)
+:wat::Uuid::nil             — constructor (namespace-tier; nil Uuid)
+:wat::Uuid/to-string        — instance method (operates on existing Uuid)
+```
 
-Promotion target options (UX-level; defer to future arc):
-- **(a) `:wat::Uuid`** (single Pascal-Case type leaf directly under `:wat::`; verbs `:wat::Uuid/from-string` via `/` separator — Vector/HashMap-precedent for type-bound verbs) — user's literal phrasing
-- **(b) `:wat::uuid::Uuid`** (cluster namespace + Pascal-Case type; verbs `:wat::uuid::from-string` at namespace level — `:wat::config::*` / `:wat::test::*` precedent)
+Pascal-Case `Uuid` in namespace position signals "the namespace IS the umbrella type." Constructors use `::` (namespace-tier verbs that create new instances; no instance exists yet). Instance methods use `/` (operate on existing Uuid). Both follow the § R doctrine.
 
-Option (a) is novel (no precedent for single-type top-level FQDN; types currently live INSIDE namespaces). Option (b) matches existing cluster pattern but is verbose for a single-type concept. Future arc resolves via four-questions + intueri cast.
+**User direction 2026-05-24 late** (origin): *"add a note to 109's backlog to move `:wat::core::Uuid` => `:wat::Uuid` — its composed of the core tooling."*
+
+**User refinement 2026-05-24 late** (post intueri Cast 4 + doctrine articulation): *"i think this make the case for :wat::Uuid too"* — applying Pascal-Case namespace + `::`/`/` doctrine uniformly across promoted types.
+
+**Pre-doctrine artifacts to retire** (`/` constructors that should become `::` per § R):
+- `:wat::core::Uuid/from-string` → `:wat::Uuid::from-string`
+- `:wat::core::Uuid/v4` → `:wat::Uuid::v4`
+- `:wat::core::Uuid/v5` → `:wat::Uuid::v5`
+- `:wat::core::Uuid/nil` → `:wat::Uuid::nil`
+
+**Stays `/`** (genuine instance methods):
+- `:wat::core::Uuid/to-string` → `:wat::Uuid/to-string`
 
 ### Other candidates (probable; audit case-by-case)
 
@@ -1720,7 +1733,91 @@ NOT URGENT — none of these promotions BLOCK active work. They land as opportun
 
 ### Cross-references
 
-- arc 234 Stone 234.1.5 — pattern-establishing precedent (`:wat::core::wat-record` → `:wat::record::*`)
+- arc 234 Stone 234.1.5 — pattern-establishing precedent (`:wat::core::wat-record` → `:wat::Record::*` Pascal-Case namespace)
 - arc 207 Stones 207.1 + 207.2 — `:wat::core::Uuid` original minting
 - arc 234 DESIGN.md — top-level namespace promotion contemplation + the composed-from principle articulation
+- § R below — the `::` vs `/` semantic split doctrine (constructors use `::`, instance methods use `/`)
 - `feedback_fqdn_is_the_namespace` — the foundational doctrine the Q-promotion principle extends
+
+## R. The `::` vs `/` semantic split — namespace-tier verbs vs instance-tier methods
+
+**Surfaced 2026-05-24 late** (during arc 234 Stone 234.1.5 contemplation; user articulated the doctrine that four intueri casts circled but didn't name).
+
+### The doctrine
+
+The separator carries semantic weight, not just lexical position:
+
+| Separator | Semantic | Examples |
+|---|---|---|
+| **`::`** | **namespace/type-level verb** — operates at the type tier (creates instance, defines new type, tests any value) | `Record::def`, `Record::of`, `Record::is?`, `Uuid::from-string`, `Uuid::v4`, `Option::Some`, `Char::of` |
+| **`/`** | **instance method** — operates on an existing instance you already have | `Record/field-at`, `Vector/get`, `HashMap/assoc`, `Uuid/to-string`, `Option/expect` |
+
+### Why this matters
+
+The user's articulation 2026-05-24 late:
+
+> "`/def` reads 'call def on a Record' — but there's no Record instance to call it on. `::def` reads 'define a new Record.' The slash methods are for working with an instance; the `::` functions are for doing work with the namespace."
+
+Read literally: `Vector/get vec 0` = "call get on this Vector instance." `Record::def :myapp::Voltage` = "in the Record namespace, define a new record type." The semantic distinction was LATENT in existing patterns but not consistently applied.
+
+### Existing codebase inconsistency (the cleanup scope)
+
+The doctrine EXPOSES inconsistency in shipped substrate where constructors were registered under `/` but should be `::` per the rule. Audit results — current shape → should-be shape:
+
+**Constructors that should migrate from `/` to `::`:**
+
+| Current | Should be | Why |
+|---|---|---|
+| `:wat::core::Option/Some` | `:wat::core::Option::Some` | `Some` constructs an Option (no instance exists yet) |
+| `:wat::core::Option/None` (Variant) | `:wat::core::Option::None` | Same — constructor |
+| `:wat::core::Result/Ok` | `:wat::core::Result::Ok` | Constructor |
+| `:wat::core::Result/Err` | `:wat::core::Result::Err` | Constructor |
+| `:wat::core::Uuid/from-string` | `:wat::core::Uuid::from-string` (or `:wat::Uuid::from-string` post § Q) | Constructor (parses string → new Uuid) |
+| `:wat::core::Uuid/v4` | `:wat::core::Uuid::v4` (or `:wat::Uuid::v4`) | Constructor (generates) |
+| `:wat::core::Uuid/v5` | `:wat::core::Uuid::v5` (or `:wat::Uuid::v5`) | Constructor |
+| `:wat::core::Uuid/nil` | `:wat::core::Uuid::nil` (or `:wat::Uuid::nil`) | Constructor (creates nil Uuid) |
+| `:wat::core::Char/of` | `:wat::core::Char::of` | Constructor |
+| `:wat::core::HashMap/empty` (if exists) | `:wat::core::HashMap::empty` | Constructor (creates empty HashMap) |
+| `:wat::core::HashSet/empty` (if exists) | `:wat::core::HashSet::empty` | Constructor |
+| `:wat::core::Vector/empty` (if exists) | `:wat::core::Vector::empty` | Constructor |
+
+**Stays `/`** (genuine instance methods — operate on existing instance):
+
+| FQDN | Why |
+|---|---|
+| `:wat::core::Vector/get` | reads element from existing Vector |
+| `:wat::core::Vector/length` | reports length of existing Vector |
+| `:wat::core::Vector/conj` | returns new Vector with element appended (operates on existing) |
+| `:wat::core::Vector/contains?` | predicate on existing Vector |
+| `:wat::core::HashMap/get` | reads value at key from existing HashMap |
+| `:wat::core::HashMap/assoc` | returns new HashMap with k/v inserted (immutable update; operates on existing) |
+| `:wat::core::HashMap/keys` / `/values` / `/length` / `/empty?` | operate on existing HashMap |
+| `:wat::core::HashSet/conj` / `/contains?` / `/length` / `/empty?` | operate on existing HashSet |
+| `:wat::core::Option/expect` | unwraps existing Option (panics if None) |
+| `:wat::core::Option/try` | unwraps existing Option (returns from fn if None) |
+| `:wat::core::Result/expect` / `/try` | unwrap existing Result |
+| `:wat::core::Uuid/to-string` | formats existing Uuid |
+| `:wat::core::keyword/from-string` | constructor — should migrate to `::from-string`; pre-doctrine artifact |
+| `:wat::core::keyword/to-string` | takes a keyword (instance) → String; could go either way (parameter-name suggests instance) — audit case-by-case |
+
+The audit is NOT exhaustive — sonnet/future-arc sweep will enumerate every `/` registration in check.rs + classify. Pre-doctrine `/` constructors are technical debt; sweep when convenient.
+
+### Future cleanup arc
+
+This is NOT BLOCKING. Existing `/` constructors continue to function; the doctrine becomes load-bearing for NEW substrate naming forward. When a future arc touches Option / Result / Uuid / Char / etc. for ANY reason, the cleanup lands adjacent. Or a deliberate § R-cleanup arc sweeps everything when foundation needs it impeccable.
+
+The pattern: arc 234 Stone 234.1.5 is the FIRST application of the doctrine cleanly to a NEW entity (Record). Arc 234.2a applies it to Record's primitives. Subsequent arcs that touch existing types inherit the doctrine.
+
+### Status
+
+**Filed 2026-05-24 late as future cleanup arc + ongoing doctrine for new substrate.** Predecessor: arc 234 Stone 234.1.5 (the FIRST clean application). All future substrate naming follows R; existing inconsistency sweeps when adjacent arcs touch.
+
+NOT URGENT — existing `/` constructors function correctly; this is naming honesty cleanup. Lands opportunistically OR as deliberate § R-cleanup arc.
+
+### Cross-references
+
+- arc 234 Stone 234.1.5 DESIGN.md (D11 — the doctrine inscribed) — pattern-establishing precedent
+- arc 234 Stone 234.2a (β.iii — pending) — first application: `:wat::Record::of` (constructor `::`) + `:wat::Record/field-at` (instance method `/`)
+- § Q above — composed-from-core promotion (cross-composes with § R: promoted types follow § R uniformly)
+- `feedback_refuse_easy_solutions` — accepting pre-doctrine inconsistency would violate this; cleanup is the L4 honest answer
+- `feedback_no_known_defect_left_unfixed` — § R cleanup is filed + named; not deferred indefinitely
