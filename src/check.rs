@@ -17340,6 +17340,23 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 234 Stone 234.3b — write verb: :wat::Record/assoc.
+    //
+    // :wat::Record/assoc :: ∀T. :wat::Record × :wat::core::keyword × :T -> :wat::Record
+    // Returns a new record with the named field replaced by the new value.
+    // Polymorphic-T over the value position; fixed 3-arity; returns :wat::Record.
+    // Runtime enforces: field must exist (UnknownField); new value variant matches old
+    // (TypeMismatch). Check-time narrowing is deferred to arc 232.1 future lift.
+    env.register(
+        ":wat::Record/assoc".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![record_ty(), TypeExpr::Path(":wat::core::keyword".into()), t_var()],
+            ret: record_ty(),
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]

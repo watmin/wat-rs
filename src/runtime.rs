@@ -4873,6 +4873,10 @@ fn dispatch_keyword_head_value(
         // record->map :: :wat::Record -> HashMap<keyword, T> — extract field-name/value map
         ":wat::core::record?" => eval_record_q(args, list_span, env, sym),
         ":wat::core::record->map" => eval_record_to_map(args, list_span, env, sym),
+        // Arc 234 Stone 234.3b — write verb in the polymorphic record-y family.
+        // assoc :: :wat::Record × :wat::core::keyword × :T -> :wat::Record
+        // Returns a new record with one field replaced; original is unchanged (immutable).
+        ":wat::Record/assoc" => eval_record_assoc(args, list_span, env, sym),
         // Language forms
         // Arc 157 slice 1a-ii — config setters. These are top-level forms
         // that update the SymbolTable carrier flags at freeze time (via
@@ -14778,6 +14782,203 @@ fn eval_record_to_map(
             span: list_span.clone(),
         }),
     }
+}
+
+/// `(:wat::Record/assoc record key new-value)` — arc 234 Stone 234.3b.
+///
+/// Write verb in the polymorphic record-y family. Returns a NEW `Value::wat__Record`
+/// with the field named by `key` replaced by `new-value`. The original record is
+/// unchanged (immutable; Arc-functional).
+///
+/// Errors:
+/// - `ArityMismatch` — not exactly 3 args
+/// - `TypeMismatch`  — first arg is not a record, or second arg is not a keyword
+/// - `UnknownField`  — key does not match any field name in the record
+/// - `TypeMismatch`  — new value's type variant differs from the original field's type variant
+///
+/// HolonAST rebuild: clone the outer Bind + its Bundle, replace child at the matching
+/// index with `Bind(Atom(String(name)), coerce_to_holon_ast(new_val))`.
+fn eval_record_assoc(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::Record/assoc";
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let record_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let key_val    = eval_inner(&args[1], env, sym)?.value_owned();
+    let new_val    = eval_inner(&args[2], env, sym)?.value_owned();
+
+    // Extract record fields.
+    let (class_fqdn, struct_form, holon_form) = match record_val {
+        Value::wat__Record { class_fqdn, struct_form, holon_form } => {
+            (class_fqdn, struct_form, holon_form)
+        }
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::Record instance",
+                got: ValueSnapshot::of(&other),
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    // Extract the bare field name from the keyword (strip leading colon per D5 / T2).
+    let key_name = match key_val {
+        Value::wat__core__keyword(k) => {
+            let s = k.as_ref().as_str();
+            s.strip_prefix(':').unwrap_or(s).to_string()
+        }
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::keyword field name",
+                got: ValueSnapshot::of(&other),
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    // Walk holon_form to find the matching field-name and its index.
+    // Structure: Bind(Atom(String(class)), Bundle([Bind(Atom(String(name)), Atom(val)), ...]))
+    let field_binds = match holon_form.as_ref() {
+        HolonAST::Bind(_, right) => match right.as_ref() {
+            HolonAST::Bundle(children) => children.clone(),
+            _ => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "holon_form outer Bind right to be Bundle(field-binds)",
+                    got: ValueSnapshot::unavailable("non-Bundle holon_form inner"),
+                    span: list_span.clone(),
+                });
+            }
+        },
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "holon_form to be Bind(class, Bundle)",
+                got: ValueSnapshot::unavailable("non-Bind holon_form"),
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    // Find matching field index and collect available names for error reporting.
+    let mut found_index: Option<usize> = None;
+    let mut available: Vec<String> = Vec::with_capacity(field_binds.len());
+    for (i, field_bind) in field_binds.iter().enumerate() {
+        let field_name = match field_bind {
+            HolonAST::Bind(left, _) => match left.as_ref() {
+                HolonAST::Atom(inner) => match inner.as_ref() {
+                    HolonAST::String(s) => s.to_string(),
+                    _ => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "field-Bind left Atom to contain String(field-name)",
+                            got: ValueSnapshot::unavailable("non-String Atom inner"),
+                            span: list_span.clone(),
+                        });
+                    }
+                },
+                _ => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: OP.into(),
+                        expected: "field-Bind left to be Atom(String(field-name))",
+                        got: ValueSnapshot::unavailable("non-Atom field-Bind left"),
+                        span: list_span.clone(),
+                    });
+                }
+            },
+            _ => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "holon_form Bundle child to be Bind(Atom(name), Atom(val))",
+                    got: ValueSnapshot::unavailable("non-Bind field entry"),
+                    span: list_span.clone(),
+                });
+            }
+        };
+        available.push(field_name.clone());
+        if field_name == key_name {
+            found_index = Some(i);
+        }
+    }
+
+    let field_index = match found_index {
+        Some(i) => i,
+        None => {
+            return Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "unknown field '{}' on record {}; available fields: [{}]",
+                    key_name,
+                    class_fqdn.as_ref(),
+                    available.join(", ")
+                ),
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    // Type check: new value variant must match original field's variant (D4 / T3).
+    let old_type = struct_form[field_index].type_name();
+    let new_type = new_val.type_name();
+    if old_type != new_type {
+        return Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: old_type,
+            got: ValueSnapshot::of(&new_val),
+            span: list_span.clone(),
+        });
+    }
+
+    // Rebuild struct_form: clone Vec, replace at field_index (D5).
+    let mut new_struct: Vec<Value> = (*struct_form).clone();
+    new_struct[field_index] = new_val.clone();
+    let new_struct_form = Arc::new(new_struct);
+
+    // Rebuild holon_form: new Bundle with child at field_index replaced (T4 / T5 / T6).
+    // New child: Bind(Atom(String(field-name)), Atom(to-holon(new_val)))
+    // Mirrors Record.wat macro construction: right = (:wat::holon::Atom (:wat::holon::to-holon var)).
+    // to_holon_inner converts the value to HolonAST; wrap in Atom to mirror original.
+    let new_val_holon = match to_holon_inner(new_val, &list_span)? {
+        Value::holon__HolonAST(h) => (*h).clone(),
+        _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+    };
+    let field_name_holon = HolonAST::Atom(Arc::new(HolonAST::String(Arc::from(
+        available[field_index].as_str(),
+    ))));
+    let new_field_bind = HolonAST::Bind(
+        Arc::new(field_name_holon),
+        Arc::new(HolonAST::Atom(Arc::new(new_val_holon))),
+    );
+
+    // Build the new Bundle with the replaced child.
+    let mut new_children: Vec<HolonAST> = (*field_binds).clone();
+    new_children[field_index] = new_field_bind;
+    let new_bundle = HolonAST::Bundle(Arc::new(new_children));
+
+    // Rebuild outer Bind: same class atom, new Bundle as right (T6).
+    let class_atom = match holon_form.as_ref() {
+        HolonAST::Bind(left, _) => left.clone(),
+        _ => unreachable!("guarded above"),
+    };
+    let new_holon_form = Arc::new(HolonAST::Bind(class_atom, Arc::new(new_bundle)));
+
+    Ok(Value::wat__Record {
+        class_fqdn,
+        struct_form: new_struct_form,
+        holon_form: new_holon_form,
+    })
 }
 
 /// Arc 228 Stone 228.1 — extract the classifier name from a classifier-wrapped HolonAST.
