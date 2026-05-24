@@ -7,7 +7,7 @@ Mode A target: **12/12 PASS**. Every row binds to a specific verification comman
 | # | Row | Binding verification | Expected |
 |---|---|---|---|
 | 1 | Compile clean | `cargo build --release -p wat 2>&1 \| tail -5` | 0 errors |
-| 2 | **New probe FLIPS 7/7 FAIL → 7/7 PASS** (LOAD-BEARING) | `cargo test --release --test probe_arc234_stone2a_wat_record_primitives 2>&1 \| tail -5` | `test result: ok. 7 passed; 0 failed` |
+| 2 | **New probe FLIPS 6/6 FAIL → 6/6 PASS** (LOAD-BEARING) | `cargo test --release --test probe_arc234_stone2a_record_primitives 2>&1 \| tail -5` | `test result: ok. 6 passed; 0 failed` |
 | 3 | Stone 234.1 variant regression guard | `cargo test --release --test probe_arc234_stone1_wat_record_variant 2>&1 \| tail -5` | `7 passed; 0 failed` |
 | 4 | Stone 234.0 polymorphic type regression guard | `cargo test --release --test probe_diagnostic_polymorphic_type 2>&1 \| tail -5` | `8 passed; 0 failed` |
 | 5 | Lib tests baseline | `cargo test --release --lib -p wat --no-fail-fast 2>&1 \| tail -3` | ≥ 827 passed; 0 failed |
@@ -80,7 +80,7 @@ Capture in SCORE:
 - STOP-4: holon-rs touched
 - STOP-5: clippy warnings above 54
 - STOP-6: scope creep — defrecord macro, per-class types, user-facing constructors, predicates, named accessors
-- STOP-7: new probe doesn't flip 7/7 PASS
+- STOP-7: new probe doesn't flip 6/6 PASS
 - STOP-8: Stone 234.1 wat_record variant probe regresses
 - STOP-9: Stone 234.0 polymorphic type probe regresses
 - STOP-10: Stone 232.0a regression guard regresses
@@ -121,6 +121,6 @@ The party-comp's complementarity (Inquisitor mark + Shadowdancer strike) has shi
 - `docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.1.md` — variant-minting predecessor SCORE
 - `docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.0.md` — type-primitive predecessor SCORE
 - `docs/arc/2026/05/232-defprotocol-extend-type/SCORE-STONE-232.0.md` — apply primitive precedent
-- `tests/probe_arc234_stone2a_wat_record_primitives.rs` — FM 2-bis probe (7 contracts; 7/7 FAIL verified at `db39ebd`)
+- `tests/probe_arc234_stone2a_record_primitives.rs` — FM 2-bis probe (6 contracts; Probe 6 retired post user catch; 6/6 FAIL verified)
 - `feedback_partial_state_grading.md` — discipline if STOP-3 fires
 - `feedback_sonnet_writes_substrate.md` — orchestrator briefs + scores; sonnet writes substrate

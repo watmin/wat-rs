@@ -69,7 +69,7 @@ fn probe_1_construction_returns_wat_record() {
     let src = r#"
 (:wat::core::define (:user::compute -> :wat::Record)
   (:wat::Record::of
-    "myapp::Voltage"
+    :myapp::Voltage
     [5.0]
     (:wat::holon::Bind
       (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
@@ -107,7 +107,7 @@ fn probe_2_type_returns_class_fqdn() {
 (:wat::core::define (:user::compute -> :wat::core::String)
   (:wat::core::let
     [v (:wat::Record::of
-         "myapp::Voltage"
+         :myapp::Voltage
          [5.0]
          (:wat::holon::Bind
            (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
@@ -141,7 +141,7 @@ fn probe_3_struct_form_field_at_zero() {
     let src = r#"
 (:wat::core::define (:user::compute -> :wat::Record)
   (:wat::Record::of
-    "myapp::Voltage"
+    :myapp::Voltage
     [42.0]
     (:wat::holon::Bind
       (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
@@ -180,7 +180,7 @@ fn probe_4_multi_field_construction() {
     let src = r#"
 (:wat::core::define (:user::compute -> :wat::Record)
   (:wat::Record::of
-    "myapp::Point"
+    :myapp::Point
     [3 4]
     (:wat::holon::Bind
       (:wat::holon::Atom (:wat::holon::to-holon "myapp::Point"))
@@ -225,7 +225,7 @@ fn probe_5_field_at_positional_access() {
 (:wat::core::define (:user::compute -> :wat::core::i64)
   (:wat::core::let
     [v (:wat::Record::of
-         "myapp::Point"
+         :myapp::Point
          [3 4]
          (:wat::holon::Bind
            (:wat::holon::Atom (:wat::holon::to-holon "myapp::Point"))
@@ -252,47 +252,14 @@ fn probe_5_field_at_positional_access() {
     }
 }
 
-// ─── Probe 6 ────────────────────────────────────────────────────────────────
+// ─── Probe 6 RETIRED ────────────────────────────────────────────────────────
 //
-// Leading-colon stripping on class_fqdn input — pass `:myapp::Voltage` with
-// leading colon; expect the constructed record's class_fqdn to be
-// `myapp::Voltage` (without colon) per arc 234 doctrine.
-#[test]
-fn probe_6_leading_colon_stripped() {
-    let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::let
-    [v (:wat::Record::of
-         ":myapp::Voltage"
-         [5.0]
-         (:wat::holon::Bind
-           (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
-           (:wat::core::Result/expect -> :wat::holon::HolonAST
-             (:wat::holon::Bundle
-               [(:wat::holon::Bind
-                  (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
-                  (:wat::holon::Atom (:wat::holon::to-holon 5.0)))])
-             "Bundle failed in Probe 6")))]
-    (:wat::core::type v)))
-"#;
-    match run_compute(src) {
-        Ok(v) => match v {
-            Value::String(s) => {
-                assert_eq!(
-                    s.as_str(),
-                    "myapp::Voltage",
-                    "Probe 6: leading ':' should be stripped from class_fqdn input"
-                );
-                assert!(
-                    !s.starts_with(':'),
-                    "Probe 6: returned class_fqdn must not have leading colon"
-                );
-            }
-            other => panic!("Probe 6: expected Value::String; got {:?}", other),
-        },
-        Err(e) => panic!("Probe 6 FAILED: {}", e),
-    }
-}
+// Previously: "leading-colon stripping on class_fqdn input." Under the
+// post-doctrine `class: :wat::core::keyword` signature (D1; user catch
+// 2026-05-24 late), there's no leading colon to strip — keywords don't
+// carry colons in their stored value. The leading-colon-strip concern
+// (D5) was a String-input pre-doctrine artifact; both the test and the
+// strip logic retired together.
 
 // ─── Probe 7 ────────────────────────────────────────────────────────────────
 //
@@ -305,7 +272,7 @@ fn probe_7_equality_via_holon_form() {
     let src = r#"
 (:wat::core::define (:user::compute -> :wat::Record)
   (:wat::Record::of
-    "myapp::Voltage"
+    :myapp::Voltage
     [5.0]
     (:wat::holon::Bind
       (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))

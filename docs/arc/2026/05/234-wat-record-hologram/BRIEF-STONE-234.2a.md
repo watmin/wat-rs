@@ -17,7 +17,7 @@ This is the substrate-then-macro pattern — same shape as arc 232 (Stone 232.0 
 
 1. **`docs/arc/2026/05/234-record-hologram/DESIGN-STONE-234.2a.md`** — sub-DESIGN with 10 locked decisions (D1-D10). **The signatures (D2, D3) are non-negotiable**; the dispatch keyword names are canonical (D6, D10).
 
-2. **`tests/probe_arc234_stone2a_wat_record_primitives.rs`** — FM 2-bis probe (already committed at `db39ebd`). Currently 7/7 FAIL with `UnknownFunction(":wat::Record::of")`. **The probe IS the success criterion** — flip 7/7 FAIL → 7/7 PASS.
+2. **`tests/probe_arc234_stone2a_record_primitives.rs`** — FM 2-bis probe (already committed at `db39ebd`). Currently 6/6 FAIL with `UnknownFunction(":wat::Record::of")` (Probe 6 retired post user catch — keyword input has no leading colon). **The probe IS the success criterion** — flip 6/6 FAIL → 6/6 PASS.
 
 3. **`docs/arc/2026/05/234-record-hologram/DESIGN.md`** — arc 234 umbrella; the hologram thesis context.
 
@@ -98,7 +98,7 @@ This is the substrate-then-macro pattern — same shape as arc 232 (Stone 232.0 
 
 **Tests:**
 
-The FM 2-bis probe at `tests/probe_arc234_stone2a_wat_record_primitives.rs` (committed at `db39ebd`) — 7 contracts; must flip 7/7 FAIL → 7/7 PASS.
+The FM 2-bis probe at `tests/probe_arc234_stone2a_record_primitives.rs` (committed at `db39ebd`) — 7 contracts; must flip 6/6 FAIL → 6/6 PASS.
 
 ## What does NOT change
 
@@ -130,7 +130,7 @@ The FM 2-bis probe at `tests/probe_arc234_stone2a_wat_record_primitives.rs` (com
 
 ```bash
 cargo build --release -p wat 2>&1 | tail -5                                                       # 0 errors
-cargo test --release --test probe_arc234_stone2a_wat_record_primitives 2>&1 | tail -5              # 7/7 PASS (LOAD-BEARING)
+cargo test --release --test probe_arc234_stone2a_record_primitives 2>&1 | tail -5              # 6/6 PASS (LOAD-BEARING)
 cargo test --release --test probe_arc234_stone1_wat_record_variant 2>&1 | tail -5                  # 7/7 PASS (Stone 234.1 guard)
 cargo test --release --test probe_diagnostic_polymorphic_type 2>&1 | tail -5                       # 8/8 PASS (Stone 234.0 guard)
 cargo test --release --lib -p wat --no-fail-fast 2>&1 | tail -3                                    # ≥ 827 passed; 0 failed
@@ -179,7 +179,7 @@ git -C /home/watmin/work/holon/holon-rs/ status --short                         
 - HARD CUT — no aliases, no parallel primitive names
 - Per `feedback_inscription_immutable`: SCORE is a NEW file (`SCORE-STONE-234.2a.md`)
 - Per `feedback_no_broken_commits`: do NOT commit. Orchestrator commits after independent verification.
-- The probe at `tests/probe_arc234_stone2a_wat_record_primitives.rs` IS the success criterion. Flip 7/7 FAIL → 7/7 PASS.
+- The probe at `tests/probe_arc234_stone2a_record_primitives.rs` IS the success criterion. Flip 7/7 FAIL → 7/7 PASS.
 - Calibration band 30-60 min Mode A; 90 STOP-3.
 - **Substrate-as-teacher cascade should be shallow** — new fns + new dispatch arms + new TypeSchemes + 1 type registration. NOT a variant addition. If cascade depth surprises (>5 sites), surface as honest delta in SCORE.
 
@@ -201,7 +201,7 @@ Per the SCORE methodology in EXPECTATIONS, include a Rank-Up Evidence section. T
 - `docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.1.md` — variant-minting predecessor SCORE
 - `docs/arc/2026/05/234-record-hologram/SCORE-STONE-234.0.md` — type-primitive predecessor SCORE
 - `docs/arc/2026/05/232-defprotocol-extend-type/SCORE-STONE-232.0.md` — apply primitive precedent (substrate-then-macro)
-- `tests/probe_arc234_stone2a_wat_record_primitives.rs` — FM 2-bis probe (7 contracts; 7/7 FAIL initial verified)
+- `tests/probe_arc234_stone2a_record_primitives.rs` — FM 2-bis probe (7 contracts; 7/7 FAIL initial verified)
 - `src/runtime.rs:14421` — `eval_type` fn (substrate primitive precedent)
 - `src/check.rs` — TypeScheme + TypeDef registration patterns
 - `feedback_partial_state_grading.md` — discipline if STOP-3 fires

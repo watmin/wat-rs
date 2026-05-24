@@ -39,20 +39,24 @@ This is the FIRST clean application of § R doctrine to new substrate. Stone 234
 ### D1 — `:wat::Record::of` signature (constructor; namespace-tier `::`)
 
 ```
-(:wat::Record::of <class-fqdn: String> <struct-form: Vector<T>> <holon-form: HolonAST>)
+(:wat::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>> <holon-form: HolonAST>)
   -> :wat::Record
 ```
 
 Takes three args:
-- `class_fqdn`: String FQDN (e.g., `"myapp::Voltage"`); strip leading colon if present
+- `class`: FQDN keyword (e.g., `:myapp::Voltage`); the wat-native type for FQDN identifiers per typed-entities doctrine + arc 224 substrate-naming-honesty work
 - `struct_form`: `Vector<T>` of field values in declaration order
 - `holon_form`: pre-built HolonAST classifier-wrap shape (`Bind(Atom(class), Bundle(field-Binds))`)
 
-Returns `Value::wat__Record { class_fqdn: Arc::new(class_fqdn_clean), struct_form: arc_vec, holon_form: arc_h }`.
+Returns `Value::wat__Record { class_fqdn: Arc::new(class_value), struct_form: arc_vec, holon_form: arc_h }` where `class_value` is the keyword's stored String value (no leading `:`; keywords don't carry the colon in their value).
 
-Macro (Stone 234.2b) will construct holon_form using existing `:wat::holon::Bind` + `Atom` + `Bundle` primitives; struct_form via wat Vector literal `[field0 field1 ...]`; then pass to `:wat::Record::of`.
+User-surface reads naturally: `(:wat::Record::of :myapp::Voltage [5.0] holon-form)` — "construct a Record OF class :myapp::Voltage."
+
+Macro (Stone 234.2b) will construct holon_form using existing `:wat::holon::Bind` + `Atom` + `Bundle` primitives; struct_form via wat Vector literal `[field0 field1 ...]`; then pass to `:wat::Record::of` with the user's class keyword.
 
 **Why `::`** per arc 109 § R: `of` is a constructor. No `Value::wat__Record` instance exists at call time; the verb CREATES one. Namespace-tier `::` per the doctrine.
+
+**Why keyword (not String)** per typed-entities doctrine + arc 224: classes are named by FQDN keywords. `:myapp::Voltage` IS a keyword. String would be a substrate concession to Rust storage; the wat-surface should be keyword-typed. The substrate-internal `class_fqdn: Arc<String>` storage on the variant is an implementation detail; the eval fn does the keyword→String extraction internally.
 
 ### D2 — `:wat::Record/field-at` signature (instance method; instance-tier `/`)
 
@@ -78,7 +82,7 @@ Generic return type: `:T` (the type-checker can't know the field type without ma
 TypeScheme {
     type_params: vec!["T".into()],
     params: vec![
-        TypeExpr::Path(":wat::core::String".into()),
+        TypeExpr::Path(":wat::core::keyword".into()),
         TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t_var()] },
         TypeExpr::Path(":wat::holon::HolonAST".into()),
     ],
@@ -104,13 +108,11 @@ TypeScheme {
 
 Stone 234.1.5 (commit `8d6cb9d`) registered `:wat::Record` as opaque primitive TypeDef in `src/types.rs::register_builtin_types`. This stone consumes the existing registration. STOP-6 fires if sonnet attempts to re-register.
 
-### D5 — Strip leading colon on class_fqdn input (defensive)
+### D5 — Keyword input — no leading-colon stripping needed
 
-Users (and the macro) may pass `class_fqdn` as either `"myapp::Voltage"` or `":myapp::Voltage"`. The primitive strips leading `:` if present (per `:wat::core::type`'s convention; arc 234 doctrine for FQDN-without-leading-colon).
+Per D1 the first arg is a keyword, not a String. Keywords don't carry leading `:` in their stored value — `:myapp::Voltage` parses to `Value::wat__core__keyword(Arc::new("myapp::Voltage"))`. The eval fn extracts the keyword's stored String directly + uses it for variant construction. No defensive strip required.
 
-```rust
-let class_fqdn_clean = class_fqdn_input.trim_start_matches(':').to_string();
-```
+(Was: leading-colon strip on String input. Retired when D1 changed to keyword type per user catch 2026-05-24 late — String was a pre-doctrine lie; keyword is the honest type for FQDN identifiers.)
 
 ### D6 — Out-of-scope: macro itself
 
@@ -141,14 +143,14 @@ This stone ships construction + access only. A predicate (`is?` to check "is thi
 **`src/runtime.rs`:**
 
 1. **New `fn eval_record_of`** (~30-40 lines) — accepts 3 args; arity check; evaluates args; extracts:
-   - `class_fqdn: String` from `Value::String(s)` arg 0 — strip leading `:` if present (per D5)
+   - `class` from `Value::wat__core__keyword(arc_s)` arg 0 — clone the Arc<String> directly into class_fqdn (no leading-colon concern; keyword value never carries the colon)
    - `struct_form: Arc<Vec<Value>>` from `Value::Vec(arc_vec)` arg 1 — clone the Arc (do NOT re-wrap)
    - `holon_form: Arc<HolonAST>` from `Value::holon__HolonAST(arc_h)` arg 2 — clone the Arc
 
    Construct + return:
    ```rust
    Value::wat__Record {
-       class_fqdn: Arc::new(class_fqdn_clean),
+       class_fqdn: arc_s,        // direct Arc clone from keyword's storage
        struct_form: arc_vec,
        holon_form: arc_h,
    }
@@ -176,7 +178,7 @@ This stone ships construction + access only. A predicate (`is?` to check "is thi
 
 **Tests:**
 
-1. FM 2-bis probe at `tests/probe_arc234_stone2a_record_primitives.rs` (renamed from `_wat_record_primitives.rs` for naming honesty) — 7 contracts; flip 7/7 FAIL → 7/7 PASS.
+1. FM 2-bis probe at `tests/probe_arc234_stone2a_record_primitives.rs` (renamed from `_wat_record_primitives.rs` for naming honesty) — 6 contracts (Probe 6 retired post user catch on String→keyword pivot); flip 6/6 FAIL → 6/6 PASS.
 
 ---
 
@@ -194,8 +196,8 @@ Contracts:
 6. **Leading colon stripping** — `(:wat::Record::of ":myapp::Voltage" ...)` (with leading colon) produces a record whose `(type)` returns `"myapp::Voltage"` (without colon)
 7. **Equality via holon_form** — two records constructed with same class + same holon_form compare equal via `=`
 
-Initial state: 7/7 FAIL with `UnknownFunction(":wat::Record::of", ...)` (and similar for `/field-at`).
-Post-stone: 7/7 PASS.
+Initial state: 6/6 FAIL with `UnknownFunction(":wat::Record::of", ...)` (and similar for `/field-at`).
+Post-stone: 6/6 PASS.
 
 ---
 
@@ -215,7 +217,7 @@ If anything unexpected surfaces (e.g., the `Value::Vec` extraction needs special
 
 2. **HolonAST extraction** — `holon_form` arg arrives as `Value::holon__HolonAST(Arc<HolonAST>)`. Standard extraction pattern from arc 232.0a + holon-side primitives.
 
-3. **String class_fqdn extraction** — `Value::String(Arc<String>)` — standard. Leading-colon strip per D5.
+3. **Keyword class extraction** — `Value::wat__core__keyword(Arc<String>)` — extract the Arc<String> directly; clone into `class_fqdn` field on the variant. No leading-colon concern per D5 (keywords don't carry colon in stored value).
 
 4. **Dispatcher accepts `:wat::Record::of` AND `:wat::Record/field-at` FQDNs** — verify the keyword-head dispatcher accepts BOTH `::`-separator AND `/`-separator endings in path strings. Existing precedent (`:wat::kernel::send` for `::`; `:wat::core::Vector/get` for `/`) suggests both work; verify empirically.
 
