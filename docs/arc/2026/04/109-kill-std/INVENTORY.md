@@ -1661,3 +1661,66 @@ from the richer diagnostics.
 § O entry here STAYS as historical record of the gap's surfacing +
 the original scope-bound write-up. Arc 233's DESIGN is the
 implementation plan.
+
+## Q. Composed-from-core type promotion — `:wat::core::X` → `:wat::X`
+
+**Surfaced 2026-05-24 late** (during arc 234 namespace contemplation; user's "core = minimal Lisp + data types" principle articulated post-intueri-twin-verdicts).
+
+### The doctrine
+
+`:wat::core::*` is the foundational substrate cluster: minimal Lisp tooling (`def`, `let`, `if`, `do`, `quote`, `apply`, `type`, `match`, `cond`, etc.) + primitive data types (`i64`, `f64`, `bool`, `String`, `Char`, `Bytes`, `nil`, `keyword`, `fn`, `Vector`, `HashMap`, `HashSet`, `List`, `Tuple`, `Option`, `Result`).
+
+When a type LIVES IN `:wat::core::*` but is **composed FROM** core tooling rather than being a foundational primitive itself, it belongs at its own top-level namespace (peer of `:wat::core::*` / `:wat::holon::*` / `:wat::kernel::*` / `:wat::config::*` / `:wat::test::*` / `:wat::measure::*` / `:wat::program::*` / `:wat::stream::*` / `:wat::lru::*` / `:wat::console::*` / `:wat::telemetry::*` / `:wat::record::*` (arc 234)).
+
+The pattern (per arc 234 Stone 234.1.5's precedent): foundational primitives stay in core; composed mechanisms get their own namespace.
+
+### Named candidate: `:wat::core::Uuid` → `:wat::Uuid`
+
+`:wat::core::Uuid` (minted arc 207 Stones 207.1 + 207.2) is composed of core tooling:
+- 128-bit value backed by `uuid::Uuid` (Rust crate); presented as bytes / hex string
+- Constructor verbs: `:wat::core::Uuid/from-string`, `:wat::core::Uuid/v4`, `:wat::core::Uuid/v5`, `:wat::core::Uuid/to-string`, `:wat::core::Uuid/nil`
+- Bridges to core String + Bytes; isn't a foundational data type
+
+User direction 2026-05-24 late: *"add a note to 109's backlog to move `:wat::core::Uuid` => `:wat::Uuid` — its composed of the core tooling."*
+
+Promotion target options (UX-level; defer to future arc):
+- **(a) `:wat::Uuid`** (single Pascal-Case type leaf directly under `:wat::`; verbs `:wat::Uuid/from-string` via `/` separator — Vector/HashMap-precedent for type-bound verbs) — user's literal phrasing
+- **(b) `:wat::uuid::Uuid`** (cluster namespace + Pascal-Case type; verbs `:wat::uuid::from-string` at namespace level — `:wat::config::*` / `:wat::test::*` precedent)
+
+Option (a) is novel (no precedent for single-type top-level FQDN; types currently live INSIDE namespaces). Option (b) matches existing cluster pattern but is verbose for a single-type concept. Future arc resolves via four-questions + intueri cast.
+
+### Other candidates (probable; audit case-by-case)
+
+The Q-promotion principle implies any `:wat::core::*` entry that's composed-from-core rather than foundational-primitive is a candidate. Initial audit candidates:
+
+- `:wat::core::Bytes` (typealias; composed from u8 + Vector) — possibly stays as typealias for ergonomics
+- `:wat::core::Tuple` (composed from positional collection) — possibly stays as primitive (foundational for destructure)
+- `:wat::core::regex` (composed from String matching) — possibly promotes to `:wat::regex` or `:wat::regex::*`
+- (others surface via comprehensive audit)
+
+The audit is NOT part of this entry's scope. Q's job is to LAND THE DOCTRINE + name the first concrete candidate (Uuid). Future audit-arc enumerates the complete list.
+
+### Stays in core (per principle)
+
+These ARE foundational primitives — the minimal-Lisp + data-types core:
+- Primitive data: `i64`, `f64`, `bool`, `String`, `Char`, `nil`, `keyword`, `fn`
+- Lisp forms: `def`, `let`, `let*`, `if`, `do`, `quote`, `quasiquote`, `unquote`, `cond`, `match`, `try`, `and`, `or`, `not`, `apply`, `type`
+- Foundational collections: `Vector`, `HashMap`, `HashSet`, `List`, `Tuple`
+- Foundational sum types: `Option`, `Result`
+- Lightweight type-constructors (no extensibility): `struct`, `newtype`, `typealias`, `enum`
+- Function/macro binding forms: `defn`, `defmacro` (functions/macros ARE in core)
+
+### Status
+
+**Filed 2026-05-24 late as future arc candidate.** Predecessor: arc 234 Stone 234.1.5 (`:wat::record::*` namespace promotion) establishes the pattern. Sibling-or-after any arc 234 work.
+
+Per the stepping-stone discipline (recovery doc § 5): each Q-promotion is a small mechanical stone (variant rename + namespace registration + type_name update + consumer sweep). The pattern is repeatable; each promotion follows arc 234 Stone 234.1.5's template.
+
+NOT URGENT — none of these promotions BLOCK active work. They land as opportunistic stones when adjacent arcs touch the relevant substrate, OR as a deliberate Q-cleanup arc when foundation work needs the audit completed.
+
+### Cross-references
+
+- arc 234 Stone 234.1.5 — pattern-establishing precedent (`:wat::core::wat-record` → `:wat::record::*`)
+- arc 207 Stones 207.1 + 207.2 — `:wat::core::Uuid` original minting
+- arc 234 DESIGN.md — top-level namespace promotion contemplation + the composed-from principle articulation
+- `feedback_fqdn_is_the_namespace` — the foundational doctrine the Q-promotion principle extends
