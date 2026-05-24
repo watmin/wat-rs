@@ -213,11 +213,11 @@ fn probe_5_multi_field_accessors_in_order() {
      b (:user::compute-b)
      c (:user::compute-c)]
     (:wat::core::string::concat
-      (:wat::core::i64/to-string a)
+      (:wat::core::i64::to-string a)
       "|"
       b
       "|"
-      (:wat::core::bool/to-string c))))
+      (:wat::core::bool::to-string c))))
 "#;
     match run_compute(src) {
         Ok(v) => match v {

@@ -5754,6 +5754,13 @@ fn infer_list(
             ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, head_span, env, locals, fresh, subst, errors);
             }
+            // Arc 234 Stone 234.2a forward-correction — heterogeneous struct_form.
+            // Custom handler takes precedence over the TypeScheme registration
+            // (which was removed per T2 investigation: custom arms return early BEFORE
+            // the generic TypeScheme fallback at the bottom of `infer_list`).
+            ":wat::Record::of" => {
+                return infer_record_of(head_span, args, env, locals, fresh, subst, errors);
+            }
             // Arc 155 — `:wat::core::fn` is the canonical operator for
             // function values (Clojure-faithful lowercase verb; mirrors
             // arc 154's let retirement recipe). Routes to `infer_fn`
@@ -10988,6 +10995,123 @@ fn infer_arithmetic(
 /// Arc 050 — predicate. Recognizes `:i64` and `:f64` paths.
 fn is_numeric(t: &TypeExpr) -> bool {
     matches!(t, TypeExpr::Path(p) if p == ":wat::core::i64" || p == ":wat::core::f64")
+}
+
+/// Arc 234 Stone 234.2a forward-correction — heterogeneous struct_form inference.
+///
+/// `:wat::Record::of` takes three arguments:
+///   #1  class-FQDN   — must be `:wat::core::keyword`
+///   #2  struct-form  — must be a Vector literal `[...]` or `:wat::core::Vector` call;
+///                      elements are type-checked independently; NO uniform-T unification
+///                      (struct_form is Arc<Vec<Value>> by design — heterogeneous)
+///   #3  holon-form   — must be `:wat::holon::HolonAST`
+///
+/// Returns `:wat::Record`.
+///
+/// The umbrella DESIGN (arc 234 line 19) specifies `struct_form: Arc<Vec<Value>>` which
+/// is heterogeneous by construction. The original TypeScheme registration used
+/// `Vector<T>` (uniform-T), creating an inconsistency with both the DESIGN intent and the
+/// runtime's `eval_record_of` (which accepts any Vec without element-type enforcement).
+/// This custom handler corrects that inconsistency.
+///
+/// Modeled after `infer_arithmetic` (arc 148 slice 4) — same custom-handler pattern.
+fn infer_record_of(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    const CALLEE: &str = ":wat::Record::of";
+    // Arity check: exactly 3 args (class, struct_form, holon_form).
+    if args.len() != 3 {
+        errors.push(CheckError::ArityMismatch {
+            callee: CALLEE.into(),
+            expected: 3,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(TypeExpr::Path(":wat::Record".into()));
+    }
+
+    // Arg #1: class-FQDN — must infer to :wat::core::keyword.
+    let class_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    if let Some(ct) = class_ty {
+        let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+        if unify(&ct, &keyword_ty, subst, env.types()).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: CALLEE.into(),
+                param: "#1".into(),
+                expected: ":wat::core::keyword".into(),
+                got: format_type(&apply_subst(&ct, subst)),
+                span: args[0].span().clone(),
+            });
+        }
+    }
+
+    // Arg #2: struct-form — must be a Vector literal or :wat::core::Vector call.
+    // Each element is type-checked independently; no uniform-T unification.
+    match &args[1] {
+        WatAST::Vector(elems, _) => {
+            // `[e0 e1 ...]` vector literal — infer each element independently.
+            for elem in elems.iter() {
+                let _ = infer(elem, env, locals, fresh, subst, errors);
+            }
+        }
+        WatAST::List(items, _) => {
+            // Could be (:wat::core::Vector :T e0 e1 ...) or a call that returns a Vector.
+            // Check if head is :wat::core::Vector keyword; if so, infer elements (skip
+            // the type-arg at position 0). Otherwise fall through to generic infer.
+            let is_vector_head = matches!(
+                items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::Vector"
+            );
+            if is_vector_head && items.len() > 1 {
+                // items[0] is :wat::core::Vector, items[1] is the type-arg — skip it.
+                // items[2..] are the elements; infer each independently.
+                for elem in items[2..].iter() {
+                    let _ = infer(elem, env, locals, fresh, subst, errors);
+                }
+            } else {
+                // A general expression in struct-form position (e.g., a variable bound
+                // to a Vector). Infer it normally; no shape validation at check time.
+                let _ = infer(&args[1], env, locals, fresh, subst, errors);
+            }
+        }
+        _ => {
+            // Not a recognized Vec shape. Infer and emit a shape error.
+            let _ = infer(&args[1], env, locals, fresh, subst, errors);
+            errors.push(CheckError::MalformedForm {
+                head: CALLEE.into(),
+                reason: "struct_form (arg #2) must be a Vector literal `[...]` \
+                         or a :wat::core::Vector expression"
+                    .into(),
+                span: args[1].span().clone(),
+            });
+        }
+    }
+
+    // Arg #3: holon-form — must infer to :wat::holon::HolonAST.
+    let holon_ty = infer(&args[2], env, locals, fresh, subst, errors);
+    if let Some(ht) = holon_ty {
+        let expected_holon_ty = TypeExpr::Path(":wat::holon::HolonAST".into());
+        if unify(&ht, &expected_holon_ty, subst, env.types()).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: CALLEE.into(),
+                param: "#3".into(),
+                expected: ":wat::holon::HolonAST".into(),
+                got: format_type(&apply_subst(&ht, subst)),
+                span: args[2].span().clone(),
+            });
+        }
+    }
+
+    Some(TypeExpr::Path(":wat::Record".into()))
 }
 
 /// Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
@@ -16973,32 +17097,20 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 234 Stone 234.2a — :wat::Record::of + :wat::Record/field-at substrate primitives.
     //
-    // :wat::Record::of :: ∀T. :wat::core::keyword × Vector<T> × :wat::holon::HolonAST
-    //                       -> :wat::Record
-    // Constructor: takes a class-FQDN keyword, struct-form Vector<T>, and holon-form HolonAST;
-    // returns a Value::wat__Record instance. T is the field-value type (uniform across fields
-    // at this type-check level; macro-generated typed constructors narrow per field in 234.2b).
+    // :wat::Record::of — TypeScheme registration REMOVED (Stone 234.2a forward-correction).
+    // The constructor uses a custom inference handler `infer_record_of` in the primary
+    // dispatcher (`infer_list`). The TypeScheme path is bypassed because custom dispatch arms
+    // return early BEFORE the generic `env.get` fallback runs. The TypeScheme was removed to
+    // avoid dead code and honest confusion: it specified `Vector<T>` (uniform-T), which
+    // contradicted the umbrella DESIGN intent (`struct_form: Arc<Vec<Value>>` — heterogeneous)
+    // and the runtime (`eval_record_of` accepts any Vec without element-type enforcement).
+    // The custom handler correctly accepts heterogeneous elements.
     //
     // :wat::Record/field-at :: ∀T. :wat::Record × :wat::core::i64 -> :T
     // Positional accessor: takes a record + i64 index; returns the field value.
     // Generic return T: type-checker propagates T via recipient inference (let-binding
     // or defn return-type annotation drives unification). Mirrors Vector/get's T pattern.
-    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
     let record_ty = || TypeExpr::Path(":wat::Record".into());
-    let holon_ty2 = || TypeExpr::Path(":wat::holon::HolonAST".into());
-    let vec_t_ty = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
-        args: vec![t_var()],
-    };
-    env.register(
-        ":wat::Record::of".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![keyword_ty(), vec_t_ty(), holon_ty2()],
-            ret: record_ty(),
-            rest_param_type: None,
-        },
-    );
     env.register(
         ":wat::Record/field-at".into(),
         TypeScheme {

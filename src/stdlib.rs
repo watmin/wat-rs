@@ -84,6 +84,16 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/holon/defrecord.wat",
         source: include_str!("../wat/holon/defrecord.wat"),
     },
+    // Arc 234 Stone 234.2b — :wat::Record::def macro. Mints user-defined
+    // record-types as dual-form holograms (Value::wat__Record): struct_form
+    // (Rust-fast) + holon_form (VSA-aligned), both addressable, both canonical.
+    // Generates constructor + per-field accessors + predicate. Consumes Stone
+    // 234.2a substrate primitives (:wat::Record::of + :wat::Record/field-at).
+    // Co-exists with :wat::holon::defrecord until Stone 234.6 retirement.
+    WatSource {
+        path: "wat/Record.wat",
+        source: include_str!("../wat/Record.wat"),
+    },
     WatSource {
         path: "wat/holon.wat",
         source: include_str!("../wat/holon.wat"),
