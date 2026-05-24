@@ -48,7 +48,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
-use wat_macros::restricted_to;
+use wat_macros::{restricted_to, wat_value};
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
 ///
@@ -367,6 +367,7 @@ pub fn reset_shutdown_signal() {
 /// `type_name()` returns the full `::`-separated path users write in
 /// wat source. Every Value carries its honest identity; error messages
 /// say what the user would recognize.
+#[wat_value] // Arc 233 Stone 233.2.l: structural seal — forbids wrapping-style variants.
 #[derive(Debug, Clone)]
 #[allow(non_camel_case_types, non_snake_case)]
 pub enum Value {

@@ -27,6 +27,38 @@ use syn::{parse_macro_input, Error, ItemImpl, LitStr};
 
 mod codegen;
 mod discover;
+mod wat_value;
+
+/// `#[wat_value]` — structural seal for enum definitions.
+///
+/// Forbids wrapping-style variants (single `Box<Self>` / `Arc<Self>` /
+/// `Rc<Self>` / `Self` field) at compile time. Future authors who try to
+/// re-introduce the trap-door class encounter a `compile_error!` with a
+/// teaching diagnostic naming the forbidden pattern, recommending
+/// `TrackedValue` as the sibling-type alternative, and documenting the
+/// per-variant opt-in escape hatch with mandatory non-empty reason string.
+///
+/// Apply to `pub enum Value` (and future enums where the trap-door class
+/// has been identified):
+///
+/// ```rust,ignore
+/// #[wat_value]
+/// pub enum Value { ... }
+/// ```
+///
+/// Per-variant opt-in for legitimate exceptional cases:
+/// ```rust,ignore
+/// #[wat_value(allow_wrapping = "legacy interop with foreign type; see arc N")]
+/// Wrap { inner: Box<Value> },
+/// ```
+///
+/// See `crates/wat-macros/src/wat_value.rs` and
+/// `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.l.md`
+/// for full doctrine.
+#[proc_macro_attribute]
+pub fn wat_value(args: TokenStream, input: TokenStream) -> TokenStream {
+    wat_value::wat_value(args, input)
+}
 
 /// The scope modes a shim can declare for its returned `Self` type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

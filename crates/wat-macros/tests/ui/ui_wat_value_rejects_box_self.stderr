@@ -1,0 +1,13 @@
+error: #[wat_value]: variant `Wrap` has wrapping shape (single Box<Self> / Arc<Self> / Rc<Self> / Self field)
+
+       Wrapping variants are forbidden because they silently mis-dispatch pattern-match on Value::X(...): the inner Value::X gets shadowed. This is the trap-door class arc 233 eliminated (see Stone 233.2.f apply fix; Stone 233.2.j cascade; Stone 233.2.k variant retirement).
+
+       If your use case GENUINELY requires wrapping, add
+           #[wat_value(allow_wrapping = "your reason")]
+       to this variant. The reason string is mandatory and non-empty; it documents WHY the structural exception is justified.
+
+       More often the right fix is a SIBLING TYPE outside the enum (e.g., wat::runtime::TrackedValue per Stone 233.2.h). See docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.l.md for the doctrine.
+  --> tests/ui/ui_wat_value_rejects_box_self.rs:11:5
+   |
+11 |     Wrap { inner: Box<BadValue> },
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
