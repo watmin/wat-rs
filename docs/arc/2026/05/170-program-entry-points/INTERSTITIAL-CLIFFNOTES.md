@@ -170,7 +170,126 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 late late — Stone 233.2.h/i SHIPPED; Stone 233.2.l doctrine landed; "annihilation of failure domains is direction")
+## Currently (2026-05-23 evening post-compaction — Stone 233.2.j SHIPPED 11/11; 233.2.k in flight; 233.2.l designed; partial-state-grading inscribed)
+
+### What shipped this session (post-compaction continuation)
+
+```
+064df14   Stone 233.2.j sub-DESIGN — eval_inner TrackedValue cascade
+cf6d464   Stone 233.2.j FM 2-bis probe (5 contracts; pre-stone 2/5)
+dacd384   Stone 233.2.j BRIEF + EXPECTATIONS
+c16419e   Stone 233.2.j SHIPPED — 11/11 PASS — eval_inner cascade
+            (383 caller sweep + 5 producers + ValueSnapshot::of_tracked +
+             unplanned Phase 5 bind_let_binding provenance preservation;
+             dispatch_keyword_head split; ~180 min across 2 sonnet sessions)
+57eced2   Stone 233.2.l sub-DESIGN — #[wat_value] proc-macro structural seal
+f830de8   Stone 233.2.k sub-DESIGN — variant retirement + Env stores TrackedValue
+f43c577   Stone 233.2.k FM 2-bis probe (5 contracts; pre-stone 0/5)
+59c952e   Stone 233.2.k BRIEF + EXPECTATIONS — Option A cascade
+[in flight] Stone 233.2.k sonnet spawned 19:55 PDT (target 60-120 Mode A; 180 STOP)
+```
+
+### The Stone 233.2.j honest delta (Phase 5 — the live validation of partial-state-grading)
+
+Stone 233.2.j's eval_inner cascade triggered a regression in diagnostic
+probes 6/7/8 (Stone 233.1): producer-attached provenance was being stripped
+at let-bindings because `.value_owned()` extracted bare Value before env
+storage. Sonnet honestly surfaced this MID-FLIGHT and shipped two complementary
+fixes (bind_let_binding re-wrap + Value::into_tracked() extraction) plus an
+explicit `// #[probe-3-exempt: ...]` mechanism with documented expiration
+at Stone 233.2.k.
+
+This was the unplanned phase that the [[partial-state-grading]] discipline
+saved: had we time-boxed harder, we'd have lost ~30 min of disciplined
+recovery work. Inscribed at `feedback_partial_state_grading.md`.
+
+### Stone 233.2.k (in flight) — Option A picked
+
+Sub-DESIGN at `f830de8` evaluated three options for dissolving the Phase 5
+exemption:
+- **A (chosen):** Environment.bindings flips from HashMap<String, Value> to
+  HashMap<String, TrackedValue>. Provenance flows naturally; exemption
+  dissolves permanently.
+- B (rejected): accept provenance loss until 233.2.e; mark probes #[ignore].
+  Dishonest deferral per [[no-known-defect-left-unfixed]].
+- C (rejected): side-channel parallel HashMap<Symbol, Provenance>. Same
+  trap-door family as Value::Tracked carrier-side-by-side.
+
+Cascade scope: ~50-100 mechanical sites (6 lookup callers + 19 .inner() +
+26 .into_tracked() + dead match arms + variant delete + 3 helper deletes).
+Calibration: 60-120 Mode A; 180 STOP. Smaller than 233.2.j (3.6× call sites
+in 233.2.j vs ~½× here).
+
+LOAD-BEARING for verification: Stone 233.1 probes 6/7/8 MUST stay GREEN via
+Option A's structural fix replacing Phase 5's re-wrap.
+
+### Stone 233.2.l (pre-designed) — the structural seal
+
+Sub-DESIGN at `57eced2` articulates the proc-macro mechanic:
+- Rule: forbid variants with `Box<Self>` / `Arc<Self>` / `Rc<Self>` / `Self` field
+- Allow container variants (`Vec<Self>`, `Option<Self>`, `Result<Self,Self>`, etc.)
+- Escape hatch: per-variant `#[wat_value(allow_wrapping = "reason")]` with
+  mandatory non-empty reason string
+- Error message follows SUBSTRATE-AS-TEACHER (names trap-door, recommends
+  TrackedValue sibling alternative)
+- Lives in wat-macros/ (existing crate)
+- Apply to pub enum Value in src/runtime.rs (post-233.2.k retirement)
+- 5 contracts (compile_fail rejected + container pass + opt-in works +
+  real Value compiles + alias bypass behavior)
+
+Per FAILURE-ENGINEERING.md ✅✅✅: 233.2.k closes the class instance
+(variant gone); 233.2.l seals the meta-class (compile-error if future
+author tries to add a wrapping variant). Together: annihilation.
+
+### Discipline inscribed this session
+
+- `feedback_partial_state_grading.md` — on STOP-3 / time-box / "longer than
+  expected": GRADE, never auto-revert. SendMessage sonnet first; preserve
+  honest work; commit green tree if possible; write partial SCORE.
+
+### Substrate state — green throughout the cascade
+
+```
+HEAD          59c952e on arc-170-gap-j-v5-deadlock-state
+Lib tests     827/0/1 PASS (verified post-233.2.j commit c16419e)
+arc 233 probes: all probes from 233.1/.2.a/.2.d/.2.h/.2.i/.2.j GREEN
+Clippy        54 (at boundary; unchanged)
+holon-rs      untouched since 530650c (arc 230 atomic pair Phase A)
+Pre-existing  7 arc216 stone1 probes still FAIL (auto-resolves at 233.2.k
+              when Value::Tracked variant ceases to exist)
+Both repos    pushed
+```
+
+### Pending chain (post-233.2.k execution)
+
+```
+233.2.k   in flight — variant retirement (sonnet spawned)
+233.2.l   designed; gated on 233.2.k landing
+233.2.e   AST-derived provenance (restores destructure/recv/try-recv)
+233.3     Errors-as-EDN
+233.4     INSCRIPTION (closes arc 233)
+arc 232   resumes (defprotocol on enriched substrate)
+```
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -20` for today's trajectory
+3. Read `docs/arc/2026/05/233-substrate-errors-as-values/SCORE-STONE-233.2.j.md` — the cascade's shipment record + Phase 5 unplanned fix
+4. Read `docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.k.md` — the Option A decision + 233.2.k scope
+5. Read `feedback_partial_state_grading.md` (memory) — the discipline that protected Phase 5
+6. Task #494 completed, #495 in_progress, #497 pending (designed)
+
+### Pending decisions (when sonnet returns)
+
+1. Verify 233.2.k 12/12 PASS independently per FM 9
+2. Commit + push (orchestrator owns commit per BRIEF)
+3. Update CLIFFNOTES with 233.2.k SHIPPED state
+4. Roll on 233.2.l per chain order (proc-macro structural seal — final stone before 233.2.e + 233.3 + 233.4 INSCRIPTION)
+
+---
+
+## Currently (2026-05-23 late late — Stone 233.2.h/i SHIPPED; Stone 233.2.l doctrine landed; "annihilation of failure domains is direction") — SUPERSEDED, see above
 
 ### What shipped this session
 
