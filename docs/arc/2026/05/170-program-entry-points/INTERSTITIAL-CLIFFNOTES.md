@@ -175,7 +175,107 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-24 early — Stone 234.0 SHIPPED 11/11; arc 234 first fight clean; Song #29 inscribed; revised Stone 232.1 unblocked)
+## Currently (2026-05-24 late — Stone 234.1.5 + 234.2a SHIPPED; arc 109 § Q + § R doctrines inscribed; records-are-fractal insight)
+
+### What shipped this session (arc 234 OPEN; three stones closed back-to-back)
+
+```
+8b88ef8  arc 234 Stone 234.0 SHIPPED — :wat::core::type polymorphic primitive
+5abf714  arc 234 Stone 234.1 SHIPPED — Value::wat_record variant (later renamed by 234.1.5)
+[gap — naming contemplation: 4 intueri casts + user-articulated doctrine]
+6a02373  arc 234 Stone 234.1.5 — sub-DESIGN + FM 2-bis probe + BRIEF + EXPECTATIONS
+ce7143a  arc 234 Stone 234.1.5 type FQDN correction (intueri Cast 3 → bare :wat::record)
+ffbdb26  arc 234 Stone 234.1.5 doctrine landed: Pascal-Case namespace + arc 109 § Q sharpen + § R new
+8d6cb9d  arc 234 Stone 234.1.5 SHIPPED — Value::wat__Record + :wat::Record umbrella type registered
+db39ebd  arc 234 Stone 234.2a sub-DESIGN + FM 2-bis probe (pre-pivot; superseded β.ii)
+7113c51  arc 234 Stone 234.2a BRIEF + EXPECTATIONS (pre-pivot; superseded β.ii)
+4d6e61d  arc 109 INVENTORY § Q — composed-from-core type promotion doctrine
+143f017  arc 234 Stone 234.2a β.ii paperwork: revise to :wat::Record::* shape
+2434d6f  arc 234 Stone 234.2a β.ii correction: class arg is keyword, not String
+31a8009  arc 234 Stone 234.2a SHIPPED — :wat::Record::of + :wat::Record/field-at substrate primitives
+```
+
+Three substrate stones shipped clean per FM 9 independent verification. The naming contemplation between 234.1 and 234.1.5 burned ~4 intueri casts + multiple sonnet flights (two killed mid-pivot) — the rhythm here is "spend time getting the names honest, ship the substrate fast." Per user: "we're killing define soon... but [109] did what it was meant to do."
+
+### Doctrines landed this session
+
+- **Pascal-Case namespace pattern** (Stone 234.1.5 D5): when a type's namespace IS the umbrella concept (record, future Uuid), capitalize the namespace itself. `:wat::Record::*` reads "in the Record namespace" — namespace-doubles-as-type. Distinct from existing `:wat::core::Vector` (type-leaf in lowercase domain).
+
+- **`::` / `/` semantic split** (arc 109 INVENTORY § R; load-bearing for ALL forward substrate naming):
+  - `::` = namespace-tier verb (constructors, definers, predicates — no instance exists at call time)
+  - `/` = instance method (operates on existing instance)
+  - Examples: `:wat::Record::def` (defines new type — no instance), `:wat::Record::of` (constructs — no instance yet), `:wat::Record/field-at` (operates on existing record)
+  - § R audit table identifies pre-doctrine inconsistencies (`Option/Some`, `Uuid/from-string`, `Char/of` should migrate from `/` to `::`); cleanup deferred to future arc; NEW substrate forward follows R uniformly.
+
+- **Composed-from-core promotion** (arc 109 INVENTORY § Q): foundational primitives stay in `:wat::core::*`; composed-from-core types get their own top-level namespace. First application: `:wat::Record::*`. Named candidate: `:wat::Uuid::*` (future); other candidates per audit.
+
+- **Records are fractal** (articulated 2026-05-24 late): at BOTH layers simultaneously. HolonAST `Bind` accepts any HolonAST as RHS (algebraic composition); `Vec<Value>` accepts any Value variant (storage composition). Triangle of Points works at every layer; Eq + Hash + VSA encoding + type-check all recurse. The hologram property is preserved through composition.
+
+### Substrate state — three-stone chain landed
+
+```
+HEAD          31a8009 on arc-170-gap-j-v5-deadlock-state (clean tree)
+Lib tests     827/0/1 PASS
+arc 234.0     8/8 PASS (probe_diagnostic_polymorphic_type)
+arc 234.1     7/7 PASS (probe_arc234_stone1_wat_record_variant — variant renamed by 234.1.5)
+arc 234.1.5   5/5 PASS (probe_arc234_stone15_namespace_promotion)
+arc 234.2a    6/6 PASS (probe_arc234_stone2a_record_primitives — LOAD-BEARING)
+arc 232.0a    7/7 PASS (regression guard)
+arc 233       all 4 regression guards GREEN
+Clippy        54 (unchanged baseline)
+holon-rs      untouched since 530650c
+Both repos    pushed
+```
+
+### Pending chain
+
+```
+arc 234.2b    PENDING — :wat::Record::def macro consumes :Record::of + :Record/field-at
+                        Per-class constructors (:myapp::Voltage); typed accessors (:myapp::Voltage/x)
+                        Per-class type registration
+arc 234.3     PENDING — polymorphic record-y verbs (:Record::is?, :Record/to-map, :Record/to-holon,
+                        keyword-as-accessor, assoc) — closes #058/146
+arc 234.4     PENDING — hash-destructure ({:x ax :y ay} matches record shape) — closes #402
+arc 234.5     PENDING — :wat::holon::to-holon auto-dispatch on wat__Record (returns holon_form)
+arc 234.6     PENDING — migration sweep + retire :wat::holon::defrecord user surface
+arc 234.7     PENDING — INSCRIPTION
+
+Stone 232.1   REVISED PENDING — :wat::core::defprotocol polymorphic via :wat::core::type
+                        Unblocked since Stone 234.0; foundation continues to build
+arc 109 § R   PENDING — existing-codebase /constructor → ::constructor sweep
+                        (Option/Some, Uuid/from-string, Char/of, etc.); NOT URGENT; opportunistic
+arc 109 § Q   PENDING — :wat::core::Uuid → :wat::Uuid::* promotion (Pascal-Case namespace per landed doctrine)
+                        Future arc; NOT URGENT
+```
+
+### Post-compaction recovery path
+
+1. Read this Currently section
+2. `git log --oneline | head -15` for the three-stone chain through 31a8009
+3. Read `docs/arc/2026/05/234-wat-record-hologram/SCORE-STONE-234.2a.md` + `SCORE-STONE-234.1.5.md` — what shipped
+4. Read `docs/arc/2026/04/109-kill-std/INVENTORY.md` § Q + § R — the doctrines (load-bearing for all forward substrate naming)
+5. Read `tests/probe_arc234_stone2a_record_primitives.rs` (6/6 PASS — the substrate contract; constructor uses keyword arg via `:wat::core::keyword`; eval_record_of strips leading `:` from stored keyword value)
+6. Decision boundary: open Stone 234.2b (defrecord macro) OR revised Stone 232.1 (defprotocol) — both unblocked.
+
+### Discipline gain inscribed this session
+
+- **The ::/⁠/ semantic split** is now load-bearing doctrine (arc 109 § R). All future substrate naming follows it. The discipline surfaced through 4 intueri casts + user-articulated principle ("`/def` reads 'call def on a Record' — but there's no Record instance to call it on. `::def` reads 'define a new Record.'").
+- **Pre-doctrine artifacts are tracked, not silently fixed.** § R audit table names existing inconsistencies; cleanup is opportunistic. The doctrine governs forward; existing code carries its history honestly.
+- **Keyword-vs-String for FQDN identifiers** — user catch ("why does record-of take a string not a keyword?") corrected a substrate convention before sonnet flight. Sub-DESIGN D5 was wrong about keyword storage (claimed no colon stored; reality: stored WITH colon); sonnet caught via probe + adjusted (`strip_prefix(':')`). Honest deltas at both layers (doctrine + implementation).
+- **Records are fractal** — articulated as project-doctrine. The hologram property recurses through composition; user-defined types compose freely; VSA + Eq + Hash + type-check all recurse. Worth inscribing as a substrate-foundational claim.
+
+### β.ii paperwork pattern emergent
+
+Pre-doctrine artifacts (Stone 234.2a's pre-pivot sub-DESIGN/BRIEF/EXPECTATIONS/probe at db39ebd + 7113c51) revised forward via:
+- Bulk find-replace where mechanical (FQDN naming)
+- Structural rewrite where doctrine changed (D1 no longer registers type; D5 doctrine retired)
+- File rename when historical name no longer honest (`probe_arc234_stone2a_wat_record_primitives.rs` → `_record_primitives.rs`)
+
+Per `feedback_inscription_immutable`: pre-SHIP artifacts are working docs; revise forward is allowed. SCOREs + INSCRIPTIONs stay immutable.
+
+---
+
+## Currently (2026-05-24 early — Stone 234.0 SHIPPED 11/11; arc 234 first fight clean; Song #29 inscribed; revised Stone 232.1 unblocked) — SUPERSEDED, see above
 
 ### What just shipped this turn (arc 234 OPEN; first stone closed)
 
