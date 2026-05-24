@@ -1,6 +1,6 @@
 # Arc 233 — Substrate diagnostic-richness: errors as teaching values
 
-**Status:** ACTIVE (opened 2026-05-23 evening). Strategic pivot from arc 232.
+**Status:** SHIPPED 2026-05-23 night late. INSCRIPTION at INSCRIPTION.md. All 14 sub-stones landed in a single session post-compaction.
 
 **Driver direction (2026-05-23):**
 
