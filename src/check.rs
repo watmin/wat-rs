@@ -5489,6 +5489,54 @@ fn infer_list(
                 }
                 return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
+            ":wat::holon::extract-classifier" => {
+                // Arc 232 Stone 232.0a — typed-entities reflection layer.
+                // (holon :HolonAST) -> :wat::core::Option<wat::core::String>
+                // Lifts existing Rust fn `extract_classifier` to a wat verb.
+                // Returns Some(class-name) for canonical-wrap shape
+                // (Bind (Atom <s>) <right>); None otherwise.
+                // HolonAST arg bypasses normal type-unification (same
+                // rationale as Bundle/children and extract-arg-names).
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "wat::core::Option".into(),
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
+                });
+            }
+            ":wat::holon::Bind/left" | ":wat::holon::Bind/right" => {
+                // Arc 232 Stone 232.0a — structural Bind accessors.
+                // (holon :HolonAST) -> :wat::core::Option<wat::holon::HolonAST>
+                // Bind/left returns Some(left) for (Bind left _); None otherwise.
+                // Bind/right returns Some(right) for (Bind _ right); None otherwise.
+                // Symmetric positional pair; naming the STRUCTURAL fact not the
+                // doctrine-conventional reading. HolonAST arg bypasses normal
+                // type-unification (same rationale as Bundle/children).
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "wat::core::Option".into(),
+                    args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+                });
+            }
             ":wat::core::macroexpand-1" | ":wat::core::macroexpand" => {
                 // Arc 030: macro debugging primitives.
                 // (:wat::core::macroexpand{-1}? <wat::WatAST>) -> :wat::WatAST
@@ -16082,6 +16130,52 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: holon_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 232 Stone 232.0a — typed-entities reflection layer.
+    //
+    // extract-classifier (holon :HolonAST) -> :wat::core::Option<wat::core::String>
+    // Bind/left         (holon :HolonAST) -> :wat::core::Option<wat::holon::HolonAST>
+    // Bind/right        (holon :HolonAST) -> :wat::core::Option<wat::holon::HolonAST>
+    //
+    // The infer_list special-cases above handle the parametric inference for
+    // these verbs (same rationale as Bundle/children: HolonAST args bypass
+    // normal type-unification). The registrations here cover call sites where
+    // the arg does NOT trigger arc-009 "names as values" path.
+    let opt_string_ty = || TypeExpr::Parametric {
+        head: "wat::core::Option".into(),
+        args: vec![TypeExpr::Path(":wat::core::String".into())],
+    };
+    let opt_holon_ty = || TypeExpr::Parametric {
+        head: "wat::core::Option".into(),
+        args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+    };
+    env.register(
+        ":wat::holon::extract-classifier".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: opt_string_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::Bind/left".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: opt_holon_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::holon::Bind/right".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: opt_holon_ty(),
             rest_param_type: None,
         },
     );

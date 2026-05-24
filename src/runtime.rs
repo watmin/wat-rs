@@ -4891,6 +4891,18 @@ fn dispatch_keyword_head_value(
         // decision to reuse it rather than mint `Atom/value` as a duplicate.
         ":wat::holon::Bundle/children" => eval_bundle_children(args, list_span, env, sym),
         ":wat::holon::Bundle/first" => eval_bundle_first(args, list_span, env, sym),
+        // Arc 232 Stone 232.0a — typed-entities reflection layer.
+        // Three verbs that lift existing Rust helpers (extract_classifier)
+        // and mint new structural accessors (bind_left + bind_right) as
+        // wat-callable primitives. defprotocol's polymorphic dispatcher
+        // (Stone 232.1) consumes extract-classifier; defrecord accessor
+        // synthesis (separate stone) composes Bind/left + Bind/right +
+        // Bundle/children. Naming convention: Bind/left + Bind/right are
+        // positional (structural fact); extract-classifier is semantic
+        // (classifier-wrap convention). Per intueri cast 2026-05-23 night.
+        ":wat::holon::extract-classifier" => eval_extract_classifier(args, list_span, env, sym),
+        ":wat::holon::Bind/left" => eval_bind_left(args, list_span, env, sym),
+        ":wat::holon::Bind/right" => eval_bind_right(args, list_span, env, sym),
         // Arc 170 slice 1e — ambient runtime values per REALIZATIONS
         // pass 7 (drop stdio params from `:user::main`; argv +
         // current-thread move to ambient).
@@ -14410,6 +14422,142 @@ fn extract_classifier(holon: &HolonAST) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// `(:wat::holon::Bind/left h)` helper — structural left-position accessor.
+///
+/// Arc 232 Stone 232.0a. Returns `Some(left)` for `HolonAST::Bind(left, _)`;
+/// `None` for any other HolonAST variant. Names the STRUCTURAL fact (left
+/// position of a Bind primitive), not the doctrine-conventional reading.
+/// Symmetric peer of `bind_right`.
+fn bind_left(holon: &HolonAST) -> Option<HolonAST> {
+    match holon {
+        HolonAST::Bind(left, _) => Some(left.as_ref().clone()),
+        _ => None,
+    }
+}
+
+/// `(:wat::holon::Bind/right h)` helper — structural right-position accessor.
+///
+/// Arc 232 Stone 232.0a. Returns `Some(right)` for `HolonAST::Bind(_, right)`;
+/// `None` for any other HolonAST variant. Names the STRUCTURAL fact (right
+/// position of a Bind primitive), not the doctrine-conventional reading.
+/// Symmetric peer of `bind_left`.
+fn bind_right(holon: &HolonAST) -> Option<HolonAST> {
+    match holon {
+        HolonAST::Bind(_, right) => Some(right.as_ref().clone()),
+        _ => None,
+    }
+}
+
+/// `(:wat::holon::extract-classifier h)` — lift existing Rust `extract_classifier`
+/// to a wat-callable verb.
+///
+/// Arc 232 Stone 232.0a. Returns `Some(class-name)` for the canonical
+/// classifier-wrap shape `(Bind (Atom <s>) <right>)`; `None` otherwise.
+/// The dispatch primitive defprotocol's polymorphic verb uses to route
+/// to per-type implementations.
+fn eval_extract_classifier(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::extract-classifier";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let holon_arc = match arg_val {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: ValueSnapshot::of(&other),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let result = extract_classifier(&*holon_arc).map(|s| Value::String(Arc::new(s)));
+    Ok(Value::Option(Arc::new(result)))
+}
+
+/// `(:wat::holon::Bind/left h)` — structural left-position accessor.
+///
+/// Arc 232 Stone 232.0a. Returns `Some(left)` for `(Bind left _)`;
+/// `None` otherwise. Symmetric peer of `eval_bind_right`.
+fn eval_bind_left(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Bind/left";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let holon_arc = match arg_val {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: ValueSnapshot::of(&other),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let result = bind_left(&*holon_arc)
+        .map(|h| Value::holon__HolonAST(Arc::new(h)));
+    Ok(Value::Option(Arc::new(result)))
+}
+
+/// `(:wat::holon::Bind/right h)` — structural right-position accessor.
+///
+/// Arc 232 Stone 232.0a. Returns `Some(right)` for `(Bind _ right)`;
+/// `None` otherwise. Symmetric peer of `eval_bind_left`.
+fn eval_bind_right(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Bind/right";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let holon_arc = match arg_val {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: ValueSnapshot::of(&other),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let result = bind_right(&*holon_arc)
+        .map(|h| Value::holon__HolonAST(Arc::new(h)));
+    Ok(Value::Option(Arc::new(result)))
 }
 
 /// Extract the inner Bundle items from a classifier-wrapped form.
