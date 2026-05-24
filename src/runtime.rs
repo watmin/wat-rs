@@ -4868,6 +4868,11 @@ fn dispatch_keyword_head_value(
         // These are the substrate primitives consumed by the Stone 234.2b defrecord macro.
         ":wat::Record::of" => eval_record_of(args, list_span, env, sym),
         ":wat::Record/field-at" => eval_record_field_at(args, list_span, env, sym),
+        // Arc 234 Stone 234.3a — polymorphic record read verbs.
+        // record?   :: ∀T. T -> bool          — true iff input is Value::wat__Record
+        // record->map :: :wat::Record -> HashMap<keyword, T> — extract field-name/value map
+        ":wat::core::record?" => eval_record_q(args, list_span, env, sym),
+        ":wat::core::record->map" => eval_record_to_map(args, list_span, env, sym),
         // Language forms
         // Arc 157 slice 1a-ii — config setters. These are top-level forms
         // that update the SymbolTable carrier flags at freeze time (via
@@ -14636,6 +14641,143 @@ fn eval_record_field_at(
     }
 
     Ok(struct_form[index as usize].clone())
+}
+
+/// `(:wat::core::record? v)` — arc 234 Stone 234.3a.
+///
+/// Polymorphic predicate: true iff `v` is `Value::wat__Record`. Accepts any value
+/// (∀T) and returns bool. Mirrors `:wat::core::vector?` / `:wat::core::map?` family.
+fn eval_record_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::record?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    Ok(Value::bool(matches!(v, Value::wat__Record { .. })))
+}
+
+/// `(:wat::core::record->map r)` — arc 234 Stone 234.3a.
+///
+/// Extracts a `HashMap<:wat::core::keyword, value>` from a `Value::wat__Record`.
+/// Walks the record's `holon_form` to extract field names and pairs each name
+/// (as a `:wat::core::keyword` key) with the corresponding value from `struct_form`
+/// (positional match — index i in Bundle children corresponds to struct_form[i]).
+///
+/// Field names are stored in `holon_form` as:
+///   `Bind(Atom(String(class)), Bundle([ Bind(Atom(String(field-name)), Atom(...)), ... ]))`
+/// The Bundle's children are the field-Binds; each field-Bind's left is
+/// `Atom(String(field-name))` (no leading colon, per `keyword/to-string` contract).
+/// Keys in the returned HashMap are `Value::wat__core__keyword(":<field-name>")`.
+///
+/// Zero-field record: returns empty HashMap.
+/// Non-record input: TypeMismatch error.
+// Stone 216.5c — suppress `mutable_key_type` for `HashMap<Value, Value>`.
+// Value implements Hash + Eq; keywords are stable keys (Arc<String>, no mutation path).
+#[allow(clippy::mutable_key_type)]
+fn eval_record_to_map(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::record->map";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    match v {
+        Value::wat__Record { struct_form, holon_form, .. } => {
+            // holon_form structure (per Stone 234.2b macro):
+            //   Bind(Atom(String(class)), Bundle([ Bind(Atom(String(field-name)), Atom(val)), ... ]))
+            // Step 1: unwrap outer Bind → get right side (the Bundle of field-Binds).
+            let field_binds = match holon_form.as_ref() {
+                HolonAST::Bind(_, right) => match right.as_ref() {
+                    HolonAST::Bundle(children) => children.clone(),
+                    _ => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "holon_form outer Bind right to be Bundle(field-binds)",
+                            got: ValueSnapshot::unavailable("non-Bundle holon_form inner"),
+                            span: list_span.clone(),
+                        });
+                    }
+                },
+                _ => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: OP.into(),
+                        expected: "holon_form to be Bind(class, Bundle)",
+                        got: ValueSnapshot::unavailable("non-Bind holon_form"),
+                        span: list_span.clone(),
+                    });
+                }
+            };
+            // Step 2: for each field-Bind at index i, extract field-name + pair with struct_form[i].
+            let mut map: std::collections::HashMap<Value, Value> =
+                std::collections::HashMap::with_capacity(field_binds.len());
+            for (i, field_bind) in field_binds.iter().enumerate() {
+                // Each field-Bind is Bind(Atom(String(field-name)), Atom(val)).
+                // Extract field-name from left: Atom(String(name)) → name string.
+                let field_name = match field_bind {
+                    HolonAST::Bind(left, _) => match left.as_ref() {
+                        HolonAST::Atom(inner) => match inner.as_ref() {
+                            HolonAST::String(s) => s.to_string(),
+                            _ => {
+                                return Err(RuntimeError::TypeMismatch {
+                                    op: OP.into(),
+                                    expected: "field-Bind left Atom to contain String(field-name)",
+                                    got: ValueSnapshot::unavailable("non-String Atom inner"),
+                                    span: list_span.clone(),
+                                });
+                            }
+                        },
+                        _ => {
+                            return Err(RuntimeError::TypeMismatch {
+                                op: OP.into(),
+                                expected: "field-Bind left to be Atom(String(field-name))",
+                                got: ValueSnapshot::unavailable("non-Atom field-Bind left"),
+                                span: list_span.clone(),
+                            });
+                        }
+                    },
+                    _ => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "holon_form Bundle child to be Bind(Atom(name), Atom(val))",
+                            got: ValueSnapshot::unavailable("non-Bind field entry"),
+                            span: list_span.clone(),
+                        });
+                    }
+                };
+                // Build keyword key: ":<field-name>" (leading colon per keyword storage contract).
+                let key = Value::wat__core__keyword(Arc::new(format!(":{}", field_name)));
+                // Positional match: holon_form Bundle child #i corresponds to struct_form[i].
+                let val = struct_form[i].clone();
+                map.insert(key, val);
+            }
+            Ok(Value::wat__std__HashMap(Arc::new(map)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::Record instance",
+            got: ValueSnapshot::of(&other),
+            span: list_span.clone(),
+        }),
+    }
 }
 
 /// Arc 228 Stone 228.1 — extract the classifier name from a classifier-wrapped HolonAST.

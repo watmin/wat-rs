@@ -17305,6 +17305,41 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 234 Stone 234.3a — polymorphic record read verbs.
+    //
+    // :wat::core::record? :: ∀T. T -> bool
+    // Polymorphic predicate: accepts any value; returns true iff the value is
+    // Value::wat__Record. Mirrors :wat::holon::to-holon's ∀T pattern.
+    env.register(
+        ":wat::core::record?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // :wat::core::record->map :: :wat::Record -> HashMap<:wat::core::keyword, :T>
+    // Extracts a HashMap from a record: field-name keywords → typed field values.
+    // Input is :wat::Record; output is HashMap with keyword keys + polymorphic value type.
+    // The keyword key type is fixed; the value type T is polymorphic (inferred from context).
+    env.register(
+        ":wat::core::record->map".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![record_ty()],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::HashMap".into(),
+                args: vec![
+                    TypeExpr::Path(":wat::core::keyword".into()),
+                    t_var(),
+                ],
+            },
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]
