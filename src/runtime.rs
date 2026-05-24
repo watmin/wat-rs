@@ -632,20 +632,11 @@ pub enum Value {
     /// conj = PREPEND (Clojure semantic; distinct from Vector conj = APPEND).
     /// Constructed via `(:wat::core::List/of ...)` or `'(...)` literal.
     wat__core__List(std::sync::Arc<std::collections::LinkedList<Value>>),
-    /// Arc 233 Stone 233.2.a — transparent provenance wrapper.
-    ///
-    /// Carries an inner `Value` plus a `Provenance` record describing WHERE the
-    /// value came from. Transparent for all behavioral contracts:
-    /// `Eq`/`Hash`/`PartialEq`/`Display`/`Debug` all unwrap to the inner value.
-    ///
-    /// Opt-in: producers that care wrap their return value in `Value::Tracked`;
-    /// producers that don't emit bare values. No behavioral change to existing
-    /// code — `Value::inner()` + `Value::provenance()` are the access points.
-    Tracked {
-        inner: Box<Value>,
-        provenance: Provenance,
-    },
 }
+// Arc 233 Stone 233.2.k: Value::Tracked variant DELETED.
+// Environment now stores TrackedValue directly (Option A); provenance flows
+// structurally through the environment without a wrapping variant.
+// Stone 233.2.l seals the meta-class via #[wat_value] proc-macro.
 
 /// Arc 220 Stone 220.4 — shared sequence equality helper.
 ///
@@ -718,9 +709,7 @@ where
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         use std::sync::Arc;
-        // Arc 233 Stone 233.2.a — Tracked transparency: always compare inner values.
-        // inner() recurses through Tracked-of-Tracked, so the match never sees Tracked.
-        match (self.inner(), other.inner()) {
+        match (self, other) {
             // --- Atomizable primitives ---
             (Value::bool(a), Value::bool(b)) => a == b,
             (Value::i64(a), Value::i64(b)) => a == b,
@@ -836,22 +825,18 @@ impl Eq for Value {}
 /// correct.
 impl std::hash::Hash for Value {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        // Arc 233 Stone 233.2.a — Tracked transparency (Trap 1 discipline).
-        // Unwrap Tracked BEFORE discriminant tagging. inner() recurses through
-        // Tracked-of-Tracked. The match below never sees a Tracked variant.
-        let unwrapped = self.inner();
         // Arc 220 Stone 220.4 — sequence types (Vec + List) skip the
         // global discriminant and use hash_sequence (shared SEQ_TAG + element
         // iteration) so that `List(1,2,3)` and `Vector(1,2,3)` hash equal per
         // EDN spec §282-289 (cross-type sequence equality). Early-return before
         // the discriminant fires for these two variants only.
-        match unwrapped {
+        match self {
             Value::Vec(xs) => return hash_sequence(xs.iter(), state),
             Value::wat__core__List(xs) => return hash_sequence(xs.iter(), state),
             _ => {}
         }
-        std::mem::discriminant(unwrapped).hash(state);
-        match unwrapped {
+        std::mem::discriminant(self).hash(state);
+        match self {
             // --- Atomizable primitives ---
             Value::bool(b) => b.hash(state),
             Value::i64(n) => n.hash(state),
@@ -1006,12 +991,6 @@ impl std::hash::Hash for Value {
                  src/check.rs:3623 should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            // Arc 233 Stone 233.2.a — inner() guarantees this arm is never reached at
-            // runtime (inner() recurses through Tracked). Required for exhaustiveness.
-            Value::Tracked { .. } => unreachable!(
-                "Value::Tracked reached Hash match via unwrapped path — \
-                 inner() invariant violated: inner() must never return Tracked."
-            ),
         }
     }
 }
@@ -1155,52 +1134,14 @@ impl Value {
             Value::wat__core__Char(_) => "wat::core::Char",
             // Arc 220 Stone 220.4
             Value::wat__core__List(_) => "wat::core::List",
-            // Arc 233 Stone 233.2.a — Tracked is transparent; delegate to inner.
-            Value::Tracked { inner, .. } => inner.type_name(),
-        }
-    }
-
-    /// Arc 233 Stone 233.2.a — return `&Value` with `Tracked` unwrapped recursively.
-    ///
-    /// If `self` is `Tracked`, returns `inner.inner()` (handles Tracked-of-Tracked).
-    /// Otherwise returns `self`. Never returns a `Value::Tracked`.
-    pub fn inner(&self) -> &Value {
-        match self {
-            Value::Tracked { inner, .. } => inner.inner(),
-            other => other,
-        }
-    }
-
-    /// Arc 233 Stone 233.2.a — return the `Provenance` attached to this Value.
-    ///
-    /// If `self` is `Tracked`, returns the wrapper's provenance (outermost only;
-    /// does not recurse into nested `Tracked` wrappers). Otherwise returns
-    /// `Provenance::Unknown`.
-    pub fn provenance(&self) -> Provenance {
-        match self {
-            Value::Tracked { provenance, .. } => provenance.clone(),
-            _ => Provenance::Unknown,
-        }
-    }
-
-    /// Arc 233 Stone 233.2.j — convert a Value into TrackedValue.
-    ///
-    /// If `self` is `Value::Tracked { inner, provenance }`, the provenance is
-    /// EXTRACTED: the result carries the real provenance, and `.value()` returns
-    /// the bare inner Value. This allows environment lookups to transparently
-    /// propagate provenance through `eval_inner`'s Symbol arm without the
-    /// inner Value remaining wrapped.
-    ///
-    /// Bare Values (all non-Tracked variants) get `Provenance::Unknown`.
-    /// Used by eval_inner's leaf arms (literals) and the Symbol-lookup arm
-    /// (where the environment may store Value::Tracked for provenance preservation).
-    pub fn into_tracked(self) -> TrackedValue {
-        match self {
-            Value::Tracked { inner, provenance } => TrackedValue::new(*inner, provenance),
-            other => TrackedValue::from(other),
         }
     }
 }
+// Arc 233 Stone 233.2.k: Value::inner(), Value::provenance(), Value::into_tracked() DELETED.
+// These helpers were only meaningful while Value::Tracked existed.
+// Call sites use TrackedValue::from(value) directly (no need for into_tracked());
+// Value is never wrapped post-233.2.k so inner() is a no-op; Value no longer
+// carries provenance so provenance() is gone. Use TrackedValue's own .provenance().
 
 /// A callable. `define`-registered functions have `name = Some(path)`
 /// and `closed_env = None` (they resolve symbols via the global
@@ -1264,7 +1205,7 @@ pub struct Environment {
 }
 
 struct EnvCell {
-    bindings: HashMap<String, Value>,
+    bindings: HashMap<String, TrackedValue>,
     parent: Option<Environment>,
 }
 
@@ -1285,7 +1226,7 @@ impl Environment {
         }
     }
 
-    pub fn lookup(&self, name: &str) -> Option<Value> {
+    pub fn lookup(&self, name: &str) -> Option<TrackedValue> {
         if let Some(v) = self.inner.bindings.get(name) {
             return Some(v.clone());
         }
@@ -1301,13 +1242,13 @@ impl Default for Environment {
 
 /// Builder that accumulates bindings, then freezes into an [`Environment`].
 pub struct EnvBuilder {
-    bindings: HashMap<String, Value>,
+    bindings: HashMap<String, TrackedValue>,
     parent: Option<Environment>,
 }
 
 impl EnvBuilder {
-    pub fn bind(mut self, name: impl Into<String>, value: Value) -> Self {
-        self.bindings.insert(name.into(), value);
+    pub fn bind(mut self, name: impl Into<String>, tv: TrackedValue) -> Self {
+        self.bindings.insert(name.into(), tv);
         self
     }
 
@@ -1776,13 +1717,14 @@ pub struct ValueSnapshot {
 
 impl ValueSnapshot {
     /// Construct from a runtime Value at error-creation time. Uses
-    /// existing `render_value` for the rendered field. Arc 233 Stone 233.2.a:
-    /// extracts Provenance from Tracked wrapper; bare Values get Unknown.
+    /// existing `render_value` for the rendered field. Arc 233 Stone 233.2.k:
+    /// Value::Tracked retired; bare Values always get Provenance::Unknown here.
+    /// Use ValueSnapshot::of_tracked(&TrackedValue) for provenance-aware error sites.
     pub fn of(v: &Value) -> Self {
         ValueSnapshot {
-            type_name: v.inner().type_name(),
-            rendered: render_value(v.inner(), 0),
-            provenance: v.provenance(),
+            type_name: v.type_name(),
+            rendered: render_value(v, 0),
+            provenance: Provenance::Unknown,
         }
     }
 
@@ -1813,8 +1755,8 @@ impl ValueSnapshot {
     /// Sibling to `of(&Value)` which gives Provenance::Unknown for bare Values.
     pub fn of_tracked(tv: &TrackedValue) -> Self {
         ValueSnapshot {
-            type_name: tv.value().inner().type_name(),
-            rendered: render_value(tv.value().inner(), 0),
+            type_name: tv.value().type_name(),
+            rendered: render_value(tv.value(), 0),
             provenance: tv.provenance().clone(),
         }
     }
@@ -3005,8 +2947,8 @@ fn register_runtime_defs_form(
                 if let WatAST::Symbol(ident, _) = binder {
                     let binding_name = ident.name.clone();
                     let sym_ref: &SymbolTable = sym;
-                    let value = eval_inner(rhs, &scope, sym_ref)?.value_owned();
-                    scope = scope.child().bind(binding_name, value).build();
+                    let tv = eval_inner(rhs, &scope, sym_ref)?;
+                    scope = scope.child().bind(binding_name, tv).build();
                 }
                 // Non-Symbol binder (Vector destructure) — skip env extension;
                 // not load-bearing for def-splice-into-let-body.
@@ -4251,8 +4193,12 @@ fn eval_tail(
         // env, so `env.lookup` returns None for them and we delegate
         // to eval (which special-cases the three constructors).
         WatAST::Symbol(ident, _) => {
-            if let Some(Value::wat__core__fn(f)) = env.lookup(ident.as_str()) {
-                emit_tail_call(f, args, env, sym, list_span)
+            if let Some(tv) = env.lookup(ident.as_str()) {
+                if let Value::wat__core__fn(f) = tv.value() {
+                    emit_tail_call(f.clone(), args, env, sym, list_span)
+                } else {
+                    eval_inner(ast, env, sym).map(|tv| tv.value_owned())
+                }
             } else {
                 eval_inner(ast, env, sym).map(|tv| tv.value_owned())
             }
@@ -4546,10 +4492,10 @@ pub(crate) fn eval_inner(
     sym: &SymbolTable,
 ) -> Result<TrackedValue, RuntimeError> {
     match ast {
-        WatAST::IntLit(n, _) => Ok(Value::i64(*n).into_tracked()),
-        WatAST::FloatLit(x, _) => Ok(Value::f64(*x).into_tracked()),
-        WatAST::BoolLit(b, _) => Ok(Value::bool(*b).into_tracked()),
-        WatAST::StringLit(s, _) => Ok(Value::String(Arc::new(s.clone())).into_tracked()),
+        WatAST::IntLit(n, _) => Ok(TrackedValue::from(Value::i64(*n))),
+        WatAST::FloatLit(x, _) => Ok(TrackedValue::from(Value::f64(*x))),
+        WatAST::BoolLit(b, _) => Ok(TrackedValue::from(Value::bool(*b))),
+        WatAST::StringLit(s, _) => Ok(TrackedValue::from(Value::String(Arc::new(s.clone())))),
         // Arc 215 stone 2 — `[...]` vector literals at expression position.
         // Check.rs already type-checked these items via infer_list_constructor
         // (T inferred from first element; all elements unified). At runtime,
@@ -4565,7 +4511,7 @@ pub(crate) fn eval_inner(
                 .iter()
                 .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(Value::Vec(Arc::new(elems)).into_tracked())
+            Ok(TrackedValue::from(Value::Vec(Arc::new(elems))))
         }
         // Arc 169 slice 1 — struct-pattern brace-forms are
         // consumed only in `:wat::core::let` binding-position
@@ -4589,7 +4535,7 @@ pub(crate) fn eval_inner(
             // evaluation here returns the singleton value.
             // Special-case is narrow: only the exact FQDN string.
             if k == ":wat::core::nil" {
-                return Ok(Value::Unit.into_tracked());
+                return Ok(TrackedValue::from(Value::Unit));
             }
             // `:None` is the nullary constructor of the built-in
             // `:Option<T>` enum (058-030). Special-cased here so users
@@ -4602,7 +4548,7 @@ pub(crate) fn eval_inner(
             // retires (poisoned at type-check time, runtime keeps
             // working).
             if k == ":None" || k == ":wat::core::None" {
-                return Ok(Value::Option(Arc::new(None)).into_tracked());
+                return Ok(TrackedValue::from(Value::Option(Arc::new(None))));
             }
             // Arc 048 — user-enum unit variants. Pre-built EnumValues
             // sit in `sym.unit_variants` keyed by their full keyword
@@ -4610,7 +4556,7 @@ pub(crate) fn eval_inner(
             // return the variant value directly (no function call).
             // Mirrors the `:None` shortcut for Option.
             if let Some(ev) = sym.unit_variants.get(k) {
-                return Ok(Value::Enum(Arc::new(ev.clone())).into_tracked());
+                return Ok(TrackedValue::from(Value::Enum(Arc::new(ev.clone()))));
             }
             // Arc 157 — top-level `def` bindings. A keyword that was
             // bound via `(:wat::core::def :name expr)` at top-level
@@ -4622,7 +4568,7 @@ pub(crate) fn eval_inner(
             // def-bound closure is returned as the stored Value rather
             // than re-lifted through `sym.get`).
             if let Some(v) = sym.runtime_def_values.get(k) {
-                return Ok(v.clone().into_tracked());
+                return Ok(TrackedValue::from(v.clone()));
             }
             // Arc 009 — names are values. If the keyword is a registered
             // user/stdlib define, lift it to a callable Function value.
@@ -4633,14 +4579,13 @@ pub(crate) fn eval_inner(
             // runtime; they can pass the type check but won't evaluate
             // to a Function until a caller demands that extension.
             if let Some(func) = sym.get(k) {
-                return Ok(Value::wat__core__fn(func.clone()).into_tracked());
+                return Ok(TrackedValue::from(Value::wat__core__fn(func.clone())));
             }
-            Ok(Value::wat__core__keyword(Arc::new(k.clone())).into_tracked())
+            Ok(TrackedValue::from(Value::wat__core__keyword(Arc::new(k.clone()))))
         }
         WatAST::Symbol(ident, span) => env
             .lookup(ident.as_str())
-            .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone()))
-            .map(|v| v.into_tracked()),
+            .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone())),
         // Arc 233 Stone 233.2.j: eval_list now returns TrackedValue (producers propagate
         // TrackedValue directly; non-producer arms wrap with .into_tracked()).
         WatAST::List(items, span) => eval_list(items, span, env, sym),
@@ -4681,7 +4626,7 @@ fn eval_list(
     // the value level.
     let head = match items.first() {
         Some(h) => h,
-        None => return Ok(Value::Unit.into_tracked()),
+        None => return Ok(TrackedValue::from(Value::Unit)),
     };
     let rest = &items[1..];
 
@@ -4690,28 +4635,30 @@ fn eval_list(
     // The bare forms continue to work at runtime; type-check time
     // surfaces the migration hint via Pattern 2 poison.
     match head {
-        WatAST::Keyword(k, _) if k == ":wat::core::Some" => return eval_some_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
-        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => return eval_ok_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
-        WatAST::Keyword(k, _) if k == ":wat::core::Err" => return eval_err_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
+        WatAST::Keyword(k, _) if k == ":wat::core::Some" => return eval_some_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
+        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => return eval_ok_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
+        WatAST::Keyword(k, _) if k == ":wat::core::Err" => return eval_err_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
         _ => {}
     }
     match head {
         // dispatch_keyword_head now returns TrackedValue (propagates producer provenance).
         WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, list_span, env, sym),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, list_span, env, sym).map(|v| v.into_tracked()),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, list_span, env, sym).map(|v| TrackedValue::from(v)),
         WatAST::Symbol(ident, span) => {
             // Bare symbol as head — look up a callable in the env.
-            let callee = env
+            // Arc 233 Stone 233.2.k: keep TrackedValue so NotCallable errors
+            // preserve producer provenance (of_tracked reads provenance intact).
+            let tv = env
                 .lookup(ident.as_str())
                 .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone()))?;
-            apply_value(&callee, rest, env, sym).map(|v| v.into_tracked())
+            apply_tracked_callee(tv, rest, env, sym)
         }
         WatAST::List(_, _) => {
             // Inline fn call: ((fn ...) arg1 arg2)
-            let callee = eval_inner(head, env, sym)?.value_owned();
-            apply_value(&callee, rest, env, sym).map(|v| v.into_tracked())
+            let callee_tv = eval_inner(head, env, sym)?;
+            apply_tracked_callee(callee_tv, rest, env, sym)
         }
         other => Err(RuntimeError::MalformedForm {
             head: ast_variant_name(other).into(),
@@ -4739,18 +4686,21 @@ fn dispatch_keyword_head(
     // substrate-fixed forms).
     if let Some(reg) = &sym.dispatch_registry {
         if let Some(mm) = reg.get(head) {
-            return eval_dispatch_call(mm, args, list_span, env, sym).map(|v| v.into_tracked());
+            return eval_dispatch_call(mm, args, list_span, env, sym).map(|v| TrackedValue::from(v));
         }
     }
-    // 3 producers: return TrackedValue directly (provenance preserved).
+    // Producers + forms that preserve provenance: return TrackedValue directly.
     match head {
         ":wat::core::keyword/from-string" => return eval_keyword_from_string(args, list_span, env, sym),
         ":wat::holon::from-holon" => return eval_holon_from_holon(args, list_span, env, sym),
         ":wat::edn::read" => return crate::edn_shim::eval_edn_read(args, list_span, env, sym),
+        // Arc 233 Stone 233.2.k: let must return TrackedValue directly so provenance
+        // from the last body expression flows through (not stripped by dispatch_keyword_head_value).
+        ":wat::core::let" => return eval_let(args, list_span, env, sym),
         _ => {}
     }
     // All other arms: dispatch through value-returning inner and wrap.
-    dispatch_keyword_head_value(head, args, list_span, env, sym).map(|v| v.into_tracked())
+    dispatch_keyword_head_value(head, args, list_span, env, sym).map(|v| TrackedValue::from(v))
 }
 
 // Inner dispatch: returns Result<Value, RuntimeError>.
@@ -4821,7 +4771,7 @@ fn dispatch_keyword_head_value(
         // `fn` replaces `lambda` per user direction 2026-05-07).
         // BareLegacyLambda variant + Display retained as orphaned
         // scaffolding (arc 113 precedent); runtime fall-through retired.
-        ":wat::core::let" => eval_let(args, list_span, env, sym),
+        ":wat::core::let" => eval_let(args, list_span, env, sym).map(|tv| tv.value_owned()),
         ":wat::core::do" => eval_do(args, list_span, env, sym),
         ":wat::core::if" => eval_if(args, list_span, env, sym),
         ":wat::core::cond" => eval_cond(args, list_span, env, sym),
@@ -6134,7 +6084,7 @@ fn eval_let(
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
+) -> Result<TrackedValue, RuntimeError> {
     if args.is_empty() {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::let".into(),
@@ -6183,13 +6133,16 @@ fn eval_let(
     // Implicit-do body: args[1..]. Empty body → :wat::core::nil singleton.
     let body = &args[1..];
     if body.is_empty() {
-        return Ok(Value::Unit);
+        return Ok(TrackedValue::from(Value::Unit));
     }
     let last_idx = body.len() - 1;
     for form in &body[..last_idx] {
         let _ = eval_inner(form, &scope, sym)?;
     }
-    eval_inner(&body[last_idx], &scope, sym).map(|tv| tv.value_owned())
+    // Arc 233 Stone 233.2.k: return TrackedValue directly so provenance from the
+    // last body expression flows through (e.g., a let-bound producer value used
+    // as the let body's result retains its RuntimeBuilt provenance).
+    eval_inner(&body[last_idx], &scope, sym)
 }
 
 /// Apply a single parsed `LetBinding` to a scope, returning the
@@ -6202,29 +6155,23 @@ fn bind_let_binding(
 ) -> Result<Environment, RuntimeError> {
     match binding {
         LetBinding::Single { name, rhs } => {
-            // Arc 233 Stone 233.2.j provenance preservation: if the RHS eval
-            // returned a non-Unknown provenance (i.e., a producer tagged this
-            // value), preserve it by re-wrapping as Value::Tracked so that
-            // ValueSnapshot::of can extract it when the bound value flows
-            // into an error site (e.g., NotCallable). Bare Values (Unknown
-            // provenance) pass through as-is — no overhead for the common case.
+            // Arc 233 Stone 233.2.k: Environment stores TrackedValue directly.
+            // No re-wrap needed — provenance flows structurally through the
+            // Environment storage. The Phase 5 exemption from Stone 233.2.j
+            // is dissolved permanently by this mechanism.
             let tv = eval_inner(rhs, scope, sym)?;
-            let provenance = tv.provenance().clone();
-            let value = match provenance {
-                Provenance::Unknown => tv.value_owned(),
-                _ => Value::Tracked { // #[probe-3-exempt: let-binding provenance preservation — expires at Stone 233.2.k]
-                    inner: Box::new(tv.value_owned()),
-                    provenance,
-                },
-            };
-            Ok(scope.child().bind(name, value).build())
+            Ok(scope.child().bind(name, tv).build())
         }
         LetBinding::Destructure { names, rhs } => {
             let value = eval_inner(rhs, scope, sym)?.value_owned();
             let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
             let mut builder = scope.child();
             for (name, elem) in names.into_iter().zip(elements.into_iter()) {
-                builder = builder.bind(name, elem);
+                // Destructure slots get Unknown provenance — each slot has its
+                // own origin which we'd need separate tracking for (out of scope
+                // for 233.2.k; arc 233.2.e revisits if/when destructure
+                // provenance becomes load-bearing).
+                builder = builder.bind(name, TrackedValue::from(elem));
             }
             Ok(builder.build())
         }
@@ -6310,7 +6257,7 @@ fn bind_let_binding(
                         ),
                         span: rhs.span().clone(),
                     })?;
-                builder = builder.bind(fname.clone(), elem);
+                builder = builder.bind(fname.clone(), TrackedValue::from(elem));
             }
             Ok(builder.build())
         }
@@ -12681,7 +12628,7 @@ fn walk_match_clause(
                             return Ok((false, env));
                         }
                     };
-                    let new_env = env.child().bind(var.to_string(), value).build();
+                    let new_env = env.child().bind(var.to_string(), TrackedValue::from(value)).build();
                     return Ok((true, new_env));
                 }
                 // ?var already bound — fall through to comparison.
@@ -13978,7 +13925,7 @@ fn try_match_pattern(
         WatAST::Symbol(ident, _) if ident.as_str() == "_" => Ok(Some(outer.clone())),
         // Bare identifier — binds the scrutinee to that name.
         WatAST::Symbol(ident, _) => Ok(Some(
-            outer.child().bind(ident.as_str().to_string(), value.clone()).build(),
+            outer.child().bind(ident.as_str().to_string(), TrackedValue::from(value.clone())).build(),
         )),
         // `(Some binder)` — matches Option(Some(v)), binds `binder` to v.
         WatAST::List(items, _) => {
@@ -17748,9 +17695,7 @@ fn render_value(v: &Value, depth: usize) -> String {
     if depth > SHOW_MAX_DEPTH {
         return "…".to_string();
     }
-    // Arc 233 Stone 233.2.a — Tracked transparency: unwrap before matching.
-    // inner() recurses through Tracked-of-Tracked. The match below never sees Tracked.
-    match v.inner() {
+    match v {
         // ── Primitive leaves ──────────────────────────────────────
         Value::Unit => "()".to_string(),
         Value::bool(b) => if *b { "true" } else { "false" }.to_string(),
@@ -17922,12 +17867,6 @@ fn render_value(v: &Value, depth: usize) -> String {
             let parts: Vec<String> = xs.iter().map(|v| render_value(v, depth + 1)).collect();
             format!("({})", parts.join(" "))
         }
-        // Arc 233 Stone 233.2.a — inner() guarantees this arm is never reached at
-        // runtime (inner() recurses through Tracked). Required for exhaustiveness.
-        Value::Tracked { .. } => unreachable!(
-            "Value::Tracked reached render_value match via v.inner() path — \
-             inner() invariant violated: inner() must never return Tracked."
-        ),
     }
 }
 
@@ -19033,6 +18972,32 @@ fn require_numeric(op: &str, v: Value, list_span: &Span) -> Result<f64, RuntimeE
 
 // ─── Function application ───────────────────────────────────────────────
 
+/// Arc 233 Stone 233.2.k — apply a TrackedValue callee, preserving provenance
+/// in NotCallable errors. Used by eval_list Symbol + List head paths where the
+/// callee is looked up or evaluated as a TrackedValue (so producer info flows
+/// to the error site intact via ValueSnapshot::of_tracked).
+fn apply_tracked_callee(
+    callee_tv: TrackedValue,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<TrackedValue, RuntimeError> {
+    let func = match callee_tv.value() {
+        Value::wat__core__fn(f) => f.clone(),
+        _ => {
+            return Err(RuntimeError::NotCallable {
+                got: ValueSnapshot::of_tracked(&callee_tv),
+                span: Span::unknown(),
+            })
+        }
+    };
+    let vals = args
+        .iter()
+        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
+        .collect::<Result<Vec<_>, _>>()?;
+    apply_function(func, vals, sym, crate::rust_caller_span!()).map(|v| TrackedValue::from(v))
+}
+
 fn apply_value(
     callee: &Value,
     args: &[WatAST],
@@ -19154,7 +19119,7 @@ pub fn apply_function(
         let mut drained = cur_args.drain(..);
         for name in cur_func.params.iter() {
             let value = drained.next().expect("arity checked above");
-            builder = builder.bind(name.clone(), value);
+            builder = builder.bind(name.clone(), TrackedValue::from(value));
         }
         // Arc 150 — collect the remaining args (post-fixed) into a
         // Value::Vec and bind to the rest-name. For zero rest-args the
@@ -19164,7 +19129,7 @@ pub fn apply_function(
             let rest: Vec<Value> = drained.collect();
             builder = builder.bind(
                 rest_name.clone(),
-                Value::Vec(Arc::new(rest)),
+                TrackedValue::from(Value::Vec(Arc::new(rest))),
             );
         } else {
             // Drop the iterator so cur_args is fully drained even on
@@ -25321,7 +25286,7 @@ mod tests {
         let form = crate::parse_one!(body).expect("parse body");
         let env = Environment::new().child().bind(
             "program",
-            Value::wat__WatAST(Arc::new(ast_to_bind)),
+            TrackedValue::from(Value::wat__WatAST(Arc::new(ast_to_bind))),
         ).build();
         eval_inner(&form, &env, &SymbolTable::new()).map(|tv| tv.value_owned())
     }
@@ -25478,8 +25443,7 @@ mod tests {
             r#"(:wat::holon::from-holon (:wat::holon::to-holon "hello"))"#,
         )
         .unwrap();
-        // Arc 233 Stone 233.2.c — from-holon now wraps in Tracked; unwrap before matching.
-        match result.inner().clone() {
+        match result {
             Value::String(s) => assert_eq!(s.as_str(), "hello"),
             other => panic!("expected Value::String, got {:?}", other),
         }
@@ -25537,8 +25501,7 @@ mod tests {
             "(:wat::holon::from-holon (:wat::holon::from-wat (:wat::core::quote :outcome)))",
         )
         .unwrap();
-        // Arc 233 Stone 233.2.c — from-holon now wraps in Tracked; unwrap before matching.
-        match result.inner().clone() {
+        match result {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":outcome"),
             other => panic!("expected keyword, got {:?}", other),
         }
@@ -26936,7 +26899,7 @@ mod tests {
     /// Helper: evaluate `src` in an env pre-bound with `name -> value`.
     fn eval_with_binding(src: &str, name: &str, value: Value) -> Result<Value, RuntimeError> {
         let ast = crate::parse_one!(src).expect("parse ok");
-        let env = Environment::new().child().bind(name, value).build();
+        let env = Environment::new().child().bind(name, TrackedValue::from(value)).build();
         eval_inner(&ast, &env, &SymbolTable::new()).map(|tv| tv.value_owned())
     }
 
@@ -27050,8 +27013,7 @@ mod tests {
                 ((:wat::core::Ok :wat::core::None) 0)
                 ((:wat::core::Err _died) -1)))
         "#;
-        // Arc 233 Stone 233.2.c — recv now wraps the received value in Tracked; unwrap before matching.
-        match eval_expr(src).unwrap().inner() {
+        match eval_expr(src).unwrap() {
             Value::i64(42) => {}
             v => panic!("expected 42, got {:?}", v),
         }
@@ -28342,8 +28304,7 @@ mod tests {
                 ((:wat::core::Ok :wat::core::None) 0)
                 ((:wat::core::Err _died) -1)))
         "#;
-        // Arc 233 Stone 233.2.c — try-recv now wraps the received value in Tracked; unwrap before matching.
-        match eval_expr(src).unwrap().inner() {
+        match eval_expr(src).unwrap() {
             Value::i64(7) => {}
             v => panic!("expected 7, got {:?}", v),
         }
@@ -29052,8 +29013,7 @@ mod tests {
               ((:wat::core::Ok h) (:wat::holon::from-holon h))
               ((:wat::core::Err _) -1))
         "#;
-        // Arc 233 Stone 233.2.c — from-holon now wraps in Tracked; unwrap before matching.
-        match eval_expr(src).unwrap().inner() {
+        match eval_expr(src).unwrap() {
             Value::i64(42) => {}
             v => panic!("expected 42, got {:?}", v),
         }
@@ -29263,11 +29223,10 @@ mod tests {
               value))
           ((:wat::core::Err _) -1))
         "#;
-        // Arc 233 Stone 233.2.c — from-holon now wraps in Tracked; unwrap before matching.
-        match run(src).unwrap().inner() {
+        match run(src).unwrap() {
             Value::i64(value) => {
                 assert_eq!(
-                    *value, 999,
+                    value, 999,
                     "expected sentinel 999 from Skip, got {}",
                     value
                 );
@@ -29926,7 +29885,7 @@ mod tests {
             crate::typed_channel::receiver_from_crossbeam(rx0),
             crate::typed_channel::receiver_from_crossbeam(rx1),
         ]));
-        let env = Environment::new().child().bind("rxs", rxs).build();
+        let env = Environment::new().child().bind("rxs", TrackedValue::from(rxs)).build();
         let ast = crate::parse_one!("(:wat::kernel::select rxs)").expect("parse");
         let result = eval_inner(&ast, &env, &SymbolTable::new()).expect("select").value_owned();
         match result {
@@ -30444,15 +30403,13 @@ mod tests {
 
     #[test]
     fn keyword_from_string_prepends_colon() {
-        // Arc 233 Stone 233.2.b: keyword/from-string now returns Value::Tracked;
-        // use inner() to unwrap for the value-level assertion.
         let result = eval_expr(r#"(:wat::core::keyword/from-string "foo")"#).unwrap();
-        match result.inner() {
+        match result {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":foo"),
             other => panic!("expected keyword; got {:?}", other),
         }
         let result2 = eval_expr(r#"(:wat::core::keyword/from-string "wat::core::i64")"#).unwrap();
-        match result2.inner() {
+        match result2 {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":wat::core::i64"),
             other => panic!("expected keyword; got {:?}", other),
         }
@@ -30472,14 +30429,12 @@ mod tests {
             );
             assert_eq!(&text, expected_text, "to-string({}) should strip ':'", kw);
             // from-string(to-string(k)) == k
-            // Arc 233 Stone 233.2.b: keyword/from-string returns Value::Tracked;
-            // use inner() to unwrap for the value-level assertion.
             let roundtrip = eval_expr(&format!(
                 r#"(:wat::core::keyword/from-string (:wat::core::keyword/to-string {}))"#,
                 kw
             ))
             .unwrap();
-            match roundtrip.inner() {
+            match roundtrip {
                 Value::wat__core__keyword(k) => {
                     assert_eq!(k.as_str(), *kw, "round-trip failed for {}", kw)
                 }

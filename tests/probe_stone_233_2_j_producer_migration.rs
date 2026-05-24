@@ -105,13 +105,6 @@ fn probe_3_zero_value_tracked_construction_sites_in_src() {
             if trimmed.starts_with("//") || trimmed.starts_with("///") {
                 continue; // skip comments + doc-comments
             }
-            // Exempt sites marked with // #[probe-3-exempt: reason] on the same line.
-            // The ONE permitted exemption: bind_let_binding's provenance-preservation
-            // re-wrap (runtime.rs). Stone 233.2.k retires Value::Tracked entirely;
-            // at that point the exemption expires and this line is removed.
-            if line.contains("#[probe-3-exempt") {
-                continue;
-            }
             if line.contains("Value::Tracked {")
                 && (line.contains("inner: Box::new") || look_ahead_for_box_new(&contents, lineno))
             {
@@ -127,10 +120,9 @@ fn probe_3_zero_value_tracked_construction_sites_in_src() {
 
     assert_eq!(
         total_construction_sites, 0,
-        "Stone 233.2.j: NO producer Value::Tracked construction sites should remain in src/; \
-         found {} site(s). Producers must use TrackedValue::new instead. \
-         Non-producer sites may be marked `// #[probe-3-exempt: reason]` to exclude. \
-         Offending sites:\n{}",
+        "Stone 233.2.j: NO Value::Tracked construction sites should remain in src/; \
+         found {} site(s). Producers must use TrackedValue::new; Value::Tracked is \
+         retired as of Stone 233.2.k. Offending sites:\n{}",
         total_construction_sites,
         offending
             .iter()

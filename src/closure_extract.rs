@@ -193,12 +193,12 @@ pub fn extract_closure(
     if let Some(closed_env) = &func.closed_env {
         let frees = std::mem::take(&mut state.unresolved_frees);
         for (name, span) in frees {
-            if let Some(value) = closed_env.lookup(&name) {
+            if let Some(tv) = closed_env.lookup(&name) {
                 // It's a captured local. Encode the value to AST and
                 // record. The captured value itself may carry types we
                 // need to extract; the type-walk phase below handles
                 // them.
-                let encoded = encode_value_to_ast(&value, &name, &mut state)?;
+                let encoded = encode_value_to_ast(tv.value(), &name, &mut state)?;
                 state.captured_bindings.push(CapturedBinding {
                     original_name: name.clone(),
                     synthetic_name: synthesize_capture_name(&name),
@@ -1728,11 +1728,6 @@ fn encode_value_with_path(
             "encoding for captured Value of kind {} not implemented in slice 1",
             v.type_name()
         ))),
-        // Arc 233 Stone 233.2.a — Tracked transparency: delegate to inner.
-        // Provenance is local-context metadata; not part of the closure encoding.
-        Value::Tracked { inner, .. } => {
-            encode_value_with_path(inner, binding_name, path, state)
-        }
     }
 }
 
