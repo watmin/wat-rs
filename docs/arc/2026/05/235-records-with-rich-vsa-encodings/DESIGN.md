@@ -106,9 +106,33 @@ Considered: "numerics → Thermometer automatically." Blocked by Thermometer's b
 
 ---
 
+## Mandate vs opt-in — the design question (2026-05-24 resolution)
+
+User raised: should rich VSA encoding be MANDATED for records, or opt-in? Honest answer: **opt-in is the right shape, mandate is overreach.**
+
+Three structural reasons + one user-agency reason:
+
+1. **The substrate already refuses to assume.** `HolonAST::Thermometer { value, min, max }` requires bounds; Blend needs weights; Permute needs rotation amounts. The substrate refuses to fabricate domain knowledge — that refusal is wisdom; the surface should honor it.
+2. **Same type ≠ same encoding intent.** `[port <- :i64]` (opaque identifier; ports are NOT proximity-meaningful) vs `[temperature <- :i64]` (measurement; 22°C IS similar to 23°C). Same type; different encoding need; only the user knows which is which.
+3. **Mandate forces fabricated knowledge.** Mandating Thermometer for numerics would force users to invent (min, max) for every numeric field — including UUIDs (opaque), hashes (opaque), counts (no natural max). Fabricating domain knowledge is dishonest substrate work.
+4. **User agency.** The wat-record hologram thesis is "structural dual-form" — THAT is mandated (arc 234 ships). The hologram property is preserved structurally regardless of encoding. **Encoding-richness is a SEPARATE concern: domain-semantic.** Conflating them overreaches.
+
+**Resolution:**
+- **STRUCTURE is mandated** (arc 234, ✓ shipped): every record has struct_form + holon_form; the dual-form is non-negotiable.
+- **ENCODING is opt-in** (arc 235): default = exact (Atom-wrap); per-field opt-in via phantom-typed wrappers.
+
+**Optional future strict-mode variant** (NOT arc 235; far-future): if a domain demands VSA-strict encoding for every field (e.g., an embedding record used in similarity search), a future arc could add `(:wat::Record::def-strict ...)` that REJECTS unannotated fields at expand-time. Strict-by-record, not strict-by-substrate. The substrate stays flexible; users who need strictness get a tool.
+
+**Discipline that lives alongside opt-in:**
+- USER-GUIDE chapter on "choosing field encodings" — when to reach for Thermometer/Blend/Permute
+- Possibly: lint warning when a numeric field has no annotation, asking "is exact comparison intended here?" (tunable; annoying for IDs; useful for measurements)
+- Tutorial examples emphasize encoding-annotated forms where they matter
+
+---
+
 ## Recommended path (B, with caveats)
 
-**Recommendation: Option B (phantom-typed wrapper).** Encoding becomes structural in the type system; composes uniformly; honest about what's exact vs graded.
+**Recommendation: Option B (phantom-typed wrapper).** Encoding becomes structural in the type system; composes uniformly; honest about what's exact vs graded. Aligns with the opt-in resolution above.
 
 **Open questions:**
 
