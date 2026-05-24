@@ -14,9 +14,25 @@ concurrency architecture see `ZERO-MUTEX.md`. This cheatsheet is
 
 ## 1. Colon rule
 
-ONE colon per keyword-path token, always at the start. NEVER inside
-`<>`, `(...)`, `:fn(...)`, or `:[...]`. Type expressions inside
-those brackets are bare Rust symbols.
+**The `:` is the symbol-quote marker.** Keywords are symbol-quoted
+paths. The leading `:` quotes the ENTIRE symbol path that follows —
+including parametric type arguments inside `<>`, `(...)`, `:fn(...)`,
+or `:[...]`. Everything to the right of the leading `:` is part of
+the SAME symbol; it doesn't get its own `:` because the outer one
+already covers it.
+
+`:Vec<wat::core::String>` reads as "the keyword whose symbol path is
+`Vec<wat::core::String>`." The `wat::core::String` inside `<...>`
+isn't a separate keyword needing its own quote — it's part of the
+outer keyword's path.
+
+`:Vec<:wat::core::String>` is illegal because you can't nest
+symbol-quotes; the inner `:` would mean "start a new symbol-quote
+here," but you're already inside one.
+
+**Operational form of the rule:** ONE colon per keyword-path token,
+always at the start. NEVER inside `<>`, `(...)`, `:fn(...)`, or
+`:[...]`.
 
 | Illegal | Canonical | Why |
 |---|---|---|
@@ -24,9 +40,19 @@ those brackets are bare Rust symbols.
 | `:Result<:Option<i64>,:wat::kernel::ThreadDiedError>` | `:Result<Option<i64>,wat::kernel::ThreadDiedError>` | same |
 | `:fn(:i64)->:bool` | `:fn(i64)->bool` | same |
 | `:Vec<:wat::core::String>` | `:Vec<wat::core::String>` | same |
+| `:wat::core::Option<:wat::Record>` | `:wat::core::Option<wat::Record>` | Stone 234.2c (2026-05-24) |
 
 Arc 115's compile error names the rule and shows the canonical
 form. See `arc/2026/04/115-no-inner-colon-in-parametric-args/`.
+
+> **LLM note** — every LLM (sonnet flights, orchestrator instances,
+> anyone cloning this repo) initially defaults to "type the colon
+> because it's a path token." That reflex is wrong here; the
+> **symbol-quote framing above** is the WHY that prevents the
+> mistake — internalize that, not just the legal/illegal table. The
+> substrate's compile error (arc 115) is the structural guarantee:
+> when in doubt, write the form and trust the type-checker to teach.
+> The framing is the discipline; the error is the safety net.
 
 ## 2. Whitespace rule
 
