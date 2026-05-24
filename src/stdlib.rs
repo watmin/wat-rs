@@ -84,6 +84,29 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/holon/defrecord.wat",
         source: include_str!("../wat/holon/defrecord.wat"),
     },
+    // Arc 232 Stone 232.1 — :wat::holon::defprotocol macro. Declares a protocol
+    // (named set of method signatures). Generates ONE polymorphic dispatcher defn
+    // per declared method. The dispatcher routes per-first-arg-classifier via the
+    // canonical composition: extract-classifier → string::concat → keyword/from-string
+    // → apply. Pure wat-side macro sugar; no substrate extension. Depends on
+    // :wat::holon::extract-classifier (arc 232 stone 232.0a), :wat::core::apply
+    // (arc 232 stone 232.0), defrecord (arc 227), and string/keyword reflection
+    // primitives. Bundled with extend-type (Stone 232.1 DESIGN D1).
+    WatSource {
+        path: "wat/holon/defprotocol.wat",
+        source: include_str!("../wat/holon/defprotocol.wat"),
+    },
+    // Arc 232 Stone 232.1 — :wat::holon::extend-type macro. Extends a type with
+    // method implementations for a protocol. Generates ONE defn per method-body
+    // at the mangled name :<type-fqdn>/<proto-basename>-<method> that the
+    // defprotocol dispatcher routes to via apply + runtime-built keyword.
+    // Method-body form: (method-name [params] -> :RetType body). Return type
+    // is explicit (verbose-is-honest; D7 registry deferred to v2). Bundled
+    // with defprotocol (Stone 232.1 DESIGN D1).
+    WatSource {
+        path: "wat/holon/extend-type.wat",
+        source: include_str!("../wat/holon/extend-type.wat"),
+    },
     WatSource {
         path: "wat/holon.wat",
         source: include_str!("../wat/holon.wat"),
