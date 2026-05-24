@@ -17,13 +17,25 @@ Cosine of `(:myapp::Voltage 5.0)` vs `(:myapp::Voltage 5.1)`:
 - Today: ~0.5 (different leaves → different vectors → no proximity)
 - VSA-meaningful: ~0.95 (graded similarity reflects scalar proximity)
 
-Records currently access ~1/4 of HolonAST's encoding expressivity. The substrate has:
+### What records use vs miss (honest count — 2026-05-24 correction)
+
+HolonAST has **16 variants** total (per arc 221+230 substrate state):
+
+| Category | Variants | Records use? |
+|---|---|---|
+| Leaves (9) | Nil, Bool, I64, F64, String, Symbol, Keyword, Char, Tag | YES — typed per field |
+| Composites (3) | Bind, Bundle, Permute | Bind + Bundle YES (structure); **Permute NO** |
+| Special (4) | Atom, Thermometer, Blend, SlotMarker | Atom YES (wraps every value); **Thermometer NO; Blend NO**; SlotMarker is encoder-internal |
+
+**Records access 12 of 16 variants (~75%).** The missing 3 user-relevant variants are the **special-encoding** primitives where VSA's proximity-semantics live:
+
 - **Thermometer** — gradient scalar encoding (proximity in scalar → proximity in vector)
 - **Blend** — fuzzy semantic mix (categorical blending)
-- **Permute** — sequence-aware encoding (position matters AND values can vary)
-- **Atom** — exact-leaf (current default; everything uses this today)
+- **Permute** — position-aware / sequence-rotation encoding
 
-Records should be able to leverage all four — the choice is per-field, encoding-specific to the domain.
+The structural majority (Bind/Bundle/Atom + all 9 leaves) IS accessible. The narrow but load-bearing gap: the special-encoding subset specifically — where the substrate's "fuzzy comparison tooling in VSA land" (per user 2026-05-24) lives.
+
+Records should be able to leverage these three — the choice is per-field, encoding-specific to the domain.
 
 ---
 
