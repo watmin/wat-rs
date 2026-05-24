@@ -16970,6 +16970,44 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 234 Stone 234.2a — :wat::Record::of + :wat::Record/field-at substrate primitives.
+    //
+    // :wat::Record::of :: ∀T. :wat::core::keyword × Vector<T> × :wat::holon::HolonAST
+    //                       -> :wat::Record
+    // Constructor: takes a class-FQDN keyword, struct-form Vector<T>, and holon-form HolonAST;
+    // returns a Value::wat__Record instance. T is the field-value type (uniform across fields
+    // at this type-check level; macro-generated typed constructors narrow per field in 234.2b).
+    //
+    // :wat::Record/field-at :: ∀T. :wat::Record × :wat::core::i64 -> :T
+    // Positional accessor: takes a record + i64 index; returns the field value.
+    // Generic return T: type-checker propagates T via recipient inference (let-binding
+    // or defn return-type annotation drives unification). Mirrors Vector/get's T pattern.
+    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    let record_ty = || TypeExpr::Path(":wat::Record".into());
+    let holon_ty2 = || TypeExpr::Path(":wat::holon::HolonAST".into());
+    let vec_t_ty = || TypeExpr::Parametric {
+        head: "wat::core::Vector".into(),
+        args: vec![t_var()],
+    };
+    env.register(
+        ":wat::Record::of".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![keyword_ty(), vec_t_ty(), holon_ty2()],
+            ret: record_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::Record/field-at".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![record_ty(), i64_ty()],
+            ret: t_var(),
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]

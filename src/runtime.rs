@@ -4862,6 +4862,12 @@ fn dispatch_keyword_head_value(
         // Consumed by defprotocol's polymorphic dispatcher (revised Stone 232.1)
         // and all arc 234.x record-y verbs.
         ":wat::core::type" => eval_type(args, list_span, env, sym),
+        // Arc 234 Stone 234.2a — `:wat::Record::of` constructor + `:wat::Record/field-at` accessor.
+        // Constructor: (class-fqdn struct-form holon-form) -> :wat::Record
+        // Accessor:    (record index) -> field-value at struct_form[index]
+        // These are the substrate primitives consumed by the Stone 234.2b defrecord macro.
+        ":wat::Record::of" => eval_record_of(args, list_span, env, sym),
+        ":wat::Record/field-at" => eval_record_field_at(args, list_span, env, sym),
         // Language forms
         // Arc 157 slice 1a-ii — config setters. These are top-level forms
         // that update the SymbolTable carrier flags at freeze time (via
@@ -14486,6 +14492,150 @@ fn eval_type(
         other => other.type_name().to_string(),
     };
     Ok(Value::String(Arc::new(type_str)))
+}
+
+/// `(:wat::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>> <holon-form: HolonAST>)`
+/// → `:wat::Record` — arc 234 Stone 234.2a.
+///
+/// Substrate constructor for `Value::wat__Record`. Takes three args:
+/// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Voltage`); the keyword's stored
+///   Arc<String> carries the leading `:` which is stripped to produce the colon-free
+///   `class_fqdn` field (e.g. `"myapp::Voltage"`).
+/// - `struct-form`: `Vector<T>` of field values in declaration order.
+/// - `holon-form`: pre-built HolonAST classifier-wrap `Bind(Atom(class), Bundle(field-Binds...))`.
+///
+/// Returns `Value::wat__Record { class_fqdn, struct_form, holon_form }`.
+/// Consumed by the Stone 234.2b defrecord macro; power users may call directly.
+fn eval_record_of(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::Record::of";
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let class_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let struct_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let holon_val = eval_inner(&args[2], env, sym)?.value_owned();
+
+    let class_arc = match class_val {
+        Value::wat__core__keyword(arc_s) => arc_s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::keyword (class FQDN)",
+                got: ValueSnapshot::of(&other),
+                span: list_span.clone(),
+            });
+        }
+    };
+    // Keywords store the leading ':' in their Arc<String>; strip it for class_fqdn.
+    let class_fqdn_str = class_arc.strip_prefix(':').unwrap_or(&class_arc).to_string();
+    let class_fqdn = Arc::new(class_fqdn_str);
+
+    let struct_form = match struct_val {
+        Value::Vec(arc_vec) => arc_vec,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector<T> (struct-form field values in declaration order)",
+                got: ValueSnapshot::of(&other),
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    let holon_form = match holon_val {
+        Value::holon__HolonAST(arc_h) => arc_h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::holon::HolonAST (holon-form classifier-wrap)",
+                got: ValueSnapshot::of(&other),
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    Ok(Value::wat__Record {
+        class_fqdn,
+        struct_form,
+        holon_form,
+    })
+}
+
+/// `(:wat::Record/field-at <record: :wat::Record> <index: i64>)` → field value
+/// — arc 234 Stone 234.2a.
+///
+/// Positional accessor for `Value::wat__Record`. Returns `struct_form[index]`.
+/// Out-of-bounds index (negative or >= struct_form.len()) → TypeMismatch error.
+/// Consumed by the Stone 234.2b defrecord macro's per-field accessor codegen.
+fn eval_record_field_at(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::Record/field-at";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let record_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let index_val = eval_inner(&args[1], env, sym)?.value_owned();
+
+    let struct_form = match record_val {
+        Value::wat__Record { struct_form, .. } => struct_form,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::Record instance",
+                got: ValueSnapshot::of(&other),
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    let index = match index_val {
+        Value::i64(n) => n,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "i64 positional index",
+                got: ValueSnapshot::of(&other),
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    if index < 0 || (index as usize) >= struct_form.len() {
+        return Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "i64 index within bounds of struct_form",
+            got: ValueSnapshot::described(
+                "i64",
+                format!(
+                    "index {} out of bounds (struct_form.len() = {})",
+                    index,
+                    struct_form.len()
+                ),
+            ),
+            span: list_span.clone(),
+        });
+    }
+
+    Ok(struct_form[index as usize].clone())
 }
 
 /// Arc 228 Stone 228.1 — extract the classifier name from a classifier-wrapped HolonAST.
