@@ -172,7 +172,73 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-23 night late late — ARC 233 SHIPPED + CLOSED; arc 232 RESUMED; Stone 232.0a IN FLIGHT with intueri-cast Bind/{left,right} symmetric pair)
+## Currently (2026-05-23 night latest — Stone 232.0a SHIPPED 10/10 + RANK-UP DEMO CONFIRMED; arc 232 unblocked to Stone 232.1 defprotocol macro)
+
+### What just shipped
+
+```
+a1e4b02  arc 232 Stone 232.0a SHIPPED — typed-entities reflection layer
+         3 reflection verbs (extract-classifier + Bind/left + Bind/right)
+         10/10 PASS independently verified per FM 9
+         ~52 min sonnet / 40-75 Mode A target — IN BAND
+```
+
+### The rank-up confirmation (the load-bearing point of the stone)
+
+Sonnet's SCORE captured three concrete cases where arc 233 tools shortened iteration:
+
+1. **Compile error precision** — `expected HolonAST, found Arc<HolonAST>` named the deref defect at line 14435 exactly. Pattern-match on `holon: &HolonAST` binds `left` as `&Arc<HolonAST>`; `(*left).clone()` clones the Arc, not the HolonAST. Fix: `left.as_ref().clone()`. No diagnostic scaffolding added; the compiler taught the fix.
+
+2. **`#[wat_value]` structural seal** — when authoring the new eval functions, the natural question "do I need a new Value variant to carry the return type?" had a structurally-enforced answer: NO. The proc-macro seal forbids new wrapping variants; existing `Value::Option(Arc<Option<Value>>)` + `Value::holon__HolonAST` + `Value::String` were the only path. Confidence to write was high from the start.
+
+3. **ValueSnapshot::of in TypeMismatch arms** — all three eval functions use `ValueSnapshot::of(&other)` in their TypeMismatch arms. Had any probe passed the wrong type, the error would have named the actual value + provenance (SymbolBound with binding span, if let-bound) — probe iteration without adding print statements. All 7 probes passed first run after compile clean, so the path wasn't exercised at runtime — but the pattern was authored with the knowledge that the error surface is informative.
+
+**Empirical:** the strategic pivot from arc 232 → 233 → back to 232 delivered. defprotocol's consumer-side iteration on the enriched substrate is the next test.
+
+### Substrate state — impeccable
+
+```
+HEAD          a1e4b02 on arc-170-gap-j-v5-deadlock-state
+Lib tests     827/0/1 PASS
+arc 232.0a    7/7 (typed-entities reflection probe)
+arc 233       all 4 regression guards GREEN (233.1 / 233.2.e / 233.2.k / 233.2.l / 233.3)
+Clippy        54 (at boundary; unchanged baseline)
+holon-rs      untouched since 530650c (arc 230 atomic pair Phase A)
+Both repos    pushed
+```
+
+### Pending chain (post-232.0a shipment)
+
+```
+232.1     defprotocol macro — consumes extract-classifier + apply for polymorphic dispatch
+232.2     extend-type macro — Clojure-equivalent open extension
+232.3     built-in-type extension proof (extend Vector or similar with a protocol)
+232.5     INSCRIPTION (closes arc 232)
++ defrecord accessor synthesis — separate stone; composes Bind/left + Bind/right + Bundle/children
+```
+
+### Post-compaction recovery path
+
+1. Read this Currently section + the prior SUPERSEDED sections for arc 233 + 232.0a trajectory
+2. `git log --oneline | head -30` for today's commit chain through a1e4b02
+3. Read `docs/arc/2026/05/232-defprotocol-extend-type/SCORE-STONE-232.0a.md` for rank-up evidence detail
+4. Stone 232.1 (defprotocol macro): DESIGN.md exists; sub-DESIGN-STONE-232.1.md to be drafted next
+5. FM 2-bis discipline: write `tests/probe_diagnostic_defprotocol_dispatch.rs` BEFORE the BRIEF — prove the manual composition (extract-classifier + apply per-class lookup + dispatch) empirically; commit; reference verbatim in BRIEF
+
+### Pending decisions (next-move)
+
+1. Stone 232.1 sub-DESIGN authoring — the polymorphic dispatcher's expansion shape (defprotocol → method-tables + per-method dispatchers consuming extract-classifier + apply)
+2. FM 2-bis probe authoring — manual defprotocol composition (no macro yet); proves the substrate supports it
+3. BRIEF + EXPECTATIONS authoring — calibration band; 10-row scorecard; rank-up regression guards as load-bearing rows
+
+### Discipline gain inscribed this session
+
+- **The rank-up was honest, not theatrical.** Sonnet captured concrete cases where arc 233 tools fired (compile-error precision, structural seal preventing class of question, ValueSnapshot confidence) — not generic claims. The "we built the tool BEFORE the tool's heaviest consumer arrived" framing held in execution.
+- **In-band calibration continues.** 52 min on 40-75 target. Sonnet's flight pattern post-arc-233 mirrors pre-arc-233 calibration — no regression from the enrichment.
+
+---
+
+## Currently (2026-05-23 night late late — ARC 233 SHIPPED + CLOSED; arc 232 RESUMED; Stone 232.0a IN FLIGHT with intueri-cast Bind/{left,right} symmetric pair) — SUPERSEDED, see above
 
 ### Today's complete trajectory (post-compaction continuation; all GREEN; pushed)
 
