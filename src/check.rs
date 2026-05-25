@@ -13973,6 +13973,27 @@ fn unify(
             subst.insert(*x, other.clone());
             Ok(())
         }
+        // Stone 237.1 — bounded-existential typeunion unification.
+        // Checked BEFORE the plain (Path, Path) arm so union paths
+        // are intercepted first. Order: Var wins (already above),
+        // then union arms, then structural equality.
+        //
+        // (Union, Union) — intersect member sets; succeed if non-empty.
+        (TypeExpr::Path(p1), TypeExpr::Path(p2))
+            if is_union_path(p1, types) && is_union_path(p2, types) =>
+        {
+            unify_union_union(p1, p2, types)
+        }
+        // (Union, other) — succeed if other is a member of the union
+        // (transitively through nested unions).
+        (TypeExpr::Path(p), other) if is_union_path(p, types) => {
+            unify_union_with_other(p, other, types)
+        }
+        // (other, Union) — symmetric; bounded-existential unify is
+        // symmetric per doctrine.
+        (other, TypeExpr::Path(p)) if is_union_path(p, types) => {
+            unify_union_with_other(p, other, types)
+        }
         (TypeExpr::Path(p1), TypeExpr::Path(p2)) => {
             if p1 == p2 {
                 Ok(())
@@ -14012,6 +14033,77 @@ fn unify(
         }
         _ => Err(UnifyError),
     }
+}
+
+/// Stone 237.1 — returns true iff `path` resolves to a `TypeDef::Union`
+/// in the type environment. Used as a guard in the `unify` match arms
+/// to intercept union paths before structural equality.
+fn is_union_path(path: &str, types: &TypeEnv) -> bool {
+    matches!(types.get(path), Some(crate::types::TypeDef::Union(_)))
+}
+
+/// Stone 237.1 — bounded-existential member check: `other` must be
+/// structurally equal to one of the union's (transitively expanded)
+/// members. The expansion walks nested typeunions; cycle-check at
+/// registration time bounds the walk.
+///
+/// `subst` is not updated here — typeunion is NOT a Var; it constrains
+/// acceptable matches but does not bind a fresh variable. The caller
+/// (function type-checking) already has the union path as the declared
+/// parameter type; accepting the call means `:my::IorF` is satisfied
+/// by `:i64` — no substitution is needed beyond the unify-arm succeeding.
+fn unify_union_with_other(
+    union_path: &str,
+    other: &TypeExpr,
+    types: &TypeEnv,
+) -> Result<(), UnifyError> {
+    let union = match types.get(union_path) {
+        Some(crate::types::TypeDef::Union(u)) => u,
+        _ => return Err(UnifyError),
+    };
+    let members = crate::types::collect_union_members(union, types);
+    // Check if `other` equals any member structurally. We use simple
+    // structural equality (PartialEq) here since members are fully
+    // expanded by collect_union_members and we don't need Var binding.
+    for member in &members {
+        if member == other {
+            return Ok(());
+        }
+    }
+    Err(UnifyError)
+}
+
+/// Stone 237.1 — (Union, Union) intersection: succeed iff the two
+/// unions share at least one transitively-expanded member. No Var
+/// binding needed; both sides are named union types.
+fn unify_union_union(
+    p1: &str,
+    p2: &str,
+    types: &TypeEnv,
+) -> Result<(), UnifyError> {
+    // Identity fast-path.
+    if p1 == p2 {
+        return Ok(());
+    }
+    let u1 = match types.get(p1) {
+        Some(crate::types::TypeDef::Union(u)) => u,
+        _ => return Err(UnifyError),
+    };
+    let u2 = match types.get(p2) {
+        Some(crate::types::TypeDef::Union(u)) => u,
+        _ => return Err(UnifyError),
+    };
+    let members1 = crate::types::collect_union_members(u1, types);
+    let members2 = crate::types::collect_union_members(u2, types);
+    // Non-empty intersection means the two unions are compatible.
+    for m1 in &members1 {
+        for m2 in &members2 {
+            if m1 == m2 {
+                return Ok(());
+            }
+        }
+    }
+    Err(UnifyError)
 }
 
 /// Chase a type through the substitution map until a non-bound root

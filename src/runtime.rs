@@ -11879,6 +11879,8 @@ fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
         crate::types::TypeDef::Enum(e) => (e.name.clone(), &e.type_params),
         crate::types::TypeDef::Newtype(n) => (n.name.clone(), &n.type_params),
         crate::types::TypeDef::Alias(a) => (a.name.clone(), &a.type_params),
+        // Stone 237.1 — typeunion is a type-level grouping; signature is its name.
+        crate::types::TypeDef::Union(u) => (u.name.clone(), &u.type_params),
     };
     let head_kw = if type_params.is_empty() {
         base
@@ -11907,6 +11909,8 @@ fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
         crate::types::TypeDef::Enum(_) => ":wat::core::enum",
         crate::types::TypeDef::Newtype(_) => ":wat::core::newtype",
         crate::types::TypeDef::Alias(_) => ":wat::core::typealias",
+        // Stone 237.1 — typeunion is type-only; no runtime artifact.
+        crate::types::TypeDef::Union(_) => ":wat::core::typeunion",
     };
     let name_kw = WatAST::Keyword(def.name().to_string(), span.clone());
     let sentinel = WatAST::List(

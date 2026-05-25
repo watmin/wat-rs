@@ -1286,6 +1286,8 @@ fn def_inner_typeexprs(def: &TypeDef) -> Vec<TypeExpr> {
         }
         TypeDef::Newtype(n) => vec![n.inner.clone()],
         TypeDef::Alias(a) => vec![a.expr.clone()],
+        // Stone 237.1 — typeunion members are the inner type references.
+        TypeDef::Union(u) => u.members.clone(),
     }
 }
 
@@ -2222,6 +2224,22 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
             ],
             span,
         ),
+        // Stone 237.1 — reconstruct typeunion form from UnionDef.
+        TypeDef::Union(u) => {
+            let member_items: Vec<WatAST> = u
+                .members
+                .iter()
+                .map(|m| WatAST::Keyword(crate::check::format_type(m), span.clone()))
+                .collect();
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::typeunion".into(), span.clone()),
+                    WatAST::Keyword(format_type_decl_name(&u.name, &u.type_params), span.clone()),
+                    WatAST::Vector(member_items, span.clone()),
+                ],
+                span,
+            )
+        }
     }
 }
 

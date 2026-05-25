@@ -164,13 +164,32 @@ pub struct AliasDef {
     pub expr: TypeExpr,
 }
 
-/// One of the four declaration variants.
+/// Typeunion — named bounded set of types. Stone 237.1.
+///
+/// `(:wat::core::typeunion :Name [:T1 :T2 ...])` declares a named
+/// grouping of two or more types. Unification resolves the union to
+/// whichever member matches. Members must be `Path`, `Parametric`, or
+/// `Tuple`; `Fn` and `Var` are rejected at registration time.
+///
+/// `type_params` is reserved for future parametric typeunions
+/// (e.g. `typeunion :Result<T,E>`); arc 237 ships non-parametric only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnionDef {
+    pub name: String,
+    pub type_params: Vec<String>,
+    pub members: Vec<TypeExpr>,
+}
+
+/// One of the five declaration variants.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeDef {
     Struct(StructDef),
     Enum(EnumDef),
     Newtype(NewtypeDef),
     Alias(AliasDef),
+    /// Stone 237.1 — named bounded set of types for bounded-existential
+    /// unification. See [`UnionDef`].
+    Union(UnionDef),
 }
 
 impl TypeDef {
@@ -180,6 +199,7 @@ impl TypeDef {
             TypeDef::Enum(e) => &e.name,
             TypeDef::Newtype(n) => &n.name,
             TypeDef::Alias(a) => &a.name,
+            TypeDef::Union(u) => &u.name,
         }
     }
 }
@@ -262,6 +282,11 @@ impl TypeEnv {
         if let TypeDef::Alias(alias) = &def {
             check_alias_no_cycle(&name, &alias.expr, self, &span)?;
         }
+        // Stone 237.1 — reject typeunions with invalid members or cycles.
+        if let TypeDef::Union(union) = &def {
+            validate_union_members(&name, &union.members, &span)?;
+            check_union_no_cycle(&name, &union.members, self, &span)?;
+        }
         self.types.insert(name, def);
         Ok(())
     }
@@ -300,6 +325,11 @@ impl TypeEnv {
         }
         if let TypeDef::Alias(alias) = &def {
             check_alias_no_cycle(&name, &alias.expr, self, &span)?;
+        }
+        // Stone 237.1 — reject typeunions with invalid members or cycles.
+        if let TypeDef::Union(union) = &def {
+            validate_union_members(&name, &union.members, &span)?;
+            check_union_no_cycle(&name, &union.members, self, &span)?;
         }
         self.types.insert(name, def);
         Ok(())
@@ -1340,6 +1370,38 @@ pub enum TypeError {
         offending: String,
         span: Span,
     },
+
+    // ─── Stone 237.1 — typeunion declaration errors ─────────────────────────
+
+    /// A typeunion's member graph, traced through the currently-registered
+    /// typeunions, closes a cycle. Detected at registration time so
+    /// unification cannot loop at use. Example:
+    /// `(typeunion :A [:i64 :B]) (typeunion :B [:f64 :A])` — the second
+    /// registration fires this error (`:B`'s members reach `:A` which
+    /// is already a union containing `:B`).
+    CyclicUnion { name: String, span: Span },
+
+    /// A typeunion was declared with zero members. Use case is unclear;
+    /// mirrors the `:Any`-ban rationale for rejecting vacuously-typed
+    /// positions early.
+    EmptyUnion { name: String, span: Span },
+
+    /// A typeunion was declared with exactly one member. A single-member
+    /// union is identical in effect to a typealias; the diagnostic
+    /// recommends `(:wat::core::typealias ...)` instead (one canonical
+    /// path per `feedback_wat_llm_first_design`).
+    SingleMemberUnion { name: String, span: Span },
+
+    /// A typeunion's member list contained a shape that typeunion does
+    /// not accept. Only `Path`, `Parametric`, and `Tuple` members are
+    /// sound; `Fn` (weird dispatch semantics) and `Var` (synthetic;
+    /// never appears in user-written declarations) are rejected.
+    InvalidUnionMember {
+        union_name: String,
+        member_form: String,
+        reason: String,
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 2 — render the file:line:col prefix for a TypeError,
@@ -1422,6 +1484,36 @@ impl fmt::Display for TypeError {
                 raw,
                 offending,
                 raw.replacen(&format!(":{}", offending.trim_start_matches(':')), offending.trim_start_matches(':'), 1)
+            ),
+            TypeError::CyclicUnion { name, span } => write!(
+                f,
+                "{}typeunion {} forms a cycle through the current union graph — refused at \
+                 registration time so unification cannot loop",
+                span_prefix(span),
+                name
+            ),
+            TypeError::EmptyUnion { name, span } => write!(
+                f,
+                "{}typeunion {} has no members — use a non-empty member list `[...]` with at \
+                 least two type paths",
+                span_prefix(span),
+                name
+            ),
+            TypeError::SingleMemberUnion { name, span } => write!(
+                f,
+                "{}typeunion {} has exactly one member — a single-member union is a typealias \
+                 in disguise; use (:wat::core::typealias {name} :MemberType) instead",
+                span_prefix(span),
+                name
+            ),
+            TypeError::InvalidUnionMember { union_name, member_form, reason, span } => write!(
+                f,
+                "{}typeunion {} contains an invalid member {}: {}. \
+                 Members must be Path, Parametric, or Tuple types.",
+                span_prefix(span),
+                union_name,
+                member_form,
+                reason
             ),
         }
     }
@@ -1641,6 +1733,8 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
                 ":wat::core::enum" => return Some("enum"),
                 ":wat::core::newtype" => return Some("newtype"),
                 ":wat::core::typealias" => return Some("typealias"),
+                // Stone 237.1 — named bounded set of types.
+                ":wat::core::typeunion" => return Some("typeunion"),
                 _ => {}
             }
         }
@@ -1672,6 +1766,8 @@ fn parse_type_decl(
         "enum" => parse_enum(iter.collect(), decl_span),
         "newtype" => parse_newtype(iter.collect(), decl_span),
         "typealias" => parse_typealias(iter.collect(), decl_span),
+        // Stone 237.1 — named bounded set of types.
+        "typeunion" => parse_typeunion(iter.collect(), decl_span),
         _ => unreachable!(),
     }
 }
@@ -2034,6 +2130,69 @@ fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
         name,
         type_params,
         expr,
+    }))
+}
+
+/// Stone 237.1 — parse `(:wat::core::typeunion :Name [:T1 :T2 ...])`.
+///
+/// Two positional slots after the head keyword (consumed by `parse_type_decl`):
+///   args[0] — name keyword (e.g. `:my::Numeric`)
+///   args[1] — members Vector `[...]` of type-expression keywords
+///
+/// The Vector literal signals "data/collection" per `feedback_clojure_not_scheme`.
+/// Empty Vector → `EmptyUnion`; single-element → `SingleMemberUnion`; member
+/// shape validation occurs at registration time (in `validate_union_members`).
+fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
+    if args.len() != 2 {
+        return Err(TypeError::MalformedDecl {
+            head: "typeunion".into(),
+            reason: format!(
+                "expected (:wat::core::typeunion :Name [:T1 :T2 ...]); got {} args",
+                args.len()
+            ),
+            span: decl_span,
+        });
+    }
+    let mut iter = args.into_iter();
+    let name_kw = iter.next().unwrap();
+    let members_ast = iter.next().unwrap();
+    let (name, type_params) = parse_declared_name("typeunion", &name_kw, &decl_span)?;
+    let member_items = match members_ast {
+        WatAST::Vector(items, _) => items,
+        other => {
+            return Err(TypeError::MalformedDecl {
+                head: "typeunion".into(),
+                reason: format!(
+                    "member list must be a Vector `[...]`; got {}",
+                    ast_variant_name(&other)
+                ),
+                span: decl_span,
+            })
+        }
+    };
+    let mut members = Vec::with_capacity(member_items.len());
+    for item in member_items {
+        let item_span = item.span().clone();
+        match item {
+            WatAST::Keyword(k, span) => {
+                members.push(parse_type_expr_with_span(&k, &span)?);
+            }
+            other => {
+                return Err(TypeError::MalformedDecl {
+                    head: "typeunion".into(),
+                    reason: format!(
+                        "member must be a type keyword; got {}",
+                        ast_variant_name(&other)
+                    ),
+                    span: item_span,
+                })
+            }
+        }
+    }
+    Ok(TypeDef::Union(UnionDef {
+        name,
+        type_params,
+        members,
     }))
 }
 
@@ -2769,6 +2928,136 @@ fn check_alias_reaches(
         TypeExpr::Var(_) => {}
     }
     Ok(())
+}
+
+// ─── Typeunion validation (Stone 237.1) ─────────────────────────────────────
+
+/// Validate that every member of a typeunion declaration has an accepted
+/// shape. Called from [`TypeEnv::register_with_span`] before insertion.
+///
+/// Accepted: `Path`, `Parametric`, `Tuple` — all bounded structural shapes.
+/// Rejected: `Fn` (weird dispatch semantics) and `Var` (synthetic; never
+/// appears in user-written declarations).
+///
+/// Also rejects empty member lists (`EmptyUnion`) and single-member lists
+/// (`SingleMemberUnion` — recommend typealias).
+fn validate_union_members(name: &str, members: &[TypeExpr], span: &Span) -> Result<(), TypeError> {
+    if members.is_empty() {
+        return Err(TypeError::EmptyUnion { name: name.to_string(), span: span.clone() });
+    }
+    if members.len() == 1 {
+        return Err(TypeError::SingleMemberUnion { name: name.to_string(), span: span.clone() });
+    }
+    for member in members {
+        match member {
+            TypeExpr::Path(_) | TypeExpr::Parametric { .. } | TypeExpr::Tuple(_) => {}
+            TypeExpr::Fn { .. } => {
+                return Err(TypeError::InvalidUnionMember {
+                    union_name: name.to_string(),
+                    member_form: format!("{:?}", member),
+                    reason: "Fn types are not valid union members (weird dispatch semantics; revisit if a use case surfaces)".to_string(),
+                    span: span.clone(),
+                });
+            }
+            TypeExpr::Var(_) => {
+                return Err(TypeError::InvalidUnionMember {
+                    union_name: name.to_string(),
+                    member_form: format!("{:?}", member),
+                    reason: "Var (synthetic unification variable) is not valid in user-written declarations".to_string(),
+                    span: span.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Starting from a typeunion's member list, verify that the walk through
+/// registered typeunions never reaches `target_name` itself — otherwise
+/// registration would produce a cycle that bounded-existential unification
+/// cannot exit.
+///
+/// Called from [`TypeEnv::register_with_span`] before insertion; the `env`
+/// is the registry as it stands BEFORE this union is inserted.
+fn check_union_no_cycle(
+    target_name: &str,
+    members: &[TypeExpr],
+    env: &TypeEnv,
+    span: &Span,
+) -> Result<(), TypeError> {
+    let mut visiting = std::collections::HashSet::new();
+    for member in members {
+        check_union_member_reaches(target_name, member, env, &mut visiting, span)?;
+    }
+    Ok(())
+}
+
+fn check_union_member_reaches(
+    target_name: &str,
+    expr: &TypeExpr,
+    env: &TypeEnv,
+    visiting: &mut std::collections::HashSet<String>,
+    span: &Span,
+) -> Result<(), TypeError> {
+    if let TypeExpr::Path(name) = expr {
+        if name == target_name {
+            return Err(TypeError::CyclicUnion {
+                name: target_name.to_string(),
+                span: span.clone(),
+            });
+        }
+        // Walk through registered typeunions recursively.
+        if let Some(TypeDef::Union(union)) = env.get(name) {
+            if visiting.insert(name.clone()) {
+                for member in &union.members {
+                    check_union_member_reaches(target_name, member, env, visiting, span)?;
+                }
+                visiting.remove(name);
+            }
+        }
+    }
+    Ok(())
+}
+
+// ─── Typeunion member resolution (Stone 237.1) ───────────────────────────────
+
+/// Collect the full (flattened, transitive) set of concrete member paths
+/// reachable from a typeunion. Recursively expands nested typeunions.
+/// Aliases are expanded via `expand_alias`. Non-Path, non-Path-via-union
+/// members are emitted as-is (Parametric, Tuple).
+///
+/// Called from `check.rs::unify` to perform bounded-existential member
+/// matching. The cycle-check at registration time bounds this walk.
+pub fn collect_union_members(union: &UnionDef, env: &TypeEnv) -> Vec<TypeExpr> {
+    let mut result = Vec::new();
+    let mut visiting = std::collections::HashSet::new();
+    for member in &union.members {
+        collect_member_recursive(member, env, &mut visiting, &mut result);
+    }
+    result
+}
+
+fn collect_member_recursive(
+    expr: &TypeExpr,
+    env: &TypeEnv,
+    visiting: &mut std::collections::HashSet<String>,
+    out: &mut Vec<TypeExpr>,
+) {
+    // Expand aliases first.
+    let expanded = expand_alias(expr, env);
+    if let TypeExpr::Path(ref name) = expanded {
+        // If the path resolves to a nested typeunion, expand it.
+        if let Some(TypeDef::Union(nested)) = env.get(name) {
+            if visiting.insert(name.clone()) {
+                for member in &nested.members {
+                    collect_member_recursive(member, env, visiting, out);
+                }
+                visiting.remove(name);
+                return;
+            }
+        }
+    }
+    out.push(expanded);
 }
 
 #[cfg(test)]
