@@ -671,6 +671,23 @@ pub enum CheckError {
         /// Source location of the call-site head token.
         span: Span,
     },
+    /// Stone 237.2 — a `:wat::core::defclause` call site had no clause
+    /// that could accept the given argument types. Fires when every
+    /// clause fails arity-match OR arg-type unification.
+    ///
+    /// TEMPORARY: Stone 237.4 will replace with rich EDN-serialized shape.
+    NoMatchingClauseAtCallSite {
+        /// The defclause name (FQDN keyword).
+        name: String,
+        /// Arity of the call site.
+        called_arity: usize,
+        /// Formatted arg types at the call site.
+        called_arg_types: Vec<String>,
+        /// Per-clause summaries: (arity, [arg-type-formats]).
+        attempted_clauses: Vec<(usize, Vec<String>)>,
+        /// Source location of the call form.
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 1 — render the file:line:col prefix for an error,
@@ -906,6 +923,29 @@ impl fmt::Display for CheckError {
                 enclosing_fn,
                 enclosing_fn,
             ),
+            // Stone 237.2 — NoMatchingClauseAtCallSite.
+            CheckError::NoMatchingClauseAtCallSite {
+                name,
+                called_arity,
+                called_arg_types,
+                attempted_clauses,
+                span,
+            } => {
+                let clause_summary: Vec<String> = attempted_clauses
+                    .iter()
+                    .map(|(arity, types)| format!("({}: [{}])", arity, types.join(", ")))
+                    .collect();
+                write!(
+                    f,
+                    "{}no clause of `{}` matches arity {} with types [{}]; \
+                     clauses attempted: {}",
+                    span_prefix(span),
+                    name,
+                    called_arity,
+                    called_arg_types.join(", "),
+                    if clause_summary.is_empty() { "(none)".into() } else { clause_summary.join("; ") },
+                )
+            }
         }
     }
 }
@@ -1521,6 +1561,23 @@ impl CheckError {
                 .field("enclosing_fn", enclosing_fn.as_str())
                 .field("prefixes", prefixes.join(" "))
                 .field("location", format!("{}", span)),
+            // Stone 237.2 — NoMatchingClauseAtCallSite diagnostic.
+            CheckError::NoMatchingClauseAtCallSite {
+                name,
+                called_arity,
+                called_arg_types,
+                attempted_clauses: _,
+                span,
+            } => {
+                let mut diag = Diagnostic::new("NoMatchingClauseAtCallSite")
+                    .field("name", name.as_str())
+                    .field("called_arity", *called_arity)
+                    .field("called_arg_types", called_arg_types.join(", "));
+                if !span.is_unknown() {
+                    diag = diag.field("span", span.to_string());
+                }
+                diag
+            }
         }
     }
 }
@@ -1913,6 +1970,14 @@ pub struct CheckEnv {
     /// program-order semantics). Consulted by `infer_def` at the
     /// redef-collision site.
     pub redef_allowed: bool,
+    /// Stone 237.2 — per-defclause clause registrations.
+    ///
+    /// Maps FQDN name → list of `(arg_types, return_type)` per clause,
+    /// in declaration order (first-match-wins at call sites).
+    /// Populated incrementally by `collect_splice_defs_ctx` when it
+    /// encounters a `:wat::core::defclause` top-level form. Consumed
+    /// in `infer_list` for call-site dispatch type-checking.
+    pub defclause_registrations: HashMap<String, Vec<(Vec<TypeExpr>, TypeExpr)>>,
 }
 
 impl CheckEnv {
@@ -1987,6 +2052,7 @@ impl CheckEnv {
             defined_value_spans: HashMap::new(),
             defined_value_restrictions: HashMap::new(),
             redef_allowed: false,
+            defclause_registrations: HashMap::new(),
         }
     }
 
@@ -2058,6 +2124,40 @@ impl CheckEnv {
     /// sees the whitelist at type-check time.
     pub fn register_defined_value_restriction(&mut self, name: String, prefixes: Vec<String>) {
         self.defined_value_restrictions.insert(name, prefixes);
+    }
+
+    /// Stone 237.2 — register a defclause binding's clause table.
+    ///
+    /// Each `(arg_types, return_type)` pair represents one clause in
+    /// declaration order. Called by `collect_splice_defs_ctx` when it
+    /// encounters a top-level `:wat::core::defclause` form.
+    pub fn register_defclause(
+        &mut self,
+        name: String,
+        clauses: Vec<(Vec<TypeExpr>, TypeExpr)>,
+        span: Span,
+    ) {
+        // Also register in defined_values so keyword references to the
+        // name in value position (e.g. passing it as :fn argument) see
+        // a type. Use a fresh Var(u64::MAX) sentinel — actual call-site
+        // dispatch uses defclause_registrations, not defined_values.
+        // The sentinel prevents `UnknownCallee` from firing for the name
+        // in call-head position when there is no scheme.
+        if !self.defined_values.contains_key(&name) {
+            self.defined_values
+                .insert(name.clone(), TypeExpr::Var(u64::MAX));
+            self.defined_value_spans.insert(name.clone(), span);
+        }
+        self.defclause_registrations.insert(name, clauses);
+    }
+
+    /// Stone 237.2 — look up a defclause's clause table by name.
+    /// Returns `None` if the name was not bound via defclause.
+    pub fn get_defclause_clauses(
+        &self,
+        name: &str,
+    ) -> Option<&Vec<(Vec<TypeExpr>, TypeExpr)>> {
+        self.defclause_registrations.get(name)
     }
 }
 
@@ -5325,6 +5425,18 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Stone 237.2 — `:wat::core::defclause` type-check arm.
+            // Shape: (:wat::core::defclause :name [-> :T] (clause...) ...)
+            // Per-clause body type-check via `infer_defclause`.
+            // Registration into env happens in `collect_splice_defs_ctx`.
+            ":wat::core::defclause" => {
+                let (val, mut errs) = infer_defclause(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 157 slice 1a-ii — config setters for redef opt-in.
             // Shape: (:wat::config::set-redef! <bool>) — returns Unit.
             // The bool arg is type-checked; the actual flag update is
@@ -6547,6 +6659,76 @@ fn infer_list(
             _ => {}
         }
 
+        // Stone 237.2 — defclause call-site dispatch.
+        // If the head names a registered defclause, infer arg types,
+        // find the first matching clause (arity + arg-type unification
+        // via Stone 237.1's unify arms), and return that clause's
+        // declared return type.
+        // This check BEFORE env.get so defclause-bound names don't fall
+        // through to the generic scheme path.
+        let canonical_k = crate::runtime::canonical_callable_name(k);
+        if let Some(clauses) = env.get_defclause_clauses(canonical_k) {
+            let clauses = clauses.clone();
+            // Infer each arg's type (side-effects + type collection).
+            let arg_tys: Vec<Option<TypeExpr>> = args
+                .iter()
+                .map(|arg| infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors))
+                .collect();
+            let called_arity = args.len();
+            // First-match-wins: arity match, then per-position unify.
+            let mut matched_ret: Option<TypeExpr> = None;
+            let mut attempted: Vec<(usize, Vec<String>)> = Vec::new();
+            'outer: for (clause_arg_types, clause_ret) in &clauses {
+                let clause_arity = clause_arg_types.len();
+                attempted.push((
+                    clause_arity,
+                    clause_arg_types.iter().map(format_type).collect(),
+                ));
+                if clause_arity != called_arity {
+                    continue;
+                }
+                let mut clause_subst = subst.clone();
+                let mut all_match = true;
+                for (arg_ty_opt, expected_ty) in arg_tys.iter().zip(clause_arg_types.iter()) {
+                    if let Some(arg_ty) = arg_ty_opt {
+                        if unify(arg_ty, expected_ty, &mut clause_subst, env.types()).is_err() {
+                            all_match = false;
+                            continue 'outer;
+                        }
+                    }
+                    // None means inference failed for that arg; be permissive.
+                }
+                if all_match {
+                    *subst = clause_subst;
+                    matched_ret = Some(apply_subst(clause_ret, subst));
+                    break;
+                }
+            }
+            return match matched_ret {
+                Some(ret_ty) => {
+                    if local_errors.is_empty() {
+                        CheckResult::ok(ret_ty)
+                    } else {
+                        CheckResult::partial_with(ret_ty, local_errors)
+                    }
+                }
+                None => {
+                    let called_arg_types: Vec<String> = arg_tys
+                        .iter()
+                        .map(|opt| opt.as_ref().map(format_type).unwrap_or_else(|| "?".into()))
+                        .collect();
+                    local_errors.push(CheckError::NoMatchingClauseAtCallSite {
+                        name: k.clone(),
+                        called_arity,
+                        called_arg_types,
+                        attempted_clauses: attempted,
+                        span: head_span.clone(),
+                    });
+                    CheckResult::errs(local_errors)
+                }
+            };
+        }
+
         // Normal call: look up scheme, instantiate, unify args.
         // Arc 139 — strip turbofish `<T,...>` from the head before
         // env.get. The substrate registers user defines under the
@@ -6554,7 +6736,6 @@ fn infer_list(
         // turbofish resolve to the same scheme. Symmetric registration
         // vs lookup. See `runtime::canonical_callable_name` for the
         // full rationale.
-        let canonical_k = crate::runtime::canonical_callable_name(k);
         let scheme = match env.get(canonical_k) {
             Some(s) => s,
             None => {
@@ -8890,6 +9071,87 @@ fn infer_def(
     }
 }
 
+/// Stone 237.2 — type-check arm for `:wat::core::defclause`.
+///
+/// Validates the form structure via `parse_defclause_form`, then for each
+/// clause type-checks the body against the declared return type (same
+/// discipline as `check_fn_body`). Returns the unit type — defclause is a
+/// declaration, not a value-producing expression.
+///
+/// Registration of the clause table into `env.defclause_registrations`
+/// happens in `collect_splice_defs_ctx` BEFORE this function is called
+/// (two-phase pattern matching `infer_def` / `extract_def_binding`).
+fn infer_defclause(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    _locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    _subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+
+    // Reconstruct the full form for parse_defclause_form.
+    // args = items[1..] (head already stripped). We need the full list.
+    // Easier: build a dummy full form from head + args.
+    // parse_defclause_form expects WatAST::List with head ":wat::core::defclause".
+    let mut all_items = Vec::with_capacity(args.len() + 1);
+    all_items.push(WatAST::Keyword(":wat::core::defclause".into(), head_span.clone()));
+    all_items.extend_from_slice(args);
+    let form = WatAST::List(all_items, head_span.clone());
+
+    let cs = match crate::runtime::parse_defclause_form(&form) {
+        Ok((_name, cs)) => cs,
+        Err(e) => {
+            local_errors.push(CheckError::MalformedForm {
+                head: ":wat::core::defclause".into(),
+                reason: format!("{}", e),
+                span: head_span.clone(),
+            });
+            return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
+        }
+    };
+
+    // Type-check each clause body against its declared return type.
+    for (clause_idx, clause) in cs.clauses.iter().enumerate() {
+        // Build a local scope with clause arg bindings.
+        let mut clause_locals: HashMap<String, TypeExpr> = HashMap::new();
+        for (arg_name, arg_ty) in &clause.args {
+            clause_locals.insert(arg_name.clone(), arg_ty.clone());
+        }
+        let mut clause_subst = Subst::new();
+        fresh.push_enclosing_ret(clause.return_type.clone());
+        let body_ty = infer(
+            &clause.body,
+            env,
+            &clause_locals,
+            fresh,
+            &mut clause_subst,
+        )
+        .drain_errors_into(&mut local_errors);
+        fresh.pop_enclosing_ret();
+
+        if let Some(body_ty) = body_ty {
+            let resolved_body = apply_subst(&body_ty, &clause_subst);
+            let resolved_ret = apply_subst(&clause.return_type, &clause_subst);
+            if unify(&resolved_body, &resolved_ret, &mut clause_subst, env.types()).is_err() {
+                local_errors.push(CheckError::ReturnTypeMismatch {
+                    function: format!("{}/clause#{}", cs.name, clause_idx + 1),
+                    expected: format_type(&apply_subst(&clause.return_type, &clause_subst)),
+                    got: format_type(&apply_subst(&body_ty, &clause_subst)),
+                    span: clause.body.span().clone(),
+                });
+            }
+        }
+    }
+
+    if local_errors.is_empty() {
+        CheckResult::ok(TypeExpr::Tuple(vec![]))
+    } else {
+        CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+    }
+}
+
 /// Arc 198 — type-check arm for
 /// `(:wat::core::def-restricted :name :restricted-to [<prefix-kw>...] expr)`.
 ///
@@ -9198,6 +9460,33 @@ fn collect_splice_defs_ctx(
                 }
                 // else: redef_allowed = false → DefRedefForbidden already
                 // emitted by infer_def; don't overwrite.
+            }
+        }
+        // Stone 237.2 — defclause registration. Parse the form via the
+        // runtime parser (which already validates arg triples, reserved
+        // prefix, empty-clause rejection) and register the clause table
+        // into env.defclause_registrations so subsequent call sites see
+        // the correct per-clause type signatures.
+        ":wat::core::defclause" if is_top => {
+            let span = form.span().clone();
+            match crate::runtime::parse_defclause_form(form) {
+                Ok((name, cs)) => {
+                    let clauses: Vec<(Vec<TypeExpr>, TypeExpr)> = cs
+                        .clauses
+                        .iter()
+                        .map(|cl| {
+                            let arg_types: Vec<TypeExpr> =
+                                cl.args.iter().map(|(_, ty)| ty.clone()).collect();
+                            (arg_types, cl.return_type.clone())
+                        })
+                        .collect();
+                    env.register_defclause(name, clauses, span);
+                }
+                Err(_) => {
+                    // Parse error will be reported by infer_defclause.
+                    // Don't register anything — subsequent references
+                    // to the name will use a fresh Var (permissive).
+                }
             }
         }
         ":wat::core::do" if is_top => {

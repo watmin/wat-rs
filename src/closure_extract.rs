@@ -1723,6 +1723,14 @@ fn encode_value_with_path(
             v.type_name()
         ))),
 
+        // Stone 237.2 — wat__core__clauses: no closure-extract encoding for
+        // multi-arity dispatchers yet. Clause bodies are evaluated at dispatch
+        // time; the dispatcher itself is a top-level registration (not a closure).
+        Value::wat__core__clauses(_) => Err(ExtractionError::Internal(format!(
+            "encoding for captured Value of kind {} not implemented (Stone 237.2 — defclause is top-level)",
+            v.type_name()
+        ))),
+
         // ─── arms slice 1 doesn't yet encode ──────────────────────────
         // These are portable in principle; surface as Internal so a
         // surfacing test reveals the gap. (Per FM 5: don't bridge with

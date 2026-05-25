@@ -247,6 +247,22 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 (kw("span"), span_val(span)),
             ]))
         }
+        // Stone 237.2 — TEMPORARY minimal variant; Stone 237.4 refines to rich EDN shape.
+        RuntimeError::NoMatchingClauseRuntime { name, called_arity, called_args, attempted_clauses, span } => {
+            let called_args_edn = OwnedValue::Vector(
+                called_args.iter().map(|s| snap_val(s)).collect(),
+            );
+            let attempted_edn = OwnedValue::Vector(
+                attempted_clauses.iter().map(|s| str_val(s)).collect(),
+            );
+            tagged("NoMatchingClauseRuntime", OwnedValue::Map(vec![
+                (kw("name"), str_val(name)),
+                (kw("called-arity"), OwnedValue::Integer(*called_arity as i64)),
+                (kw("called-args"), called_args_edn),
+                (kw("attempted-clauses"), attempted_edn),
+                (kw("span"), span_val(span)),
+            ]))
+        }
     }
 }
 
@@ -337,6 +353,7 @@ fn variant_name(err: &RuntimeError) -> &'static str {
         RuntimeError::ServiceNotRunning { .. } => "ServiceNotRunning",
         RuntimeError::EdnCoerceMismatch { .. } => "EdnCoerceMismatch",
         RuntimeError::UnknownField { .. } => "UnknownField",
+        RuntimeError::NoMatchingClauseRuntime { .. } => "NoMatchingClauseRuntime",
     }
 }
 

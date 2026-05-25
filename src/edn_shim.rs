@@ -1708,6 +1708,12 @@ pub fn value_to_edn_with(
                 .collect();
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
+        // Stone 237.2 — wat__core__clauses: opaque (multi-arity dispatcher;
+        // not directly serializable to EDN).
+        Value::wat__core__clauses(cs) => opaque_nil("wat-edn.opaque", {
+            let _ = cs;
+            "clauses"
+        }),
     }
 }
 
