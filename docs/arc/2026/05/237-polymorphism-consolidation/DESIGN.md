@@ -23,10 +23,27 @@ After an hour-long design dialogue (post-Stone-237.4), the arc's treatment of nu
 
    typeunion and arithmetic were conflated in the original framing — that conflation was the orchestrator's error, which manufactured fake "two concurrent ways" options. They are DIFFERENT problems with DIFFERENT one-ways. Never merge them.
 
-**Reshaped downstream stones:**
+**Reshaped downstream stones (the typeunion-utilization arc, fully specified 2026-05-25 night-late-2):**
 
-- **Stone 237.5** — **typeunion auto-mints its `:is-<Name>?` membership predicate** + a proving end-to-end consumer. THE DECISION orphaned typeunion's two planned consumers (237.5's old "typeunion-typed rest" and 237.7's `:Numeric`), leaving 237.1 half-delivered (type-checker-only, zero runtime). Declaring `(typeunion :Shape [...])` now also emits `:is-<Name>?` (membership test), the way `defrecord` emits accessors. Combined with defclause concrete-type dispatch (237.2, "which member") + bounded-existential unify (237.1, static acceptance), the union becomes fully usable. The old "variadic rest over concrete homogeneous types" idea is dropped (no consumer; not the gap). Per-*member* predicates for user types (`is-Circle?`) are explicitly OUT — that's defrecord-auto-predicate territory (arc 227/234), not a typeunion gap.
-- **Stone 237.7** — arithmetic + arc 148 families → concrete-per-type defclauses; **DELETE widest-contagion** (`infer_arithmetic` / `eval_arithmetic_variadic` / `is_numeric`); retire arc 146 Dispatch; update `AnyBanned` message. (Per-Type binary ops stay as fold kernels; do a blast-radius grep first.)
+THE DECISION orphaned typeunion's two planned consumers (237.5's old "typeunion-typed rest" + 237.7's `:Numeric`), leaving 237.1 **half-delivered** (type-checker-only, zero runtime). Closing that gap led — within this arc — to a complete type-conformance doctrine. **No deferral** (user verdict 2026-05-25: "deferral must be an incredibly high bar and i don't see this passing — we reasoned this exclusively from this arc"). The full picture:
+
+**The type-conformance doctrine (foundation + composition).**
+- **`(:wat::core::conforms? value :TypeExpr) -> :bool`** is the ONE general mechanism — "does this value conform to this type expression?" — a single recursive function over the TypeExpr grammar:
+  - nominal `Path` (struct / newtype) → identity check (value's tag == name); O(1)
+  - `Union` → membership (value's concrete type ∈ members); O(members)
+  - structural (`Vector<:u8>`, `Map<K,V>`, `Tuple<…>`) → recursive walk; O(n). (Runtime carries enough: `Value::u8` and `Value::i64` are DISTINCT variants — `runtime.rs:375,381` — so element checks are decidable.)
+  - `Alias` → resolve to target, recurse.
+- **`is-<Name>?`** is **composition over `conforms?`** (user bias: "do one thing well and compose to deliver what we must"): `is-<Name>?` ≡ `(conforms? v :Name)`, auto-minted as the named discrimination-vocabulary sugar for the **four nominal-identity forms** (struct/enum/newtype/union). Build order is forced: `conforms?` first (foundation), then the auto-mint (sugar).
+- **typealias gets NO named `is-<Name>?`** — an alias names a *structural shape*, not a nominal identity; its conformance question is answered by the general `(conforms? v :AliasName)` directly. The boundary is principled (identity-check vs structural-conformance), not a carve-out — see arc 237 dialogue 2026-05-25 + memory `feedback_conforms_is_foundation`. The full rule: **auto-mint `is-<Name>?` for every type-introducing form (struct/enum/newtype/union); alias introduces a *name*, not a *type*, so it is not a participant.**
+
+**Single registration choke point (confirmed `types.rs:251–340`):** all five `TypeDef` kinds flow through `register_with_span` → `self.types.insert`. The auto-mint fires there (type-side) + registers the runtime predicate callable (arc 226 `is-X?` are runtime-dispatched fns) — exact wiring pinned by the 237.6 FM 2-bis probe.
+
+**Stone sequence:**
+- **237.5** — `:wat::core::conforms?` general conformance primitive (nominal identity + union membership + structural recursive walk + alias-resolve).
+- **237.6** — auto-mint `is-<Name>?` at type-registration for struct/enum/newtype/union (= `conforms?` sugar) + proving end-to-end consumer (declare union/record → `is-<Name>?` + defclause dispatch, end-to-end).
+- **237.7** — MIGRATION: arc 146 Dispatches → defclauses (length/empty?/contains?/get/conj/concat/assoc/dissoc/keys/values).
+- **237.8** — MIGRATION: arithmetic + comparison + holon-pair + time-arith → concrete-per-type defclauses; **DELETE widest-contagion** (`infer_arithmetic` / `eval_arithmetic_variadic` / `is_numeric`; universal per ②); retire arc 146 Dispatch (HARD CUT); update `AnyBanned`. (Per-Type binary ops stay as fold kernels; blast-radius grep first.)
+- **237.9** — INSCRIPTION + arc closure (ABSORBS arc 146 + arc 148 closures).
 
 **Superseded probe rows:** the `variadic_mixed_arithmetic` acceptance-probe block (asserting `(+ 1 2.0) => 3.0 :: :f64` and the 4-member-binding-narrows-to-f64 case) is INVERTED — the correct contract is `(+ 1 2.0)` → ERROR. Those rows are historical, not acceptance criteria.
 
