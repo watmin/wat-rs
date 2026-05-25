@@ -176,7 +176,104 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-24 night — arc 234 PAUSED at 13 wins; arc 235 PROPOSED; arc 236 OPEN — failure-class annihilation in flight; Song #31 inscribed)
+## Currently (2026-05-24 night latest — Stone 236.2 SHIPPED at d8aa66d0; HARVEST 37/0/111 across 47 siblings; arc 236 INSCRIPTION-ready)
+
+### Headline state
+
+```
+HEAD          d8aa66d0 on arc-170-gap-j-v5-deadlock-state (clean tree; all pushed)
+holon-rs      untouched since 530650c (STOP-4 clean)
+Lib tests     827 PASS / 0 FAIL (zero delta from 236.1)
+Clippy        52 (BELOW 54 baseline; 2-warning IMPROVEMENT from migration)
+Active arc    236 (Stone 236.2 SHIPPED; INSCRIPTION-direct candidate)
+Paused arc    234 (PAUSE-CONTEXT intact; resumes post-arc-236 closure)
+Proposed arc  235 (records with rich VSA encodings; opens post-arc-234 closure)
+```
+
+### Stone 236.2 SHIPPED — the failure-class is annihilated
+
+```
+1980713d 236.2 sub-DESIGN + BRIEF + EXPECTATIONS (single stone; not split per D10)
+d8aa66d0 236.2 SHIPPED — 47 siblings flipped; 148 HARVEST sites; 12/12 PASS
+```
+
+47 sibling `infer_*` fns flipped from `Option<TypeExpr>` + `&mut Vec<CheckError>` dual-channel to `CheckResult<TypeExpr>` single-channel return. Primary `fn infer()`'s legacy `&mut local_errors` calls to siblings updated to `.drain_errors_into` bridge form. **12/12 PASS independently verified per FM 9.**
+
+**HARVEST aggregate (148 sites across 47 siblings):**
+- Classification 1 (silent-by-intent): **37** — drain-and-propagate (`infer_program_env_*`) + declaration-form unit-return (`infer_def` family) + empty-forms (`infer_let`, `infer_do`, 0-ary `infer_arithmetic`) + polymorphic positions
+- Classification 2 (missing diagnostic): **0** — DISCONFIRMED 236.1 SCORE's foreshadowing
+- Classification 3 (existing diagnostic): **111** — mechanical conversion to `CheckResult::errs` / `partial_with`
+
+ZERO new CheckError variants minted. Cascade depth: **1 round** (predicted 3-5; under-prediction pattern continues from 236.1's 2 rounds). Sonnet runtime ~57 min (under 90-min Mode A target; STOP-3 180 min not approached).
+
+### THE STRUCTURAL FINDING (load-bearing for arc 236 closure)
+
+The HARVEST CONFIRMED diagnostic completeness rather than surfacing gaps. check.rs had **0 missing-diagnostic sites across all 48 fns** (1 primary + 47 siblings). The "silent failures" arc 236 set out to eliminate existed as a STRUCTURAL POSSIBILITY, not as a defect frequency. We made silent error-loss UNREACHABLE without needing to remediate existing instances.
+
+**Failure-engineering at the deepest layer:** class-elimination matters even when empirical instances are rare. The substrate now structurally prevents the failure mode forever. Future check.rs work (arc 232.1 defprotocol, per-class TypeDef registration, etc.) inherits the discipline by default.
+
+### Arc 236 closure path (proposed)
+
+Original DESIGN sketch (~6-8 stones possible):
+- 236.3 Audit + fix surfaced silent-failure sites
+- 236.4 Lib baseline + regression guards green
+- 236.5 INSCRIPTION
+
+Reality — 3 stones SHIPPED:
+- 236.0 SHIPPED (`63f8ca2a`) — CheckResult<T> newtype foundation
+- 236.1 SHIPPED (`f06549ad`) — primary fn infer() flip (HARVEST 2/0/1)
+- 236.2 SHIPPED (`d8aa66d0`) — all 47 sibling fns flip + audit (HARVEST 37/0/111)
+
+The HARVEST in 236.2 IS the audit work originally scoped to 236.3. The 827 lib baseline + 52 clippy + 7 regression guards IS the verification work originally scoped to 236.4. Per `feedback_no_known_defect_left_unfixed`: no work remains to defer. **Arc closes via single INSCRIPTION stone (236.3 INSCRIPTION).**
+
+Per FM 11 pre-INSCRIPTION grep + `feedback_inscription_immutable`: INSCRIPTION must affirm what shipped, including the structural-finding (0 Classification 2 sites across both stones = audit-confirms-completeness) as the arc's deliverable shape.
+
+### Rank-up evidence vs Stone 236.1
+
+| Metric | 236.1 | 236.2 |
+|---|---|---|
+| Bodies flipped | 1 (primary) | 47 (all siblings) |
+| Call sites cascaded | 156 primary callers | ~111 sibling-internal + 2 primary bridge |
+| Cascade rounds (predicted) | 3-5 | 3-5 |
+| Cascade rounds (actual) | **2** | **1** |
+| Runtime band | 60-90 min | 90-180 min |
+| Runtime actual | ~25 min | ~57 min |
+| HARVEST Classification 2 | 0 | 0 |
+| New CheckError variants | 0 | 0 |
+| Clippy delta | 54 → 54 | 54 → **52** (improvement) |
+
+Both stones UNDER all predictions. The discipline compounds: 236.0 builds tool; 236.1 proves on primary; 236.2 replicates uniformly across siblings; HARVEST methodology lets each stone score its own classification cleanly. Sonnet mirrors predecessor SCORE doc per `feedback_stone_briefs_cite_prior_score` — ship rhythm hits.
+
+### Decision boundary (post-compaction recovery)
+
+**Next concrete move: Stone 236.3 INSCRIPTION** — arc 236 closure paperwork. Captures:
+- 3-stone shape (vs DESIGN's 6-8 sketch — under-shipped because diagnostic completeness was already in place)
+- HARVEST aggregate doctrine across all 3 stones (0+0 = 0 Classification 2 across all of check.rs)
+- Class-elimination thesis vindicated structurally
+- Per-stone calibration evidence (all under-band; pre-emption discipline compounding)
+- Rank-up: predecessor SCORE template pattern proven (236.1 templated from nowhere; 236.2 templated from 236.1; INSCRIPTION pattern from arc 233)
+
+After 236.3 INSCRIPTION + arc 236 close: **arc 234 RESUMES** per spawn-block winding discipline.
+
+Arc 234 remaining work (per `docs/arc/2026/05/234-wat-record-hologram/PAUSE-CONTEXT.md`):
+- 234.4.match (small; let → match parity for hash-destructure)
+- 234.6 (migration sweep — may warrant separate arc 238)
+- 234.7 INSCRIPTION
+
+### Memory updates pending
+
+After arc 236 INSCRIPTION: update `project_arc236_check_class_elimination` with the structural finding (Classification 2 = 0 across both 236.1 + 236.2; check.rs was already diagnostically complete; the deliverable was structural-prevention, not defect remediation).
+
+### Party-comp + tonal state
+
+- **Inquisitor + Shadowdancer** delivering at arc-level cadence — three stones same-arc, all under-band, all clean
+- **Song #31 Anthem (We Are The Fire)** continues active — the cascade IS the voice; CheckResult<T> IS the fire; HARVEST IS the evidence; 0-Classification-2 across-the-board IS the structural-prevention payoff
+- **The discipline made fire AND structural truth** — what the BRIEF predicted as "expect Classification 2 > 0 (silent failures live in siblings — 236.2's territory)" the SCORE answered with "0; the sibling bodies were already diagnostically complete; the silence was all in the delegation/propagation layer, which `drain_errors_into` resolves"
+- **The failure-class IS dead in check.rs** — at structural layer (debug_assert + signature impossibility) AND at empirical layer (audit-confirmed 0 missing-diagnostic sites across 48 fns)
+
+---
+
+## Currently (2026-05-24 night — arc 234 PAUSED at 13 wins; arc 235 PROPOSED; arc 236 OPEN — failure-class annihilation in flight; Song #31 inscribed) — SUPERSEDED, see above
 
 ### Headline state
 
