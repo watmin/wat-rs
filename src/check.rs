@@ -688,6 +688,28 @@ pub enum CheckError {
         /// Source location of the call form.
         span: Span,
     },
+
+    /// Stone 237.3 — `:guard` expression in a defclause clause does not have
+    /// type `:wat::core::bool`. Type-check error; parse-time detection.
+    GuardExprNotBoolean {
+        defclause_name: String,
+        clause_index: usize,
+        got_type: String,
+        span: Span,
+    },
+
+    /// Stone 237.3 — `:ensure :fn` in a defclause clause is invalid.
+    /// `reason` describes which check failed:
+    /// - "must be :wat::core::fn" (not a :fn form)
+    /// - "arity must be 1" (wrong number of params)
+    /// - "arg type must match clause return type" (type mismatch)
+    /// - "return type must be :bool" (fn doesn't return :bool)
+    EnsureFnInvalid {
+        defclause_name: String,
+        clause_index: usize,
+        reason: String,
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 1 — render the file:line:col prefix for an error,
@@ -944,6 +966,28 @@ impl fmt::Display for CheckError {
                     called_arity,
                     called_arg_types.join(", "),
                     if clause_summary.is_empty() { "(none)".into() } else { clause_summary.join("; ") },
+                )
+            }
+            // Stone 237.3 — GuardExprNotBoolean.
+            CheckError::GuardExprNotBoolean { defclause_name, clause_index, got_type, span } => {
+                write!(
+                    f,
+                    "{}defclause `{}` clause {}: `:guard` expression must return `:wat::core::bool`; got `{}`",
+                    span_prefix(span),
+                    defclause_name,
+                    clause_index,
+                    got_type,
+                )
+            }
+            // Stone 237.3 — EnsureFnInvalid.
+            CheckError::EnsureFnInvalid { defclause_name, clause_index, reason, span } => {
+                write!(
+                    f,
+                    "{}defclause `{}` clause {}: `:ensure` :fn is invalid — {}",
+                    span_prefix(span),
+                    defclause_name,
+                    clause_index,
+                    reason,
                 )
             }
         }
@@ -1573,6 +1617,28 @@ impl CheckError {
                     .field("name", name.as_str())
                     .field("called_arity", *called_arity)
                     .field("called_arg_types", called_arg_types.join(", "));
+                if !span.is_unknown() {
+                    diag = diag.field("span", span.to_string());
+                }
+                diag
+            }
+            // Stone 237.3 — GuardExprNotBoolean diagnostic.
+            CheckError::GuardExprNotBoolean { defclause_name, clause_index, got_type, span } => {
+                let mut diag = Diagnostic::new("GuardExprNotBoolean")
+                    .field("defclause_name", defclause_name.as_str())
+                    .field("clause_index", *clause_index)
+                    .field("got_type", got_type.as_str());
+                if !span.is_unknown() {
+                    diag = diag.field("span", span.to_string());
+                }
+                diag
+            }
+            // Stone 237.3 — EnsureFnInvalid diagnostic.
+            CheckError::EnsureFnInvalid { defclause_name, clause_index, reason, span } => {
+                let mut diag = Diagnostic::new("EnsureFnInvalid")
+                    .field("defclause_name", defclause_name.as_str())
+                    .field("clause_index", *clause_index)
+                    .field("reason", reason.as_str());
                 if !span.is_unknown() {
                     diag = diag.field("span", span.to_string());
                 }
@@ -2409,6 +2475,19 @@ pub fn check_program(
             ":wat::core::define (body)",
             &mut errors,
         );
+    }
+
+    // Stone 237.3 — pre-register ALL top-level defclause names into
+    // env.defclause_registrations BEFORE the sequential check loop.
+    // This ensures that recursive self-calls inside clause bodies (e.g.
+    // factorial) find the defclause registration during infer_defclause
+    // rather than falling through to the stub scheme from sym.functions.
+    // Without this pre-pass, check_form(defclause) calls infer_defclause
+    // which type-checks the body; the recursive call tries
+    // env.get_defclause_clauses which returns None (not registered yet);
+    // falls through to env.get(stub) which has 0-param scheme → ArityMismatch.
+    for form in forms {
+        preregister_defclause_in_env(form, &mut env);
     }
 
     // Arc 157 — check program body forms sequentially, accumulating
@@ -9081,6 +9160,9 @@ fn infer_def(
 /// Registration of the clause table into `env.defclause_registrations`
 /// happens in `collect_splice_defs_ctx` BEFORE this function is called
 /// (two-phase pattern matching `infer_def` / `extract_def_binding`).
+///
+/// Stone 237.3: also validates `:guard` (must return `:bool`) and
+/// `:ensure` (must be 1-arity :fn; arg type matches clause return; returns `:bool`).
 fn infer_defclause(
     args: &[WatAST],
     head_span: &Span,
@@ -9113,6 +9195,7 @@ fn infer_defclause(
     };
 
     // Type-check each clause body against its declared return type.
+    // Stone 237.3: also validate :guard and :ensure per clause.
     for (clause_idx, clause) in cs.clauses.iter().enumerate() {
         // Build a local scope with clause arg bindings.
         let mut clause_locals: HashMap<String, TypeExpr> = HashMap::new();
@@ -9120,6 +9203,172 @@ fn infer_defclause(
             clause_locals.insert(arg_name.clone(), arg_ty.clone());
         }
         let mut clause_subst = Subst::new();
+
+        // Stone 237.3 — Validate :guard expression (if present).
+        if let Some(guard_ast) = &clause.guard {
+            let guard_ty = infer(
+                guard_ast,
+                env,
+                &clause_locals,
+                fresh,
+                &mut clause_subst,
+            )
+            .drain_errors_into(&mut local_errors);
+
+            if let Some(guard_ty) = guard_ty {
+                let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                let resolved_guard = apply_subst(&guard_ty, &clause_subst);
+                if unify(&resolved_guard, &bool_ty, &mut clause_subst, env.types()).is_err() {
+                    local_errors.push(CheckError::GuardExprNotBoolean {
+                        defclause_name: cs.name.clone(),
+                        clause_index: clause_idx,
+                        got_type: format_type(&resolved_guard),
+                        span: guard_ast.span().clone(),
+                    });
+                }
+            }
+        }
+
+        // Stone 237.3 — Validate :ensure :fn form (if present).
+        if let Some(ensure_ast) = &clause.ensure_fn {
+            let ensure_span = ensure_ast.span().clone();
+            // The ensure_ast must be a (:wat::core::fn ...) list.
+            let fn_items = match ensure_ast.as_ref() {
+                WatAST::List(items, _) => {
+                    match items.first() {
+                        Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn" => &items[1..],
+                        _ => {
+                            local_errors.push(CheckError::EnsureFnInvalid {
+                                defclause_name: cs.name.clone(),
+                                clause_index: clause_idx,
+                                reason: "must be :wat::core::fn form".into(),
+                                span: ensure_span,
+                            });
+                            // Skip further ensure validation for this clause.
+                            // Still do body type-check below.
+                            fresh.push_enclosing_ret(clause.return_type.clone());
+                            let body_ty = infer(
+                                &clause.body,
+                                env,
+                                &clause_locals,
+                                fresh,
+                                &mut clause_subst,
+                            )
+                            .drain_errors_into(&mut local_errors);
+                            fresh.pop_enclosing_ret();
+                            if let Some(body_ty) = body_ty {
+                                let resolved_body = apply_subst(&body_ty, &clause_subst);
+                                let resolved_ret = apply_subst(&clause.return_type, &clause_subst);
+                                if unify(&resolved_body, &resolved_ret, &mut clause_subst, env.types()).is_err() {
+                                    local_errors.push(CheckError::ReturnTypeMismatch {
+                                        function: format!("{}/clause#{}", cs.name, clause_idx + 1),
+                                        expected: format_type(&apply_subst(&clause.return_type, &clause_subst)),
+                                        got: format_type(&apply_subst(&body_ty, &clause_subst)),
+                                        span: clause.body.span().clone(),
+                                    });
+                                }
+                            }
+                            continue;
+                        }
+                    }
+                }
+                _ => {
+                    local_errors.push(CheckError::EnsureFnInvalid {
+                        defclause_name: cs.name.clone(),
+                        clause_index: clause_idx,
+                        reason: "must be :wat::core::fn form".into(),
+                        span: ensure_span,
+                    });
+                    // Still do body type-check.
+                    fresh.push_enclosing_ret(clause.return_type.clone());
+                    let body_ty = infer(
+                        &clause.body,
+                        env,
+                        &clause_locals,
+                        fresh,
+                        &mut clause_subst,
+                    )
+                    .drain_errors_into(&mut local_errors);
+                    fresh.pop_enclosing_ret();
+                    if let Some(body_ty) = body_ty {
+                        let resolved_body = apply_subst(&body_ty, &clause_subst);
+                        let resolved_ret = apply_subst(&clause.return_type, &clause_subst);
+                        if unify(&resolved_body, &resolved_ret, &mut clause_subst, env.types()).is_err() {
+                            local_errors.push(CheckError::ReturnTypeMismatch {
+                                function: format!("{}/clause#{}", cs.name, clause_idx + 1),
+                                expected: format_type(&apply_subst(&clause.return_type, &clause_subst)),
+                                got: format_type(&apply_subst(&body_ty, &clause_subst)),
+                                span: clause.body.span().clone(),
+                            });
+                        }
+                    }
+                    continue;
+                }
+            };
+
+            // Parse the fn signature: (fn [params] -> :ret body).
+            // fn_items = items[1..] = [[params] -> :ret body].
+            match parse_fn_signature_for_check(fn_items) {
+                Ok((param_names, param_types, ret_type)) => {
+                    // Rule 1: arity must be 1.
+                    if param_names.len() != 1 {
+                        local_errors.push(CheckError::EnsureFnInvalid {
+                            defclause_name: cs.name.clone(),
+                            clause_index: clause_idx,
+                            reason: format!(
+                                "arity must be 1 (one parameter for the result); got {}",
+                                param_names.len()
+                            ),
+                            span: ensure_span.clone(),
+                        });
+                    } else {
+                        // Rule 2: arg type must match clause return type.
+                        let arg_ty = &param_types[0];
+                        let mut ensure_subst = Subst::new();
+                        let clause_ret = apply_subst(&clause.return_type, &clause_subst);
+                        let resolved_arg = apply_subst(arg_ty, &ensure_subst);
+                        if unify(&resolved_arg, &clause_ret, &mut ensure_subst, env.types()).is_err() {
+                            local_errors.push(CheckError::EnsureFnInvalid {
+                                defclause_name: cs.name.clone(),
+                                clause_index: clause_idx,
+                                reason: format!(
+                                    "arg type must match clause return type: :ensure :fn takes `{}` but clause returns `{}`",
+                                    format_type(arg_ty),
+                                    format_type(&clause_ret),
+                                ),
+                                span: ensure_span.clone(),
+                            });
+                        }
+                    }
+
+                    // Rule 3: return type must be :bool.
+                    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                    let mut ret_subst = Subst::new();
+                    if unify(&ret_type, &bool_ty, &mut ret_subst, env.types()).is_err() {
+                        local_errors.push(CheckError::EnsureFnInvalid {
+                            defclause_name: cs.name.clone(),
+                            clause_index: clause_idx,
+                            reason: format!(
+                                "return type must be :bool; got `{}`",
+                                format_type(&ret_type),
+                            ),
+                            span: ensure_span,
+                        });
+                    }
+                }
+                Err(()) => {
+                    // parse_fn_signature_for_check returns Err when shape doesn't match.
+                    local_errors.push(CheckError::EnsureFnInvalid {
+                        defclause_name: cs.name.clone(),
+                        clause_index: clause_idx,
+                        reason: "malformed :fn signature — expected (:wat::core::fn [param <- :T] -> :bool body)".into(),
+                        span: ensure_span,
+                    });
+                }
+            }
+        }
+
+        // Body type-check (Stone 237.2, always runs).
         fresh.push_enclosing_ret(clause.return_type.clone());
         let body_ty = infer(
             &clause.body,
@@ -9503,6 +9752,42 @@ fn collect_splice_defs_ctx(
             }
         }
         _ => {}
+    }
+}
+
+/// Stone 237.3 — pre-register a top-level `(:wat::core::defclause ...)`
+/// form into `env.defclause_registrations` WITHOUT running type inference.
+/// Called in a single pre-pass over all forms BEFORE the main
+/// `check_program` sequential loop. This ensures that recursive
+/// self-calls inside clause bodies (e.g. factorial's `(:my::factorial ...)`)
+/// find the defclause registration during `infer_defclause` rather than
+/// falling through to a 0-param stub scheme.
+///
+/// Only handles top-level defclause forms; ignores everything else.
+fn preregister_defclause_in_env(form: &WatAST, env: &mut CheckEnv) {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return,
+    };
+    match items.first() {
+        Some(WatAST::Keyword(k, _)) if k.as_str() == ":wat::core::defclause" => {}
+        _ => return,
+    }
+    let span = form.span().clone();
+    if let Ok((name, cs)) = crate::runtime::parse_defclause_form(form) {
+        // Only pre-register if not already registered (first-registration wins).
+        if env.get_defclause_clauses(&name).is_none() {
+            let clauses: Vec<(Vec<TypeExpr>, TypeExpr)> = cs
+                .clauses
+                .iter()
+                .map(|cl| {
+                    let arg_types: Vec<TypeExpr> =
+                        cl.args.iter().map(|(_, ty)| ty.clone()).collect();
+                    (arg_types, cl.return_type.clone())
+                })
+                .collect();
+            env.register_defclause(name, clauses, span);
+        }
     }
 }
 
@@ -15322,6 +15607,93 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Stone 237.3 — per-type i64 comparison aliases.
+    // `:wat::core::i64::{=,<,>,<=,!=}` were retired in arc 148 slice 5;
+    // re-registered here so defclause :guard expressions may use
+    // type-qualified comparison forms. Runtime delegates to the same
+    // polymorphic eval_compare / eval_eq implementations.
+    for op_name in &[
+        ":wat::core::i64::=",
+        ":wat::core::i64::>",
+        ":wat::core::i64::<",
+        ":wat::core::i64::>=",
+        ":wat::core::i64::!=",
+    ] {
+        env.register(
+            op_name.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![i64_ty(), i64_ty()],
+                ret: bool_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+
+    // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
+    env.register(
+        ":wat::core::i64/to-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Stone 237.3 — String/ namespace aliases (uppercase) for probe 14.
+    // String/concat :: :String :String -> :String (2-arg; matches probe usage).
+    env.register(
+        ":wat::core::String/concat".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), string_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+    // String/starts-with? :: :String :String -> :bool
+    env.register(
+        ":wat::core::String/starts-with?".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), string_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    // String/ends-with? :: :String :String -> :bool
+    env.register(
+        ":wat::core::String/ends-with?".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), string_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    // String/contains? :: :String :String -> :bool
+    env.register(
+        ":wat::core::String/contains?".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), string_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    // String/empty? :: :String -> :bool
+    env.register(
+        ":wat::core::String/empty?".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
     env.register(
         ":wat::core::f64::to-string".to_string(),
         TypeScheme {

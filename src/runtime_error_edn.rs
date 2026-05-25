@@ -263,6 +263,15 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 (kw("span"), span_val(span)),
             ]))
         }
+        // Stone 237.3 — TEMPORARY postcondition failure; Stone 237.4 refines.
+        RuntimeError::PostconditionFailedRuntime { defclause_name, clause_index, returned_value, span } => {
+            tagged("PostconditionFailedRuntime", OwnedValue::Map(vec![
+                (kw("defclause-name"), str_val(defclause_name)),
+                (kw("clause-index"), OwnedValue::Integer(*clause_index as i64)),
+                (kw("returned-value"), snap_val(returned_value)),
+                (kw("span"), span_val(span)),
+            ]))
+        }
     }
 }
 
@@ -354,6 +363,7 @@ fn variant_name(err: &RuntimeError) -> &'static str {
         RuntimeError::EdnCoerceMismatch { .. } => "EdnCoerceMismatch",
         RuntimeError::UnknownField { .. } => "UnknownField",
         RuntimeError::NoMatchingClauseRuntime { .. } => "NoMatchingClauseRuntime",
+        RuntimeError::PostconditionFailedRuntime { .. } => "PostconditionFailedRuntime",
     }
 }
 

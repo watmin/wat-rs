@@ -688,6 +688,14 @@ pub struct Clause {
     /// Return type declared for this clause (resolved from shared_return in
     /// Option A, or per-clause `-> :T` in Option B).
     pub return_type: crate::types::TypeExpr,
+    /// Stone 237.3 — Optional `:guard` expression. Evaluated in clause-arg
+    /// scope BEFORE the body. `true` → continue; `false` → skip clause.
+    /// Runtime error during evaluation propagates.
+    pub guard: Option<Arc<WatAST>>,
+    /// Stone 237.3 — Optional `:ensure` :fn form. Evaluated AFTER body.
+    /// Called with body result; `true` → return result; `false` →
+    /// `PostconditionFailedRuntime`. Runtime error propagates.
+    pub ensure_fn: Option<Arc<WatAST>>,
     /// Body expression. Evaluated in a scope binding the arg names.
     pub body: Arc<WatAST>,
 }
@@ -2213,6 +2221,19 @@ pub enum RuntimeError {
         attempted_clauses: Vec<String>,
         span: Span,
     },
+
+    /// Stone 237.3 — TEMPORARY postcondition failure for a defclause clause
+    /// whose `:ensure` :fn returned `false`. The body executed successfully
+    /// but the postcondition rejected the result. Stone 237.4 refines to the
+    /// full EDN-serialized shape.
+    ///
+    /// Per arc 233 discipline: `returned_value` uses `ValueSnapshot`.
+    PostconditionFailedRuntime {
+        defclause_name: String,
+        clause_index: usize,
+        returned_value: ValueSnapshot,
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError,
@@ -2404,6 +2425,16 @@ impl fmt::Display for RuntimeError {
                     attempted_clauses.join("; "),
                 )
             }
+            RuntimeError::PostconditionFailedRuntime { defclause_name, clause_index, returned_value, span } => {
+                write!(
+                    f,
+                    "{}defclause {}: postcondition failed on clause {} — :ensure :fn returned false for result {} (Stone 237.4 will emit richer diagnostics)",
+                    span_prefix(span),
+                    defclause_name,
+                    clause_index,
+                    returned_value,
+                )
+            }
         }
     }
 }
@@ -2504,6 +2535,47 @@ pub fn register_defines(
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
             ) {
                 preregister_fn_defs_in_let(do_items, sym, true)?;
+            } else if matches!(
+                do_items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::defclause"
+            ) {
+                // Stone 237.3 — defclause pre-registration into sym.functions.
+                //
+                // The resolver (step 7) runs BEFORE register_runtime_defs (step 9)
+                // and validates every call head via sym.get(). Defclause names are
+                // normally registered into sym.runtime_def_values at step 9, but
+                // recursive clause bodies (e.g. factorial) call the defclause name
+                // inside the clause body — those call heads fail the resolver
+                // because the name isn't in sym.functions yet.
+                //
+                // Pre-register a minimal stub Function so the resolver can find the
+                // name. The real Value::wat__core__clauses lands at step 9 via
+                // register_runtime_defs_form; the stub is vestigial-but-harmless
+                // (eval_dispatch_call's runtime_def_values precedence picks up the
+                // clauses value before checking sym.functions).
+                //
+                // Mirror pattern from try_parse_fn_shape_def (arc 166) + the
+                // preregister_fn_defs_in_do (arc 170 Gap C) stubs.
+                if let Ok((name, _cs)) = crate::runtime::parse_defclause_form(&form) {
+                    if !crate::resolve::is_reserved_prefix(&name)
+                        && !sym.functions.contains_key(&name)
+                    {
+                        let stub_body =
+                            WatAST::Keyword(":wat::core::nil".into(), form.span().clone());
+                        let stub_fn = Arc::new(Function {
+                            name: Some(name.clone()),
+                            params: vec![],
+                            type_params: vec![],
+                            param_types: vec![],
+                            ret_type: crate::types::TypeExpr::Tuple(vec![]),
+                            rest_param: None,
+                            rest_param_type: None,
+                            body: Arc::new(stub_body),
+                            closed_env: None,
+                        });
+                        sym.functions.insert(name, stub_fn);
+                    }
+                }
             }
             rest.push(form);
         } else {
@@ -3168,9 +3240,13 @@ fn register_runtime_defs_form(
         // Stone 237.2 — `:wat::core::defclause` at top-level.
         // Shape: (:wat::core::defclause :name [-> :T] (clause...) ...)
         // Parse + produce Value::wat__core__clauses; register in runtime_def_values.
+        // Stone 237.3: also remove the resolver-stub from sym.functions (if present)
+        // so dispatch falls through to runtime_def_values and picks up the real
+        // ClauseSet rather than the 0-param stub.
         ":wat::core::defclause" => {
             let (name, cs) = parse_defclause_form(form)?;
             let value = Value::wat__core__clauses(cs);
+            sym.functions.remove(&name); // remove stub if pre-registered (Stone 237.3)
             sym.runtime_def_values.insert(name, value);
         }
         _ => {
@@ -5309,12 +5385,47 @@ fn dispatch_keyword_head_value(
         ":wat::core::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
 
         // Arc 148 slice 5 — per-Type comparison leaves
-        // (`:wat::core::{i64,f64}::{=,<,>,<=,>=}`) RETIRED. The
-        // polymorphic bare-name ops above already cover same-type and
-        // mixed-numeric via `values_compare` / `values_equal`. Strict
-        // type-locking is now expressed via param types at the call
-        // site's enclosing function (the binding-site enforces the
-        // same constraint the per-Type leaves used to).
+        // (`:wat::core::{i64,f64}::{=,<,>,<=,>=}`) were RETIRED.
+        // Stone 237.3 re-introduces them as aliases to the polymorphic
+        // ops so defclause :guard expressions can use type-qualified
+        // forms (`:wat::core::i64::> x 0` etc.). Runtime delegates to
+        // the same eval_compare / eval_eq implementations.
+        ":wat::core::i64::=" => eval_eq(head, args, list_span, env, sym),
+        ":wat::core::i64::>" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Greater),
+        ":wat::core::i64::<" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Less),
+        ":wat::core::i64::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
+        ":wat::core::i64::!=" => eval_not_eq(head, args, list_span, env, sym),
+
+        // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
+        ":wat::core::i64/to-string" => eval_i64_to_string(args, list_span, env, sym),
+
+        // Stone 237.3 — String/ namespace aliases (uppercase; probe 14).
+        // Delegates to the existing lowercase string:: ops.
+        ":wat::core::String/concat" => crate::string_ops::eval_string_concat(args, list_span, env, sym),
+        ":wat::core::String/starts-with?" => crate::string_ops::eval_string_starts_with(args, list_span, env, sym),
+        ":wat::core::String/ends-with?" => crate::string_ops::eval_string_ends_with(args, list_span, env, sym),
+        ":wat::core::String/contains?" => crate::string_ops::eval_string_contains(args, list_span, env, sym),
+        ":wat::core::String/empty?" => {
+            // :String/empty? :: :String -> :bool. True iff string is empty.
+            if args.len() != 1 {
+                return Err(RuntimeError::ArityMismatch {
+                    op: ":wat::core::String/empty?".into(),
+                    expected: 1,
+                    got: args.len(),
+                    span: list_span.clone(),
+                });
+            }
+            let val = eval_inner(&args[0], env, sym).map(|tv| tv.value_owned())?;
+            match val {
+                Value::String(s) => Ok(Value::bool(s.is_empty())),
+                other => Err(RuntimeError::TypeMismatch {
+                    op: ":wat::core::String/empty?".into(),
+                    expected: "String",
+                    got: ValueSnapshot::of(&other),
+                    span: args[0].span().clone(),
+                }),
+            }
+        }
 
         // Arc 148 slice 4 — polymorphic variadic arithmetic. Per the
         // locked DESIGN: each op is variadic over numeric pairs;
@@ -6602,9 +6713,14 @@ fn parse_defclause_args(
     Ok(result)
 }
 
-/// Parse a single clause `([name <- :T ...] -> :Ret body)` from a defclause.
+/// Parse a single clause from a defclause.
 ///
-/// Returns `(args, return_type, body)`.
+/// Stone 237.3 full shape:
+///   `([args] :guard? expr :ensure? :fn-form -> :RetType? body)`
+///
+/// Keyword order FIXED: args → :guard? → :ensure? → -> :T? → body.
+/// `:ensure` before `:guard` is a parse-time error (probe 13).
+/// Multiple `:guard` in the same clause is a parse-time error (probe 12).
 fn parse_defclause_clause(
     clause_form: &WatAST,
     head: &str,
@@ -6649,76 +6765,135 @@ fn parse_defclause_clause(
 
     let args = parse_defclause_args(args_vec, head, &form_span)?;
 
-    // Determine per-clause return type and body offset.
-    // Option B: `([args] -> :T body)` — items has >=4 elements: args, `->`-sym, :T, body
-    // Option A: `([args] body)` — items has 2 elements: args, body (shared_return provided)
-    let (return_type, body_ast) = if items.len() >= 4 {
-        // Check for `->` symbol at items[1].
-        match &items[1] {
-            WatAST::Symbol(s, _) if s.as_str() == "->" => {
-                // Per-clause return type at items[2], body at items[3].
-                let ret = match &items[2] {
-                    WatAST::Keyword(k, _) => parse_type_keyword(k)?,
-                    other => {
-                        return Err(RuntimeError::MalformedForm {
-                            head: head.into(),
-                            reason: format!(
-                                "defclause clause `->` must be followed by a return type keyword; got {}",
-                                ast_variant_name(other)
-                            ),
-                            span: other.span().clone(),
-                        });
-                    }
-                };
-                let body = synthesize_fn_body(&items[3..]);
-                (ret, body)
+    // Stone 237.3: flexible scan of items[1..] for optional :guard, :ensure, ->, body.
+    //
+    // Only hard ordering constraint: :guard (if present) must appear BEFORE :ensure
+    // (if present). The `-> :T` annotation may appear in any position between the
+    // keyword/value pairs and the body. Remaining items after consuming :guard,
+    // :ensure, and -> :T are the body.
+    //
+    // Probes exercise these orderings:
+    //   :guard expr -> :T body             (probes 1, 3, 4)
+    //   -> :T :ensure (:fn) body           (probes 6–10)
+    //   :guard expr :ensure (:fn) -> :T body  (probe 11)
+    //   :ensure (:fn) -> :T body           (probe 14 3-arity)
+    //
+    // Rejected: :guard after :ensure (probe 13), multiple :guard (probe 12).
+    let rest = &items[1..];
+
+    // --- Phase 1: Pre-scan to locate :guard, :ensure, -> positions and validate order ---
+    // Scan all items; track first positions of each special token.
+    let mut guard_kw_pos: Option<usize> = None;
+    let mut ensure_kw_pos: Option<usize> = None;
+    let mut arrow_pos: Option<usize> = None;
+    let mut second_guard_pos: Option<usize> = None;
+
+    let mut i = 0;
+    while i < rest.len() {
+        if matches!(&rest[i], WatAST::Keyword(k, _) if k.as_str() == ":guard") {
+            if guard_kw_pos.is_none() {
+                guard_kw_pos = Some(i);
+                i += 2; // skip :guard + expr
+            } else {
+                // Second :guard found — record for rejection below.
+                second_guard_pos = Some(i);
+                break;
             }
-            _ => {
-                // No `->` at items[1]; treat items[1..] as body with shared_return.
-                let ret = match shared_return {
-                    Some(r) => r.clone(),
-                    None => {
-                        return Err(RuntimeError::MalformedForm {
-                            head: head.into(),
-                            reason: "defclause clause missing `-> :RetType`; either add per-clause `-> :T` or provide a top-level shared return type".into(),
-                            span: form_span.clone(),
-                        });
-                    }
-                };
-                let body = synthesize_fn_body(&items[1..]);
-                (ret, body)
+        } else if matches!(&rest[i], WatAST::Keyword(k, _) if k.as_str() == ":ensure") {
+            if ensure_kw_pos.is_none() {
+                ensure_kw_pos = Some(i);
+                i += 2; // skip :ensure + fn-form
+            } else {
+                i += 1;
             }
+        } else if matches!(&rest[i], WatAST::Symbol(s, _) if s.as_str() == "->") {
+            if arrow_pos.is_none() {
+                arrow_pos = Some(i);
+                i += 2; // skip -> + :T
+            } else {
+                i += 1;
+            }
+        } else {
+            i += 1;
         }
-    } else if items.len() == 3 {
-        // Could be `([args] -> :T)` missing body, or `([args] body-without-arrow)`.
-        match &items[1] {
-            WatAST::Symbol(s, _) if s.as_str() == "->" => {
-                // `([args] -> :T)` — body missing.
+    }
+
+    // Reject: :guard after :ensure (probe 13 — order violation).
+    if let (Some(gpos), Some(epos)) = (guard_kw_pos, ensure_kw_pos) {
+        if gpos > epos {
+            return Err(RuntimeError::MalformedForm {
+                head: head.into(),
+                reason: "defclause clause has `:guard` after `:ensure` — fixed order is: args → :guard? → :ensure? → body".into(),
+                span: rest[gpos].span().clone(),
+            });
+        }
+    }
+
+    // Reject: multiple :guard (probe 12).
+    if let Some(spos) = second_guard_pos {
+        return Err(RuntimeError::MalformedForm {
+            head: head.into(),
+            reason: "defclause clause has multiple `:guard` keywords — only one `:guard` per clause is permitted (compose multiple conditions with :and)".into(),
+            span: rest[spos].span().clone(),
+        });
+    }
+
+    // --- Phase 2: Extract :guard expression ---
+    let guard_ast: Option<Arc<WatAST>> = if let Some(gpos) = guard_kw_pos {
+        let expr_pos = gpos + 1;
+        if expr_pos >= rest.len() {
+            return Err(RuntimeError::MalformedForm {
+                head: head.into(),
+                reason: "`:guard` keyword must be followed by a guard expression".into(),
+                span: form_span.clone(),
+            });
+        }
+        Some(Arc::new(rest[expr_pos].clone()))
+    } else {
+        None
+    };
+
+    // --- Phase 3: Extract :ensure fn-form ---
+    let ensure_ast: Option<Arc<WatAST>> = if let Some(epos) = ensure_kw_pos {
+        let fn_pos = epos + 1;
+        if fn_pos >= rest.len() {
+            return Err(RuntimeError::MalformedForm {
+                head: head.into(),
+                reason: "`:ensure` keyword must be followed by a :fn form".into(),
+                span: form_span.clone(),
+            });
+        }
+        Some(Arc::new(rest[fn_pos].clone()))
+    } else {
+        None
+    };
+
+    // --- Phase 4: Extract return type from -> :T (if present) ---
+    let return_type: crate::types::TypeExpr = if let Some(apos) = arrow_pos {
+        let type_pos = apos + 1;
+        if type_pos >= rest.len() {
+            return Err(RuntimeError::MalformedForm {
+                head: head.into(),
+                reason: "defclause clause `->` must be followed by a return type keyword".into(),
+                span: form_span.clone(),
+            });
+        }
+        match &rest[type_pos] {
+            WatAST::Keyword(k, _) => parse_type_keyword(k)?,
+            other => {
                 return Err(RuntimeError::MalformedForm {
                     head: head.into(),
-                    reason: "defclause clause has `-> :T` but is missing a body expression".into(),
-                    span: form_span.clone(),
+                    reason: format!(
+                        "defclause clause `->` must be followed by a return type keyword; got {}",
+                        ast_variant_name(other)
+                    ),
+                    span: other.span().clone(),
                 });
             }
-            _ => {
-                // `([args] something else)` — two items after args-vec; synthesize body from items[1..].
-                let ret = match shared_return {
-                    Some(r) => r.clone(),
-                    None => {
-                        return Err(RuntimeError::MalformedForm {
-                            head: head.into(),
-                            reason: "defclause clause missing `-> :RetType`; either add per-clause `-> :T` or provide a top-level shared return type".into(),
-                            span: form_span.clone(),
-                        });
-                    }
-                };
-                let body = synthesize_fn_body(&items[1..]);
-                (ret, body)
-            }
         }
-    } else if items.len() == 2 {
-        // `([args] body)` — simple body with shared return.
-        let ret = match shared_return {
+    } else {
+        // No per-clause `->` — use shared_return.
+        match shared_return {
             Some(r) => r.clone(),
             None => {
                 return Err(RuntimeError::MalformedForm {
@@ -6727,29 +6902,46 @@ fn parse_defclause_clause(
                     span: form_span.clone(),
                 });
             }
-        };
-        let body = items[1].clone();
-        (ret, body)
-    } else {
-        // Only args-vec and nothing else, or empty clause body.
-        let ret = match shared_return {
-            Some(r) => r.clone(),
-            None => {
-                return Err(RuntimeError::MalformedForm {
-                    head: head.into(),
-                    reason: "defclause clause must have a body expression".into(),
-                    span: form_span.clone(),
-                });
-            }
-        };
-        // synthesize_fn_body on empty slice gives nil
-        let body = synthesize_fn_body(&[]);
-        (ret, body)
+        }
     };
+
+    // --- Phase 5: Body = all items not consumed by :guard, :ensure, -> :T ---
+    // Consumed positions: guard_kw_pos, guard_kw_pos+1, ensure_kw_pos, ensure_kw_pos+1,
+    //                     arrow_pos, arrow_pos+1.
+    let mut consumed: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    if let Some(gpos) = guard_kw_pos {
+        consumed.insert(gpos);
+        consumed.insert(gpos + 1);
+    }
+    if let Some(epos) = ensure_kw_pos {
+        consumed.insert(epos);
+        consumed.insert(epos + 1);
+    }
+    if let Some(apos) = arrow_pos {
+        consumed.insert(apos);
+        consumed.insert(apos + 1);
+    }
+    let body_items: Vec<WatAST> = rest
+        .iter()
+        .enumerate()
+        .filter(|(idx, _)| !consumed.contains(idx))
+        .map(|(_, item)| item.clone())
+        .collect();
+
+    if body_items.is_empty() {
+        return Err(RuntimeError::MalformedForm {
+            head: head.into(),
+            reason: "defclause clause must have a body expression".into(),
+            span: form_span.clone(),
+        });
+    }
+    let body_ast = synthesize_fn_body(&body_items);
 
     Ok(Clause {
         args,
         return_type,
+        guard: guard_ast,
+        ensure_fn: ensure_ast,
         body: Arc::new(body_ast),
     })
 }
@@ -6882,6 +7074,10 @@ fn eval_call_to_defclause(
 }
 
 /// Core dispatch logic for defclause calls (args already evaluated).
+///
+/// Stone 237.3: extended with :guard evaluation (before body) and :ensure
+/// post-condition check (after body). First-match-wins: arity + type +
+/// guard must all pass before the body executes.
 fn eval_call_to_defclause_with_vals(
     cs: Arc<ClauseSet>,
     vals: Vec<Value>,
@@ -6892,11 +7088,11 @@ fn eval_call_to_defclause_with_vals(
     let mut attempted: Vec<String> = Vec::new();
 
     for (clause_idx, clause) in cs.clauses.iter().enumerate() {
-        // Arity match first.
+        // 1. Arity match.
         if clause.args.len() != called_arity {
             continue;
         }
-        // Type match: each actual value must match the declared arg type.
+        // 2. Type match: each actual value must match the declared arg type.
         let types_match = clause.args.iter().zip(vals.iter()).all(|((_, ty), val)| {
             value_matches_type_by_name(val, ty)
         });
@@ -6913,20 +7109,90 @@ fn eval_call_to_defclause_with_vals(
             continue;
         }
 
-        // First match: bind args into a child scope and evaluate body.
+        // 3. Bind clause args into a child scope (needed for :guard eval).
         let mut scope = Environment::new();
-        for ((param_name, _), val) in clause.args.iter().zip(vals.into_iter()) {
+        for ((param_name, _), val) in clause.args.iter().zip(vals.iter()) {
             let span = list_span.clone();
             scope = scope.child().bind(
                 param_name.clone(),
                 span,
-                TrackedValue::from(val),
+                TrackedValue::from(val.clone()),
             ).build();
         }
-        return eval_inner(&clause.body, &scope, sym).map(|tv| tv.value_owned());
+
+        // 4. Stone 237.3 — :guard evaluation (before body).
+        if let Some(guard_ast) = &clause.guard {
+            let guard_result = eval_inner(guard_ast, &scope, sym)
+                .map(|tv| tv.value_owned())?;
+            match &guard_result {
+                Value::bool(true) => {
+                    // Guard passes — continue to body.
+                }
+                Value::bool(false) => {
+                    // Guard false → skip this clause; try next.
+                    continue;
+                }
+                other => {
+                    // Non-bool from guard — type-checker should have caught this.
+                    // Defensive: treat non-true as skip (permissive fallback).
+                    let _ = other;
+                    continue;
+                }
+            }
+        }
+
+        // 5. Body evaluation.
+        let result = eval_inner(&clause.body, &scope, sym)
+            .map(|tv| tv.value_owned())?;
+
+        // 6. Stone 237.3 — :ensure post-condition check (after body).
+        if let Some(ensure_ast) = &clause.ensure_fn {
+            // Evaluate the :ensure :fn form to get a callable.
+            let ensure_fn_val = eval_inner(ensure_ast, &scope, sym)
+                .map(|tv| tv.value_owned())?;
+            let ensure_result = match ensure_fn_val {
+                Value::wat__core__fn(func) => {
+                    apply_function(func, vec![result.clone()], sym, list_span.clone())?
+                }
+                other => {
+                    // Type-checker should have caught non-fn :ensure. Defensive.
+                    return Err(RuntimeError::TypeMismatch {
+                        op: format!("defclause {}/clause#{} :ensure", cs.name, clause_idx),
+                        expected: "wat::core::fn",
+                        got: ValueSnapshot::of(&other),
+                        span: list_span.clone(),
+                    });
+                }
+            };
+            match &ensure_result {
+                Value::bool(true) => {
+                    // Postcondition passes — return result.
+                }
+                Value::bool(false) => {
+                    return Err(RuntimeError::PostconditionFailedRuntime {
+                        defclause_name: cs.name.clone(),
+                        clause_index: clause_idx,
+                        returned_value: ValueSnapshot::of(&result),
+                        span: list_span.clone(),
+                    });
+                }
+                other => {
+                    // Non-bool from ensure — type-checker should have caught.
+                    // Defensive: treat as postcondition failure.
+                    return Err(RuntimeError::TypeMismatch {
+                        op: format!("defclause {}/clause#{} :ensure result", cs.name, clause_idx),
+                        expected: "wat::core::bool",
+                        got: ValueSnapshot::of(other),
+                        span: list_span.clone(),
+                    });
+                }
+            }
+        }
+
+        return Ok(result);
     }
 
-    // No clause matched — defensive runtime error.
+    // No clause matched (arity + type + guard all fell through).
     let called_args: Vec<ValueSnapshot> = vals.iter().map(|v| ValueSnapshot::of(v)).collect();
     Err(RuntimeError::NoMatchingClauseRuntime {
         name: cs.name.clone(),
