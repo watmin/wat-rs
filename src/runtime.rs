@@ -692,9 +692,9 @@ pub struct Clause {
     /// scope BEFORE the body. `true` → continue; `false` → skip clause.
     /// Runtime error during evaluation propagates.
     pub guard: Option<Arc<WatAST>>,
-    /// Stone 237.3 — Optional `:ensure` :fn form. Evaluated AFTER body.
+    /// Stone 237.3 / 237.4 — Optional `:ensure` :fn form. Evaluated AFTER body.
     /// Called with body result; `true` → return result; `false` →
-    /// `PostconditionFailedRuntime`. Runtime error propagates.
+    /// `PostconditionFailed`. Runtime error propagates.
     pub ensure_fn: Option<Arc<WatAST>>,
     /// Body expression. Evaluated in a scope binding the arg names.
     pub body: Arc<WatAST>,
@@ -716,6 +716,34 @@ pub struct ClauseSet {
 }
 
 // ─── end Stone 237.2 structs ──────────────────────────────────────────────────
+
+/// Stone 237.4 — per-clause failure reason for defclause dispatch.
+///
+/// Records WHY a single clause was skipped during defclause dispatch
+/// (per arc 233 errors-as-teaching-values doctrine). Each skipped clause
+/// contributes one `ClauseAttempt` to the `NoMatchingClause` error.
+#[derive(Debug, Clone)]
+pub struct ClauseAttempt {
+    /// Index of the clause in the defclause declaration (0-based).
+    pub clause_index: usize,
+    /// Number of parameters declared in this clause.
+    pub declared_arity: usize,
+    /// Formatted type expression per declared parameter position.
+    pub declared_arg_types: Vec<String>,
+    /// Why this clause was skipped.
+    pub failure_reason: ClauseFailureReason,
+}
+
+/// Stone 237.4 — discriminant for why a defclause clause was skipped.
+#[derive(Debug, Clone)]
+pub enum ClauseFailureReason {
+    /// Clause argument count does not match the call's argument count.
+    ArityMismatch { expected: usize, got: usize },
+    /// A specific argument position's type did not match the declared type.
+    ArgTypeMismatch { position: usize, expected: String, got: String },
+    /// The clause's `:guard` expression evaluated to `false`.
+    GuardFalse,
+}
 
 /// Arc 220 Stone 220.4 — shared sequence equality helper.
 ///
@@ -2205,34 +2233,45 @@ pub enum RuntimeError {
         available: Vec<String>, // known field names on the record
         span: Span,
     },
-    /// Stone 237.2 — TEMPORARY runtime fall-through for a defclause call
-    /// where no clause matches the actual argument values. This is a
-    /// defensive guard — the type-checker should have caught the mismatch
-    /// at check time via `CheckError::NoMatchingClauseAtCallSite`. Stone
-    /// 237.4 will refine this variant to the full EDN-serialized shape.
+    /// Stone 237.4 — runtime fall-through for a defclause call where no
+    /// clause matches the actual argument values. Carries a structured
+    /// `Vec<ClauseAttempt>` so the diagnostic surface teaches WHY each
+    /// clause was skipped (arity / type / guard-false), not just THAT none
+    /// matched (arc 233 errors-as-teaching-values doctrine).
+    ///
+    /// The type-checker should have caught the mismatch at check time via
+    /// `CheckError::NoMatchingClauseAtCallSite`; this is the runtime
+    /// defensive guard for cases that slip through (dynamic dispatch,
+    /// incomplete type coverage, or a checker gap).
     ///
     /// Per arc 233 discipline: `called_args` uses `ValueSnapshot` (carries
     /// type_name + rendered representation).
-    NoMatchingClauseRuntime {
+    NoMatchingClause {
         name: String,
         called_arity: usize,
         called_args: Vec<ValueSnapshot>,
-        /// Simple description of each attempted clause: "clause N: (T1, T2, ...)".
-        attempted_clauses: Vec<String>,
+        /// Structured per-clause failure reasons (Stone 237.4 promotion).
+        attempted_clauses: Vec<ClauseAttempt>,
         span: Span,
     },
 
-    /// Stone 237.3 — TEMPORARY postcondition failure for a defclause clause
-    /// whose `:ensure` :fn returned `false`. The body executed successfully
-    /// but the postcondition rejected the result. Stone 237.4 refines to the
-    /// full EDN-serialized shape.
+    /// Stone 237.4 — postcondition failure for a defclause clause whose
+    /// `:ensure` `:fn` returned `false`. The body executed successfully but
+    /// the postcondition rejected the result. Carries the ensure expression
+    /// snapshot so the diagnostic surface shows WHICH postcondition failed
+    /// and dual spans (body site vs ensure-declaration site).
     ///
     /// Per arc 233 discipline: `returned_value` uses `ValueSnapshot`.
-    PostconditionFailedRuntime {
+    PostconditionFailed {
         defclause_name: String,
         clause_index: usize,
+        /// Rendered form of the `:ensure :fn` expression (captured at dispatch time).
+        ensure_expr_snapshot: String,
         returned_value: ValueSnapshot,
-        span: Span,
+        /// Span of the clause body (where the returned value was produced).
+        body_span: Span,
+        /// Span of the `:ensure :fn` declaration.
+        ensure_span: Span,
     },
 }
 
@@ -2413,26 +2452,43 @@ impl fmt::Display for RuntimeError {
                 record_class,
                 available.join(", ")
             ),
-            RuntimeError::NoMatchingClauseRuntime { name, called_arity, called_args, attempted_clauses, span } => {
+            RuntimeError::NoMatchingClause { name, called_arity, called_args, attempted_clauses, span } => {
                 let args_fmt: Vec<String> = called_args.iter().map(|s| format!("{}", s)).collect();
+                let attempts_fmt: Vec<String> = attempted_clauses.iter().map(|a| {
+                    let reason = match &a.failure_reason {
+                        ClauseFailureReason::ArityMismatch { expected, got } =>
+                            format!("arity {} ≠ {}", expected, got),
+                        ClauseFailureReason::ArgTypeMismatch { position, expected, got } =>
+                            format!("arg {}: expected {}, got {}", position, expected, got),
+                        ClauseFailureReason::GuardFalse =>
+                            "guard false".to_string(),
+                    };
+                    format!("clause {} skipped ({})", a.clause_index, reason)
+                }).collect();
                 write!(
                     f,
-                    "{}defclause {}: no matching clause for call with {} arg(s) ({}); attempted: [{}] — (Stone 237.4 will emit richer diagnostics)",
+                    "{}no clause of {} matched ({} args); {}{}",
                     span_prefix(span),
                     name,
                     called_arity,
-                    args_fmt.join(", "),
-                    attempted_clauses.join("; "),
+                    if args_fmt.is_empty() { String::new() } else { format!("called with ({}); ", args_fmt.join(", ")) },
+                    if attempts_fmt.is_empty() {
+                        "no clauses declared".to_string()
+                    } else {
+                        attempts_fmt.join("; ")
+                    },
                 )
             }
-            RuntimeError::PostconditionFailedRuntime { defclause_name, clause_index, returned_value, span } => {
+            RuntimeError::PostconditionFailed { defclause_name, clause_index, ensure_expr_snapshot, returned_value, body_span, ensure_span: _ } => {
                 write!(
                     f,
-                    "{}defclause {}: postcondition failed on clause {} — :ensure :fn returned false for result {} (Stone 237.4 will emit richer diagnostics)",
-                    span_prefix(span),
+                    "{}defclause {}: postcondition failed on clause {} — :ensure :fn `{}` returned false for result {} (body at {})",
+                    span_prefix(body_span),
                     defclause_name,
                     clause_index,
+                    ensure_expr_snapshot,
                     returned_value,
+                    body_span,
                 )
             }
         }
@@ -7085,27 +7141,58 @@ fn eval_call_to_defclause_with_vals(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let called_arity = vals.len();
-    let mut attempted: Vec<String> = Vec::new();
+    // Stone 237.4 — structured per-clause failure reasons (replaces Vec<String>).
+    let mut attempted: Vec<ClauseAttempt> = Vec::new();
 
     for (clause_idx, clause) in cs.clauses.iter().enumerate() {
+        // Pre-compute declared_arg_types for diagnostic use.
+        let declared_arg_types: Vec<String> = clause.args.iter()
+            .map(|(_, t)| crate::check::format_type(t))
+            .collect();
+        let declared_arity = clause.args.len();
+
         // 1. Arity match.
-        if clause.args.len() != called_arity {
+        if declared_arity != called_arity {
+            attempted.push(ClauseAttempt {
+                clause_index: clause_idx,
+                declared_arity,
+                declared_arg_types,
+                failure_reason: ClauseFailureReason::ArityMismatch {
+                    expected: declared_arity,
+                    got: called_arity,
+                },
+            });
             continue;
         }
+
         // 2. Type match: each actual value must match the declared arg type.
-        let types_match = clause.args.iter().zip(vals.iter()).all(|((_, ty), val)| {
-            value_matches_type_by_name(val, ty)
-        });
+        //    Record the first failing position for ArgTypeMismatch.
+        let type_mismatch: Option<(usize, String, String)> = clause.args.iter()
+            .zip(vals.iter())
+            .enumerate()
+            .find_map(|(pos, ((_, ty), val))| {
+                if value_matches_type_by_name(val, ty) {
+                    None
+                } else {
+                    Some((
+                        pos,
+                        crate::check::format_type(ty),
+                        val_type_path(val).to_string(),
+                    ))
+                }
+            });
 
-        // Record attempt for diagnostics.
-        let clause_fmt = format!(
-            "clause {}: ({})",
-            clause_idx,
-            clause.args.iter().map(|(_, t)| crate::check::format_type(t)).collect::<Vec<_>>().join(", ")
-        );
-        attempted.push(clause_fmt);
-
-        if !types_match {
+        if let Some((pos, expected, got)) = type_mismatch {
+            attempted.push(ClauseAttempt {
+                clause_index: clause_idx,
+                declared_arity,
+                declared_arg_types,
+                failure_reason: ClauseFailureReason::ArgTypeMismatch {
+                    position: pos,
+                    expected,
+                    got,
+                },
+            });
             continue;
         }
 
@@ -7129,13 +7216,25 @@ fn eval_call_to_defclause_with_vals(
                     // Guard passes — continue to body.
                 }
                 Value::bool(false) => {
-                    // Guard false → skip this clause; try next.
+                    // Guard false → record GuardFalse attempt; try next clause.
+                    attempted.push(ClauseAttempt {
+                        clause_index: clause_idx,
+                        declared_arity,
+                        declared_arg_types,
+                        failure_reason: ClauseFailureReason::GuardFalse,
+                    });
                     continue;
                 }
                 other => {
                     // Non-bool from guard — type-checker should have caught this.
-                    // Defensive: treat non-true as skip (permissive fallback).
+                    // Defensive: treat non-true as GuardFalse skip.
                     let _ = other;
+                    attempted.push(ClauseAttempt {
+                        clause_index: clause_idx,
+                        declared_arity,
+                        declared_arg_types,
+                        failure_reason: ClauseFailureReason::GuardFalse,
+                    });
                     continue;
                 }
             }
@@ -7145,8 +7244,13 @@ fn eval_call_to_defclause_with_vals(
         let result = eval_inner(&clause.body, &scope, sym)
             .map(|tv| tv.value_owned())?;
 
-        // 6. Stone 237.3 — :ensure post-condition check (after body).
+        // 6. Stone 237.3 / 237.4 — :ensure post-condition check (after body).
         if let Some(ensure_ast) = &clause.ensure_fn {
+            // Capture spans and snapshot for rich diagnostics (Stone 237.4).
+            let ensure_expr_snapshot = format!("{:?}", ensure_ast);
+            let body_span = clause.body.span().clone();
+            let ensure_span = ensure_ast.span().clone();
+
             // Evaluate the :ensure :fn form to get a callable.
             let ensure_fn_val = eval_inner(ensure_ast, &scope, sym)
                 .map(|tv| tv.value_owned())?;
@@ -7169,11 +7273,13 @@ fn eval_call_to_defclause_with_vals(
                     // Postcondition passes — return result.
                 }
                 Value::bool(false) => {
-                    return Err(RuntimeError::PostconditionFailedRuntime {
+                    return Err(RuntimeError::PostconditionFailed {
                         defclause_name: cs.name.clone(),
                         clause_index: clause_idx,
+                        ensure_expr_snapshot,
                         returned_value: ValueSnapshot::of(&result),
-                        span: list_span.clone(),
+                        body_span,
+                        ensure_span,
                     });
                 }
                 other => {
@@ -7194,7 +7300,7 @@ fn eval_call_to_defclause_with_vals(
 
     // No clause matched (arity + type + guard all fell through).
     let called_args: Vec<ValueSnapshot> = vals.iter().map(|v| ValueSnapshot::of(v)).collect();
-    Err(RuntimeError::NoMatchingClauseRuntime {
+    Err(RuntimeError::NoMatchingClause {
         name: cs.name.clone(),
         called_arity,
         called_args,

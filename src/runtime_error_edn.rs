@@ -26,7 +26,7 @@ use std::borrow::Cow;
 use std::io::Write;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
-use crate::runtime::{Provenance, RuntimeError, ValueSnapshot};
+use crate::runtime::{ClauseAttempt, ClauseFailureReason, Provenance, RuntimeError, ValueSnapshot};
 use crate::span::Span;
 
 // ─── Public API ─────────────────────────────────────────────────────────────
@@ -247,15 +247,15 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 (kw("span"), span_val(span)),
             ]))
         }
-        // Stone 237.2 — TEMPORARY minimal variant; Stone 237.4 refines to rich EDN shape.
-        RuntimeError::NoMatchingClauseRuntime { name, called_arity, called_args, attempted_clauses, span } => {
+        // Stone 237.4 — rich NoMatchingClause with structured ClauseAttempt list.
+        RuntimeError::NoMatchingClause { name, called_arity, called_args, attempted_clauses, span } => {
             let called_args_edn = OwnedValue::Vector(
                 called_args.iter().map(|s| snap_val(s)).collect(),
             );
             let attempted_edn = OwnedValue::Vector(
-                attempted_clauses.iter().map(|s| str_val(s)).collect(),
+                attempted_clauses.iter().map(|a| clause_attempt_to_edn(a)).collect(),
             );
-            tagged("NoMatchingClauseRuntime", OwnedValue::Map(vec![
+            tagged("NoMatchingClause", OwnedValue::Map(vec![
                 (kw("name"), str_val(name)),
                 (kw("called-arity"), OwnedValue::Integer(*called_arity as i64)),
                 (kw("called-args"), called_args_edn),
@@ -263,13 +263,15 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 (kw("span"), span_val(span)),
             ]))
         }
-        // Stone 237.3 — TEMPORARY postcondition failure; Stone 237.4 refines.
-        RuntimeError::PostconditionFailedRuntime { defclause_name, clause_index, returned_value, span } => {
-            tagged("PostconditionFailedRuntime", OwnedValue::Map(vec![
+        // Stone 237.4 — rich PostconditionFailed with ensure snapshot + dual spans.
+        RuntimeError::PostconditionFailed { defclause_name, clause_index, ensure_expr_snapshot, returned_value, body_span, ensure_span } => {
+            tagged("PostconditionFailed", OwnedValue::Map(vec![
                 (kw("defclause-name"), str_val(defclause_name)),
                 (kw("clause-index"), OwnedValue::Integer(*clause_index as i64)),
+                (kw("ensure-expr-snapshot"), str_val(ensure_expr_snapshot)),
                 (kw("returned-value"), snap_val(returned_value)),
-                (kw("span"), span_val(span)),
+                (kw("body-span"), span_val(body_span)),
+                (kw("ensure-span"), span_val(ensure_span)),
             ]))
         }
     }
@@ -362,8 +364,8 @@ fn variant_name(err: &RuntimeError) -> &'static str {
         RuntimeError::ServiceNotRunning { .. } => "ServiceNotRunning",
         RuntimeError::EdnCoerceMismatch { .. } => "EdnCoerceMismatch",
         RuntimeError::UnknownField { .. } => "UnknownField",
-        RuntimeError::NoMatchingClauseRuntime { .. } => "NoMatchingClauseRuntime",
-        RuntimeError::PostconditionFailedRuntime { .. } => "PostconditionFailedRuntime",
+        RuntimeError::NoMatchingClause { .. } => "NoMatchingClause",
+        RuntimeError::PostconditionFailed { .. } => "PostconditionFailed",
     }
 }
 
@@ -390,6 +392,50 @@ fn span_val(span: &Span) -> OwnedValue {
 
 fn snap_val(snap: &ValueSnapshot) -> OwnedValue {
     value_snapshot_to_edn(snap)
+}
+
+/// Stone 237.4 — serialize a [`ClauseAttempt`] to a tagged EDN map.
+///
+/// Each attempt renders as `#wat.kernel/ClauseAttempt {:clause-index N ...
+/// :failure-reason #wat.kernel/<Reason> {...}}`.
+fn clause_attempt_to_edn(attempt: &ClauseAttempt) -> OwnedValue {
+    let arg_types_edn = OwnedValue::Vector(
+        attempt.declared_arg_types.iter().map(|s| str_val(s)).collect(),
+    );
+    let reason_edn = clause_failure_reason_to_edn(&attempt.failure_reason);
+    tagged("ClauseAttempt", OwnedValue::Map(vec![
+        (kw("clause-index"), OwnedValue::Integer(attempt.clause_index as i64)),
+        (kw("declared-arity"), OwnedValue::Integer(attempt.declared_arity as i64)),
+        (kw("declared-arg-types"), arg_types_edn),
+        (kw("failure-reason"), reason_edn),
+    ]))
+}
+
+/// Stone 237.4 — serialize a [`ClauseFailureReason`] to a tagged EDN value.
+///
+/// Each variant renders as `#wat.kernel/<VariantName> {<fields>}`:
+/// - `ArityMismatch` → `#wat.kernel/ArityMismatch {:expected N :got N}`
+/// - `ArgTypeMismatch` → `#wat.kernel/ArgTypeMismatch {:position N :expected "..." :got "..."}`
+/// - `GuardFalse` → `#wat.kernel/GuardFalse nil`
+fn clause_failure_reason_to_edn(reason: &ClauseFailureReason) -> OwnedValue {
+    match reason {
+        ClauseFailureReason::ArityMismatch { expected, got } => {
+            tagged("ArityMismatch", OwnedValue::Map(vec![
+                (kw("expected"), OwnedValue::Integer(*expected as i64)),
+                (kw("got"), OwnedValue::Integer(*got as i64)),
+            ]))
+        }
+        ClauseFailureReason::ArgTypeMismatch { position, expected, got } => {
+            tagged("ArgTypeMismatch", OwnedValue::Map(vec![
+                (kw("position"), OwnedValue::Integer(*position as i64)),
+                (kw("expected"), str_val(expected)),
+                (kw("got"), str_val(got)),
+            ]))
+        }
+        ClauseFailureReason::GuardFalse => {
+            tagged("GuardFalse", OwnedValue::Nil)
+        }
+    }
 }
 
 fn tagged(variant: &'static str, body: OwnedValue) -> OwnedValue {
