@@ -179,7 +179,128 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-25 — Arc 234 CLOSED at 02f927a4; SECOND arc closed this session — predator hunt complete on TWO fronts)
+## Currently (2026-05-25 late — defclause design LOCKED via intueri + four-questions; arc 237 ready to graduate from scratch 017; convergence #16 inscribed)
+
+### Headline state
+
+```
+HEAD          ac050b9e on arc-170-gap-j-v5-deadlock-state (will advance after this commit)
+holon-rs      untouched since 530650c (STOP-4 clean)
+Lib tests     827 PASS / 0 FAIL
+Clippy        52 (≤ 54 baseline)
+Closed arcs   234 + 236 (BOTH closed this session)
+Locked design :wat::core::defclause (arc 237 ready to graduate from scratch 017)
+Unblocked     232.1 (defprotocol macro)
+Proposed arc  235 (records with rich VSA encodings — first consumer of arc 237 substrate)
+```
+
+### defclause design — LOCKED across this session arc
+
+After arc 234 closure + Song #34 Vigil, design conversation surfaced the substrate primitive arc 235 needs: a clause-style function-definition form with guards. User remembered the scratch arc; Explorer located it; convergence #16 named.
+
+**Locked decisions (all four-questions verdicted; some intueri-validated):**
+
+| Decision | Locked value | Source |
+|---|---|---|
+| Form name | `:wat::core::defclause` | user-locked (rename from `define-clauses`) |
+| Boundary | `defn` = single-arity / no-guards; `defclause` = everything else | user-locked |
+| Clause shape | `(args :guard expr :ensure :fn body)` or minimal `(args body)` | design |
+| Args syntax | `[name <- :Type  name <- :Type]` (Clojure-style vector + wat `<-` arrow) | preserves arc 234 contract |
+| `:guard` keyword | clause-selection expression; closure over clause-args; false → try next clause | **intueri-locked** (4/4; recommended over `:when` which fails Honest under Clojure-push) |
+| `:ensure` keyword | output-validation explicit `:fn`; new binding for return; false → raises `:PostconditionFailed` | **intueri-locked** (4/4; recommended over `:post` which fails Obvious + Honest) |
+| `:guard` + `:ensure` defclause-exclusive | `defn` stays minimal — no clauses, no guards, no post | user-locked |
+| Dispatch | first-match-wins; user controls priority by clause order; no implicit rules | user-locked |
+| Literal patterns | NOT SUPPORTED (Path C); arg-binding contract sacred; literal-matches via `:guard` | user-locked after A-vs-C four-questions debate |
+
+### Canonical demos (saved durably)
+
+**Demo 1 — Factorial (Erlang spirit via Path C):**
+
+```wat
+(:wat::core::defclause :my::factorial -> :wat::core::i64
+  ([n <- :wat::core::i64] :guard (:wat::core::i64::= n 0) 1)
+  ([n <- :wat::core::i64] :guard (:wat::core::i64::> n 0)
+    (:wat::core::i64::* n (:my::factorial (:wat::core::i64::- n 1))))
+  ([n <- :wat::core::i64] :guard (:wat::core::i64::< n 0)
+    (:wat::core::error :NegativeFactorial n)))
+```
+
+**Demo 2 — Complex (2 same-arity guards + 3-arity with :ensure):**
+
+```wat
+(:wat::core::defclause :my::process -> :wat::core::String
+  ([x <- :wat::core::i64  y <- :wat::core::i64]
+   :guard (:wat::core::i64::> x y)
+   (:wat::core::String::concat "x>y: " (:wat::core::i64/to-string x)))
+  ([x <- :wat::core::i64  y <- :wat::core::i64]
+   :guard (:wat::core::i64::< x y)
+   (:wat::core::String::concat "x<y: " (:wat::core::i64/to-string y)))
+  ([x <- :wat::core::i64  y <- :wat::core::i64  z <- :wat::core::i64]
+   :ensure (:wat::core::fn [result <- :wat::core::String] -> :wat::core::bool
+             (:wat::core::String/starts-with? result "result:"))
+   (:wat::core::String::concat "result: sum="
+     (:wat::core::i64/to-string
+       (:wat::core::i64::+ (:wat::core::i64::+ x y) z)))))
+```
+
+### Convergence #16 — the wat-define-clauses scratch arc graduates
+
+Per arc 170 § 2026-05-17 Convergence #11 ("the door we closed becomes the door we needed"):
+- May 3: scratch arc 017 opened; POST-109 gate set; walked away
+- May 3 → May 25: arcs 109/232/233/234/236 substrate work matured (POST-109 informally lifted by accumulated substrate primitives)
+- May 25: arc 235 encoding-richness needs clause-guard substrate; scratch 017 is what fits the hole
+- Convergence #16: third recurrence of the spawn-program reclaim pattern within ~12 hours
+
+The scratch arc at `~/work/holon/scratch/2026/05/017-wat-define-clauses/` carries:
+- Original DESIGN.md (May 3; both bounds drafted)
+- INDEX.yaml (May 3; captured-beats)
+- SLICE-PLAN.md (May 3; conservative slicing)
+- **NEW: ADDENDUM-2026-05-25.md** (this evening's locked decisions + demos; explicit graduate-ready state)
+
+### Decision boundary on resume — graduate path
+
+**Arc 237 (NEW; will graduate scratch 017) — `:wat::core::defclause` substrate work.** Per revised slice projection (lower-bound only; literal patterns deferred indefinitely per Path C lock):
+
+- 237.1 — Parser recognizes `(:wat::core::defclause :name -> :T (clause...) ...)` form
+- 237.2 — Type-checker validates each clause body against `:T`; binding-extraction from clause-args
+- 237.3 — `:guard` parsing + type-check (must return `:bool`); `:ensure` parsing + type-check (`:fn` returns `:bool`)
+- 237.4 — Evaluator dispatch (count args → arity match → try clauses in order → guard eval → first match wins; ensure runs after body)
+- 237.5 — `:NoMatchingClause` + `:PostconditionFailed` error reporting
+- 237.6 — INSCRIPTION + arc closure
+
+Estimated effort: ~5-7 days substrate work (per revised SLICE-PLAN; lower-bound only).
+
+**Arc 235 (PROPOSED; opens post-arc-237 closure) — records with rich VSA encodings.** First consumer of arc 237's substrate; per-field validation via `:guard` (and optionally `:ensure`) at field declaration sites in `:wat::holon::Record::def`.
+
+### Honest deltas
+
+- **Open Q remaining: literal patterns** — locked NO via Path C (preserves arg-binding contract). If future demand surfaces (Erlang-style base cases feel verbose-with-guard), can revisit via NEW arc.
+- **Arc 109 POST-109 gate informally lifted** — the original wat-define-clauses scratch (May 3) said "no new primitives in core until 109 closes." Arc 109 is still in_progress on disk; substrate primitives shipped throughout arcs 232/233/234/236 during arc 109's lifetime. The gate was informally lifted by discipline-maturity. Document this in arc 237's INSCRIPTION + arc 109's eventual closure paperwork.
+
+### Memory updates pending (next session post-compaction)
+
+- Update `project_arc236_check_class_elimination` reference with the convergence #16 connection
+- Consider minting memory entry for the four-questions-atomic-convergence pattern (Path A vs C convergence on literal patterns demonstrated the discipline operating in real-time; this is reusable as a worked example)
+- Consider minting memory entry for arc 237 readiness when it graduates
+
+### Songs inscribed this session arc (six)
+
+`#29 In Defense Of Our Good Name → #30 Deadly Sinners → #31 Anthem (We Are The Fire) → #32 Monolith → #33 Anthropoid → #34 Vigil`
+
+The Trivium → Mudvayne → Lamb of God trinity (#31-#33) maps VOICE → EVOLUTION → IDENTITY. #34 Vigil added DEFIANCE (Lamb of God).
+
+### Party-comp + tonal state
+
+- **Inquisitor + Shadowdancer** continued execution + design dialogue both layers
+- **defclause design via intueri cast** — naming protocol honored; `:guard` + `:ensure` LOCKED via spell + four-questions verdicts
+- **The convergence #16 recognition** — the door closed at scratch 017 (May 3) is the door we need now (May 25); same pattern, third recurrence this session
+- **Path A vs C debate** — orchestrator argued both sides; the four-questions atomic discipline picked C; user recognized "you just fully qualified our design"
+- **Six rhythm-invocations this session arc** — cadence operational at meta-layer
+- **The disk holds what mattered tonight** — 19 substrate ships + 2 INSCRIPTIONs + 5 new doctrines + 6 songs + defclause locked design state
+
+---
+
+## Currently (2026-05-25 — Arc 234 CLOSED at 02f927a4; SECOND arc closed this session — predator hunt complete on TWO fronts) — SUPERSEDED, see above
 
 ### Headline state
 
