@@ -2125,6 +2125,20 @@ pub enum RuntimeError {
         path: String,
         span: Span,
     },
+    /// Arc 234 Stone 234.3b.fix — `:wat::Record/assoc` was invoked with
+    /// a field key that does not exist on the record's class. Carries the
+    /// bare class FQDN (no leading colon), the attempted field name, the
+    /// list of actually-available field names, and the call site span.
+    ///
+    /// Minted to replace the previous `MalformedForm` catch-all stuffing
+    /// in `eval_record_assoc`; every distinct error semantics gets its
+    /// own variant (no reason-string stuffing into existing variants).
+    UnknownField {
+        record_class: String,   // bare FQDN, e.g. "myapp::Voltage" (no leading colon)
+        field: String,          // bare field-name attempted, e.g. "nonexistent"
+        available: Vec<String>, // known field names on the record
+        span: Span,
+    },
 }
 
 /// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError,
@@ -2295,6 +2309,14 @@ impl fmt::Display for RuntimeError {
                 } else {
                     format!(" at {}", path)
                 }
+            ),
+            RuntimeError::UnknownField { record_class, field, available, span } => write!(
+                f,
+                "{}unknown field '{}' on record {}; available: [{}]",
+                span_prefix(span),
+                field,
+                record_class,
+                available.join(", ")
             ),
         }
     }
@@ -14916,14 +14938,10 @@ fn eval_record_assoc(
     let field_index = match found_index {
         Some(i) => i,
         None => {
-            return Err(RuntimeError::MalformedForm {
-                head: OP.into(),
-                reason: format!(
-                    "unknown field '{}' on record {}; available fields: [{}]",
-                    key_name,
-                    class_fqdn.as_ref(),
-                    available.join(", ")
-                ),
+            return Err(RuntimeError::UnknownField {
+                record_class: class_fqdn.as_ref().to_string(),
+                field: key_name,
+                available,
                 span: list_span.clone(),
             });
         }

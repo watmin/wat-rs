@@ -236,6 +236,17 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 (kw("span"), span_val(span)),
             ]))
         }
+        RuntimeError::UnknownField { record_class, field, available, span } => {
+            let available_edn = OwnedValue::Vector(
+                available.iter().map(|s| str_val(s)).collect(),
+            );
+            tagged("UnknownField", OwnedValue::Map(vec![
+                (kw("record-class"), str_val(record_class)),
+                (kw("field"), str_val(field)),
+                (kw("available"), available_edn),
+                (kw("span"), span_val(span)),
+            ]))
+        }
     }
 }
 
@@ -325,6 +336,7 @@ fn variant_name(err: &RuntimeError) -> &'static str {
         RuntimeError::SandboxScopeLeak { .. } => "SandboxScopeLeak",
         RuntimeError::ServiceNotRunning { .. } => "ServiceNotRunning",
         RuntimeError::EdnCoerceMismatch { .. } => "EdnCoerceMismatch",
+        RuntimeError::UnknownField { .. } => "UnknownField",
     }
 }
 
