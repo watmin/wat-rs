@@ -5184,6 +5184,8 @@ fn dispatch_keyword_head_value(
         // → :Option<T>.
         ":wat::core::i64::to-string" => eval_i64_to_string(args, list_span, env, sym),
         ":wat::core::i64::to-f64" => eval_i64_to_f64(args, list_span, env, sym),
+        // Arc 234 Stone 234.4 — slash-form alias for i64::to-f64.
+        ":wat::core::i64/to-f64" => eval_i64_to_f64(args, list_span, env, sym),
         ":wat::core::f64::to-string" => eval_f64_to_string(args, list_span, env, sym),
         ":wat::core::f64::to-i64" => eval_f64_to_i64(args, list_span, env, sym),
         ":wat::core::f64::round" => eval_f64_round(args, list_span, env, sym),
@@ -6620,6 +6622,84 @@ fn bind_let_binding(
             }
             Ok(builder.build())
         }
+        // Arc 234 Stone 234.4 — hash-destructure.
+        // Evaluates the RHS once; dispatches on Value variant:
+        //   wat__Record    → walk holon_form by field name; bind to struct_form[i]
+        //   Struct         → look up field in TypeDef; bind sv.fields[i]
+        //   wat__std__HashMap → keyword key lookup; bind to Value::Option(Some/None)
+        //   Other          → TypeMismatch
+        //
+        // Reuses keyword_accessor_record / keyword_accessor_struct helpers
+        // from Stone 234.3c. HashMap arm uses the same key-build pattern
+        // as the keyword-as-accessor fall-through (runtime.rs line ~5939).
+        LetBinding::HashDestructure { bindings, rhs } => {
+            let value = eval_inner(rhs, scope, sym)?.value_owned();
+            let mut builder = scope.child();
+            match &value {
+                Value::wat__Record { class_fqdn, struct_form, holon_form } => {
+                    // Record receiver — walk holon_form per binding.
+                    // Reuse keyword_accessor_record from Stone 234.3c.
+                    for (var_name, bare_field, var_span) in &bindings {
+                        let field_val = keyword_accessor_record(
+                            bare_field,
+                            class_fqdn.clone(),
+                            struct_form.clone(),
+                            holon_form.clone(),
+                            rhs.span(),
+                        )?;
+                        builder = builder.bind(
+                            var_name.clone(),
+                            var_span.clone(),
+                            TrackedValue::from(field_val),
+                        );
+                    }
+                }
+                Value::Struct(sv) => {
+                    // Struct receiver — look up each field in TypeDef.
+                    // Reuse keyword_accessor_struct from Stone 234.3c.
+                    for (var_name, bare_field, var_span) in &bindings {
+                        let field_val = keyword_accessor_struct(
+                            bare_field,
+                            sv.clone(),
+                            sym,
+                            rhs.span(),
+                        )?;
+                        builder = builder.bind(
+                            var_name.clone(),
+                            var_span.clone(),
+                            TrackedValue::from(field_val),
+                        );
+                    }
+                }
+                Value::wat__std__HashMap(map) => {
+                    // HashMap receiver — keyword key lookup returning Option<V>.
+                    // Consistent with keyword-as-accessor fall-through and
+                    // :wat::core::HashMap/get (miss = None, never an error).
+                    for (var_name, bare_field, var_span) in &bindings {
+                        let key_str = format!(":{}", bare_field);
+                        let key = Value::wat__core__keyword(Arc::new(key_str));
+                        let opt_val = match map.get(&key) {
+                            Some(v) => Value::Option(Arc::new(Some(v.clone()))),
+                            None => Value::Option(Arc::new(None)),
+                        };
+                        builder = builder.bind(
+                            var_name.clone(),
+                            var_span.clone(),
+                            TrackedValue::from(opt_val),
+                        );
+                    }
+                }
+                other => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: ":wat::core::let hash-destructure".into(),
+                        expected: "wat::Record, Struct, or wat::core::HashMap",
+                        got: ValueSnapshot::of(other),
+                        span: rhs.span().clone(),
+                    });
+                }
+            }
+            Ok(builder.build())
+        }
     }
 }
 
@@ -6727,6 +6807,18 @@ enum LetBinding<'a> {
         field_names: Vec<(String, Span)>,
         rhs: &'a WatAST,
     },
+    /// Arc 234 Stone 234.4 — Clojure-style hash-destructure.
+    /// `{var :field  var2 :field2 ...}` in let-binding position.
+    /// Receiver-polymorphic over wat__Record, Struct, and wat__std__HashMap.
+    ///
+    /// Each binding carries (var_name, bare_field_name, var_span).
+    /// Runtime evaluates the RHS once and dispatches on Value variant
+    /// to extract each field by name.
+    HashDestructure {
+        /// (var_name, bare_field_name, var_name_span) triples.
+        bindings: Vec<(String, String, Span)>,
+        rhs: &'a WatAST,
+    },
 }
 
 /// Parse a single (binder, rhs) chunk from a flat-vector let
@@ -6780,7 +6872,65 @@ fn parse_let_binding<'a>(
             Ok(LetBinding::Destructure { names, rhs })
         }
         WatAST::StructPattern(inner, _) => {
-            // Struct destructure binder: parser guarantees every
+            // Arc 234 Stone 234.4 — detect hash-destructure vs arc-169
+            // struct-destructure by inspecting items[1].
+            //   items[1] is Keyword → hash-destructure {var :field ...}
+            //   items[1] is Symbol  → arc-169 struct-destructure {f1 f2 ...}
+            //   single item         → arc-169 (degenerate single-field form)
+            let is_hash_destructure = matches!(inner.get(1), Some(WatAST::Keyword(_, _)));
+
+            if is_hash_destructure {
+                // Arc 234 Stone 234.4 — hash-destructure.
+                // Parser guarantees alternating Symbol/Keyword + even count.
+                // Defense-in-depth: re-validate here for synthesized nodes.
+                if inner.len() % 2 != 0 || inner.is_empty() {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::let".into(),
+                        reason: format!(
+                            "hash-destructure brace-form must have an even number of items (alternating var :field pairs); got {}",
+                            inner.len()
+                        ),
+                        span: binder.span().clone(),
+                    });
+                }
+                let mut bindings = Vec::with_capacity(inner.len() / 2);
+                let mut i = 0;
+                while i + 1 < inner.len() {
+                    let (var_name, var_span) = match &inner[i] {
+                        WatAST::Symbol(ident, sp) => (ident.name.clone(), sp.clone()),
+                        other => {
+                            return Err(RuntimeError::MalformedForm {
+                                head: ":wat::core::let".into(),
+                                reason: format!(
+                                    "hash-destructure: expected bare symbol at position {}; got {}",
+                                    i,
+                                    ast_variant_name(other)
+                                ),
+                                span: other.span().clone(),
+                            });
+                        }
+                    };
+                    let bare_field = match &inner[i + 1] {
+                        WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
+                        other => {
+                            return Err(RuntimeError::MalformedForm {
+                                head: ":wat::core::let".into(),
+                                reason: format!(
+                                    "hash-destructure: expected keyword (field name) at position {}; got {}",
+                                    i + 1,
+                                    ast_variant_name(other)
+                                ),
+                                span: other.span().clone(),
+                            });
+                        }
+                    };
+                    bindings.push((var_name, bare_field, var_span));
+                    i += 2;
+                }
+                return Ok(LetBinding::HashDestructure { bindings, rhs });
+            }
+
+            // Arc 169 — struct-destructure binder: parser guarantees every
             // element is a bare Symbol and the form is non-empty.
             // Defense-in-depth: re-verify the shape so a future
             // caller that synthesizes a StructPattern with wrong

@@ -10681,11 +10681,68 @@ fn process_let_binding(
     //      MalformedForm naming the field + listing the struct's
     //      actual field names (substrate-as-teacher).
     //   3. Push (field-name, field-type) into the local scope.
-    if let WatAST::StructPattern(inner, span) = &kv[0] {
+    if let WatAST::StructPattern(inner, _span) = &kv[0] {
+        // Arc 234 Stone 234.4 — detect hash-destructure vs arc-169
+        // struct-destructure by inspecting items[1].
+        //   items[1] is Keyword → hash-destructure {var :field  var2 :field2 ...}
+        //   items[1] is Symbol  → arc-169 struct-destructure {field1 field2 ...}
+        //   items absent or len==1 → arc-169 (single-field form)
+        let is_hash_destructure = matches!(inner.get(1), Some(WatAST::Keyword(_, _)));
+
+        if is_hash_destructure {
+            // Arc 234 Stone 234.4 — hash-destructure check path.
+            //
+            // Per D4 / DESIGN: per-class TypeDef registration not shipped yet
+            // (arc 232.1 future-lift). Each binding var receives a fresh
+            // type variable (polymorphic T). This lets the body unify the
+            // binding's type from usage context (e.g., f64 from a return-type
+            // annotation, Option<V> from Option/expect). Runtime catches
+            // unknown-field errors.
+            //
+            // Collect (var_name, field_name_bare) pairs. Parser guarantees
+            // even count + alternating Symbol/Keyword shape.
+            let rhs = &kv[1];
+            // Evaluate rhs type so downstream unification has context.
+            // We don't use it for binding-type assignment (polymorphic T
+            // per D4), but inferring it catches type errors in the rhs
+            // expression itself.
+            let _ = infer(rhs, env, rhs_scope, fresh, subst, errors);
+            let mut i = 0;
+            while i + 1 < inner.len() {
+                let var_name = match &inner[i] {
+                    WatAST::Symbol(ident, _) => ident.name.clone(),
+                    _ => { i += 2; continue; }
+                };
+                // Assign a fresh type variable for each binding.
+                // The body's usage will unify it to the concrete type.
+                let binding_ty = fresh.fresh();
+                out_scope.insert(var_name, binding_ty);
+                i += 2;
+            }
+            return;
+        }
+
+        // Arc 169 — StructPattern binder (struct destructure):
+        // `{field1 field2 ...} rhs`. Each child is a bare Symbol that
+        // is BOTH a field-name on the struct rhs evaluates to AND a
+        // local binding-name in this let scope. The 12-word rule:
+        // *bind the field's value to the field's name in this scope*.
+        //
+        // Resolution path:
+        //   1. Infer the rhs's type. It must resolve (post-subst) to a
+        //      `:Type/Struct(StructDef)` registered in the TypeEnv. Any
+        //      other shape → TypeMismatch pointing at rhs.
+        //   2. For each field-name in the brace-form: look up the field
+        //      in the struct's `fields` declaration. Unknown field →
+        //      MalformedForm naming the field + listing the struct's
+        //      actual field names (substrate-as-teacher).
+        //   3. Push (field-name, field-type) into the local scope.
+        //
         // Defense-in-depth: parser already enforced shape, but
         // re-collect here so a synthesized StructPattern with bad
         // contents emits a clear diagnostic instead of silently
         // ignoring the binding.
+        let span = _span;
         let mut field_names: Vec<String> = Vec::with_capacity(inner.len());
         for item in inner {
             match item {
@@ -13791,6 +13848,19 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     env.register(
         ":wat::core::i64::to-f64".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: f64_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 234 Stone 234.4 — slash-form alias for i64::to-f64.
+    // The probe uses :wat::core::i64/to-f64 (slash-scoped form);
+    // register it under the slash name so the checker resolves the
+    // return type as f64 (not a fresh var). Runtime mirrors this alias.
+    env.register(
+        ":wat::core::i64/to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![i64_ty()],

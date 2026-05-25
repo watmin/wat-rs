@@ -236,29 +236,43 @@ impl<'a> Cursor<'a> {
                 //   * Anything else → `MalformedBraceLiteral` naming
                 //     the actual child kind.
                 let items = self.parse_brace_body(span.clone())?;
-                // Dispatch on the FIRST child's shape — content-shape
-                // routing. We peek at the discriminator separately from
-                // the move into the helper so Rust's borrow checker
-                // doesn't see a simultaneous borrow-and-move on `items`.
+                // Dispatch on the FIRST and SECOND child shapes —
+                // content-shape routing. We peek at the discriminator
+                // separately from the move into the helper so Rust's
+                // borrow checker doesn't see a simultaneous
+                // borrow-and-move on `items`.
                 //
                 // Arc 215 stone 2 — keyword-key restriction lifted.
                 // Previously: non-keyword, non-symbol first child → Malformed.
-                // Now: bare Symbol head → struct destructure (arc 169);
+                // Now: bare Symbol head → struct destructure (arc 169)
+                //      OR hash-destructure (arc 234 Stone 234.4);
                 //      everything else (keyword, integer, string, ...) → map
                 //      literal. K is :wat::type::Infer; check.rs infers from
                 //      actual keys. The keyword-key-only rule moves to the
                 //      function-signature unification layer where it belongs.
-                enum BraceKind { MapLiteral, StructDestructure }
-                let kind = match items.first() {
+                //
+                // Arc 234 Stone 234.4 — Clojure-style hash-destructure:
+                //   `{var :field  var2 :field2 ...}` — first item is a bare
+                //   Symbol AND second item is a Keyword → HashDestructure.
+                //   `{field1 field2 ...}` — first AND second both bare Symbols
+                //   → StructDestructure (arc 169 preserved).
+                //   Single bare symbol `{field}` → StructDestructure (degenerate
+                //   single-field arc 169 form; no second item → cannot be
+                //   hash-destructure which requires at least a var+keyword pair).
+                enum BraceKind { MapLiteral, StructDestructure, HashDestructure }
+                let kind = match (items.first(), items.get(1)) {
                     // Empty body → empty map literal (arc 214 P2).
-                    // Arc 169's "degenerate empty" check retired from
-                    // this branch; empty `{}` is a valid empty HashMap.
-                    None => BraceKind::MapLiteral,
-                    // Bare Symbol head → struct destructure (arc 169).
-                    Some(WatAST::Symbol(_, _)) => BraceKind::StructDestructure,
+                    (None, _) => BraceKind::MapLiteral,
+                    // Symbol + Keyword → hash-destructure (arc 234 Stone 234.4).
+                    (Some(WatAST::Symbol(_, _)), Some(WatAST::Keyword(_, _))) => {
+                        BraceKind::HashDestructure
+                    }
+                    // Symbol head (with non-Keyword or absent second) →
+                    // struct destructure (arc 169).
+                    (Some(WatAST::Symbol(_, _)), _) => BraceKind::StructDestructure,
                     // Anything else (keyword, integer literal, string, ...) →
                     // map literal. K inferred by check.rs from actual key types.
-                    Some(_) => BraceKind::MapLiteral,
+                    (Some(_), _) => BraceKind::MapLiteral,
                 };
                 match kind {
                     BraceKind::MapLiteral => {
@@ -266,6 +280,9 @@ impl<'a> Cursor<'a> {
                     }
                     BraceKind::StructDestructure => {
                         self.parse_struct_destructure_body(items, span)
+                    }
+                    BraceKind::HashDestructure => {
+                        self.parse_hash_destructure_body(items, span)
                     }
                 }
             }
@@ -556,6 +573,74 @@ impl<'a> Cursor<'a> {
                 });
             }
         }
+        Ok(Some(WatAST::StructPattern(items, open_span)))
+    }
+
+    /// Arc 234 Stone 234.4 — hash-destructure semantic path.
+    /// Called when the brace body begins with `Symbol Keyword ...`.
+    ///
+    /// The form `{var :field  var2 :field2 ...}` is validated:
+    ///   - Even count required (each var must have a keyword partner).
+    ///   - Alternating Symbol/Keyword positions enforced.
+    ///   - At least one var-keyword pair required.
+    ///
+    /// Produces `WatAST::StructPattern` with alternating
+    /// `[Symbol("var"), Keyword(":field"), ...]` children so that
+    /// check.rs and runtime.rs can detect the hash-destructure shape
+    /// by inspecting `items[1]` (Keyword → hash-destructure;
+    /// Symbol → arc 169 struct-destructure).
+    ///
+    /// MalformedStructPattern on odd count or wrong-position items.
+    fn parse_hash_destructure_body(
+        &self,
+        items: Vec<WatAST>,
+        open_span: Span,
+    ) -> Result<Option<WatAST>, ParseError> {
+        // Even count required — each var needs a keyword partner.
+        if !items.len().is_multiple_of(2) {
+            return Err(ParseError::MalformedStructPattern {
+                span: open_span.clone(),
+                reason: format!(
+                    "hash-destructure brace-form must have an even number of items (alternating var :field pairs); got {} item{}",
+                    items.len(),
+                    if items.len() == 1 { "" } else { "s" }
+                ),
+            });
+        }
+        // Must have at least one pair (len >= 2 — guaranteed by even check
+        // + dispatch condition that items[1] is a Keyword, so len >= 2).
+        // Validate alternating Symbol/Keyword positions.
+        for (i, item) in items.iter().enumerate() {
+            if i % 2 == 0 {
+                // Even positions: bare Symbol (binding name).
+                if !matches!(item, WatAST::Symbol(_, _)) {
+                    return Err(ParseError::MalformedStructPattern {
+                        span: item.span().clone(),
+                        reason: format!(
+                            "hash-destructure: expected a bare symbol (binding name) at position {}; got a {} — write `{{var :field  var2 :field2 ...}}`",
+                            i,
+                            ast_variant_label(item)
+                        ),
+                    });
+                }
+            } else {
+                // Odd positions: Keyword (field name).
+                if !matches!(item, WatAST::Keyword(_, _)) {
+                    return Err(ParseError::MalformedStructPattern {
+                        span: item.span().clone(),
+                        reason: format!(
+                            "hash-destructure: expected a keyword (field name, e.g. `:field`) at position {}; got a {} — write `{{var :field  var2 :field2 ...}}`",
+                            i,
+                            ast_variant_label(item)
+                        ),
+                    });
+                }
+            }
+        }
+        // Produce a StructPattern with the alternating Symbol/Keyword items.
+        // check.rs and runtime.rs detect hash-destructure by inspecting items[1]:
+        //   items[1] is Keyword → hash-destructure (arc 234 Stone 234.4)
+        //   items[1] is Symbol  → struct-destructure (arc 169)
         Ok(Some(WatAST::StructPattern(items, open_span)))
     }
 }
