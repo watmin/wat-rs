@@ -1,6 +1,8 @@
 # Arc 236 — check.rs error-propagation class-elimination
 
-**Status:** OPEN (2026-05-24). Arc 234 PAUSED per user direction: *"we annihilate error domains when we encounter them."* Resumes after this arc closes.
+**Status:** ACTIVE (2026-05-24 night — extended mid-flight with Stone 236.3 sum-type refactor before INSCRIPTION at Stone 236.4). Arc 234 PAUSED per user direction: *"we annihilate error domains when we encounter them."* Resumes after this arc closes.
+
+**Arc-shape note (2026-05-24 night latest):** Reality compressed + extended vs original sketch. Original stones 236.3 (audit + fix) + 236.4 (verification) were ABSORBED by Stone 236.2's HARVEST methodology + 12-row scorecard (0 Classification 2 sites surfaced; lib baseline 827 held; clippy improved 54→52). Mid-flight dialogue post-236.2 surfaced that Stone 236.0's struct-with-Option shape achieved ✅✅ (construction-time discipline via debug_assert) where ✅✅✅ (type-system structural impossibility) is reachable via 3-variant sum-type. Stone 236.3 (renumbered) ships the refactor; Stone 236.4 ships INSCRIPTION.
 
 **Origin:** Stone 234.3c.fix-narrow-fallthrough surfaced (and documented in commit `aa55505b`) the substrate-architecture failure mode: `check.rs::infer(...) -> Option<TypeExpr>` + `errors: &mut Vec<CheckError>` side-channel allows silent error-loss. `return None` without `errors.push(...)` produces no diagnostic.
 
@@ -89,16 +91,28 @@ The substrate-as-teacher cascade is where the real value emerges: once the type 
 
 ---
 
-## Stone sketch (open-ended; sonnet flights refine)
+## Stone sketch — original + actuals
 
-- **236.0** Mint `CheckResult<T>` newtype in `src/check.rs` (or new sibling module); constructors + combinators + tests. NO migration yet — just the type exists.
-- **236.1** Migrate primary `fn infer(...)` signature: `Option<TypeExpr>` → `CheckResult<TypeExpr>`. Substrate-as-teacher cascade: all call sites get touched.
-- **236.2** Migrate sibling inference helpers (`infer_list`, `infer_*`). Cascade continues.
-- **236.3** Audit & fix surfaced silent-failure sites — for each `return None` (now impossible structurally), pick the honest replacement: `ok(fresh)` / `partial` / `err`. This is the FAILURE-CLASS HARVEST — every site reviewed; every diagnostic preserved.
-- **236.4** Lib baseline + regression guards green. Arc 234 probes all green. Clippy clean.
-- **236.5** INSCRIPTION + close.
+**Original sketch (drafted 2026-05-24 early; preserved as history):**
 
-May expand to 6-8 stones depending on cascade depth. Substrate-as-teacher cascade IS the work; predicting stone count is hard.
+- 236.0 Mint `CheckResult<T>` newtype; constructors + combinators + tests. NO migration yet.
+- 236.1 Migrate primary `fn infer(...)` signature; substrate-as-teacher cascade.
+- 236.2 Migrate sibling inference helpers; cascade continues.
+- 236.3 Audit & fix surfaced silent-failure sites — failure-class HARVEST.
+- 236.4 Lib baseline + regression guards green.
+- 236.5 INSCRIPTION + close.
+
+> May expand to 6-8 stones depending on cascade depth.
+
+**Actuals (as of 2026-05-24 night):**
+
+- **236.0** SHIPPED (`63f8ca2a`) — CheckResult<T> struct-with-Option mint (11/11; ~25 min)
+- **236.1** SHIPPED (`f06549ad`) — primary fn infer flip (11/11; HARVEST 2/0/1; ~25 min)
+- **236.2** SHIPPED (`d8aa66d0`) — sibling infer_* flip + HARVEST methodology (12/12; HARVEST 37/0/111; ~57 min); ABSORBED original 236.3 (audit work via HARVEST methodology; 0 Classification 2 sites yielded) + original 236.4 (verification work via 12-row scorecard; 827 lib + clippy 52 + all regression probes green)
+- **236.3** (renumbered; ACTIVE) — `CheckResult<T>` sum-type refactor: struct-with-Option → 3-variant enum `Ok(T) | Partial(T, Vec<CheckError>) | Err(Vec<CheckError>)`. Extends class-elimination ✅✅ (construction-time discipline) → ✅✅✅ (type-system structural impossibility). Silent-failure state literally unrepresentable because no `Silent` variant exists. Recognized via dialogue-as-PERCEIVE cycle post-236.2.
+- **236.4** (renumbered; pending Stone 236.3 ship) — INSCRIPTION + arc closure.
+
+Arc shipped its substrate work in 3 stones (vs original 6-stone sketch); extended mid-flight by 1 stone for the doctrinal-advancement refactor (Stone 236.3); closes with INSCRIPTION (Stone 236.4). Total: 4 substrate stones + 1 closure stone.
 
 ---
 
