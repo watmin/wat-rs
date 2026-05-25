@@ -1,6 +1,42 @@
 # Arc 237 — Polymorphism consolidation: defclause + typeunion
 
-**Status:** OPEN (2026-05-25 late-late) — umbrella DESIGN authored; first sub-stone (Stone 237.0 intueri cast) COMPLETED; substrate stones pending.
+**Status:** OPEN (2026-05-25 late-late) — umbrella DESIGN authored; first sub-stone (Stone 237.0 intueri cast) COMPLETED; substrate stones pending. **Stones 237.1–237.4 SHIPPED.** See § DECISION AMENDMENT below — the mixed-arithmetic framing in the original body is SUPERSEDED.
+
+---
+
+## DECISION AMENDMENT (2026-05-25 night-late) — mixed-numeric arithmetic is REMOVED
+
+After an hour-long design dialogue (post-Stone-237.4), the arc's treatment of numeric polymorphism was inverted. The original body of this DESIGN frames a **widest-contagion** rule (`any f64 → f64`, auto-compute the result type) and carries a `variadic_mixed_arithmetic` acceptance-probe block asserting `(+ 1 2.0) => 3.0`. **That framing is wrong and is hereby superseded.** Do not implement it. Read this section as authoritative; treat the conflicting passages below as historical.
+
+**THE DECISION:**
+
+1. **`(:wat::core::+ 1 2.0)` is an ERROR** — no clause matches. There is no implicit numeric coercion in wat. The user homogenizes explicitly: `(+ 1.0 2.0)` or `(+ (:i64/to-f64 a) b)`. The lossy/lossless choice is made VISIBLE at the call site (`feedback_verbose_is_honest`).
+
+2. **Widest-contagion is DELETED, not migrated.** The hand-coded `infer_arithmetic` (`any f64 → f64`), `eval_arithmetic_variadic`, and `is_numeric` are removed at **Stone 237.7** — the feature itself was the defect. (`feedback_absence_is_signal`: wat lacking implicit coercion was the honest default; we nearly patched in the very feature the absence warned against. Rust's engine agrees — `1.0 + 2` doesn't compile there either; `notation_is_the_barrier`.)
+
+3. **The two-mechanism split (one-canonical-path; they NEVER touch):**
+
+   | | Mechanism | One way |
+   |---|---|---|
+   | **typeunion** (`:Shape`, `:Numeric`) | consumed by **DISCRIMINATION** — value carries its concrete class (typed-entities); check member via arc 226 `is-X?`; handle each branch | discrimination |
+   | **arithmetic** (`+ - * /`) + all arc 148 families (comparison `= < >`, holon-pair, time-arith) | **concrete-per-type defclause dispatch**; mixed args → no clause → error | concrete dispatch |
+
+   typeunion and arithmetic were conflated in the original framing — that conflation was the orchestrator's error, which manufactured fake "two concurrent ways" options. They are DIFFERENT problems with DIFFERENT one-ways. Never merge them.
+
+**Reshaped downstream stones:**
+
+- **Stone 237.5** — variadic rest over **concrete homogeneous** types only (`& rest <- :Vector<:i64>`). NO widest-contagion type-checker rule. (Original 237.5 "widest-contagion rule" line item is struck.)
+- **Stone 237.7** — arithmetic + arc 148 families → concrete-per-type defclauses; **DELETE widest-contagion** (`infer_arithmetic` / `eval_arithmetic_variadic` / `is_numeric`); retire arc 146 Dispatch; update `AnyBanned` message. (Per-Type binary ops stay as fold kernels; do a blast-radius grep first; this is also where the first real typeunion consumer lands.)
+
+**Superseded probe rows:** the `variadic_mixed_arithmetic` acceptance-probe block (asserting `(+ 1 2.0) => 3.0 :: :f64` and the 4-member-binding-narrows-to-f64 case) is INVERTED — the correct contract is `(+ 1 2.0)` → ERROR. Those rows are historical, not acceptance criteria.
+
+**Open questions pending user verdict (do NOT resolve unilaterally):**
+- ① Decouple arc 145 (4-member `[name value -> :Type]` binding) from arc 237 — it's a general checking-binding mechanism, not a coercion lever. (Orchestrator recommends decouple.)
+- ② Generalize the no-mixed decision to ALL arc 148 families (comparison / holon-pair / time-arith), not just `+ - * /`. (Orchestrator recommends yes, universal.)
+
+Memory: `feedback_no_implicit_coercion`. Inscribed: Song #36 (Break Stuff — the chainsaw turned inward).
+
+---
 
 **Thesis:** Wat has three polymorphism mechanisms today (arc 146 Dispatch entity for arg-type dispatch; hand-coded arithmetic special-case in check.rs + runtime.rs for variadic-mixed-numeric dispatch; per-Type variadic wrappers in wat/core.wat for homogeneous arithmetic). They overlap, they fragment, and one is a literal lie in the substrate (hand-coded `is_numeric` predicate naming a concept the type system doesn't first-class). This arc mints **two new substrate primitives** — `:wat::core::defclause` (multi-arity + clause-by-guard dispatch) and `:wat::core::typeunion` (type-level named set of types) — and uses them to **consolidate all polymorphism into one canonical path**. The hand-coded arithmetic special-case retires HARD CUT (per arc 234.6 discipline). Arc 146 Dispatch entity retires HARD CUT. Arc 148's queued migration stones are ABSORBED via the consolidation sweep.
 
