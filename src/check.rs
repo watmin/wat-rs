@@ -5893,6 +5893,19 @@ fn infer_list(
                 for arg in args {
                     let _ = infer(arg, env, locals, fresh, subst, errors);
                 }
+                // Arc 234 Stone 234.3c — keyword-as-accessor polymorphic-T return.
+                // When head is unknown AND args.len() == 1, this may be a Clojure-style
+                // field accessor `(:field receiver)`. The runtime handles dispatch at eval
+                // time (D8 — no check-time narrowing). Return a fresh type var so the
+                // call site type-checks polymorphically rather than returning None (which
+                // silently discards the type context). Three receivers:
+                //   - wat__Record → T (the field's typed value)
+                //   - Struct      → T (the field's typed value)
+                //   - HashMap     → Option<V> (but indistinguishable at check time)
+                // Polymorphic T covers all three; runtime enforces receiver semantics.
+                if args.len() == 1 {
+                    return Some(fresh.fresh());
+                }
                 return None;
             }
         };

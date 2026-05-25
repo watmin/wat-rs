@@ -5906,6 +5906,47 @@ fn dispatch_keyword_head_value(
                             });
                         }
                     }
+                    // Arc 234 Stone 234.3c — keyword-as-accessor fall-through.
+                    // When head is an unknown verb AND args.len() == 1 AND receiver is
+                    // {wat__Record, Struct, wat__std__HashMap}, dispatch as field accessor.
+                    // Fires LAST: after user-fn lookup, after def-bound check, after sandbox
+                    // leak detection. Only unknown single-arg keyword calls reach here.
+                    if args.len() == 1 {
+                        let receiver = eval_inner(&args[0], env, sym)?.value_owned();
+                        let bare_name = other.strip_prefix(':').unwrap_or(other);
+                        match receiver {
+                            Value::wat__Record { class_fqdn, struct_form, holon_form } => {
+                                return keyword_accessor_record(
+                                    bare_name,
+                                    class_fqdn,
+                                    struct_form,
+                                    holon_form,
+                                    list_span,
+                                );
+                            }
+                            Value::Struct(sv) => {
+                                return keyword_accessor_struct(
+                                    bare_name,
+                                    sv,
+                                    sym,
+                                    list_span,
+                                );
+                            }
+                            Value::wat__std__HashMap(map) => {
+                                // HashMap accessor: keyword key → Option<V>.
+                                // Equivalent to (:wat::core::HashMap/get map :key).
+                                // Never errors on miss — missing key = None (per D5 / T7).
+                                let key = Value::wat__core__keyword(Arc::new(other.to_string()));
+                                return match map.get(&key) {
+                                    Some(v) => Ok(Value::Option(Arc::new(Some(v.clone())))),
+                                    None => Ok(Value::Option(Arc::new(None))),
+                                };
+                            }
+                            _other_receiver => {
+                                // Non-receiver type — fall through to UnknownFunction below.
+                            }
+                        }
+                    }
                     return Err(RuntimeError::UnknownFunction(other.to_string(), list_span.clone()));
                 }
             };
@@ -5915,6 +5956,131 @@ fn dispatch_keyword_head_value(
                 .collect::<Result<Vec<_>, _>>()?;
             apply_function(func, vals, sym, list_span.clone())
         }
+    }
+}
+
+// ─── Arc 234 Stone 234.3c — keyword-as-accessor helpers ──────────────────────
+
+/// Walk a `Value::wat__Record`'s holon_form to find `bare_name` and return
+/// the corresponding field value from `struct_form`. Miss → `UnknownField`.
+///
+/// Structure: `Bind(Atom(String(class)), Bundle([Bind(Atom(String(name)), Atom(val)), ...]))`.
+/// Positional: Bundle child at index `i` corresponds to `struct_form[i]`.
+fn keyword_accessor_record(
+    bare_name: &str,
+    class_fqdn: Arc<String>,
+    struct_form: Arc<Vec<Value>>,
+    holon_form: Arc<HolonAST>,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = "keyword-as-accessor (record)";
+    let field_binds = match holon_form.as_ref() {
+        HolonAST::Bind(_, right) => match right.as_ref() {
+            HolonAST::Bundle(children) => children.clone(),
+            _ => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "holon_form outer Bind right to be Bundle(field-binds)",
+                    got: ValueSnapshot::unavailable("non-Bundle holon_form inner"),
+                    span: list_span.clone(),
+                });
+            }
+        },
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "holon_form to be Bind(class, Bundle)",
+                got: ValueSnapshot::unavailable("non-Bind holon_form"),
+                span: list_span.clone(),
+            });
+        }
+    };
+    let mut found_index: Option<usize> = None;
+    let mut available: Vec<String> = Vec::with_capacity(field_binds.len());
+    for (i, field_bind) in field_binds.iter().enumerate() {
+        let field_name = match field_bind {
+            HolonAST::Bind(left, _) => match left.as_ref() {
+                HolonAST::Atom(inner) => match inner.as_ref() {
+                    HolonAST::String(s) => s.to_string(),
+                    _ => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "field-Bind left Atom to contain String(field-name)",
+                            got: ValueSnapshot::unavailable("non-String Atom inner"),
+                            span: list_span.clone(),
+                        });
+                    }
+                },
+                _ => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: OP.into(),
+                        expected: "field-Bind left to be Atom(String(field-name))",
+                        got: ValueSnapshot::unavailable("non-Atom field-Bind left"),
+                        span: list_span.clone(),
+                    });
+                }
+            },
+            _ => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "holon_form Bundle child to be Bind(Atom(name), Atom(val))",
+                    got: ValueSnapshot::unavailable("non-Bind field entry"),
+                    span: list_span.clone(),
+                });
+            }
+        };
+        available.push(field_name.clone());
+        if field_name == bare_name {
+            found_index = Some(i);
+        }
+    }
+    match found_index {
+        Some(i) => Ok(struct_form[i].clone()),
+        None => Err(RuntimeError::UnknownField {
+            record_class: class_fqdn.as_ref().to_string(),
+            field: bare_name.to_string(),
+            available,
+            span: list_span.clone(),
+        }),
+    }
+}
+
+/// Look up `bare_name` in `sv`'s TypeDef field list and return the field value.
+/// Miss → `UnknownField`.
+fn keyword_accessor_struct(
+    bare_name: &str,
+    sv: Arc<StructValue>,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = "keyword-as-accessor (struct)";
+    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+        head: OP.into(),
+        reason: "struct keyword-accessor requires the type registry".into(),
+        span: list_span.clone(),
+    })?;
+    let struct_def = match types.get(&sv.type_name) {
+        Some(crate::types::TypeDef::Struct(sd)) => sd,
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "struct type {} is not registered in the TypeEnv",
+                    sv.type_name
+                ),
+                span: list_span.clone(),
+            });
+        }
+    };
+    let available: Vec<String> = struct_def.fields.iter().map(|(n, _)| n.clone()).collect();
+    match struct_def.fields.iter().position(|(n, _)| n == bare_name) {
+        Some(i) => Ok(sv.fields[i].clone()),
+        None => Err(RuntimeError::UnknownField {
+            record_class: sv.type_name.clone(),
+            field: bare_name.to_string(),
+            available,
+            span: list_span.clone(),
+        }),
     }
 }
 

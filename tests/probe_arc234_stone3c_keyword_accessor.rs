@@ -140,8 +140,8 @@ fn probe_5_keyword_accessor_on_hashmap_none() {
     [m {:host "localhost"}
      v (:missing m)]
     (:wat::core::match v -> :wat::core::bool
-      (:wat::core::Some _) false
-      :wat::core::None    true)))
+      ((:wat::core::Some _) false)
+      (:wat::core::None     true))))
 "#;
     match run_compute(src) {
         Ok(Value::bool(b)) => assert!(
