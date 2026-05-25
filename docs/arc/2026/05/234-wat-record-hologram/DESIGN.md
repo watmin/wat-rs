@@ -1,6 +1,8 @@
 # Arc 234 — wat-record: the holographic dual-form
 
-**Status:** ACTIVE (2026-05-24 — arc opened; Stone 234.0 in flight). Originally drafted 2026-05-23 night.
+**Status:** SHIPPED 2026-05-25 early morning. Arc 234 CLOSED. See `INSCRIPTION.md` for the full closure record. **15 substrate sub-stones + 1 forward-correction + 1 INSCRIPTION** across ~2 days of work + 2 mid-flight arc-pivots (arc 233 + arc 236; both closed). Arc 235 (PROPOSED — records with rich VSA encodings) opens post-this-closure. Arc 232.1 defprotocol macro now unblocked.
+
+Originally drafted 2026-05-23 night.
 
 **Origin dialogue:** post-Stone-232.0a + Stone 232.1 in-flight; design exploration starting from "is there a reason we can't have defrecord and defprotocol for :wat::core?" and ending at the hologram model. The user named the strangeness — possibly the project's first "no prior great has been here" moment.
 
