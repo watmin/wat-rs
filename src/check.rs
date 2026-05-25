@@ -5889,22 +5889,61 @@ fn infer_list(
                 // Resolve pass validated the name; we just don't have
                 // a scheme for it (e.g., user function not registered
                 // in this run). Still recurse into args for nested
-                // checks.
-                for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
-                }
-                // Arc 234 Stone 234.3c — keyword-as-accessor polymorphic-T return.
-                // When head is unknown AND args.len() == 1, this may be a Clojure-style
-                // field accessor `(:field receiver)`. The runtime handles dispatch at eval
-                // time (D8 — no check-time narrowing). Return a fresh type var so the
-                // call site type-checks polymorphically rather than returning None (which
-                // silently discards the type context). Three receivers:
-                //   - wat__Record → T (the field's typed value)
-                //   - Struct      → T (the field's typed value)
-                //   - HashMap     → Option<V> (but indistinguishable at check time)
-                // Polymorphic T covers all three; runtime enforces receiver semantics.
-                if args.len() == 1 {
-                    return Some(fresh.fresh());
+                // checks; capture types so args[0] is not double-inferred.
+                let arg_types: Vec<Option<TypeExpr>> = args
+                    .iter()
+                    .map(|arg| infer(arg, env, locals, fresh, subst, errors))
+                    .collect();
+                // Arc 234 Stone 234.3c.fix-narrow-fallthrough — narrow the
+                // polymorphic-T return to only fire when receiver type is
+                // record/struct/HashMap (or unresolved). Concrete types like
+                // :i64 fall through to UnknownFunction at check time,
+                // preventing cascaded runtime type-confusion.
+                //
+                // Guard: substrate-internal primitives (`:wat::core::*`,
+                // `:wat::kernel::*` etc.) that land here without a registered
+                // scheme are intentional runtime-only dispatches (e.g.,
+                // `:wat::core::struct-new` for zero-field structs). They are
+                // NOT user keyword accessors and must NOT trigger the
+                // UnknownCallee heuristic. Only apply narrowing when `k`
+                // does not start with `:wat::`.
+                //
+                // Three permitted receiver shapes for user keyword accessors:
+                //   - TypeExpr::Path(":wat::Record")     → record accessor
+                //   - TypeExpr::Path(name) where name is a registered Struct
+                //   - TypeExpr::Parametric { head: "wat::core::HashMap", .. }
+                // Plus permissive for unresolved/unknown (Var or None).
+                if args.len() == 1 && !k.starts_with(":wat::") {
+                    let resolved = arg_types[0]
+                        .as_ref()
+                        .map(|t| apply_subst(t, subst));
+                    let acceptable = match &resolved {
+                        None => true,
+                        Some(TypeExpr::Var(_)) => true,
+                        Some(TypeExpr::Path(p)) if p == ":wat::Record" => true,
+                        Some(TypeExpr::Path(p)) => matches!(
+                            env.types().get(p.as_str()),
+                            Some(crate::types::TypeDef::Struct(_))
+                        ),
+                        Some(TypeExpr::Parametric { head, .. })
+                            if head == "wat::core::HashMap" =>
+                        {
+                            true
+                        }
+                        Some(_) => false,
+                    };
+                    if acceptable {
+                        return Some(fresh.fresh());
+                    }
+                    // Concrete non-accessor receiver: keyword `k` is not a
+                    // registered verb AND the receiver type is not a
+                    // record/struct/HashMap. Emit check-time UnknownCallee so
+                    // the error surfaces before runtime dispatch.
+                    errors.push(CheckError::UnknownCallee {
+                        callee: k.clone(),
+                        span: head_span.clone(),
+                    });
+                    return None;
                 }
                 return None;
             }
