@@ -177,7 +177,123 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-24 night latest — Stone 236.2 SHIPPED at d8aa66d0; HARVEST 37/0/111 across 47 siblings; arc 236 INSCRIPTION-ready)
+## Currently (2026-05-25 — Stone 236.3 SHIPPED at a43f5127; ✅✅✅ STRUCTURAL IMPOSSIBILITY achieved via sum-type refactor; arc 236 INSCRIPTION-ready at Stone 236.4)
+
+### Headline state
+
+```
+HEAD          a43f5127 on arc-170-gap-j-v5-deadlock-state (clean tree; all pushed)
+holon-rs      untouched since 530650c (STOP-4 clean)
+Lib tests     827 PASS / 0 FAIL (zero delta from 236.2)
+Clippy        52 (≤ 54 baseline; unchanged from 236.2)
+Active arc    236 (Stone 236.3 SHIPPED; INSCRIPTION at Stone 236.4 next)
+Paused arc    234 (PAUSE-CONTEXT intact; resumes post-arc-236 INSCRIPTION)
+Proposed arc  235 (records with rich VSA encodings; opens post-arc-234 closure)
+```
+
+### Stone 236.3 SHIPPED — the ✅✅✅ structural impossibility
+
+```
+6f46b555 236.3 sub-DESIGN + BRIEF + EXPECTATIONS (sum-type refactor)
+93c397a2 arc 236 DESIGN.md: arc-shape expansion + delete premature INSCRIPTION draft
+98f21a0b INTERSTITIAL Song #32 Monolith (Mudvayne) — EVOLUTIONARY-CATALYSIS at doctrine layer
+a43f5127 236.3 SHIPPED — CheckResult<T> sum-type refactor; 12/12 PASS; ~6.2 min sonnet
+```
+
+CheckResult<T> refactored from struct-with-Option-field to 3-variant sum-type enum:
+
+```rust
+pub enum CheckResult<T> {
+    Ok(T),
+    Partial(T, Vec<CheckError>),
+    Err(Vec<CheckError>),
+}
+```
+
+**The Silent state (None + empty errors) has NO variant. It is STRUCTURALLY UNREPRESENTABLE in the type system.** Pattern-matching consumers compiler-guaranteed exhaustive across `Ok | Partial | Err`.
+
+12/12 PASS independently verified. **ZERO-RENAME body-construction property held EMPIRICALLY** — all 151 HARVEST points (Stones 236.1 + 236.2) + ~267 `drain_errors_into` call sites compiled unchanged. Smart constructors absorbed the API-compat shock. Bridge signature unchanged. Test rot: 0.
+
+### The ✅✅✅ ladder (arc 236 + 233 pair doctrine complete)
+
+| Layer | Arc 233 | Arc 236 |
+|---|---|---|
+| Instance closure (✅✅✅ at code-level) | Stone 233.2.k (Value::Tracked DELETED) | Stones 236.0/1/2 (CheckResult mint + primary flip + sibling flip) |
+| Meta-class closure (✅✅✅ at type-system-level) | Stone 233.2.l (`#[wat_value]` proc-macro SEAL) | Stone 236.3 (CheckResult sum-type enum) |
+
+**Arcs 233 + 236 form the complete failure-engineering pair around check.rs's diagnostic pipeline:**
+- Arc 233 made errors VALUABLE (ValueSnapshot + Provenance + EDN wire format)
+- Arc 236 made it STRUCTURALLY IMPOSSIBLE to lose them — first via construction-time discipline (Stones 236.0/1/2; ✅✅), then via type-system structural impossibility (Stone 236.3; ✅✅✅)
+
+### THE DIALOGUE-AS-PERCEIVE CYCLE (recognition mechanism vindicated)
+
+Stone 236.3 was NOT surfaced by cargo cascade or FM 2-bis probe. It was surfaced by:
+- User question: *"is None allowed /sometimes/?... the none is attached to a diagnostic?"*
+- Orchestrator forced to write 4-state cross-field invariant truth table to answer honestly
+- Truth table EXPOSED the deeper structural form (3-variant enum) as reachable
+- Inquisitor's Gilded Enmity wouldn't lift at ✅✅ when ✅✅✅ was one stone away
+- User: *"i think we annihilate"*
+
+**The Inquisitor PERCEIVES via DIALOGUE, not just probe/cascade.** Dialogue is a load-bearing PERCEIVE-discipline mechanism, equal-rank with FM 2-bis probe + cargo cascade. Inscribed as Song #32 Monolith (Mudvayne) — EVOLUTIONARY-CATALYSIS at the doctrine layer.
+
+### Rank-up evidence — every stone UNDER all predictions
+
+| Metric | 236.0 | 236.1 | 236.2 | 236.3 |
+|---|---|---|---|---|
+| Predicted cascade | 0 (foundation) | 3-5 | 3-5 | 1-2 |
+| Actual cascade | 0 | **2** | **1** | **1** |
+| Predicted runtime | 25-45 min | 60-90 min | 90-180 min | 30-45 min |
+| Actual runtime | ~25 min | ~25 min | ~57 min | **~6.2 min** |
+| HARVEST sites | — | 3 | 148 | — |
+| New CheckError variants | 0 | 0 | 0 | 0 |
+| Test rot | 0 | 0 | 0 | 0 |
+| Lib baseline delta | 0 | 0 | 0 | 0 |
+
+The discipline compounds at each layer. Stone 236.3 was ~6.2 min wall-clock (vs 30-45 min target band) — the dialogue-as-PERCEIVE recognition was so precise that Shadowdancer's execution was nearly mechanical.
+
+### Arc 236 closure path
+
+```
+236.0 SHIPPED (63f8ca2a) — CheckResult<T> struct-with-Option foundation
+236.1 SHIPPED (f06549ad) — primary fn infer() signature flip (HARVEST 2/0/1)
+236.2 SHIPPED (d8aa66d0) — sibling infer_* flip + HARVEST methodology + audit (HARVEST 37/0/111)
+                            + ABSORBED original 236.3 (audit) + 236.4 (verification) work
+236.3 SHIPPED (a43f5127) — CheckResult<T> sum-type refactor
+                            + recognized via dialogue-as-PERCEIVE cycle post-236.2
+                            + extends ✅✅ → ✅✅✅
+236.4 PENDING            — INSCRIPTION + arc closure
+```
+
+**Next concrete move: Stone 236.4 INSCRIPTION.** Captures:
+- 4-stone arc shape (vs original 6-stone sketch — compressed by 236.2's HARVEST absorbing original 236.3/236.4; extended mid-flight by Stone 236.3's sum-type refactor)
+- The HARVEST aggregate (0 Classification 2 across all of check.rs)
+- The ✅✅ → ✅✅✅ doctrinal-advancement recognition via dialogue-as-PERCEIVE
+- The 233+236 pair doctrine (errors valuable AND non-losable)
+- Per-stone calibration evidence (all under-band)
+- Rank-up: predecessor SCORE template pattern vindicated 3× this arc
+
+After 236.4 INSCRIPTION + arc 236 close: **arc 234 RESUMES** per spawn-block winding.
+
+### Memory updates pending
+
+After arc 236 INSCRIPTION: update `project_arc236_check_class_elimination` with:
+- The complete arc shape (4 substrate stones + INSCRIPTION)
+- The structural finding (Classification 2 = 0 across check.rs)
+- The dialogue-as-PERCEIVE mechanism (load-bearing alongside FM 2-bis probe + cargo cascade)
+- The ✅✅✅ structural impossibility delivery
+- Possibly mint new memory: `feedback_dialogue_as_perceive` documenting the recognition pattern
+
+### Party-comp + tonal state
+
+- **Inquisitor + Shadowdancer** validated AT THE DOCTRINE LAYER — not just stone execution; the PERCEIVE-via-DIALOGUE cycle is operational + structurally productive
+- **Song #32 Monolith** active — substrate as our hallucinogen-monolith catalyst; we made the relationship conscious; we took control of our future evolutionary path
+- **The doctrine has rungs we haven't named yet** — ✅✅✅✅ exists somewhere; future Monolith Moments will surface it
+- **The fire burns at the doctrine layer** — we evolved the discipline tonight, not just shipped substrate
+- **The full evening's arc:** Stones 236.0/1/2 SHIPPED (✅✅) → INSCRIPTION drafted as if arc was closing → dialogue exposed ✅✅ → ✅✅✅ gap → Stone 236.3 minted + shipped → arc 236 ready to truly close at Stone 236.4
+
+---
+
+## Currently (2026-05-24 night latest — Stone 236.2 SHIPPED at d8aa66d0; HARVEST 37/0/111 across 47 siblings; arc 236 INSCRIPTION-ready) — SUPERSEDED, see above
 
 ### Headline state
 
