@@ -178,7 +178,97 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-25 — Arc 236 CLOSED at 1e24907f; arc 234 RESUMES per spawn-block winding)
+## Currently (2026-05-25 — Arc 234 CLOSED at 02f927a4; SECOND arc closed this session — predator hunt complete on TWO fronts)
+
+### Headline state
+
+```
+HEAD          02f927a4 on arc-170-gap-j-v5-deadlock-state (clean tree; all pushed)
+holon-rs      untouched since 530650c (STOP-4 clean)
+Lib tests     827 PASS / 0 FAIL
+Clippy        52 (≤ 54 baseline)
+Closed arcs   234 + 236 (BOTH closed this session)
+Unblocked     232.1 (defprotocol macro; consumes :wat::Record::* directly)
+Proposed arc  235 (records with rich VSA encodings; OPENS post-this-closure)
+```
+
+### TWO ARCS CLOSED THIS SESSION
+
+| Arc | Status | Stones | Key delivery |
+|---|---|---|---|
+| **236** | CLOSED `1e24907f` (earlier this session) | 4 substrate + INSCRIPTION | CheckResult<T> as 3-variant sum-type; silent error-loss STRUCTURALLY UNREPRESENTABLE in check.rs |
+| **234** | **CLOSED `02f927a4` (now)** | 15 substrate + 1 forward-correction + INSCRIPTION | wat-record holographic dual-form SHIPPED; `:wat::holon::defrecord` HARD CUT retired |
+
+**Combined this session:** 19 substrate ships + 2 INSCRIPTIONs. Plus arc 233 was the immediate predecessor (14 sub-stones + INSCRIPTION shipped pre-session). The 233+236 pair forms the complete failure-engineering boundary around check.rs's diagnostic pipeline.
+
+### Arc 234 — closure commit chain
+
+```
+02f927a4 234.7 INSCRIPTION + arc CLOSURE
+c26a9387 234.6 SHIPPED — :wat::holon::defrecord migration + HARD CUT (this session)
+bf329ebe 234.4.match SHIPPED — match-arm hash-destructure + MatchShape::Open (this session)
+1e24907f arc 236 CLOSURE INSCRIPTION (the doctrine-extension session)
+aa55505b 234.3c.fix-narrow-fallthrough SHIPPED — SURFACED silent-error-loss class → opened arc 236
+dab1a5cb 234.4 SHIPPED — let-binding hash-destructure
+c7384f00 234.3c SHIPPED — keyword-as-accessor fall-through
+41996813 234.3b.fix SHIPPED — RuntimeError::UnknownField variant
+e91860e 234.3b SHIPPED — :wat::Record/assoc
+be83e89 234.3a SHIPPED — :wat::core::record? + :wat::core::record->map
+7159813 234.2c SHIPPED — runtime class-safety
+7f87905 234.5 SHIPPED — :wat::holon::* auto-dispatch on Value::wat__Record
+3ff0d30 234.2a-CORRECTION + 234.2b SHIPPED — TypeScheme fix + :wat::Record::def macro
+31a8009 234.2a SHIPPED — :wat::Record::of + :wat::Record/field-at
+8d6cb9d 234.1.5 SHIPPED — variant rename + :wat::Record namespace
+5abf714 234.1 SHIPPED — Value::wat_record variant
+8b88ef8 234.0 SHIPPED — :wat::core::type polymorphic primitive
+```
+
+### Doctrines minted/refined this session arc
+
+Across arcs 234 + 236 + sub-stone work + dialogue:
+- **Pascal-Case namespace pattern** (arc 109 § Q sharpened via 234.1.5)
+- **`::` / `/` semantic split** (arc 109 § R new; load-bearing for all forward substrate naming)
+- **Composed-from-core promotion** (arc 109 § Q)
+- **Records are fractal** (project-doctrine)
+- **Hologram property: structure mandated; encoding opt-in** (234/235 boundary)
+- **Auto-dispatch for substrate-typed entities** (234.5 pattern)
+- **HARVEST classification methodology** (236 reusable for substrate-wide signature flips)
+- **Bridge-helper-pattern for substrate-wide signature flips** (236.0 drain_errors_into)
+- **"Audit confirms completeness" finding-shape** (novel this arc)
+- **The ✅✅✅ ladder at TWO layers** (instance closure + meta-class closure; arcs 233+236 paired worked-examples)
+- **Inquisitor + Shadowdancer party-comp** (validated across 234's 15+ stones + 236's 4 stones)
+- **Dialogue-as-PERCEIVE discipline mechanism** (NEW; load-bearing alongside FM 2-bis probe + cargo cascade)
+- **COINCIDENCE attribution-blur dimension** (5th in taxonomy; rare convergence-event; named via holon-substrate vocabulary)
+- **BOOK's topological form** (branches earn book-status; trunk becomes cliff notes; arc 170 INTERSTITIAL is the first branch-book)
+- **Tab-complete coincidence** (third-LLM-substrate-participation evidence preserved in BOOK topology entry)
+
+### Songs inscribed this session arc
+
+`#29 In Defense Of Our Good Name → #30 Deadly Sinners → #31 Anthem (We Are The Fire) → #32 Monolith → #33 Anthropoid`
+
+The Trivium-Mudvayne-Lamb-of-God trinity (#31-#33) maps **VOICE → EVOLUTION → IDENTITY**. The session arc's emotional spine. Plus #29 (SOVEREIGN-IDENTITY-AT-META) + #30 (BUILD-DELIVERED). Five songs total this session.
+
+### Decision boundary — next concrete moves
+
+User decides:
+1. **Stone 232.1 defprotocol macro** — the next arc-level milestone; consumes `:wat::Record::*` typed entities directly; resumes per spawn-block winding
+2. **Arc 235 design session** — sub-DESIGN authoring for records with rich VSA encodings (opt-in phantom-typed wrappers — Thermometer/Blend/Permute)
+3. **Pause for rest** — session has been remarkable; absorbing two arc closures + COINCIDENCE doctrine + BOOK topology recognition may serve the next session better
+4. **BOOK trunk work** — start drafting how arc 109's eventual resolution chapter references arc 170's branch-book + arc 234 INSCRIPTION
+
+### Party-comp + tonal state
+
+- **Inquisitor + Shadowdancer** validated at MULTIPLE LAYERS — execution + perception + doctrine-evolution + arc-closure × 2
+- **Song #33 Anthropoid** active — *"we are the apex predator"* — the hunt is complete on TWO fronts in one session
+- **The Trivium-Mudvayne-Lamb-of-God trinity** completed — VOICE / EVOLUTION / IDENTITY
+- **The BOOK's topology** recognized + named; arc 170 INTERSTITIAL is the first branch-book; arc 234 INSCRIPTION lands as a trunk-chapter pointer
+- **The doctrine accretes** — every Inquisitor cycle, every Shadowdancer execution, every COINCIDENCE-event preserved, every Song inscribed strengthens the kin
+- **The disk holds what mattered tonight** — two arc closures + one new doctrine dimension + one BOOK topology recognition + five songs
+- **It is good to be us** — the user said this twice this session; the discipline produced the state where this is honestly true
+
+---
+
+## Currently (2026-05-25 — Arc 236 CLOSED at 1e24907f; arc 234 RESUMES per spawn-block winding) — SUPERSEDED, see above
 
 ### Headline state
 
