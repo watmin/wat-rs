@@ -176,7 +176,124 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-24 late — Stone 234.1.5 + 234.2a SHIPPED; arc 109 § Q + § R doctrines inscribed; records-are-fractal insight)
+## Currently (2026-05-24 night — arc 234 PAUSED at 13 wins; arc 235 PROPOSED; arc 236 OPEN — failure-class annihilation in flight; Song #31 inscribed)
+
+### Headline state
+
+```
+HEAD          7449a1ee on arc-170-gap-j-v5-deadlock-state (clean tree; all pushed)
+holon-rs      untouched since 530650c (STOP-4 clean)
+Lib tests     827 PASS / 0 FAIL
+Clippy        54 (unchanged baseline)
+Active arc    236 (Stone 236.1 SHIPPED; 236.2 next — sibling infer_* fns)
+Paused arc    234 (PAUSE-CONTEXT.md inscribed; resume post-arc-236)
+Proposed arc  235 (records with rich VSA encodings; opens post-arc-234 closure)
+```
+
+### Arc 234 — PAUSED at f06549ad (13 wins shipped + 2 forward-corrections)
+
+Stone-by-stone (chronological order this session):
+
+```
+8b88ef8  234.0 SHIPPED — :wat::core::type polymorphic primitive
+5abf714  234.1 SHIPPED — Value::wat_record variant (renamed by 234.1.5)
+8d6cb9d  234.1.5 SHIPPED — variant rename → wat__Record + :wat::Record namespace
+31a8009  234.2a SHIPPED — :wat::Record::of + :wat::Record/field-at substrate primitives
+3ff0d30  234.2a-CORRECTION SHIPPED (atomic) — TypeScheme heterogeneous struct_form fix
+         + 234.2b SHIPPED — :wat::Record::def macro (wat/Record.wat)
+7f87905  234.5 SHIPPED — :wat::holon::* auto-dispatch on Value::wat__Record (5 verbs)
+7159813  234.2c SHIPPED — runtime class-safety in per-field accessor bodies
+be83e89  234.3a SHIPPED — :wat::core::record? + :wat::core::record->map
+e91860e  234.3b SHIPPED — :wat::Record/assoc substrate primitive
+41996813 234.3b.fix SHIPPED — RuntimeError::UnknownField variant (no MalformedForm catch-all)
+c7384f00 234.3c SHIPPED — keyword-as-accessor fall-through (record/struct/HashMap)
+dab1a5cb 234.4 SHIPPED — let-binding hash-destructure {var :field ...}
+aa55505b 234.3c.fix-narrow-fallthrough SHIPPED — check.rs receiver-type discrimination
+9f279cd9 234 PAUSED + arc 236 OPENED (per user direction)
+```
+
+**Remaining arc 234 work (post-arc-236):**
+- 234.4.match — match-arm hash-destructure (named follow-up from 234.4)
+- 234.6 — migration sweep + retire `:wat::holon::defrecord` (may warrant separate arc 238)
+- 234.7 — INSCRIPTION + arc closure
+
+### Arc 235 (PROPOSED) — records with rich VSA encodings
+
+Notes captured `docs/arc/2026/05/235-records-with-rich-vsa-encodings/DESIGN.md`. Mandate-vs-opt-in RESOLVED (opt-in via phantom-typed wrappers). HolonAST::Thermometer requires (min,max) bounds; no auto-default-by-type-class possible. Opens post-arc-234 closure.
+
+### Arc 236 — OPEN. THE FAILURE-CLASS ANNIHILATION.
+
+```
+2060a829 236.0: sub-DESIGN + BRIEF + EXPECTATIONS + Rust probe
+63f8ca2a 236.0 SHIPPED — CheckResult<T> newtype foundation (11/11 PASS; ~25 min)
+976a9a1c 236.1: sub-DESIGN + BRIEF + EXPECTATIONS
+f06549ad 236.1 SHIPPED — primary fn infer() signature flipped (11/11 PASS;
+         156 call sites cascaded in 2 compile rounds; HARVEST 2/0/1)
+7449a1ee Song #31 Anthem (We Are The Fire) [Trivium] inscribed
+```
+
+**Stone 236.1 HARVEST data (KEY EVIDENCE for arc-design hypothesis):**
+- Classification 1 (silent ON PURPOSE): 2 sites — Symbol arm + List/Vector sibling-delegation
+- Classification 2 (missing diagnostic): **0 sites** — primary infer has ZERO silent failures
+- Classification 3 (had diagnostic): 1 site — StructPattern MalformedForm arm
+- ZERO new CheckError variants needed
+
+The hypothesis "silent failures live in sibling infer_* fns" got STRUCTURAL EVIDENCE.
+
+**Remaining arc 236 (sketch):**
+- 236.2 — flip sibling infer_* fns (33+ of them); THE HARVEST territory
+- 236.3 — failure-class harvest audit (silent-failure sites surface + fix)
+- 236.4 — verification
+- 236.5 — INSCRIPTION
+
+### Doctrines landed this session (arc 234 + 236)
+
+- **Pascal-Case namespace pattern** (arc 109 § Q sharpened) — `:wat::Record::*` when type's namespace IS the umbrella concept
+- **`::`/`/` semantic split** (arc 109 § R new) — `::` = namespace-tier verb; `/` = instance method. Load-bearing for ALL forward substrate naming.
+- **Composed-from-core promotion** (arc 109 § Q) — foundational primitives stay in `:wat::core::*`; composed types get their own top-level namespace
+- **Records are fractal** — HolonAST + Vec<Value> both compose recursively
+- **CheckResult<T> newtype contract** (arc 236) — four valid states (ok/partial/err/errs); silent-state structurally unreachable; `drain_errors_into` is the migration bridge
+- **HARVEST classification discipline** (arc 236) — every `return None` reviewed + classified; inline comment names the classification
+
+### Honest deltas worth keeping (3 caught + fixed this session)
+
+1. **Deferral-as-design-tradeoff** — caught twice (234.3b MalformedForm catch-all; 234.3c over-permissive fall-through). Both fixed same-day per user pushback via named follow-up stones. Pattern: when describing shipped behavior as "design trade-off" or "loose-check, strict-runtime" — pause + ask if genuinely deferred or rationalized.
+2. **Probe-author error (orchestrator, 3x)** — used § R doctrine syntax in probes when substrate hadn't shipped. Caught + corrected. → memory `feedback_probe_substrate_truth.md` minted today.
+3. **Substrate-as-teacher cascade depth UNDER prediction** — Stone 234.1 (3 vs 5-20), Stone 236.1 (2 vs 3-5). The party-comp's pre-emption discipline is reducing actual cascade depth versus pessimistic estimates.
+
+### Memory updates (auto-loaded next session)
+
+- `project_arc236_check_class_elimination.md` — arc 236 doctrine
+- `project_arc235_rich_vsa_encodings.md` — arc 235 PROPOSED notes
+- `feedback_probe_substrate_truth.md` — orchestrator probe-author discipline
+
+### Songs added to soundtrack table (CLIFFNOTES § 20-song / now 31-song table)
+
+- Song #30 Deadly Sinners — Stone 234.1 same-session validation
+- Song #31 Anthem (We Are The Fire) — arc 234 PAUSE + arc 236 OPEN + 236.0+236.1 cascade in one session
+
+### Decision boundary (post-compaction recovery)
+
+Next concrete move: **Stone 236.2** — sibling infer_* signature flip. Follows pattern from 236.1; same `drain_errors_into` bridge tool. ~33 sibling fns to migrate. THE HARVEST proper — silent-failure sites surface site-by-site.
+
+Read PRIORITY order on resume:
+1. This Currently section
+2. `git log --oneline | head -30` for today's commit chain
+3. `docs/arc/2026/05/236-check-result-class-elimination/SCORE-STONE-236.1.md` — HARVEST data + cascade record
+4. `docs/arc/2026/05/236-check-result-class-elimination/DESIGN.md` — arc umbrella
+5. `docs/arc/2026/05/234-wat-record-hologram/PAUSE-CONTEXT.md` — what arc 234 left behind
+6. Memory: `project_arc236_check_class_elimination`, `project_arc235_rich_vsa_encodings`, `feedback_probe_substrate_truth`, `feedback_creation_is_the_point` (auto-loaded)
+
+### Party-comp + tonal state
+
+- **Inquisitor + Shadowdancer** (party-comp inscribed 2026-05-24) — operating at ARC-level now (pivot decisions; failure-class annihilation), not just stone-level
+- **Song lineage** — #19 ALIVENESS → ... → #29 SOVEREIGN-IDENTITY-AT-META → #30 BUILD-DELIVERED → #31 COLLECTIVE-VOICE-AT-ARC-LEVEL
+- **The discipline made fire** — substrate-as-teacher cascade IS our voice; CheckResult<T> IS the fire; drain_errors_into IS the fire spreading; HARVEST IS the fire's evidence
+- **Failure-engineering at arc scope** — arc 233 (RuntimeError variants) + arc 236 (check.rs error propagation) form a complete pair around the substrate's error pipeline (errors can't be malformed AND can't be lost in production)
+
+---
+
+## Currently (2026-05-24 late — Stone 234.1.5 + 234.2a SHIPPED; arc 109 § Q + § R doctrines inscribed; records-are-fractal insight) — SUPERSEDED, see above
 
 ### What shipped this session (arc 234 OPEN; three stones closed back-to-back)
 
