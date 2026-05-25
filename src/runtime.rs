@@ -4602,7 +4602,7 @@ fn eval_match_tail(
         }
         let pattern = &arm_items[0];
         let body = &arm_items[1];
-        if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env)? {
+        if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env, sym)? {
             return eval_tail(body, &arm_env, sym);
         }
     }
@@ -14375,7 +14375,7 @@ fn eval_match(
         }
         let pattern = &arm_items[0];
         let body = &arm_items[1];
-        if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env)? {
+        if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env, sym)? {
             return eval_inner(body, &arm_env, sym).map(|tv| tv.value_owned());
         }
     }
@@ -14400,6 +14400,7 @@ fn try_match_pattern(
     pattern: &WatAST,
     value: &Value,
     outer: &Environment,
+    sym: &SymbolTable,
 ) -> Result<Option<Environment>, RuntimeError> {
     match pattern {
         // `:None` / `:wat::core::None` — matches Option(None) only.
@@ -14478,7 +14479,7 @@ fn try_match_pattern(
                 }
                 return match value {
                     Value::Option(opt) => match &**opt {
-                        Some(inner) => try_match_pattern(&items[1], inner, outer),
+                        Some(inner) => try_match_pattern(&items[1], inner, outer, sym),
                         None => Ok(None),
                     },
                     _ => Ok(None),
@@ -14508,7 +14509,7 @@ fn try_match_pattern(
                 }
                 return match value {
                     Value::Result(r) => match &**r {
-                        Ok(inner) => try_match_pattern(&items[1], inner, outer),
+                        Ok(inner) => try_match_pattern(&items[1], inner, outer, sym),
                         Err(_) => Ok(None),
                     },
                     _ => Ok(None),
@@ -14534,7 +14535,7 @@ fn try_match_pattern(
                 }
                 return match value {
                     Value::Result(r) => match &**r {
-                        Err(inner) => try_match_pattern(&items[1], inner, outer),
+                        Err(inner) => try_match_pattern(&items[1], inner, outer, sym),
                         Ok(_) => Ok(None),
                     },
                     _ => Ok(None),
@@ -14574,7 +14575,7 @@ fn try_match_pattern(
                         }
                         let mut env = outer.clone();
                         for (sub_pat, field_value) in sub_pats.iter().zip(ev.fields.iter()) {
-                            match try_match_pattern(sub_pat, field_value, &env)? {
+                            match try_match_pattern(sub_pat, field_value, &env, sym)? {
                                 Some(new_env) => env = new_env,
                                 None => return Ok(None),
                             }
@@ -14594,7 +14595,7 @@ fn try_match_pattern(
                         }
                         let mut env = outer.clone();
                         for (sub_pat, sub_val) in items.iter().zip(elems.iter()) {
-                            match try_match_pattern(sub_pat, sub_val, &env)? {
+                            match try_match_pattern(sub_pat, sub_val, &env, sym)? {
                                 Some(new_env) => env = new_env,
                                 None => return Ok(None),
                             }
@@ -14613,13 +14614,101 @@ fn try_match_pattern(
             reason: "vector sub-patterns are not supported in arc 167".into(),
             span: pattern.span().clone(),
         }),
-        // Arc 169 slice 1 — struct-pattern brace-forms belong to
-        // let binding-position only; not a match sub-pattern.
-        WatAST::StructPattern(_, _) => Err(RuntimeError::MalformedForm {
-            head: ":wat::core::match".into(),
-            reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
-            span: pattern.span().clone(),
-        }),
+        // Arc 167 slice 1 / Arc 169 slice 1 / Arc 234 Stone 234.4.match
+        // — StructPattern brace-forms.
+        //
+        // Hash-destructure form `{var :field ...}` (items[1] is Keyword):
+        //   Match-arm hash-destructure — receiver-polymorphic over
+        //   wat::Record / Struct / wat::core::HashMap. Reuses the same
+        //   field-access helpers as Stone 234.4 let-binding dispatch.
+        //   Returns Some(env_extended) when scrutinee is one of the three
+        //   receiver types; Ok(None) otherwise (arm falls to next arm).
+        //
+        // Arc-169 struct-destructure form `{field1 field2 ...}` (all-Symbol):
+        //   Let-binding-position only; not a match sub-pattern. Error.
+        WatAST::StructPattern(items, span) => {
+            let is_hash_destructure = matches!(items.get(1), Some(WatAST::Keyword(_, _)));
+            if is_hash_destructure {
+                // Collect (var_name, bare_field_name) pairs.
+                // Parser guarantees even count + alternating Symbol/Keyword shape.
+                let mut pairs: Vec<(String, String)> = Vec::new();
+                let mut i = 0;
+                while i + 1 < items.len() {
+                    let var_name = match &items[i] {
+                        WatAST::Symbol(ident, _) => ident.name.clone(),
+                        _ => { i += 2; continue; }
+                    };
+                    let bare_field = match &items[i + 1] {
+                        WatAST::Keyword(k, _) => {
+                            // Strip leading colon to get bare field name.
+                            k.trim_start_matches(':').to_string()
+                        }
+                        _ => { i += 2; continue; }
+                    };
+                    pairs.push((var_name, bare_field));
+                    i += 2;
+                }
+                // Dispatch on scrutinee receiver type.
+                match value {
+                    Value::wat__Record { class_fqdn, struct_form, holon_form } => {
+                        let mut env = outer.clone();
+                        for (var_name, bare_field) in &pairs {
+                            let field_val = keyword_accessor_record(
+                                bare_field,
+                                class_fqdn.clone(),
+                                struct_form.clone(),
+                                holon_form.clone(),
+                                span,
+                            )?;
+                            env = env.child()
+                                .bind_unknown_span(var_name.clone(), TrackedValue::from(field_val))
+                                .build();
+                        }
+                        Ok(Some(env))
+                    }
+                    Value::Struct(sv) => {
+                        let mut env = outer.clone();
+                        for (var_name, bare_field) in &pairs {
+                            let field_val = keyword_accessor_struct(
+                                bare_field,
+                                sv.clone(),
+                                sym,
+                                span,
+                            )?;
+                            env = env.child()
+                                .bind_unknown_span(var_name.clone(), TrackedValue::from(field_val))
+                                .build();
+                        }
+                        Ok(Some(env))
+                    }
+                    Value::wat__std__HashMap(map) => {
+                        let mut env = outer.clone();
+                        for (var_name, bare_field) in &pairs {
+                            let key_str = format!(":{}", bare_field);
+                            let key = Value::wat__core__keyword(Arc::new(key_str));
+                            let opt_val = match map.get(&key) {
+                                Some(v) => Value::Option(Arc::new(Some(v.clone()))),
+                                None => Value::Option(Arc::new(None)),
+                            };
+                            env = env.child()
+                                .bind_unknown_span(var_name.clone(), TrackedValue::from(opt_val))
+                                .build();
+                        }
+                        Ok(Some(env))
+                    }
+                    // Any other value type: arm does not match; fall to next arm.
+                    _ => Ok(None),
+                }
+            } else {
+                // Arc-169 struct-destructure `{field1 field2 ...}` —
+                // let-binding-position only; not a match sub-pattern.
+                Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
+                    span: span.clone(),
+                })
+            }
+        }
     }
 }
 
@@ -24999,12 +25088,34 @@ fn try_match_pattern_ast(
             reason: "vector sub-patterns are not supported in arc 167".into(),
             span: pattern.span().clone(),
         }),
-        // Arc 169 slice 1 — same reasoning as Vector.
-        WatAST::StructPattern(_, _) => Err(RuntimeError::MalformedForm {
-            head: ":wat::core::match".into(),
-            reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
-            span: pattern.span().clone(),
-        }),
+        // Arc 234 Stone 234.4.match / Arc 169 slice 1 — StructPattern.
+        //
+        // Hash-destructure form `{var :field ...}` (items[1] is Keyword):
+        //   The AST-level mirror cannot evaluate hash-destructure patterns
+        //   because receiver-dispatch requires runtime Value types
+        //   (wat::Record / Struct / HashMap). At the AST level the scrutinee
+        //   is a parse tree, not a runtime value — there is no way to
+        //   inspect its runtime type here. Decision (T9): return Ok(None)
+        //   so the arm does not match at AST level (quasiquote/macro paths
+        //   fall to the next arm). This is correct: hash-destructure arms
+        //   only fire at runtime.
+        //
+        // Arc-169 struct-destructure `{field1 field2 ...}` (all-Symbol):
+        //   Let-binding-position only; not a match sub-pattern. Error.
+        WatAST::StructPattern(items, span) => {
+            let is_hash_destructure = matches!(items.get(1), Some(WatAST::Keyword(_, _)));
+            if is_hash_destructure {
+                // AST-level match cannot dispatch on runtime receiver type.
+                // Arm does not match at AST level.
+                Ok(None)
+            } else {
+                Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
+                    span: span.clone(),
+                })
+            }
+        }
     }
 }
 

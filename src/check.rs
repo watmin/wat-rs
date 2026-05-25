@@ -6984,6 +6984,9 @@ fn infer_match(
             p.clone(),
             args.iter().map(|a| apply_subst(a, subst)).collect(),
         ),
+        // Arc 234 Stone 234.4.match: Open shape — resolve the fresh
+        // type variable so the scrutinee type is tracked correctly.
+        MatchShape::Open(t) => MatchShape::Open(apply_subst(t, subst)),
     };
 
     let mut covers_option_none = false;
@@ -7017,6 +7020,53 @@ fn infer_match(
         let body = &arm_items[1];
 
         let mut arm_locals = locals.clone();
+
+        // Arc 234 Stone 234.4.match — hash-destructure match-arm:
+        // `{var :field var2 :field2 ...}` in pattern position.
+        // These arms are receiver-polymorphic over wat::Record /
+        // Struct / wat::core::HashMap. They bypass the shape/coverage
+        // machinery (Option/Result/Enum shape does not apply).
+        //
+        // Detection: pattern is StructPattern AND items[1] is Keyword.
+        // Per D4 (polymorphic T): each binding var receives fresh.fresh().
+        // Coverage: treat as Wildcard (sets wildcard_seen) so the
+        // exhaustiveness check is satisfied when only hash-destructure
+        // arms are present. The arm body is type-checked against
+        // declared_ty independently, mirroring other arms.
+        if let WatAST::StructPattern(items, _) = pattern {
+            let is_hash_destructure = matches!(items.get(1), Some(WatAST::Keyword(_, _)));
+            if is_hash_destructure {
+                // Bind each (Symbol, Keyword) pair → fresh type var in arm_locals.
+                let mut i = 0;
+                while i + 1 < items.len() {
+                    if let WatAST::Symbol(ident, _) = &items[i] {
+                        arm_locals.insert(ident.name.clone(), fresh.fresh());
+                    }
+                    i += 2;
+                }
+                // Hash-destructure arm acts as Wildcard coverage.
+                wildcard_seen = true;
+                covers_option_none = true;
+                covers_option_some = true;
+                covers_result_ok = true;
+                covers_result_err = true;
+                // Check the arm body against the declared type.
+                let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
+                if let Some(t) = arm_ty {
+                    if unify(&t, &declared_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::match".into(),
+                            param: format!("arm #{} (hash-destructure)", idx + 1),
+                            expected: format_type(&apply_subst(&declared_ty, subst)),
+                            got: format_type(&apply_subst(&t, subst)),
+                            span: body.span().clone(),
+                        });
+                    }
+                }
+                continue;
+            }
+        }
+
         match pattern_coverage(pattern, &shape, env, &mut arm_locals, &mut local_errors) {
             Some(Coverage::OptionNone) => covers_option_none = true,
             // Arc 055 — partial Some (e.g. `(Some (1 _))`) does not
@@ -7112,6 +7162,13 @@ fn infer_match(
                 false
             }
         }
+        // Arc 234 Stone 234.4.match — Open shape.
+        // Hash-destructure arms set wildcard_seen = true; any wildcard
+        // arm also sets wildcard_seen. Exhaustive iff wildcard_seen.
+        // A match with only hash-destructure arms (and no wildcard fallback)
+        // is exhaustive because the hash-destructure arm itself acts as
+        // wildcard coverage for the type system's purpose.
+        MatchShape::Open(_) => wildcard_seen,
     };
     if !exhaustive {
         local_errors.push(CheckError::MalformedForm {
@@ -7141,6 +7198,10 @@ fn infer_match(
                         format!("non-exhaustive: enum {} missing arms (or include `_` wildcard)", enum_path)
                     }
                 }
+                // Arc 234 Stone 234.4.match — Open shape with no wildcard seen.
+                // This shouldn't happen (hash-destructure arms set wildcard_seen),
+                // but provide a clear message if it does.
+                MatchShape::Open(_) => "non-exhaustive: open-typed match needs at least one hash-destructure arm or a wildcard `_` arm.".into(),
             },
             span: head_span.clone(),
         });
@@ -7193,6 +7254,14 @@ enum MatchShape {
     /// via dedicated variants; user-defined enums needed the same so
     /// the scrutinee type unifies against `Enum<…>` not bare `Enum`.
     Enum(String, Vec<TypeExpr>),
+    /// Arc 234 Stone 234.4.match — open-typed match.
+    /// Used when all arms are hash-destructure `{var :field ...}` or
+    /// wildcard patterns. No variant-constructor shape is determined;
+    /// scrutinee can be any type (record / struct / HashMap / other).
+    /// `as_type()` returns the raw fresh type variable so unification
+    /// with the actual scrutinee type always succeeds. Exhaustiveness
+    /// tracks via wildcard_seen only.
+    Open(TypeExpr),
 }
 
 impl MatchShape {
@@ -7216,6 +7285,10 @@ impl MatchShape {
                     }
                 }
             }
+            // Open — returns the bare fresh type variable.
+            // Unification with any scrutinee type succeeds (fresh var
+            // unifies with anything; subst records the binding).
+            MatchShape::Open(t) => t.clone(),
         }
     }
 }
@@ -7322,12 +7395,27 @@ fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) ->
                             }
                         }
                     }
+                    // Arc 234 Stone 234.4.match — hash-destructure StructPattern.
+                    // These arms are open-typed (no variant constructor);
+                    // skip them here. detect_match_shape only considers
+                    // variant-constructor arms for shape determination.
+                    // If only hash-destructure/wildcard arms exist, the
+                    // function falls through to MatchShape::Open below.
+                    WatAST::StructPattern(sp_items, _)
+                        if matches!(sp_items.get(1), Some(WatAST::Keyword(_, _))) => {
+                        // hash-destructure — skip, do not determine shape
+                    }
                     _ => {}
                 }
             }
         }
     }
-    MatchShape::Option(fresh.fresh())
+    // Arc 234 Stone 234.4.match: no variant-constructor arm found.
+    // Return Open(fresh) so the scrutinee type is unconstrained —
+    // hash-destructure arms work on record / struct / HashMap / any type.
+    // The old default MatchShape::Option(fresh) would force the scrutinee
+    // to unify with Option<T>, which is wrong for these arms.
+    MatchShape::Open(fresh.fresh())
 }
 
 /// Validate `pattern` against the match shape, push bindings into
@@ -7353,6 +7441,10 @@ fn pattern_coverage(
                 });
                 None
             }
+            // Arc 234 Stone 234.4.match — Open shape accepts wildcard/bare-symbol
+            // patterns. :None in an Open-shape match is unusual but not forbidden;
+            // treat as Wildcard coverage (it covers whatever the scrutinee is).
+            MatchShape::Open(_) => Some(Coverage::Wildcard),
         },
         // Arc 048 — user-enum unit variant pattern. The keyword
         // path must split as `<enum>::<Variant>` where `<enum>`
