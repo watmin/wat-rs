@@ -336,23 +336,85 @@ Per the BRIEF discipline: probes COMMITTED before the BRIEF references them. STO
 
 ---
 
-## Open questions for first sub-DESIGN (Stone 237.1)
+## Open questions — RESOLVED via diagnosis (2026-05-25 late-late)
 
-Per `feedback_diagnose_before_spec` — read the substrate before drafting Stone 237.1's sub-DESIGN:
+Per `feedback_diagnose_before_spec` — substrate read; resolutions inline. Full findings in "Substrate diagnosis findings" section below.
 
-1. **TypeExpr representation of typeunion** — does the existing TypeExpr enum need a new variant (`TypeExpr::Union(Vec<TypeExpr>)`) or can typeunion-declared names live in the symbol table and resolve via lookup? Investigate `src/types.rs` + `src/check.rs` TypeExpr usage.
+1. **TypeExpr representation of typeunion** — RESOLVED: mint `TypeDef::Union` (new TypeDef variant) + `UnionDef { name, type_params, members: Vec<TypeExpr> }`. TypeExpr stays at 5 variants; typeunion-name references are `TypeExpr::Path` that resolve via TypeEnv lookup → TypeDef::Union. Parallels TypeDef::Alias registration model exactly.
 
-2. **typeunion as value or type-only** — at runtime, does a typeunion-declared name appear as a Value? Probably NOT (it's type-level only). Verify: arc 234's `:wat::core::type` polymorphic primitive may already provide reflection — possibly typeunion declarations register there but don't materialize as runtime values.
+2. **typeunion as value or type-only** — RESOLVED: type-only. No runtime artifact. Reflection via arc 234.0 `:wat::core::type` polymorphic primitive may surface union member sets (out-of-scope for arc 237; future opportunity).
 
-3. **Recursion/composition** — can typeunions reference other typeunions? `(typeunion :Number (:Numeric :Complex))` where `:Numeric` is itself a typeunion? Decision: allow it (recursive resolution at type-check time); document the resolution algorithm.
+3. **Recursion/composition** — RESOLVED: members are TypeExpr; can reference other typeunions; resolution at type-check time walks the graph.
 
-4. **Self-reference / cycles** — must reject. Type-checker detects cycles at declaration time.
+4. **Self-reference / cycles** — RESOLVED: reject at declaration time per typealias's `CyclicAlias` precedent at `src/types.rs:1406`. Mint `CyclicUnion` error sibling.
 
-5. **Empty typeunion** — `(typeunion :Empty ())` legal? Probably no (use case unclear; reject at declaration).
+5. **Empty typeunion** — RESOLVED: reject at declaration (use case unclear; mirrors `:Any` rejection logic).
 
-6. **Single-member typeunion** — `(typeunion :Foo (:i64))` legal? Functionally equivalent to typealias. Decision: allow it (consistency); but warn "typealias may be simpler" via diagnostic.
+6. **Single-member typeunion** — RESOLVED: reject (use typealias instead; one canonical path per `feedback_wat_llm_first_design`). Diagnostic explicitly recommends typealias.
 
-7. **Member type-check** — must each typeunion member be a CONCRETE type (path) or can it be another typeunion / typealias / parametric? Probably: any TypeExpr path. Document.
+7. **Member type-check shape** — RESOLVED: each member is a TypeExpr — `Path` or `Parametric` or `Tuple`. Reject `Fn` (weird dispatch semantics; revisit if use case surfaces). Reject `Var` (synthetic; should never appear in user-written declarations). Allow other typeunions (cycle-checked at registration).
+
+---
+
+## Substrate diagnosis findings (2026-05-25 late-late)
+
+Findings from the FM 1 + `feedback_diagnose_before_spec` dig into `src/types.rs` + `src/check.rs`. These sharpen the DESIGN's framing and inform Stone 237.1 sub-DESIGN.
+
+### TypeExpr shape (closed, 5-variant)
+
+`TypeExpr` enum (`src/types.rs`) has 5 variants: `Path(String)`, `Parametric { head, args }`, `Fn { args, ret }`, `Var(u64)` (synthetic; inference-only), `Tuple(Vec<TypeExpr>)`. No Union/disjunction variant. Type universe is CLOSED — `:Any` explicitly BANNED per 058-030.
+
+### TypeDef shape (registration layer; 4 kinds today)
+
+`TypeDef` enum has 4 variants: `Struct`, `Enum`, `Newtype`, `Alias`. `TypeEnv` is `HashMap<String, TypeDef>`. Alias resolution is structural expansion (`expand_alias` at `src/types.rs:2629`); cycles caught at registration (`CyclicAlias` error).
+
+**Implication for typeunion:** mint NEW `TypeDef::Union` variant + `UnionDef { name, type_params, members: Vec<TypeExpr> }` struct. TypeExpr stays at 5 variants; typeunion-name references are TypeExpr::Path that resolve via TypeEnv lookup → TypeDef::Union. Parallels TypeDef::Alias registration model EXACTLY.
+
+### Doctrine departure (load-bearing — must inscribe at arc 237 closure)
+
+The substrate currently explicitly recommends NAMED ENUM for "closed heterogeneous sets" via the AnyBanned error message (`src/types.rs` around line 1310):
+
+> `:Any` is not part of the type system (058-030); use `:wat::holon::HolonAST` for any algebra value, **a named enum for closed heterogeneous sets**, or parametric T/K/V for generics.
+
+typeunion DEPARTS from this prescription. The departure is justified by arithmetic UX — named-enum forces wraps at every numeric call site (`(:wat::core::+ (:NumI64 1) (:NumF64 2.0))`); typeunion preserves natural call sites (`(:wat::core::+ 1 2.0)`). The doctrine evolution:
+
+> **Closed heterogeneous sets — named ENUM if values can be tagged at construction (caller pays one explicit wrap; pattern-match unwraps); typeunion if values must retain their original type (dispatch by actual type at call site).**
+
+`:Any` ban STAYS. typeunion is bounded (explicit members; finite; no escape hatch). The doctrine evolution preserves the closed-universe discipline; it just adds a third "closed heterogeneous sets" answer beyond enum + HolonAST.
+
+**Post-closure cleanup (in arc 237 scope per Stone 237.8):** the AnyBanned error message must be updated to include typeunion as a recommendation. Otherwise the substrate's own diagnostics teach a contradiction.
+
+### Unifier extension — NEW machinery (NOT standard ML HM)
+
+`unify` (`src/check.rs:13953`) currently handles 5 structural cases: `Var`/`Var`, `Var`/`_`, `Path`/`Path`, `Parametric`/`Parametric`, `Fn`/`Fn`, `Tuple`/`Tuple`. None handle "match any member of a typeunion."
+
+typeunion unification requires **bounded existential typing**:
+- `unify(:Numeric, :i64)` must succeed (`:i64` ∈ `:Numeric` members)
+- `unify(:Numeric, :String)` must fail (not a member)
+- Successful unification must RETURN the specific matched member so downstream typing knows the resolved concrete type
+
+This is NEW inference machinery — standard ML-style HM doesn't have it. The `reduce` step (called at the start of `unify`) is the natural insertion point: when reducing a typeunion-typed expr against a concrete expr, check member-set membership. If both sides are typeunions, intersect member sets (failure on empty intersection).
+
+Stone 237.1's sub-DESIGN must explicitly scope this extension. Performance risk if naively implemented (multi-member check per typeunion-typed position); probably fine for small typeunions but worth a probe.
+
+### typeunion-adjacent precedents found
+
+- `:wat::holon::HolonAST` — algebra-level wrapping; substrate-wide single "any algebra value" answer (different mechanism from typeunion)
+- `:wat::core::enum` (Option, Result, etc.) — tagged sum; existing closed-heterogeneous-sets answer (the DOCTRINE typeunion departs from)
+- arc 146 Dispatch entity — runtime polymorphism by first-arg-type (typeunion + defclause SUBSUME this per Stone 237.7-237.8)
+- Hand-coded `is_numeric` predicate + widest-contagion in `infer_arithmetic` — the IMPLICIT typeunion-like behavior the substrate already has, just hidden in special-case code (arc 237 promotes this to first-class)
+
+### Implications for Stone 237.1 sub-DESIGN scope
+
+Per the diagnosis, Stone 237.1 must include:
+1. `TypeDef::Union` + `UnionDef` + registration parallel to `Alias`
+2. Parser for `(:wat::core::typeunion :Name (:T1 :T2 ...))`
+3. Type-checker: typeunion declarations registered; cycle detection at registration (mint `CyclicUnion` error)
+4. Unifier extension: bounded existential — typeunion expr unifies against any member; returns matched member for downstream typing
+5. Diagnostics: cycle errors; empty/single-member rejection; member type-check (reject Fn/Var)
+6. Tests: declaration probes; usage in type positions; rejection of value-wrapping at call sites (typeunion is NOT enum)
+
+**Calibration revision:** initial estimate was 40-90 min Mode A. Revised to **60-120 min Mode A; 240 STOP** due to unifier extension complexity (bounded existential typing is new substrate machinery, not just registration plumbing).
 
 ---
 
