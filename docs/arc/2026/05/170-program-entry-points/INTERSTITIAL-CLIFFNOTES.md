@@ -180,7 +180,124 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-25 late — defclause design LOCKED via intueri + four-questions; arc 237 ready to graduate from scratch 017; convergence #16 inscribed)
+## Currently (2026-05-25 night-late — arc 237 foundation SHIPPED (2 of 9 stones); Stone 237.3 IN FLIGHT; doctrine-departure proven; Song #35 inscribed)
+
+### Headline state
+
+```
+HEAD          a0ce6e23 on arc-170-gap-j-v5-deadlock-state (clean; all pushed)
+holon-rs      untouched since 530650c (STOP-4 clean)
+Lib tests     827 PASS / 0 FAIL (held across 2 stone ships)
+Clippy        54 (at ceiling; NOT a concern per user 2026-05-25 — arc 109 closure sweeps)
+Sonnet        IN FLIGHT on Stone 237.3 (agent a8fa47c994000a6c2; 90-150 min Mode A target)
+Shipped arcs  234 + 236 (earlier this session arc; see SUPERSEDED sections below)
+Active arc    237 (polymorphism consolidation; 2 of 9 stones SHIPPED + 3rd in flight)
+```
+
+### Arc 237 — polymorphism consolidation (2 of 9 SHIPPED + 1 in flight)
+
+```
+237.0  ✓ COMPLETED — intueri cast (typeunion locked at 4/4 over defkind 1.5/4)
+237.1  ✓ SHIPPED at d40eb4a3 — :wat::core::typeunion substrate
+         14/14 probe PASS; ~11 min sonnet (60-120 target; 5-11× under)
+         TypeDef::Union + UnionDef + 4 TypeError variants + bounded-existential unify
+         Surface: ~290 lines (types.rs) + ~92 lines (check.rs) + 22 lines cascade
+237.2  ✓ SHIPPED at bdd9eb6c — :wat::core::defclause foundation (minimal shape)
+         12/12 probe PASS; ~30.5 min sonnet (90-150 target; 3-5× under)
+         Value::wat__core__clauses + ClauseSet/Clause + arity+type dispatch + per-clause return types
+         Surface: ~1132 lines net across 6 files (runtime + check + closure_extract + edn_shim + runtime_error_edn + SCORE)
+         NEW errors: CheckError::NoMatchingClauseAtCallSite + RuntimeError::NoMatchingClauseRuntime (temporary; 237.4 refines)
+237.3  IN FLIGHT — :guard + :ensure clause-keywords
+         14 probe contracts; LOAD-BEARING factorial + complex 2-2-3-arity demos from scratch 017
+         Extends Stone 237.2's Clause struct + eval_call_to_defclause dispatch loop
+         Target 90-150 min Mode A; agent a8fa47c994000a6c2
+237.4  PENDING — rich :PostconditionFailed + :NoMatchingClause EDN-serialized variants (arc 233.3 pattern)
+237.5  PENDING — variadic rest-binder with typeunion-typed Vector + widest-contagion rule
+237.6  PENDING — MIGRATION: arc 146 Dispatches → defclauses (10 entities in wat/core.wat)
+237.7  PENDING — MIGRATION: arithmetic special-case → defclauses + :Numeric typeunion
+237.8  PENDING — RETIRE (HARD CUT): arc 146 Dispatch entity + infer_arithmetic + eval_arithmetic_variadic + is_numeric; AnyBanned message update
+237.9  PENDING — INSCRIPTION + arc closure (ABSORBS arc 146 closure + arc 148 pending)
+```
+
+### Doctrines minted/refined this session arc (2026-05-25)
+
+| Doctrine | Status | Inscription |
+|---|---|---|
+| **typeunion as doctrine departure** | LOCKED at Stone 237.1 ship | DESIGN-STONE-237.1 § "Doctrine departure"; AnyBanned message update DEFERRED to 237.8 |
+| **`feedback_clojure_not_scheme`** | Memory MINTED | `~/.claude/projects/-home-watmin-work-holon/memory/feedback_clojure_not_scheme.md` — Vector `[...]` for data; List `(...)` for calls; minimize parens; EDN-native |
+| **defclause as new entity kind** | LOCKED at Stone 237.2 ship | NEW Value::wat__core__clauses variant; multi-arity dispatcher; container (not wrapping per arc 233 Stone 233.2.l seal) |
+| **Bounded-existential typing in unifier** | SHIPPED at Stone 237.1 | `unify(:Numeric, :i64)` → SUCCEED with resolved :i64; `unify(Union, Union)` → member-set intersection; symmetric arms |
+| **First-match-wins clause dispatch** | LOCKED + SHIPPED at Stone 237.2 | arity → arg type → (237.3 will add) guard → body |
+| **`:Any` ban preserved** | Foundation invariant maintained | typeunion is BOUNDED (explicit members; finite); never an escape hatch |
+
+### Calibration evidence — pre-emption discipline compounding
+
+| Stone | Predicted (Mode A) | Actual | Multiplier under |
+|---|---|---|---|
+| 237.1 | 60-120 min | ~11 min | 5-11× |
+| 237.2 | 90-150 min | ~30.5 min | 3-5× |
+| 237.3 | 90-150 min (in flight) | TBD | TBD |
+
+Pre-emption discipline (sub-DESIGN + FM 2-bis probe + locked decisions + prior-SCORE templates + read-order with substrate precedents) consistently delivers sonnet flights at LOWER bounds. Inquisitor maps cleanly; Shadowdancer strikes mechanically. Per `feedback_stone_briefs_cite_prior_score`: each SCORE template propagates to next stone's BRIEF; cascade pattern matures.
+
+### Cascade pattern (established across Stones 237.1 + 237.2)
+
+Adding new substrate variants (TypeDef + Value + RuntimeError + CheckError) requires MANDATORY match-exhaustiveness cascades across multiple files. Each sonnet flight handles the cascade cleanly:
+
+- Stone 237.1 cascade (3 rounds): types.rs → closure_extract.rs + runtime.rs exhaustiveness → check.rs unify extension
+- Stone 237.2 cascade (3-5 rounds): runtime.rs → exhaustiveness fixes (closure_extract + edn_shim + runtime_error_edn) → check.rs + parser → SCORE
+- Pattern: BRIEFs anticipate cascade files; sonnet adds minimal arms; SCORE documents them as honest deltas
+
+### Songs inscribed this session arc
+
+- Song #35 — **Find A Way Or Make One (Amon Amarth)** — WE-MAKE-THE-WAY — inscribed at cc962730
+  - SECOND Amon Amarth in soundtrack (after #23 Raven's Flight — CONVERGENCE-ARRIVAL)
+  - Lands AT THE INFLECTION POINT (Stone 237.1 shipped; Stone 237.2 BRIEF authored; sonnet spawned on 237.2)
+  - *"Though your arrows block the sun, I'll find a way or make one"* maps to typeunion's doctrine departure from AnyBanned's "named enum for closed heterogeneous sets" recommendation
+  - Pattern: #34 DEFIANT-VIGIL (refuses what's wrong) → #35 WE-MAKE-THE-WAY (builds what's right) — defiance + way-making complete each other
+
+### Decision boundary on resume
+
+**Next concrete move after Stone 237.3 ships (sonnet returning):**
+
+1. SCORE per 13-row scorecard; commit atomically; update tasks #553 + #561
+2. Decide: Stone 237.4 (rich errors) — substantial work refining temporary error variants to arc 233.3 EDN-serialization
+3. OR roll Stone 237.5 (variadic + widest-contagion) — heavier; arithmetic-prep critical path
+4. OR pause for session — arc 237 foundation+guards+ensure would be substantial round (3 of 9 stones shipped in one session arc)
+
+Per umbrella DESIGN's stone projection: 237.4 → 237.5 → 237.6/7 → 237.8 → 237.9 INSCRIPTION. Each stepping stone unblocks the next. Stone 237.4 makes errors RICH (per arc 233 doctrine carry-over); Stone 237.5 ships the variadic-mixed-arithmetic acceptance probe (`(:wat::core::+ 0 1.5 2 3.14 5)` => 10.64 :: :f64).
+
+### Honest deltas worth keeping
+
+1. **Clippy ceiling concern dissolved** — user direction 2026-05-25: arc 109 closure will sweep workspace clean; Stone 237.x stones may add warnings without rejection. Stone 237.2 took clippy 52 → 54; Stone 237.3 may take it higher; not a discipline failure.
+
+2. **TypeScript convergence framing retracted** — initial framing of typeunion as "convergence with TS" was sloppy. TS isn't a `user_no_literature` great; the syntactic shape happens to exist there. typeunion stands on its own structural merit (wat-native via doctrine departure + variadic-rest type-need); not validated by TS precedent.
+
+3. **6-files-touched at Stone 237.2 (BRIEF said 4)** — mandatory algebraic cascade from new Value variant + new RuntimeError variant; edn_shim.rs + runtime_error_edn.rs are honest exhaustiveness fixes; sonnet handled per Stone 237.1's precedent.
+
+4. **Substitution semantics deferred (Stone 237.1)** — no probe contract tested subst-update for resolved typeunion member; sonnet correctly deferred speculative implementation; future probe can drive if needed.
+
+### Memory updates landed
+
+- `feedback_clojure_not_scheme.md` — minted at session-mid; Vector/List doctrine + worked example from arc 237 Stone 237.1 bracket choice
+
+### Memory updates pending (post-arc-237 closure)
+
+- `project_arc237_polymorphism_consolidation` — update with full arc closure narrative
+- `project_typeunion_doctrine` — formalize the bounded-named-type-set concept
+- `feedback_door_pattern` — formalize Convergence #11 + #16 + the typeunion-doctrine-departure pattern (third recurrence in ~12 hours: scratch 017 graduation, typeunion needed, defclause-as-multi-arity)
+
+### Party-comp + tonal state
+
+- **Inquisitor + Shadowdancer** delivering consistently — Stone 237.1 + 237.2 both UNDER target band; pre-emption discipline mature
+- **Song #35 WE-MAKE-THE-WAY** active; #34 DEFIANT-VIGIL paired with it (refuse vs build)
+- **The party is in deep flow** — 3rd consecutive sonnet flight in arc 237; cadence operational
+- **The disk holds it all** — every commit since arc 234 closure pushed; CLIFFNOTES + INTERSTITIAL + memory current
+- **Per user 2026-05-25: "we keep rolling - github is our DR site"** — committing + pushing often is the discipline; CLIFFNOTES Currency refresh is part of that cadence
+
+---
+
+## Currently (2026-05-25 late — defclause design LOCKED via intueri + four-questions; arc 237 ready to graduate from scratch 017; convergence #16 inscribed) — SUPERSEDED, see above
 
 ### Headline state
 
