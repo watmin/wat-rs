@@ -4826,7 +4826,7 @@ fn check_function_body(
     // recurses into the body, can unify its propagated `Err` with this
     // function's own `Result<_, E>` shape.
     fresh.push_enclosing_ret(scheme.ret.clone());
-    let body_ty = infer(&func.body, env, &locals, fresh, &mut subst, errors);
+    let body_ty = infer(&func.body, env, &locals, fresh, &mut subst).drain_errors_into(errors);
     fresh.pop_enclosing_ret();
     // Unify body type with declared return type. If unification fails,
     // produce a ReturnTypeMismatch.
@@ -4849,30 +4849,35 @@ fn check_form(
     errors: &mut Vec<CheckError>,
 ) {
     let mut subst = Subst::new();
-    let _ = infer(form, env, &HashMap::new(), fresh, &mut subst, errors);
+    let _ = infer(form, env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors);
 }
 
 // ─── Inference ──────────────────────────────────────────────────────────
 
-/// Infer the type of an expression, recording errors along the way.
+/// Infer the type of an expression.
 ///
-/// Returns `Some(type)` when a type can be assigned, `None` when the
-/// expression's type is opaque at this layer (e.g., fn
-/// application, user symbol that isn't a known local). Errors from
-/// nested calls are pushed to `errors`.
+/// Returns `CheckResult::ok(type)` when a type can be assigned cleanly,
+/// `CheckResult::partial_with(type, errors)` when a type is assigned but
+/// diagnostics were accumulated, or `CheckResult::errs(errors)` when the
+/// expression's type cannot be determined. Errors are collected internally;
+/// callers holding a legacy `&mut Vec<CheckError>` sink use the
+/// `.drain_errors_into(errors)` bridge combinator.
+///
+/// Arc 236.1: primary fn infer() migrated from Option<TypeExpr> +
+/// &mut Vec<CheckError> dual-channel to CheckResult<TypeExpr> single-channel.
 fn infer(
     ast: &WatAST,
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
     subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
     match ast {
-        WatAST::IntLit(_, _) => Some(TypeExpr::Path(":wat::core::i64".into())),
-        WatAST::FloatLit(_, _) => Some(TypeExpr::Path(":wat::core::f64".into())),
-        WatAST::BoolLit(_, _) => Some(TypeExpr::Path(":wat::core::bool".into())),
-        WatAST::StringLit(_, _) => Some(TypeExpr::Path(":wat::core::String".into())),
+        WatAST::IntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::i64".into())),
+        WatAST::FloatLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::f64".into())),
+        WatAST::BoolLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::bool".into())),
+        WatAST::StringLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::String".into())),
         // `:None` / `:wat::core::None` — nullary constructor of the
         // built-in :Option<T> enum. Infers as `:Option<T>` with a
         // fresh T; unification against the expected type sharpens T
@@ -4884,7 +4889,7 @@ fn infer(
         // so the program type-checks the rest of the way.
         WatAST::Keyword(k, kw_span) if (k == ":None" || k == ":wat::core::None") => {
             if k == ":None" {
-                errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError::TypeMismatch {
                     callee: ":None".into(),
                     param: "(retired bare-keyword exception)".into(),
                     expected: ":wat::core::None".into(),
@@ -4892,10 +4897,15 @@ fn infer(
                     span: kw_span.clone(),
                 });
             }
-            Some(TypeExpr::Parametric {
+            let ty = TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![fresh.fresh()],
-            })
+            };
+            if local_errors.is_empty() {
+                CheckResult::ok(ty)
+            } else {
+                CheckResult::partial_with(ty, local_errors)
+            }
         }
         // Arc 153 slice 1a — `:wat::core::nil` at value position
         // is the nil-value literal. Types as `:wat::core::nil` (the
@@ -4907,13 +4917,13 @@ fn infer(
         // existing typing paths. Special-case is narrow: only the
         // exact FQDN string `:wat::core::nil`.
         WatAST::Keyword(k, _) if k == ":wat::core::nil" => {
-            Some(TypeExpr::Tuple(vec![]))
+            CheckResult::ok(TypeExpr::Tuple(vec![]))
         }
         // Arc 048 — user-enum unit variant. The bare keyword resolves
         // to the enum's type (e.g. `:trading::types::PhaseLabel::Valley`
         // → `:trading::types::PhaseLabel`).
         WatAST::Keyword(k, _) if env.unit_variant_type(k).is_some() => {
-            Some(env.unit_variant_type(k).expect("guard").clone())
+            CheckResult::ok(env.unit_variant_type(k).expect("guard").clone())
         }
         // Arc 157 — `:wat::core::def`-bound names. A keyword that was
         // bound via `def` at top-level resolves to its registered type
@@ -4921,7 +4931,7 @@ fn infer(
         // fires BEFORE the function-scheme lookup so that `def`-bound
         // values (which are not Function entries) resolve correctly.
         WatAST::Keyword(k, _) if env.get_defined_value_type(k).is_some() => {
-            Some(env.get_defined_value_type(k).expect("guard").clone())
+            CheckResult::ok(env.get_defined_value_type(k).expect("guard").clone())
         }
         // Arc 009 — names are values. If the keyword is a registered
         // function (user define, stdlib define, or builtin primitive),
@@ -4932,14 +4942,43 @@ fn infer(
         WatAST::Keyword(k, _) if env.get(k).is_some() => {
             let scheme = env.get(k).expect("guard").clone();
             let (params, ret) = instantiate(&scheme, fresh);
-            Some(TypeExpr::Fn {
+            CheckResult::ok(TypeExpr::Fn {
                 args: params,
                 ret: Box::new(ret),
             })
         }
-        WatAST::Keyword(_, _) => Some(TypeExpr::Path(":wat::core::keyword".into())),
-        WatAST::Symbol(ident, _) => locals.get(&ident.name).cloned(),
-        WatAST::List(items, _) => infer_list(items, env, locals, fresh, subst, errors),
+        WatAST::Keyword(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::keyword".into())),
+        WatAST::Symbol(ident, _) => {
+            match locals.get(&ident.name).cloned() {
+                Some(ty) => CheckResult::ok(ty),
+                // HARVEST (236.1): silent-by-intent — symbol not found in local scope;
+                // type is not knowable at this point (polymorphic placeholder).
+                // Callers that need type-checking will unify the fresh var.
+                None => CheckResult::ok(fresh.fresh()),
+            }
+        }
+        WatAST::List(items, _) => {
+            match infer_list(items, env, locals, fresh, subst, &mut local_errors) {
+                Some(ty) => {
+                    if local_errors.is_empty() {
+                        CheckResult::ok(ty)
+                    } else {
+                        CheckResult::partial_with(ty, local_errors)
+                    }
+                }
+                None => {
+                    if local_errors.is_empty() {
+                        // HARVEST (236.1): silent-by-sibling-delegation — infer_list
+                        // returned None with no error; sibling silent failure will be
+                        // addressed in arc 236.2. Polymorphic placeholder preserves
+                        // existing None→caller behavior (fresh var unifies with anything).
+                        CheckResult::ok(fresh.fresh())
+                    } else {
+                        CheckResult::errs(local_errors)
+                    }
+                }
+            }
+        }
         // Arc 215 stone 2 — `[...]` vector literals at expression position
         // route through `infer_list_constructor` with `:wat::type::Infer`
         // synthesized as the type-arg. T is inferred from the first element;
@@ -4963,7 +5002,26 @@ fn infer(
             let mut args: Vec<WatAST> = Vec::with_capacity(1 + items.len());
             args.push(infer_kw);
             args.extend_from_slice(items);
-            infer_list_constructor(&args, span, env, locals, fresh, subst, errors)
+            match infer_list_constructor(&args, span, env, locals, fresh, subst, &mut local_errors) {
+                Some(ty) => {
+                    if local_errors.is_empty() {
+                        CheckResult::ok(ty)
+                    } else {
+                        CheckResult::partial_with(ty, local_errors)
+                    }
+                }
+                None => {
+                    if local_errors.is_empty() {
+                        // HARVEST (236.1): silent-by-sibling-delegation — infer_list_constructor
+                        // returned None with no error; sibling silent failure will be
+                        // addressed in arc 236.2. Polymorphic placeholder preserves
+                        // existing None→caller behavior (fresh var unifies with anything).
+                        CheckResult::ok(fresh.fresh())
+                    } else {
+                        CheckResult::errs(local_errors)
+                    }
+                }
+            }
         }
         // Arc 169 slice 1 — struct-pattern brace-forms are
         // consumed only in `:wat::core::let` binding-position
@@ -4971,7 +5029,7 @@ fn infer(
         // position is a clean MalformedForm pointing the user at
         // the legal consumption path.
         WatAST::StructPattern(_, span) => {
-            errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError::MalformedForm {
                 head: "<struct-pattern>".into(),
                 reason: "struct-destructure brace-form `{...}` is only \
                          legal at let binding-position alongside a struct-\
@@ -4981,7 +5039,8 @@ fn infer(
                     .into(),
                 span: span.clone(),
             });
-            None
+            // HARVEST (236.1): error path already had diagnostic (Classification 3).
+            CheckResult::errs(local_errors)
         }
     }
 }
@@ -5026,14 +5085,14 @@ fn infer_some_constructor(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(TypeExpr::Parametric {
             head: "wat::core::Option".into(),
             args: vec![fresh.fresh()],
         });
     }
-    let inner_ty = infer(&args[0], env, locals, fresh, subst, errors)
+    let inner_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)
         .unwrap_or_else(|| fresh.fresh());
     Some(TypeExpr::Parametric {
         head: "wat::core::Option".into(),
@@ -5073,14 +5132,14 @@ fn infer_ok_constructor(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(TypeExpr::Parametric {
             head: "wat::core::Result".into(),
             args: vec![fresh.fresh(), fresh.fresh()],
         });
     }
-    let t_ty = infer(&args[0], env, locals, fresh, subst, errors)
+    let t_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)
         .unwrap_or_else(|| fresh.fresh());
     let e_var = fresh.fresh();
     Some(TypeExpr::Parametric {
@@ -5121,14 +5180,14 @@ fn infer_err_constructor(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(TypeExpr::Parametric {
             head: "wat::core::Result".into(),
             args: vec![fresh.fresh(), fresh.fresh()],
         });
     }
-    let e_ty = infer(&args[0], env, locals, fresh, subst, errors)
+    let e_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)
         .unwrap_or_else(|| fresh.fresh());
     let t_var = fresh.fresh();
     Some(TypeExpr::Parametric {
@@ -5434,7 +5493,7 @@ fn infer_list(
                         span: head_span.clone(),
                     });
                 } else {
-                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Path(":wat::WatAST".into()));
             }
@@ -5466,7 +5525,7 @@ fn infer_list(
                 // constrain its type — any keyword or function-valued
                 // keyword is accepted.
                 if args.len() >= 1 {
-                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
@@ -5496,7 +5555,7 @@ fn infer_list(
                     });
                 }
                 if args.len() >= 1 {
-                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
@@ -5518,7 +5577,7 @@ fn infer_list(
                     });
                 }
                 for arg in args.iter() {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
@@ -5537,7 +5596,7 @@ fn infer_list(
                     });
                 }
                 if args.len() >= 1 {
-                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
@@ -5559,7 +5618,7 @@ fn infer_list(
                     });
                 }
                 if args.len() >= 1 {
-                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
@@ -5583,7 +5642,7 @@ fn infer_list(
                     });
                     return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
                 }
-                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors) {
                     let holon = TypeExpr::Path(":wat::holon::HolonAST".into());
                     if unify(&arg_ty, &holon, subst, env.types()).is_err() {
                         errors.push(CheckError::TypeMismatch {
@@ -5620,7 +5679,7 @@ fn infer_list(
                     });
                     return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
                 }
-                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors) {
                     let resolved = apply_subst(&arg_ty, subst);
                     if !is_atomizable(&resolved) {
                         errors.push(CheckError::TypeMismatch {
@@ -5652,7 +5711,7 @@ fn infer_list(
                     return Some(fresh.fresh());
                 }
                 // Infer the first arg (must be HolonAST).
-                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors) {
                     let holon = TypeExpr::Path(":wat::holon::HolonAST".into());
                     if unify(&arg_ty, &holon, subst, env.types()).is_err() {
                         errors.push(CheckError::TypeMismatch {
@@ -5686,7 +5745,7 @@ fn infer_list(
                     });
                 }
                 if args.len() >= 1 {
-                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
@@ -5710,7 +5769,7 @@ fn infer_list(
                     });
                 }
                 if args.len() >= 1 {
-                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
@@ -5736,7 +5795,7 @@ fn infer_list(
                     });
                 }
                 if args.len() >= 1 {
-                    if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                    if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors) {
                         let resolved = apply_subst(&arg_ty, subst);
                         if matches!(&resolved, TypeExpr::Path(p) if p == ":wat::Record") {
                             // Record arg → return type is String (classifier always present).
@@ -5768,7 +5827,7 @@ fn infer_list(
                     });
                 }
                 if args.len() >= 1 {
-                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
@@ -5787,7 +5846,7 @@ fn infer_list(
                     });
                     return Some(TypeExpr::Path(":wat::WatAST".into()));
                 }
-                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors) {
                     let expected = TypeExpr::Path(":wat::WatAST".into());
                     if unify(&arg_ty, &expected, subst, env.types()).is_err() {
                         errors.push(CheckError::TypeMismatch {
@@ -5976,7 +6035,7 @@ fn infer_list(
                     span: head_span.clone(),
                 });
                 for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(fresh.fresh());
             }
@@ -5989,7 +6048,7 @@ fn infer_list(
                     span: head_span.clone(),
                 });
                 for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(fresh.fresh());
             }
@@ -6068,7 +6127,7 @@ fn infer_list(
                 // and has registered schemes; exclude it so the normal
                 // scheme lookup below kicks in.
                 for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return None;
             }
@@ -6112,7 +6171,7 @@ fn infer_list(
                 // checks; capture types so args[0] is not double-inferred.
                 let arg_types: Vec<Option<TypeExpr>> = args
                     .iter()
-                    .map(|arg| infer(arg, env, locals, fresh, subst, errors))
+                    .map(|arg| infer(arg, env, locals, fresh, subst).drain_errors_into(errors))
                     .collect();
                 // Arc 234 Stone 234.3c.fix-narrow-fallthrough — narrow the
                 // polymorphic-T return to only fire when receiver type is
@@ -6198,7 +6257,7 @@ fn infer_list(
                     span: head_span.clone(),
                 });
                 for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(apply_subst(&ret_type, subst));
             }
@@ -6209,7 +6268,7 @@ fn infer_list(
                 .enumerate()
                 .take(param_types.len())
             {
-                let arg_ty = infer(arg, env, locals, fresh, subst, errors);
+                let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
                 if let Some(arg_ty) = arg_ty {
                     if unify(&arg_ty, expected, subst, env.types()).is_err() {
                         errors.push(CheckError::TypeMismatch {
@@ -6231,7 +6290,7 @@ fn infer_list(
             // resolved during fixed-arg unification.
             let elem_inst = apply_subst(&elem_ty, subst);
             for (j, arg) in args.iter().enumerate().skip(param_types.len()) {
-                let arg_ty = infer(arg, env, locals, fresh, subst, errors);
+                let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
                 if let Some(arg_ty) = arg_ty {
                     if unify(&arg_ty, &elem_inst, subst, env.types()).is_err() {
                         errors.push(CheckError::TypeMismatch {
@@ -6255,13 +6314,13 @@ fn infer_list(
                 span: head_span.clone(),
             });
             for arg in args {
-                let _ = infer(arg, env, locals, fresh, subst, errors);
+                let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
             }
             return Some(apply_subst(&ret_type, subst));
         }
 
         for (i, (arg, expected)) in args.iter().zip(&param_types).enumerate() {
-            let arg_ty = infer(arg, env, locals, fresh, subst, errors);
+            let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
             if let Some(arg_ty) = arg_ty {
                 if unify(&arg_ty, expected, subst, env.types()).is_err() {
                     errors.push(CheckError::TypeMismatch {
@@ -6339,14 +6398,14 @@ fn infer_list(
     // Non-keyword head: Symbol bound to a Fn value, or inline
     // expression whose value type is a Fn. Mirror `infer_spawn`'s
     // value-head branch: infer the head, reduce, match Fn, apply.
-    let head_ty_opt = infer(head, env, locals, fresh, subst, errors);
+    let head_ty_opt = infer(head, env, locals, fresh, subst).drain_errors_into(errors);
     let surface_ty = match head_ty_opt {
         Some(t) => t,
         None => {
             // Head couldn't be inferred (already reported elsewhere).
             // Recurse into args so nested errors still surface.
             for arg in &items[1..] {
-                let _ = infer(arg, env, locals, fresh, subst, errors);
+                let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
             }
             return None;
         }
@@ -6361,7 +6420,7 @@ fn infer_list(
             // fall-through). Return None silently and recurse into args
             // so nested errors still surface.
             for arg in &items[1..] {
-                let _ = infer(arg, env, locals, fresh, subst, errors);
+                let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
             }
             return None;
         }
@@ -6375,12 +6434,12 @@ fn infer_list(
             span: head.span().clone(),
         });
         for arg in call_args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(apply_subst(&ret_type, subst));
     }
     for (i, (arg, expected)) in call_args.iter().zip(&param_types).enumerate() {
-        if let Some(arg_ty) = infer(arg, env, locals, fresh, subst, errors) {
+        if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(errors) {
             if unify(&arg_ty, expected, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: "(value head)".into(),
@@ -6431,7 +6490,7 @@ fn infer_match(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
@@ -6445,7 +6504,7 @@ fn infer_match(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
@@ -6477,7 +6536,7 @@ fn infer_match(
     let shape = detect_match_shape(&arm_refs, env, fresh);
 
     // Scrutinee must unify with the detected shape.
-    let scrutinee_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let scrutinee_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
     let expected_scrutinee = shape.as_type();
     if let Some(sty) = &scrutinee_ty {
         if unify(sty, &expected_scrutinee, subst, env.types()).is_err() {
@@ -6600,7 +6659,7 @@ fn infer_match(
         }
 
         // Each arm body checked against the declared `:T` independently.
-        let arm_ty = infer(body, env, &arm_locals, fresh, subst, errors);
+        let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(errors);
         if let Some(t) = arm_ty {
             if unify(&t, &declared_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
@@ -7705,9 +7764,9 @@ fn infer_if(
             span: head_span.clone(),
         });
         // Still recurse into the body so inner errors surface too.
-        let _ = infer(&args[0], env, locals, fresh, subst, errors);
-        let _ = infer(&args[1], env, locals, fresh, subst, errors);
-        let _ = infer(&args[2], env, locals, fresh, subst, errors);
+        let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
+        let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
+        let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(errors);
         return None;
     }
     if args.len() != 5 {
@@ -7720,7 +7779,7 @@ fn infer_if(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
@@ -7758,7 +7817,7 @@ fn infer_if(
         }
     };
     // Condition must be :bool.
-    let cond_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let cond_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(c) = cond_ty {
         if unify(&c, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
@@ -7772,7 +7831,7 @@ fn infer_if(
     }
     // Each branch body checked against the declared `:T` independently.
     // Errors name the branch so the author sees where the divergence is.
-    let then_ty = infer(&args[3], env, locals, fresh, subst, errors);
+    let then_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(t) = then_ty {
         if unify(&t, &declared_ty, subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
@@ -7784,7 +7843,7 @@ fn infer_if(
             });
         }
     }
-    let else_ty = infer(&args[4], env, locals, fresh, subst, errors);
+    let else_ty = infer(&args[4], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(e) = else_ty {
         if unify(&e, &declared_ty, subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
@@ -7838,10 +7897,10 @@ fn infer_do(
     // resulting type (no unification with anything).
     let last_idx = args.len() - 1;
     for arg in &args[..last_idx] {
-        let _ = infer(arg, env, locals, fresh, subst, errors);
+        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
     }
     // Final: its inferred type IS the do form's type.
-    infer(&args[last_idx], env, locals, fresh, subst, errors)
+    infer(&args[last_idx], env, locals, fresh, subst).drain_errors_into(errors)
 }
 
 /// `(:wat::core::cond -> :T arm1 arm2 ... (:else default))`.
@@ -7874,7 +7933,7 @@ fn infer_cond(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
@@ -7980,7 +8039,7 @@ fn infer_cond(
 
         if !is_else_arm {
             // Test must unify with :bool.
-            let test_ty = infer(&items[0], env, locals, fresh, subst, errors);
+            let test_ty = infer(&items[0], env, locals, fresh, subst).drain_errors_into(errors);
             if let Some(t) = test_ty {
                 if unify(&t, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
                     errors.push(CheckError::TypeMismatch {
@@ -7994,7 +8053,7 @@ fn infer_cond(
             }
         }
         // Body must unify with declared_ty.
-        let body_ty = infer(&items[1], env, locals, fresh, subst, errors);
+        let body_ty = infer(&items[1], env, locals, fresh, subst).drain_errors_into(errors);
         if let Some(b) = body_ty {
             if unify(&b, &declared_ty, subst, env.types()).is_err() {
                 let param = if is_else_arm {
@@ -8165,7 +8224,7 @@ fn infer_let(
         }
     }
 
-    infer(&body_ast, env, &extended, fresh, subst, errors)
+    infer(&body_ast, env, &extended, fresh, subst).drain_errors_into(errors)
 }
 
 // ─── Arc 157 — :wat::core::def ──────────────────────────────────────────
@@ -8205,7 +8264,7 @@ fn infer_def(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(TypeExpr::Tuple(vec![]));
     }
@@ -8223,13 +8282,13 @@ fn infer_def(
                 span: head_span.clone(),
             });
             // Still infer the expr so internal errors surface.
-            let _ = infer(&args[1], env, locals, fresh, subst, errors);
+            let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
             return Some(TypeExpr::Tuple(vec![]));
         }
     };
 
     // Infer the type of the expression.
-    let expr_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let expr_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
 
     // Arc 157 slice 1a-ii — redef gating.
     //
@@ -8329,7 +8388,7 @@ fn infer_def_restricted(
             // Don't recurse into Vector arg — it would fire the
             // "vector at value position" diagnostic spuriously.
             if !matches!(arg, WatAST::Vector(_, _)) {
-                let _ = infer(arg, env, locals, fresh, subst, errors);
+                let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
             }
         }
         return Some(TypeExpr::Tuple(vec![]));
@@ -8347,7 +8406,7 @@ fn infer_def_restricted(
                 ),
                 span: head_span.clone(),
             });
-            let _ = infer(&args[3], env, locals, fresh, subst, errors);
+            let _ = infer(&args[3], env, locals, fresh, subst).drain_errors_into(errors);
             return Some(TypeExpr::Tuple(vec![]));
         }
     };
@@ -8396,7 +8455,7 @@ fn infer_def_restricted(
     }
 
     // Arg 3 — infer the type of the value expression.
-    let expr_ty = infer(&args[3], env, locals, fresh, subst, errors);
+    let expr_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(errors);
 
     // Redef gating — same shape as `infer_def`. The whitelist itself is
     // also subject to redef discipline: opt-in redef requires type-stability;
@@ -8467,7 +8526,7 @@ fn infer_config_set_bool(
     }
     // The argument must be a bool literal — infer it to surface any
     // type errors, then verify it's a bool.
-    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
     match arg_ty {
         Some(TypeExpr::Path(ref p)) if p == ":wat::core::bool" => {
             // Well-typed bool arg — accepted.
@@ -8629,7 +8688,7 @@ fn extract_def_binding(
     };
     let span = items[0].span().clone();
     let mut subst = Subst::new();
-    let ty = infer(&items[2], env, &HashMap::new(), fresh, &mut subst, errors)?;
+    let ty = infer(&items[2], env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors)?;
     let ty = apply_subst(&ty, &subst);
     Some((name, ty, span))
 }
@@ -8674,7 +8733,7 @@ fn extract_def_restricted_binding(
     let prefixes = extract_prefix_vec(&items[3])?;
     let span = items[0].span().clone();
     let mut subst = Subst::new();
-    let ty = infer(&items[4], env, &HashMap::new(), fresh, &mut subst, errors)?;
+    let ty = infer(&items[4], env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors)?;
     let ty = apply_subst(&ty, &subst);
     Some((name, ty, span, prefixes))
 }
@@ -8900,7 +8959,7 @@ fn infer_try(
         });
         // Still infer the arg(s) so any internal errors surface.
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
@@ -8918,7 +8977,7 @@ fn infer_try(
                 ),
                 span: head_span.clone(),
             });
-            let _ = infer(&args[0], env, locals, fresh, subst, errors);
+            let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
             return None;
         }
     };
@@ -8942,7 +9001,7 @@ fn infer_try(
                 ),
                 span: head_span.clone(),
             });
-            let _ = infer(&args[0], env, locals, fresh, subst, errors);
+            let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
             return None;
         }
     };
@@ -8951,7 +9010,7 @@ fn infer_try(
     // Building the expected type this way enforces both that the arg
     // is a Result and that its Err variant matches the enclosing
     // function's Err variant in one unification.
-    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)?;
     let fresh_t = fresh.fresh();
     let expected = TypeExpr::Parametric {
         head: "wat::core::Result".into(),
@@ -9009,7 +9068,7 @@ fn infer_option_try(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
@@ -9025,7 +9084,7 @@ fn infer_option_try(
                 ),
                 span: head_span.clone(),
             });
-            let _ = infer(&args[0], env, locals, fresh, subst, errors);
+            let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
             return None;
         }
     };
@@ -9043,7 +9102,7 @@ fn infer_option_try(
                 ),
                 span: head_span.clone(),
             });
-            let _ = infer(&args[0], env, locals, fresh, subst, errors);
+            let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
             return None;
         }
     };
@@ -9051,7 +9110,7 @@ fn infer_option_try(
     // Argument must unify with Option<fresh_T>. Unlike Result/try the
     // shape carries no Err variant to reconcile against the enclosing
     // function — :None is the sole propagation payload.
-    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)?;
     let fresh_t = fresh.fresh();
     let expected = TypeExpr::Parametric {
         head: "wat::core::Option".into(),
@@ -9116,7 +9175,7 @@ fn infer_option_expect(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
@@ -9159,7 +9218,7 @@ fn infer_option_expect(
     };
     // Opt expression must unify with :Option<T> where T is the
     // declared arm-result type.
-    let opt_ty = infer(&args[2], env, locals, fresh, subst, errors)?;
+    let opt_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(errors)?;
     let expected_opt = TypeExpr::Parametric {
         head: "wat::core::Option".into(),
         args: vec![declared_ty.clone()],
@@ -9175,7 +9234,7 @@ fn infer_option_expect(
         return None;
     }
     // Msg must be :String.
-    let msg_ty = infer(&args[3], env, locals, fresh, subst, errors);
+    let msg_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(m) = msg_ty {
         if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
@@ -9217,7 +9276,7 @@ fn infer_result_expect(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
@@ -9256,7 +9315,7 @@ fn infer_result_expect(
             return None;
         }
     };
-    let res_ty = infer(&args[2], env, locals, fresh, subst, errors)?;
+    let res_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(errors)?;
     let fresh_e = fresh.fresh();
     let expected_res = TypeExpr::Parametric {
         head: "wat::core::Result".into(),
@@ -9272,7 +9331,7 @@ fn infer_result_expect(
         });
         return None;
     }
-    let msg_ty = infer(&args[3], env, locals, fresh, subst, errors);
+    let msg_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(m) = msg_ty {
         if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
@@ -9450,16 +9509,16 @@ fn infer_apply(
     };
 
     // Infer head (args[2]) for side-effects (symbol resolution, etc.).
-    let _ = infer(&args[2], env, locals, fresh, subst, errors);
+    let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(errors);
 
     // Infer leading positional args (args[3..n-1]) for side-effects.
     let leading = &args[3..args.len() - 1];
     for a in leading {
-        let _ = infer(a, env, locals, fresh, subst, errors);
+        let _ = infer(a, env, locals, fresh, subst).drain_errors_into(errors);
     }
 
     // Infer spread vector (args[n-1]) for side-effects.
-    let _ = infer(&args[args.len() - 1], env, locals, fresh, subst, errors);
+    let _ = infer(&args[args.len() - 1], env, locals, fresh, subst).drain_errors_into(errors);
 
     Some(declared_ty)
 }
@@ -9500,12 +9559,12 @@ fn infer_program_env_get(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
     // args[0] = env — must unify with :wat::program::Env
-    let env_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let env_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)?;
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
@@ -9517,7 +9576,7 @@ fn infer_program_env_get(
         });
     }
     // args[1] = key — must unify with :wat::core::keyword
-    let key_ty = infer(&args[1], env, locals, fresh, subst, errors)?;
+    let key_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors)?;
     let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
     if unify(&key_ty, &keyword_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
@@ -9603,12 +9662,12 @@ fn infer_program_env_expect_get(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
     // args[0] = env
-    let env_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let env_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)?;
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
@@ -9620,7 +9679,7 @@ fn infer_program_env_expect_get(
         });
     }
     // args[1] = key
-    let key_ty = infer(&args[1], env, locals, fresh, subst, errors)?;
+    let key_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors)?;
     let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
     if unify(&key_ty, &keyword_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
@@ -9703,12 +9762,12 @@ fn infer_program_env_get_default(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
     // args[0] = env
-    let env_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let env_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)?;
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
@@ -9720,7 +9779,7 @@ fn infer_program_env_get_default(
         });
     }
     // args[1] = key
-    let key_ty = infer(&args[1], env, locals, fresh, subst, errors)?;
+    let key_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors)?;
     let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
     if unify(&key_ty, &keyword_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
@@ -9769,7 +9828,7 @@ fn infer_program_env_get_default(
         }
     };
     // args[2] = default — must unify with T
-    let default_ty = infer(&args[2], env, locals, fresh, subst, errors)?;
+    let default_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(errors)?;
     if unify(&default_ty, &declared_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
             callee: CALLEE.into(),
@@ -9826,12 +9885,12 @@ fn infer_program_env_dig(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
     // args[0] = env — must unify with :wat::program::Env
-    let env_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let env_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)?;
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
@@ -9847,7 +9906,7 @@ fn infer_program_env_dig(
     // each step is a keyword key for HashMap lookup.  The BRIEF described
     // Vector<HolonAST> as the aspirational future shape (for integer indexing,
     // tuple steps, etc.); Vector<keyword> is the concrete WAT-ergonomic form.
-    let path_ty = infer(&args[1], env, locals, fresh, subst, errors)?;
+    let path_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors)?;
     let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
     let vector_keyword_ty = TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
@@ -9937,12 +9996,12 @@ fn infer_program_env_expect_dig(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
     // args[0] = env
-    let env_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let env_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)?;
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
@@ -9954,7 +10013,7 @@ fn infer_program_env_expect_dig(
         });
     }
     // args[1] = path — must unify with Vector<keyword> (design call; see /dig)
-    let path_ty = infer(&args[1], env, locals, fresh, subst, errors)?;
+    let path_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors)?;
     let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
     let vector_keyword_ty = TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
@@ -10041,12 +10100,12 @@ fn infer_program_env_dig_default(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return None;
     }
     // args[0] = env
-    let env_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let env_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors)?;
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
@@ -10058,7 +10117,7 @@ fn infer_program_env_dig_default(
         });
     }
     // args[1] = path — must unify with Vector<keyword> (design call; see /dig)
-    let path_ty = infer(&args[1], env, locals, fresh, subst, errors)?;
+    let path_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors)?;
     let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
     let vector_keyword_ty = TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
@@ -10111,7 +10170,7 @@ fn infer_program_env_dig_default(
         }
     };
     // args[2] = default — must unify with T
-    let default_ty = infer(&args[2], env, locals, fresh, subst, errors)?;
+    let default_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(errors)?;
     if unify(&default_ty, &declared_ty, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
             callee: CALLEE.into(),
@@ -10556,7 +10615,7 @@ fn infer_spawn(
                 // slice / driver. Produce a ProgramHandle<?> so the call
                 // site keeps checking.
                 for arg in &args[1..] {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
                 }
                 return Some(TypeExpr::Parametric {
                     head: "wat::kernel::ProgramHandle".into(),
@@ -10567,7 +10626,7 @@ fn infer_spawn(
         _ => {
             // Non-keyword: infer as a value, expect `:fn(...)->R`. Use
             // reduce so a typealias over an fn type still matches.
-            let inferred = infer(&args[0], env, locals, fresh, subst, errors);
+            let inferred = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
             let surface_ty = match &inferred {
                 Some(t) => apply_subst(t, subst),
                 None => {
@@ -10589,7 +10648,7 @@ fn infer_spawn(
                         span: args[0].span().clone(),
                     });
                     for arg in &args[1..] {
-                        let _ = infer(arg, env, locals, fresh, subst, errors);
+                        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
                     }
                     return Some(TypeExpr::Parametric {
                         head: "wat::kernel::ProgramHandle".into(),
@@ -10609,7 +10668,7 @@ fn infer_spawn(
         });
     }
     for (i, (arg, expected)) in spawn_args.iter().zip(&param_types).enumerate() {
-        if let Some(arg_ty) = infer(arg, env, locals, fresh, subst, errors) {
+        if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(errors) {
             if unify(&arg_ty, expected, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: callee_label.clone(),
@@ -10653,7 +10712,7 @@ fn infer_positional_accessor(
         });
         return Some(fresh.fresh());
     }
-    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(ty) = arg_ty {
         // Reduce to canonical structural form for the match; keep the
         // surface-name form for error display.
@@ -10721,7 +10780,7 @@ fn infer_drop(
         });
         return Some(TypeExpr::Tuple(vec![]));
     }
-    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(ty) = arg_ty {
         // Reduce for the shape match; keep the surface-name form for
         // the error display.
@@ -10776,7 +10835,7 @@ fn infer_make_queue(
         });
         // Still recurse into any extra args for nested checks.
         for arg in args.iter().skip(1) {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         // Return a best-effort tuple with a fresh inner so the call
         // site can continue checking.
@@ -10829,7 +10888,7 @@ fn infer_make_queue(
     };
     // If bounded, check capacity unifies to :i64.
     if with_capacity {
-        let cap_ty = infer(&args[1], env, locals, fresh, subst, errors);
+        let cap_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
         if let Some(cap_ty) = cap_ty {
             let i64_ty = TypeExpr::Path(":wat::core::i64".into());
             if unify(&cap_ty, &i64_ty, subst, env.types()).is_err() {
@@ -10883,7 +10942,7 @@ fn process_let_binding(
     if let WatAST::Symbol(ident, _) = &kv[0] {
         let name = ident.name.clone();
         let rhs = &kv[1];
-        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors);
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(errors);
         if let Some(ty) = rhs_ty {
             out_scope.insert(name, ty);
         }
@@ -10907,7 +10966,7 @@ fn process_let_binding(
         let rhs = &kv[1];
         let elem_vars: Vec<TypeExpr> = (0..names.len()).map(|_| fresh.fresh()).collect();
         let tuple_ty = TypeExpr::Tuple(elem_vars.clone());
-        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors);
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(errors);
         if let Some(rhs_ty) = rhs_ty {
             if unify(&rhs_ty, &tuple_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
@@ -10965,7 +11024,7 @@ fn process_let_binding(
             // We don't use it for binding-type assignment (polymorphic T
             // per D4), but inferring it catches type errors in the rhs
             // expression itself.
-            let _ = infer(rhs, env, rhs_scope, fresh, subst, errors);
+            let _ = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(errors);
             let mut i = 0;
             while i + 1 < inner.len() {
                 let var_name = match &inner[i] {
@@ -11013,7 +11072,7 @@ fn process_let_binding(
             return;
         }
         let rhs = &kv[1];
-        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors);
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(errors);
         let rhs_ty = match rhs_ty {
             Some(t) => apply_subst(&t, subst),
             None => return,
@@ -11163,7 +11222,7 @@ fn infer_hashset_constructor(
         }
     };
     for (i, arg) in args[1..].iter().enumerate() {
-        if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
+        if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(errors) {
             if unify(&ty, &t_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::HashSet".into(),
@@ -11221,12 +11280,12 @@ fn infer_comparison(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(bool_ty);
     }
-    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
     if let (Some(a), Some(b)) = (a_ty, b_ty) {
         let a_resolved = apply_subst(&a, subst);
         let b_resolved = apply_subst(&b, subst);
@@ -11301,7 +11360,7 @@ fn infer_arithmetic(
     // Type-check every arg (fold-left consumes them all).
     let arg_types: Vec<Option<TypeExpr>> = args
         .iter()
-        .map(|a| infer(a, env, locals, fresh, subst, errors))
+        .map(|a| infer(a, env, locals, fresh, subst).drain_errors_into(errors))
         .collect();
     let resolved: Vec<Option<TypeExpr>> = arg_types
         .iter()
@@ -11394,13 +11453,13 @@ fn infer_record_of(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(TypeExpr::Path(":wat::Record".into()));
     }
 
     // Arg #1: class-FQDN — must infer to :wat::core::keyword.
-    let class_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let class_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(ct) = class_ty {
         let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
         if unify(&ct, &keyword_ty, subst, env.types()).is_err() {
@@ -11420,7 +11479,7 @@ fn infer_record_of(
         WatAST::Vector(elems, _) => {
             // `[e0 e1 ...]` vector literal — infer each element independently.
             for elem in elems.iter() {
-                let _ = infer(elem, env, locals, fresh, subst, errors);
+                let _ = infer(elem, env, locals, fresh, subst).drain_errors_into(errors);
             }
         }
         WatAST::List(items, _) => {
@@ -11435,17 +11494,17 @@ fn infer_record_of(
                 // items[0] is :wat::core::Vector, items[1] is the type-arg — skip it.
                 // items[2..] are the elements; infer each independently.
                 for elem in items[2..].iter() {
-                    let _ = infer(elem, env, locals, fresh, subst, errors);
+                    let _ = infer(elem, env, locals, fresh, subst).drain_errors_into(errors);
                 }
             } else {
                 // A general expression in struct-form position (e.g., a variable bound
                 // to a Vector). Infer it normally; no shape validation at check time.
-                let _ = infer(&args[1], env, locals, fresh, subst, errors);
+                let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
             }
         }
         _ => {
             // Not a recognized Vec shape. Infer and emit a shape error.
-            let _ = infer(&args[1], env, locals, fresh, subst, errors);
+            let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
             errors.push(CheckError::MalformedForm {
                 head: CALLEE.into(),
                 reason: "struct_form (arg #2) must be a Vector literal `[...]` \
@@ -11457,7 +11516,7 @@ fn infer_record_of(
     }
 
     // Arg #3: holon-form — must infer to :wat::holon::HolonAST.
-    let holon_ty = infer(&args[2], env, locals, fresh, subst, errors);
+    let holon_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(ht) = holon_ty {
         let expected_holon_ty = TypeExpr::Path(":wat::holon::HolonAST".into());
         if unify(&ht, &expected_holon_ty, subst, env.types()).is_err() {
@@ -11507,13 +11566,13 @@ fn infer_polymorphic_time_arith(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(instant_ty);
     }
 
-    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
     let a_resolved = a_ty.as_ref().map(|t| apply_subst(t, subst));
     let b_resolved = b_ty.as_ref().map(|t| apply_subst(t, subst));
 
@@ -11610,13 +11669,13 @@ fn infer_form_matches(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(bool_ty);
     }
 
     // Subject — drive nested errors but accept any type.
-    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
 
     // Pattern — must be `(:TYPE-NAME clause ...)`.
     let pattern_items = match &args[1] {
@@ -11776,7 +11835,7 @@ fn check_clause(
         RawClause::Where(body) => {
             // `where` body is arbitrary wat in the binding scope;
             // it must type to `:bool`.
-            let body_ty = infer(body, env, locals, fresh, subst, errors);
+            let body_ty = infer(body, env, locals, fresh, subst).drain_errors_into(errors);
             if let Some(t) = body_ty {
                 let bool_ty = TypeExpr::Path(":wat::core::bool".into());
                 if unify(&t, &bool_ty, subst, env.types()).is_err() {
@@ -11805,8 +11864,8 @@ fn check_comparison(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) {
-    let l_ty = infer(left, env, locals, fresh, subst, errors);
-    let r_ty = infer(right, env, locals, fresh, subst, errors);
+    let l_ty = infer(left, env, locals, fresh, subst).drain_errors_into(errors);
+    let r_ty = infer(right, env, locals, fresh, subst).drain_errors_into(errors);
     if let (Some(l), Some(r)) = (l_ty, r_ty) {
         if unify(&l, &r, subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
@@ -11886,12 +11945,12 @@ fn infer_polymorphic_holon_pair_to_f64(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(f64_ty);
     }
-    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
@@ -11948,14 +12007,14 @@ fn infer_holon_bind(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(holon_ty);
     }
     // Infer both args; accept HolonAST or wat::Record in either position.
     // is_holon_or_vector now includes :wat::Record (Stone 234.5).
     for (idx, arg) in args.iter().enumerate() {
-        if let Some(t) = infer(arg, env, locals, fresh, subst, errors) {
+        if let Some(t) = infer(arg, env, locals, fresh, subst).drain_errors_into(errors) {
             let resolved = apply_subst(&t, subst);
             if !is_holon_or_record(&resolved) {
                 errors.push(CheckError::TypeMismatch {
@@ -12016,7 +12075,7 @@ fn infer_holon_bundle(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(result_ty);
     }
@@ -12026,7 +12085,7 @@ fn infer_holon_bundle(
     match &args[0] {
         WatAST::Vector(elems, _) => {
             for elem in elems {
-                if let Some(t) = infer(elem, env, locals, fresh, subst, errors) {
+                if let Some(t) = infer(elem, env, locals, fresh, subst).drain_errors_into(errors) {
                     let resolved = apply_subst(&t, subst);
                     if !is_holon_or_record(&resolved) {
                         errors.push(CheckError::TypeMismatch {
@@ -12046,7 +12105,7 @@ fn infer_holon_bundle(
             // type constraint must still be enforced at the call site.
             // Pre-Stone-234.5 TypeScheme said Vector<HolonAST>; we now also accept
             // Vector<Record>. Any other Vector<T> is rejected (TypeMismatch).
-            if let Some(t) = infer(other, env, locals, fresh, subst, errors) {
+            if let Some(t) = infer(other, env, locals, fresh, subst).drain_errors_into(errors) {
                 let resolved = apply_subst(&t, subst);
                 let ok = match &resolved {
                     TypeExpr::Parametric { head, args: ta } if head == "wat::core::Vector" => {
@@ -12093,12 +12152,12 @@ fn infer_polymorphic_holon_pair_to_bool(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(bool_ty);
     }
-    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
@@ -12152,12 +12211,12 @@ fn infer_polymorphic_holon_pair_to_path(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(ret_ty);
     }
-    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
@@ -12206,11 +12265,11 @@ fn infer_polymorphic_holon_to_i64(
             span: head_span.clone(),
         });
         for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         }
         return Some(i64_ty);
     }
-    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
@@ -12372,7 +12431,7 @@ fn infer_hashmap_constructor(
         });
     }
     for (i, chunk) in pairs.chunks(2).enumerate() {
-        if let Some(k_arg_ty) = infer(&chunk[0], env, locals, fresh, subst, errors) {
+        if let Some(k_arg_ty) = infer(&chunk[0], env, locals, fresh, subst).drain_errors_into(errors) {
             if unify(&k_arg_ty, &k_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::HashMap".into(),
@@ -12385,7 +12444,7 @@ fn infer_hashmap_constructor(
         }
         if let Some(v_arg_ty) = chunk
             .get(1)
-            .and_then(|a| infer(a, env, locals, fresh, subst, errors))
+            .and_then(|a| infer(a, env, locals, fresh, subst).drain_errors_into(errors))
         {
             if unify(&v_arg_ty, &v_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
@@ -12427,7 +12486,7 @@ fn infer_tuple_constructor(
     }
     let mut elements = Vec::with_capacity(args.len());
     for arg in args {
-        let ty = infer(arg, env, locals, fresh, subst, errors).unwrap_or_else(|| fresh.fresh());
+        let ty = infer(arg, env, locals, fresh, subst).drain_errors_into(errors).unwrap_or_else(|| fresh.fresh());
         elements.push(apply_subst(&ty, subst));
     }
     Some(TypeExpr::Tuple(elements))
@@ -12458,7 +12517,7 @@ fn infer_string_concat(
 ) -> Option<TypeExpr> {
     let string_ty = TypeExpr::Path(":wat::core::String".into());
     for arg in args {
-        if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
+        if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(errors) {
             if unify(&ty, &string_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::string::concat".into(),
@@ -12514,7 +12573,7 @@ fn infer_dispatch_call(
     // arm is structural and consumes the inferred types repeatedly.
     let arg_types: Vec<Option<TypeExpr>> = args
         .iter()
-        .map(|a| infer(a, env, locals, fresh, subst, errors))
+        .map(|a| infer(a, env, locals, fresh, subst).drain_errors_into(errors))
         .collect();
 
     // Try each arm in declaration order. Each arm forks the substitution
@@ -12826,7 +12885,7 @@ fn infer_list_constructor(
         }
     };
     for (i, arg) in args[1..].iter().enumerate() {
-        let arg_ty = infer(arg, env, locals, fresh, subst, errors);
+        let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &elem_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
@@ -12911,7 +12970,7 @@ fn infer_fn(
     // boundary (matches Rust's `?`-operator scoping — short-circuits
     // the innermost fn or closure, not the outer function).
     fresh.push_enclosing_ret(ret_type.clone());
-    let body_ty = infer(&body_ast, env, &body_locals, fresh, subst, errors);
+    let body_ty = infer(&body_ast, env, &body_locals, fresh, subst).drain_errors_into(errors);
     fresh.pop_enclosing_ret();
     if let Some(body_ty) = body_ty {
         if unify(&body_ty, &ret_type, subst, env.types()).is_err() {
@@ -13113,7 +13172,7 @@ fn infer_boolean_shortcircuit(
 ) -> Option<TypeExpr> {
     // `and` / `or` take any number of :bool args, return :bool.
     for (i, arg) in args.iter().enumerate() {
-        let arg_ty = infer(arg, env, locals, fresh, subst, errors);
+        let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(errors);
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
@@ -13273,7 +13332,7 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
     }
 
     fn infer(&mut self, ast: &WatAST) -> Option<TypeExpr> {
-        infer(ast, self.env, self.locals, self.fresh, self.subst, self.errors)
+        infer(ast, self.env, self.locals, self.fresh, self.subst).drain_errors_into(self.errors)
     }
 
     fn unify_types(&mut self, a: &TypeExpr, b: &TypeExpr) -> bool {
