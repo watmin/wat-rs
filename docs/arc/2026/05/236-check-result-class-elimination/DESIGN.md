@@ -1,8 +1,8 @@
 # Arc 236 — check.rs error-propagation class-elimination
 
-**Status:** ACTIVE (2026-05-24 night — extended mid-flight with Stone 236.3 sum-type refactor before INSCRIPTION at Stone 236.4). Arc 234 PAUSED per user direction: *"we annihilate error domains when we encounter them."* Resumes after this arc closes.
+**Status:** SHIPPED 2026-05-25. Arc 236 CLOSED. See `INSCRIPTION.md` for the full closure record. Arc 234 RESUMES per spawn-block winding (`feedback_spawn_block_winding`).
 
-**Arc-shape note (2026-05-24 night latest):** Reality compressed + extended vs original sketch. Original stones 236.3 (audit + fix) + 236.4 (verification) were ABSORBED by Stone 236.2's HARVEST methodology + 12-row scorecard (0 Classification 2 sites surfaced; lib baseline 827 held; clippy improved 54→52). Mid-flight dialogue post-236.2 surfaced that Stone 236.0's struct-with-Option shape achieved ✅✅ (construction-time discipline via debug_assert) where ✅✅✅ (type-system structural impossibility) is reachable via 3-variant sum-type. Stone 236.3 (renumbered) ships the refactor; Stone 236.4 ships INSCRIPTION.
+**Final arc-shape:** 4 substrate stones (236.0/1/2/3) + 1 INSCRIPTION stone (236.4) = 5 stones total. Original 6-stone sketch compressed (236.3 audit + 236.4 verification ABSORBED by Stone 236.2's HARVEST methodology + 12-row scorecard) AND extended mid-flight (new 236.3 sum-type refactor recognized via dialogue-as-PERCEIVE cycle; elevates from ✅✅ construction-time discipline to ✅✅✅ type-system structural impossibility). Per `feedback_inscription_immutable`: compression is honest (work delivered via different stone-shape than predicted); extension is honest (doctrinal-advancement recognition emerged mid-arc; the discipline says ratchet when reachable).
 
 **Origin:** Stone 234.3c.fix-narrow-fallthrough surfaced (and documented in commit `aa55505b`) the substrate-architecture failure mode: `check.rs::infer(...) -> Option<TypeExpr>` + `errors: &mut Vec<CheckError>` side-channel allows silent error-loss. `return None` without `errors.push(...)` produces no diagnostic.
 
