@@ -71,25 +71,12 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/holon/Trigram.wat",
         source: include_str!("../wat/holon/Trigram.wat"),
     },
-    // Arc 227 Stone 227.2 v2 — :wat::holon::defrecord macro (renamed from defclass per Stone
-    // 227.1b). Mints user-defined classifier-wrapped types in user-declared namespaces.
-    // Mandated 2-arg form: (defrecord <fqdn> <field-list>). Empty [] = zero-arg tagged unit
-    // constructor. Single-field [name <- :Type] = one-arg typed constructor. N>1 fields
-    // deferred (STOP-5b). Expands to constructor + predicate pair. Depends on
-    // :wat::holon::Bind, :wat::holon::Atom, :wat::holon::to-holon (arc 225 substrate),
-    // :wat::holon::is? (arc 226 substrate), :wat::holon::from-wat / to-wat /
-    // Bundle/first / statement-length, and :wat::core::keyword/* reflection primitives.
-    // Single-arg (defrecord :fqdn) form RETIRED (HARD CUT per Stone 227.2 v2).
-    WatSource {
-        path: "wat/holon/defrecord.wat",
-        source: include_str!("../wat/holon/defrecord.wat"),
-    },
     // Arc 234 Stone 234.2b — :wat::Record::def macro. Mints user-defined
     // record-types as dual-form holograms (Value::wat__Record): struct_form
     // (Rust-fast) + holon_form (VSA-aligned), both addressable, both canonical.
     // Generates constructor + per-field accessors + predicate. Consumes Stone
     // 234.2a substrate primitives (:wat::Record::of + :wat::Record/field-at).
-    // Co-exists with :wat::holon::defrecord until Stone 234.6 retirement.
+    // :wat::holon::defrecord RETIRED at Stone 234.6 (HARD CUT; see git history).
     WatSource {
         path: "wat/Record.wat",
         source: include_str!("../wat/Record.wat"),

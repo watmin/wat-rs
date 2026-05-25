@@ -156,7 +156,7 @@ fn probe_6_type_on_hashmap() {
 #[test]
 fn probe_7_type_on_defrecord_instance() {
     let src = r#"
-(:wat::holon::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::core::String)
   (:wat::core::type (:myapp::Voltage 5.0)))

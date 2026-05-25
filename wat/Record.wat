@@ -73,8 +73,10 @@
 ;; D11: Field-type constraint enforcement at expand time is OUT OF SCOPE.
 ;;      Non-atomizable field type fails at constructor call site (clear runtime error).
 ;;
-;; D12: Co-exists with :wat::holon::defrecord (DIFFERENT behavior: that macro → HolonAST;
-;;      this macro → Value::wat__Record dual-form hologram). Retirement: Stone 234.6.
+;; D12: :wat::Record::def is THE record-defining macro. Mints
+;;      Value::wat__Record with dual-form (struct + holon). Holon-form
+;;      access via :wat::holon::* auto-dispatch (Stone 234.5).
+;;      :wat::holon::defrecord retired at Stone 234.6 (HARD CUT).
 ;;
 ;; D14: HARD CUT — no aliases. No single-arg form. Users MUST provide the field vector.
 ;;

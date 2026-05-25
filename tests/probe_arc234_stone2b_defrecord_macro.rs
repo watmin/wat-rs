@@ -12,7 +12,7 @@
 //!
 //! The macro consumes Stone 234.2a's substrate primitives (`:wat::Record::of`
 //! + `:wat::Record/field-at`) plus the holon-form construction pattern proven
-//! by `:wat::holon::defrecord` (arc 227 Stone 227.2 v3).
+//! by `:wat::Record::def` (arc 227 Stone 227.2 v3).
 //!
 //! Probe contracts (6):
 //!   1. Single-field expansion + invocation — constructor returns

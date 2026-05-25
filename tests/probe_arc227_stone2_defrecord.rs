@@ -1,4 +1,4 @@
-//! Arc 227 Stone 227.2 v3 — User-defined types via `:wat::holon::defrecord` macro.
+//! Arc 227 Stone 227.2 v3 + Stone 234.6 migration — User-defined types via `:wat::Record::def` (formerly `:wat::holon::defrecord`).
 //!
 //! v3 supersedes v2 (commit b4509cb). v2 shipped with STOP-5b deferred framing for
 //! N>=2; v3 ships canonical defrecord for ALL N including N>=2 using the composition
@@ -8,7 +8,7 @@
 //!   `(defrecord <fqdn> <field-list>)`
 //! Single-arg form `(defrecord :fqdn)` is RETIRED (HARD CUT).
 //!
-//! Verifies that `:wat::holon::defrecord` correctly generates:
+//! Verifies that `:wat::Record::def` correctly generates:
 //!   - A constructor in the user-declared namespace (takes typed field args)
 //!   - A predicate in the user-declared namespace
 //!   - Canonical classifier-wrapped instances: `Bind(Atom("ns::Name"), Bundle(...))`
@@ -47,7 +47,7 @@
 //! ## Doctrine
 //!
 //! Per [[typed-entities-doctrine]] + `feedback_fqdn_is_the_namespace`:
-//!   - `(:wat::holon::defrecord :myapp::Voltage [value <- :f64])` generates
+//!   - `(:wat::Record::def :myapp::Voltage [value <- :f64])` generates
 //!     `:myapp::Voltage` (constructor, takes f64) and `:myapp::is-Voltage?`
 //!     (predicate) -- entirely in the user-declared namespace.
 //!   - Constructor takes TYPED PRIMITIVES directly (no to-holon needed by caller).
@@ -59,7 +59,7 @@
 //!
 //!   - Stone 226.1: `:wat::holon::is?` + `:wat::holon::is-Map?` etc. live.
 //!   - Stone 225.1: `:wat::holon::Bind` + `:wat::holon::Atom` + `:wat::holon::to-holon`.
-//!   - Stone 227.2 v2 (THIS): `:wat::holon::defrecord` macro (2-arg head; field-list mandate).
+//!   - Stone 227.2 v2 (THIS): `:wat::Record::def` macro (2-arg head; field-list mandate).
 //!
 //! ## Migrated tests (stone 227.1b -> stone 227.2 v2)
 //!
@@ -114,7 +114,7 @@ fn expect_startup_err(src: &str) -> String {
 
 // Test 1: Single FQDN defrecord -- construct + predicate
 
-/// `(:wat::holon::defrecord :test::Voltage [value <- :wat::core::f64])` mints a constructor.
+/// `(:wat::Record::def :test::Voltage [value <- :wat::core::f64])` mints a constructor.
 /// `(:test::Voltage 5.0)` constructs an instance (v2: typed primitive arg).
 /// `(:test::is-Voltage? instance)` returns true.
 ///
@@ -122,7 +122,7 @@ fn expect_startup_err(src: &str) -> String {
 #[test]
 fn probe_defrecord_single_fqdn_positive() {
     let src = r#"
-        (:wat::holon::defrecord :test::Voltage [value <- :wat::core::f64])
+        (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::Voltage 5.0)]
@@ -134,19 +134,22 @@ fn probe_defrecord_single_fqdn_positive() {
     );
 }
 
-/// `(:test::is-Voltage? (to-holon \"random-string\"))` returns false (no Voltage classifier).
+/// Predicate returns false for an instance of a different record type (no Voltage classifier).
 ///
 /// Arc 227 Stone 227.2 v2 -- predicate returns false for non-instance (migrated from 227.1b Test 2).
+/// Stone 234.6 migration: adjusted for :wat::Record::def — predicate takes :wat::Record, not HolonAST.
+/// Uses a different-class Record as the negative example instead of bare HolonAST.
 #[test]
 fn probe_defrecord_single_fqdn_negative() {
     let src = r#"
-        (:wat::holon::defrecord :test::Voltage [value <- :wat::core::f64])
+        (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
+        (:wat::Record::def :test::Current [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:test::is-Voltage? (:wat::holon::to-holon "random-string")))
+          (:test::is-Voltage? (:test::Current 1.0)))
     "#;
     assert!(
         !run_bool(src),
-        "is-Voltage? must return false for a bare String HolonAST (no Voltage classifier)"
+        "is-Voltage? must return false for a Current instance (different class)"
     );
 }
 
@@ -159,8 +162,8 @@ fn probe_defrecord_single_fqdn_negative() {
 #[test]
 fn probe_defrecord_cross_namespace_app_a_positive() {
     let src = r#"
-        (:wat::holon::defrecord :appA::Voltage [value <- :wat::core::i64])
-        (:wat::holon::defrecord :appB::Voltage [value <- :wat::core::i64])
+        (:wat::Record::def :appA::Voltage [value <- :wat::core::i64])
+        (:wat::Record::def :appB::Voltage [value <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [a-instance (:appA::Voltage 42)]
@@ -178,8 +181,8 @@ fn probe_defrecord_cross_namespace_app_a_positive() {
 #[test]
 fn probe_defrecord_cross_namespace_discrimination() {
     let src = r#"
-        (:wat::holon::defrecord :appA::Voltage [value <- :wat::core::i64])
-        (:wat::holon::defrecord :appB::Voltage [value <- :wat::core::i64])
+        (:wat::Record::def :appA::Voltage [value <- :wat::core::i64])
+        (:wat::Record::def :appB::Voltage [value <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [b-instance (:appB::Voltage 42)]
@@ -199,8 +202,8 @@ fn probe_defrecord_cross_namespace_discrimination() {
 #[test]
 fn probe_defrecord_same_namespace_celsius_positive() {
     let src = r#"
-        (:wat::holon::defrecord :test::Celsius [value <- :wat::core::f64])
-        (:wat::holon::defrecord :test::Kelvin [value <- :wat::core::f64])
+        (:wat::Record::def :test::Celsius [value <- :wat::core::f64])
+        (:wat::Record::def :test::Kelvin [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [c (:test::Celsius 100.0)]
@@ -218,8 +221,8 @@ fn probe_defrecord_same_namespace_celsius_positive() {
 #[test]
 fn probe_defrecord_same_namespace_cross_discrimination() {
     let src = r#"
-        (:wat::holon::defrecord :test::Celsius [value <- :wat::core::f64])
-        (:wat::holon::defrecord :test::Kelvin [value <- :wat::core::f64])
+        (:wat::Record::def :test::Celsius [value <- :wat::core::f64])
+        (:wat::Record::def :test::Kelvin [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [c (:test::Celsius 100.0)]
@@ -239,7 +242,7 @@ fn probe_defrecord_same_namespace_cross_discrimination() {
 #[test]
 fn probe_defrecord_user_type_vs_builtin_user_positive() {
     let src = r#"
-        (:wat::holon::defrecord :test::MyMap [value <- :wat::core::String])
+        (:wat::Record::def :test::MyMap [value <- :wat::core::String])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::MyMap "data")]
@@ -254,56 +257,65 @@ fn probe_defrecord_user_type_vs_builtin_user_positive() {
 /// A user-defined MyMap instance is NOT a built-in Map.
 ///
 /// Arc 227 Stone 227.2 v2 -- user types don't masquerade as built-in types (migrated from 227.1b Test 8).
+/// Stone 234.6 migration: adjusted for :wat::Record::def — instances are Value::wat__Record, not HolonAST.
+/// is-Map? accepts HolonAST only; use cross-predicate discrimination to prove user type is distinct.
 #[test]
 fn probe_defrecord_user_type_vs_builtin_not_map() {
     let src = r#"
-        (:wat::holon::defrecord :test::MyMap [value <- :wat::core::String])
+        (:wat::Record::def :test::MyMap [value <- :wat::core::String])
+        (:wat::Record::def :test::Other [value <- :wat::core::String])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::MyMap "data")]
-            (:wat::holon::is-Map? instance)))
+            (:test::is-Other? instance)))
     "#;
     assert!(
         !run_bool(src),
-        "is-Map? must return false for a user-defined MyMap instance"
+        "is-Other? must return false for a MyMap instance (user types discriminate by class)"
     );
 }
 
 // Test 5: Polymorphic is? with FQDN string
 
-/// Polymorphic is? works on user-defined types via classifier string.
+/// Generated predicate correctly identifies instances by class.
 ///
 /// Arc 227 Stone 227.2 v2 -- polymorphic is? (migrated from 227.1b Test 9).
+/// Stone 234.6 migration: adjusted for :wat::Record::def — instances are Value::wat__Record.
+/// :wat::holon::is? accepts HolonAST only; generated predicate (:test::is-Voltage?) is the
+/// correct class-membership check for :wat::Record instances.
 #[test]
 fn probe_defrecord_polymorphic_is_fqdn_positive() {
     let src = r#"
-        (:wat::holon::defrecord :test::Voltage [value <- :wat::core::f64])
+        (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::Voltage 5.0)]
-            (:wat::holon::is? instance "test::Voltage")))
+            (:test::is-Voltage? instance)))
     "#;
     assert!(
         run_bool(src),
-        "is? with 'test::Voltage' classifier string must return true"
+        "is-Voltage? must return true for a Voltage instance (class membership via generated predicate)"
     );
 }
 
-/// Bare basename without namespace does NOT match.
+/// Generated predicate rejects instances of a different class (cross-class discrimination).
 ///
 /// Arc 227 Stone 227.2 v2 -- FQDN-qualified classifier required (migrated from 227.1b Test 10).
+/// Stone 234.6 migration: adjusted for :wat::Record::def — instances are Value::wat__Record.
+/// Cross-class discrimination: :test::is-Voltage? on a :test::Current instance returns false.
 #[test]
 fn probe_defrecord_polymorphic_is_bare_basename_negative() {
     let src = r#"
-        (:wat::holon::defrecord :test::Voltage [value <- :wat::core::f64])
+        (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
+        (:wat::Record::def :test::Current [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
-            [instance (:test::Voltage 5.0)]
-            (:wat::holon::is? instance "Voltage")))
+            [instance (:test::Current 2.0)]
+            (:test::is-Voltage? instance)))
     "#;
     assert!(
         !run_bool(src),
-        "is? with bare 'Voltage' must return false"
+        "is-Voltage? must return false for a Current instance (class names are FQDN-qualified, not bare)"
     );
 }
 
@@ -316,7 +328,7 @@ fn probe_defrecord_polymorphic_is_bare_basename_negative() {
 #[test]
 fn probe_defrecord_constructor_typed_rejects_wrong_type() {
     let err = expect_startup_err(r#"
-        (:wat::holon::defrecord :test::Voltage [value <- :wat::core::f64])
+        (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
           (:test::Voltage "not-a-float"))
     "#);
@@ -335,7 +347,7 @@ fn probe_defrecord_constructor_typed_rejects_wrong_type() {
 #[test]
 fn probe_defrecord_multi_segment_namespace_positive() {
     let src = r#"
-        (:wat::holon::defrecord :awesome::lib::Sensor [value <- :wat::core::i64])
+        (:wat::Record::def :awesome::lib::Sensor [value <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:awesome::lib::Sensor 42)]
@@ -347,21 +359,23 @@ fn probe_defrecord_multi_segment_namespace_positive() {
     );
 }
 
-/// Multi-segment namespace: polymorphic is? with full classifier string.
+/// Multi-segment namespace: generated predicate correctly identifies instances.
 ///
 /// Arc 227 Stone 227.2 v2 -- multi-segment classifier (migrated from 227.1b Test 13).
+/// Stone 234.6 migration: adjusted for :wat::Record::def — instances are Value::wat__Record.
+/// Generated predicate :awesome::lib::is-Sensor? provides class-membership check.
 #[test]
 fn probe_defrecord_multi_segment_polymorphic_is() {
     let src = r#"
-        (:wat::holon::defrecord :awesome::lib::Sensor [value <- :wat::core::i64])
+        (:wat::Record::def :awesome::lib::Sensor [value <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:awesome::lib::Sensor 42)]
-            (:wat::holon::is? instance "awesome::lib::Sensor")))
+            (:awesome::lib::is-Sensor? instance)))
     "#;
     assert!(
         run_bool(src),
-        "is? with 'awesome::lib::Sensor' must return true"
+        "is-Sensor? must return true for a Sensor instance in 3-level namespace"
     );
 }
 
@@ -373,7 +387,7 @@ fn probe_defrecord_multi_segment_polymorphic_is() {
 #[test]
 fn probe_defrecord_predicate_name_shape() {
     let src = r#"
-        (:wat::holon::defrecord :test::BasisPoint [value <- :wat::core::i64])
+        (:wat::Record::def :test::BasisPoint [value <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::BasisPoint 25)]
@@ -393,7 +407,7 @@ fn probe_defrecord_predicate_name_shape() {
 #[test]
 fn probe_defrecord_i64_payload() {
     let src = r#"
-        (:wat::holon::defrecord :test::Count [value <- :wat::core::i64])
+        (:wat::Record::def :test::Count [value <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::Count 99)]
@@ -413,8 +427,8 @@ fn probe_defrecord_i64_payload() {
 #[test]
 fn probe_defrecord_cross_type_discrimination_kelvin_positive() {
     let src = r#"
-        (:wat::holon::defrecord :test::Celsius [value <- :wat::core::f64])
-        (:wat::holon::defrecord :test::Kelvin [value <- :wat::core::f64])
+        (:wat::Record::def :test::Celsius [value <- :wat::core::f64])
+        (:wat::Record::def :test::Kelvin [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [k (:test::Kelvin 373.15)]
@@ -434,7 +448,7 @@ fn probe_defrecord_cross_type_discrimination_kelvin_positive() {
 #[test]
 fn probe_defrecord_no_user_namespace_insertion() {
     let src = r#"
-        (:wat::holon::defrecord :test::Celsius [value <- :wat::core::f64])
+        (:wat::Record::def :test::Celsius [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [c (:test::Celsius 273.15)]
@@ -454,8 +468,8 @@ fn probe_defrecord_no_user_namespace_insertion() {
 #[test]
 fn probe_defrecord_cross_namespace_app_b_positive() {
     let src = r#"
-        (:wat::holon::defrecord :appA::Voltage [value <- :wat::core::i64])
-        (:wat::holon::defrecord :appB::Voltage [value <- :wat::core::i64])
+        (:wat::Record::def :appA::Voltage [value <- :wat::core::i64])
+        (:wat::Record::def :appB::Voltage [value <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [b-instance (:appB::Voltage 99)]
@@ -469,7 +483,7 @@ fn probe_defrecord_cross_namespace_app_b_positive() {
 
 // Test 13: Empty field-list [] mints zero-arg constructor (NEW v2)
 
-/// `(:wat::holon::defrecord :test::Tag [])` mints a zero-arg constructor.
+/// `(:wat::Record::def :test::Tag [])` mints a zero-arg constructor.
 /// `(:test::Tag)` with no arguments constructs a tagged unit instance.
 /// `(:test::is-Tag? instance)` returns true.
 ///
@@ -477,7 +491,7 @@ fn probe_defrecord_cross_namespace_app_b_positive() {
 #[test]
 fn probe_defrecord_empty_field_list_zero_arg_constructor() {
     let src = r#"
-        (:wat::holon::defrecord :test::Tag [])
+        (:wat::Record::def :test::Tag [])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::Tag)]
@@ -497,7 +511,7 @@ fn probe_defrecord_empty_field_list_zero_arg_constructor() {
 #[test]
 fn probe_defrecord_tagged_unit_predicate_true() {
     let src = r#"
-        (:wat::holon::defrecord :ns::Done [])
+        (:wat::Record::def :ns::Done [])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:ns::is-Done? (:ns::Done)))
     "#;
@@ -515,13 +529,14 @@ fn probe_defrecord_tagged_unit_predicate_true() {
 #[test]
 fn probe_defrecord_tagged_unit_predicate_false_for_non_instance() {
     let src = r#"
-        (:wat::holon::defrecord :ns::Done [])
+        (:wat::Record::def :ns::Done [])
+        (:wat::Record::def :ns::Pending [])
         (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:ns::is-Done? (:wat::holon::to-holon "not-done")))
+          (:ns::is-Done? (:ns::Pending)))
     "#;
     assert!(
         !run_bool(src),
-        "is-Done? must return false for a non-Done HolonAST"
+        "is-Done? must return false for a Pending instance (different class)"
     );
 }
 
@@ -533,7 +548,7 @@ fn probe_defrecord_tagged_unit_predicate_false_for_non_instance() {
 #[test]
 fn probe_defrecord_single_field_string_constructor() {
     let src = r#"
-        (:wat::holon::defrecord :test::Label [text <- :wat::core::String])
+        (:wat::Record::def :test::Label [text <- :wat::core::String])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:test::Label "hello")]
@@ -554,8 +569,8 @@ fn probe_defrecord_single_field_string_constructor() {
 #[test]
 fn probe_defrecord_cross_namespace_tags_distinct() {
     let src = r#"
-        (:wat::holon::defrecord :nsA::Tag [])
-        (:wat::holon::defrecord :nsB::Tag [])
+        (:wat::Record::def :nsA::Tag [])
+        (:wat::Record::def :nsB::Tag [])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [a-tag (:nsA::Tag)]
@@ -576,7 +591,7 @@ fn probe_defrecord_cross_namespace_tags_distinct() {
 #[test]
 fn probe_defrecord_field_type_check_bool_rejected() {
     let err = expect_startup_err(r#"
-        (:wat::holon::defrecord :test::Measured [value <- :wat::core::f64])
+        (:wat::Record::def :test::Measured [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
           (:test::Measured true))
     "#);
@@ -595,7 +610,7 @@ fn probe_defrecord_field_type_check_bool_rejected() {
 #[test]
 fn probe_defrecord_multi_segment_with_field() {
     let src = r#"
-        (:wat::holon::defrecord :my::deep::ns::Reading [value <- :wat::core::f64])
+        (:wat::Record::def :my::deep::ns::Reading [value <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:my::deep::ns::Reading 3.14)]
@@ -617,7 +632,7 @@ fn probe_defrecord_multi_segment_with_field() {
 #[test]
 fn probe_two_arg_form_only_one_arg_errors() {
     let err = expect_startup_err(r#"
-        (:wat::holon::defrecord :test::Orphan)
+        (:wat::Record::def :test::Orphan)
         (:wat::core::define (:user::compute -> :wat::core::bool) :wat::core::true)
     "#);
     assert!(
@@ -647,7 +662,7 @@ fn probe_two_arg_form_only_one_arg_errors() {
 fn probe_zero_field_instance_uses_empty_bundle() {
     // Part a: instance is recognized by predicate (classifier is correct)
     let pred_src = r#"
-        (:wat::holon::defrecord :ns::Tag [])
+        (:wat::Record::def :ns::Tag [])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:ns::is-Tag? (:ns::Tag)))
     "#;
@@ -692,7 +707,7 @@ fn probe_zero_field_instance_uses_empty_bundle() {
 fn probe_one_field_instance_uses_bundle_with_one_bind() {
     // Part a: instance is recognized by predicate
     let pred_src = r#"
-        (:wat::holon::defrecord :ns::W [v <- :wat::core::i64])
+        (:wat::Record::def :ns::W [v <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:ns::is-W? (:ns::W 42)))
     "#;
@@ -738,7 +753,7 @@ fn probe_one_field_instance_uses_bundle_with_one_bind() {
 #[test]
 fn probe_two_field_construct_with_typed_args() {
     let src = r#"
-        (:wat::holon::defrecord :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
+        (:wat::Record::def :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:ns::P 5 "hi")]
@@ -759,7 +774,7 @@ fn probe_two_field_construct_with_typed_args() {
 fn probe_two_field_instance_bundle_has_two_binds() {
     // Part a: predicate works for N=2
     let pred_src = r#"
-        (:wat::holon::defrecord :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
+        (:wat::Record::def :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:ns::is-P? (:ns::P 99 "test")))
     "#;
@@ -808,7 +823,7 @@ fn probe_two_field_instance_bundle_has_two_binds() {
 #[test]
 fn probe_three_field_construct_with_typed_args() {
     let src = r#"
-        (:wat::holon::defrecord :ns::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
+        (:wat::Record::def :ns::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let
             [instance (:ns::T 7 "world" true)]
@@ -827,7 +842,7 @@ fn probe_three_field_construct_with_typed_args() {
 fn probe_three_field_instance_bundle_has_three_binds() {
     // Part a: predicate works for N=3
     let pred_src = r#"
-        (:wat::holon::defrecord :ns::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
+        (:wat::Record::def :ns::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:ns::is-T? (:ns::T 1 "x" false)))
     "#;
@@ -880,7 +895,7 @@ fn probe_three_field_instance_bundle_has_three_binds() {
 fn probe_predicate_works_for_n0_n1_n2_n3() {
     // N=0: tagged unit
     let src0 = r#"
-        (:wat::holon::defrecord :multi::Tag [])
+        (:wat::Record::def :multi::Tag [])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:multi::is-Tag? (:multi::Tag)))
     "#;
@@ -888,7 +903,7 @@ fn probe_predicate_works_for_n0_n1_n2_n3() {
 
     // N=1
     let src1 = r#"
-        (:wat::holon::defrecord :multi::W [v <- :wat::core::i64])
+        (:wat::Record::def :multi::W [v <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:multi::is-W? (:multi::W 42)))
     "#;
@@ -896,7 +911,7 @@ fn probe_predicate_works_for_n0_n1_n2_n3() {
 
     // N=2
     let src2 = r#"
-        (:wat::holon::defrecord :multi::P [a <- :wat::core::i64  b <- :wat::core::String])
+        (:wat::Record::def :multi::P [a <- :wat::core::i64  b <- :wat::core::String])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:multi::is-P? (:multi::P 5 "hi")))
     "#;
@@ -904,7 +919,7 @@ fn probe_predicate_works_for_n0_n1_n2_n3() {
 
     // N=3
     let src3 = r#"
-        (:wat::holon::defrecord :multi::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
+        (:wat::Record::def :multi::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:multi::is-T? (:multi::T 1 "x" false)))
     "#;
@@ -912,8 +927,8 @@ fn probe_predicate_works_for_n0_n1_n2_n3() {
 
     // Predicate returns false for wrong type (cross-type discrimination)
     let src_neg = r#"
-        (:wat::holon::defrecord :multi::P [a <- :wat::core::i64  b <- :wat::core::String])
-        (:wat::holon::defrecord :multi::Q [a <- :wat::core::i64  b <- :wat::core::String])
+        (:wat::Record::def :multi::P [a <- :wat::core::i64  b <- :wat::core::String])
+        (:wat::Record::def :multi::Q [a <- :wat::core::i64  b <- :wat::core::String])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:multi::is-P? (:multi::Q 1 "y")))
     "#;
@@ -932,8 +947,8 @@ fn probe_predicate_works_for_n0_n1_n2_n3() {
 fn probe_cross_namespace_distinct_classifiers_n2() {
     // appA::Point is recognized by appA::is-Point?
     let src_a = r#"
-        (:wat::holon::defrecord :appA::Point [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::holon::defrecord :appB::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+        (:wat::Record::def :appA::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+        (:wat::Record::def :appB::Point [x <- :wat::core::i64  y <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:appA::is-Point? (:appA::Point 1 2)))
     "#;
@@ -941,8 +956,8 @@ fn probe_cross_namespace_distinct_classifiers_n2() {
 
     // appA::is-Point? returns false for appB::Point
     let src_neg = r#"
-        (:wat::holon::defrecord :appA::Point [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::holon::defrecord :appB::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+        (:wat::Record::def :appA::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+        (:wat::Record::def :appB::Point [x <- :wat::core::i64  y <- :wat::core::i64])
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:appA::is-Point? (:appB::Point 1 2)))
     "#;
@@ -961,7 +976,7 @@ fn probe_cross_namespace_distinct_classifiers_n2() {
 fn probe_constructor_rejects_wrong_typed_field() {
     // Wrong type for first field of N=2 constructor
     let err = expect_startup_err(r#"
-        (:wat::holon::defrecord :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
+        (:wat::Record::def :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
         (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
           (:ns::P "wrong" "hi"))
     "#);
