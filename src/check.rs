@@ -995,6 +995,226 @@ impl fmt::Display for CheckErrors {
 
 impl std::error::Error for CheckErrors {}
 
+/// Result of a type-check / inference operation.
+///
+/// # Why this type exists — the failure mode being eliminated
+///
+/// Prior to arc 236, inference helpers returned `Option<TypeExpr>` and
+/// accumulated errors via `&mut Vec<CheckError>`. The combination permits
+/// a fifth state that has no honest name: `(None, [])` — no type produced
+/// AND no error reported. Stone 234.3b (MalformedForm catch-all) and Stone
+/// 234.3c (over-permissive fall-through) both bit this class: a code path
+/// silently returned `None` without pushing any error, giving callers no
+/// signal that inference had failed. The type-checker appeared to succeed
+/// while producing an `Unknown` type — a silent lie.
+///
+/// `CheckResult<T>` makes silent failure structurally impossible from
+/// outside this module. Every public constructor either carries a value OR
+/// carries at least one error — never neither.
+///
+/// # Four valid states (by construction)
+///
+/// 1. `ok(t)` — type `t` produced, no errors. Inference succeeded fully.
+/// 2. `partial(t, e)` — type `t` produced AND error `e` logged. Inference
+///    succeeded with a caveat — downstream sees both the type and the
+///    diagnostic. Use when a sub-expression is recoverable but the overall
+///    form carries a warning or a migration hint.
+/// 3. `err(e)` — no type, single error. The common failure case.
+/// 4. `errs(vec![...])` — no type, multiple errors. Bulk accumulation
+///    when a single form triggers multiple independent diagnostics.
+///
+/// # Why there is NO fifth state
+///
+/// The `(None, [])` state has no constructor. `ok(t)` requires a value;
+/// `err(e)` requires an error; `errs(v)` asserts `v` is non-empty (debug);
+/// `partial(t, e)` and `partial_with(t, v)` both require both. From outside
+/// this module, the silent-failure state is unreachable by construction.
+///
+/// # Migrating legacy `Option<T> + &mut Vec<CheckError>` patterns
+///
+/// Stone 236.1+ migrates existing call sites incrementally. The
+/// `drain_errors_into` combinator bridges old and new:
+///
+/// ```text
+/// // Legacy:
+/// fn infer_something(..., errors: &mut Vec<CheckError>) -> Option<TypeExpr> { ... }
+///
+/// // Incremental bridge (236.1 pattern):
+/// fn infer_something(..., errors: &mut Vec<CheckError>) -> Option<TypeExpr> {
+///     infer_something_inner(...).drain_errors_into(errors)
+/// }
+///
+/// fn infer_something_inner(...) -> CheckResult<TypeExpr> { ... }
+/// ```
+///
+/// Once all callers of a helper are migrated, the `drain_errors_into` bridge
+/// drops and the `&mut Vec<CheckError>` parameter retires.
+pub struct CheckResult<T> {
+    value: Option<T>,
+    errors: Vec<CheckError>,
+}
+
+impl<T> CheckResult<T> {
+    /// Produce a successful result: type `value` inferred, no errors.
+    pub fn ok(value: T) -> Self {
+        Self {
+            value: Some(value),
+            errors: Vec::new(),
+        }
+    }
+
+    /// Produce a failure result: no type, single error `error`.
+    pub fn err(error: CheckError) -> Self {
+        Self {
+            value: None,
+            errors: vec![error],
+        }
+    }
+
+    /// Produce a failure result: no type, multiple errors.
+    ///
+    /// Panics in debug builds if `errors` is empty — the silent-failure
+    /// state is structurally forbidden; use `CheckResult::err` for
+    /// single-error cases.
+    pub fn errs(errors: Vec<CheckError>) -> Self {
+        debug_assert!(
+            !errors.is_empty(),
+            "CheckResult::errs requires at least one error; \
+             use CheckResult::err for single errors"
+        );
+        Self { value: None, errors }
+    }
+
+    /// Produce a partial result: type `value` inferred AND error `error` logged.
+    ///
+    /// Use when inference succeeds but a diagnostic must accompany the result
+    /// — e.g., a migration hint or a recoverable structural warning.
+    pub fn partial(value: T, error: CheckError) -> Self {
+        Self {
+            value: Some(value),
+            errors: vec![error],
+        }
+    }
+
+    /// Produce a partial result with multiple errors: type `value` inferred AND
+    /// errors logged.
+    ///
+    /// Panics in debug builds if `errors` is empty — use `CheckResult::partial`
+    /// for single-error partial cases.
+    pub fn partial_with(value: T, errors: Vec<CheckError>) -> Self {
+        debug_assert!(
+            !errors.is_empty(),
+            "CheckResult::partial_with requires at least one error; \
+             use CheckResult::partial for single-error partial cases"
+        );
+        Self {
+            value: Some(value),
+            errors,
+        }
+    }
+
+    // ── Accessors ─────────────────────────────────────────────────────────
+
+    /// Borrow the inferred value, if any.
+    pub fn value(&self) -> Option<&T> {
+        self.value.as_ref()
+    }
+
+    /// Borrow the accumulated errors as a slice.
+    pub fn errors(&self) -> &[CheckError] {
+        &self.errors
+    }
+
+    /// Return `true` if at least one error is present (partial or full failure).
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    /// Return `true` only when a value is present AND no errors accumulated.
+    ///
+    /// `partial` results are NOT ok — they carry both a value and diagnostics.
+    pub fn is_ok(&self) -> bool {
+        self.value.is_some() && self.errors.is_empty()
+    }
+
+    /// Consume self, yielding `(Option<T>, Vec<CheckError>)`.
+    ///
+    /// Owned decomposition for call sites that need to route value and errors
+    /// independently (e.g., inserting into a type table while pushing errors
+    /// into an accumulator).
+    pub fn into_parts(self) -> (Option<T>, Vec<CheckError>) {
+        (self.value, self.errors)
+    }
+
+    // ── Combinators ───────────────────────────────────────────────────────
+
+    /// Apply `f` to the value if present; carry all errors through unchanged.
+    ///
+    /// An `err` result maps to `CheckResult::err` (same errors, no value).
+    /// A `partial` result maps to a new `partial` (transformed value, same errors).
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> CheckResult<U> {
+        CheckResult {
+            value: self.value.map(f),
+            errors: self.errors,
+        }
+    }
+
+    /// Chain: if a value is present, pass it to `f` and merge errors.
+    ///
+    /// - `ok → f(ok)` — errors from `f` propagate; no prior errors to merge.
+    /// - `partial(t, e) → f(t)` — prior errors merged into `f`'s result.
+    /// - `err → short-circuit` — `f` is not called; prior errors carried.
+    ///
+    /// Preserves the no-silent-failure invariant: short-circuiting on `err`
+    /// never produces `(None, [])` because the incoming errors are non-empty.
+    pub fn and_then<U>(self, f: impl FnOnce(T) -> CheckResult<U>) -> CheckResult<U> {
+        match self.value {
+            Some(v) => {
+                let mut next = f(v);
+                let mut merged = self.errors;
+                merged.append(&mut next.errors);
+                CheckResult {
+                    value: next.value,
+                    errors: merged,
+                }
+            }
+            None => CheckResult {
+                value: None,
+                errors: self.errors,
+            },
+        }
+    }
+
+    /// Merge errors from `other` into `self`; `self`'s value is unchanged.
+    ///
+    /// Useful for accumulating errors from independent sub-expressions while
+    /// keeping the primary type result. `other`'s value (if any) is discarded.
+    pub fn merge_errors_from<U>(mut self, mut other: CheckResult<U>) -> Self {
+        self.errors.append(&mut other.errors);
+        self
+    }
+
+    /// MIGRATION HELPER (arc 236.1+): drain errors into a legacy sink; return
+    /// the value.
+    ///
+    /// Lets call sites still holding `&mut Vec<CheckError>` consume new
+    /// `CheckResult`-returning helpers incrementally without rewriting every
+    /// caller at once. The bridge pattern:
+    ///
+    /// ```text
+    /// fn infer_legacy(..., errors: &mut Vec<CheckError>) -> Option<T> {
+    ///     infer_new(...).drain_errors_into(errors)
+    /// }
+    /// ```
+    ///
+    /// Once all callers are migrated, the `&mut Vec<CheckError>` parameter and
+    /// this bridge retire together.
+    pub fn drain_errors_into(mut self, sink: &mut Vec<CheckError>) -> Option<T> {
+        sink.append(&mut self.errors);
+        self.value
+    }
+}
+
 impl CheckError {
     /// Arc 115 slice 1 — produce a structured [`Diagnostic`] for this
     /// error variant. Renderers (text via Display, EDN, JSON) consume
