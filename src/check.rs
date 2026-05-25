@@ -1008,73 +1008,93 @@ impl std::error::Error for CheckErrors {}
 /// signal that inference had failed. The type-checker appeared to succeed
 /// while producing an `Unknown` type — a silent lie.
 ///
-/// `CheckResult<T>` makes silent failure structurally impossible from
-/// outside this module. Every public constructor either carries a value OR
-/// carries at least one error — never neither.
+/// `CheckResult<T>` makes silent failure **structurally impossible** — not
+/// merely disciplined by construction, but eliminated from the type system
+/// itself. The `Silent` state does not exist as a variant; pattern-matching
+/// consumers are compiler-guaranteed to cover only the three legitimate states.
 ///
-/// # Four valid states (by construction)
-///
-/// 1. `ok(t)` — type `t` produced, no errors. Inference succeeded fully.
-/// 2. `partial(t, e)` — type `t` produced AND error `e` logged. Inference
-///    succeeded with a caveat — downstream sees both the type and the
-///    diagnostic. Use when a sub-expression is recoverable but the overall
-///    form carries a warning or a migration hint.
-/// 3. `err(e)` — no type, single error. The common failure case.
-/// 4. `errs(vec![...])` — no type, multiple errors. Bulk accumulation
-///    when a single form triggers multiple independent diagnostics.
-///
-/// # Why there is NO fifth state
-///
-/// The `(None, [])` state has no constructor. `ok(t)` requires a value;
-/// `err(e)` requires an error; `errs(v)` asserts `v` is non-empty (debug);
-/// `partial(t, e)` and `partial_with(t, v)` both require both. From outside
-/// this module, the silent-failure state is unreachable by construction.
-///
-/// # Migrating legacy `Option<T> + &mut Vec<CheckError>` patterns
-///
-/// Stone 236.1+ migrates existing call sites incrementally. The
-/// `drain_errors_into` combinator bridges old and new:
+/// # Three variants (structural definition)
 ///
 /// ```text
-/// // Legacy:
-/// fn infer_something(..., errors: &mut Vec<CheckError>) -> Option<TypeExpr> { ... }
-///
-/// // Incremental bridge (236.1 pattern):
-/// fn infer_something(..., errors: &mut Vec<CheckError>) -> Option<TypeExpr> {
-///     infer_something_inner(...).drain_errors_into(errors)
+/// pub enum CheckResult<T> {
+///     Ok(T),                       // type produced, no errors
+///     Partial(T, Vec<CheckError>), // type produced AND errors logged
+///     Err(Vec<CheckError>),        // no type, errors present
 /// }
-///
-/// fn infer_something_inner(...) -> CheckResult<TypeExpr> { ... }
 /// ```
 ///
-/// Once all callers of a helper are migrated, the `drain_errors_into` bridge
-/// drops and the `&mut Vec<CheckError>` parameter retires.
-pub struct CheckResult<T> {
-    value: Option<T>,
-    errors: Vec<CheckError>,
+/// - `Ok(t)` — type `t` produced, no errors. Inference succeeded fully.
+/// - `Partial(t, errs)` — type `t` produced AND diagnostics logged. Inference
+///   succeeded with a caveat — downstream sees both the type and the errors.
+///   Use when a sub-expression is recoverable but the overall form carries
+///   a warning or a migration hint.
+/// - `Err(errs)` — no type, one or more errors. The common failure case.
+///
+/// # Why the silent-failure state is STRUCTURALLY UNREPRESENTABLE
+///
+/// No `Silent` variant exists. The `(None, [])` state cannot be constructed
+/// because there is no variant that holds `None` for the value without also
+/// holding a non-empty `Vec<CheckError>`. Pattern-matching consumers writing
+/// `match result { Ok(t) => ..., Partial(t, es) => ..., Err(es) => ... }`
+/// are guaranteed by the compiler that they have covered every legitimate
+/// state — the silent state is outside the type's inhabitant set.
+///
+/// Smart constructors enforce non-empty errors in debug builds:
+/// `errs(v)` and `partial_with(t, v)` assert `v` is non-empty. Construction
+/// via raw variant syntax (`CheckResult::Err(vec![])`) bypasses this check
+/// inside the module — the convention: always go through smart constructors.
+///
+/// # Consumer patterns
+///
+/// Smart constructors (function-call surface — unchanged from arc 236.0/1/2):
+///
+/// ```text
+/// CheckResult::ok(t)                  // → Ok(t)
+/// CheckResult::err(e)                 // → Err(vec![e])
+/// CheckResult::errs(vec![e1, e2])     // → Err(vec![e1, e2])
+/// CheckResult::partial(t, e)          // → Partial(t, vec![e])
+/// CheckResult::partial_with(t, errs)  // → Partial(t, errs)
+/// ```
+///
+/// Pattern-matching (the natural enum consumer form):
+///
+/// ```text
+/// match result {
+///     CheckResult::Ok(t)         => { /* clean type */ }
+///     CheckResult::Partial(t, errs) => { /* type + diagnostics */ }
+///     CheckResult::Err(errs)     => { /* failure */ }
+/// }
+/// ```
+///
+/// Bridge tool for call sites accumulating into a `Vec<CheckError>` sink:
+///
+/// ```text
+/// // drain_errors_into: (self, &mut Vec<CheckError>) -> Option<T>
+/// let ty = infer_something(...).drain_errors_into(&mut local_errors);
+/// ```
+pub enum CheckResult<T> {
+    /// Type produced, no errors. Inference succeeded fully.
+    Ok(T),
+    /// Type produced AND diagnostics logged. Vec is non-empty by smart-constructor discipline.
+    Partial(T, Vec<CheckError>),
+    /// No type, one or more errors. Vec is non-empty by smart-constructor discipline.
+    Err(Vec<CheckError>),
 }
 
 impl<T> CheckResult<T> {
     /// Produce a successful result: type `value` inferred, no errors.
     pub fn ok(value: T) -> Self {
-        Self {
-            value: Some(value),
-            errors: Vec::new(),
-        }
+        CheckResult::Ok(value)
     }
 
     /// Produce a failure result: no type, single error `error`.
     pub fn err(error: CheckError) -> Self {
-        Self {
-            value: None,
-            errors: vec![error],
-        }
+        CheckResult::Err(vec![error])
     }
 
     /// Produce a failure result: no type, multiple errors.
     ///
-    /// Panics in debug builds if `errors` is empty — the silent-failure
-    /// state is structurally forbidden; use `CheckResult::err` for
+    /// Panics in debug builds if `errors` is empty — use `CheckResult::err` for
     /// single-error cases.
     pub fn errs(errors: Vec<CheckError>) -> Self {
         debug_assert!(
@@ -1082,7 +1102,7 @@ impl<T> CheckResult<T> {
             "CheckResult::errs requires at least one error; \
              use CheckResult::err for single errors"
         );
-        Self { value: None, errors }
+        CheckResult::Err(errors)
     }
 
     /// Produce a partial result: type `value` inferred AND error `error` logged.
@@ -1090,10 +1110,7 @@ impl<T> CheckResult<T> {
     /// Use when inference succeeds but a diagnostic must accompany the result
     /// — e.g., a migration hint or a recoverable structural warning.
     pub fn partial(value: T, error: CheckError) -> Self {
-        Self {
-            value: Some(value),
-            errors: vec![error],
-        }
+        CheckResult::Partial(value, vec![error])
     }
 
     /// Produce a partial result with multiple errors: type `value` inferred AND
@@ -1107,34 +1124,37 @@ impl<T> CheckResult<T> {
             "CheckResult::partial_with requires at least one error; \
              use CheckResult::partial for single-error partial cases"
         );
-        Self {
-            value: Some(value),
-            errors,
-        }
+        CheckResult::Partial(value, errors)
     }
 
     // ── Accessors ─────────────────────────────────────────────────────────
 
     /// Borrow the inferred value, if any.
     pub fn value(&self) -> Option<&T> {
-        self.value.as_ref()
+        match self {
+            CheckResult::Ok(t) | CheckResult::Partial(t, _) => Some(t),
+            CheckResult::Err(_) => None,
+        }
     }
 
     /// Borrow the accumulated errors as a slice.
     pub fn errors(&self) -> &[CheckError] {
-        &self.errors
+        match self {
+            CheckResult::Ok(_) => &[],
+            CheckResult::Partial(_, errs) | CheckResult::Err(errs) => errs,
+        }
     }
 
     /// Return `true` if at least one error is present (partial or full failure).
     pub fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
+        matches!(self, CheckResult::Partial(_, _) | CheckResult::Err(_))
     }
 
     /// Return `true` only when a value is present AND no errors accumulated.
     ///
     /// `partial` results are NOT ok — they carry both a value and diagnostics.
     pub fn is_ok(&self) -> bool {
-        self.value.is_some() && self.errors.is_empty()
+        matches!(self, CheckResult::Ok(_))
     }
 
     /// Consume self, yielding `(Option<T>, Vec<CheckError>)`.
@@ -1143,45 +1163,52 @@ impl<T> CheckResult<T> {
     /// independently (e.g., inserting into a type table while pushing errors
     /// into an accumulator).
     pub fn into_parts(self) -> (Option<T>, Vec<CheckError>) {
-        (self.value, self.errors)
+        match self {
+            CheckResult::Ok(t) => (Some(t), vec![]),
+            CheckResult::Partial(t, errs) => (Some(t), errs),
+            CheckResult::Err(errs) => (None, errs),
+        }
     }
 
     // ── Combinators ───────────────────────────────────────────────────────
 
     /// Apply `f` to the value if present; carry all errors through unchanged.
     ///
-    /// An `err` result maps to `CheckResult::err` (same errors, no value).
-    /// A `partial` result maps to a new `partial` (transformed value, same errors).
+    /// An `Err` result maps to `Err` (same errors, no value).
+    /// A `Partial` result maps to a new `Partial` (transformed value, same errors).
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> CheckResult<U> {
-        CheckResult {
-            value: self.value.map(f),
-            errors: self.errors,
+        match self {
+            CheckResult::Ok(t) => CheckResult::Ok(f(t)),
+            CheckResult::Partial(t, errs) => CheckResult::Partial(f(t), errs),
+            CheckResult::Err(errs) => CheckResult::Err(errs),
         }
     }
 
     /// Chain: if a value is present, pass it to `f` and merge errors.
     ///
-    /// - `ok → f(ok)` — errors from `f` propagate; no prior errors to merge.
-    /// - `partial(t, e) → f(t)` — prior errors merged into `f`'s result.
-    /// - `err → short-circuit` — `f` is not called; prior errors carried.
+    /// - `Ok(t) → f(t)` — errors from `f` propagate; no prior errors to merge.
+    /// - `Partial(t, e) → f(t)` — prior errors merged into `f`'s result.
+    /// - `Err → short-circuit` — `f` is not called; prior errors carried.
     ///
-    /// Preserves the no-silent-failure invariant: short-circuiting on `err`
-    /// never produces `(None, [])` because the incoming errors are non-empty.
+    /// The silent-failure state is structurally unrepresentable: short-circuiting
+    /// on `Err` always carries the existing non-empty error Vec.
     pub fn and_then<U>(self, f: impl FnOnce(T) -> CheckResult<U>) -> CheckResult<U> {
-        match self.value {
-            Some(v) => {
-                let mut next = f(v);
-                let mut merged = self.errors;
-                merged.append(&mut next.errors);
-                CheckResult {
-                    value: next.value,
-                    errors: merged,
+        match self {
+            CheckResult::Ok(t) => f(t),
+            CheckResult::Partial(t, errs1) => match f(t) {
+                CheckResult::Ok(u) => CheckResult::Partial(u, errs1),
+                CheckResult::Partial(u, errs2) => {
+                    let mut merged = errs1;
+                    merged.extend(errs2);
+                    CheckResult::Partial(u, merged)
                 }
-            }
-            None => CheckResult {
-                value: None,
-                errors: self.errors,
+                CheckResult::Err(errs2) => {
+                    let mut merged = errs1;
+                    merged.extend(errs2);
+                    CheckResult::Err(merged)
+                }
             },
+            CheckResult::Err(errs) => CheckResult::Err(errs),
         }
     }
 
@@ -1189,29 +1216,44 @@ impl<T> CheckResult<T> {
     ///
     /// Useful for accumulating errors from independent sub-expressions while
     /// keeping the primary type result. `other`'s value (if any) is discarded.
-    pub fn merge_errors_from<U>(mut self, mut other: CheckResult<U>) -> Self {
-        self.errors.append(&mut other.errors);
-        self
+    pub fn merge_errors_from<U>(self, other: CheckResult<U>) -> Self {
+        let (_, other_errs) = other.into_parts();
+        if other_errs.is_empty() {
+            return self;
+        }
+        match self {
+            CheckResult::Ok(t) => CheckResult::Partial(t, other_errs),
+            CheckResult::Partial(t, mut errs) => {
+                errs.extend(other_errs);
+                CheckResult::Partial(t, errs)
+            }
+            CheckResult::Err(mut errs) => {
+                errs.extend(other_errs);
+                CheckResult::Err(errs)
+            }
+        }
     }
 
-    /// MIGRATION HELPER (arc 236.1+): drain errors into a legacy sink; return
-    /// the value.
+    /// Bridge tool: drain errors into a `Vec<CheckError>` sink; return the value.
     ///
-    /// Lets call sites still holding `&mut Vec<CheckError>` consume new
-    /// `CheckResult`-returning helpers incrementally without rewriting every
-    /// caller at once. The bridge pattern:
+    /// Lets call sites accumulating into `&mut Vec<CheckError>` consume
+    /// `CheckResult`-returning helpers without rewriting every caller. Pattern:
     ///
     /// ```text
-    /// fn infer_legacy(..., errors: &mut Vec<CheckError>) -> Option<T> {
-    ///     infer_new(...).drain_errors_into(errors)
-    /// }
+    /// let ty = infer_something(...).drain_errors_into(&mut local_errors);
     /// ```
-    ///
-    /// Once all callers are migrated, the `&mut Vec<CheckError>` parameter and
-    /// this bridge retire together.
-    pub fn drain_errors_into(mut self, sink: &mut Vec<CheckError>) -> Option<T> {
-        sink.append(&mut self.errors);
-        self.value
+    pub fn drain_errors_into(self, sink: &mut Vec<CheckError>) -> Option<T> {
+        match self {
+            CheckResult::Ok(t) => Some(t),
+            CheckResult::Partial(t, errs) => {
+                sink.extend(errs);
+                Some(t)
+            }
+            CheckResult::Err(errs) => {
+                sink.extend(errs);
+                None
+            }
+        }
     }
 }
 

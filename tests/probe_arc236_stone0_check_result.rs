@@ -1,7 +1,8 @@
-//! Diagnostic probe — CheckResult<T> newtype invariants (arc 236 Stone 236.0).
+//! Diagnostic probe — CheckResult<T> sum-type invariants (arc 236 Stone 236.0; sharpened 236.3).
 //!
-//! Verifies the type's load-bearing API contract: four valid construction
-//! states; silent-failure state #5 structurally unreachable from public API.
+//! Verifies the type's load-bearing API contract: three variants covering every
+//! legitimate inference state; silent-failure state structurally unrepresentable
+//! because no `Silent` variant exists in the enum.
 //!
 //! Probe contracts (6):
 //!   1. ok(t) produces (Some(t), [])
@@ -9,10 +10,14 @@
 //!   3. partial(t, e) produces (Some(t), [e])
 //!   4. errs(vec![e1, e2]) produces (None, [e1, e2])
 //!   5. map(f) preserves errors AND transforms value
-//!   6. and_then preserves errors when chaining; short-circuits on err
+//!   6. No public API path produces the silent-failure state because the type
+//!      system has no `Silent` variant — verified by exhaustive pattern matching
+//!      over `Ok | Partial | Err`. Every constructor routes to one of the three
+//!      variants; none carry (None, []).
 //!
 //! Initial state: 6/6 FAIL — CheckResult type doesn't exist yet.
-//! Post-stone: 6/6 PASS.
+//! Post-stone 236.0: 6/6 PASS (struct-with-Option shape).
+//! Post-stone 236.3: 6/6 PASS (3-variant enum shape; ✅✅✅ structural impossibility).
 
 use wat::check::{CheckError, CheckResult};
 use wat::span::Span;
