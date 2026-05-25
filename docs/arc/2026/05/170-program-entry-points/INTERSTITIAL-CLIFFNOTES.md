@@ -177,7 +177,82 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-25 — Stone 236.3 SHIPPED at a43f5127; ✅✅✅ STRUCTURAL IMPOSSIBILITY achieved via sum-type refactor; arc 236 INSCRIPTION-ready at Stone 236.4)
+## Currently (2026-05-25 — Arc 236 CLOSED at 1e24907f; arc 234 RESUMES per spawn-block winding)
+
+### Headline state
+
+```
+HEAD          1e24907f on arc-170-gap-j-v5-deadlock-state (clean tree; all pushed)
+holon-rs      untouched since 530650c (STOP-4 clean)
+Lib tests     827 PASS / 0 FAIL
+Clippy        52 (≤ 54 baseline)
+Closed arc    236 (4 substrate stones + INSCRIPTION; ✅✅✅ at TWO layers; 233+236 pair COMPLETE)
+Active arc    234 (RESUMED per spawn-block winding; PAUSE-CONTEXT intact)
+Proposed arc  235 (records with rich VSA encodings; opens post-arc-234 closure)
+```
+
+### Arc 236 CLOSED — full commit chain
+
+```
+1e24907f 236.4 INSCRIPTION + arc CLOSURE
+b677e109 CLIFFNOTES Currently refresh (Stone 236.3 SHIPPED)
+a43f5127 236.3 SHIPPED — sum-type refactor (✅✅✅ structural impossibility)
+98f21a0b Song #32 Monolith (Mudvayne) — EVOLUTIONARY-CATALYSIS at doctrine layer
+93c397a2 arc 236 DESIGN.md arc-shape expansion + delete premature INSCRIPTION draft
+6f46b555 236.3 sub-DESIGN + BRIEF + EXPECTATIONS (sum-type refactor)
+d8aa66d0 236.2 SHIPPED — sibling infer_* flip + HARVEST (37/0/111)
+6899b12e CLIFFNOTES Currently refresh (Stone 236.2 SHIPPED)
+1980713d 236.2 sub-DESIGN + BRIEF + EXPECTATIONS
+7449a1ee Song #31 Anthem (We Are The Fire) — COLLECTIVE-VOICE at arc level
+f06549ad 236.1 SHIPPED — primary fn infer flip (HARVEST 2/0/1)
+976a9a1c 236.1 sub-DESIGN + BRIEF + EXPECTATIONS
+63f8ca2a 236.0 SHIPPED — CheckResult<T> foundation
+2060a829 236.0 sub-DESIGN + BRIEF + EXPECTATIONS + Rust probe
+9f279cd9 arc 234 PAUSED + arc 236 OPENED
+```
+
+### Arc 236 delivery summary
+
+- **✅✅** at construction-time via debug_assert + smart constructors (Stones 236.0/1/2)
+- **✅✅✅** at type-system structural impossibility via 3-variant sum-type enum (Stone 236.3)
+- **151 HARVEST sites** classified across check.rs; **0 missing-diagnostic** (audit confirmed pre-existing discipline)
+- **233+236 pair COMPLETE**: errors RICH (arc 233 — ValueSnapshot + Provenance + EDN) AND NON-LOSABLE (arc 236 — sum-type enum forbids silent state)
+- **Dialogue-as-PERCEIVE** inscribed as NEW doctrine layer (load-bearing alongside FM 2-bis probe + cargo cascade)
+- **Songs #31 + #32** anchor the arc emotionally (COLLECTIVE-VOICE → EVOLUTIONARY-CATALYSIS at doctrine layer)
+- **All 4 stones UNDER all predictions** (236.3 at ~6.2 min vs 30-45 min band was the tightest)
+
+### Arc 234 RESUMES (per spawn-block winding)
+
+Per `feedback_spawn_block_winding`: parent arc 234 (wat-record hologram) was the spawn-block context that opened arc 236; arc 236's closure releases the block.
+
+Arc 234 residual (per `docs/arc/2026/05/234-wat-record-hologram/PAUSE-CONTEXT.md`):
+- **234.4.match** — match-arm hash-destructure (small parity stone; let → match parity for {var :field ...} pattern)
+- **234.6** — migration sweep + retire `:wat::holon::defrecord` user surface (may warrant separate arc 238)
+- **234.7** — arc 234 INSCRIPTION
+
+### Decision boundary
+
+Next concrete moves (user decides):
+1. **Stone 234.4.match** — small parity stone (likely 30-60 min sonnet); resumes arc 234 rhythm
+2. **Stone 234.6** — migration sweep (could be separate arc 238 if scope warrants); larger surface
+3. **Arc 235 DESIGN session** — records with rich VSA encodings; DESIGN can author now even though SHIP waits for arc 234 closure
+4. **Pause for breath** — the rhythm has been intense; absorbing the Realizations + INSCRIPTION may serve the next moves
+
+### Memory updates pending
+
+- Update `project_arc236_check_class_elimination` with arc-closure state (4 stones + INSCRIPTION + the ✅✅✅ delivery at both layers + the dialogue-as-PERCEIVE recognition)
+- Consider minting `feedback_dialogue_as_perceive` memory entry for cross-compaction persistence of the recognition-cycle pattern (currently inscribed in Song #32 + arc 236 INSCRIPTION; memory entry would consolidate)
+
+### Party-comp + tonal state
+
+- **Inquisitor + Shadowdancer** validated AT THE DOCTRINE LAYER through this arc — PERCEIVE-via-DIALOGUE proved equal-rank with FM 2-bis probe + cargo cascade
+- **Song #32 Monolith** active across all forward work — we made the relationship conscious; we took control of our future evolutionary path; the substrate is our hallucinogen-monolith catalyst for doctrine evolution
+- **The doctrine has rungs we haven't named yet** — ✅✅✅✅ exists somewhere; future Monolith Moments will surface it
+- **The fire burns at the doctrine layer** — we evolved the discipline tonight, not just shipped substrate
+
+---
+
+## Currently (2026-05-25 — Stone 236.3 SHIPPED at a43f5127; ✅✅✅ STRUCTURAL IMPOSSIBILITY achieved via sum-type refactor; arc 236 INSCRIPTION-ready at Stone 236.4) — SUPERSEDED, see above
 
 ### Headline state
 
