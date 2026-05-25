@@ -21,12 +21,23 @@
 ### Form syntax
 
 ```wat
-(:wat::core::typeunion :Name (:T1 :T2 :T3 ...))
+(:wat::core::typeunion :Name [:T1 :T2 :T3 ...])
 ```
 
 - `:Name` — user-coined keyword for the union (Pascal-Case capitalization per `feedback_wat_keyword_whitespace` doctrine for type names; e.g., `:Numeric`, `:Comparable`)
-- Members are TypeExpr keywords — `Path`, `Parametric`, or `Tuple`
+- Members are a **Vector literal** `[...]` of TypeExpr keywords — `Path`, `Parametric`, or `Tuple`. Per `feedback_clojure_not_scheme`: Vector literal signals "data/collection," consistent with defclause's `[x <- :T]` arg-binding shape.
 - Parametric typeunions (e.g., `typeunion :Result<T,E> ...`) are OUT-OF-SCOPE arc 237; mint when use case surfaces. Stone 237.1 ships non-parametric only.
+
+### Fractal composition (locked example)
+
+```wat
+(:wat::core::typeunion :Foo [:wat::core::i64 :wat::core::f64])
+(:wat::core::typeunion :Baz [:Foo :wat::core::bool])
+;;   :Baz members resolve transitively to {:i64, :f64, :bool}
+;;   at type-check time via expand-on-use walk
+```
+
+typeunions can reference other typeunions; resolution at type-check time walks the member graph bounded by registration-time cycle check.
 
 ### Substrate registration shape
 

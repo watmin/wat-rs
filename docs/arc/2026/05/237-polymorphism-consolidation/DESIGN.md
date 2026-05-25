@@ -61,7 +61,11 @@ NOT SUPPORTED (Path C from 2026-05-25 dialogue). The arg-binding contract from a
 
 ```wat
 ;; Declaration (type-level only; no runtime artifact)
-(:wat::core::typeunion :MyKind (:wat::core::T1 :wat::core::T2 :wat::core::T3))
+;; Members are a Vector literal — Clojure-style per feedback_clojure_not_scheme
+(:wat::core::typeunion :MyKind [:wat::core::T1 :wat::core::T2 :wat::core::T3])
+
+;; Fractal — typeunions can contain other typeunions (cycle-checked at registration)
+(:wat::core::typeunion :BiggerKind [:MyKind :wat::core::bool])
 
 ;; Use in any type position (defclause args, typealias body, fn signature, etc.)
 (:wat::core::defclause :my::op
@@ -175,7 +179,7 @@ defclause v1 ships with concrete types per clause. No parametric-T. If parametri
        - check.rs + runtime.rs Dispatch-routing code paths exercised UNCHANGED until 237.8
 
 237.7  MIGRATION: arithmetic special-case → defclauses + :Numeric typeunion
-       - mint :Numeric = (typeunion :wat::core::Numeric (:wat::core::i64 :wat::core::f64))
+       - mint :Numeric = (typeunion :wat::core::Numeric [:wat::core::i64 :wat::core::f64])
        - migrate :wat::core::+,-,*,/ to defclauses with typeunion-typed variadic rest
        - subsume per-Type variadic wrappers (:wat::core::i64::+, :wat::core::f64::+, etc.) — they become defclauses too OR retire as redundant with the polymorphic form
        - LOAD-BEARING acceptance test: (:wat::core::+ 0 1.5 2 3.14 5) => 10.64 :: :f64
