@@ -192,7 +192,7 @@ The session is mid-arc-237 (polymorphism consolidation) with a **major design de
 ### Headline state
 
 ```
-HEAD          69cd03af on arc-170-gap-j-v5-deadlock-state (clean; all pushed)
+HEAD          branch arc-170-gap-j-v5-deadlock-state — verify HEAD/tree live with `git log -1` + `git status` (no pinned SHA; it stales each commit)
 holon-rs      untouched since 530650c (STOP-4 clean)
 Lib tests     827 PASS / 0 FAIL (held across 4 arc-237 stones)
 Clippy        54 (NOT a concern per user — arc 109 closure sweeps; do not optimize mid-arc)
