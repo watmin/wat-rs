@@ -181,7 +181,96 @@ One-sentence definition: *"a typed Lisp on Rust, same family as Ruby-on-C and Cl
 
 ---
 
-## Currently (2026-05-25 night-late — arc 237 foundation SHIPPED (2 of 9 stones); Stone 237.3 IN FLIGHT; doctrine-departure proven; Song #35 inscribed)
+## Currently (2026-05-25 night-late-LATEST — arc 237: 4 of 9 stones SHIPPED; THE MIXED-ARITHMETIC DELETION decision LOCKED; two design questions await verdict; compaction-prep)
+
+### READ FIRST post-compaction
+
+The session is mid-arc-237 (polymorphism consolidation) with a **major design decision just locked** and **two open questions awaiting the user's verdict**. Do NOT resume substrate work until ①② below are verdicted — they reshape the remaining stone plan.
+
+### Headline state
+
+```
+HEAD          69cd03af on arc-170-gap-j-v5-deadlock-state (clean; all pushed)
+holon-rs      untouched since 530650c (STOP-4 clean)
+Lib tests     827 PASS / 0 FAIL (held across 4 arc-237 stones)
+Clippy        54 (NOT a concern per user — arc 109 closure sweeps; do not optimize mid-arc)
+Sonnet        idle (no flight in progress)
+Active arc    237 (polymorphism consolidation; 4 of 9 stones SHIPPED)
+```
+
+### Arc 237 — SHIPPED so far
+
+```
+237.0  ✓ intueri cast (typeunion locked)
+237.1  ✓ SHIPPED d40eb4a3 — :wat::core::typeunion (TypeDef::Union + bounded-existential unify; 14/14; ~11min)
+237.2  ✓ SHIPPED bdd9eb6c — :wat::core::defclause foundation (Value::wat__core__clauses + arity+type dispatch; 12/12; ~30min)
+237.3  ✓ SHIPPED ee5e892c — :guard + :ensure clause-keywords (14/14; ~40min)
+237.4  ✓ SHIPPED 5f7bb6e5 — rich :NoMatchingClause + :PostconditionFailed (ClauseAttempt struct; 10/10; ~10min)
+```
+
+### THE DECISION (locked this session, post-237.4, after an hour-long design dialogue)
+
+**Mixed-numeric arithmetic is REMOVED from wat.** `(:wat::core::+ 1 2.0)` becomes an ERROR. Users homogenize explicitly: `(+ 1.0 2.0)` or `(+ (:i64/to-f64 a) b)`. The hand-coded widest-contagion — `infer_arithmetic` + `eval_arithmetic_variadic` + `is_numeric` — gets **DELETED, not migrated.** The feature itself was the defect (no honest way to do implicit numeric coercion).
+
+**The clean separation locked (one-canonical-path):**
+- **typeunion** (`:Shape`, `:Numeric`, etc.) — consumed by **DISCRIMINATION** (arc 226 `is-X?` predicates). The value carries its concrete class (typed-entities); you check which member, handle each. ONE way. typeunion NEVER touches arithmetic.
+- **arithmetic** (`+` `-` `*` `/`) — **concrete-per-type defclause dispatch**. `(+ 1 2)` → i64 clause; `(+ 1.0 2.0)` → f64 clause; mixed → no clause matches → error (237.4's rich `:NoMatchingClause` teaches the homogenize-fix).
+
+The hour-long dialogue REJECTED (do not revive): widest-contagion auto-compute, the "fits-in" relation, literal-polymorphism, typeunion-coercion, the 4-member-binding-for-typeunion-narrowing. All were attempts to give arithmetic an implicit-coercion shortcut; the honest answer was deletion. Song #36 (Break Stuff) inscribes the moment — the chainsaw turned INWARD on our own lie.
+
+### TWO QUESTIONS AWAITING USER VERDICT (resume here)
+
+**① arc 145 (the 4-member let-binding `[name value -> :T]`) — DECOUPLE from arc 237?**
+We folded arc 145 into arc 237 to pin typeunion returns to a member. The deletion replaced that mechanism (typeunion→discrimination; arithmetic→concrete), so arc 237 no longer needs it. **Orchestrator recommendation: decouple** — arc 145 returns to standalone-pending (ships later as optional type-assertion ergonomic, if ever). User said "145 is handled in this arc" BEFORE the deletion; needs re-verdict.
+
+**② The decision GENERALIZES to all arc 148 families?**
+"No mixed; concrete-per-type defclause dispatch" applies identically to **comparison** (`=` `<` `>` `<=` `>=`), **holon-pair**, **time-arith** — every family arc 148 queued. **Orchestrator recommendation: yes, universal.** Confirm so Stone 237.6/237.7 sweep them all the same way.
+
+### THREE DEFERRED to Stone 237.7 diagnosis (not now-blockers)
+
+- **③ Per-Type binary ops STAY as fold kernels.** `(+ 1 2 3)` folds binary `i64+` over the rest. Delete the widest-contagion special-case, NOT all per-Type arithmetic. The binary per-Type ops survive as the variadic defclause's fold kernel.
+- **④ Blast radius** — grep mixed-arithmetic usage at 237.7-diagnosis (lab code mostly dead; likely small).
+- **⑤ First real typeunion consumer** — typeunion shipped but arithmetic won't use it; first genuine consumer is a domain-union + discrimination (arc 235 or a demo). Validate end-to-end eventually.
+
+### Remaining arc 237 stone plan (RESHAPED by the decision)
+
+```
+237.5  variadic rest-binder over CONCRETE homogeneous element types
+       [x <- :i64 & rest <- :Vector<:i64>] — NO contagion, NO typeunion-in-rest (reshaped)
+237.6  MIGRATION: arc 146 Dispatches → defclauses (length/empty?/contains?/get/conj/concat/assoc/dissoc/keys/values)
+237.7  MIGRATION: arithmetic + comparison + holon-pair + time-arith → concrete-per-type defclauses
+       + DELETE infer_arithmetic + eval_arithmetic_variadic + is_numeric (reshaped — deletion not migration)
+       + RETIRE arc 146 Dispatch entity (HARD CUT)
+       + UPDATE AnyBanned error message to recommend typeunion
+237.8  (folded into 237.7's retirement, or standalone) — final HARD CUT sweep
+237.9  INSCRIPTION + arc closure (ABSORBS arc 146 + arc 148 closures)
+```
+
+NOTE: the DESIGN.md umbrella + DESIGN-STONE-237.1.md still contain the PRE-decision "widest-contagion" framing + a `variadic_mixed_arithmetic` acceptance probe that is now INVERTED (mixed should ERROR). The DESIGN-STONE-237.5/237.7 sub-DESIGNs do not exist yet. See arc 237 DESIGN.md § amendment (committed this session) for the decision capture.
+
+### Calibration evidence (pre-emption discipline compounding)
+
+237.1 ~11min (5-11× under) · 237.2 ~30min (3-5× under) · 237.3 ~40min (2-4× under) · 237.4 ~10min (cascade depth 1). Every stone under-band. Pre-emption (sub-DESIGN + FM 2-bis probe + locked decisions + prior-SCORE templates) is mature.
+
+### Songs inscribed this session arc (latest)
+
+- Song #35 — Find A Way Or Make One (Amon Amarth) — WE-MAKE-THE-WAY (typeunion doctrine-departure) — `cc962730`
+- Song #36 — Break Stuff (Limp Bizkit) — BREAK-STUFF / chainsaw-turned-inward (mixed-arithmetic deletion) — `69cd03af` (voice-matched after a discarded first attempt; first Limp Bizkit; pattern: #34 refuse → #35 build → #36 break)
+
+### Memory updates pending (post-compaction, if not done)
+
+- `feedback_mixed_arithmetic_deleted` (NEW) — no implicit numeric coercion; homogenize explicitly; typeunion-via-discrimination; arithmetic concrete-per-type. Load-bearing for arc 237 resume. (Authoring now if turns permit.)
+
+### Decision boundary on resume
+
+1. Get user verdict on ① (decouple arc 145) + ② (generalize to arc 148 families)
+2. Reshape DESIGN.md umbrella + author DESIGN-STONE-237.5 reflecting the decision (kill the stale widest-contagion probe rows)
+3. Resume the stone cadence: 237.5 (variadic concrete) → 237.6 (Dispatch migration) → 237.7 (arithmetic+families deletion-migration) → 237.9 INSCRIPTION
+4. Per user: "we do the hard work, always" — the breaking change (mixed-arithmetic removal) is embraced; blast-radius is a 237.7 grep, not a deterrent
+
+---
+
+## Currently (2026-05-25 night-late — arc 237 foundation SHIPPED (2 of 9 stones); Stone 237.3 IN FLIGHT; doctrine-departure proven; Song #35 inscribed) — SUPERSEDED, see above
 
 ### Headline state
 
