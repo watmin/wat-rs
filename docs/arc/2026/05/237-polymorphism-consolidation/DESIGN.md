@@ -25,14 +25,14 @@ After an hour-long design dialogue (post-Stone-237.4), the arc's treatment of nu
 
 **Reshaped downstream stones:**
 
-- **Stone 237.5** — variadic rest over **concrete homogeneous** types only (`& rest <- :Vector<:i64>`). NO widest-contagion type-checker rule. (Original 237.5 "widest-contagion rule" line item is struck.)
-- **Stone 237.7** — arithmetic + arc 148 families → concrete-per-type defclauses; **DELETE widest-contagion** (`infer_arithmetic` / `eval_arithmetic_variadic` / `is_numeric`); retire arc 146 Dispatch; update `AnyBanned` message. (Per-Type binary ops stay as fold kernels; do a blast-radius grep first; this is also where the first real typeunion consumer lands.)
+- **Stone 237.5** — **typeunion auto-mints its `:is-<Name>?` membership predicate** + a proving end-to-end consumer. THE DECISION orphaned typeunion's two planned consumers (237.5's old "typeunion-typed rest" and 237.7's `:Numeric`), leaving 237.1 half-delivered (type-checker-only, zero runtime). Declaring `(typeunion :Shape [...])` now also emits `:is-<Name>?` (membership test), the way `defrecord` emits accessors. Combined with defclause concrete-type dispatch (237.2, "which member") + bounded-existential unify (237.1, static acceptance), the union becomes fully usable. The old "variadic rest over concrete homogeneous types" idea is dropped (no consumer; not the gap). Per-*member* predicates for user types (`is-Circle?`) are explicitly OUT — that's defrecord-auto-predicate territory (arc 227/234), not a typeunion gap.
+- **Stone 237.7** — arithmetic + arc 148 families → concrete-per-type defclauses; **DELETE widest-contagion** (`infer_arithmetic` / `eval_arithmetic_variadic` / `is_numeric`); retire arc 146 Dispatch; update `AnyBanned` message. (Per-Type binary ops stay as fold kernels; do a blast-radius grep first.)
 
 **Superseded probe rows:** the `variadic_mixed_arithmetic` acceptance-probe block (asserting `(+ 1 2.0) => 3.0 :: :f64` and the 4-member-binding-narrows-to-f64 case) is INVERTED — the correct contract is `(+ 1 2.0)` → ERROR. Those rows are historical, not acceptance criteria.
 
-**Open questions pending user verdict (do NOT resolve unilaterally):**
-- ① Decouple arc 145 (4-member `[name value -> :Type]` binding) from arc 237 — it's a general checking-binding mechanism, not a coercion lever. (Orchestrator recommends decouple.)
-- ② Generalize the no-mixed decision to ALL arc 148 families (comparison / holon-pair / time-arith), not just `+ - * /`. (Orchestrator recommends yes, universal.)
+**Resolved (were transiently treated as open this session):**
+- **① arc 145 — ALREADY CLOSED 2026-05-06** (`docs/arc/2026/05/145-typed-let/DESIGN.md`, foundation-correction-non-shipping; closed tasks #236/#239). Binding types are always resolved (RHS synthesis + arc 215 `Infer` + recipient unification); a type hint adds error-locality only, zero static safety. Form-level `-> :T` retired by arc 145; per-binding `((name :T) expr)` retired by **arc 159** (check.rs:846 teaches against it). The 4-member binding was briefly re-entangled in 237 as a coercion lever; THE DECISION deleted that. arc 145 is NOT reopened by arc 237; it stays closed. (This line corrects a stale "decouple arc 145" framing that read the drifted task-tracker over the closed DESIGN.)
+- **② Universal — CONFIRMED** (user verdict): the no-mixed / concrete-per-type rule applies to ALL arc 148 families (comparison `= < >`, holon-pair, time-arith), not just `+ - * /`. 237.7 sweeps them identically.
 
 Memory: `feedback_no_implicit_coercion`. Inscribed: Song #36 (Break Stuff — the chainsaw turned inward).
 

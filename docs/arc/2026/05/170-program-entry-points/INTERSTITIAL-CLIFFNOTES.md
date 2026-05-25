@@ -220,31 +220,35 @@ Active arc    237 (polymorphism consolidation; 4 of 9 stones SHIPPED)
 
 The hour-long dialogue REJECTED (do not revive): widest-contagion auto-compute, the "fits-in" relation, literal-polymorphism, typeunion-coercion, the 4-member-binding-for-typeunion-narrowing. All were attempts to give arithmetic an implicit-coercion shortcut; the honest answer was deletion. Song #36 (Break Stuff) inscribes the moment — the chainsaw turned INWARD on our own lie.
 
-### TWO QUESTIONS AWAITING USER VERDICT (resume here)
+### TWO QUESTIONS — BOTH RESOLVED (no longer open)
 
-**① arc 145 (the 4-member let-binding `[name value -> :T]`) — DECOUPLE from arc 237?**
-We folded arc 145 into arc 237 to pin typeunion returns to a member. The deletion replaced that mechanism (typeunion→discrimination; arithmetic→concrete), so arc 237 no longer needs it. **Orchestrator recommendation: decouple** — arc 145 returns to standalone-pending (ships later as optional type-assertion ergonomic, if ever). User said "145 is handled in this arc" BEFORE the deletion; needs re-verdict.
+**① arc 145 — ALREADY CLOSED 2026-05-06; NOT reopened by arc 237.** The dialogue traced it to ground: arc 145 (`docs/arc/2026/05/145-typed-let/DESIGN.md`) closed as foundation-correction-non-shipping and closed tasks #236/#239. Binding types are always resolved (RHS synthesis + arc 215 `Infer` + recipient unification); a type hint adds error-locality, zero static safety. Form-level `-> :T` retired by arc 145; per-binding `((name :T) expr)` retired by **arc 159** (check.rs:846 actively teaches against it). The 4-member binding was briefly re-entangled in 237 as a coercion lever; THE DECISION deleted that. **There is nothing to decouple/deliver/retire — 145 stays closed.** The "decouple arc 145" framing was an orchestrator miss (read the drifted `[pending]` tracker over the closed DESIGN — FM-13-shaped). Stale references cleared in DESIGN.md + tracker.
 
-**② The decision GENERALIZES to all arc 148 families?**
-"No mixed; concrete-per-type defclause dispatch" applies identically to **comparison** (`=` `<` `>` `<=` `>=`), **holon-pair**, **time-arith** — every family arc 148 queued. **Orchestrator recommendation: yes, universal.** Confirm so Stone 237.6/237.7 sweep them all the same way.
+**② Universal — CONFIRMED** (user verdict). No-mixed / concrete-per-type-defclause applies to ALL arc 148 families (comparison `= < >`, holon-pair, time-arith). 237.7 sweeps them identically.
 
-### THREE DEFERRED to Stone 237.7 diagnosis (not now-blockers)
+### Typeunion was HALF-DELIVERED — the actual new work
 
-- **③ Per-Type binary ops STAY as fold kernels.** `(+ 1 2 3)` folds binary `i64+` over the rest. Delete the widest-contagion special-case, NOT all per-Type arithmetic. The binary per-Type ops survive as the variadic defclause's fold kernel.
-- **④ Blast radius** — grep mixed-arithmetic usage at 237.7-diagnosis (lab code mostly dead; likely small).
-- **⑤ First real typeunion consumer** — typeunion shipped but arithmetic won't use it; first genuine consumer is a domain-union + discrimination (arc 235 or a demo). Validate end-to-end eventually.
+237.1 shipped typeunion as **type-checker-only (zero runtime)**. THE DECISION orphaned both planned consumers (237.5's old typeunion-rest; 237.7's `:Numeric`). Fix (user's clean answer): **declaring a typeunion auto-mints its `:is-<Name>?` membership predicate**, the way `defrecord` mints accessors. The full utilization story:
+- **membership test** → `is-<Name>?` (NEW auto-mint; the gap) — for guards/filters/validation
+- **per-member dispatch** → defclause concrete-type clauses (shipped, 237.2)
+- **static acceptance** (`[x <- :Shape]` admits any member) → bounded-existential unify (shipped, 237.1)
+- OUT of scope (not a typeunion gap): per-*member* predicates for user types (`is-Circle?`) — defrecord-auto-predicate territory (arc 227/234)
 
-### Remaining arc 237 stone plan (RESHAPED by the decision)
+### Deferred to Stone 237.7 diagnosis (not now-blockers)
+
+- **Per-Type binary ops STAY as fold kernels.** `(+ 1 2 3)` folds binary `i64+`. Delete the widest-contagion special-case, NOT all per-Type arithmetic.
+- **Blast radius** — grep mixed-arithmetic usage at 237.7-diagnosis (lab code mostly dead; likely small).
+
+### Remaining arc 237 stone plan (FINAL)
 
 ```
-237.5  variadic rest-binder over CONCRETE homogeneous element types
-       [x <- :i64 & rest <- :Vector<:i64>] — NO contagion, NO typeunion-in-rest (reshaped)
+237.5  typeunion auto-mints :is-<Name>? membership predicate + proving end-to-end consumer
+       (THE typeunion-utilization gap; runtime membership via (:wat::core::type v) vs member set)
 237.6  MIGRATION: arc 146 Dispatches → defclauses (length/empty?/contains?/get/conj/concat/assoc/dissoc/keys/values)
 237.7  MIGRATION: arithmetic + comparison + holon-pair + time-arith → concrete-per-type defclauses
-       + DELETE infer_arithmetic + eval_arithmetic_variadic + is_numeric (reshaped — deletion not migration)
+       + DELETE infer_arithmetic + eval_arithmetic_variadic + is_numeric (deletion not migration; universal per ②)
        + RETIRE arc 146 Dispatch entity (HARD CUT)
-       + UPDATE AnyBanned error message to recommend typeunion
-237.8  (folded into 237.7's retirement, or standalone) — final HARD CUT sweep
+       + UPDATE AnyBanned error message
 237.9  INSCRIPTION + arc closure (ABSORBS arc 146 + arc 148 closures)
 ```
 
