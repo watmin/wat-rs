@@ -2,6 +2,8 @@
 
 **Status:** OPEN (2026-05-25 late-late) — umbrella DESIGN authored; first sub-stone (Stone 237.0 intueri cast) COMPLETED; substrate stones pending. **Stones 237.1–237.4 SHIPPED.** See § DECISION AMENDMENT below — the mixed-arithmetic framing in the original body is SUPERSEDED.
 
+**SCOPE NOTE (2026-05-25, additive — alters nothing below):** arc 237's machinery (typeunion + defclause) also serves a **records-first-class thread**: split `defrecord` → `:wat::Record::def` (base, struct-only) + `:wat::holon::Record::def` (struct + holon-form), the two flavors related by an open directional **is-a hierarchy** — two new primitives `:wat::core::typesub` (the edge) + `:wat::core::subtype?` (the check), intueri-named (Clojure `derive`/`isa?`; the hierarchy axis, distinct from defprotocol=behavior and typeunion=closed-sum). Done **in arc 237**, not a new arc (user direction 2026-05-25). Full sub-DESIGN: **`DESIGN-RECORDS-AS-FIRST-CLASS-TYPES.md`** (this dir). Does NOT supersede the arc-235 framing below — arc 235 (Thermometer/Blend/Permute encoding richness) remains a distinct post-237 arc that builds on the `:wat::holon::Record` flavor this thread mints.
+
 ---
 
 ## DECISION AMENDMENT (2026-05-25 night-late) — mixed-numeric arithmetic is REMOVED
