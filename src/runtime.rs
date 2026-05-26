@@ -5110,6 +5110,11 @@ fn dispatch_keyword_head_value(
         // Consumed by defprotocol's polymorphic dispatcher (revised Stone 232.1)
         // and all arc 234.x record-y verbs.
         ":wat::core::type" => eval_type(args, list_span, env, sym),
+        // Arc 237 Stone 237.5 — `:wat::core::conforms?` general type-conformance primitive.
+        // Recursive walker over the TypeExpr grammar (Path / Parametric / Tuple / Alias / Union).
+        // Signature: (value :TypeExpr) -> :wat::core::bool
+        // Error contract: well-formed type + no-match → false; unknown/Fn/Var type → Err.
+        ":wat::core::conforms?" => eval_conforms(args, list_span, env, sym),
         // Arc 234 Stone 234.2a — `:wat::Record::of` constructor + `:wat::Record/field-at` accessor.
         // Constructor: (class-fqdn struct-form holon-form) -> :wat::Record
         // Accessor:    (record index) -> field-value at struct_form[index]
@@ -15898,6 +15903,300 @@ fn eval_type(
     };
     Ok(Value::String(Arc::new(type_str)))
 }
+
+// ─── Arc 237 Stone 237.5 — :wat::core::conforms? ─────────────────────────────
+
+/// `(:wat::core::conforms? <value> :TypeExpr)` → `:wat::core::bool` — arc 237 Stone 237.5.
+///
+/// Recursive type-conformance check over the `TypeExpr` grammar:
+/// - `Path` → nominal identity (record class_fqdn / value.type_name()) or
+///   alias expansion or union-membership recursion.
+/// - `Parametric` → classifier match + element-wise recursion.
+/// - `Tuple` → same-arity + per-position recursion.
+/// - `Fn` / `Var` → error (unsupported / synthetic).
+///
+/// Error contract: well-formed type + no match → `false`.
+/// Unknown/unregistered type name, Fn, or Var → `Err` (bad input, not negative result).
+fn eval_conforms(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::conforms?";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    // Evaluate the value (arg 0).
+    let value = eval_inner(&args[0], env, sym)?.value_owned();
+    // Parse the type expression from arg 1 (type-position keyword — labels-are-ASTs).
+    let texpr = parse_type_slot(&args[1]).map_err(|e| RuntimeError::MalformedForm {
+        head: OP.into(),
+        reason: format!("second arg must be a type keyword: {}", e),
+        span: args[1].span().clone(),
+    })?;
+    // Acquire the runtime TypeEnv for Path/Alias/Union resolution.
+    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+        head: OP.into(),
+        reason: "conforms? requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into(),
+        span: list_span.clone(),
+    })?;
+    let result = conforms_check(&value, &texpr, types).map_err(|reason| {
+        RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason,
+            span: list_span.clone(),
+        }
+    })?;
+    Ok(Value::bool(result))
+}
+
+/// Recursive conformance walker over the `TypeExpr` grammar.
+///
+/// Returns `Ok(true)` / `Ok(false)` for well-formed types; `Err(reason)`
+/// for unknown type names, Fn types, and Var (synthetic) expressions.
+fn conforms_check(
+    value: &Value,
+    texpr: &crate::types::TypeExpr,
+    types: &crate::types::TypeEnv,
+) -> Result<bool, String> {
+    use crate::types::{TypeDef, TypeExpr};
+
+    match texpr {
+        // ── Path arm ─────────────────────────────────────────────────────
+        TypeExpr::Path(name) => {
+            // Resolve in the TypeEnv.
+            match types.get(name) {
+                // Alias → expand and recurse.
+                Some(TypeDef::Alias(alias)) => {
+                    conforms_check(value, &alias.expr, types)
+                }
+                // Union → value must conform to ANY member.
+                Some(TypeDef::Union(union)) => {
+                    let members = crate::types::collect_union_members(union, types);
+                    for member in &members {
+                        if conforms_check(value, member, types).unwrap_or(false) {
+                            return Ok(true);
+                        }
+                    }
+                    Ok(false)
+                }
+                // Struct / Enum / Newtype → nominal identity check.
+                Some(TypeDef::Struct(_)) | Some(TypeDef::Enum(_)) | Some(TypeDef::Newtype(_)) => {
+                    Ok(concrete_type_name_matches(value, name))
+                }
+                // Not in the TypeEnv — check built-in primitive paths.
+                None => {
+                    let stripped = name.strip_prefix(':').unwrap_or(name);
+                    if is_builtin_primitive(stripped) {
+                        Ok(concrete_type_name_matches(value, name))
+                    } else {
+                        // Not a TypeDef, not a built-in.
+                        // Record classes declared via `(:wat::Record::def ...)` expand
+                        // to `defn` forms and are NOT registered in the TypeEnv — their
+                        // type identity lives in `Value::wat__Record.class_fqdn`.
+                        // For a wat__Record value, check class_fqdn directly (the value
+                        // carries its own type tag — it is the ground truth). For all other
+                        // value kinds, the name is genuinely unknown → Err (per error contract).
+                        match value {
+                            Value::wat__Record { class_fqdn, .. } => {
+                                Ok(class_fqdn.as_str() == stripped)
+                            }
+                            _ => Err(format!(
+                                "unknown type name '{}' is not registered in the TypeEnv and is not a built-in primitive; \
+                                 cannot determine conformance (this is bad input, not a negative result — \
+                                 check the spelling and ensure the type is declared before use)",
+                                name
+                            )),
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Parametric arm ───────────────────────────────────────────────
+        TypeExpr::Parametric { head, args } => {
+            // Verify the value's collection classifier matches the head.
+            let value_tag = value.type_name();
+            let classifier_ok = match head.as_str() {
+                "wat::core::Vector" => value_tag == "wat::core::Vector",
+                "wat::core::List"   => value_tag == "wat::core::List",
+                "wat::core::HashSet" => value_tag == "wat::core::HashSet",
+                "wat::core::HashMap" => value_tag == "wat::core::HashMap",
+                // User parametric type — nominal head match only (full
+                // parametric-instance introspection is arc 235 territory).
+                other => value_tag == other,
+            };
+            if !classifier_ok {
+                return Ok(false);
+            }
+            // Recurse element-wise for known collection classifiers.
+            match head.as_str() {
+                "wat::core::Vector" => {
+                    if args.is_empty() {
+                        return Ok(true);
+                    }
+                    let elem_type = &args[0];
+                    if let Value::Vec(elems) = value {
+                        for elem in elems.iter() {
+                            if !conforms_check(elem, elem_type, types)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                    Ok(true)
+                }
+                "wat::core::List" => {
+                    if args.is_empty() {
+                        return Ok(true);
+                    }
+                    let elem_type = &args[0];
+                    if let Value::wat__core__List(elems) = value {
+                        for elem in elems.iter() {
+                            if !conforms_check(elem, elem_type, types)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                    Ok(true)
+                }
+                "wat::core::HashSet" => {
+                    if args.is_empty() {
+                        return Ok(true);
+                    }
+                    let elem_type = &args[0];
+                    if let Value::wat__std__HashSet(elems) = value {
+                        for elem in elems.iter() {
+                            if !conforms_check(elem, elem_type, types)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                    Ok(true)
+                }
+                "wat::core::HashMap" => {
+                    if args.len() < 2 {
+                        return Ok(true);
+                    }
+                    let key_type = &args[0];
+                    let val_type = &args[1];
+                    if let Value::wat__std__HashMap(map) = value {
+                        for (k, v) in map.iter() {
+                            if !conforms_check(k, key_type, types)? {
+                                return Ok(false);
+                            }
+                            if !conforms_check(v, val_type, types)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                    Ok(true)
+                }
+                // User parametric — classifier matched; nominal head match is the honest check.
+                _ => Ok(true),
+            }
+        }
+
+        // ── Tuple arm ─────────────────────────────────────────────────────
+        TypeExpr::Tuple(elems) => {
+            if let Value::Tuple(items) = value {
+                if items.len() != elems.len() {
+                    return Ok(false);
+                }
+                for (item, elem_type) in items.iter().zip(elems.iter()) {
+                    if !conforms_check(item, elem_type, types)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        }
+
+        // ── Fn arm — unsupported (affirmative scope cut; runtime limitation) ─
+        TypeExpr::Fn { .. } => Err(
+            "fn-type conformance is unsupported: runtime function values do not carry \
+             a recoverable full arg/ret signature, so deep fn-conformance cannot be \
+             honestly computed. This is an affirmative scope cut, not a deferral."
+                .into(),
+        ),
+
+        // ── Var arm — synthetic; never appears in user-written :TypeExpr ─────
+        TypeExpr::Var(id) => Err(format!(
+            "TypeExpr::Var({}) is a synthetic unification variable and cannot appear \
+             in a user-written type expression passed to conforms?",
+            id
+        )),
+    }
+}
+
+/// Extract the concrete type name for a [`Value`] as a colon-free FQDN string
+/// (e.g. `"my::Circle"`, `"wat::core::i64"`). For `Value::wat__Record`, returns
+/// `class_fqdn` directly (already FQDN without colon). For all other values,
+/// delegates to `Value::type_name()` (which returns FQDN without colon).
+#[inline]
+fn concrete_type_name_matches(value: &Value, path_with_colon: &str) -> bool {
+    // Strip the leading ':' from the Path name to compare with type_name() output.
+    let stripped = path_with_colon.strip_prefix(':').unwrap_or(path_with_colon);
+    match value {
+        // Records carry their per-instance class FQDN (no leading colon).
+        Value::wat__Record { class_fqdn, .. } => class_fqdn.as_str() == stripped,
+        // All other values: compare against Value::type_name() (FQDN, no colon).
+        other => other.type_name() == stripped,
+    }
+}
+
+/// Returns `true` if `name` (colon-free FQDN) is a built-in primitive type
+/// recognized at the runtime level. These paths never appear in the TypeEnv
+/// (they're substrate, not user-declared), but `conforms?` must handle them.
+fn is_builtin_primitive(name: &str) -> bool {
+    matches!(
+        name,
+        "wat::core::bool"
+            | "wat::core::i64"
+            | "wat::core::u8"
+            | "wat::core::f64"
+            | "wat::core::String"
+            | "wat::core::keyword"
+            | "wat::core::nil"
+            | "wat::core::Uuid"
+            | "wat::core::Char"
+            | "wat::core::fn"
+            | "wat::core::Tuple"
+            | "wat::core::Vector"
+            | "wat::core::List"
+            | "wat::core::HashMap"
+            | "wat::core::HashSet"
+            | "wat::core::Option"
+            | "wat::core::Result"
+            | "wat::Record"
+            | "wat::WatAST"
+            | "wat::holon::HolonAST"
+            | "wat::holon::Vector"
+            | "wat::holon::OnlineSubspace"
+            | "wat::holon::Reckoner"
+            | "wat::holon::Engram"
+            | "wat::holon::EngramLibrary"
+            | "wat::holon::Hologram"
+            | "wat::time::Instant"
+            | "wat::time::Duration"
+            | "wat::kernel::Sender"
+            | "wat::kernel::Receiver"
+            | "wat::kernel::ProgramHandle"
+            | "wat::kernel::HandlePool"
+            | "wat::kernel::ChildHandle"
+            | "wat::io::IOReader"
+            | "wat::io::IOWriter"
+    )
+}
+
+// ─── end Stone 237.5 ─────────────────────────────────────────────────────────
 
 /// `(:wat::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>> <holon-form: HolonAST>)`
 /// → `:wat::Record` — arc 234 Stone 234.2a.

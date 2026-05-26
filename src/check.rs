@@ -5545,6 +5545,53 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 237 Stone 237.5 — `:wat::core::conforms?` inference.
+            //
+            // Signature: (value :TypeExpr) -> :wat::core::bool.
+            // Special-cased because:
+            //   (a) arg[0] (the value) is type-position-unchecked by design — conforms?
+            //       IS the runtime type check; the checker cannot know the conformance
+            //       relationship statically, so we infer arg[0] only for side-effects
+            //       (symbol resolution etc.) and silently discard type errors.
+            //   (b) arg[1] (the :TypeExpr keyword) is type-position, not value-position.
+            //       Without special-casing, the checker would infer it as a Fn type
+            //       if the keyword happens to also be a registered constructor, causing
+            //       a spurious TypeMismatch against the scheme's `:wat::core::keyword` param.
+            //       We validate it's a Keyword-shaped AST and skip normal inference.
+            ":wat::core::conforms?" => {
+                if args.len() != 2 {
+                    local_errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::conforms?".into(),
+                        reason: format!(
+                            "expected (:wat::core::conforms? <value> :TypeExpr); got {} arg(s)",
+                            args.len()
+                        ),
+                        span: head_span.clone(),
+                    });
+                    return CheckResult::errs(local_errors);
+                }
+                // Infer arg[0] for side-effects (symbol resolution); discard type errors
+                // because conforms? is the runtime type check — static type of arg[0] is
+                // irrelevant and may legitimately be an opaque union member or record.
+                let mut _discard: Vec<CheckError> = Vec::new();
+                let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut _discard);
+                // Validate arg[1] is a keyword (type-position); do NOT infer it as a
+                // value expression (would wrongly infer registered constructors as Fn types).
+                if !matches!(&args[1], WatAST::Keyword(_, _)) {
+                    local_errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::conforms?".into(),
+                        reason: "second arg must be a type keyword (e.g. :my::Type or :wat::core::Vector<my::T>)".into(),
+                        span: args[1].span().clone(),
+                    });
+                    return CheckResult::errs(local_errors);
+                }
+                let bool_result_ty = TypeExpr::Path(":wat::core::bool".into());
+                return if local_errors.is_empty() {
+                    CheckResult::ok(bool_result_ty)
+                } else {
+                    CheckResult::partial_with(bool_result_ty, local_errors)
+                };
+            }
             ":wat::core::if" => {
                 let (val, mut errs) = infer_if(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -19263,6 +19310,27 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![record_ty(), TypeExpr::Path(":wat::core::keyword".into()), t_var()],
             ret: record_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 237 Stone 237.5 — :wat::core::conforms? general type-conformance primitive.
+    //
+    // :wat::core::conforms? :: ∀T. T × :wat::core::keyword -> :wat::core::bool
+    //
+    // Signature: (value :TypeExpr) -> bool. The second arg is type-position
+    // (a keyword like :my::Circle or :wat::core::Vector<wat::core::u8>).
+    // At check-time a bare keyword not bound as a function infers as
+    // :wat::core::keyword — this matches the scheme's second param.
+    // No infer_list special-case needed: the TypeScheme scheme path handles
+    // the call-site check (arg-0 is ∀T, arg-1 is keyword). Runtime eval
+    // parses the keyword back to a TypeExpr via parse_type_slot.
+    env.register(
+        ":wat::core::conforms?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var(), TypeExpr::Path(":wat::core::keyword".into())],
+            ret: bool_ty(),
             rest_param_type: None,
         },
     );
