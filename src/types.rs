@@ -208,6 +208,12 @@ impl TypeDef {
 #[derive(Debug, Default, Clone)]
 pub struct TypeEnv {
     types: HashMap<String, TypeDef>,
+    /// Stone S-A — the `typesub` child→parent edge registry.
+    /// Maps a child FQDN (e.g. `":wat::holon::Record"`) to the list of its direct
+    /// parent FQDNs (e.g. `[":wat::Record"]`). Populated by `register_subtype`;
+    /// walked (transitively) by `is_subtype`. Distinct from `typeunion` membership:
+    /// this is the Clojure `derive`/`isa?` axis — an open directional is-a hierarchy.
+    subtype_edges: HashMap<String, Vec<String>>,
 }
 
 impl TypeEnv {
@@ -348,6 +354,45 @@ impl TypeEnv {
             name
         );
         self.types.insert(name, def);
+    }
+
+    // ─── Stone S-A — typesub (is-a hierarchy) ──────────────────────────────
+
+    /// Register a child→parent is-a edge in the `typesub` hierarchy.
+    ///
+    /// Cycle-rejection: if adding `child → parent` would close a cycle
+    /// (i.e. `parent` is already a transitive subtype of `child` through the
+    /// current registry), the registration is rejected with `TypeError::CyclicSubtype`.
+    /// This mirrors `check_union_no_cycle` for the typeunion relation.
+    ///
+    /// Edges from unregistered names are allowed: the hierarchy is orthogonal to
+    /// the `TypeDef` registry — a tag can derive regardless of whether it has a
+    /// `TypeDef` entry. This mirrors Clojure's hierarchy being independent of what
+    /// the tags ARE.
+    pub fn register_subtype(&mut self, child: &str, parent: &str) -> Result<(), TypeError> {
+        // Cycle check: if parent is already transitively is-a child, adding this
+        // edge closes a cycle.
+        if is_subtype(parent, child, self) {
+            return Err(TypeError::CyclicSubtype {
+                child: child.to_string(),
+                parent: parent.to_string(),
+            });
+        }
+        self.subtype_edges
+            .entry(child.to_string())
+            .or_default()
+            .push(parent.to_string());
+        Ok(())
+    }
+
+    /// Return the direct parent FQDNs of `name` in the `typesub` hierarchy.
+    /// Returns an empty slice if `name` has no registered parent edges.
+    /// Internal helper consumed by [`is_subtype`].
+    fn subtype_parents(&self, name: &str) -> Vec<&str> {
+        match self.subtype_edges.get(name) {
+            Some(parents) => parents.iter().map(|s| s.as_str()).collect(),
+            None => vec![],
+        }
     }
 }
 
@@ -1279,6 +1324,28 @@ fn register_builtin_types(env: &mut TypeEnv) {
         fields: vec![],
         restrictions: None,
     }));
+
+    // Stone S-A — `:wat::holon::Record` opaque umbrella type + typesub root edge.
+    //
+    // `:wat::holon::Record` is the "holonic record" flavor — a record that carries
+    // a HolonAST alongside its struct-form. Registered as an opaque zero-field
+    // struct (mirrors `:wat::Record` exactly). The `typesub` edge seeds the
+    // built-in is-a root: `:wat::holon::Record` is-a `:wat::Record`.
+    //
+    // NOTE: registering `:wat::holon::Record` as a struct causes
+    // `register_type_predicates` to synthesize `:wat::holon::is-Record?` for it
+    // (same as `:wat::Record` already gets `:wat::is-Record?`). This is correct —
+    // it is a type. See SCORE-STONE-S-A § Honest deltas.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::holon::Record".into(),
+        type_params: vec![],
+        fields: vec![],
+        restrictions: None,
+    }));
+    // Seed the built-in typesub root: `:wat::holon::Record` is-a `:wat::Record`.
+    // Cannot cycle (fresh registry with no edges yet); `expect` is correct here.
+    env.register_subtype(":wat::holon::Record", ":wat::Record")
+        .expect("built-in typesub root cannot cycle");
 }
 
 /// Type-declaration errors.
@@ -1402,6 +1469,14 @@ pub enum TypeError {
         reason: String,
         span: Span,
     },
+
+    // ─── Stone S-A — typesub (is-a hierarchy) errors ───────────────────────
+
+    /// Registering a `child → parent` edge in the `typesub` hierarchy would
+    /// close a cycle (i.e. `parent` is already a transitive subtype of
+    /// `child` through the current registry). Detected at `register_subtype`
+    /// time so the hierarchy remains a DAG. Mirrors `CyclicUnion`.
+    CyclicSubtype { child: String, parent: String },
 }
 
 /// Arc 138 slice 2 — render the file:line:col prefix for a TypeError,
@@ -1514,6 +1589,12 @@ impl fmt::Display for TypeError {
                 union_name,
                 member_form,
                 reason
+            ),
+            TypeError::CyclicSubtype { child, parent } => write!(
+                f,
+                "register_subtype({child:?}, {parent:?}) would close a cycle in the typesub \
+                 hierarchy — {parent:?} is already a transitive subtype of {child:?}; \
+                 refused at registration time so `is_subtype` cannot loop"
             ),
         }
     }
@@ -3017,6 +3098,49 @@ fn check_union_member_reaches(
         }
     }
     Ok(())
+}
+
+// ─── Stone S-A — typesub is-a hierarchy walk ────────────────────────────────
+
+/// Directional, transitive, reflexive is-a test over the `typesub`
+/// child→parent edge-registry on [`TypeEnv`].
+///
+/// Returns `true` iff `sub` is the same type as `sup` (reflexive) OR
+/// there exists a chain of registered edges from `sub` up to `sup`
+/// (transitive walk).
+///
+/// Walks the **new `subtype_edges` registry** — it does NOT call
+/// [`collect_union_members`] and has NO connection to `typeunion` membership.
+/// The hierarchy is a distinct relation (Clojure's `isa?`/`derive` axis).
+///
+/// Leaf-safe: a type with no parent edges (`:wat::core::bool`, `:wat::core::i64`, …)
+/// returns `false` for any `sup ≠ sub` — the walk is empty.
+///
+/// Acyclic: edges are registered acyclically (see [`TypeEnv::register_subtype`]);
+/// the `visited` guard also bounds the walk defensively.
+pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
+    if sub == sup {
+        return true; // reflexive
+    }
+    let mut visited = std::collections::HashSet::new();
+    let mut stack: Vec<String> = env.subtype_parents(sub)
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect();
+    while let Some(p) = stack.pop() {
+        if p == sup {
+            return true;
+        }
+        if visited.insert(p.clone()) {
+            // Extend with p's own parents (transitive).
+            let parents: Vec<String> = env.subtype_parents(&p)
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect();
+            stack.extend(parents);
+        }
+    }
+    false
 }
 
 // ─── Typeunion member resolution (Stone 237.1) ───────────────────────────────

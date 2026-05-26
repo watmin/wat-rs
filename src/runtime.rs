@@ -5289,6 +5289,11 @@ fn dispatch_keyword_head_value(
         // Signature: (value :TypeExpr) -> :wat::core::bool
         // Error contract: well-formed type + no-match → false; unknown/Fn/Var type → Err.
         ":wat::core::conforms?" => eval_conforms(args, list_span, env, sym),
+        // Arc 237 Stone S-A — `:wat::core::subtype?` is-a hierarchy predicate.
+        // Directional, transitive, reflexive walk over the `typesub` child→parent registry.
+        // Signature: (:TypeKeyword :TypeKeyword) -> :wat::core::bool
+        // Error contract: well-formed known type names → bool; unknown name → Err.
+        ":wat::core::subtype?" => eval_subtype(args, list_span, env, sym),
         // Arc 234 Stone 234.2a — `:wat::Record::of` constructor + `:wat::Record/field-at` accessor.
         // Constructor: (class-fqdn struct-form holon-form) -> :wat::Record
         // Accessor:    (record index) -> field-value at struct_form[index]
@@ -16362,6 +16367,98 @@ fn is_builtin_primitive(name: &str) -> bool {
 }
 
 // ─── end Stone 237.5 ─────────────────────────────────────────────────────────
+
+// ─── Arc 237 Stone S-A — :wat::core::subtype? ────────────────────────────────
+
+/// `(:wat::core::subtype? :ChildType :ParentType)` → `:wat::core::bool` — arc 237 Stone S-A.
+///
+/// Directional, transitive, reflexive predicate over the `typesub` child→parent
+/// edge-registry on [`TypeEnv`]. Both arguments are **type-position keywords**
+/// (taken literally — NOT evaluated as values). Mirrors `eval_conforms` in shape.
+///
+/// Error contract:
+/// - Both args must be `WatAST::Keyword`; else `MalformedForm`.
+/// - Both names must be known (in TypeEnv or is_builtin_primitive); else `MalformedForm`.
+///   This keeps `false` honest (probe 10): an unknown name is bad input, not a negative result.
+/// - Well-formed known pair → `Value::bool(is_subtype(a, b, types))`.
+fn eval_subtype(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::subtype?";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    // Both args are type-position keywords — extract paths literally (labels-are-ASTs).
+    let a_kw = match &args[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: "first arg must be a type keyword (e.g. :my::Child)".into(),
+            span: args[0].span().clone(),
+        }),
+    };
+    let b_kw = match &args[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: "second arg must be a type keyword (e.g. :my::Parent)".into(),
+            span: args[1].span().clone(),
+        }),
+    };
+    // Acquire the runtime TypeEnv.
+    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+        head: OP.into(),
+        reason: "subtype? requires the type registry, but the SymbolTable has no TypeEnv attached \
+                 (programmer error: this build path didn't go through startup_from_source / freeze)"
+            .into(),
+        span: list_span.clone(),
+    })?;
+    // Validate both names are known (in TypeEnv OR a built-in primitive).
+    // This keeps `false` honest: an unknown name is bad input, not a negative result.
+    let a_known = {
+        let stripped = a_kw.strip_prefix(':').unwrap_or(&a_kw);
+        types.get(&a_kw).is_some() || is_builtin_primitive(stripped)
+    };
+    let b_known = {
+        let stripped = b_kw.strip_prefix(':').unwrap_or(&b_kw);
+        types.get(&b_kw).is_some() || is_builtin_primitive(stripped)
+    };
+    if !a_known {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "unknown type name '{}' is not registered in the TypeEnv and is not a built-in primitive; \
+                 cannot determine subtype relationship (this is bad input, not a negative result — \
+                 check the spelling and ensure the type is declared before use)",
+                a_kw
+            ),
+            span: args[0].span().clone(),
+        });
+    }
+    if !b_known {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "unknown type name '{}' is not registered in the TypeEnv and is not a built-in primitive; \
+                 cannot determine subtype relationship (this is bad input, not a negative result — \
+                 check the spelling and ensure the type is declared before use)",
+                b_kw
+            ),
+            span: args[1].span().clone(),
+        });
+    }
+    Ok(Value::bool(crate::types::is_subtype(&a_kw, &b_kw, types)))
+}
+
+// ─── end Stone S-A ───────────────────────────────────────────────────────────
 
 /// `(:wat::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>> <holon-form: HolonAST>)`
 /// → `:wat::Record` — arc 234 Stone 234.2a.

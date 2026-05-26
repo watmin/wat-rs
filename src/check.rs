@@ -5545,6 +5545,53 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 237 Stone S-A — `:wat::core::subtype?` inference.
+            //
+            // Signature: (:TypeKeyword :TypeKeyword) -> :wat::core::bool.
+            // Special-cased because BOTH args are type-position keywords — NOT value
+            // expressions. Without special-casing, the checker infers a keyword like
+            // `:my::Circle` (a registered constructor) as `Fn(...)→Record`, which
+            // conflicts with the scheme's `:wat::core::keyword` param (trap-door #1
+            // from the proven-moves section). Both args must be `WatAST::Keyword`;
+            // inference is skipped on both (no `_discard` drain needed — unlike
+            // conforms?, neither arg is a value).
+            ":wat::core::subtype?" => {
+                if args.len() != 2 {
+                    local_errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::subtype?".into(),
+                        reason: format!(
+                            "expected (:wat::core::subtype? :ChildType :ParentType); got {} arg(s)",
+                            args.len()
+                        ),
+                        span: head_span.clone(),
+                    });
+                    return CheckResult::errs(local_errors);
+                }
+                // Validate arg[0] is a keyword (type-position).
+                if !matches!(&args[0], WatAST::Keyword(_, _)) {
+                    local_errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::subtype?".into(),
+                        reason: "first arg must be a type keyword (e.g. :my::Child)".into(),
+                        span: args[0].span().clone(),
+                    });
+                    return CheckResult::errs(local_errors);
+                }
+                // Validate arg[1] is a keyword (type-position).
+                if !matches!(&args[1], WatAST::Keyword(_, _)) {
+                    local_errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::subtype?".into(),
+                        reason: "second arg must be a type keyword (e.g. :my::Parent)".into(),
+                        span: args[1].span().clone(),
+                    });
+                    return CheckResult::errs(local_errors);
+                }
+                let bool_result_ty = TypeExpr::Path(":wat::core::bool".into());
+                return if local_errors.is_empty() {
+                    CheckResult::ok(bool_result_ty)
+                } else {
+                    CheckResult::partial_with(bool_result_ty, local_errors)
+                };
+            }
             // Arc 237 Stone 237.5 — `:wat::core::conforms?` inference.
             //
             // Signature: (value :TypeExpr) -> :wat::core::bool.
@@ -19330,6 +19377,28 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![t_var(), TypeExpr::Path(":wat::core::keyword".into())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 237 Stone S-A — :wat::core::subtype? is-a hierarchy predicate.
+    //
+    // :wat::core::subtype? :: :wat::core::keyword × :wat::core::keyword -> :wat::core::bool
+    //
+    // Signature: (:ChildType :ParentType) -> bool. Both args are type-position
+    // keywords — NOT value expressions. No type var: both params are keyword,
+    // ret is bool. The infer_list special-case arm (above, beside conforms?) is
+    // load-bearing: it validates both args are WatAST::Keyword and skips inference
+    // to avoid the type-keyword-infers-as-Fn trap (trap-door #1).
+    env.register(
+        ":wat::core::subtype?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":wat::core::keyword".into()),
+                TypeExpr::Path(":wat::core::keyword".into()),
+            ],
             ret: bool_ty(),
             rest_param_type: None,
         },
