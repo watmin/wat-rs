@@ -862,6 +862,13 @@ fn startup_from_forms_post_config(
     //      `Value::Struct` of arity 1, reusing the existing struct-new
     //      and struct-field primitives.
     crate::runtime::register_newtype_methods(&types, &mut symbols)?;
+    // 6.9. Arc 237 Stone 237.6 — auto-mint `:ns::is-<Name>?` membership predicates.
+    //      One pass over the TypeEnv; for every non-Alias TypeDef (Struct / Enum /
+    //      Newtype / Union) synthesize a Function whose body is
+    //      `(:wat::core::conforms? v :<FQDN>)` — the one mechanism, not a
+    //      second computation. Positioned after register_newtype_methods so the
+    //      TypeEnv is fully populated before predicate synthesis begins.
+    crate::runtime::register_type_predicates(&types, &mut symbols)?;
 
     // 6.8. Arc 198 slice 2 Stone 1 — drain the `inventory` registry of
     //      Rust-side `RestrictionEntry` declarations into

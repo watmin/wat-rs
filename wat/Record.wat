@@ -229,6 +229,4 @@
                            (:wat::core::keyword/from-string
                              (:wat::core::string::concat pfx-str "::" "is-" basename "?")))
                        [v <- :wat::Record] -> :wat::core::bool
-       (:wat::core::=
-         (:wat::core::type v)
-         ~(:wat::core::keyword/to-string fqdn)))))
+       (:wat::core::conforms? v ~fqdn))))

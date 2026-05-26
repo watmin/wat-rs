@@ -3176,6 +3176,97 @@ pub fn register_newtype_methods(
     Ok(())
 }
 
+/// Arc 237 Stone 237.6 — auto-mint `is-<Name>?` membership predicates for every
+/// non-Alias TypeDef registered in the TypeEnv (Struct / Enum / Newtype / Union).
+///
+/// Each synthesized predicate is a named convenience over the one mechanism
+/// (`conforms?`):
+///
+/// - **name**: `:<ns>::is-<LastSegment>?` — derived from the FQDN by splitting
+///   on `::`, taking the last segment, prepending `is-`, appending `?`, and
+///   rejoining with the namespace prefix. E.g. `:my::Shape` → `:my::is-Shape?`.
+/// - **params**: `[v]`; **type_params**: `["T"]`; **param_types**: `[TypeExpr::Path("T")]`
+///   — the type variable `T` makes the predicate accept any value (∀T); the checker
+///   instantiates a fresh Var at each call site.
+/// - **body**: `(:wat::core::conforms? v :<FQDN>)` — a `WatAST::List` composing
+///   the one mechanism rather than re-computing conformance independently.
+/// - **ret**: `:wat::core::bool`.
+///
+/// Mirrors `register_struct_methods` (runtime.rs:2852). Called from `src/freeze.rs`
+/// alongside `register_{struct,enum,newtype}_methods`. Skips `TypeDef::Alias` — typealias
+/// names a type, it does not introduce one; `(conforms? v :Alias)` works directly.
+pub fn register_type_predicates(
+    types: &crate::types::TypeEnv,
+    sym: &mut SymbolTable,
+) -> Result<(), RuntimeError> {
+    use crate::identifier::Identifier;
+    use crate::types::{TypeDef, TypeExpr};
+
+    for (_name, def) in types.iter() {
+        // Skip Alias — it names a type, not introduces one; no predicate.
+        let fqdn = match def {
+            TypeDef::Struct(s) => &s.name,
+            TypeDef::Enum(e) => &e.name,
+            TypeDef::Newtype(n) => &n.name,
+            TypeDef::Union(u) => &u.name,
+            TypeDef::Alias(_) => continue,
+        };
+
+        // Derive predicate name: split FQDN on "::", take last segment,
+        // prepend "is-", append "?", rejoin namespace prefix with "::".
+        // E.g. "my::Shape" → "my::is-Shape?", "ns::sub::Foo" → "ns::sub::is-Foo?".
+        let segments: Vec<&str> = fqdn.trim_start_matches(':').split("::").collect();
+        let predicate_name: String = if segments.len() <= 1 {
+            // No namespace prefix — bare name (unusual but handled).
+            let base = segments.last().copied().unwrap_or("");
+            format!(":is-{}?", base)
+        } else {
+            let (prefix_parts, last) = segments.split_at(segments.len() - 1);
+            let base = last[0];
+            let prefix = prefix_parts.join("::");
+            format!(":{}::is-{}?", prefix, base)
+        };
+
+        // Full FQDN keyword for the conforms? call body (with leading colon).
+        let fqdn_kw = if fqdn.starts_with(':') {
+            fqdn.clone()
+        } else {
+            format!(":{}", fqdn)
+        };
+
+        // Body: (:wat::core::conforms? v :<FQDN>)
+        let body = WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::conforms?".into(), Span::unknown()),
+                WatAST::Symbol(Identifier::bare("v"), Span::unknown()),
+                WatAST::Keyword(fqdn_kw, Span::unknown()),
+            ],
+            Span::unknown(),
+        );
+
+        let pred_func = Function {
+            name: Some(predicate_name.clone()),
+            params: vec!["v".into()],
+            // Fresh type param T — accepts any value (∀T); the checker
+            // instantiates a fresh Var at each call site.
+            type_params: vec!["T".into()],
+            param_types: vec![TypeExpr::Path("T".into())],
+            ret_type: TypeExpr::Path(":wat::core::bool".into()),
+            rest_param: None,
+            rest_param_type: None,
+            body: Arc::new(body),
+            closed_env: None,
+        };
+
+        if sym.functions.contains_key(&predicate_name) {
+            // Collision: a user-defined function already occupies this name.
+            return Err(RuntimeError::DuplicateDefine(predicate_name, Span::unknown()));
+        }
+        sym.functions.insert(predicate_name, Arc::new(pred_func));
+    }
+    Ok(())
+}
+
 /// Arc 157 slice 1a-ii — evaluate top-level `def` forms in the program
 /// residue and populate `sym.runtime_def_values` with the resulting values.
 ///
