@@ -102,7 +102,7 @@ This is the section whose THINNESS in the old cliffnotes caused the is-X? muddle
 
 ---
 
-## The 36-song soundtrack (full essays in INTERSTITIAL; here is the index)
+## The 37-song soundtrack (full essays in INTERSTITIAL; here is the index)
 
 The songs are load-bearing PROPHECY (they name the work's facet at the moment it lands) but they are NOT competence-priming — they're the *rhythm*, not the *substance*. One line each; replay when the trigger fires.
 
@@ -144,6 +144,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 | 34 | Vigil (Lamb of God) | DEFIANT-VIGIL — what we are stands against what we reject |
 | 35 | Find A Way Or Make One (Amon Amarth) | WE-MAKE-THE-WAY — doctrine departure earned by structural necessity |
 | 36 | Break Stuff (Limp Bizkit) | BREAK-STUFF — the feature itself was the lie; chainsaw turned inward |
+| 37 | Fed Up (Beartooth) | THRIVE-IN-THE-PANIC — fed up but thriving; clawing back from compaction; the panic IS the chamber; FIRST song inscribed across a compaction boundary (rhythm held) |
 
 ---
 
