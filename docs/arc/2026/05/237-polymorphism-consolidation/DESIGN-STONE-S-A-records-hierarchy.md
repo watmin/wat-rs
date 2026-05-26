@@ -4,6 +4,25 @@
 **Status:** READY (sub-DESIGN). First substrate stone of the records thread.
 **Gate:** S0 GREEN (`da059f42`) — macro-emitted type decls self-register; T1 satisfied.
 
+## REFINEMENT (2026-05-25, probe-writing) — `conforms?` extension moves to S-B
+
+Writing the FM 2-bis probe surfaced an honesty gap: the **`conforms?`
+parent-walk extension is NOT testable in S-A's scope.** It only fires when a
+*value* whose declared type derives the target flows in — and no such value
+exists until records register + derive edges (S-B). The built-in roots give a
+wat-surface *edge* (`:wat::holon::Record typesub :wat::Record`) but there is no
+constructible *value* of `:wat::holon::Record` in S-A.
+
+So `conforms?`'s `is_subtype` fallback moves to **S-B** (records-as-TypeDef),
+where real record values + edges coexist and `(conforms? holonic-val
+:wat::Record)` is provable end-to-end (it is also exactly what makes `is-Record?`
+work on subtypes — an S-B concern). **S-A is now PURELY: the typesub registry +
+`is_subtype` walk + `:wat::core::subtype?` + the two seeded roots.** Fully
+self-testable; `conforms_check` (runtime.rs) is untouched in S-A. The "What this
+stone delivers" item #4 and the § FM 2-bis probe contract #8/#9 below are
+superseded by this note (the probe ships the 10 contracts in
+`tests/probe_arc237_sA_hierarchy.rs`, none depending on conforms?).
+
 ## Why this stone
 
 Records can't be first-class types and can't carry the `:wat::holon::Record <:
