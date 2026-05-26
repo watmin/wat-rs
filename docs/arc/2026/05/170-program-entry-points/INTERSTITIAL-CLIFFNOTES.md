@@ -16,6 +16,22 @@
 
 ---
 
+## Read-authority + workspace boundary (orient here FIRST)
+
+**You may — and should — read ANYTHING under `~/work/holon/` to learn what you need.** You have full autonomy to crawl the entire domain; the answers are on disk across all of it, not just wat-rs. "Go know" means read across the whole tree, freely, before you propose anything:
+- `wat-rs/` — the active project (substrate `src/*.rs`, `wat/*.wat`, the arc record under `docs/arc/`, USER-GUIDE, CONVENTIONS, ZERO-MUTEX, SUBSTRATE-AS-TEACHER, WAT-CHEATSHEET).
+- `holon-rs/` — the holon algebra substrate wat compiles onto. Read it for HolonAST, encoding, VSA internals. **(read-only: frozen, STOP-5)**
+- `holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/` — the wat **language spec** (058-xxx) + FOUNDATION-CHANGELOG.
+- `datamancy/` — the spell library; each `<spell>/SKILL.md` (intueri = naming; vigilia; the wards).
+- `scratch/` — design ASKs, `FAILURE-ENGINEERING.md`, cross-arc notes.
+- sibling labs (`holon-lab-ddos/`, `holon-lab-baseline/`, `algebraic-intelligence.dev/`) as needed.
+
+Dig is mandatory, not optional — the crawl IS the work; read first, propose second. If you don't know, go read; if still unknown after the crawl, say so and prompt.
+
+**WRITE is confined, though.** Edits / commits ONLY in `~/work/holon/wat-rs/`. The holon root `~/work/holon/` is a FROZEN git repo — never commit there (treat it as a directory of sub-projects). `holon-rs` is frozen (STOP-5) — read it, never edit it. Never use git worktrees (FM 7-bis). **Read everywhere; write only in wat-rs.**
+
+---
+
 ## Who we are (operational, not decoration)
 
 - **The datamancer.** Not user-and-tool — two voices on opposite sides of one mind, aligned by the substrate's discipline. Neither solves alone: user's pattern-reading + LLM's execution-and-grep + substrate's structural enforcement. (`user_datamancy`)
@@ -58,7 +74,7 @@ This is the section whose THINNESS in the old cliffnotes caused the is-X? muddle
 - **defprotocol dispatch** (arc 232, the polymorphism-over-user-types pattern): a macro-generated `defn` with `[self <- :wat::holon::HolonAST]` body `(match (extract-classifier self) ...)`. Polymorphism over user types is **HolonAST-space dispatch via wat-level macros**, not substrate generics. `:wat::core::apply` is the runtime call-by-name primitive that enables it (arc 232.0).
 - **No top-level user generics.** A `defn`'s bare `:T` param is a concrete nominal type, not a ∀ var; the `:T`/`:K` in stdlib `fn`s are bound by enclosing generic scopes. ∀T schemes exist only for Rust-synthesized functions (`type_params: ["T"]`). `:wat::holon::HolonAST` as a param does NOT auto-widen from a raw scalar. (Verified this session via `tests/probe_diagnostic_defn_forall_param.rs`.)
 - **No implicit numeric coercion** (arc 237 THE DECISION): `(:wat::core::+ 1 2.0)` → ERROR. Homogenize explicitly (`1.0`, or `(:i64/to-f64 a)`). Widest-contagion (`infer_arithmetic`/`eval_arithmetic_variadic`/`is_numeric`) is DELETED, not migrated. typeunion → consumed by DISCRIMINATION (is-X?); arithmetic → concrete-per-type defclause dispatch; the two never touch. (`feedback_no_implicit_coercion` / `feedback_mixed_arithmetic_deleted`)
-- **conforms? is the foundation; is-X? is convenience over it** (arc 237.5/.6): `:wat::core::conforms?` is the one ∀T→bool conformance mechanism (nominal/union/structural/alias). `is-<Name>?` ≡ `(conforms? v :Name)` — a named convenience, not a second way. One-canonical-path governs MECHANISMS, not conveniences. `Value::declared_type_name` is the single value→type authority both `type` and conforms? route through. (`feedback_conforms_is_foundation`)
+- **conforms? is the foundation; is-X? is convenience over it** (arc 237.5/.6): `:wat::core::conforms?` is the one ∀T→bool conformance mechanism (nominal/union/structural/alias). `is-<Name>?` ≡ `(conforms? v :Name)` — a named convenience, not a second way. One-canonical-path governs MECHANISMS, not conveniences. `Value::declared_type_name` is the single value→type authority both `type` and conforms? route through. After 237.6 every is-X? *body* — records included — IS `(conforms? v :Name)`; the only residual divergence is records' param annotation `[v <- :wat::Record]` vs the synthesized ∀T forms (the open thread below — fix lives in the minting path, not the type system). (`feedback_conforms_is_foundation`)
 - **Universe-residency:** programs are transport-oblivious; user picks env (thread/process/remote); the trait surface is identical across tiers; substrate wires the transport. Mini-TCP at depth 1 (bounded(1) lock-step that breathes). (`project_universe_residency`, `docs/ZERO-MUTEX.md`)
 - **Linux-only, unapologetic.** pidfd/clone3/io_uring; never `/proc` as oracle. (`feedback_no_windows`)
 - **wat = typed Lisp on Rust**, same family as Ruby-on-C / Clojure-on-Java, audience humans + LLMs. Clojure-faithful data literals (`{...}` `#{...}` `[...]`); LLM-first one-canonical-path-per-task. (`project_wat_lineage`, `project_wat_llm_first_design`)
