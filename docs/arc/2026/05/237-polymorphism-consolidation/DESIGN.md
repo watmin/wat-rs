@@ -41,7 +41,7 @@ THE DECISION orphaned typeunion's two planned consumers (237.5's old "typeunion-
 **Stone sequence:**
 - **237.5** — `:wat::core::conforms?` general conformance primitive (nominal identity + union membership + structural recursive walk + alias-resolve). ✓ SHIPPED `5d667123`.
 - **237.5.fix-nominal-identity** — ✓ SHIPPED `990542a9`. Emergent: conforms? + `eval_type` each re-derived value→type with a swallowing wildcard and drifted (proven: `type` and conforms? gave opposite answers for a struct). Collapsed to ONE exhaustive, wildcard-free `Value::declared_type_name` authority; both route through it; the Enum gap (broke both) fixed. ✅✅✅ — compiler forbids a future variant from silently falling through (third instance of #[wat_value]/CheckResult ladder).
-- **237.6** — auto-mint `is-<Name>?` as a **named convenience over conforms?** for struct/enum/newtype/union, body `(conforms? x :Name)`. NOT a second mechanism — one-canonical-path governs *mechanisms* (one: conforms?), not *conveniences* that compose it (cf. accessors over field-at, arc 226 `is-Map?` over `is?`). conforms? stays the directly-usable foundation. **Also unify Record.wat's existing `is-<Record>?` body** from `(= (type v) "fqdn")` (a second computation — the real one-way smell) onto `(conforms? v :Name)`, so every `is-<Name>?` composes the one mechanism. Records keep accessors as their typed-lookup utility. typealias gets NO predicate (it names a type, not introduces one). + proving end-to-end consumer (declare union/record → `is-<Name>?` + defclause dispatch). Two emission *sites* (TypeEnv pass for the four forms; `Record.wat` macro for records — births differ) but ONE body + ONE behavior.
+- **237.6** — ✓ SHIPPED `3ae844cb`. auto-mint `is-<Name>?` as a **named convenience over conforms?** for struct/enum/newtype/union, body `(conforms? x :Name)`. NOT a second mechanism — one-canonical-path governs *mechanisms* (one: conforms?), not *conveniences* that compose it (cf. accessors over field-at, arc 226 `is-Map?` over `is?`). conforms? stays the directly-usable foundation. **Also unify Record.wat's existing `is-<Record>?` body** from `(= (type v) "fqdn")` (a second computation — the real one-way smell) onto `(conforms? v :Name)`, so every `is-<Name>?` composes the one mechanism. Records keep accessors as their typed-lookup utility. typealias gets NO predicate (it names a type, not introduces one). + proving end-to-end consumer (declare union/record → `is-<Name>?` + defclause dispatch). Two emission *sites* (TypeEnv pass for the four forms; `Record.wat` macro for records — births differ) but ONE body + ONE behavior.
 - **237.7** — MIGRATION: arc 146 Dispatches → defclauses (length/empty?/contains?/get/conj/concat/assoc/dissoc/keys/values).
 - **237.8** — MIGRATION: arithmetic + comparison + holon-pair + time-arith → concrete-per-type defclauses; **DELETE widest-contagion** (`infer_arithmetic` / `eval_arithmetic_variadic` / `is_numeric`; universal per ②); retire arc 146 Dispatch (HARD CUT); update `AnyBanned`. (Per-Type binary ops stay as fold kernels; blast-radius grep first.)
 - **237.9** — INSCRIPTION + arc closure (ABSORBS arc 146 + arc 148 closures).
@@ -219,35 +219,51 @@ defclause v1 ships with concrete types per clause. No parametric-T. If parametri
        - EDN wire format per arc 233.3 (#wat.kernel/NoMatchingClause + #wat.kernel/PostconditionFailed)
        - tests: fall-through → NoMatchingClause; ensure-false → PostconditionFailed; EDN round-trip
 
-237.5  variadic rest-binder with typeunion-typed Vector
-       - parser: [& rest <- :Vector<:TypeunionName>]
-       - check: typeunion members propagated through Vector<T> element typing
-       - eval: variadic args collected; type-check each element against typeunion membership
-       - widest-contagion type-checker rule: for typeunion-typed defclause RETURNS, compute widest-of-members based on actual args
-       - tests: variadic with typeunion rest; widest-contagion rule on returns; variadic with empty rest; variadic + mixed args
+237.5  ✓ SHIPPED `5d667123` — :wat::core::conforms? general conformance primitive
+       (nominal identity + union membership + structural recursive walk + alias-resolve).
+       SUPERSEDED ORIGINAL PROJECTION (honest record): this slot first read "variadic
+       rest-binder with :Vector<:Numeric>". THE DECISION (no mixed arithmetic → :Numeric
+       deleted) orphaned its only consumer, so that stone was never needed and never shipped.
+       Closing the typeunion-utilization gap led here instead — to conforms? as the foundation.
 
-237.6  MIGRATION: arc 146 Dispatches → defclauses
+237.5.fix  ✓ SHIPPED `990542a9` — one exhaustive, wildcard-free Value::declared_type_name
+       authority. eval_type + conforms? had each re-derived value→type with a swallowing
+       wildcard and DRIFTED (proven: `type` and conforms? gave opposite answers for a struct).
+       Collapsed to ONE authority both route through; ✅✅✅ structural guard forbids a future
+       Value variant from silently falling through (third #[wat_value]/CheckResult-ladder instance).
+
+237.6  ✓ SHIPPED `3ae844cb` — auto-mint :ns::is-<Name>? as a NAMED CONVENIENCE over conforms?
+       for struct/enum/newtype/union (body `(:wat::core::conforms? v :<FQDN>)`). NOT a second
+       mechanism — one-canonical-path governs *mechanisms*, not *conveniences* that compose them.
+       Also unify Record.wat's is-<Record>? body from `(= (type v) "fqdn")` (the real one-way
+       smell — a second computation) onto conforms?. typealias gets NO predicate (names a type,
+       doesn't introduce one). One pass register_type_predicates + freeze wiring + one Record.wat line.
+
+237.7  MIGRATION: arc 146 Dispatches → defclauses
        - migrate wat/core.wat: length, empty?, contains?, get, conj, concat, assoc, dissoc, keys, values (10 entities)
        - per-impl bodies move from Dispatch-registry to defclause clauses
        - SCORE evidence: all existing wat-tests + lib tests + integ tests stay GREEN through migration
        - check.rs + runtime.rs Dispatch-routing code paths exercised UNCHANGED until 237.8
 
-237.7  MIGRATION: arithmetic special-case → defclauses + :Numeric typeunion
-       - mint :Numeric = (typeunion :wat::core::Numeric [:wat::core::i64 :wat::core::f64])
-       - migrate :wat::core::+,-,*,/ to defclauses with typeunion-typed variadic rest
-       - subsume per-Type variadic wrappers (:wat::core::i64::+, :wat::core::f64::+, etc.) — they become defclauses too OR retire as redundant with the polymorphic form
-       - LOAD-BEARING acceptance test: (:wat::core::+ 0 1.5 2 3.14 5) => 10.64 :: :f64
-
-237.8  RETIRE (HARD CUT per arc 234.6 discipline):
-       - arc 146 Dispatch entity (DispatchRegistry, Dispatch struct, eval_dispatch_call, infer_dispatch_call)
-       - infer_arithmetic + eval_arithmetic_variadic + is_numeric (check.rs + runtime.rs)
-       - per-Type variadic wrappers if absorbed by typeunion dispatch
+237.8  MIGRATION + RETIRE (HARD CUT per arc 234.6 discipline):
+       - migrate arithmetic (+ - * /) + comparison (= < > <= >=) + holon-pair + time-arith
+         to CONCRETE-PER-TYPE defclauses — NO :Numeric typeunion, NO implicit coercion
+       - ② UNIVERSAL (user verdict): the no-mixed / concrete-per-type rule applies to ALL these
+         families, not just + - * /
+       - DELETE widest-contagion (NOT migrate): infer_arithmetic + eval_arithmetic_variadic +
+         is_numeric (check.rs + runtime.rs). THE DECISION — the feature itself was the defect;
+         (+ 1 2.0) → ERROR. (feedback_absence_is_signal: wat lacking coercion was the honest default.)
+       - retire arc 146 Dispatch entity (DispatchRegistry, Dispatch struct, eval_dispatch_call, infer_dispatch_call)
+       - update AnyBanned diagnostic to recommend typeunion
        - paperwork: arc 146 closure ABSORBED here (DEFERRAL-VIOLATIONS.md update; arc 146 INSCRIPTION cites arc 237)
-       - paperwork: arc 148 closure ABSORBED here (the queued migrations shipped via 237.6 + 237.7)
+       - paperwork: arc 148 closure ABSORBED here (the queued migrations shipped via 237.7 + 237.8)
 
 237.9  INSCRIPTION + arc closure
        - per FM 11: pre-INSCRIPTION grep for deferral language
-       - INSCRIPTION captures: polymorphism consolidation thesis; defclause + typeunion as the two new primitives; arc 146 absorption; arc 148 absorption; widest-contagion rule promotion from hand-coded to first-class
+       - INSCRIPTION captures: polymorphism consolidation thesis; defclause + typeunion + conforms?
+         as the new primitives; the is-<Name>? convenience doctrine (one-canonical-path governs
+         mechanisms, not conveniences); arc 146 absorption; arc 148 absorption; widest-contagion
+         DELETION — NOT "promotion to first-class" (the feature was the defect)
        - Cross-refs: scratch 017 ADDENDUM; arc 146 (Dispatch retirement); arc 232.0 (apply primitive enables clause-by-name dispatch); arc 232.1 (defprotocol reduced-scope, now consumer); arc 233 (errors-as-EDN inheritance); arc 234 (Pascal-Case + ::/⁠/ split applied throughout); arc 109 § Q + § R
 ```
 
@@ -523,13 +539,14 @@ Per recent arc patterns (arc 236: 4 stones in one session under-band; arc 234: 1
 - Stone 237.2 (defclause skeleton): **60-120 min Mode A; 240 STOP**
 - Stone 237.3 (:guard + :ensure): **45-90 min Mode A; 180 STOP**
 - Stone 237.4 (errors): **30-60 min Mode A; 120 STOP**
-- Stone 237.5 (variadic + typeunion rest + widest-contagion): **60-120 min Mode A; 240 STOP**
-- Stone 237.6 (arc 146 Dispatch migration): **90-180 min Mode A; 300 STOP** (10 entities; sweep)
-- Stone 237.7 (arithmetic migration): **90-180 min Mode A; 300 STOP** (load-bearing acceptance probe)
-- Stone 237.8 (retirement HARD CUT): **45-90 min Mode A; 180 STOP** (deletion sweep)
+- Stone 237.5 (conforms?): ✓ SHIPPED — actual ~11 min sonnet (band was 60-120; vast over-estimate)
+- Stone 237.5.fix (declared_type_name authority): ✓ SHIPPED — actual ~5 min
+- Stone 237.6 (auto-mint is-<Name>?): ✓ SHIPPED — actual ~9 min
+- Stone 237.7 (arc 146 Dispatch migration): **90-180 min Mode A; 300 STOP** (10 entities; sweep) — RECALIBRATE DOWN per shipped trend
+- Stone 237.8 (arithmetic concrete-per-type migration + widest-contagion DELETION + Dispatch retire): **90-180 min Mode A; 300 STOP** (deletion sweep + load-bearing acceptance: `(+ 1 2.0)` → ERROR)
 - Stone 237.9 (INSCRIPTION): **30-60 min orchestrator-direct**
 
-Total wall-clock estimate: **~10-20 hours of sonnet flight + orchestrator authoring**, spread over a few sessions. Pre-emption discipline + intueri precedent + FM 2-bis probes should keep this on the lower edge.
+Total wall-clock estimate: **OVER-ESTIMATED.** The shipped stones (237.1–237.6) consistently landed at ~5-16 min sonnet flight, an order of magnitude under the original bands. The remaining 237.7/237.8 sweeps are heavier (10-entity migration + deletion blast-radius) but the trend says expect the lower edge. Pre-emption discipline + FM 2-bis probes keep this fast.
 
 ---
 
