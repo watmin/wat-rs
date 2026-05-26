@@ -65,6 +65,34 @@ fn assert_false(expr: &str) {
     }
 }
 
+/// Evaluate `(:wat::core::type <inner>)` and return its String result.
+/// The SECOND consumer of the value→type authority — proving the fix
+/// lands in one place that BOTH `type` and conforms? ride.
+fn run_type(inner: &str) -> Result<String, String> {
+    let full = format!(
+        "{prelude}\n\
+         (:wat::core::define (:user::compute -> :wat::core::String) (:wat::core::type {inner}))\n\
+         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        prelude = PRELUDE,
+        inner = inner
+    );
+    let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
+        .map_err(|e| format!("startup: {:?}", e))?;
+    let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("parse: {:?}", e))?;
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).map(|tv| tv.value_owned()) {
+        Ok(Value::String(s)) => Ok((*s).clone()),
+        other => Err(format!("expected String; got {:?}", other)),
+    }
+}
+
+fn assert_type_is(inner: &str, expected: &str) {
+    match run_type(inner) {
+        Ok(s) if s == expected => {}
+        other => panic!("expected (type {}) == {:?}; got {:?}", inner, expected, other),
+    }
+}
+
 // ─── enum (the confirmed break) ───────────────────────────────────────────────
 
 #[test]
@@ -116,4 +144,23 @@ fn probe_08_record_conforms_self_regression() {
 #[test]
 fn probe_09_primitive_regression() {
     assert_true("(:wat::core::conforms? 1 :wat::core::i64)");
+}
+
+// ─── the OTHER consumer of the one authority: :wat::core::type ─────────────────
+// Proves the value→type extraction is fixed in ONE place that both `type` and
+// conforms? ride. Pre-fix, `type` ALSO returns the generic kind for enum/newtype.
+
+#[test]
+fn probe_10_type_on_enum_is_declared_fqdn() {
+    assert_type_is(":my::Color::Red", "my::Color");
+}
+
+#[test]
+fn probe_11_type_on_newtype_is_declared_fqdn() {
+    assert_type_is("(:my::Price/new 1.5)", "my::Price");
+}
+
+#[test]
+fn probe_12_type_on_struct_is_declared_fqdn() {
+    assert_type_is("(:wat::core::struct-new :my::Point 3 4)", "my::Point");
 }
