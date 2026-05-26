@@ -1271,6 +1271,89 @@ impl Value {
             Value::wat__core__clauses(_) => "wat::core::clauses",
         }
     }
+
+    /// The **declared** type FQDN for this value — the single authority for
+    /// "what named type is this value an instance of?" (arc 237 Stone
+    /// 237.5.fix-nominal-identity).
+    ///
+    /// Distinct from `type_name()`, which returns the *variant kind*
+    /// (`"wat::core::Enum"`, `"wat::core::Struct"`, …).  Use
+    /// `declared_type_name` wherever you need the per-instance declared FQDN
+    /// (e.g., `:my::Color`), and `type_name()` only for generic-kind dispatch.
+    ///
+    /// **Exhaustive match — no bare `_ =>` / `other =>` catch-all for
+    /// type-bearing variants.** Every `Value` variant is listed explicitly so
+    /// that the Rust compiler rejects a future variant that forgets to supply
+    /// its declared-type arm (the exact rot that broke Enum/Newtype).
+    ///
+    /// Per-form FQDN source:
+    /// - `holon__HolonAST` → `extract_classifier` (classifier-wrap FQDN) with
+    ///   fallback to `"wat::holon::HolonAST"`.
+    /// - `Struct` → `sv.type_name` with leading `:` stripped (also covers newtype,
+    ///   which is a `Value::Struct` at runtime).
+    /// - `wat__Record` → `class_fqdn` (already colon-free FQDN).
+    /// - `Enum` → `ev.type_path` with leading `:` stripped (the declared enum
+    ///   FQDN, e.g. `"my::Color"` — NOT the generic `"wat::core::Enum"`).
+    /// - Every primitive/kind-only variant → `self.type_name().to_string()`.
+    pub fn declared_type_name(&self) -> String {
+        match self {
+            // ── Nominal forms: per-instance declared FQDN ────────────────────
+            Value::holon__HolonAST(h) => {
+                extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
+            }
+            // Struct: type_name carries the declaration keyword verbatim (e.g.
+            // `:my::Point`); strip the leading colon for consistency with the
+            // extract_classifier convention.  Newtype is Value::Struct at
+            // runtime, so this arm covers it too.
+            Value::Struct(sv) => sv.type_name.trim_start_matches(':').to_string(),
+            // Record: class_fqdn is already colon-free (the defrecord macro
+            // stores it without the leading colon).
+            Value::wat__Record { class_fqdn, .. } => class_fqdn.to_string(),
+            // Enum: type_path is the declared enum FQDN verbatim (e.g.
+            // `:my::Color`); strip the leading colon.  Do NOT use
+            // self.type_name(), which returns the generic "wat::core::Enum".
+            Value::Enum(ev) => ev.type_path.trim_start_matches(':').to_string(),
+
+            // ── Primitive / kind-only variants: generic kind string ───────────
+            // Listed explicitly (no bare `_ =>`) so the compiler catches any
+            // future Value variant that lacks a declared-type arm.
+            Value::bool(_) => self.type_name().to_string(),
+            Value::i64(_) => self.type_name().to_string(),
+            Value::u8(_) => self.type_name().to_string(),
+            Value::f64(_) => self.type_name().to_string(),
+            Value::String(_) => self.type_name().to_string(),
+            Value::Vec(_) => self.type_name().to_string(),
+            Value::Unit => self.type_name().to_string(),
+            Value::wat__core__keyword(_) => self.type_name().to_string(),
+            Value::wat__core__fn(_) => self.type_name().to_string(),
+            Value::wat__WatAST(_) => self.type_name().to_string(),
+            Value::wat__kernel__Sender(_) => self.type_name().to_string(),
+            Value::wat__kernel__Receiver(_) => self.type_name().to_string(),
+            Value::wat__std__HashMap(_) => self.type_name().to_string(),
+            Value::wat__std__HashSet(_) => self.type_name().to_string(),
+            Value::RustOpaque(_) => self.type_name().to_string(),
+            Value::io__IOReader(_) => self.type_name().to_string(),
+            Value::io__IOWriter(_) => self.type_name().to_string(),
+            Value::Option(_) => self.type_name().to_string(),
+            Value::Result(_) => self.type_name().to_string(),
+            Value::Tuple(_) => self.type_name().to_string(),
+            Value::wat__kernel__ProgramHandle(_) => self.type_name().to_string(),
+            Value::wat__kernel__HandlePool { .. } => self.type_name().to_string(),
+            Value::wat__kernel__ChildHandle(_) => self.type_name().to_string(),
+            Value::Vector(_) => self.type_name().to_string(),
+            Value::OnlineSubspace(_) => self.type_name().to_string(),
+            Value::Reckoner(_) => self.type_name().to_string(),
+            Value::Engram(_) => self.type_name().to_string(),
+            Value::EngramLibrary(_) => self.type_name().to_string(),
+            Value::Hologram(_) => self.type_name().to_string(),
+            Value::Instant(_) => self.type_name().to_string(),
+            Value::Duration(_) => self.type_name().to_string(),
+            Value::wat__core__Uuid(_) => self.type_name().to_string(),
+            Value::wat__core__Char(_) => self.type_name().to_string(),
+            Value::wat__core__List(_) => self.type_name().to_string(),
+            Value::wat__core__clauses(_) => self.type_name().to_string(),
+        }
+    }
 }
 // Arc 233 Stone 233.2.k: Value::inner(), Value::provenance(), Value::into_tracked() DELETED.
 // These helpers were only meaningful while Value::Tracked existed.
@@ -15890,17 +15973,10 @@ fn eval_type(
         });
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let type_str = match &arg_val {
-        Value::holon__HolonAST(h) => {
-            extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
-        }
-        Value::Struct(sv) => sv.type_name.trim_start_matches(':').to_string(),
-        // Arc 234 Stone 234.1 — closes TODO marker. Returns class_fqdn directly
-        // (already FQDN without leading colon per convention). Per-instance FQDN,
-        // not the generic kind-string from type_name().
-        Value::wat__Record { class_fqdn, .. } => class_fqdn.to_string(),
-        other => other.type_name().to_string(),
-    };
+    // Arc 237 Stone 237.5.fix-nominal-identity — route through the ONE authority.
+    // declared_type_name is exhaustive and wildcard-free; covers Enum/Struct/Record/HolonAST
+    // and all primitives.  No inline dispatch here — the authority is the single source.
+    let type_str = arg_val.declared_type_name();
     Ok(Value::String(Arc::new(type_str)))
 }
 
@@ -16136,20 +16212,18 @@ fn conforms_check(
     }
 }
 
-/// Extract the concrete type name for a [`Value`] as a colon-free FQDN string
-/// (e.g. `"my::Circle"`, `"wat::core::i64"`). For `Value::wat__Record`, returns
-/// `class_fqdn` directly (already FQDN without colon). For all other values,
-/// delegates to `Value::type_name()` (which returns FQDN without colon).
+/// Nominal identity check: does `value`'s declared FQDN match `path_with_colon`?
+///
+/// Routes through `Value::declared_type_name` — the ONE authority for value→type
+/// identity (arc 237 Stone 237.5.fix-nominal-identity).  The previous inline
+/// match (Record special-case + `other.type_name()` wildcard) is deleted; all
+/// forms (HolonAST / Struct / Record / Enum / primitives) are handled by the
+/// exhaustive `declared_type_name` method.
 #[inline]
 fn concrete_type_name_matches(value: &Value, path_with_colon: &str) -> bool {
-    // Strip the leading ':' from the Path name to compare with type_name() output.
+    // Strip the leading ':' from the Path name; declared_type_name returns colon-free FQDN.
     let stripped = path_with_colon.strip_prefix(':').unwrap_or(path_with_colon);
-    match value {
-        // Records carry their per-instance class FQDN (no leading colon).
-        Value::wat__Record { class_fqdn, .. } => class_fqdn.as_str() == stripped,
-        // All other values: compare against Value::type_name() (FQDN, no colon).
-        other => other.type_name() == stripped,
-    }
+    value.declared_type_name() == stripped
 }
 
 /// Returns `true` if `name` (colon-free FQDN) is a built-in primitive type
