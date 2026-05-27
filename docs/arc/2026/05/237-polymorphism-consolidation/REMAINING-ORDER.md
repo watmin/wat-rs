@@ -11,11 +11,12 @@ read this to know what's left, the order, and **why** the order — then verify 
 > proven + fixed; 834/0). The user's clean split is locked: **`=` owns type-strict** (same type +
 > same values — done by 238); **`same-data?` is the type-BLIND tool** (the 2×2 flavor grid /
 > cross-type field comparison), still a real distinct verb. REMAINING in the records thread:
->   - **S-C.2d** — mint `:wat::Record/same-data?` (type-BLIND record data-equality; depends S-C.2c ✓;
->     now cleanly distinct from `=`). Name locked via intueri. Needs sub-DESIGN + FM-2-bis probe.
->   - **S-C.3** — macro split (`:wat::Record::def` base / `:wat::holon::Record::def` holonic).
+>   - **S-C.2d** ✓ SHIPPED `6ea2270e` — `:wat::Record/same-data?` (type-blind record data-equality;
+>     name-keyed via record->map + values_equal). FM-9: probe 6/6, lib 834/0. The clean split is live:
+>     `=` type-strict (238) + `same-data?` type-blind. USER-GUIDE row added.
+>   - **S-C.3** ← NEXT — macro split (`:wat::Record::def` base / `:wat::holon::Record::def` holonic;
+>     static type distinction = constructor return type; constructs the base variant S-C.2c minted).
 >   - **S-D** — migrate callers (HARD CUT). Then 237.7-9 arithmetic tail + INSCRIPTION.
-> S-C.2d and S-C.3 are independent (disjoint machinery) — momentum/user picks the order.
 
 Arc 237 is a **two-boss level** (no one-boss-per-level rule): the records-first-class
 thread AND the arithmetic/dispatch consolidation (the original spine). The records

@@ -158,7 +158,7 @@ HEAD        branch arc-170-gap-j-v5-deadlock-state — verify: git log -1 + git 
 holon-rs    frozen (STOP-5) — never touch
 Lib tests   827 PASS / 0 FAIL (held across EVERY arc 237 stone)
 Clippy      ~54 (NOT a concern)
-Sonnet      idle. ARC 238 CLOSED (290a6cb3 + INSCRIPTION) — `=` now deep-structural over records/maps/sets/Instant/Duration/WatAST (FM-9: 834/0, probe 8/8). arc 237 RESUMED. NEXT in 237: S-C.2d (mint `:wat::Record/same-data?`, type-BLIND — now cleanly distinct from `=`, which owns type-strict) OR S-C.3 (macro split). S-C.2c SHIPPED 601c892d. User directs next strike.
+Sonnet      idle. arc 237 records thread: S-C.2c ✓601c892d (base variant), S-C.2d ✓6ea2270e (`:wat::Record/same-data?` type-blind data-equality, FM-9: 834/0, probe 6/6). NEXT = **S-C.3** (macro split: `:wat::Record::def` base / `:wat::holon::Record::def` holonic; static distinction = constructor return type) → S-D (migrate, HARD CUT) → records thread closes → 237.7-9 arithmetic tail. (arc 238 CLOSED — `=` deep-structural complete.)
 Active arc  237 — records-first-class thread (winding); arithmetic tail (237.7-9) follows.
 ```
 
