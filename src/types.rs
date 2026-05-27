@@ -180,7 +180,20 @@ pub struct UnionDef {
     pub members: Vec<TypeExpr>,
 }
 
-/// One of the five declaration variants.
+/// Record class declaration — Stone S-B.1.
+///
+/// `(:wat::core::recordtype :my::Circle :wat::Record)` declares a record
+/// class as a real `TypeDef` so it inherits the type system's uniform
+/// services: ∀T `is-<Name>?` synthesis + `typesub` hierarchy membership.
+/// Minimal holder: no field list (fields live in the macro's emitted
+/// accessors). NOT fed to `register_struct_methods` — dedicated kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordDef {
+    pub name: String,
+    pub parent: String,
+}
+
+/// One of the six declaration variants.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeDef {
     Struct(StructDef),
@@ -190,6 +203,8 @@ pub enum TypeDef {
     /// Stone 237.1 — named bounded set of types for bounded-existential
     /// unification. See [`UnionDef`].
     Union(UnionDef),
+    /// Stone S-B.1 — record class as a real TypeDef. See [`RecordDef`].
+    Record(RecordDef),
 }
 
 impl TypeDef {
@@ -200,6 +215,8 @@ impl TypeDef {
             TypeDef::Newtype(n) => &n.name,
             TypeDef::Alias(a) => &a.name,
             TypeDef::Union(u) => &u.name,
+            // Stone S-B.1
+            TypeDef::Record(r) => &r.name,
         }
     }
 }
@@ -293,6 +310,25 @@ impl TypeEnv {
             validate_union_members(&name, &union.members, &span)?;
             check_union_no_cycle(&name, &union.members, self, &span)?;
         }
+        // Stone S-B.1 — record type: verify parent is known, wire subtype edge.
+        if let TypeDef::Record(rec) = &def {
+            let parent = rec.parent.clone();
+            // Parent must already be registered in the TypeEnv. The built-in
+            // roots `:wat::Record` and `:wat::holon::Record` are registered as
+            // opaque TypeDef::Struct entries, so `contains_key` is the right gate.
+            if !self.types.contains_key(&parent) {
+                return Err(TypeError::MalformedDecl {
+                    head: "recordtype".into(),
+                    reason: format!(
+                        "parent '{}' is not a known type; declare it before this recordtype",
+                        parent
+                    ),
+                    span,
+                });
+            }
+            self.types.insert(name.clone(), def);
+            return self.register_subtype(&name, &parent);
+        }
         self.types.insert(name, def);
         Ok(())
     }
@@ -336,6 +372,22 @@ impl TypeEnv {
         if let TypeDef::Union(union) = &def {
             validate_union_members(&name, &union.members, &span)?;
             check_union_no_cycle(&name, &union.members, self, &span)?;
+        }
+        // Stone S-B.1 — record type: verify parent is known, wire subtype edge.
+        if let TypeDef::Record(rec) = &def {
+            let parent = rec.parent.clone();
+            if !self.types.contains_key(&parent) {
+                return Err(TypeError::MalformedDecl {
+                    head: "recordtype".into(),
+                    reason: format!(
+                        "parent '{}' is not a known type; declare it before this recordtype",
+                        parent
+                    ),
+                    span,
+                });
+            }
+            self.types.insert(name.clone(), def);
+            return self.register_subtype(&name, &parent);
         }
         self.types.insert(name, def);
         Ok(())
@@ -1816,6 +1868,8 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
                 ":wat::core::typealias" => return Some("typealias"),
                 // Stone 237.1 — named bounded set of types.
                 ":wat::core::typeunion" => return Some("typeunion"),
+                // Stone S-B.1 — record class as a real TypeDef.
+                ":wat::core::recordtype" => return Some("recordtype"),
                 _ => {}
             }
         }
@@ -1849,6 +1903,8 @@ fn parse_type_decl(
         "typealias" => parse_typealias(iter.collect(), decl_span),
         // Stone 237.1 — named bounded set of types.
         "typeunion" => parse_typeunion(iter.collect(), decl_span),
+        // Stone S-B.1 — record class as a real TypeDef.
+        "recordtype" => parse_recordtype(iter.collect(), decl_span),
         _ => unreachable!(),
     }
 }
@@ -2275,6 +2331,77 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
         type_params,
         members,
     }))
+}
+
+/// Stone S-B.1 — parse `(:wat::core::recordtype :Name :Parent)`.
+///
+/// Two positional slots after the head keyword (consumed by `parse_type_decl`):
+///   args[0] — name keyword (e.g. `:my::Circle`)
+///   args[1] — parent type keyword (e.g. `:wat::Record` or `:wat::holon::Record`)
+///
+/// → `TypeDef::Record(RecordDef { name, parent })`. Parent validity is
+/// checked at registration time (in `register_with_span`).
+fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
+    if args.len() != 2 {
+        return Err(TypeError::MalformedDecl {
+            head: "recordtype".into(),
+            reason: format!(
+                "expected (:wat::core::recordtype :Name :Parent); got {} args",
+                args.len()
+            ),
+            span: decl_span,
+        });
+    }
+    let mut iter = args.into_iter();
+    let name_kw = iter.next().unwrap();
+    let parent_kw = iter.next().unwrap();
+    // Name: plain keyword (no type params for records).
+    let name = match &name_kw {
+        WatAST::Keyword(k, _) => {
+            if !k.starts_with(':') {
+                return Err(TypeError::MalformedDecl {
+                    head: "recordtype".into(),
+                    reason: format!("name must begin with ':'; got {}", k),
+                    span: decl_span,
+                });
+            }
+            k.clone()
+        }
+        other => {
+            return Err(TypeError::MalformedDecl {
+                head: "recordtype".into(),
+                reason: format!(
+                    "name must be a keyword; got {}",
+                    ast_variant_name(other)
+                ),
+                span: decl_span,
+            })
+        }
+    };
+    // Parent: plain type keyword.
+    let parent = match parent_kw {
+        WatAST::Keyword(k, _) => {
+            if !k.starts_with(':') {
+                return Err(TypeError::MalformedDecl {
+                    head: "recordtype".into(),
+                    reason: format!("parent must begin with ':'; got {}", k),
+                    span: decl_span,
+                });
+            }
+            k
+        }
+        other => {
+            return Err(TypeError::MalformedDecl {
+                head: "recordtype".into(),
+                reason: format!(
+                    "parent must be a type keyword; got {}",
+                    ast_variant_name(&other)
+                ),
+                span: decl_span,
+            })
+        }
+    };
+    Ok(TypeDef::Record(RecordDef { name, parent }))
 }
 
 /// `(field-name :Type)` — typed field form used by structs + tagged enum variants.

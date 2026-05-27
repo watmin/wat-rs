@@ -1288,6 +1288,10 @@ fn def_inner_typeexprs(def: &TypeDef) -> Vec<TypeExpr> {
         TypeDef::Alias(a) => vec![a.expr.clone()],
         // Stone 237.1 — typeunion members are the inner type references.
         TypeDef::Union(u) => u.members.clone(),
+        // Stone S-B.1 — record has no inner type references (fields live in
+        // the macro's emitted accessors; parent is a hierarchy edge, not a
+        // contained TypeExpr).
+        TypeDef::Record(_) => vec![],
     }
 }
 
@@ -2248,6 +2252,15 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                 span,
             )
         }
+        // Stone S-B.1 — reconstruct recordtype form from RecordDef.
+        TypeDef::Record(r) => WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::recordtype".into(), span.clone()),
+                WatAST::Keyword(r.name.clone(), span.clone()),
+                WatAST::Keyword(r.parent.clone(), span.clone()),
+            ],
+            span,
+        ),
     }
 }
 

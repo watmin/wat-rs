@@ -3209,6 +3209,8 @@ pub fn register_type_predicates(
             TypeDef::Enum(e) => &e.name,
             TypeDef::Newtype(n) => &n.name,
             TypeDef::Union(u) => &u.name,
+            // Stone S-B.1 — record class inherits ∀T is-<Name>? synthesis.
+            TypeDef::Record(r) => &r.name,
             TypeDef::Alias(_) => continue,
         };
 
@@ -13024,6 +13026,13 @@ fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
 fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
     let span = Span::unknown();
     let (base, type_params) = match def {
+        // Stone S-B.1 — record has no type params; emit name only.
+        crate::types::TypeDef::Record(r) => {
+            return WatAST::List(
+                vec![WatAST::Keyword(r.name.clone(), span.clone())],
+                span,
+            );
+        }
         crate::types::TypeDef::Struct(s) => (s.name.clone(), &s.type_params),
         crate::types::TypeDef::Enum(e) => (e.name.clone(), &e.type_params),
         crate::types::TypeDef::Newtype(n) => (n.name.clone(), &n.type_params),
@@ -13060,6 +13069,8 @@ fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
         crate::types::TypeDef::Alias(_) => ":wat::core::typealias",
         // Stone 237.1 — typeunion is type-only; no runtime artifact.
         crate::types::TypeDef::Union(_) => ":wat::core::typeunion",
+        // Stone S-B.1 — record class declaration form.
+        crate::types::TypeDef::Record(_) => ":wat::core::recordtype",
     };
     let name_kw = WatAST::Keyword(def.name().to_string(), span.clone());
     let sentinel = WatAST::List(
@@ -16158,8 +16169,12 @@ fn conforms_check(
                     }
                     Ok(false)
                 }
-                // Struct / Enum / Newtype → nominal identity check.
-                Some(TypeDef::Struct(_)) | Some(TypeDef::Enum(_)) | Some(TypeDef::Newtype(_)) => {
+                // Struct / Enum / Newtype / Record → nominal identity check.
+                Some(TypeDef::Struct(_))
+                | Some(TypeDef::Enum(_))
+                | Some(TypeDef::Newtype(_))
+                // Stone S-B.1 — record class: nominal exact (mirror Struct; no parent-walk).
+                | Some(TypeDef::Record(_)) => {
                     Ok(concrete_type_name_matches(value, name))
                 }
                 // Not in the TypeEnv — check built-in primitive paths.
