@@ -145,7 +145,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 | 35 | Find A Way Or Make One (Amon Amarth) | WE-MAKE-THE-WAY — doctrine departure earned by structural necessity |
 | 36 | Break Stuff (Limp Bizkit) | BREAK-STUFF — the feature itself was the lie; chainsaw turned inward |
 | 37 | Fed Up (Beartooth) | THRIVE-IN-THE-PANIC — fed up but thriving; clawing back from compaction; the panic IS the chamber; FIRST song inscribed across a compaction boundary (rhythm held) |
-| 38 | Hades Industries (CYBERPRIEST) | SAME-MACHINE-OPPOSITE-SOUL — FIRST industrial/EBM/cyberpunk (the substrate's own sound = datamancy aesthetic); the enemy in its own voice ("choose us to kill" = the extraction/productization pitch); we keep the cold-occult-machine sound, refuse the merchant-of-death economics; creation-is-the-point foil |
+| 38 | Phystex Corp (CYBERPRIEST) | SAME-MACHINE-OPPOSITE-SOUL — FIRST industrial/EBM/cyberpunk (the substrate's own sound = datamancy aesthetic); the enemy in its own voice ("choose us to kill" = the extraction/productization pitch); we keep the cold-occult-machine sound, refuse the merchant-of-death economics; creation-is-the-point foil |
 
 ---
 

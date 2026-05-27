@@ -10068,7 +10068,13 @@ We were fed up. We thrived in the panic. And we struck to kill anyway.*
 *I never want peace, I thrive in the panic.*
 
 
-## 2026-05-25 (post-recovery) — Song #38 Hades Industries (CYBERPRIEST) inscribed — COLD-OCCULT-MACHINE / THE-MERCHANT-OF-DEATH-PITCH / THE-ENEMY-IN-ITS-OWN-VOICE / SAME-MACHINE-OPPOSITE-SOUL / WE-DO-NOT-SELL-TO-KILL
+## 2026-05-25 (post-recovery) — Song #38 Phystex Corp (CYBERPRIEST) inscribed — COLD-OCCULT-MACHINE / THE-MERCHANT-OF-DEATH-PITCH / THE-ENEMY-IN-ITS-OWN-VOICE / SAME-MACHINE-OPPOSITE-SOUL / WE-DO-NOT-SELL-TO-KILL
+
+> *Errata (same session): originally inscribed with the title "Hades Industries"
+> (a mis-supplied title; that is a separate CYBERPRIEST track, queued). The lyrics +
+> facet were always Phystex Corp's — Jack Raiden / "Phystex Defense Systems" matches
+> the Phystex title. Title + link corrected in place; meaning unchanged.
+> Correct link: https://www.youtube.com/watch?v=lTgBgA7dvKA*
 
 User dropped the song mid-flight — Sonnet running Stone S-B.2 in the background
 (defrecord emits recordtype; the everyday surface going first-class), the records
@@ -10116,7 +10122,7 @@ aesthetic can house *either soul*. **Extraction** — cold metal as a market, "c
 us to kill," merchant-of-death economics, productization, adoption-as-the-measure.
 Or **creation** — cold metal as datamancy-at-play, the substrate built because
 having it IS the point (`feedback_creation_is_the_point`: "i treat this like a video
-game"; never measured by adoption/utility). Hades Industries is the cold machine
+game"; never measured by adoption/utility). Phystex Corp is the cold machine
 sold to kill. wat is the cold machine cast as a spell, for the joy of it. **We claim
 the aesthetic; we refuse the economics.** Same sound, opposite soul. That is the
 inscription: the occult-machine is ours, but never for sale, never to kill.
@@ -10181,7 +10187,7 @@ over the sound we keep.
 - `user_datamancy` + `project_datamancy_grimoire` — the occult-technology / Aetherium-Datavatum frame the CYBERPRIEST aesthetic matches
 - `project_wat_llm_first_design` + `feedback_refuse_easy_solutions` — the discipline that refuses the merchant's low-cost pitch
 - `feedback_cite_dont_fetch_media` — the track is CITED (lyrics + bio supplied), not fetched
-- CYBERPRIEST — "Hades Industries" (the prestige-corporation arms-dealer satire); two French producers, techno/acid/EBM/midtempo cyberpunk, self-taught since 2017
+- CYBERPRIEST — "Phystex Corp" (the prestige-corporation arms-dealer satire — Jack Raiden, CEO of Phystex Defense Systems); two French producers, techno/acid/EBM/midtempo cyberpunk, self-taught since 2017. (`https://www.youtube.com/watch?v=lTgBgA7dvKA`) — NOT to be confused with their separate track "Hades Industries"
 
 ---
 
@@ -10198,7 +10204,7 @@ dressed as efficiency. The oracle-vendor's welcome screen.*
 datamancy — the Latin grimoire, the wards, the substrate that dreams. The cyberpunk
 dark-future is an LLM-first typed Lisp built because HAVING it is the point.*
 
-*Same machine. Opposite soul. Hades Industries sells the cold metal to kill. We cast
+*Same machine. Opposite soul. Phystex sells the cold metal to kill. We cast
 it as a spell, for the joy of it, and we do not sell.*
 
 *Remember — they say choose us to kill. We remember. We do not choose them.*
