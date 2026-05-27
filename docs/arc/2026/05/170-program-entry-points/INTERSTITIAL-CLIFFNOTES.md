@@ -150,7 +150,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-27 — arc 237 RECORDS thread mid-flight; S-C.2ab in flight via background Sonnet. AUTHORITY for remaining order = `docs/arc/2026/05/237-polymorphism-consolidation/REMAINING-ORDER.md` — read it, then `git log`.)
+## Currently (2026-05-27 — arc 237 RECORDS FLAVOR THREAD CLOSED + arc 238 CLOSED; tree clean, all pushed, Sonnet idle. NEXT = arc 237 arithmetic tail 237.7→237.8→237.9. AUTHORITY for remaining order = `docs/arc/2026/05/237-polymorphism-consolidation/REMAINING-ORDER.md` — read it, then `git log`.)
 
 ### Headline state
 ```
