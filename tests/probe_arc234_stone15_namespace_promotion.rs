@@ -47,7 +47,9 @@ fn make_holon_form(class: &str, fields: Vec<(&str, HolonAST)>) -> Arc<HolonAST> 
     ))
 }
 
-/// Construct a wat__Record fixture for tests. (Post-Stone-234.1.5 variant name.)
+/// Construct a wat__holon__Record fixture for tests. (Stone S-C.3: holonic variant.)
+/// Stone S-C.3 migration: Value::wat__Record is now BASE (no holon_form);
+/// Value::wat__holon__Record is HOLONIC (carries holon_form for holon-ops).
 fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
     let struct_form: Arc<Vec<Value>> =
         Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
@@ -57,7 +59,7 @@ fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
         .collect();
     let holon_form = make_holon_form(class, holon_field_pairs);
     let class_fqdn = Arc::new(class.to_string());
-    Value::wat__Record {
+    Value::wat__holon__Record {
         class_fqdn,
         struct_form,
         holon_form,
@@ -95,11 +97,11 @@ fn probe_1_variant_compiles_and_constructs() {
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
     match &r {
-        Value::wat__Record { class_fqdn, struct_form, .. } => {
+        Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
             assert_eq!(class_fqdn.as_str(), "myapp::Voltage");
             assert_eq!(struct_form.len(), 1);
         }
-        _ => panic!("Probe 1: expected Value::wat__Record variant"),
+        _ => panic!("Probe 1: expected Value::wat__holon__Record variant"),
     }
 }
 

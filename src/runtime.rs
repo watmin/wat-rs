@@ -5328,10 +5328,12 @@ fn dispatch_keyword_head_value(
         // Error contract: well-formed known type names → bool; unknown name → Err.
         ":wat::core::subtype?" => eval_subtype(args, list_span, env, sym),
         // Arc 234 Stone 234.2a — `:wat::Record::of` constructor + `:wat::Record/field-at` accessor.
-        // Constructor: (class-fqdn struct-form holon-form) -> :wat::Record
+        // Constructor: (class-fqdn struct-form) -> :wat::Record (BASE, no holon_form)
         // Accessor:    (record index) -> field-value at struct_form[index]
         // These are the substrate primitives consumed by the Stone 234.2b defrecord macro.
+        // Stone S-C.3 — `:wat::holon::Record::of` is the holonic constructor (3-arg: class + struct + holon).
         ":wat::Record::of" => eval_record_of(args, list_span, env, sym),
+        ":wat::holon::Record::of" => eval_holon_record_of(args, list_span, env, sym),
         ":wat::Record/field-at" => eval_record_field_at(args, list_span, env, sym),
         // Arc 234 Stone 234.3a — polymorphic record read verbs.
         // record?   :: ∀T. T -> bool          — true iff input is Value::wat__holon__Record
@@ -16525,8 +16527,70 @@ fn eval_subtype(
 
 // ─── end Stone S-A ───────────────────────────────────────────────────────────
 
-/// `(:wat::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>> <holon-form: HolonAST>)`
-/// → `:wat::Record` — arc 234 Stone 234.2a.
+/// `(:wat::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>>)`
+/// → `:wat::Record` — arc 237 Stone S-C.3 (BASE constructor; NO holon_form).
+///
+/// Substrate constructor for `Value::wat__Record` (base flavor). Takes two args:
+/// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Pt`); the keyword's stored
+///   Arc<String> carries the leading `:` which is stripped to produce the colon-free
+///   `class_fqdn` field (e.g. `"myapp::Pt"`).
+/// - `struct-form`: `Vector<T>` of field values in declaration order.
+///
+/// Returns `Value::wat__Record { class_fqdn, struct_form }`.
+/// Consumed by the Stone S-C.3 `:wat::Record::def` (BASE) macro.
+fn eval_record_of(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::Record::of";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let class_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let struct_val = eval_inner(&args[1], env, sym)?.value_owned();
+
+    let class_arc = match class_val {
+        Value::wat__core__keyword(arc_s) => arc_s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::keyword (class FQDN)",
+                got: ValueSnapshot::of(&other),
+                span: list_span.clone(),
+            });
+        }
+    };
+    // Keywords store the leading ':' in their Arc<String>; strip it for class_fqdn.
+    let class_fqdn_str = class_arc.strip_prefix(':').unwrap_or(&class_arc).to_string();
+    let class_fqdn = Arc::new(class_fqdn_str);
+
+    let struct_form = match struct_val {
+        Value::Vec(arc_vec) => arc_vec,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector<T> (struct-form field values in declaration order)",
+                got: ValueSnapshot::of(&other),
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    Ok(Value::wat__Record {
+        class_fqdn,
+        struct_form,
+    })
+}
+
+/// `(:wat::holon::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>> <holon-form: HolonAST>)`
+/// → `:wat::holon::Record` — arc 234 Stone 234.2a (renamed from `:wat::Record::of` at Stone S-C.3).
 ///
 /// Substrate constructor for `Value::wat__holon__Record`. Takes three args:
 /// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Voltage`); the keyword's stored
@@ -16536,14 +16600,14 @@ fn eval_subtype(
 /// - `holon-form`: pre-built HolonAST classifier-wrap `Bind(Atom(class), Bundle(field-Binds...))`.
 ///
 /// Returns `Value::wat__holon__Record { class_fqdn, struct_form, holon_form }`.
-/// Consumed by the Stone 234.2b defrecord macro; power users may call directly.
-fn eval_record_of(
+/// Consumed by the Stone S-C.3 `:wat::holon::Record::def` (HOLONIC) macro.
+fn eval_holon_record_of(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::Record::of";
+    const OP: &str = ":wat::holon::Record::of";
     if args.len() != 3 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),

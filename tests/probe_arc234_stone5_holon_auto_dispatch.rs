@@ -55,7 +55,7 @@ fn run_compute(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_to_holon_returns_holon_form() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
   (:wat::core::let
@@ -83,7 +83,7 @@ fn probe_1_to_holon_returns_holon_form() {
 #[test]
 fn probe_2_cosine_accepts_records() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::core::f64)
   (:wat::core::let
@@ -116,7 +116,7 @@ fn probe_2_cosine_accepts_records() {
 #[test]
 fn probe_3_bind_accepts_record_as_right() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
   (:wat::core::let
@@ -146,7 +146,7 @@ fn probe_3_bind_accepts_record_as_right() {
 #[test]
 fn probe_4_bundle_accepts_records_as_children() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
   (:wat::core::let
@@ -179,7 +179,7 @@ fn probe_4_bundle_accepts_records_as_children() {
 #[test]
 fn probe_5_extract_classifier_on_record() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::core::String)
   (:wat::core::let
@@ -204,7 +204,7 @@ fn probe_5_extract_classifier_on_record() {
 #[test]
 fn probe_6_mixed_records_and_holon_asts() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
   (:wat::core::let

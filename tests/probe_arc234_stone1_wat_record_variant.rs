@@ -66,7 +66,10 @@ fn make_holon_form(class: &str, fields: Vec<(&str, HolonAST)>) -> Arc<HolonAST> 
     ))
 }
 
-/// Construct a wat__Record fixture for tests.
+/// Construct a wat__holon__Record fixture for tests.
+/// Stone S-C.3 migration: Value::wat__Record is now BASE (no holon_form);
+/// Value::wat__holon__Record is HOLONIC (with holon_form). This probe tests
+/// the holonic variant (the original Stone 234.1 API target).
 fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
     let struct_form: Arc<Vec<Value>> = Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
     let holon_field_pairs: Vec<(&str, HolonAST)> = fields
@@ -75,7 +78,7 @@ fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
         .collect();
     let holon_form = make_holon_form(class, holon_field_pairs);
     let class_fqdn = Arc::new(class.to_string());
-    Value::wat__Record {
+    Value::wat__holon__Record {
         class_fqdn,
         struct_form,
         holon_form,
@@ -100,13 +103,15 @@ fn probe_1_variant_construction_compiles() {
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
     // Match destructure proves the variant fields match expected names.
+    // Stone S-C.3: Value::wat__Record is now BASE (no holon_form);
+    // the holonic variant is Value::wat__holon__Record.
     match &r {
-        Value::wat__Record { class_fqdn, struct_form, holon_form } => {
+        Value::wat__holon__Record { class_fqdn, struct_form, holon_form } => {
             assert_eq!(class_fqdn.as_str(), "myapp::Voltage");
             assert_eq!(struct_form.len(), 1);
             assert!(!format!("{:?}", holon_form).is_empty());
         }
-        _ => panic!("Probe 1: expected Value::wat__Record variant"),
+        _ => panic!("Probe 1: expected Value::wat__holon__Record variant"),
     }
 }
 
@@ -141,7 +146,7 @@ fn probe_3_eq_different_class() {
         "myapp::Celsius",
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
-    assert_ne!(a, b, "Probe 3: different class should make records unequal (wat__Record)");
+    assert_ne!(a, b, "Probe 3: different class should make records unequal (wat__holon__Record)");
 }
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
@@ -158,7 +163,7 @@ fn probe_4_eq_different_field_values() {
         "myapp::Voltage",
         vec![("magnitude", Value::f64(6.0), HolonAST::F64(6.0))],
     );
-    assert_ne!(a, b, "Probe 4: different field values should make records unequal (wat__Record)");
+    assert_ne!(a, b, "Probe 4: different field values should make records unequal (wat__holon__Record)");
 }
 
 // ─── Probe 5 ────────────────────────────────────────────────────────────────

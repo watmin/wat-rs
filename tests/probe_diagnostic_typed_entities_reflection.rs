@@ -139,7 +139,7 @@ fn probe_2_extract_classifier_on_bare_atom() {
 #[test]
 fn probe_3_bind_right_on_defrecord_instance() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
   (:wat::core::let
@@ -209,7 +209,7 @@ fn probe_5_composed_walk_to_field_binds() {
     // Stone 234.6 migration: :wat::Record::def instances are Value::wat__Record;
     // coerce to holon-form via :wat::holon::to-holon before applying HolonAST reflection.
     let src = r#"
-(:wat::Record::def :myapp::Point
+(:wat::holon::Record::def :myapp::Point
   [x <- :wat::core::i64
    y <- :wat::core::i64])
 
@@ -245,7 +245,7 @@ fn probe_5_composed_walk_to_field_binds() {
 #[test]
 fn probe_6_bind_left_on_defrecord_instance() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
   (:wat::core::let

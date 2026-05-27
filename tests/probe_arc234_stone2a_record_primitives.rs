@@ -1,11 +1,11 @@
-//! Diagnostic probe — `:wat::Record::of` + `:wat::Record/field-at`
+//! Diagnostic probe — `:wat::holon::Record::of` + `:wat::Record/field-at`
 //! substrate primitives (arc 234 Stone 234.2a).
 //!
 //! FM 2-bis empirical probe authored BEFORE the Stone 234.2a BRIEF. Verifies
 //! the substrate primitives that the Stone 234.2b defrecord macro will consume:
 //!
-//!   - `:wat::Record::of <class-fqdn> <struct-form> <holon-form>`
-//!     constructs a `Value::wat__Record` instance
+//!   - `:wat::holon::Record::of <class-fqdn> <struct-form> <holon-form>`
+//!     constructs a `Value::wat__holon__Record` instance
 //!   - `:wat::Record/field-at <record> <index>` returns the
 //!     field value at struct_form[index]
 //!   - `:wat::Record` type registered in check.rs so signatures
@@ -20,7 +20,7 @@
 //!
 //! Probe contracts (7):
 //!   1. Construction returns record (type check passes; resulting Value is
-//!      Value::wat__Record with class_fqdn populated correctly)
+//!      Value::wat__holon__Record with class_fqdn populated correctly)
 //!   2. Type extraction via :wat::core::type returns the class_fqdn (validates
 //!      construction populated the variant correctly)
 //!   3. Single-field construction + Rust inspection (struct_form[0] is the field)
@@ -34,7 +34,7 @@
 //!   7. Equality via holon_form — two records with same construction args
 //!      compare equal
 //!
-//! Initial state: 7/7 FAIL with `UnknownFunction(":wat::Record::of")`
+//! Initial state: 7/7 FAIL with `UnknownFunction(":wat::holon::Record::of")`
 //! (and similar for field-at) — the primitives don't exist.
 //!
 //! Post-stone: 7/7 PASS. The primitives exist + propagate correctly through
@@ -63,12 +63,12 @@ fn run_compute(src: &str) -> Result<Value, String> {
 //
 // `Record::of` construction returns a value of type `:wat::Record`
 // — verified by destructuring the resulting Value in Rust + checking it's
-// Value::wat__Record with class_fqdn populated correctly.
+// Value::wat__holon__Record with class_fqdn populated correctly.
 #[test]
 fn probe_1_construction_returns_wat_record() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::Record)
-  (:wat::Record::of
+(:wat::core::define (:user::compute -> :wat::holon::Record)
+  (:wat::holon::Record::of
     :myapp::Voltage
     [5.0]
     (:wat::holon::Bind
@@ -82,7 +82,7 @@ fn probe_1_construction_returns_wat_record() {
 "#;
     match run_compute(src) {
         Ok(v) => match v {
-            Value::wat__Record { class_fqdn, struct_form, holon_form: _ } => {
+            Value::wat__holon__Record { class_fqdn, struct_form, holon_form: _ } => {
                 assert_eq!(
                     class_fqdn.as_str(),
                     "myapp::Voltage",
@@ -90,7 +90,7 @@ fn probe_1_construction_returns_wat_record() {
                 );
                 assert_eq!(struct_form.len(), 1, "Probe 1: struct_form should have 1 element");
             }
-            other => panic!("Probe 1: expected Value::wat__Record; got {:?}", other),
+            other => panic!("Probe 1: expected Value::wat__holon__Record; got {:?}", other),
         },
         Err(e) => panic!("Probe 1 FAILED: {}", e),
     }
@@ -106,7 +106,7 @@ fn probe_2_type_returns_class_fqdn() {
     let src = r#"
 (:wat::core::define (:user::compute -> :wat::core::String)
   (:wat::core::let
-    [v (:wat::Record::of
+    [v (:wat::holon::Record::of
          :myapp::Voltage
          [5.0]
          (:wat::holon::Bind
@@ -139,8 +139,8 @@ fn probe_2_type_returns_class_fqdn() {
 #[test]
 fn probe_3_struct_form_field_at_zero() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::Record)
-  (:wat::Record::of
+(:wat::core::define (:user::compute -> :wat::holon::Record)
+  (:wat::holon::Record::of
     :myapp::Voltage
     [42.0]
     (:wat::holon::Bind
@@ -154,7 +154,7 @@ fn probe_3_struct_form_field_at_zero() {
 "#;
     match run_compute(src) {
         Ok(v) => match v {
-            Value::wat__Record { struct_form, .. } => {
+            Value::wat__holon__Record { struct_form, .. } => {
                 assert_eq!(struct_form.len(), 1);
                 match &struct_form[0] {
                     Value::f64(f) => assert!(
@@ -165,7 +165,7 @@ fn probe_3_struct_form_field_at_zero() {
                     other => panic!("Probe 3: expected f64 at index 0; got {:?}", other),
                 }
             }
-            other => panic!("Probe 3: expected Value::wat__Record; got {:?}", other),
+            other => panic!("Probe 3: expected Value::wat__holon__Record; got {:?}", other),
         },
         Err(e) => panic!("Probe 3 FAILED: {}", e),
     }
@@ -178,8 +178,8 @@ fn probe_3_struct_form_field_at_zero() {
 #[test]
 fn probe_4_multi_field_construction() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::Record)
-  (:wat::Record::of
+(:wat::core::define (:user::compute -> :wat::holon::Record)
+  (:wat::holon::Record::of
     :myapp::Point
     [3 4]
     (:wat::holon::Bind
@@ -196,7 +196,7 @@ fn probe_4_multi_field_construction() {
 "#;
     match run_compute(src) {
         Ok(v) => match v {
-            Value::wat__Record { class_fqdn, struct_form, .. } => {
+            Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
                 assert_eq!(class_fqdn.as_str(), "myapp::Point");
                 assert_eq!(struct_form.len(), 2);
                 match (&struct_form[0], &struct_form[1]) {
@@ -207,7 +207,7 @@ fn probe_4_multi_field_construction() {
                     (a, b) => panic!("Probe 4: expected (i64, i64); got ({:?}, {:?})", a, b),
                 }
             }
-            other => panic!("Probe 4: expected Value::wat__Record; got {:?}", other),
+            other => panic!("Probe 4: expected Value::wat__holon__Record; got {:?}", other),
         },
         Err(e) => panic!("Probe 4 FAILED: {}", e),
     }
@@ -224,7 +224,7 @@ fn probe_5_field_at_positional_access() {
     let src = r#"
 (:wat::core::define (:user::compute -> :wat::core::i64)
   (:wat::core::let
-    [v (:wat::Record::of
+    [v (:wat::holon::Record::of
          :myapp::Point
          [3 4]
          (:wat::holon::Bind
@@ -270,8 +270,8 @@ fn probe_5_field_at_positional_access() {
 #[test]
 fn probe_7_equality_via_holon_form() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::Record)
-  (:wat::Record::of
+(:wat::core::define (:user::compute -> :wat::holon::Record)
+  (:wat::holon::Record::of
     :myapp::Voltage
     [5.0]
     (:wat::holon::Bind

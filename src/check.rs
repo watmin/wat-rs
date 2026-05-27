@@ -4091,7 +4091,13 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
                 // property: holon_form is pre-built at construction. to-holon on a record
                 // returns the holon_form directly; no recomputation. The atomizable gate
                 // must accept :wat::Record so (:wat::holon::to-holon r) type-checks.
+                // Stone S-C.3 — :wat::holon::Record is also atomizable (holonic flavor
+                // carries holon_form). Base :wat::Record to-holon still type-checks
+                // (checker passes, runtime emits the "base has no holon flavor" teaching
+                // error). Both flavors accepted here so the checker is permissive at the
+                // supertype level; flavor enforcement is a runtime contract.
                 | ":wat::Record"
+                | ":wat::holon::Record"
                 // Type variables and inference sentinels — can't prove non-atomizable
                 | ":wat::type::Infer"
         ),
@@ -6328,8 +6334,8 @@ fn infer_list(
                 if args.len() >= 1 {
                     if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                         let resolved = apply_subst(&arg_ty, subst);
-                        if matches!(&resolved, TypeExpr::Path(p) if p == ":wat::Record") {
-                            // Record arg → return type is String (classifier always present).
+                        if matches!(&resolved, TypeExpr::Path(p) if p == ":wat::Record" || p == ":wat::holon::Record") {
+                            // Record arg (base or holonic) → return type is String (classifier always present).
                             let ty = TypeExpr::Path(":wat::core::String".into());
                             return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
                         }
@@ -6706,8 +6712,18 @@ fn infer_list(
             // Custom handler takes precedence over the TypeScheme registration
             // (which was removed per T2 investigation: custom arms return early BEFORE
             // the generic TypeScheme fallback at the bottom of `infer_list`).
+            // Stone S-C.3: `:wat::Record::of` is now BASE (2-arg); `:wat::holon::Record::of`
+            // is HOLONIC (3-arg, returns :wat::holon::Record).
             ":wat::Record::of" => {
                 let (val, mut errs) = infer_record_of(head_span, args, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::holon::Record::of" => {
+                let (val, mut errs) = infer_holon_record_of(head_span, args, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -12682,9 +12698,22 @@ fn infer_comparison(
         if is_numeric(&a_resolved) && is_numeric(&b_resolved) {
             return if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) };
         }
-        // Non-numeric: same-type required (preserves prior
-        // ∀T. T → T → :bool semantics for strings, bools, etc.).
-        if unify(&a_resolved, &b_resolved, subst, env.types()).is_err() {
+        // Non-numeric: same-type or subtype-related required.
+        // `=` is type-strict at runtime (different variants → false), but
+        // type-COMPATIBLE at check time: two types that share a common ancestor
+        // via the `typesub` hierarchy may be compared — the result may be false
+        // but the comparison is well-formed (Stone S-C.3: base-vs-holonic record
+        // cross-flavor comparison is meaningful, result always false).
+        // Check: unify OR one is a subtype of the other.
+        let types_compatible = if unify(&a_resolved, &b_resolved, subst, env.types()).is_ok() {
+            true
+        } else if let (TypeExpr::Path(ap), TypeExpr::Path(bp)) = (&a_resolved, &b_resolved) {
+            crate::types::is_subtype(ap, bp, env.types())
+                || crate::types::is_subtype(bp, ap, env.types())
+        } else {
+            false
+        };
+        if !types_compatible {
             local_errors.push(CheckError::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
@@ -12805,14 +12834,13 @@ fn is_numeric(t: &TypeExpr) -> bool {
     matches!(t, TypeExpr::Path(p) if p == ":wat::core::i64" || p == ":wat::core::f64")
 }
 
-/// Arc 234 Stone 234.2a forward-correction — heterogeneous struct_form inference.
+/// Arc 237 Stone S-C.3 — BASE record constructor inference.
 ///
-/// `:wat::Record::of` takes three arguments:
+/// `:wat::Record::of` takes two arguments:
 ///   #1  class-FQDN   — must be `:wat::core::keyword`
 ///   #2  struct-form  — must be a Vector literal `[...]` or `:wat::core::Vector` call;
 ///                      elements are type-checked independently; NO uniform-T unification
 ///                      (struct_form is Arc<Vec<Value>> by design — heterogeneous)
-///   #3  holon-form   — must be `:wat::holon::HolonAST`
 ///
 /// Returns `:wat::Record`.
 ///
@@ -12833,11 +12861,11 @@ fn infer_record_of(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     const CALLEE: &str = ":wat::Record::of";
-    // Arity check: exactly 3 args (class, struct_form, holon_form).
-    if args.len() != 3 {
+    // Arity check: exactly 2 args (class, struct_form).
+    if args.len() != 2 {
         local_errors.push(CheckError::ArityMismatch {
             callee: CALLEE.into(),
-            expected: 3,
+            expected: 2,
             got: args.len(),
             span: head_span.clone(),
         });
@@ -12905,6 +12933,90 @@ fn infer_record_of(
         }
     }
 
+    let ty = TypeExpr::Path(":wat::Record".into());
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 237 Stone S-C.3 — HOLONIC record constructor inference.
+///
+/// `:wat::holon::Record::of` takes three arguments:
+///   #1  class-FQDN   — must be `:wat::core::keyword`
+///   #2  struct-form  — must be a Vector literal `[...]` or `:wat::core::Vector` call;
+///                      elements are type-checked independently; NO uniform-T unification
+///   #3  holon-form   — must be `:wat::holon::HolonAST`
+///
+/// Returns `:wat::holon::Record`.
+fn infer_holon_record_of(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    const CALLEE: &str = ":wat::holon::Record::of";
+    // Arity check: exactly 3 args (class, struct_form, holon_form).
+    if args.len() != 3 {
+        local_errors.push(CheckError::ArityMismatch {
+            callee: CALLEE.into(),
+            expected: 3,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(TypeExpr::Path(":wat::holon::Record".into()), local_errors);
+    }
+
+    // Arg #1: class-FQDN — must infer to :wat::core::keyword.
+    let class_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    if let Some(ct) = class_ty {
+        let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+        if unify(&ct, &keyword_ty, subst, env.types()).is_err() {
+            local_errors.push(CheckError::TypeMismatch {
+                callee: CALLEE.into(),
+                param: "#1".into(),
+                expected: ":wat::core::keyword".into(),
+                got: format_type(&apply_subst(&ct, subst)),
+                span: args[0].span().clone(),
+            });
+        }
+    }
+
+    // Arg #2: struct-form — must be a Vector literal or :wat::core::Vector call.
+    match &args[1] {
+        WatAST::Vector(elems, _) => {
+            for elem in elems.iter() {
+                let _ = infer(elem, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            }
+        }
+        WatAST::List(items, _) => {
+            let is_vector_head = matches!(
+                items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::Vector"
+            );
+            if is_vector_head && items.len() > 1 {
+                for elem in items[2..].iter() {
+                    let _ = infer(elem, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                }
+            } else {
+                let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            }
+        }
+        _ => {
+            let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            local_errors.push(CheckError::MalformedForm {
+                head: CALLEE.into(),
+                reason: "struct_form (arg #2) must be a Vector literal `[...]` \
+                         or a :wat::core::Vector expression"
+                    .into(),
+                span: args[1].span().clone(),
+            });
+        }
+    }
+
     // Arg #3: holon-form — must infer to :wat::holon::HolonAST.
     let holon_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(ht) = holon_ty {
@@ -12920,7 +13032,7 @@ fn infer_record_of(
         }
     }
 
-    let ty = TypeExpr::Path(":wat::Record".into());
+    let ty = TypeExpr::Path(":wat::holon::Record".into());
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
@@ -13308,13 +13420,17 @@ fn is_i64(t: &TypeExpr) -> bool {
 /// by polymorphic cosine / dot / simhash.
 fn is_holon_or_vector(t: &TypeExpr) -> bool {
     // Arc 234 Stone 234.5 — extended to accept :wat::Record.
+    // Arc 237 Stone S-C.3 — extended to accept :wat::holon::Record (holonic variant).
     // Records carry a pre-built holon_form; the runtime auto-dispatches via
     // pair_values_to_vectors (coerce_to_holon_ast pattern). Cosine and dot
     // accept records natively; the hologram property makes them VSA operands.
     matches!(
         t,
         TypeExpr::Path(p)
-            if p == ":wat::holon::HolonAST" || p == ":wat::holon::Vector" || p == ":wat::Record"
+            if p == ":wat::holon::HolonAST"
+                || p == ":wat::holon::Vector"
+                || p == ":wat::Record"
+                || p == ":wat::holon::Record"
     )
 }
 
@@ -13431,13 +13547,18 @@ fn infer_holon_bind(
 }
 
 /// Arc 234 Stone 234.5 — predicate. Recognizes `:wat::holon::HolonAST`
-/// and `:wat::Record` — the two types accepted in Bind arg positions after
+/// and `:wat::Record` — the two types accepted in Bind/Bundle arg positions after
 /// Stone 234.5. Distinct from `is_holon_or_vector` (which also accepts
 /// `:wat::holon::Vector` for the cosine/dot algebra verbs).
+/// Arc 237 Stone S-C.3 — extended to also accept `:wat::holon::Record`
+/// (holonic variant; subtype of `:wat::Record`).
 fn is_holon_or_record(t: &TypeExpr) -> bool {
     matches!(
         t,
-        TypeExpr::Path(p) if p == ":wat::holon::HolonAST" || p == ":wat::Record"
+        TypeExpr::Path(p)
+            if p == ":wat::holon::HolonAST"
+                || p == ":wat::Record"
+                || p == ":wat::holon::Record"
     )
 }
 
