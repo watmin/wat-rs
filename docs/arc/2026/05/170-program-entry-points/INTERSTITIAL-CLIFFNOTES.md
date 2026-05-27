@@ -158,7 +158,7 @@ HEAD        branch arc-170-gap-j-v5-deadlock-state — verify: git log -1 + git 
 holon-rs    frozen (STOP-5) — never touch
 Lib tests   827 PASS / 0 FAIL (held across EVERY arc 237 stone)
 Clippy      ~54 (NOT a concern)
-Sonnet      idle. S-C.2ab SHIPPED eda4d6cd (FM-9 verified + name-order guard). NEXT = S-C.2c.
+Sonnet      idle. S-C.2c SHIPPED 601c892d (FM-9 verified: lib 828/0, probe 6/6). NEXT = S-C.3 (+ sibling S-C.2d: :wat::Record/same-data? data-equality verb, named via intueri re-cast).
 Active arc  237 — records-first-class thread (winding); arithmetic tail (237.7-9) follows.
 ```
 
@@ -196,7 +196,7 @@ THE DECISION (locked): no implicit numeric coercion; universal across families (
 - **Liskov (locked):** holonic `<:` base. A func wanting holonic REJECTS base; a func wanting base takes BOTH.
 - **Macro names (cold-read-confirmed honest):** `:wat::Record::def` (base) / `:wat::holon::Record::def` (holonic). Owed at S-C.3/closure: a USER-GUIDE sentence teaching base-vs-holonic (not cold-guessable by design — holon is a learned concept).
 
-**Records stones:** S-A ✓`d1e9cbe9` · S-B.1 ✓`89c01888` · S-B.2 ✓`86aebfcb` · S-A1 ✓`531ba9b7` (assignable) · S-C.1 ✓`0c574661` (variant rename) · S-C.2ab ✓`eda4d6cd` (field_names→RecordDef + 4-site re-route + recordtype 3-arg + name-order guard) · **S-C.2c ← NEXT** (mint base `Value::wat__Record`) → S-C.3 (macro split) → S-D (migrate) → folds into 237.9.
+**Records stones:** S-A ✓`d1e9cbe9` · S-B.1 ✓`89c01888` · S-B.2 ✓`86aebfcb` · S-A1 ✓`531ba9b7` (assignable) · S-C.1 ✓`0c574661` (variant rename) · S-C.2ab ✓`eda4d6cd` (field_names→RecordDef + 4-site re-route + recordtype 3-arg + name-order guard) · S-C.2c ✓`601c892d` (mint base `Value::wat__Record`; struct-only; holon-ops error; FM-9 828/0+6/6) · S-C.2d `:wat::Record/same-data?` (flavor-agnostic data-equality verb, named via intueri re-cast; depends S-C.2c) → **S-C.3 ← NEXT** (macro split) → S-D (migrate) → folds into 237.9.
 
 **New session doctrines (memories, 2026-05-26):** `feedback_trap_door_build_the_dependency` (build the missing piece, don't declare incoherent) · `feedback_no_semantic_abuse_of_option` · `feedback_nonintuitive_error_is_pivot` (confusing error = defect; pivot) · `feedback_momentum_ordering` · `feedback_cold_read_familiarity_check` (fresh-agent surface test — repeat often). Songs #37 Fed Up, #38 Phystex Corp, #39 Hades Industries.
 

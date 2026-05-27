@@ -35,8 +35,9 @@ RECORDS PATH (finish what we're on)   [S-C re-sliced 2026-05-26 — two Value va
   S-C.1 ✓ SHIPPED 0c574661 — RENAME Value::wat__Record → Value::wat__holon__Record (the dual-form IS holonic; freed the name)
   --- the field-access model (CORRECTION 2): access via the STRUCT for BOTH flavors; holon-ops holonic-only; field NAMES are a class property ---
   S-C.2ab ✓ SHIPPED eda4d6cd — field names → RecordDef.field_names (3-arg recordtype + macro emits) + 4 name→index sites re-routed off holon_form (keyword_accessor_record + record→map + assoc + struct-destructure) + FM-9 multi-field name-order guard (probe_arc237_sC2ab_field_order 5/5). PARITY preserved; baseline-preserving.
-  S-C.2c MINT base Value::wat__Record {class_fqdn, struct_form} — structural Eq/Hash; field access via the 2ab field_names path; holon-ops ERROR (holonic-only). NO on-demand projection. ← NEXT
-  S-C.3 macro split: :wat::Record::def → base / :wat::holon::Record::def → holonic; static type distinction = constructor return type; wat-surface proof
+  S-C.2c ✓ SHIPPED 601c892d — base Value::wat__Record {class_fqdn, struct_form}: structural Eq/Hash; field access variant-agnostic via 2ab field_names path; holon-ops teaching-error (base wat-local, no holon flavor). FM-9 verified: build 0 / lib 828 / probe 6/6 / regressions green. 1 cascade round. (3 base-structural arms + 14 or-pattern reads + 4 holon-op error arms across runtime.rs/edn_shim.rs/closure_extract.rs.)
+  S-C.2d MINT :wat::Record/same-data? — flavor-agnostic record DATA-equality. User-surfaced (validates Seam-1: = is flavor-sensitive, so a "same data, any flavor" reach was missing). Compares class_fqdn + struct_form across all 4 (base|holonic)² pairs; distinct from = (identity). Depends on S-C.2c. NAME via intueri (re-cast): "data=?" REJECTED (double-sigil cold-read fail "wtf"), converged on same-data? (one sigil, word-carried, lexer-safe kebab+?). Needs sub-DESIGN + FM-2-bis probe.
+  S-C.3 macro split: :wat::Record::def → base / :wat::holon::Record::def → holonic; static type distinction = constructor return type; wat-surface proof   ← NEXT (records substrate)
   S-D   migrate existing :wat::Record::def callers → base vs holonic (HARD CUT)   ← the records "consumer" loop-back
         └─ records thread CLOSED (inscription deferred to 237.9)
 
