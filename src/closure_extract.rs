@@ -1722,10 +1722,13 @@ fn encode_value_with_path(
         // Arc 234 Stone 234.1 — wat__holon__Record: no closure-extract encoding yet.
         // Stone 234.2 ships defrecord macro + constructor; closure-extract
         // for wat__holon__Record lands when the constructor form is available.
-        Value::wat__holon__Record { .. } => Err(ExtractionError::Internal(format!(
-            "encoding for captured Value of kind {} not implemented (Stone 234.2+)",
-            v.type_name()
-        ))),
+        // Stone S-C.2c — wat__Record (base): same placeholder (base unconstructed at wat surface).
+        Value::wat__holon__Record { .. } | Value::wat__Record { .. } => {
+            Err(ExtractionError::Internal(format!(
+                "encoding for captured Value of kind {} not implemented (Stone 234.2+)",
+                v.type_name()
+            )))
+        }
 
         // Stone 237.2 — wat__core__clauses: no closure-extract encoding for
         // multi-arity dispatchers yet. Clause bodies are evaluated at dispatch
