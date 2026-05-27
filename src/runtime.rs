@@ -9554,6 +9554,45 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
             }
             Some(true)
         }
+        // Arc 238 Stone 238.1 — Record equality (both flavors, ONE or-patterned arm).
+        // Mirrors the Struct arm (above) with `class_fqdn` in place of `type_name`.
+        // Type-strict: same class + identical positional field values (via values_equal).
+        // Cross-flavor (base vs holonic) → class_fqdn differs (different FQDN registries) →
+        // `Some(false)` (never errors — same as Enum cross-variant).
+        (Value::wat__holon__Record { class_fqdn: ca, struct_form: sa, .. }
+             | Value::wat__Record { class_fqdn: ca, struct_form: sa },
+         Value::wat__holon__Record { class_fqdn: cb, struct_form: sb, .. }
+             | Value::wat__Record { class_fqdn: cb, struct_form: sb }) => {
+            if ca != cb { return Some(false); }
+            if sa.len() != sb.len() { return Some(false); }
+            for (x, y) in sa.iter().zip(sb.iter()) {
+                match values_equal(x, y) {
+                    Some(true) => continue,
+                    Some(false) => return Some(false),
+                    None => return None,
+                }
+            }
+            Some(true)
+        }
+        // Arc 238 Stone 238.1 — HashMap structural equality.
+        // Delegates to Value's PartialEq (arc 216.5a; storage is Arc<HashMap<Value,Value>>).
+        // Order-independent + structural + total. No numeric promotion (Hash-keyed storage
+        // is type-sensitive; #{1} != #{1.0} is honest and documented in DESIGN.md).
+        (Value::wat__std__HashMap(a), Value::wat__std__HashMap(b)) => Some(a == b),
+        // Arc 238 Stone 238.1 — HashSet structural equality.
+        // Delegates to Value's PartialEq (arc 216.5b; storage is Arc<HashSet<Value>>).
+        // Order-independent (set semantics).
+        (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => Some(a == b),
+        // Arc 238 Stone 238.1 — Instant equality. chrono::DateTime<Utc> implements Eq.
+        // Mirrors the values_compare Instant arm (runtime.rs:9609).
+        // Closes the orderable-but-not-equatable asymmetry (Instant had values_compare but not values_equal).
+        (Value::Instant(a), Value::Instant(b)) => Some(a == b),
+        // Arc 238 Stone 238.1 — Duration equality. i64 nanoseconds; mirrors values_compare.
+        (Value::Duration(a), Value::Duration(b)) => Some(a == b),
+        // Arc 238 Stone 238.1 — WatAST structural equality.
+        // WatAST derives PartialEq (ast.rs:33; span-agnostic — two nodes with same structure
+        // but different spans compare equal). Symmetry with the holon__HolonAST arm above.
+        (Value::wat__WatAST(a), Value::wat__WatAST(b)) => Some(a == b),
         _ => None,
     }
 }
@@ -33484,5 +33523,65 @@ mod tests {
             "error must contain ':wat::holon::Record::def'; got: {}",
             err_msg
         );
+    }
+
+    // Arc 238 Stone 238.1 — co-located unit tests for Instant + Duration equality.
+    // The external probe (probe_arc238_eq_completeness.rs) covers records/maps/sets at the
+    // wat surface. Instant and Duration are not easily constructible at the wat surface
+    // without time verbs, so we verify values_equal directly at the Rust layer here.
+
+    #[test]
+    fn values_equal_instant_same() {
+        use chrono::TimeZone;
+        let t = chrono::Utc.timestamp_opt(1_000_000, 0).unwrap();
+        let a = Value::Instant(t);
+        let b = Value::Instant(t);
+        assert_eq!(values_equal(&a, &b), Some(true));
+    }
+
+    #[test]
+    fn values_equal_instant_different() {
+        use chrono::TimeZone;
+        let t1 = chrono::Utc.timestamp_opt(1_000_000, 0).unwrap();
+        let t2 = chrono::Utc.timestamp_opt(2_000_000, 0).unwrap();
+        let a = Value::Instant(t1);
+        let b = Value::Instant(t2);
+        assert_eq!(values_equal(&a, &b), Some(false));
+    }
+
+    #[test]
+    fn values_equal_duration_same() {
+        let a = Value::Duration(123_456_789);
+        let b = Value::Duration(123_456_789);
+        assert_eq!(values_equal(&a, &b), Some(true));
+    }
+
+    #[test]
+    fn values_equal_duration_different() {
+        let a = Value::Duration(100);
+        let b = Value::Duration(200);
+        assert_eq!(values_equal(&a, &b), Some(false));
+    }
+
+    #[test]
+    fn values_equal_wat_ast_same() {
+        use std::sync::Arc;
+        // Two structurally-identical WatAST nodes (IntLit, span-agnostic PartialEq).
+        // Span::unknown() is the synthetic sentinel — Span::eq is always true regardless.
+        let ast_a = crate::ast::WatAST::IntLit(42, crate::span::Span::unknown());
+        let ast_b = crate::ast::WatAST::IntLit(42, crate::span::Span::unknown());
+        let a = Value::wat__WatAST(Arc::new(ast_a));
+        let b = Value::wat__WatAST(Arc::new(ast_b));
+        assert_eq!(values_equal(&a, &b), Some(true));
+    }
+
+    #[test]
+    fn values_equal_wat_ast_different() {
+        use std::sync::Arc;
+        let ast_a = crate::ast::WatAST::IntLit(42, crate::span::Span::unknown());
+        let ast_b = crate::ast::WatAST::IntLit(99, crate::span::Span::unknown());
+        let a = Value::wat__WatAST(Arc::new(ast_a));
+        let b = Value::wat__WatAST(Arc::new(ast_b));
+        assert_eq!(values_equal(&a, &b), Some(false));
     }
 }
