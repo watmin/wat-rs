@@ -113,6 +113,7 @@
     (fields :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
   `(:wat::core::do
+     (:wat::core::recordtype ~fqdn :wat::Record)
      (:wat::core::defn ~fqdn [~@fields] -> :wat::Record
        (:wat::Record::of
          (:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))
@@ -216,17 +217,4 @@
                                         (:wat::core::unquote msg-prefix)
                                         (:wat::core::type v)))
                                     (:wat::core::unquote fi)))))))]
-           accessors)
-     (:wat::core::defn ~(:wat::core::let
-                           [fqdn-str  (:wat::core::keyword/to-string fqdn)
-                            parts     (:wat::core::string::split fqdn-str "::")
-                            n         (:wat::core::Vector/length parts)
-                            basename  (:wat::core::Option/expect -> :wat::core::String
-                                        (:wat::core::last parts)
-                                        "Record::def: FQDN must have at least one segment")
-                            pfx-parts (:wat::core::take parts (:wat::core::i64::-'2 n 1))
-                            pfx-str   (:wat::core::string::join "::" pfx-parts)]
-                           (:wat::core::keyword/from-string
-                             (:wat::core::string::concat pfx-str "::" "is-" basename "?")))
-                       [v <- :wat::Record] -> :wat::core::bool
-       (:wat::core::conforms? v ~fqdn))))
+           accessors)))
