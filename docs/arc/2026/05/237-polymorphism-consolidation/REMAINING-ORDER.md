@@ -35,7 +35,7 @@ RECORDS PATH (finish what we're on)   [S-C re-sliced 2026-05-26 — two Value va
   S-C.1 ✓ SHIPPED 0c574661 — RENAME Value::wat__Record → Value::wat__holon__Record (the dual-form IS holonic; freed the name)
   --- the field-access model (CORRECTION 2): access via the STRUCT for BOTH flavors; holon-ops holonic-only; field NAMES are a class property ---
   S-C.2a field names → RecordDef (extend RecordDef + recordtype parse/store + :wat::Record::def macro emits them)  [ripples back into S-B.1 recordtype]
-  S-C.2b re-route keyword-access (:field rec) via RecordDef.field_names + struct_form, NOT holon_form — variant-agnostic; baseline-preserving for holonic
+  S-C.2b re-route the 3 name→index sites (keyword_accessor_record:6440, name-pair helper:16684, eval_record_assoc:16825) via RecordDef.field_names — variant-agnostic; baseline-preserving for holonic (parity → same answers). field-at:16561 already positional/base-safe.
   S-C.2c MINT base Value::wat__Record {class_fqdn, struct_form} — structural Eq/Hash; field access via 2b; holon-ops ERROR (holonic-only). NO on-demand projection.
   S-C.3 macro split: :wat::Record::def → base / :wat::holon::Record::def → holonic; static type distinction = constructor return type; wat-surface proof
   S-D   migrate existing :wat::Record::def callers → base vs holonic (HARD CUT)   ← the records "consumer" loop-back

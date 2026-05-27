@@ -411,6 +411,29 @@ field access must not depend on it. Re-route name-based access through
 (`field_names`-on-`RecordDef` vs names-on-`struct_form` is the one impl seam; lean = `RecordDef`,
 the Ruby-faithful non-redundant home, pending the build.)
 
+### The PARITY invariant (holonic) + the precise site map (verified 2026-05-26)
+
+**Holonic parity invariant:** a holonic record holds the full data in **both forms in
+permanent parity** — every functional update (`assoc`) returns a NEW holonic record with
+**both** `struct_form` and `holon_form` rebuilt coherently. The holon is never a stale cache;
+it is always the current struct, projected. (VERIFIED: `eval_record_assoc` rebuilds struct
+[runtime.rs:16912] AND holon [16917-16943], returns both.) A **base** record has only the
+struct → nothing to keep in parity; a base `assoc` rebuilds `struct_form` only. *Preserve this
+invariant through the split.* Parity is WHY reads can route through the struct for holonic
+(struct-read ≡ holon-read) while holon-ops use `holon_form` — same data, two projections.
+
+**Precise re-route map (grep-verified; the COMPLETE set — FM-2):**
+- **Name→index resolution via `holon_form` — 3 sites → re-route to `RecordDef.field_names`
+  (variant-agnostic) at S-C.2b:** `keyword_accessor_record` (runtime.rs:6440), the
+  name-pairing helper (16684), `eval_record_assoc`'s name lookup (16825). Baseline-preserving
+  for holonic (same answers, new source). After re-route, base gets name-based access free.
+- **`field-at` (16561) — positional already (base-safe);** S-C.2c adds a base arm (or-pattern).
+- **Holon-rebuild in assoc (16939) — holonic-only;** S-C.2c's base arm does struct-only assoc.
+- **Holon-extraction (`to-holon`/`coerce`: 17683, 19109) — holonic-only;** S-C.2c base arm →
+  teaching error ("base record has no holon flavor; use a holonic record").
+- **Eq/Hash:** holonic via `holon_form`, base via `(class_fqdn, struct_form)`. Display +
+  type-name: or-pattern (common fields). All at S-C.2c.
+
 Each stone runs the full crawl loop: sub-DESIGN → committed FM-2-bis probe →
 BRIEF (read-in-order `file:line` + impl sketch + numbered REJECTION STOPs + cite
 prior SCORE shape) → EXPECTATIONS (scorecard + band + trap-doors) → baseline
