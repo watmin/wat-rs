@@ -97,38 +97,48 @@ is exactly one of these. The known load-bearing sites:
   has no wat-surface constructor at this stone — that is S-C.3 (the macro split). This is WHY the
   FM 2-bis probe is Rust-layer.
 
-## FM 2-bis probe (Rust-layer; committed before BRIEF)
+## FM 2-bis probe (Rust-layer)
 
-`tests/probe_arc237_sC2c_base_record.rs` — constructs `Value::wat__Record` directly (no wat
-producer exists yet) and asserts the contract. Contracts:
+**Verification is layered — grounding (`runtime.rs:16524`/`17425`) found that `field-at` and
+`to_holon_inner` are EVAL-LEVEL / PRIVATE fns; an external `tests/probe_*.rs` cannot call them,
+and base is unconstructable at the wat surface until S-C.3.** So:
 
-1. **structural Eq — equal:** two base records, same `class_fqdn` + same `struct_form` ⇒ `==`.
+**(A) External probe — `tests/probe_arc237_sC2c_base_record.rs`** (orchestrator-authored; the
+FM 2-bis artifact). Constructs `Value::wat__Record` DIRECTLY via the public enum API and asserts
+the 6 pure-`Value` contracts (all reachable without an eval harness):
+
+1. **structural Eq — equal:** same `class_fqdn` + same `struct_form` ⇒ `==`.
 2. **structural Eq — class differs:** same struct, different class ⇒ `!=`.
 3. **structural Eq — struct differs:** same class, different struct ⇒ `!=`.
-4. **base ≠ holonic:** a base record and a holonic record with the "same" logical data ⇒ `!=`
-   (different flavors; guards the `_ => false` cross arm).
-5. **Hash consistency:** `a == b ⇒ hash(a) == hash(b)` (HashSet insertion-dedup of two equal
-   base records yields len 1).
-6. **positional field-at:** `field_at(base, i)` returns `struct_form[i]`.
-7. **holon-op errors:** `to_holon_inner(base, …)` is `Err(..)` with the teaching message
-   (NOT a panic, NOT an `Ok`).
+4. **base ≠ holonic:** different flavors ⇒ `!=` (guards the `_ => false` cross arm).
+5. **Hash consistency:** two equal base records dedup in a `HashSet` (len 1); a different one is
+   a distinct member.
+6. **type identity:** `type_name() == "wat::Record"`; `declared_type_name() == class_fqdn`.
 
-**Pre-stone state:** the probe does not compile (variant absent). That is the disconfirming
-state — it is committed on a scratch branch-free basis as part of the stone flight, NOT to the
-green baseline ahead of the build (a non-compiling test file would break `cargo test`
-workspace-wide). **Adjustment vs the usual "commit RED probe first":** because the RED state here
-is a *compile* failure (not a runtime failure), the probe is authored + committed **atomically
-with** the substrate change (same flight, one commit), and its design is frozen in THIS doc as
-the contract sonnet mirrors. (Same handling as 234.x Rust-layer substrate probes — see
-`SCORE-STONE-*` precedent. The probe's VALUE is the frozen contract, captured here regardless of
-commit timing.)
+**(B) Co-located unit test (sonnet-written, in `runtime.rs`)** — the **Bucket C teaching error**:
+`to_holon_inner(base, &span)` ⇒ `Err(..)` carrying the teaching message (NOT a panic, NOT `Ok`).
+Lives co-located because `to_holon_inner` is private; this is sonnet's territory (it writes the
+arm). Its contract is frozen in Bucket C above.
+
+**(C) Deferred to S-C.3 (wat surface):** base `field-at` (identical positional path to holonic
+via the or-pattern — already covered for holonic) + the wat-surface to-holon error, both
+testable once `:wat::Record::def` constructs base.
+
+**Commit timing (compile-RED, per Seam-2 four-questions verdict):** the external probe references
+`Value::wat__Record` (unborn) ⇒ won't compile ⇒ cannot land on the green baseline alone
+(`feedback_no_broken_commits`). It is authored now (frozen contract), left uncommitted as the
+dirty working state Sonnet builds against (the non-compiling probe IS Sonnet's compiler-output
+spec), and committed **atomically with** the substrate change when the tree is green. FM-9's
+independent re-run is the empirical verification, relocated from pre-brief (impossible here) to
+post-flight. Matches 234.x Rust-layer substrate-probe precedent.
 
 ## Scorecard (for EXPECTATIONS)
 
 - [ ] `Value::wat__Record` minted; compiles under `#[wat_value]` seal (non-wrapping; two `Arc`
       fields — same shape-class as holonic, which already passes the seal).
 - [ ] Bucket A arms added (Eq, Hash, assoc); Bucket B or-patterns; Bucket C teaching errors.
-- [ ] `probe_arc237_sC2c_base_record` 7/7 PASS.
+- [ ] external `probe_arc237_sC2c_base_record` 6/6 PASS + co-located `runtime.rs` unit test for
+      `to_holon_inner(base) ⇒ Err` PASS.
 - [ ] Lib baseline preserved: **827 pass / 0 fail** (additive stone; nothing constructs base, so
       every existing test is untouched).
 - [ ] No new clippy beyond the standing ~54.
