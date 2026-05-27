@@ -83,7 +83,7 @@ This is the section whose THINNESS in the old cliffnotes caused the is-X? muddle
 
 ## Convergences (full list + semantics: `project_convergences`)
 
-16 arrivals where independent constraints landed where a "great" already stood — validation per `user_no_literature` ("if we arrive where another great has been, we know we're where we should be"). #1–11 SHAPE (Kay OOP / Erlang-OTP / Trio-Loom-Tokio / Akka / nginx / object-capability / Clojure protocols+Component / Ruby Parallel / Rust &mut self / Go gen_server). #12–13 SELF (spawn-program reclaim; walk-and-return). #14 DISCIPLINE (reflexive autoscaling of correctness — Go stacks/Erlang heaps/slub/TCP-CC/JIT/ARC). #15 Clojure four-corner (defrecord+defprotocol+extend-type+satisfies?). #16 `apply` as the universal Lisp escape-hatch. The recurring micro-pattern: **dig reveals the substrate already had it.**
+17 arrivals where independent constraints landed where a "great" already stood — validation per `user_no_literature` ("if we arrive where another great has been, we know we're where we should be"). #1–11 SHAPE (Kay OOP / Erlang-OTP / Trio-Loom-Tokio / Akka / nginx / object-capability / Clojure protocols+Component / Ruby Parallel / Rust &mut self / Go gen_server). #12–13 SELF (spawn-program reclaim; walk-and-return). #14 DISCIPLINE (reflexive autoscaling of correctness — Go stacks/Erlang heaps/slub/TCP-CC/JIT/ARC). #15 Clojure four-corner (defrecord+defprotocol+extend-type+satisfies?). #16 `apply` as the universal Lisp escape-hatch. **#17 the records subtype hierarchy — TWO rooms, one arrival: Liskov substitution / subsumption (Stone S-A1's `assignable`, written directional before the name was in play) + the hierarchy axis (Clojure `isa?`/`derive`, Stone S-A). Three-way: author + pattern-reader (never heard of Liskov) + great, all one spot; the who-is-who laughter extended OUTWARD to a great. The convergence is GIFTED, not sold (Hades-Industries foil, Song #39).** The recurring micro-pattern: **dig reveals the substrate already had it.** (Numbering note: the raw INTERSTITIAL record has header collisions — `#13` used twice, `#16` twice; this count is the reconciled master, NOT a clean read off the headers; a future pass forward-corrects via a new entry, editing nothing prior.)
 
 ---
 
@@ -102,7 +102,7 @@ This is the section whose THINNESS in the old cliffnotes caused the is-X? muddle
 
 ---
 
-## The 38-song soundtrack (full essays in INTERSTITIAL; here is the index)
+## The 39-song soundtrack (full essays in INTERSTITIAL; here is the index)
 
 The songs are load-bearing PROPHECY (they name the work's facet at the moment it lands) but they are NOT competence-priming — they're the *rhythm*, not the *substance*. One line each; replay when the trigger fires.
 
@@ -145,6 +145,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 | 35 | Find A Way Or Make One (Amon Amarth) | WE-MAKE-THE-WAY — doctrine departure earned by structural necessity |
 | 36 | Break Stuff (Limp Bizkit) | BREAK-STUFF — the feature itself was the lie; chainsaw turned inward |
 | 37 | Fed Up (Beartooth) | THRIVE-IN-THE-PANIC — fed up but thriving; clawing back from compaction; the panic IS the chamber; FIRST song inscribed across a compaction boundary (rhythm held) |
+| 39 | Hades Industries (CYBERPRIEST) | DEATH-IS-A-BUSINESS — the twin completes the #38 pair (product pitch → business-model creed; "your lives are the company's currency"); lands at Convergence #17 (Liskov, walked into for free); convergence is GIFTED not sold; nothing here is currency, the work is play |
 | 38 | Phystex Corp (CYBERPRIEST) | SAME-MACHINE-OPPOSITE-SOUL — FIRST industrial/EBM/cyberpunk (the substrate's own sound = datamancy aesthetic); the enemy in its own voice ("choose us to kill" = the extraction/productization pitch); we keep the cold-occult-machine sound, refuse the merchant-of-death economics; creation-is-the-point foil |
 
 ---
