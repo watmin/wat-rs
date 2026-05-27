@@ -31,11 +31,13 @@ hot from S-A/S-A1/S-B.2). The *intra-boss* orderings below ARE hard.
 ## The order (✓ = shipped; verify via git)
 
 ```
-RECORDS PATH (finish what we're on)   [S-C re-sliced 2026-05-26 — two Value variants, NOT holon_form:Option; see DESIGN CORRECTION]
-  S-C.1 RENAME Value::wat__Record → Value::wat__holon__Record (existing dual-form IS the holonic one)
-        — pure mechanical (~72 holon_form sites, mostly runtime.rs); BASELINE-PRESERVING; frees the name
-  S-C.2 MINT base Value::wat__Record {class_fqdn, struct_form} — EDN-restricted, structural Eq/Hash, holon-on-demand
-  S-C.3 macro split: :wat::Record::def → base / :wat::holon::Record::def → holonic; wire typesub; wat-surface proof
+RECORDS PATH (finish what we're on)   [S-C re-sliced 2026-05-26 — two Value variants; field-access-via-struct; see DESIGN CORRECTION 1 + 2]
+  S-C.1 ✓ SHIPPED 0c574661 — RENAME Value::wat__Record → Value::wat__holon__Record (the dual-form IS holonic; freed the name)
+  --- the field-access model (CORRECTION 2): access via the STRUCT for BOTH flavors; holon-ops holonic-only; field NAMES are a class property ---
+  S-C.2a field names → RecordDef (extend RecordDef + recordtype parse/store + :wat::Record::def macro emits them)  [ripples back into S-B.1 recordtype]
+  S-C.2b re-route keyword-access (:field rec) via RecordDef.field_names + struct_form, NOT holon_form — variant-agnostic; baseline-preserving for holonic
+  S-C.2c MINT base Value::wat__Record {class_fqdn, struct_form} — structural Eq/Hash; field access via 2b; holon-ops ERROR (holonic-only). NO on-demand projection.
+  S-C.3 macro split: :wat::Record::def → base / :wat::holon::Record::def → holonic; static type distinction = constructor return type; wat-surface proof
   S-D   migrate existing :wat::Record::def callers → base vs holonic (HARD CUT)   ← the records "consumer" loop-back
         └─ records thread CLOSED (inscription deferred to 237.9)
 
@@ -65,12 +67,15 @@ not yet locked; see "Hard dependencies" for why the build/cut boundary matters.)
    CUT is tractable ONLY after the new concrete defclauses prove green coverage. Never
    delete blind. THE DECISION is locked: no implicit numeric coercion — `(+ 1 2.0)` →
    ERROR (no clause matches); homogenize explicitly. (`feedback_no_implicit_coercion`.)
-3. **S-C.1 → S-C.2 → S-C.3 → S-D.** Forced chain. S-C.1 (rename) frees the `wat__Record`
-   name + is baseline-preserving (the safe foundation, like S-A1 was); S-C.2 mints base
-   on that freed name; S-C.3's macros can't dispatch to a base variant that doesn't exist;
-   S-D can't migrate to macros that don't exist. The `holon_form: Option` shape is REJECTED
-   (semantic abuse — `Some`/`None` must mean presence/absence, never flavor); the flavor is
-   the *variant*, decoded by `match`. (`feedback_no_semantic_abuse_of_option`.)
+3. **S-C.1 ✓ → S-C.2a → S-C.2b → S-C.2c → S-C.3 → S-D.** Forced chain. S-C.1 (rename, shipped)
+   freed the `wat__Record` name. S-C.2a puts field names on the class (RecordDef) so name-based
+   access has a variant-agnostic source; S-C.2b re-routes keyword-access onto that source
+   (off `holon_form`) so it works for both flavors; S-C.2c mints base on the freed name (field
+   access via 2b; holon-ops error); S-C.3's macros can't dispatch to a base variant that
+   doesn't exist; S-D can't migrate to macros that don't exist. Two rejected shapes, for the
+   record: `holon_form: Option` (semantic abuse — flavor is the *variant*, decoded by `match`;
+   `feedback_no_semantic_abuse_of_option`) AND on-demand projection (holonic *stores* both
+   flavors; base *has only* the struct — no projection; CORRECTION 2).
 4. **237.9 LAST, gated on BOTH bosses.** Spawn-block winding: the arc cannot close until
    every thread under it closes. 237.9 is the single closure for the whole level
    (absorbs arc 146 + arc 148 + records S-E).

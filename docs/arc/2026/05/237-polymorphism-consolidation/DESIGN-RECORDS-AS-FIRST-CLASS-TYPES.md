@@ -356,6 +356,61 @@ for base; not vice-versa).
 
 The `REMAINING-ORDER.md` tracker carries this corrected sequence.
 
+---
+
+## DESIGN CORRECTION 2 (2026-05-26) — field access is via the STRUCT; holon-ops are holonic-only; field names are a CLASS property
+
+**Authoritative; refines CORRECTION 1.** The two-variant decision (CORRECTION 1) stands.
+What changes: the *on-demand holon projection* idea in CORRECTION 1 is **dead**, replaced
+by the user's Ruby is-a model (2026-05-26 live dialogue):
+
+```ruby
+class Record;        def initialize(fields); @fields = fields; end;       end   # the struct
+class HolonicRecord < Record;  def initialize(fields); super; build_holon(fields); end;  end   # struct + holon
+```
+
+**HolonicRecord IS-A Record** — a holonic record *has the struct a base record has*, **plus**
+the holon form. From that:
+
+1. **Field access is variant-agnostic, via the STRUCT.** `(:field1 rec)`, the generated
+   positional accessor `:ns::Rec/field1`, and `field-at` all read `struct_form` — for BOTH
+   base and holonic. At the access site you do NOT know which variant you hold and do NOT
+   need to (*"we don't know if this is a :wat::Record or a :wat::holon::Record in this
+   invocation path"*). Holonic just *also* has more.
+2. **Holon-ops go via `holon_form` — holonic ONLY.** A function needing the holonic
+   representation uses the tooling holonic records provide. A base record has no holon_form;
+   it cannot do holon-ops (the type system bars base from `:wat::holon::Record` params). There
+   is **NO on-demand projection** — holonic *stores* both flavors (both always immediately
+   available); base *has only* the struct. That is the entire point of the split.
+3. **Field names are a CLASS property, not a value property.** The Ruby model: the class
+   defines the attrs; the instance holds the values. So **`RecordDef` gains `field_names`**;
+   `struct_form` stays positional `Arc<Vec<Value>>`. Name-based access = look up the index in
+   the class's `RecordDef.field_names`, then `struct_form[index]`. Non-redundant (names live
+   once, on the class), and it makes access variant-agnostic.
+
+**The substrate bug this exposes (must fix):** today `keyword_accessor_record`
+(`src/runtime.rs`) resolves field names by walking `holon_form`'s Bundle — i.e. field access
+routes *through the holon form*. That is backwards: a base record has no `holon_form`, and
+field access must not depend on it. Re-route name-based access through
+`RecordDef.field_names` + `struct_form`.
+
+### Re-sliced S-C (supersedes the S-C.1→S-C.3 list in CORRECTION 1; S-C.1 RENAME already SHIPPED `0c574661`)
+
+- **S-C.2a** — `RecordDef` gains `field_names`; `recordtype` parses/stores them; the
+  `:wat::Record::def` macro emits them. (Ripples back into S-B.1's `recordtype` shape — fine.)
+- **S-C.2b** — re-route `keyword_accessor_record` (and any name-based path) through
+  `RecordDef.field_names` + `struct_form`, NOT `holon_form`. Now variant-agnostic; baseline-
+  preserving for holonic (same answers, new path).
+- **S-C.2c** — mint base `Value::wat__Record { class_fqdn, struct_form }` (structural Eq/Hash;
+  field access via the uniform 2b path; holon-ops error — holonic-only). The compiler cascade
+  (or-pattern the identical struct sites; split only Eq/Hash + holon-op sites, where base
+  errors).
+- **S-C.3** — macro split (`:wat::Record::def` → base / `:wat::holon::Record::def` → holonic;
+  static type distinction = constructor return type). **S-D** — migrate callers.
+
+(`field_names`-on-`RecordDef` vs names-on-`struct_form` is the one impl seam; lean = `RecordDef`,
+the Ruby-faithful non-redundant home, pending the build.)
+
 Each stone runs the full crawl loop: sub-DESIGN → committed FM-2-bis probe →
 BRIEF (read-in-order `file:line` + impl sketch + numbered REJECTION STOPs + cite
 prior SCORE shape) → EXPECTATIONS (scorecard + band + trap-doors) → baseline
