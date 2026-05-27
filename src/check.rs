@@ -19383,6 +19383,22 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Arc 237 Stone S-C.2d — type-BLIND record data equality: :wat::Record/same-data?
+    //
+    // :wat::Record/same-data? :: :wat::Record × :wat::Record -> :wat::core::bool
+    // Compares field-name→value maps of two records, ignoring class (type) and flavor.
+    // Distinct from `=` (arc 238, type-strict): cross-type same-named-fields → true.
+    // :wat::Record is the umbrella accepting any record (base or holonic, any class).
+    env.register(
+        ":wat::Record/same-data?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![record_ty(), record_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
     // Arc 237 Stone 237.5 — :wat::core::conforms? general type-conformance primitive.
     //
     // :wat::core::conforms? :: ∀T. T × :wat::core::keyword -> :wat::core::bool

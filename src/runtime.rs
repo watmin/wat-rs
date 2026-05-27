@@ -5342,6 +5342,11 @@ fn dispatch_keyword_head_value(
         // assoc :: :wat::Record × :wat::core::keyword × :T -> :wat::Record
         // Returns a new record with one field replaced; original is unchanged (immutable).
         ":wat::Record/assoc" => eval_record_assoc(args, list_span, env, sym),
+        // Arc 237 Stone S-C.2d — type-BLIND record data equality.
+        // same-data? :: :wat::Record × :wat::Record -> :wat::core::bool
+        // Compares field-name→value maps (record->map); type-blind and flavor-blind.
+        // Distinct from `=` (type-strict, arc 238): Pt[0,0] same-data? Coord[0,0] → true.
+        ":wat::Record/same-data?" => eval_record_same_data(args, list_span, env, sym),
         // Language forms
         // Arc 157 slice 1a-ii — config setters. These are top-level forms
         // that update the SymbolTable carrier flags at freeze time (via
@@ -16692,6 +16697,67 @@ fn eval_record_q(
 
 /// `(:wat::core::record->map r)` — arc 234 Stone 234.3a.
 ///
+/// Core of `record->map`: given an already-evaluated `Value` that must be a record (base or
+/// holonic), returns `Value::wat__std__HashMap` mapping `:<field-name>` keywords to values.
+///
+/// Called by `eval_record_to_map` (single public path, behavior unchanged) and by
+/// `eval_record_same_data` (arc 237 Stone S-C.2d) to avoid code duplication.
+///
+/// `op` is the calling verb name (used in error messages); `span` is the call-site span.
+// Stone 216.5c — suppress `mutable_key_type` for `HashMap<Value, Value>`.
+// Value implements Hash + Eq; keywords are stable keys (Arc<String>, no mutation path).
+#[allow(clippy::mutable_key_type)]
+fn record_field_map(
+    v: Value,
+    op: &str,
+    span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    match v {
+        // Stone S-C.2c — or-pattern: base and holonic both ride RecordDef.field_names path.
+        // Variant-agnostic after S-C.2b; no holon_form dependency here.
+        Value::wat__holon__Record { class_fqdn, struct_form, .. }
+        | Value::wat__Record { class_fqdn, struct_form } => {
+            // Stone S-C.2b re-route: field names from RecordDef.field_names (CLASS property)
+            // instead of walking holon_form. Variant-agnostic; parity for holonic (same result).
+            let type_key = format!(":{}", class_fqdn);
+            let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+                head: op.into(),
+                reason: "record->map requires the type registry".into(),
+                span: span.clone(),
+            })?;
+            let record_def = match types.get(&type_key) {
+                Some(crate::types::TypeDef::Record(rd)) => rd,
+                _ => {
+                    return Err(RuntimeError::MalformedForm {
+                        head: op.into(),
+                        reason: format!(
+                            "record class :{} is not registered in the TypeEnv",
+                            class_fqdn
+                        ),
+                        span: span.clone(),
+                    });
+                }
+            };
+            // Build keyword-keyed map: :<field-name> → struct_form[i] in declaration order.
+            let mut map: std::collections::HashMap<Value, Value> =
+                std::collections::HashMap::with_capacity(record_def.field_names.len());
+            for (i, field_name) in record_def.field_names.iter().enumerate() {
+                let key = Value::wat__core__keyword(Arc::new(format!(":{}", field_name)));
+                let val = struct_form[i].clone();
+                map.insert(key, val);
+            }
+            Ok(Value::wat__std__HashMap(Arc::new(map)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: ":wat::Record instance",
+            got: ValueSnapshot::of(&other),
+            span: span.clone(),
+        }),
+    }
+}
+
 /// Extracts a `HashMap<:wat::core::keyword, value>` from a `Value::wat__holon__Record`.
 /// Walks the record's `holon_form` to extract field names and pairs each name
 /// (as a `:wat::core::keyword` key) with the corresponding value from `struct_form`
@@ -16705,9 +16771,6 @@ fn eval_record_q(
 ///
 /// Zero-field record: returns empty HashMap.
 /// Non-record input: TypeMismatch error.
-// Stone 216.5c — suppress `mutable_key_type` for `HashMap<Value, Value>`.
-// Value implements Hash + Eq; keywords are stable keys (Arc<String>, no mutation path).
-#[allow(clippy::mutable_key_type)]
 fn eval_record_to_map(
     args: &[WatAST],
     list_span: &Span,
@@ -16724,49 +16787,42 @@ fn eval_record_to_map(
         });
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    match v {
-        // Stone S-C.2c — or-pattern: base and holonic both ride RecordDef.field_names path.
-        // Variant-agnostic after S-C.2b; no holon_form dependency here.
-        Value::wat__holon__Record { class_fqdn, struct_form, .. }
-        | Value::wat__Record { class_fqdn, struct_form } => {
-            // Stone S-C.2b re-route: field names from RecordDef.field_names (CLASS property)
-            // instead of walking holon_form. Variant-agnostic; parity for holonic (same result).
-            let type_key = format!(":{}", class_fqdn);
-            let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
-                head: OP.into(),
-                reason: "record->map requires the type registry".into(),
-                span: list_span.clone(),
-            })?;
-            let record_def = match types.get(&type_key) {
-                Some(crate::types::TypeDef::Record(rd)) => rd,
-                _ => {
-                    return Err(RuntimeError::MalformedForm {
-                        head: OP.into(),
-                        reason: format!(
-                            "record class :{} is not registered in the TypeEnv",
-                            class_fqdn
-                        ),
-                        span: list_span.clone(),
-                    });
-                }
-            };
-            // Build keyword-keyed map: :<field-name> → struct_form[i] in declaration order.
-            let mut map: std::collections::HashMap<Value, Value> =
-                std::collections::HashMap::with_capacity(record_def.field_names.len());
-            for (i, field_name) in record_def.field_names.iter().enumerate() {
-                let key = Value::wat__core__keyword(Arc::new(format!(":{}", field_name)));
-                let val = struct_form[i].clone();
-                map.insert(key, val);
-            }
-            Ok(Value::wat__std__HashMap(Arc::new(map)))
-        }
-        other => Err(RuntimeError::TypeMismatch {
+    record_field_map(v, OP, list_span, sym)
+}
+
+/// `(:wat::Record/same-data? a b)` — arc 237 Stone S-C.2d.
+///
+/// Type-BLIND record data equality. Compares the field-name→value maps of two records,
+/// ignoring class (type) AND flavor (base vs holonic). The clean complement to `=` (arc 238,
+/// which is type-strict): `Pt[x:0,y:0] same-data? Coord[x:0,y:0]` → `true`.
+///
+/// Semantics (name-keyed, not positional): extracts each record's field map via
+/// `record_field_map` (the `record->map` core), then delegates to `values_equal` on the
+/// two `HashMap` values — reusing arc 238's total map equality, never re-implementing it.
+///
+/// Errors:
+/// - `ArityMismatch` — not exactly 2 args
+/// - `TypeMismatch`  — either arg is not a record
+fn eval_record_same_data(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::Record/same-data?";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
-            expected: ":wat::Record instance",
-            got: ValueSnapshot::of(&other),
+            expected: 2,
+            got: args.len(),
             span: list_span.clone(),
-        }),
+        });
     }
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
+    let map_a = record_field_map(a, OP, list_span, sym)?;
+    let map_b = record_field_map(b, OP, list_span, sym)?;
+    Ok(Value::bool(values_equal(&map_a, &map_b) == Some(true)))
 }
 
 /// `(:wat::Record/assoc record key new-value)` — arc 234 Stone 234.3b.
