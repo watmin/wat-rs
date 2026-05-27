@@ -62,7 +62,7 @@ fn probe_1_single_field_construction() {
 "#;
     match run_compute(src) {
         Ok(v) => match v {
-            Value::wat__Record { class_fqdn, struct_form, holon_form: _ } => {
+            Value::wat__Record { class_fqdn, struct_form } => {
                 assert_eq!(
                     class_fqdn.as_str(),
                     "myapp::Voltage",

@@ -200,7 +200,7 @@ fn probe_counter_subprocess_full_process_peer() {
         .expect("spawn-process should succeed").value_owned();
 
     // Bind process and exercise via embedded wat code
-    let env = Environment::new().child().bind("proc", process.clone()).build();
+    let env = Environment::new().child().bind("proc", Span::unknown(), process.clone().into()).build();
 
     // Arc 208 slice 2 — Process/println + Process/readln are matched honestly.
     // resp is the unwrapped counter::Response (from the Ok arm).

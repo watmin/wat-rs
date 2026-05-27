@@ -166,7 +166,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
     let env = Environment::new();
     let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
 
-    let env2 = Environment::new().child().bind("server", server).build();
+    let env2 = Environment::new().child().bind("server", Span::unknown(), server.into()).build();
 
     // Build the peer bindings shared by both passes.
     // Pass 1 (println): verify Process/println returns Result::Ok(nil).
@@ -242,7 +242,7 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
     let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
 
     // Drain and join first so the subprocess is definitely dead.
-    let env2 = Environment::new().child().bind("server", server).build();
+    let env2 = Environment::new().child().bind("server", Span::unknown(), server.into()).build();
     let djoin_ast = wat::parse_one!("(:wat::kernel::Process/drain-and-join server)")
         .expect("drain-and-join AST parses");
     let _djoin = eval(&djoin_ast, &env2, world.symbols())
@@ -257,7 +257,7 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
     )
     .expect("second spawn-process succeeds").value_owned();
 
-    let env3 = Environment::new().child().bind("server2", server2).build();
+    let env3 = Environment::new().child().bind("server2", Span::unknown(), server2.into()).build();
 
     // Build peer, drain server, THEN try Process/println on the dead peer.
     let println_dead_ast = wat::parse_one!(
@@ -307,7 +307,7 @@ fn arc208_t4_process_readln_returns_err_on_dead_peer() {
     )
     .expect("spawn-process succeeds").value_owned();
 
-    let env = Environment::new().child().bind("server", server).build();
+    let env = Environment::new().child().bind("server", Span::unknown(), server.into()).build();
 
     // Build peer, drain server, THEN try Process/readln on the dead peer.
     let readln_dead_ast = wat::parse_one!(
@@ -357,7 +357,7 @@ fn arc208_t5_err_chain_head_is_channel_disconnected() {
     )
     .expect("spawn-process succeeds").value_owned();
 
-    let env = Environment::new().child().bind("server", server).build();
+    let env = Environment::new().child().bind("server", Span::unknown(), server.into()).build();
 
     // Process/readln on dead peer — check chain head variant.
     let readln_chain_ast = wat::parse_one!(

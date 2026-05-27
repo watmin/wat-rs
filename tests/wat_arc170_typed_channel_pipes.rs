@@ -652,8 +652,8 @@ fn wat_kernel_send_recv_dispatches_through_pipefd_transport() {
 
     let env = Environment::new()
         .child()
-        .bind("tx", tx)
-        .bind("rx", rx)
+        .bind("tx", Span::unknown(), tx.into())
+        .bind("rx", Span::unknown(), rx.into())
         .build();
 
     let send_ast = wat::parse_one!("(:wat::kernel::send tx 7)").expect("parse send");
@@ -690,7 +690,7 @@ fn wat_kernel_recv_pipefd_returns_none_on_writer_close() {
     let (tx, rx) = make_pipe_channel_pair(":test").unwrap();
     drop(tx); // peer disconnect
 
-    let env = Environment::new().child().bind("rx", rx).build();
+    let env = Environment::new().child().bind("rx", Span::unknown(), rx.into()).build();
     let recv_ast = wat::parse_one!("(:wat::kernel::recv rx)").expect("parse");
     let recv_result =
         eval(&recv_ast, &env, world.symbols()).expect("recv eval should succeed").value_owned();
@@ -716,7 +716,7 @@ fn wat_kernel_select_rejects_pipefd_receiver() {
     let (_tx, rx) = make_pipe_channel_pair(":test").unwrap();
     let rxs = Value::Vec(Arc::new(vec![rx]));
 
-    let env = Environment::new().child().bind("rxs", rxs).build();
+    let env = Environment::new().child().bind("rxs", Span::unknown(), rxs.into()).build();
     let select_ast = wat::parse_one!("(:wat::kernel::select rxs)").expect("parse");
     let outcome = eval(&select_ast, &env, world.symbols());
     match outcome {
@@ -845,7 +845,7 @@ fn wat_kernel_sender_close_dispatch_via_eval() {
 
     let env = Environment::new()
         .child()
-        .bind("tx", sender_val)
+        .bind("tx", Span::unknown(), sender_val.into())
         .build();
 
     // (:wat::kernel::Sender/close tx) → nil

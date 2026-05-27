@@ -176,7 +176,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
     // point.
     let env = Environment::new()
         .child()
-        .bind("server", server.clone())
+        .bind("server", Span::unknown(), server.clone().into())
         .build();
     // Arc 208 slice 2 — Process/println + Process/readln are matched honestly.
     // reply is unwrapped :String (from the Ok arm) so the Rust-side
