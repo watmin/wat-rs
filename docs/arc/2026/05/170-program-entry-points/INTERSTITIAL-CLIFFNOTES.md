@@ -158,7 +158,7 @@ HEAD        branch arc-170-gap-j-v5-deadlock-state — verify: git log -1 + git 
 holon-rs    frozen (STOP-5) — never touch
 Lib tests   827 PASS / 0 FAIL (held across EVERY arc 237 stone)
 Clippy      ~54 (NOT a concern)
-Sonnet      idle. arc 237 records thread: S-C.2c ✓601c892d (base variant), S-C.2d ✓6ea2270e (`:wat::Record/same-data?` type-blind data-equality, FM-9: 834/0, probe 6/6). NEXT = **S-C.3** (macro split: `:wat::Record::def` base / `:wat::holon::Record::def` holonic; static distinction = constructor return type) → S-D (migrate, HARD CUT) → records thread closes → 237.7-9 arithmetic tail. (arc 238 CLOSED — `=` deep-structural complete.)
+Sonnet      idle. **arc 237 RECORDS FLAVOR THREAD CLOSED** — S-C.1✓ · S-C.2ab✓ · S-C.2c✓ (base variant) · S-C.2d✓ (`same-data?`) · S-C.3 ✓e9e24139 (macro split: `:wat::Record::def`=BASE / `:wat::holon::Record::def`=HOLONIC; constructor split `:wat::Record::of` 2-arg / `:wat::holon::Record::of` 3-arg; Liskov via recordtype parent; FM-9: probe 18/18, lib 834/0, workspace 0-FAILED; S-D cascade absorbed — 5 files migrated to holonic). arc 238 CLOSED (`=` deep-structural). NEXT = arc 237 ARITHMETIC TAIL: 237.7 (arc-146 Dispatch→defclauses) → 237.8 (arithmetic/comparison concrete defclauses + DELETE widest-contagion + HARD-CUT Dispatch) → 237.9 INSCRIPTION (folds records S-E + arc 146 + arc 148; USER-GUIDE records section).
 Active arc  237 — records-first-class thread (winding); arithmetic tail (237.7-9) follows.
 ```
 

@@ -14,9 +14,16 @@ read this to know what's left, the order, and **why** the order — then verify 
 >   - **S-C.2d** ✓ SHIPPED `6ea2270e` — `:wat::Record/same-data?` (type-blind record data-equality;
 >     name-keyed via record->map + values_equal). FM-9: probe 6/6, lib 834/0. The clean split is live:
 >     `=` type-strict (238) + `same-data?` type-blind. USER-GUIDE row added.
->   - **S-C.3** ← NEXT — macro split (`:wat::Record::def` base / `:wat::holon::Record::def` holonic;
->     static type distinction = constructor return type; constructs the base variant S-C.2c minted).
->   - **S-D** — migrate callers (HARD CUT). Then 237.7-9 arithmetic tail + INSCRIPTION.
+>   - **S-C.3** ✓ SHIPPED `e9e24139` — macro split: `:wat::Record::def`=BASE / `:wat::holon::Record::def`=HOLONIC;
+>     constructor split (`:wat::Record::of` 2-arg / `:wat::holon::Record::of` 3-arg); recordtype-parent
+>     Liskov (base-defined REJECTED at `:wat::holon::Record` param — proven, probe contract 13). FM-9:
+>     18/18, lib 834/0, workspace 0-FAILED.
+>   - **S-D** ✓ ABSORBED into S-C.3's cascade — 5 test files migrated to holonic (holon-op use), rest base.
+>
+> **▶▶ RECORDS FLAVOR THREAD CLOSED.** What remains of arc 237 = the ARITHMETIC TAIL (disjoint machinery):
+> 237.7 (arc-146 Dispatch entities → defclauses) → 237.8 (arithmetic/comparison/holon-pair/time-arith →
+> concrete-per-type defclauses; DELETE widest-contagion; HARD-CUT arc-146 Dispatch) → 237.9 INSCRIPTION
+> (TERMINAL — folds records S-E + arc 146 + arc 148 closures + the USER-GUIDE records section).
 
 Arc 237 is a **two-boss level** (no one-boss-per-level rule): the records-first-class
 thread AND the arithmetic/dispatch consolidation (the original spine). The records
