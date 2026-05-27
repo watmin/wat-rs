@@ -158,7 +158,7 @@ HEAD        branch arc-170-gap-j-v5-deadlock-state — verify: git log -1 + git 
 holon-rs    frozen (STOP-5) — never touch
 Lib tests   827 PASS / 0 FAIL (held across EVERY arc 237 stone)
 Clippy      ~54 (NOT a concern)
-Sonnet      ARC 238 in flight (238.1: complete `=` for records/maps/sets/Instant/Duration in values_equal). arc 237 PAUSED on 238 (= must be sane before records-first-class proceeds). S-C.2c SHIPPED 601c892d. S-C.2d (same-data?, type-blind) DEFERRED to post-238 (= now owns type-strict record equality; same-data? is the type-BLIND tool, distinct).
+Sonnet      idle. ARC 238 CLOSED (290a6cb3 + INSCRIPTION) — `=` now deep-structural over records/maps/sets/Instant/Duration/WatAST (FM-9: 834/0, probe 8/8). arc 237 RESUMED. NEXT in 237: S-C.2d (mint `:wat::Record/same-data?`, type-BLIND — now cleanly distinct from `=`, which owns type-strict) OR S-C.3 (macro split). S-C.2c SHIPPED 601c892d. User directs next strike.
 Active arc  237 — records-first-class thread (winding); arithmetic tail (237.7-9) follows.
 ```
 
