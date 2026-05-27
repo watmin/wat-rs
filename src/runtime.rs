@@ -5317,6 +5317,10 @@ fn dispatch_keyword_head_value(
         // Consumed by defprotocol's polymorphic dispatcher (revised Stone 232.1)
         // and all arc 234.x record-y verbs.
         ":wat::core::type" => eval_type(args, list_span, env, sym),
+        // Arc 237 Stone 237.7a — `:wat::core::length` ∀T intrinsic.
+        // Polymorphic collection-length: Vector<T> / HashMap<K,V> / HashSet<T> → i64.
+        // Reborn from define-dispatch (core.wat) to Rust builtin; mechanism-swap behavior-preserving.
+        ":wat::core::length" => eval_length(args, list_span, env, sym),
         // Arc 237 Stone 237.5 — `:wat::core::conforms?` general type-conformance primitive.
         // Recursive walker over the TypeExpr grammar (Path / Parametric / Tuple / Alias / Union).
         // Signature: (value :TypeExpr) -> :wat::core::bool
@@ -16135,6 +16139,46 @@ fn eval_type(
     // and all primitives.  No inline dispatch here — the authority is the single source.
     let type_str = arg_val.declared_type_name();
     Ok(Value::String(Arc::new(type_str)))
+}
+
+// ─── Arc 237 Stone 237.7a — :wat::core::length intrinsic ─────────────────────
+
+/// `(:wat::core::length <collection>) -> :wat::core::i64` — arc 237 Stone 237.7a.
+///
+/// Polymorphic collection-length primitive: ∀T. T -> i64.
+/// Mirrors `eval_type` in shape: arity-1, eval arg, match Value variant.
+/// Accepted variants:
+/// - `Value::Vec(..)` → vector length
+/// - `Value::wat__std__HashMap(..)` → map entry count
+/// - `Value::wat__std__HashSet(..)` → set element count
+/// All other variants produce a teaching `RuntimeError::TypeMismatch`.
+fn eval_length(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::length";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    match &arg_val {
+        Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
+        Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
+        Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
+            got: ValueSnapshot::of(other),
+            span: list_span.clone(),
+        }),
+    }
 }
 
 // ─── Arc 237 Stone 237.5 — :wat::core::conforms? ─────────────────────────────

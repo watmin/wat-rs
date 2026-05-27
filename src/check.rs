@@ -19426,6 +19426,22 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Arc 237 Stone 237.7a — :wat::core::length as a ∀T intrinsic.
+    // Polymorphic collection-length primitive: forall T. T -> i64.
+    // Accepts Vector<T> / HashMap<K,V> / HashSet<T>; rejects other values
+    // with a teaching RuntimeError at eval time.
+    // Mirrors :wat::core::type (∀T. T -> String) — same TypeScheme shape,
+    // concrete i64 return in place of String.
+    env.register(
+        ":wat::core::length".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+
     // Arc 234 Stone 234.2a — :wat::Record::of + :wat::Record/field-at substrate primitives.
     //
     // :wat::Record::of — TypeScheme registration REMOVED (Stone 234.2a forward-correction).

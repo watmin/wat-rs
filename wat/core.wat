@@ -9,10 +9,9 @@
 ;; (slice 1). Loads BEFORE `wat/runtime.wat` so the dispatches are
 ;; visible to any reflection-driven macro that might reference them.
 
-(:wat::core::define-dispatch :wat::core::length
-  ((:wat::core::Vector<T>)    :wat::core::Vector/length)
-  ((:wat::core::HashMap<K,V>) :wat::core::HashMap/length)
-  ((:wat::core::HashSet<T>)   :wat::core::HashSet/length))
+;; Arc 237 Stone 237.7a — :wat::core::length evacuated to Rust ∀T intrinsic (src/check.rs +
+;; src/runtime.rs). define-dispatch decl removed; the per-type leaves (:Vector/length,
+;; :HashMap/length, :HashSet/length) and the DispatchRegistry remain for other ops.
 
 ;; Arc 146 slice 3 — bundled migration: empty? / contains? / get / conj.
 ;; Same shape as length above. contains? uses MIXED IMPL VERBS:
