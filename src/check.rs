@@ -6383,7 +6383,7 @@ fn infer_list(
                 }
                 if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let expected = TypeExpr::Path(":wat::WatAST".into());
-                    if unify(&arg_ty, &expected, subst, env.types()).is_err() {
+                    if !assignable(&arg_ty, &expected, subst, env.types()) {
                         local_errors.push(CheckError::TypeMismatch {
                             callee: k.clone(),
                             param: "#1".into(),
@@ -6864,7 +6864,7 @@ fn infer_list(
                 let mut all_match = true;
                 for (arg_ty_opt, expected_ty) in arg_tys.iter().zip(clause_arg_types.iter()) {
                     if let Some(arg_ty) = arg_ty_opt {
-                        if unify(arg_ty, expected_ty, &mut clause_subst, env.types()).is_err() {
+                        if !assignable(arg_ty, expected_ty, &mut clause_subst, env.types()) {
                             all_match = false;
                             continue 'outer;
                         }
@@ -7022,7 +7022,7 @@ fn infer_list(
             {
                 let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 if let Some(arg_ty) = arg_ty {
-                    if unify(&arg_ty, expected, subst, env.types()).is_err() {
+                    if !assignable(&arg_ty, expected, subst, env.types()) {
                         local_errors.push(CheckError::TypeMismatch {
                             callee: k.clone(),
                             param: format!("#{}", i + 1),
@@ -7076,7 +7076,7 @@ fn infer_list(
         for (i, (arg, expected)) in args.iter().zip(&param_types).enumerate() {
             let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             if let Some(arg_ty) = arg_ty {
-                if unify(&arg_ty, expected, subst, env.types()).is_err() {
+                if !assignable(&arg_ty, expected, subst, env.types()) {
                     local_errors.push(CheckError::TypeMismatch {
                         callee: k.clone(),
                         param: format!("#{}", i + 1),
@@ -7210,7 +7210,7 @@ fn infer_list(
     }
     for (i, (arg, expected)) in call_args.iter().zip(&param_types).enumerate() {
         if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-            if unify(&arg_ty, expected, subst, env.types()).is_err() {
+            if !assignable(&arg_ty, expected, subst, env.types()) {
                 local_errors.push(CheckError::TypeMismatch {
                     callee: "(value head)".into(),
                     param: format!("#{}", i + 1),
@@ -10253,7 +10253,7 @@ fn infer_try(
         head: "wat::core::Result".into(),
         args: vec![fresh_t.clone(), enclosing_err_ty],
     };
-    if unify(&arg_ty, &expected, subst, env.types()).is_err() {
+    if !assignable(&arg_ty, &expected, subst, env.types()) {
         local_errors.push(CheckError::TypeMismatch {
             callee: callee.into(),
             param: "arg".into(),
@@ -10362,7 +10362,7 @@ fn infer_option_try(
         head: "wat::core::Option".into(),
         args: vec![fresh_t.clone()],
     };
-    if unify(&arg_ty, &expected, subst, env.types()).is_err() {
+    if !assignable(&arg_ty, &expected, subst, env.types()) {
         local_errors.push(CheckError::TypeMismatch {
             callee: callee.into(),
             param: "arg".into(),
@@ -12041,7 +12041,7 @@ fn infer_spawn(
     }
     for (i, (arg, expected)) in spawn_args.iter().zip(&param_types).enumerate() {
         if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-            if unify(&arg_ty, expected, subst, env.types()).is_err() {
+            if !assignable(&arg_ty, expected, subst, env.types()) {
                 local_errors.push(CheckError::TypeMismatch {
                     callee: callee_label.clone(),
                     param: format!("#{}", i + 1),
@@ -14772,6 +14772,28 @@ fn unify_union_union(
         }
     }
     Err(UnifyError)
+}
+
+/// Arg-boundary acceptance: is `actual` assignable to `expected`?
+/// Liskov — a subtype is accepted where its supertype is wanted. Checks the
+/// `typesub` hierarchy FIRST (mutation-free; only concrete distinct paths with a
+/// registered edge), then falls through to ordinary unification (behaviour
+/// unchanged for every other pair). Peels each side exactly as `unify` does at
+/// its head (line ~14633): `reduce(&walk(x, subst), subst, types)`.
+fn assignable(
+    actual: &TypeExpr,
+    expected: &TypeExpr,
+    subst: &mut Subst,
+    types: &TypeEnv,
+) -> bool {
+    let a = reduce(&walk(actual, subst), subst, types);
+    let e = reduce(&walk(expected, subst), subst, types);
+    if let (TypeExpr::Path(ap), TypeExpr::Path(ep)) = (&a, &e) {
+        if ap != ep && crate::types::is_subtype(ap, ep, types) {
+            return true;
+        }
+    }
+    unify(actual, expected, subst, types).is_ok()
 }
 
 /// Chase a type through the substitution map until a non-bound root
