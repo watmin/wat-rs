@@ -1362,7 +1362,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     }));
 
     // :wat::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
-    // wat-record hologram (Value::wat__Record). Pascal-Case namespace per
+    // wat-record hologram (Value::wat__holon__Record). Pascal-Case namespace per
     // the `::`/`/` semantic-split doctrine: the namespace IS the umbrella
     // type; `::` verbs operate at the type tier (Record::of, Record::def,
     // Record::is?); `/` methods operate on instances (Record/field-at,

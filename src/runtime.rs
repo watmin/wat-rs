@@ -648,7 +648,7 @@ pub enum Value {
     ///
     /// Storage form only — user-facing constructor ships in Stone 234.2
     /// (`:wat::core::defrecord` macro). Polymorphic verbs in Stone 234.3.
-    wat__Record {
+    wat__holon__Record {
         /// Record class FQDN — e.g. `"myapp::Voltage"` (no leading colon).
         class_fqdn: Arc<String>,
         /// Ordered field values in declaration order (fast Rust-side access).
@@ -892,11 +892,11 @@ impl PartialEq for Value {
             (Value::Engram(a), Value::Engram(b)) => Arc::ptr_eq(a, b),
             (Value::EngramLibrary(a), Value::EngramLibrary(b)) => Arc::ptr_eq(a, b),
             (Value::Hologram(a), Value::Hologram(b)) => Arc::ptr_eq(a, b),
-            // Arc 234 Stone 234.1 — wat__Record: identity lives in holon_form (canonical
+            // Arc 234 Stone 234.1 — wat__holon__Record: identity lives in holon_form (canonical
             // bytes seed per Stone 221.5). Class_fqdn match checked first for short-circuit
             // performance + structural honesty. struct_form is access optimization; not identity.
-            (Value::wat__Record { class_fqdn: a_cls, holon_form: a_h, .. },
-             Value::wat__Record { class_fqdn: b_cls, holon_form: b_h, .. }) => {
+            (Value::wat__holon__Record { class_fqdn: a_cls, holon_form: a_h, .. },
+             Value::wat__holon__Record { class_fqdn: b_cls, holon_form: b_h, .. }) => {
                 a_cls == b_cls && a_h == b_h
             }
             // Stone 237.2 — wat__core__clauses: pointer equality (two ClauseSet instances
@@ -1109,11 +1109,11 @@ impl std::hash::Hash for Value {
                  src/check.rs:3623 should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            // Arc 234 Stone 234.1 — wat__Record: hash delegates to holon_form (canonical form
-            // per Stone 221.5). Discriminant tag "wat__Record" prevents cross-variant collisions.
+            // Arc 234 Stone 234.1 — wat__holon__Record: hash delegates to holon_form (canonical form
+            // per Stone 221.5). Discriminant tag "wat__holon__Record" prevents cross-variant collisions.
             // struct_form is access optimization; identity lives in holon_form.
-            Value::wat__Record { holon_form, .. } => {
-                "wat__Record".hash(state);
+            Value::wat__holon__Record { holon_form, .. } => {
+                "wat__holon__Record".hash(state);
                 holon_form.hash(state);
             }
             // Stone 237.2 — wat__core__clauses: hash via Arc pointer (consistent with
@@ -1266,7 +1266,7 @@ impl Value {
             // Arc 220 Stone 220.4
             Value::wat__core__List(_) => "wat::core::List",
             // Arc 234 Stone 234.1 — generic kind-string (per-instance FQDN via :wat::core::type).
-            Value::wat__Record { .. } => "wat::Record",
+            Value::wat__holon__Record { .. } => "wat::Record",
             // Stone 237.2 — multi-arity callable dispatcher.
             Value::wat__core__clauses(_) => "wat::core::clauses",
         }
@@ -1291,7 +1291,7 @@ impl Value {
     ///   fallback to `"wat::holon::HolonAST"`.
     /// - `Struct` → `sv.type_name` with leading `:` stripped (also covers newtype,
     ///   which is a `Value::Struct` at runtime).
-    /// - `wat__Record` → `class_fqdn` (already colon-free FQDN).
+    /// - `wat__holon__Record` → `class_fqdn` (already colon-free FQDN).
     /// - `Enum` → `ev.type_path` with leading `:` stripped (the declared enum
     ///   FQDN, e.g. `"my::Color"` — NOT the generic `"wat::core::Enum"`).
     /// - Every primitive/kind-only variant → `self.type_name().to_string()`.
@@ -1308,7 +1308,7 @@ impl Value {
             Value::Struct(sv) => sv.type_name.trim_start_matches(':').to_string(),
             // Record: class_fqdn is already colon-free (the defrecord macro
             // stores it without the leading colon).
-            Value::wat__Record { class_fqdn, .. } => class_fqdn.to_string(),
+            Value::wat__holon__Record { class_fqdn, .. } => class_fqdn.to_string(),
             // Enum: type_path is the declared enum FQDN verbatim (e.g.
             // `:my::Color`); strip the leading colon.  Do NOT use
             // self.type_name(), which returns the generic "wat::core::Enum".
@@ -5303,7 +5303,7 @@ fn dispatch_keyword_head_value(
         ":wat::Record::of" => eval_record_of(args, list_span, env, sym),
         ":wat::Record/field-at" => eval_record_field_at(args, list_span, env, sym),
         // Arc 234 Stone 234.3a — polymorphic record read verbs.
-        // record?   :: ∀T. T -> bool          — true iff input is Value::wat__Record
+        // record?   :: ∀T. T -> bool          — true iff input is Value::wat__holon__Record
         // record->map :: :wat::Record -> HashMap<keyword, T> — extract field-name/value map
         ":wat::core::record?" => eval_record_q(args, list_span, env, sym),
         ":wat::core::record->map" => eval_record_to_map(args, list_span, env, sym),
@@ -6371,14 +6371,14 @@ fn dispatch_keyword_head_value(
                     }
                     // Arc 234 Stone 234.3c — keyword-as-accessor fall-through.
                     // When head is an unknown verb AND args.len() == 1 AND receiver is
-                    // {wat__Record, Struct, wat__std__HashMap}, dispatch as field accessor.
+                    // {wat__holon__Record, Struct, wat__std__HashMap}, dispatch as field accessor.
                     // Fires LAST: after user-fn lookup, after def-bound check, after sandbox
                     // leak detection. Only unknown single-arg keyword calls reach here.
                     if args.len() == 1 {
                         let receiver = eval_inner(&args[0], env, sym)?.value_owned();
                         let bare_name = other.strip_prefix(':').unwrap_or(other);
                         match receiver {
-                            Value::wat__Record { class_fqdn, struct_form, holon_form } => {
+                            Value::wat__holon__Record { class_fqdn, struct_form, holon_form } => {
                                 return keyword_accessor_record(
                                     bare_name,
                                     class_fqdn,
@@ -6424,7 +6424,7 @@ fn dispatch_keyword_head_value(
 
 // ─── Arc 234 Stone 234.3c — keyword-as-accessor helpers ──────────────────────
 
-/// Walk a `Value::wat__Record`'s holon_form to find `bare_name` and return
+/// Walk a `Value::wat__holon__Record`'s holon_form to find `bare_name` and return
 /// the corresponding field value from `struct_form`. Miss → `UnknownField`.
 ///
 /// Structure: `Bind(Atom(String(class)), Bundle([Bind(Atom(String(name)), Atom(val)), ...]))`.
@@ -7541,7 +7541,7 @@ fn val_type_path(val: &Value) -> &'static str {
             "<struct>"
         }
         Value::Enum(_) => "<enum>",
-        Value::wat__Record { .. } => ":wat::Record",
+        Value::wat__holon__Record { .. } => ":wat::Record",
         Value::wat__std__HashMap(_) => ":wat::core::HashMap",
         Value::wat__std__HashSet(_) => ":wat::core::HashSet",
         Value::RustOpaque(_) => ":rust::opaque",
@@ -7775,7 +7775,7 @@ fn bind_let_binding(
         }
         // Arc 234 Stone 234.4 — hash-destructure.
         // Evaluates the RHS once; dispatches on Value variant:
-        //   wat__Record    → walk holon_form by field name; bind to struct_form[i]
+        //   wat__holon__Record    → walk holon_form by field name; bind to struct_form[i]
         //   Struct         → look up field in TypeDef; bind sv.fields[i]
         //   wat__std__HashMap → keyword key lookup; bind to Value::Option(Some/None)
         //   Other          → TypeMismatch
@@ -7787,7 +7787,7 @@ fn bind_let_binding(
             let value = eval_inner(rhs, scope, sym)?.value_owned();
             let mut builder = scope.child();
             match &value {
-                Value::wat__Record { class_fqdn, struct_form, holon_form } => {
+                Value::wat__holon__Record { class_fqdn, struct_form, holon_form } => {
                     // Record receiver — walk holon_form per binding.
                     // Reuse keyword_accessor_record from Stone 234.3c.
                     for (var_name, bare_field, var_span) in &bindings {
@@ -7960,7 +7960,7 @@ enum LetBinding<'a> {
     },
     /// Arc 234 Stone 234.4 — Clojure-style hash-destructure.
     /// `{var :field  var2 :field2 ...}` in let-binding position.
-    /// Receiver-polymorphic over wat__Record, Struct, and wat__std__HashMap.
+    /// Receiver-polymorphic over wat__holon__Record, Struct, and wat__std__HashMap.
     ///
     /// Each binding carries (var_name, bare_field_name, var_span).
     /// Runtime evaluates the RHS once and dispatches on Value variant
@@ -15814,7 +15814,7 @@ fn try_match_pattern(
                 }
                 // Dispatch on scrutinee receiver type.
                 match value {
-                    Value::wat__Record { class_fqdn, struct_form, holon_form } => {
+                    Value::wat__holon__Record { class_fqdn, struct_form, holon_form } => {
                         let mut env = outer.clone();
                         for (var_name, bare_field) in &pairs {
                             let field_val = keyword_accessor_record(
@@ -16063,7 +16063,7 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, R
 /// - Any other Value → `Value::type_name()` (existing Rust method; returns FQDN per
 ///   arc 224 Stone 224.5 naming audit).
 ///
-/// - `Value::wat__Record { class_fqdn, .. }` → `class_fqdn` (per-instance FQDN; arc 234 Stone 234.1).
+/// - `Value::wat__holon__Record { class_fqdn, .. }` → `class_fqdn` (per-instance FQDN; arc 234 Stone 234.1).
 fn eval_type(
     args: &[WatAST],
     list_span: &Span,
@@ -16186,12 +16186,12 @@ fn conforms_check(
                         // Not a TypeDef, not a built-in.
                         // Record classes declared via `(:wat::Record::def ...)` expand
                         // to `defn` forms and are NOT registered in the TypeEnv — their
-                        // type identity lives in `Value::wat__Record.class_fqdn`.
-                        // For a wat__Record value, check class_fqdn directly (the value
+                        // type identity lives in `Value::wat__holon__Record.class_fqdn`.
+                        // For a wat__holon__Record value, check class_fqdn directly (the value
                         // carries its own type tag — it is the ground truth). For all other
                         // value kinds, the name is genuinely unknown → Err (per error contract).
                         match value {
-                            Value::wat__Record { class_fqdn, .. } => {
+                            Value::wat__holon__Record { class_fqdn, .. } => {
                                 Ok(class_fqdn.as_str() == stripped)
                             }
                             _ => Err(format!(
@@ -16478,14 +16478,14 @@ fn eval_subtype(
 /// `(:wat::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>> <holon-form: HolonAST>)`
 /// → `:wat::Record` — arc 234 Stone 234.2a.
 ///
-/// Substrate constructor for `Value::wat__Record`. Takes three args:
+/// Substrate constructor for `Value::wat__holon__Record`. Takes three args:
 /// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Voltage`); the keyword's stored
 ///   Arc<String> carries the leading `:` which is stripped to produce the colon-free
 ///   `class_fqdn` field (e.g. `"myapp::Voltage"`).
 /// - `struct-form`: `Vector<T>` of field values in declaration order.
 /// - `holon-form`: pre-built HolonAST classifier-wrap `Bind(Atom(class), Bundle(field-Binds...))`.
 ///
-/// Returns `Value::wat__Record { class_fqdn, struct_form, holon_form }`.
+/// Returns `Value::wat__holon__Record { class_fqdn, struct_form, holon_form }`.
 /// Consumed by the Stone 234.2b defrecord macro; power users may call directly.
 fn eval_record_of(
     args: &[WatAST],
@@ -16545,7 +16545,7 @@ fn eval_record_of(
         }
     };
 
-    Ok(Value::wat__Record {
+    Ok(Value::wat__holon__Record {
         class_fqdn,
         struct_form,
         holon_form,
@@ -16555,7 +16555,7 @@ fn eval_record_of(
 /// `(:wat::Record/field-at <record: :wat::Record> <index: i64>)` → field value
 /// — arc 234 Stone 234.2a.
 ///
-/// Positional accessor for `Value::wat__Record`. Returns `struct_form[index]`.
+/// Positional accessor for `Value::wat__holon__Record`. Returns `struct_form[index]`.
 /// Out-of-bounds index (negative or >= struct_form.len()) → TypeMismatch error.
 /// Consumed by the Stone 234.2b defrecord macro's per-field accessor codegen.
 fn eval_record_field_at(
@@ -16577,7 +16577,7 @@ fn eval_record_field_at(
     let index_val = eval_inner(&args[1], env, sym)?.value_owned();
 
     let struct_form = match record_val {
-        Value::wat__Record { struct_form, .. } => struct_form,
+        Value::wat__holon__Record { struct_form, .. } => struct_form,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
@@ -16621,7 +16621,7 @@ fn eval_record_field_at(
 
 /// `(:wat::core::record? v)` — arc 234 Stone 234.3a.
 ///
-/// Polymorphic predicate: true iff `v` is `Value::wat__Record`. Accepts any value
+/// Polymorphic predicate: true iff `v` is `Value::wat__holon__Record`. Accepts any value
 /// (∀T) and returns bool. Mirrors `:wat::core::vector?` / `:wat::core::map?` family.
 fn eval_record_q(
     args: &[WatAST],
@@ -16639,12 +16639,12 @@ fn eval_record_q(
         });
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    Ok(Value::bool(matches!(v, Value::wat__Record { .. })))
+    Ok(Value::bool(matches!(v, Value::wat__holon__Record { .. })))
 }
 
 /// `(:wat::core::record->map r)` — arc 234 Stone 234.3a.
 ///
-/// Extracts a `HashMap<:wat::core::keyword, value>` from a `Value::wat__Record`.
+/// Extracts a `HashMap<:wat::core::keyword, value>` from a `Value::wat__holon__Record`.
 /// Walks the record's `holon_form` to extract field names and pairs each name
 /// (as a `:wat::core::keyword` key) with the corresponding value from `struct_form`
 /// (positional match — index i in Bundle children corresponds to struct_form[i]).
@@ -16677,7 +16677,7 @@ fn eval_record_to_map(
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
-        Value::wat__Record { struct_form, holon_form, .. } => {
+        Value::wat__holon__Record { struct_form, holon_form, .. } => {
             // holon_form structure (per Stone 234.2b macro):
             //   Bind(Atom(String(class)), Bundle([ Bind(Atom(String(field-name)), Atom(val)), ... ]))
             // Step 1: unwrap outer Bind → get right side (the Bundle of field-Binds).
@@ -16758,7 +16758,7 @@ fn eval_record_to_map(
 
 /// `(:wat::Record/assoc record key new-value)` — arc 234 Stone 234.3b.
 ///
-/// Write verb in the polymorphic record-y family. Returns a NEW `Value::wat__Record`
+/// Write verb in the polymorphic record-y family. Returns a NEW `Value::wat__holon__Record`
 /// with the field named by `key` replaced by `new-value`. The original record is
 /// unchanged (immutable; Arc-functional).
 ///
@@ -16791,7 +16791,7 @@ fn eval_record_assoc(
 
     // Extract record fields.
     let (class_fqdn, struct_form, holon_form) = match record_val {
-        Value::wat__Record { class_fqdn, struct_form, holon_form } => {
+        Value::wat__holon__Record { class_fqdn, struct_form, holon_form } => {
             (class_fqdn, struct_form, holon_form)
         }
         other => {
@@ -16942,7 +16942,7 @@ fn eval_record_assoc(
     };
     let new_holon_form = Arc::new(HolonAST::Bind(class_atom, Arc::new(new_bundle)));
 
-    Ok(Value::wat__Record {
+    Ok(Value::wat__holon__Record {
         class_fqdn,
         struct_form: new_struct_form,
         holon_form: new_holon_form,
@@ -17030,7 +17030,7 @@ fn eval_extract_classifier(
     // HolonAST path returns Option<String> as before (classifier may be absent for
     // structural HolonASTs that aren't typed-entity Binds).
     match arg_val {
-        Value::wat__Record { class_fqdn, .. } => {
+        Value::wat__holon__Record { class_fqdn, .. } => {
             return Ok(Value::String(class_fqdn));
         }
         Value::holon__HolonAST(h) => {
@@ -17679,7 +17679,7 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
         // Per arc 234 DESIGN line 205: "polymorphic bridge accepts wat_records natively."
         // The holon_form IS the canonical VSA representation; to-holon exposes it as-is.
         // holon_form.as_ref().clone() is safe even with shared Arc (T1 trap-door pattern).
-        Value::wat__Record { holon_form, .. } => {
+        Value::wat__holon__Record { holon_form, .. } => {
             return Ok(Value::holon__HolonAST(Arc::new(holon_form.as_ref().clone())));
         }
         other => {
@@ -18626,7 +18626,7 @@ fn eval_algebra_bind(
         });
     }
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for both args.
-    // Accepts Value::holon__HolonAST (existing) OR Value::wat__Record (NEW).
+    // Accepts Value::holon__HolonAST (existing) OR Value::wat__holon__Record (NEW).
     // Records flow through natively; auto-dispatch unwraps holon_form at the boundary.
     let a = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[0], env, sym)?.value_owned(), &args[0].span())?;
     let b = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[1], env, sym)?.value_owned(), &args[1].span())?;
@@ -18695,7 +18695,7 @@ fn eval_algebra_bundle(
         }
     };
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for each child.
-    // Accepts Value::holon__HolonAST (existing) OR Value::wat__Record (NEW).
+    // Accepts Value::holon__HolonAST (existing) OR Value::wat__holon__Record (NEW).
     // Records in [r1 r2 r3] auto-unwrap to holon_form at the boundary.
     // Span::unknown() per arc 138 discipline (we have Value, not WatAST).
     let children: Vec<HolonAST> = list
@@ -19106,7 +19106,7 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
 fn coerce_to_holon_ast(op: &str, v: Value, arg_span: &Span) -> Result<HolonAST, RuntimeError> {
     match v {
         Value::holon__HolonAST(h) => Ok((*h).clone()),
-        Value::wat__Record { holon_form, .. } => Ok(holon_form.as_ref().clone()),
+        Value::wat__holon__Record { holon_form, .. } => Ok(holon_form.as_ref().clone()),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "HolonAST or wat::Record",
@@ -19458,11 +19458,11 @@ fn pair_values_to_vectors(
     // Records carry a pre-built holon_form; coerce both sides so the existing
     // HolonAST arms handle them. Vector arms are unchanged (no auto-dispatch needed).
     let a = match a {
-        Value::wat__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
+        Value::wat__holon__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
         other => other,
     };
     let b = match b {
-        Value::wat__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
+        Value::wat__holon__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
         other => other,
     };
     match (a, b) {
@@ -20739,9 +20739,9 @@ fn render_value(v: &Value, depth: usize) -> String {
             format!("<clauses:{}/{}>", cs.name, cs.clauses.len())
         }
 
-        // Arc 234 Stone 234.1 — wat__Record renders as `<class_fqdn{field0, field1, ...}>`.
+        // Arc 234 Stone 234.1 — wat__holon__Record renders as `<class_fqdn{field0, field1, ...}>`.
         // Uses class_fqdn for identity; struct_form for field values.
-        Value::wat__Record { class_fqdn, struct_form, .. } => {
+        Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
             let mut out = format!("<{}", class_fqdn);
             if !struct_form.is_empty() {
                 out.push('{');

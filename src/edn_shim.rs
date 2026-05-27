@@ -1691,10 +1691,10 @@ pub fn value_to_edn_with(
         // Arc 220 — typed Char → EDN character literal.
         // `char` is `Copy`; `OwnedValue::Char` already exists in wat-edn.
         Value::wat__core__Char(c) => OwnedValue::Char(*c),
-        // Arc 234 Stone 234.1 — wat__Record: render as a tagged map.
+        // Arc 234 Stone 234.1 — wat__holon__Record: render as a tagged map.
         // Tag carries the class_fqdn; fields render positionally (field-0, field-1, ...).
         // Named-field EDN rendering lands in Stone 234.2 when defrecord macro ships field names.
-        Value::wat__Record { class_fqdn, struct_form, .. } => {
+        Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
             let tag = tag_from_type_path(class_fqdn);
             let entries: Vec<(OwnedValue, OwnedValue)> = struct_form
                 .iter()

@@ -72,7 +72,7 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/holon/Trigram.wat"),
     },
     // Arc 234 Stone 234.2b — :wat::Record::def macro. Mints user-defined
-    // record-types as dual-form holograms (Value::wat__Record): struct_form
+    // record-types as dual-form holograms (Value::wat__holon__Record): struct_form
     // (Rust-fast) + holon_form (VSA-aligned), both addressable, both canonical.
     // Generates constructor + per-field accessors + predicate. Consumes Stone
     // 234.2a substrate primitives (:wat::Record::of + :wat::Record/field-at).
