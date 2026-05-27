@@ -31,9 +31,12 @@ hot from S-A/S-A1/S-B.2). The *intra-boss* orderings below ARE hard.
 ## The order (✓ = shipped; verify via git)
 
 ```
-RECORDS PATH (finish what we're on)
-  S-C   mint :wat::Record::def (base, struct-only) / :wat::holon::Record::def (struct + holon_form)
-  S-D   migrate defrecord callers → the right new macro (HARD CUT)         ← the records "consumer" loop-back
+RECORDS PATH (finish what we're on)   [S-C re-sliced 2026-05-26 — two Value variants, NOT holon_form:Option; see DESIGN CORRECTION]
+  S-C.1 RENAME Value::wat__Record → Value::wat__holon__Record (existing dual-form IS the holonic one)
+        — pure mechanical (~72 holon_form sites, mostly runtime.rs); BASELINE-PRESERVING; frees the name
+  S-C.2 MINT base Value::wat__Record {class_fqdn, struct_form} — EDN-restricted, structural Eq/Hash, holon-on-demand
+  S-C.3 macro split: :wat::Record::def → base / :wat::holon::Record::def → holonic; wire typesub; wat-surface proof
+  S-D   migrate existing :wat::Record::def callers → base vs holonic (HARD CUT)   ← the records "consumer" loop-back
         └─ records thread CLOSED (inscription deferred to 237.9)
 
 ARITHMETIC / DISPATCH BOSS (loop back onto consumers)
@@ -62,7 +65,12 @@ not yet locked; see "Hard dependencies" for why the build/cut boundary matters.)
    CUT is tractable ONLY after the new concrete defclauses prove green coverage. Never
    delete blind. THE DECISION is locked: no implicit numeric coercion — `(+ 1 2.0)` →
    ERROR (no clause matches); homogenize explicitly. (`feedback_no_implicit_coercion`.)
-3. **S-C → S-D.** Forced — can't migrate callers to macros that don't exist.
+3. **S-C.1 → S-C.2 → S-C.3 → S-D.** Forced chain. S-C.1 (rename) frees the `wat__Record`
+   name + is baseline-preserving (the safe foundation, like S-A1 was); S-C.2 mints base
+   on that freed name; S-C.3's macros can't dispatch to a base variant that doesn't exist;
+   S-D can't migrate to macros that don't exist. The `holon_form: Option` shape is REJECTED
+   (semantic abuse — `Some`/`None` must mean presence/absence, never flavor); the flavor is
+   the *variant*, decoded by `match`. (`feedback_no_semantic_abuse_of_option`.)
 4. **237.9 LAST, gated on BOTH bosses.** Spawn-block winding: the arc cannot close until
    every thread under it closes. 237.9 is the single closure for the whole level
    (absorbs arc 146 + arc 148 + records S-E).
@@ -99,6 +107,14 @@ paying for `holon_form` they don't use; holonic ones still substitute for base v
 
 ## Next room
 
-**S-C** — mint the `:wat::Record::def` / `:wat::holon::Record::def` flavor split. Hot
-context (rides on S-A/S-A1/S-B.2), small surface, low risk. Then S-D closes the records
-thread; then the arithmetic boss; then 237.9.
+**S-C.1** — RENAME `Value::wat__Record` → `Value::wat__holon__Record` (the existing
+dual-form variant IS the holonic one — it implements the hologram; it was doing both
+jobs under the wrong name). Pure mechanical sweep (~72 `holon_form` sites, mostly
+`runtime.rs`), **baseline-preserving** — the safe foundation that frees the `wat__Record`
+name for the base variant. Same shape as S-A1: inert + baseline-preserving by
+construction. Then S-C.2 mints base, S-C.3 splits the macros, S-D migrates callers, the
+records thread closes; then the arithmetic boss; then 237.9.
+
+NOT a small macro split — it's a runtime reshape (the `holon_form: Option` shape was
+REJECTED as semantic abuse; flavor is the *variant*). See § DESIGN CORRECTION in
+`DESIGN-RECORDS-AS-FIRST-CLASS-TYPES.md`.

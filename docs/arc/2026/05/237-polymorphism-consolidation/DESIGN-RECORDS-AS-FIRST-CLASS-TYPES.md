@@ -266,9 +266,95 @@ symmetric leak** — this is precisely why it's `isa?`, not `typeunion`.
   (holonic), each wiring `typesub` + base drops `holon_form` (`Option`). HARD CUT.
   *Probe:* base has no holon-form, holonic does; both first-class; both sit in the
   lattice.
+  > ⚠ **SUPERSEDED 2026-05-26 — `holon_form: Option` is REJECTED (semantic abuse).** See
+  > § DESIGN CORRECTION at the end of this doc. The honest shape is **two Value variants**
+  > (rename existing → `wat__holon__Record`; mint base `wat__Record`), and S-C splits into
+  > S-C.1 (rename) → S-C.2 (mint base) → S-C.3 (macro split). The `Option` repr below in
+  > §§ 4/8 (lines ~150/213) is dead; the two-variant correction governs.
 - **S-D** — migration sweep: existing `defrecord` callers → the right new macro
   (substrate-as-teacher cascade).
 - **S-E** — INSCRIPTION (folds into the arc 237 closure stones).
+
+---
+
+## DESIGN CORRECTION (2026-05-26) — base vs holonic is TWO VARIANTS, not `holon_form: Option`
+
+**Authoritative. Supersedes the `holon_form: Option` shape wherever it appears above
+(§ 4 line ~150-151, § 8 trap T4 line ~213, S-C bullet line ~266).** The body stays as
+the stepping-stone it was; read THIS for what to build. (User direction 2026-05-26, live
+design dialogue — the `Option` shape was caught as semantic abuse before it shipped.)
+
+### Why `Option` is rejected — semantic abuse
+
+`holon_form: Option<Arc<HolonAST>>` with `Some` = holonic / `None` = base **overloads
+`Option`'s meaning**. `Option` means *presence/absence of a value* — it must never be
+read as "Some ⇒ this is a holonic record." That is flavor encoded in a convention a
+reader has to learn — the exact convenience-variant dishonesty the substrate already
+purged (arc 230 retired Symbol/Keyword/Tag/Nil into pure structure; arc 233 killed
+`Value::Tracked` + the `#[wat_value]` macro structurally forbids meaning-bearing wrapping
+variants). The flavor must be **structural — the value IS what it is**, decoded by
+`match`, not by inspecting an `Option`. (`feedback_no_semantic_abuse_of_option`.)
+
+### The record vs struct boundary (the clarifying fact)
+
+- **`Value::Struct`** holds *any rust thing* — channels, fns, handles, non-EDN values.
+- **A record is STRICTER:** its data is restricted to **holonic-representable = EDN-only**
+  values. That restriction is what makes a record a record, and is why **base record ≠
+  struct** (a struct would admit non-EDN data a record forbids). Reusing the struct
+  variant for "base" is therefore WRONG.
+
+### Base vs holonic = materialization, not data domain
+
+Both hold the same EDN-restricted data; neither reduces what's supported.
+- **Base (wat) record** materializes ONE flavor — the wat flavor (`struct_form`). The
+  holon flavor is **latent** (projectable on demand, since the data is EDN-capable),
+  just not stored.
+- **Holonic record** materializes BOTH flavors of the same data — wat (`struct_form`) +
+  holon (`holon_form`). It **implements the hologram**: one meaning, two simultaneous
+  projections. *"A holonic record does not reduce the supported data; it holds two
+  flavors of the data."*
+
+### The honest representation — two distinct variants
+
+- **Rename** existing `Value::wat__Record { class_fqdn, struct_form, holon_form }` →
+  **`Value::wat__holon__Record`**. It already carries both flavors — it already IS the
+  hologram; the current record was doing both jobs and forced the hologram on every user.
+  It is **not wrong — it has the wrong name.** Renaming it to holonic is TRUTH (and aligns
+  the variant with the seeded type `:wat::holon::Record`; frees the `wat__Record` name).
+  Identity stays `holon_form` (arc 234 — correct, *for the holonic flavor*).
+- **Mint** `Value::wat__Record { class_fqdn, struct_form }` = the reduced **wat (base)**
+  record. EDN-restriction enforced at construction; structural Eq/Hash/Display/HolonRep
+  over `(class_fqdn, struct_form)`; holon flavor projectable-on-demand, not stored.
+- `match` distinguishes; no `Option`, no flag, no convention.
+
+### The relation (locked)
+
+`:wat::holon::Record` **`<:`** `:wat::Record` — **holonic is the subtype** (its structure
+is a superset: it HAS the `struct_form` a base-wanting consumer needs, plus the holon
+flavor). So:
+- a func wanting a **holonic** record CANNOT receive a base (wat) record;
+- a func wanting a **base (wat)** record CAN receive both base AND holonic.
+
+This is exactly the Liskov direction S-A1's `assignable` already wired (holonic substitutes
+for base; not vice-versa).
+
+### Corrected stone sequence (replaces the single S-C "macro split")
+
+- **S-C.1** — RENAME `Value::wat__Record` → `Value::wat__holon__Record` (the existing
+  dual-form variant is honestly the holonic one). Pure mechanical sweep (~72 `holon_form`
+  sites, mostly `runtime.rs`). **Baseline-preserving** (every current record is honestly
+  holonic; behavior identical; frees the name). The safe foundation.
+- **S-C.2** — MINT base `Value::wat__Record { class_fqdn, struct_form }` + per-variant
+  Eq/Hash/Display/HolonRep (structural; holon-on-demand) + EDN-restriction at construction.
+  Additive; nothing produces it yet.
+- **S-C.3** — macro split: `:wat::Record::def` → base, `:wat::holon::Record::def` →
+  holonic; wire `typesub`; wat-surface proof (base Eq/Hash structural; holonic substitutes
+  for base via S-A1; func-wanting-holonic rejects base).
+- **S-D** — migrate existing `:wat::Record::def` callers (base vs holonic — the fallout,
+  dealt with, no hesitation; HARD CUT).
+- **S-E** — folds into 237.9.
+
+The `REMAINING-ORDER.md` tracker carries this corrected sequence.
 
 Each stone runs the full crawl loop: sub-DESIGN → committed FM-2-bis probe →
 BRIEF (read-in-order `file:line` + impl sketch + numbered REJECTION STOPs + cite
