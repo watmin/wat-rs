@@ -144,3 +144,80 @@ Tiny surface: one ~12-line helper + 4 one-line call-site reroutes, all in check.
 Lighter than S-A (no new registry, no new primitive). **Target band: 25–50 min
 Mode A; 75 STOP-3; 100 STOP-4. Cascade: 1 round (check.rs only), 0 forced files.**
 Mirror SCORE-STONE-S-A shape; cite it + 237.5 in the BRIEF.
+
+---
+
+## POST-B.2 SCOPE CORRECTION — GROUNDED (2026-05-26, additive; supersedes §§ above where noted)
+
+The body above predates S-B.1/S-B.2 shipping. It is preserved as the stepping-stone
+it was (doc-immutability), but two points are corrected here from **empirical disk
+evidence**, not memory. This section is authoritative.
+
+### What the disk proved (read + probe, not assumed)
+
+1. **`expand_alias` (types.rs:3004) expands ONLY `TypeDef::Alias`.** A record class
+   `:my::Circle` is `TypeDef::Record` → `reduce`/`unify` leave it as `Path(":my::Circle")`.
+2. **So `unify(:my::Circle, :wat::Record)` currently FAILS** — proven by diagnostic:
+   `TypeMismatch { callee: ":needs-record", expected: ":wat::Record", got: ":my::Circle" }`.
+   The capability is real and `assignable` is exactly the fix. (The cliffnotes line
+   "per-class types alias to :wat::Record" was STALE — pre-S-B.1.)
+3. **A param annotation `[c <- :my::Circle]` binds a subtype-typed value with NO
+   constructor-return flip.** So the capability is provable wat-surface as-is.
+   → **The "constructor flip + bounded ripple sweep" framing is WITHDRAWN.** S-A1 needs
+   neither. (Typing the literal `(:my::Circle 1.0)` as `:my::Circle` is a separable,
+   optional ergonomic stone — never required for "records are first-class types with a
+   working is-a hierarchy.") Baseline-preserving holds (§ "Baseline-preservation").
+4. **String forms match end-to-end:** the checker's `Path(":my::Circle")` (colon-prefixed,
+   per `strip_prefix(':')` at check.rs:15014 / types.rs:3038); `parse_recordtype`
+   (types.rs:2368/2391) stores `name`/`parent` verbatim with the colon; the seeded root
+   (types.rs:1399) and S-B.2's emission key `subtype_edges` colon-prefixed. So
+   `is_subtype(":my::Circle", ":wat::Record")` finds the edge (confirmed: `subtype?`
+   contract 4 passes). `assignable` passes these same strings → matches.
+
+### `assignable` — the grounded shape
+
+Peel each side EXACTLY as `unify` does at its head (check.rs:14633-14634):
+`reduce(&walk(x, subst), subst, types)` — Var-follow then alias-expand. Then directional
+`is_subtype` FIRST (mutation-free), then ordinary `unify`:
+
+```rust
+fn assignable(actual: &TypeExpr, expected: &TypeExpr, subst: &mut Subst, types: &TypeEnv) -> bool {
+    let a = reduce(&walk(actual, subst), subst, types);
+    let e = reduce(&walk(expected, subst), subst, types);
+    if let (TypeExpr::Path(ap), TypeExpr::Path(ep)) = (&a, &e) {
+        if ap != ep && crate::types::is_subtype(ap, ep, types) {
+            return true; // Liskov: actual <: expected
+        }
+    }
+    unify(actual, expected, subst, types).is_ok()
+}
+```
+(`reduce(walk())` not bare `walk` — so an alias-of-a-record resolves to the record before
+the edge check; matches unify's own canonicalization. Mutation-free on the subtype path:
+the concrete-path/concrete-path case binds nothing.)
+
+### The exact reroute set (grep-confirmed; all emit `TypeMismatch{callee,param}` or clause-match)
+
+`unify(&arg_ty, expected, …).is_err()` → `!assignable(&arg_ty, expected, …)` at, in
+`infer_list`: **6386** (single-arg "#1"), **7025**, **7079** (multi-arg "#i+1"), **7213**
+(value-head), **10256**, **10365** (236.2-harvested single-arg), **12044** (multi-arg);
+plus the defclause clause-match **6867** (`unify(...).is_err()` → `all_match=false;
+continue 'outer` — route so a defclause over `:wat::Record` accepts subtypes). Each is
+`actual=arg_ty, expected=param` — directional Liskov. (Line numbers HEAD-current; verify.)
+
+**DO NOT TOUCH 14049 / 14099** — arc-146 Dispatch arms, retiring in 237.7.
+
+### Probe — wat-surface (REPLACES the committed § "FM 2-bis probe" Rust-layer plan)
+
+`tests/probe_arc237_sA1_assignable.rs` (COMMITTED, currently RED in FM 2-bis shape:
+01/02/05 fail, 03/04/06 pass). 6 contracts: subtype-accepted single-arg + multi-arg +
+transitive (via raw `(recordtype :my::Special :my::Circle)` chain); directional rejection;
+exact-match; no-edge rejection. Post-stone: 6/6. No constructor flip, no Rust harness.
+
+### Calibration (corrected — SMALLER than the body's estimate)
+
+`assignable` helper (~12 lines) + 8 one-line reroutes, all in check.rs. No constructor
+flip, no test-EXPECTATION ripple (baseline-preserving by construction — assignable diverges
+from unify only on distinct-paths-with-a-record-edge, which no existing arg pair is).
+**Target band: 25–45 min Mode A; 70 STOP-3; 95 STOP-4. Cascade: check.rs ONLY, 0 forced
+files.** Mirror SCORE-STONE-S-A.
