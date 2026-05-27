@@ -113,7 +113,24 @@
     (fields :AST<wat::core::nil>)
     -> :AST<wat::core::nil>)
   `(:wat::core::do
-     (:wat::core::recordtype ~fqdn :wat::Record)
+     (:wat::core::recordtype ~fqdn :wat::Record
+       [~@(:wat::core::let
+             [fields-h  (:wat::holon::from-wat (:wat::core::quote fields))
+              n         (:wat::holon::statement-length fields-h)
+              nf        (:wat::core::i64::/'2 n 3)
+              children  (:wat::holon::Bundle/children fields-h)
+              name-strs (:wat::core::map
+                          (:wat::core::range 0 nf)
+                          (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
+                            (:wat::core::let
+                              [idx    (:wat::core::i64::*'2 fi 3)
+                               name-h (:wat::core::Option/expect -> :wat::holon::HolonAST
+                                        (:wat::core::Vector/get children idx)
+                                        "Record::def: field name index out of range (recordtype emission)")
+                               name-s (:wat::core::keyword/to-string
+                                        (:wat::holon::from-holon name-h))]
+                              (:wat::holon::to-wat (:wat::holon::to-holon name-s)))))]
+             name-strs)])
      (:wat::core::defn ~fqdn [~@fields] -> :wat::Record
        (:wat::Record::of
          (:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))

@@ -6378,12 +6378,12 @@ fn dispatch_keyword_head_value(
                         let receiver = eval_inner(&args[0], env, sym)?.value_owned();
                         let bare_name = other.strip_prefix(':').unwrap_or(other);
                         match receiver {
-                            Value::wat__holon__Record { class_fqdn, struct_form, holon_form } => {
+                            Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
                                 return keyword_accessor_record(
                                     bare_name,
                                     class_fqdn,
                                     struct_form,
-                                    holon_form,
+                                    sym,
                                     list_span,
                                 );
                             }
@@ -6424,80 +6424,43 @@ fn dispatch_keyword_head_value(
 
 // ─── Arc 234 Stone 234.3c — keyword-as-accessor helpers ──────────────────────
 
-/// Walk a `Value::wat__holon__Record`'s holon_form to find `bare_name` and return
-/// the corresponding field value from `struct_form`. Miss → `UnknownField`.
+/// Resolve `bare_name` → field index via the class's `RecordDef.field_names` and
+/// return the corresponding value from `struct_form`. Miss → `UnknownField`.
 ///
-/// Structure: `Bind(Atom(String(class)), Bundle([Bind(Atom(String(name)), Atom(val)), ...]))`.
-/// Positional: Bundle child at index `i` corresponds to `struct_form[i]`.
+/// Stone S-C.2b re-route: name→index now goes through `RecordDef.field_names`
+/// (the CLASS property, Ruby model) instead of walking `holon_form`. Variant-agnostic:
+/// works for holonic records today; will work for base records (S-C.2c) without change.
+/// Parity: for holonic records the answer is IDENTICAL (same positions, new source).
 fn keyword_accessor_record(
     bare_name: &str,
     class_fqdn: Arc<String>,
     struct_form: Arc<Vec<Value>>,
-    holon_form: Arc<HolonAST>,
+    sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = "keyword-as-accessor (record)";
-    let field_binds = match holon_form.as_ref() {
-        HolonAST::Bind(_, right) => match right.as_ref() {
-            HolonAST::Bundle(children) => children.clone(),
-            _ => {
-                return Err(RuntimeError::TypeMismatch {
-                    op: OP.into(),
-                    expected: "holon_form outer Bind right to be Bundle(field-binds)",
-                    got: ValueSnapshot::unavailable("non-Bundle holon_form inner"),
-                    span: list_span.clone(),
-                });
-            }
-        },
+    // Look up the RecordDef in the TypeEnv — class_fqdn has no leading ':', TypeEnv keys do.
+    let type_key = format!(":{}", class_fqdn);
+    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+        head: OP.into(),
+        reason: "record keyword-accessor requires the type registry".into(),
+        span: list_span.clone(),
+    })?;
+    let record_def = match types.get(&type_key) {
+        Some(crate::types::TypeDef::Record(rd)) => rd,
         _ => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: "holon_form to be Bind(class, Bundle)",
-                got: ValueSnapshot::unavailable("non-Bind holon_form"),
+            return Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "record class :{} is not registered in the TypeEnv",
+                    class_fqdn
+                ),
                 span: list_span.clone(),
             });
         }
     };
-    let mut found_index: Option<usize> = None;
-    let mut available: Vec<String> = Vec::with_capacity(field_binds.len());
-    for (i, field_bind) in field_binds.iter().enumerate() {
-        let field_name = match field_bind {
-            HolonAST::Bind(left, _) => match left.as_ref() {
-                HolonAST::Atom(inner) => match inner.as_ref() {
-                    HolonAST::String(s) => s.to_string(),
-                    _ => {
-                        return Err(RuntimeError::TypeMismatch {
-                            op: OP.into(),
-                            expected: "field-Bind left Atom to contain String(field-name)",
-                            got: ValueSnapshot::unavailable("non-String Atom inner"),
-                            span: list_span.clone(),
-                        });
-                    }
-                },
-                _ => {
-                    return Err(RuntimeError::TypeMismatch {
-                        op: OP.into(),
-                        expected: "field-Bind left to be Atom(String(field-name))",
-                        got: ValueSnapshot::unavailable("non-Atom field-Bind left"),
-                        span: list_span.clone(),
-                    });
-                }
-            },
-            _ => {
-                return Err(RuntimeError::TypeMismatch {
-                    op: OP.into(),
-                    expected: "holon_form Bundle child to be Bind(Atom(name), Atom(val))",
-                    got: ValueSnapshot::unavailable("non-Bind field entry"),
-                    span: list_span.clone(),
-                });
-            }
-        };
-        available.push(field_name.clone());
-        if field_name == bare_name {
-            found_index = Some(i);
-        }
-    }
-    match found_index {
+    let available: Vec<String> = record_def.field_names.clone();
+    match record_def.field_names.iter().position(|n| n == bare_name) {
         Some(i) => Ok(struct_form[i].clone()),
         None => Err(RuntimeError::UnknownField {
             record_class: class_fqdn.as_ref().to_string(),
@@ -7787,15 +7750,15 @@ fn bind_let_binding(
             let value = eval_inner(rhs, scope, sym)?.value_owned();
             let mut builder = scope.child();
             match &value {
-                Value::wat__holon__Record { class_fqdn, struct_form, holon_form } => {
-                    // Record receiver — walk holon_form per binding.
+                Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
+                    // Record receiver — resolve field names via RecordDef.field_names (S-C.2b).
                     // Reuse keyword_accessor_record from Stone 234.3c.
                     for (var_name, bare_field, var_span) in &bindings {
                         let field_val = keyword_accessor_record(
                             bare_field,
                             class_fqdn.clone(),
                             struct_form.clone(),
-                            holon_form.clone(),
+                            sym,
                             rhs.span(),
                         )?;
                         builder = builder.bind(
@@ -15814,14 +15777,14 @@ fn try_match_pattern(
                 }
                 // Dispatch on scrutinee receiver type.
                 match value {
-                    Value::wat__holon__Record { class_fqdn, struct_form, holon_form } => {
+                    Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
                         let mut env = outer.clone();
                         for (var_name, bare_field) in &pairs {
                             let field_val = keyword_accessor_record(
                                 bare_field,
                                 class_fqdn.clone(),
                                 struct_form.clone(),
-                                holon_form.clone(),
+                                sym,
                                 span,
                             )?;
                             env = env.child()
@@ -16677,71 +16640,33 @@ fn eval_record_to_map(
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
-        Value::wat__holon__Record { struct_form, holon_form, .. } => {
-            // holon_form structure (per Stone 234.2b macro):
-            //   Bind(Atom(String(class)), Bundle([ Bind(Atom(String(field-name)), Atom(val)), ... ]))
-            // Step 1: unwrap outer Bind → get right side (the Bundle of field-Binds).
-            let field_binds = match holon_form.as_ref() {
-                HolonAST::Bind(_, right) => match right.as_ref() {
-                    HolonAST::Bundle(children) => children.clone(),
-                    _ => {
-                        return Err(RuntimeError::TypeMismatch {
-                            op: OP.into(),
-                            expected: "holon_form outer Bind right to be Bundle(field-binds)",
-                            got: ValueSnapshot::unavailable("non-Bundle holon_form inner"),
-                            span: list_span.clone(),
-                        });
-                    }
-                },
+        Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
+            // Stone S-C.2b re-route: field names from RecordDef.field_names (CLASS property)
+            // instead of walking holon_form. Variant-agnostic; parity for holonic (same result).
+            let type_key = format!(":{}", class_fqdn);
+            let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: "record->map requires the type registry".into(),
+                span: list_span.clone(),
+            })?;
+            let record_def = match types.get(&type_key) {
+                Some(crate::types::TypeDef::Record(rd)) => rd,
                 _ => {
-                    return Err(RuntimeError::TypeMismatch {
-                        op: OP.into(),
-                        expected: "holon_form to be Bind(class, Bundle)",
-                        got: ValueSnapshot::unavailable("non-Bind holon_form"),
+                    return Err(RuntimeError::MalformedForm {
+                        head: OP.into(),
+                        reason: format!(
+                            "record class :{} is not registered in the TypeEnv",
+                            class_fqdn
+                        ),
                         span: list_span.clone(),
                     });
                 }
             };
-            // Step 2: for each field-Bind at index i, extract field-name + pair with struct_form[i].
+            // Build keyword-keyed map: :<field-name> → struct_form[i] in declaration order.
             let mut map: std::collections::HashMap<Value, Value> =
-                std::collections::HashMap::with_capacity(field_binds.len());
-            for (i, field_bind) in field_binds.iter().enumerate() {
-                // Each field-Bind is Bind(Atom(String(field-name)), Atom(val)).
-                // Extract field-name from left: Atom(String(name)) → name string.
-                let field_name = match field_bind {
-                    HolonAST::Bind(left, _) => match left.as_ref() {
-                        HolonAST::Atom(inner) => match inner.as_ref() {
-                            HolonAST::String(s) => s.to_string(),
-                            _ => {
-                                return Err(RuntimeError::TypeMismatch {
-                                    op: OP.into(),
-                                    expected: "field-Bind left Atom to contain String(field-name)",
-                                    got: ValueSnapshot::unavailable("non-String Atom inner"),
-                                    span: list_span.clone(),
-                                });
-                            }
-                        },
-                        _ => {
-                            return Err(RuntimeError::TypeMismatch {
-                                op: OP.into(),
-                                expected: "field-Bind left to be Atom(String(field-name))",
-                                got: ValueSnapshot::unavailable("non-Atom field-Bind left"),
-                                span: list_span.clone(),
-                            });
-                        }
-                    },
-                    _ => {
-                        return Err(RuntimeError::TypeMismatch {
-                            op: OP.into(),
-                            expected: "holon_form Bundle child to be Bind(Atom(name), Atom(val))",
-                            got: ValueSnapshot::unavailable("non-Bind field entry"),
-                            span: list_span.clone(),
-                        });
-                    }
-                };
-                // Build keyword key: ":<field-name>" (leading colon per keyword storage contract).
+                std::collections::HashMap::with_capacity(record_def.field_names.len());
+            for (i, field_name) in record_def.field_names.iter().enumerate() {
                 let key = Value::wat__core__keyword(Arc::new(format!(":{}", field_name)));
-                // Positional match: holon_form Bundle child #i corresponds to struct_form[i].
                 let val = struct_form[i].clone();
                 map.insert(key, val);
             }
@@ -16820,8 +16745,43 @@ fn eval_record_assoc(
         }
     };
 
-    // Walk holon_form to find the matching field-name and its index.
-    // Structure: Bind(Atom(String(class)), Bundle([Bind(Atom(String(name)), Atom(val)), ...]))
+    // Stone S-C.2b re-route: name→index via RecordDef.field_names (CLASS property) instead
+    // of walking holon_form. Parity for holonic (same positions, new source).
+    let type_key = format!(":{}", class_fqdn);
+    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+        head: OP.into(),
+        reason: "record assoc requires the type registry".into(),
+        span: list_span.clone(),
+    })?;
+    let record_def = match types.get(&type_key) {
+        Some(crate::types::TypeDef::Record(rd)) => rd,
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "record class :{} is not registered in the TypeEnv",
+                    class_fqdn
+                ),
+                span: list_span.clone(),
+            });
+        }
+    };
+    let available: Vec<String> = record_def.field_names.clone();
+    let field_index = match record_def.field_names.iter().position(|n| n == &key_name) {
+        Some(i) => i,
+        None => {
+            return Err(RuntimeError::UnknownField {
+                record_class: class_fqdn.as_ref().to_string(),
+                field: key_name,
+                available,
+                span: list_span.clone(),
+            });
+        }
+    };
+
+    // Hoist field_binds from holon_form — still needed for the parity rebuild below.
+    // PARITY invariant (DESIGN CORRECTION 2): holonic assoc MUST rebuild BOTH struct_form
+    // AND holon_form coherently. The name→index source changed (RecordDef); the rebuild stays.
     let field_binds = match holon_form.as_ref() {
         HolonAST::Bind(_, right) => match right.as_ref() {
             HolonAST::Bundle(children) => children.clone(),
@@ -16839,59 +16799,6 @@ fn eval_record_assoc(
                 op: OP.into(),
                 expected: "holon_form to be Bind(class, Bundle)",
                 got: ValueSnapshot::unavailable("non-Bind holon_form"),
-                span: list_span.clone(),
-            });
-        }
-    };
-
-    // Find matching field index and collect available names for error reporting.
-    let mut found_index: Option<usize> = None;
-    let mut available: Vec<String> = Vec::with_capacity(field_binds.len());
-    for (i, field_bind) in field_binds.iter().enumerate() {
-        let field_name = match field_bind {
-            HolonAST::Bind(left, _) => match left.as_ref() {
-                HolonAST::Atom(inner) => match inner.as_ref() {
-                    HolonAST::String(s) => s.to_string(),
-                    _ => {
-                        return Err(RuntimeError::TypeMismatch {
-                            op: OP.into(),
-                            expected: "field-Bind left Atom to contain String(field-name)",
-                            got: ValueSnapshot::unavailable("non-String Atom inner"),
-                            span: list_span.clone(),
-                        });
-                    }
-                },
-                _ => {
-                    return Err(RuntimeError::TypeMismatch {
-                        op: OP.into(),
-                        expected: "field-Bind left to be Atom(String(field-name))",
-                        got: ValueSnapshot::unavailable("non-Atom field-Bind left"),
-                        span: list_span.clone(),
-                    });
-                }
-            },
-            _ => {
-                return Err(RuntimeError::TypeMismatch {
-                    op: OP.into(),
-                    expected: "holon_form Bundle child to be Bind(Atom(name), Atom(val))",
-                    got: ValueSnapshot::unavailable("non-Bind field entry"),
-                    span: list_span.clone(),
-                });
-            }
-        };
-        available.push(field_name.clone());
-        if field_name == key_name {
-            found_index = Some(i);
-        }
-    }
-
-    let field_index = match found_index {
-        Some(i) => i,
-        None => {
-            return Err(RuntimeError::UnknownField {
-                record_class: class_fqdn.as_ref().to_string(),
-                field: key_name,
-                available,
                 span: list_span.clone(),
             });
         }

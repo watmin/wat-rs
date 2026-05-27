@@ -99,7 +99,7 @@ fn probe_04_exact_match_ok() {
 fn probe_05_transitive() {
     let src = format!(
         "{PRELUDE}\
-         (:wat::core::recordtype :my::Special :my::Circle)\n\
+         (:wat::core::recordtype :my::Special :my::Circle [])\n\
          (:wat::core::defn :needs-record [v <- :wat::Record] -> :wat::core::f64 1.0)\n\
          (:wat::core::defn :force3 [s <- :my::Special] -> :wat::core::f64 (:needs-record s)){MAIN}"
     );

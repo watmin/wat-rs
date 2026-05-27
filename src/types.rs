@@ -182,15 +182,20 @@ pub struct UnionDef {
 
 /// Record class declaration — Stone S-B.1.
 ///
-/// `(:wat::core::recordtype :my::Circle :wat::Record)` declares a record
-/// class as a real `TypeDef` so it inherits the type system's uniform
+/// `(:wat::core::recordtype :my::Circle :wat::Record ["field1" "field2"])` declares
+/// a record class as a real `TypeDef` so it inherits the type system's uniform
 /// services: ∀T `is-<Name>?` synthesis + `typesub` hierarchy membership.
-/// Minimal holder: no field list (fields live in the macro's emitted
-/// accessors). NOT fed to `register_struct_methods` — dedicated kind.
+/// Field names are a CLASS property (Ruby model: class defines attrs, instance
+/// holds values); `struct_form` stays positional `Arc<Vec<Value>>`.
+/// NOT fed to `register_struct_methods` — dedicated kind.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordDef {
     pub name: String,
     pub parent: String,
+    /// Field names in declaration order. Empty for zero-field records.
+    /// Name-based access (keyword-accessor, assoc, record->map) looks up
+    /// the index here, then reads/writes `struct_form[index]`.
+    pub field_names: Vec<String>,
 }
 
 /// One of the six declaration variants.
@@ -2333,20 +2338,24 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
     }))
 }
 
-/// Stone S-B.1 — parse `(:wat::core::recordtype :Name :Parent)`.
+/// Stone S-C.2ab — parse `(:wat::core::recordtype :Name :Parent [field-name-strings])`.
 ///
-/// Two positional slots after the head keyword (consumed by `parse_type_decl`):
+/// Three positional slots after the head keyword (consumed by `parse_type_decl`):
 ///   args[0] — name keyword (e.g. `:my::Circle`)
 ///   args[1] — parent type keyword (e.g. `:wat::Record` or `:wat::holon::Record`)
+///   args[2] — vector of field-name string literals in declaration order
+///              (e.g. `["radius"]` or `[]` for zero-field records)
 ///
-/// → `TypeDef::Record(RecordDef { name, parent })`. Parent validity is
+/// HARD CUT: 2-arg form is rejected. A 0-field record passes `[]`.
+///
+/// → `TypeDef::Record(RecordDef { name, parent, field_names })`. Parent validity is
 /// checked at registration time (in `register_with_span`).
 fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    if args.len() != 2 {
+    if args.len() != 3 {
         return Err(TypeError::MalformedDecl {
             head: "recordtype".into(),
             reason: format!(
-                "expected (:wat::core::recordtype :Name :Parent); got {} args",
+                "expected (:wat::core::recordtype :Name :Parent [field-name-strings]); got {} args (HARD CUT: the 3rd arg [field-names] is required; pass [] for zero-field records)",
                 args.len()
             ),
             span: decl_span,
@@ -2355,6 +2364,7 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
     let mut iter = args.into_iter();
     let name_kw = iter.next().unwrap();
     let parent_kw = iter.next().unwrap();
+    let fields_arg = iter.next().unwrap();
     // Name: plain keyword (no type params for records).
     let name = match &name_kw {
         WatAST::Keyword(k, _) => {
@@ -2401,7 +2411,39 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
             })
         }
     };
-    Ok(TypeDef::Record(RecordDef { name, parent }))
+    // Field names: a vector literal of string literals, declaration order.
+    let field_names = match fields_arg {
+        WatAST::Vector(elems, _) => {
+            let mut names = Vec::with_capacity(elems.len());
+            for elem in elems.iter() {
+                match elem {
+                    WatAST::StringLit(s, _) => names.push(s.clone()),
+                    other => {
+                        return Err(TypeError::MalformedDecl {
+                            head: "recordtype".into(),
+                            reason: format!(
+                                "field-names vector must contain string literals; got {}",
+                                ast_variant_name(other)
+                            ),
+                            span: decl_span,
+                        });
+                    }
+                }
+            }
+            names
+        }
+        other => {
+            return Err(TypeError::MalformedDecl {
+                head: "recordtype".into(),
+                reason: format!(
+                    "third arg must be a vector of field-name strings (e.g. [\"field1\" \"field2\"] or []); got {}",
+                    ast_variant_name(&other)
+                ),
+                span: decl_span,
+            });
+        }
+    };
+    Ok(TypeDef::Record(RecordDef { name, parent, field_names }))
 }
 
 /// `(field-name :Type)` — typed field form used by structs + tagged enum variants.

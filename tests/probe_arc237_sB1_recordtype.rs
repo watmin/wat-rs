@@ -38,9 +38,10 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 /// Top-level record-type declarations shared across contracts.
+/// Stone S-C.2ab: 3-arg form (HARD CUT — 2-arg rejected). Zero-field records pass `[]`.
 const PRELUDE: &str = r#"
-(:wat::core::recordtype :my::Circle :wat::Record)
-(:wat::core::recordtype :my::Sphere :wat::holon::Record)
+(:wat::core::recordtype :my::Circle :wat::Record [])
+(:wat::core::recordtype :my::Sphere :wat::holon::Record [])
 "#;
 
 /// Build `PRELUDE + (:user::compute -> :bool <expr>) + main`, evaluate
@@ -114,7 +115,7 @@ fn probe_05_holon_flavor_transitive() {
 #[test]
 fn probe_06_unknown_parent_rejected() {
     let src = r#"
-        (:wat::core::recordtype :my::Bad :my::DoesNotExist)
+        (:wat::core::recordtype :my::Bad :my::DoesNotExist [])
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
     "#;
     let r = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
