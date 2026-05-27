@@ -150,16 +150,20 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-25 night-LATEST — arc 237 mid-flight; conforms?/is-X? foundation shipped; post-recovery rebuild of THIS index)
+## Currently (2026-05-27 — arc 237 RECORDS thread mid-flight; S-C.2ab in flight via background Sonnet. AUTHORITY for remaining order = `docs/arc/2026/05/237-polymorphism-consolidation/REMAINING-ORDER.md` — read it, then `git log`.)
 
 ### Headline state
 ```
-HEAD        branch arc-170-gap-j-v5-deadlock-state — verify live: git log -1 + git status
+HEAD        branch arc-170-gap-j-v5-deadlock-state — verify: git log -1 + git status
 holon-rs    frozen (STOP-5) — never touch
-Lib tests   827 PASS / 0 FAIL (held across arc 237 stones)
-Clippy      ~54 (NOT a concern; arc 109 closure sweeps later)
-Sonnet      idle
-Active arc  237 (polymorphism consolidation)
+Lib tests   827 PASS / 0 FAIL (held across EVERY arc 237 stone)
+Clippy      ~54 (NOT a concern)
+Sonnet      RUNNING S-C.2ab (background) as of 2026-05-27. ON WAKE: if uncommitted
+            src/{types,runtime}.rs + wat/Record.wat + test edits appear, that IS S-C.2ab's
+            output → FM-9 re-verify vs BRIEF-STONE-S-C2ab.md + EXPECTATIONS (baseline 827/0;
+            keyword-access/assoc IDENTICAL answers = parity; S-A1/S-B.1/S-B.2 green) →
+            commit on green. If clean tree, S-C.2ab already shipped or never landed — check git log.
+Active arc  237 — records-first-class thread (winding); arithmetic tail (237.7-9) follows.
 ```
 
 ### Arc 237 — shipped
@@ -183,14 +187,22 @@ Active arc  237 (polymorphism consolidation)
 ```
 THE DECISION (locked): no implicit numeric coercion; universal across families (user verdict ②).
 
-### Records-as-first-class-types — RESOLVED to a plan (2026-05-25); DOING IT IN ARC 237
-**Full boss-map:** `docs/arc/2026/05/237-polymorphism-consolidation/DESIGN-RECORDS-AS-FIRST-CLASS-TYPES.md` (read it; it's the whole fight). User mandate: *"we slay this dragon for all time ... I hate type theory shit"* — done IN 237 (NOT a separate arc; user strongly opposed). arc 237 built typeunion + defclause FOR this; records are the consumer.
+### Records-as-first-class-types — DRAGON SLAIN; flavor-split mid-flight (arc 237)
+**Authoritative model:** `DESIGN-RECORDS-AS-FIRST-CLASS-TYPES.md` §§ **CORRECTION 1 + CORRECTION 2** (the body above them is the older framing; the CORRECTIONs govern). Live tracker: **`REMAINING-ORDER.md`**.
 
-**Root cause (still true):** a record class is NOT a type — `defrecord` emits `defn`s + a runtime `class_fqdn` tag, registers no TypeDef; the `defn` surface can't express ∀T; no macro-surface type registration. is-Foo? asymmetry (type-errors vs returns false) is the symptom.
+**Dragon slain:** records ARE first-class types — TypeDefs (recordtype), ∀T `is-X?` synthesized, and the is-a hierarchy consulted at the **arg boundary** (S-A1 `assignable` = Liskov; **Convergence #17**, with Clojure `isa?`/`derive` as the sibling hierarchy-axis room). `:wat::core::typesub`/`subtype?` shipped.
 
-**The solution — split + an is-a hierarchy (Clojure `isa?`/`derive`, NOT typeunion/NOT defprotocol):** split `defrecord` → `:wat::Record::def` (base, struct-only) + `:wat::holon::Record::def` (struct + holon-form), with `:wat::holon::Record` **is-a** `:wat::Record` (holonic substitutes for base; not vice-versa). The relation is an **open directional is-a hierarchy** = Clojure's hierarchy axis (Convergence #17 — distinct from defprotocol=behavior, typeunion=closed-sum). Newtype is the WRONG cons-cell (nominal/non-substitutable by contract). **Two new primitives, intueri-LOCKED:** `:wat::core::typesub` (the edge; Clojure `derive`) + `:wat::core::subtype?` (directional transitive check; Clojure `isa?`). Honest divergence: Clojure's is runtime-only (dynamic); wat's `subtype?` serves the static checker (arg boundary) AND runtime conforms?. Plumbing: records register a TypeDef (→ ∀T is-X? synthesizes, asymmetry dies) + base drops holon_form (`Option`).
+**THE MODEL (CORRECTION 1+2 — do NOT rebuild the rejected shapes):**
+- **TWO Value variants, NOT `holon_form: Option`.** `Some`/`None`-as-flavor is semantic abuse (`feedback_no_semantic_abuse_of_option`). The existing dual-form variant was RENAMED `Value::wat__Record` → `Value::wat__holon__Record` (it IS the holonic one — it implements the hologram). Base `Value::wat__Record {class_fqdn, struct_form}` gets MINTED beside it (S-C.2c).
+- **record ⊊ struct:** a record is EDN-restricted; a struct holds any rust thing → base record ≠ struct.
+- **base = struct only; holonic = struct + holon, in permanent PARITY** (assoc rebuilds BOTH; verified runtime.rs:16912+16917-43). **NO on-demand projection** (holonic stores both; base has only the struct).
+- **Field access via the STRUCT, variant-agnostic** (you don't know base vs holonic; don't need to). **Holon-ops via holon_form, holonic ONLY** (base → teaching error). **Field NAMES are a class property** → `RecordDef.field_names` (Ruby: class defines attrs, instance holds values); the 3 name→index sites (keyword_accessor_record:6440, name-pair:16684, eval_record_assoc:16825) re-route off `holon_form` onto it.
+- **Liskov (locked):** holonic `<:` base. A func wanting holonic REJECTS base; a func wanting base takes BOTH.
+- **Macro names (cold-read-confirmed honest):** `:wat::Record::def` (base) / `:wat::holon::Record::def` (holonic). Owed at S-C.3/closure: a USER-GUIDE sentence teaching base-vs-holonic (not cold-guessable by design — holon is a learned concept).
 
-**Stones (each = full crawl loop):** S0 GATE-PROBE (macro-emit-register pickup + subtype?-beside-unify — strike nothing until green) → S-A hierarchy substrate → S-B records-as-TypeDef → S-C macro split → S-D migration sweep → S-E INSCRIPTION. typeunion stays the closed-sum tool (untouched). **Owed to INTERSTITIAL:** a full dated entry for the records-aren't-types finding + the Clojure-isa? convergence (deferred only for compaction-context; captured in the DESIGN doc + memory `project_records_not_types`).
+**Records stones:** S-A ✓`d1e9cbe9` · S-B.1 ✓`89c01888` · S-B.2 ✓`86aebfcb` · S-A1 ✓`531ba9b7` (assignable) · S-C.1 ✓`0c574661` (variant rename) · **S-C.2ab — IN FLIGHT** (field_names→RecordDef + 3-site re-route + recordtype 3-arg) · then S-C.2c (mint base) → S-C.3 (macro split) → S-D (migrate) → folds into 237.9.
+
+**New session doctrines (memories, 2026-05-26):** `feedback_trap_door_build_the_dependency` (build the missing piece, don't declare incoherent) · `feedback_no_semantic_abuse_of_option` · `feedback_nonintuitive_error_is_pivot` (confusing error = defect; pivot) · `feedback_momentum_ordering` · `feedback_cold_read_familiarity_check` (fresh-agent surface test — repeat often). Songs #37 Fed Up, #38 Phystex Corp, #39 Hades Industries.
 
 ### Also still open — arc 237 arithmetic tail (independent of records)
 237.7 Dispatch→defclause → 237.8 arithmetic deletion (DELETE widest-contagion; HARD CUT arc-146 Dispatch) → 237.9 INSCRIPTION. Can interleave with or follow the records stones.
