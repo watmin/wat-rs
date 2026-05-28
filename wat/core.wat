@@ -34,9 +34,7 @@
 
 ;; arc 237 Stone 237.7b-ii — :wat::core::contains? is now a Rust ∀T intrinsic with custom inference arm; see src/check.rs::infer_contains + src/runtime.rs::eval_contains
 
-(:wat::core::define-dispatch :wat::core::get
-  ((:wat::core::Vector<T>    :wat::core::i64) :wat::core::Vector/get)
-  ((:wat::core::HashMap<K,V> :K)               :wat::core::HashMap/get))
+;; arc 237 Stone 237.7b-iv — `:wat::core::get` is now a Rust ∀T intrinsic with custom inference arm; see `src/check.rs::infer_get` + `src/runtime.rs::eval_get`
 
 ;; arc 237 Stone 237.7b-iii — `:wat::core::conj` is now a Rust ∀T intrinsic with custom inference arm; see `src/check.rs::infer_conj` + `src/runtime.rs::eval_conj`
 

@@ -5334,6 +5334,11 @@ fn dispatch_keyword_head_value(
         // Tier B: element-typing enforced at check by infer_conj (src/check.rs); behavior-preserving.
         // HashMap excluded — HashMap insertion is `assoc` (key+value pair required).
         ":wat::core::conj" => eval_conj(args, list_span, env, sym),
+        // Arc 237 Stone 237.7b-iv — `:wat::core::get` ∀T intrinsic with custom inference arm.
+        // Polymorphic indexed/keyed lookup: Vector<T> + i64 → Option<T>; HashMap<K,V> + K → Option<V>.
+        // Tier B: Option<element> precision enforced at check by infer_get (src/check.rs); behavior-preserving.
+        // NO HashSet arm — HashSet has no positional get.
+        ":wat::core::get" => eval_get(args, list_span, env, sym),
         // Arc 237 Stone 237.5 — `:wat::core::conforms?` general type-conformance primitive.
         // Recursive walker over the TypeExpr grammar (Path / Parametric / Tuple / Alias / Union).
         // Signature: (value :TypeExpr) -> :wat::core::bool
@@ -16309,6 +16314,46 @@ fn eval_conj(
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T> or HashSet<T>",
+            got: ValueSnapshot::of(other),
+            span: list_span.clone(),
+        }),
+    }
+}
+
+// ─── Arc 237 Stone 237.7b-iv — :wat::core::get ──────────────────────────────
+
+/// `(:wat::core::get <collection> <index-or-key>) -> Option<element>` — arc 237 Stone 237.7b-iv.
+///
+/// Polymorphic indexed/keyed lookup: ∀T. (coll, idx-or-key) -> Option<element>.
+/// Mirrors `eval_conj` in shape: arity-2, eval args, match Value variant.
+/// Delegates to the existing per-type inner helpers for correct semantics:
+/// - `Value::Vec(..)` → `vector_get_inner` (index i64 → Option<T>; inner already wraps in Value::Option)
+/// - `Value::wat__std__HashMap(..)` → `hashmap_get_inner` (key → Option<V>; inner already wraps)
+/// HashSet excluded — HashSet has no positional get (use `contains?`).
+/// All other variants produce a teaching `RuntimeError::TypeMismatch`.
+fn eval_get(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::get";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
+    match &arg0_val {
+        Value::Vec(_) => vector_get_inner(&arg0_val, &arg1_val),
+        Value::wat__std__HashMap(_) => hashmap_get_inner(&arg0_val, &arg1_val),
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T> or HashMap<K,V>",
             got: ValueSnapshot::of(other),
             span: list_span.clone(),
         }),
@@ -30800,14 +30845,14 @@ mod tests {
 
     #[test]
     fn hashmap_get_requires_hashmap_arg() {
-        // Arc 146 slice 3 — `:wat::core::get` is now a Dispatch with
-        // arms (Vec / HashMap). Calling it on an `:i64` matches no arm;
-        // the runtime error is `MalformedForm` (no-arm-match) rather
-        // than `TypeMismatch` (the pre-arc-146 single-handler shape).
+        // Arc 237 Stone 237.7b-iv — `:wat::core::get` is now a Rust ∀T intrinsic
+        // (eval_get). Calling it on a non-collection Value produces TypeMismatch
+        // (teaching error from eval_get's else-arm), superseding the old
+        // MalformedForm (no-arm-match from define-dispatch, arc 146 slice 3).
         let err = eval_expr(r#"(:wat::core::get 42 "k")"#).unwrap_err();
         assert!(
-            matches!(err, RuntimeError::MalformedForm { .. }),
-            "expected MalformedForm (no-arm-match); got {:?}",
+            matches!(err, RuntimeError::TypeMismatch { .. }),
+            "expected TypeMismatch (eval_get else-arm); got {:?}",
             err
         );
     }

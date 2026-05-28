@@ -6784,6 +6784,19 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 237 Stone 237.7b-iv — `:wat::core::get` ∀T intrinsic with custom inference.
+            // Tier B: Option<element> return precision enforced via infer_get.
+            // Two collection arms (NO HashSet — HashSet has no positional get):
+            //   Vector<T>   + i64 index → Option<T>   (arg1 unifies with i64, NOT element type T)
+            //   HashMap<K,V> + K key    → Option<V>   (arg1 unifies with K, return wraps V)
+            ":wat::core::get" => {
+                let (val, mut errs) = infer_get(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 220 Stone 220.4 — `:wat::core::rest` is polymorphic over
             // Vector<T> and List<T>.  For Vector<T> → Vector<T> (existing);
             // for List<T> → List<T> (arc 220 extension; runtime already handles
@@ -12477,6 +12490,109 @@ fn infer_conj(
         } else {
             CheckResult::partial_with(ret_ty, local_errors)
         };
+    }
+
+    if local_errors.is_empty() {
+        CheckResult::ok(fallback_ty)
+    } else {
+        CheckResult::partial_with(fallback_ty, local_errors)
+    }
+}
+
+/// Type-check `(:wat::core::get coll key-or-index)` — arc 237 Stone 237.7b-iv.
+///
+/// Custom inference arm (Tier B): extracts the return element type from the
+/// collection shape and wraps it in `Option<_>`. Two arms only — NO HashSet
+/// (HashSet has no positional get; that's `contains?`'s territory).
+///
+/// - `Vector<T>`   → arg1 must unify with **`i64`** (the index — NOT the element type T).
+///   Returns `Option<T>`. Load-bearing twist: arg1 is i64, independent of T.
+/// - `HashMap<K,V>` → arg1 must unify with **`K`** (the key — NOT the value V).
+///   Returns `Option<V>`.
+/// All other shapes produce a teaching TypeMismatch.
+fn infer_get(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::get";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    // Fallback type used for arity-error only; success path always returns Option<_>.
+    let fallback_ty = TypeExpr::Parametric {
+        head: "wat::core::Option".into(),
+        args: vec![fresh.fresh()],
+    };
+    if args.len() != 2 {
+        local_errors.push(CheckError::ArityMismatch {
+            callee: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // Infer arg0 (the collection).
+    let arg0_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // Infer arg1 (the index / key) regardless of arg0 outcome so we always
+    // surface all errors (mirrors infer_contains / infer_conj).
+    let arg1_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(coll_ty) = arg0_ty {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        // Match collection shape; extract (expected_arg1_type, return_element_type).
+        // NO HashSet arm — HashSet has no get.
+        let shape_opt: Option<(TypeExpr, TypeExpr)> = match &reduced {
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
+                // arg1 is the INDEX (i64), independent of the element type T.
+                let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
+                let idx_ty = TypeExpr::Path(":wat::core::i64".into());
+                Some((idx_ty, elem_ty))
+            }
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashMap" => {
+                // arg1 is the KEY (K); return wraps VALUE (V).
+                let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
+                let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
+                Some((key_ty, val_ty))
+            }
+            _ => {
+                local_errors.push(CheckError::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T> or HashMap<K,V>".into(),
+                    got: format_type(&apply_subst(&coll_ty, subst)),
+                    span: args[0].span().clone(),
+                });
+                None
+            }
+        };
+
+        if let Some((expected_arg1_ty, elem_ty)) = shape_opt {
+            // Unify arg1 against the expected type (i64 for Vector, K for HashMap).
+            if let Some(arg1) = arg1_ty {
+                if unify(&arg1, &expected_arg1_ty, subst, env.types()).is_err() {
+                    local_errors.push(CheckError::TypeMismatch {
+                        callee: OP.into(),
+                        param: "#2".into(),
+                        expected: format_type(&expected_arg1_ty),
+                        got: format_type(&apply_subst(&arg1, subst)),
+                        span: args[1].span().clone(),
+                    });
+                }
+            }
+            // Return Option<element> — the load-bearing precision this custom arm exists for.
+            let ret_ty = TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![apply_subst(&elem_ty, subst)],
+            };
+            return if local_errors.is_empty() {
+                CheckResult::ok(ret_ty)
+            } else {
+                CheckResult::partial_with(ret_ty, local_errors)
+            };
+        }
     }
 
     if local_errors.is_empty() {
