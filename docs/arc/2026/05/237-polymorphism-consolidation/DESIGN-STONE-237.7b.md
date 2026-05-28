@@ -64,21 +64,42 @@ intrinsic eval arms SHOULD add the `wat__core__List` case where the runtime
 supports it — closing the same gap 240.1 closed for first/rest. Verify per op in
 the probe; do not assume.
 
-## Slicing (proactive stepping-stones)
+## Slicing — refined 2026-05-27 (probe extended; tier classification corrected)
 
-- **237.7b-i** — `empty?` (Tier A, the recipe-confirmer; pure length-mirror,
-  `∀T. T -> bool`). Smallest, proves the bool-return intrinsic shape + the
-  define-dispatch-delete cadence for this op family.
-- **237.7b-ii** — `contains?` (Tier A) + `conj` (Tier B type-preserving), with
-  List arms. Element-typed; rides 7b-i's settled recipe.
-- **237.7b-iii** — `get` (Tier B, custom inference arm for element extraction).
-  The hardest; isolated so its element-typing gets full attention.
+**The probe extension (7/7) settled the load-bearing question: BOTH `contains?`
+and `conj` REJECT wrong-elem at check today** (Vector<i64>.contains?("x") and
+.conj("x") error). As intrinsics they MUST preserve that element-typing
+enforcement → **custom inference arms**, not plain ∀T,E schemes. The Tier
+classification revises:
+
+- **TIER A** (concrete return, no element-typing): `length` ✓ shipped (237.7a),
+  `empty?` ✓ shipped (237.7b-i). Plain ∀ schemes; pure length-mirror. DONE.
+- **TIER B** (element-typing enforced via **custom inference arm**): `contains?`,
+  `conj`, `get`. All three mirror the same recipe — match arg0's reduced type to
+  its collection `Parametric`, extract element type X (or K/V for HashMap),
+  unify arg1 with the right type, return per-op (`bool` / collection-preserved /
+  `Option<X>`). The pattern follows `infer_positional_accessor` (first/get
+  already do this for element extraction).
+
+### Slices
+
+- **237.7b-i** ✓ shipped — `empty?` (Tier A, pure length-mirror, ∀T. T -> bool).
+- **237.7b-ii** — `contains?` alone. The **Tier-B recipe-confirmer** — 3
+  collection types (Vector<T>+T, HashSet<T>+T, HashMap<K,V>+K), concrete bool
+  return. The HashMap key-vs-element distinction is the trickiest case; if it
+  works here, conj/get mirror with smaller surface.
+- **237.7b-iii** — `conj` (custom arm mirror; 2 collection types Vector<T>+T &
+  HashSet<T>+T; return = arg0's collection type — preservation). Smaller than
+  contains? (fewer collection types, simpler return).
+- **237.7b-iv** — `get` (custom arm mirror with `Option<element>` return; 2
+  collection types Vector<T>+i64→Option<T>, HashMap<K,V>+K→Option<V>).
 - **237.7c (or 237.8-adjacent)** — `assoc` multi-impl (HashMap + Record) +
   `DispatchRegistry` deletion (after arithmetic 237.8 evacuates `+'2` etc.).
 
-Rationale: 7b-i de-risks the cadence; Tier-A-before-Tier-B means the element-type
-machinery lands on a proven foundation; `get`'s custom inference is the one piece
-that genuinely diverges from the length recipe, so it gets its own stone.
+Rationale: `contains?` FIRST as the Tier-B recipe-confirmer (3 collection types
+= most general custom-arm shape); `conj` and `get` then mirror with smaller
+surface. The three-slice split keeps each custom-arm focused; bundling risks
+scope-creep on a non-trivial-but-bounded pattern.
 
 ## Immediate next action
 

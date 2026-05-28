@@ -96,3 +96,45 @@ fn conj_vector_preserves_collection_type() {
         "conj appends -> Vector of length 3; result is still a collection",
     );
 }
+
+// ─── TIER B — ELEMENT-TYPING ENFORCEMENT (wrong-elem rejection) ─────────────
+// The load-bearing question: does the CURRENT define-dispatch reject wrong-elem
+// calls (Vector<i64>.contains?("x") / .conj("x"))? If YES → contains?/conj need
+// CUSTOM inference arms (element extraction + constraint) as intrinsics, same
+// recipe as get. If NO (loose) → plain ∀T,E schemes suffice for those two.
+// Uses startup_from_source directly (no eval) — checks CHECK-time rejection.
+
+fn try_startup(src: &str) -> Result<(), String> {
+    let src = with_nil_main(src);
+    startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
+        .map(|_| ())
+        .map_err(|e| format!("{:?}", e))
+}
+
+#[test]
+fn contains_q_wrong_element_rejected_at_check() {
+    let result = try_startup(
+        r#"(:wat::core::define (:user::compute -> :wat::core::bool)
+             (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) "x"))"#,
+    );
+    assert!(
+        result.is_err(),
+        "contains? on Vector<i64> with String elem MUST reject at check (current behavior; \
+         intrinsic must preserve via custom arm); got: {:?}",
+        result,
+    );
+}
+
+#[test]
+fn conj_wrong_element_rejected_at_check() {
+    let result = try_startup(
+        r#"(:wat::core::define (:user::compute -> :wat::core::i64)
+             (:wat::core::length (:wat::core::conj (:wat::core::Vector :wat::core::i64 1 2) "x")))"#,
+    );
+    assert!(
+        result.is_err(),
+        "conj on Vector<i64> with String elem MUST reject at check (current behavior; \
+         intrinsic must preserve via custom arm — defines whether plain ∀T,E suffices); got: {:?}",
+        result,
+    );
+}
