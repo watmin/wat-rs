@@ -6772,6 +6772,18 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 237 Stone 237.7b-iii — `:wat::core::conj` ∀T intrinsic with custom inference.
+            // Tier B: element-typing enforced via infer_conj; type-preserving return (Vector<T>/HashSet<T>).
+            // Custom arm because plain ∀ scheme can't enforce arg1 matches collection's element type
+            // AND can't preserve the collection type (returns coll_ty, not bool).
+            ":wat::core::conj" => {
+                let (val, mut errs) = infer_conj(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 220 Stone 220.4 — `:wat::core::rest` is polymorphic over
             // Vector<T> and List<T>.  For Vector<T> → Vector<T> (existing);
             // for List<T> → List<T> (arc 220 extension; runtime already handles
@@ -12382,6 +12394,95 @@ fn infer_contains(
         CheckResult::ok(bool_ty)
     } else {
         CheckResult::partial_with(bool_ty, local_errors)
+    }
+}
+
+/// Type-check `(:wat::core::conj coll elem)` — arc 237 Stone 237.7b-iii.
+///
+/// Custom inference arm (Tier B): extracts the collection's element type
+/// and unifies arg1 against it so wrong-element calls are rejected at check time.
+/// Accepted collection shapes (2 only — HashMap uses `assoc`, not `conj`):
+/// - `Vector<T>` → arg1 must unify with T; returns `Vector<T>` (type-preserving).
+/// - `HashSet<T>` → arg1 must unify with T; returns `HashSet<T>` (type-preserving).
+/// All other shapes (including HashMap) produce a teaching TypeMismatch.
+/// Plain ∀ scheme is insufficient: element-typing must be enforced AND the
+/// return is the collection type, not bool (probe conj_vector_preserves_collection_type).
+fn infer_conj(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::conj";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    // Fallback type if we can't determine the collection type (arity error, etc.).
+    let fallback_ty = TypeExpr::Path(":wat::core::bool".into());
+    if args.len() != 2 {
+        local_errors.push(CheckError::ArityMismatch {
+            callee: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // Infer arg0 (the collection).
+    let arg0_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // Infer arg1 (the element) regardless of arg0 outcome so we always
+    // surface all errors (mirrors infer_contains).
+    let arg1_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(coll_ty) = arg0_ty {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        // Extract the expected element type from the collection shape.
+        // Two arms only — HashMap is assoc's territory.
+        let elem_ty_opt: Option<TypeExpr> = match &reduced {
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
+                targs.first().map(|t| apply_subst(t, subst))
+            }
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashSet" => {
+                targs.first().map(|t| apply_subst(t, subst))
+            }
+            _ => {
+                local_errors.push(CheckError::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T> or HashSet<T>".into(),
+                    got: format_type(&apply_subst(&coll_ty, subst)),
+                    span: args[0].span().clone(),
+                });
+                None
+            }
+        };
+
+        // If we extracted an element type and inferred arg1, unify them.
+        if let (Some(elem_ty), Some(arg1)) = (elem_ty_opt, arg1_ty) {
+            if unify(&arg1, &elem_ty, subst, env.types()).is_err() {
+                local_errors.push(CheckError::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#2".into(),
+                    expected: format_type(&elem_ty),
+                    got: format_type(&apply_subst(&arg1, subst)),
+                    span: args[1].span().clone(),
+                });
+            }
+        }
+
+        // Type-preserving return: return the matched collection type (not bool).
+        let ret_ty = apply_subst(&coll_ty, subst);
+        return if local_errors.is_empty() {
+            CheckResult::ok(ret_ty)
+        } else {
+            CheckResult::partial_with(ret_ty, local_errors)
+        };
+    }
+
+    if local_errors.is_empty() {
+        CheckResult::ok(fallback_ty)
+    } else {
+        CheckResult::partial_with(fallback_ty, local_errors)
     }
 }
 

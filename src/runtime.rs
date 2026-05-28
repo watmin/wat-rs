@@ -5329,6 +5329,11 @@ fn dispatch_keyword_head_value(
         // Polymorphic membership predicate: Vector<T> / HashSet<T> / HashMap<K,V> → bool.
         // Tier B: element-typing enforced at check by infer_contains (src/check.rs); behavior-preserving.
         ":wat::core::contains?" => eval_contains(args, list_span, env, sym),
+        // Arc 237 Stone 237.7b-iii — `:wat::core::conj` ∀T intrinsic with custom inference arm.
+        // Polymorphic append/insert: Vector<T> / HashSet<T> → same collection type (type-preserving).
+        // Tier B: element-typing enforced at check by infer_conj (src/check.rs); behavior-preserving.
+        // HashMap excluded — HashMap insertion is `assoc` (key+value pair required).
+        ":wat::core::conj" => eval_conj(args, list_span, env, sym),
         // Arc 237 Stone 237.5 — `:wat::core::conforms?` general type-conformance primitive.
         // Recursive walker over the TypeExpr grammar (Path / Parametric / Tuple / Alias / Union).
         // Signature: (value :TypeExpr) -> :wat::core::bool
@@ -16264,6 +16269,46 @@ fn eval_contains(
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
+            got: ValueSnapshot::of(other),
+            span: list_span.clone(),
+        }),
+    }
+}
+
+// ─── Arc 237 Stone 237.7b-iii — :wat::core::conj ────────────────────────────
+
+/// `(:wat::core::conj <collection> <elem>) -> <collection>` — arc 237 Stone 237.7b-iii.
+///
+/// Polymorphic type-preserving append/insert: ∀T. (coll<T>, T) -> coll<T>.
+/// Mirrors `eval_contains` in shape: arity-2, eval args, match Value variant.
+/// Delegates to the existing per-type inner helpers for correct semantics:
+/// - `Value::Vec(..)` → vector append (clone + push; functional, not mutating)
+/// - `Value::wat__std__HashSet(..)` → set insert (clone + insert; functional)
+/// HashMap excluded — HashMap insertion requires key+value pair (`assoc`).
+/// All other variants produce a teaching `RuntimeError::TypeMismatch`.
+fn eval_conj(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::conj";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
+    match &arg0_val {
+        Value::Vec(_) => vector_conj_inner(&arg0_val, &arg1_val),
+        Value::wat__std__HashSet(_) => hashset_conj_inner(&arg0_val, &arg1_val),
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T> or HashSet<T>",
             got: ValueSnapshot::of(other),
             span: list_span.clone(),
         }),

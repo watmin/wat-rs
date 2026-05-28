@@ -38,9 +38,7 @@
   ((:wat::core::Vector<T>    :wat::core::i64) :wat::core::Vector/get)
   ((:wat::core::HashMap<K,V> :K)               :wat::core::HashMap/get))
 
-(:wat::core::define-dispatch :wat::core::conj
-  ((:wat::core::Vector<T>  :T) :wat::core::Vector/conj)
-  ((:wat::core::HashSet<T> :T) :wat::core::HashSet/conj))
+;; arc 237 Stone 237.7b-iii — `:wat::core::conj` is now a Rust ∀T intrinsic with custom inference arm; see `src/check.rs::infer_conj` + `src/runtime.rs::eval_conj`
 
 ;; Arc 146 slice 4 — :wat::core::* short-name aliases for single-impl
 ;; ops. Each alias maps a short ergonomic name to its explicit per-Type
