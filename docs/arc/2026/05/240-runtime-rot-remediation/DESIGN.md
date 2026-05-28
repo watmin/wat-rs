@@ -45,7 +45,7 @@ root causes / 69 tests).
   - `(:wat::holon::Atom <watast>)` where the arg is `:wat::WatAST` (e.g. `data-holon` in WorkUnitLog.wat:100, or `(:wat::core::quote ...)`) → `(:wat::holon::from-wat <watast>)` (the WatAST→HolonAST bridge; arc-225 rename of `from-watast`, check.rs:16259). **A uniform Atom→to-holon sweep would break the WatAST sites — classify each by `got:`.**
   - `(:wat::core::HashMap :Tag)` (1-arg, `Tag = (HolonAST,HolonAST)`) → `(:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST)` (arc-215 2-type-arg constructor; expand the `(K,V)` alias).
   - Clears ~47 + the wat_cli A-cascade. ~28 Atom sites (telemetry WorkUnit/WorkUnitLog prod+test, sqlite hashmap-field/edn-newtypes) + ~5 HashMap sites.
-- **240.4** — INSCRIPTION + re-run workspace + reconcile the DEFER ledger (which cli failures remained genuinely-170 after A) + close.
+- **240.4** — INSCRIPTION + reconcile the DEFER ledger + close. **Verification is TARGETED, not the full suite.** Per user direction 2026-05-27: the routine gate is `cargo test --lib` + `cargo build --tests --workspace` (compile-only); **never routinely run `cargo test --workspace`** — it leaks processes (ambient-stdio/fork/lifeline) that arc 170 fixes. Confirm the FIX set via the specific non-process-spawning binaries (`wat_arc220_list`, `wat_bundle_capacity`, `probe_arc216_stone5c`, telemetry deftests). The wat-cli A-cascade clearing is asserted-by-construction (WorkUnitLog.wat fixed → no longer in startup); do NOT run the leaky wat-cli fork suite to "confirm." See `feedback_green_gate_lib_and_build`.
 
 ## Discipline notes
 
