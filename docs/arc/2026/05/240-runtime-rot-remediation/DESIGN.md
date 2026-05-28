@@ -40,7 +40,11 @@ root causes / 69 tests).
 
 - **240.1** — substrate gaps: `first`/`rest` `List` arm (B) + `Bundle` `Holons` alias-unfold (C). `src/check.rs` (+ `src/runtime.rs` for first/rest eval if needed). Clears wat_arc220_list (2) + wat_bundle_capacity (1).
 - **240.2** — stale-test: `probe_arc216_stone5c::probe_12` → classifier-wrap holon shape (D). Clears 1.
-- **240.3** — consumer `.wat` drift sweep (A): telemetry + telemetry-sqlite production + test `.wat`. Recipe (proven on `WorkUnitLog.wat` first, FM 2-bis): `(:wat::holon::Atom X)` → `(:wat::holon::to-holon X)` for non-HolonAST X; `(:wat::core::HashMap :Tag)` → `(:wat::core::HashMap :K :V)` (expand the `(K,V)` alias to two type args). Clears ~47 + the wat_cli A-cascade.
+- **240.3** — consumer `.wat` drift sweep (A): telemetry + telemetry-sqlite production + test `.wat`. **TWO-BRIDGE recipe** (per-site by the arg's type, which the substrate error names in `got:`; prove on `WorkUnitLog.wat` first, FM 2-bis):
+  - `(:wat::holon::Atom <value>)` where value is a keyword/String/i64/etc. → `(:wat::holon::to-holon <value>)` (∀T-over-values bridge).
+  - `(:wat::holon::Atom <watast>)` where the arg is `:wat::WatAST` (e.g. `data-holon` in WorkUnitLog.wat:100, or `(:wat::core::quote ...)`) → `(:wat::holon::from-wat <watast>)` (the WatAST→HolonAST bridge; arc-225 rename of `from-watast`, check.rs:16259). **A uniform Atom→to-holon sweep would break the WatAST sites — classify each by `got:`.**
+  - `(:wat::core::HashMap :Tag)` (1-arg, `Tag = (HolonAST,HolonAST)`) → `(:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST)` (arc-215 2-type-arg constructor; expand the `(K,V)` alias).
+  - Clears ~47 + the wat_cli A-cascade. ~28 Atom sites (telemetry WorkUnit/WorkUnitLog prod+test, sqlite hashmap-field/edn-newtypes) + ~5 HashMap sites.
 - **240.4** — INSCRIPTION + re-run workspace + reconcile the DEFER ledger (which cli failures remained genuinely-170 after A) + close.
 
 ## Discipline notes
