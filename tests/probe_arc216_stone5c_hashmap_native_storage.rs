@@ -354,16 +354,20 @@ fn probe_11_hashset_as_key() {
 
 #[test]
 fn probe_12_atom_roundtrip() {
-    // Forward: HashMap<keyword, i64> → to-holon → Bundle with correct child count
+    // Forward: HashMap<keyword, i64> → to-holon captured both entries.
+    // Arc 228 classifier-wrap: to-holon on a HashMap produces
+    // Bind(Atom("Map"), Bundle(...)), so Bundle/children on the top-level Bind
+    // no longer applies — verify the forward encoding via round-trip length
+    // (mirrors probe_arc216_stone4 / stone1's classifier-wrap fix).
     let n = run_i64(r#"
         (:wat::core::define (:user::compute -> :wat::core::i64)
           (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
                                :foo 42 :bar 99)]
             (:wat::core::let [h (:wat::holon::to-holon m)]
-              (:wat::core::Vector/length
-                (:wat::holon::Bundle/children h)))))
+              (:wat::core::let [back (:wat::holon::from-holon h)]
+                (:wat::core::HashMap/length back)))))
     "#);
-    assert_eq!(n, 2, "forward: HashMap→to-holon produces Bundle with 2 children");
+    assert_eq!(n, 2, "forward (arc-228 classifier-wrap): to-holon→from-holon preserves 2 entries");
 
     // Reverse: to-holon → from-holon → HashMap; contains-key? works
     let b = run_bool(r#"
