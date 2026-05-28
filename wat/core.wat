@@ -32,10 +32,7 @@
 ;; src/runtime.rs). define-dispatch decl removed; the per-type leaves (:Vector/empty?,
 ;; :HashMap/empty?, :HashSet/empty?) and the DispatchRegistry remain for other ops.
 
-(:wat::core::define-dispatch :wat::core::contains?
-  ((:wat::core::Vector<T>    :T) :wat::core::Vector/contains?)
-  ((:wat::core::HashMap<K,V> :K) :wat::core::HashMap/contains-key?)
-  ((:wat::core::HashSet<T>   :T) :wat::core::HashSet/contains?))
+;; arc 237 Stone 237.7b-ii — :wat::core::contains? is now a Rust ∀T intrinsic with custom inference arm; see src/check.rs::infer_contains + src/runtime.rs::eval_contains
 
 (:wat::core::define-dispatch :wat::core::get
   ((:wat::core::Vector<T>    :wat::core::i64) :wat::core::Vector/get)

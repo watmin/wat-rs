@@ -5325,6 +5325,10 @@ fn dispatch_keyword_head_value(
         // Polymorphic collection-empty predicate: Vector<T> / HashMap<K,V> / HashSet<T> → bool.
         // Reborn from define-dispatch (core.wat) to Rust builtin; mechanism-swap behavior-preserving.
         ":wat::core::empty?" => eval_empty(args, list_span, env, sym),
+        // Arc 237 Stone 237.7b-ii — `:wat::core::contains?` ∀T intrinsic with custom inference arm.
+        // Polymorphic membership predicate: Vector<T> / HashSet<T> / HashMap<K,V> → bool.
+        // Tier B: element-typing enforced at check by infer_contains (src/check.rs); behavior-preserving.
+        ":wat::core::contains?" => eval_contains(args, list_span, env, sym),
         // Arc 237 Stone 237.5 — `:wat::core::conforms?` general type-conformance primitive.
         // Recursive walker over the TypeExpr grammar (Path / Parametric / Tuple / Alias / Union).
         // Signature: (value :TypeExpr) -> :wat::core::bool
@@ -16216,6 +16220,47 @@ fn eval_empty(
         Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
         Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
         Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
+            got: ValueSnapshot::of(other),
+            span: list_span.clone(),
+        }),
+    }
+}
+
+// ─── Arc 237 Stone 237.7b-ii — :wat::core::contains? ────────────────────────
+
+/// `(:wat::core::contains? <collection> <elem-or-key>) -> :wat::core::bool` — arc 237 Stone 237.7b-ii.
+///
+/// Polymorphic collection-membership predicate: ∀T. (T, elem) -> bool.
+/// Mirrors `eval_empty` in shape: arity-2, eval args, match Value variant.
+/// Delegates to the existing per-type inner helpers for correct semantics:
+/// - `Value::Vec(..)` → vector element membership (PartialEq scan)
+/// - `Value::wat__std__HashSet(..)` → set membership (Hash+Eq)
+/// - `Value::wat__std__HashMap(..)` → KEY membership (contains-key?, not value)
+/// All other variants produce a teaching `RuntimeError::TypeMismatch`.
+fn eval_contains(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::contains?";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
+    match &arg0_val {
+        Value::Vec(_) => vector_contains_q_inner(&arg0_val, &arg1_val),
+        Value::wat__std__HashSet(_) => hashset_contains_q_inner(&arg0_val, &arg1_val),
+        Value::wat__std__HashMap(_) => hashmap_contains_key_q_inner(&arg0_val, &arg1_val),
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
