@@ -183,15 +183,18 @@ fn probe_5_class_fqdn_extraction_post_rename() {
     // type_name() returns the umbrella ("wat::Record")
     assert_eq!(r.type_name(), "wat::Record");
 
-    // class_fqdn field carries the user-named class ("myapp::Voltage")
+    // class_fqdn field carries the user-named class ("myapp::Voltage").
+    // make_record() builds a Value::wat__holon__Record (holonic — carries
+    // holon_form for holon-ops), which is the variant produced by the
+    // defrecord path post arc 237 S-C.2c base/holonic split.
     match &r {
-        Value::wat__Record { class_fqdn, .. } => {
+        Value::wat__holon__Record { class_fqdn, .. } => {
             assert_eq!(
                 class_fqdn.as_str(),
                 "myapp::Voltage",
                 "Probe 5: class_fqdn extraction returns user-named class, NOT umbrella"
             );
         }
-        _ => panic!("Probe 5: expected Value::wat__Record variant"),
+        _ => panic!("Probe 5: expected Value::wat__holon__Record variant"),
     }
 }

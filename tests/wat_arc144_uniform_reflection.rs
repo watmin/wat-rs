@@ -275,21 +275,23 @@ fn type_lookup_define_smoke() {
     );
 }
 
-// ─── Kind 6: Dispatch — real-builtin coverage on `:wat::core::length` ──────
+// ─── Kind 6: Dispatch — real-builtin coverage on `:wat::core::empty?` ──────
 //
 // `wat_arc146_dispatch_mechanism.rs` covers Dispatch on the SYNTHETIC
 // `:test::describe` (i64/f64 arms). Slice 4's contribution: pin the
-// reflection trio on the REAL `:wat::core::length` migrated builtin
-// (arc 146 slice 2). The Dispatch arms include `Vector<T>` and
-// `HashMap<K,V>` — see `wat/core.wat:12-14`.
+// reflection trio on a REAL `:wat::core::*` define-dispatch builtin.
+// `:wat::core::length` was evacuated to a Rust ∀T intrinsic in arc 237.7a
+// and is no longer a define-dispatch entity. `:wat::core::empty?` is the
+// canonical exemplar: still a define-dispatch with 3 arms (Vector, HashMap,
+// HashSet) — see `wat/core.wat:31-34`.
 
 #[test]
-fn dispatch_length_lookup_define_emits_define_dispatch_head() {
+fn dispatch_empty_lookup_define_emits_define_dispatch_head() {
     let src = r##"
         (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [def-opt
-              (:wat::runtime::lookup-define :wat::core::length)
+              (:wat::runtime::lookup-define :wat::core::empty?)
              rendered
               (:wat::edn::write def-opt)]
             rendered))
@@ -297,25 +299,30 @@ fn dispatch_length_lookup_define_emits_define_dispatch_head() {
     let line = run_string(src);
     assert!(
         line.contains("define-dispatch"),
-        "expected 'define-dispatch' head in :wat::core::length lookup-define, got: {}",
+        "expected 'define-dispatch' head in :wat::core::empty? lookup-define, got: {}",
         line
     );
     assert!(
-        line.contains(":wat::core::length"),
-        "expected ':wat::core::length' name in rendered AST, got: {}",
+        line.contains(":wat::core::empty?"),
+        "expected ':wat::core::empty?' name in rendered AST, got: {}",
         line
     );
     // The arms list is the load-bearing evidence for Dispatch reflection:
-    // a Vector arm and a HashMap arm (per wat/core.wat:13-14). Verify
-    // both arm targets are present in the rendered emission.
+    // Vector, HashMap, and HashSet arms (per wat/core.wat:31-34). Verify
+    // all three arm targets are present in the rendered emission.
     assert!(
-        line.contains("Vector/length"),
+        line.contains("Vector/empty?"),
         "expected Vector arm target in dispatch arms, got: {}",
         line
     );
     assert!(
-        line.contains("HashMap/length"),
+        line.contains("HashMap/empty?"),
         "expected HashMap arm target in dispatch arms, got: {}",
+        line
+    );
+    assert!(
+        line.contains("HashSet/empty?"),
+        "expected HashSet arm target in dispatch arms, got: {}",
         line
     );
 }

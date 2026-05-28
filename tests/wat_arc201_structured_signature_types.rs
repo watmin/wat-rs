@@ -214,18 +214,16 @@ fn signature_of_defn_foldl_emits_structured_parametric_and_fn() {
         "expected ':Acc' type variable in foldl signature; got: {}",
         line
     );
-    // The Path ":T" type variable appears inside a Bundle (the
-    // structured emission gives it its own Symbol wrapper). The
-    // EDN renderer emits Symbol payloads as quoted strings, so the
-    // raw token in the EDN form is `":T"`. But `println` re-EDN-quotes
-    // the outer String, which escapes inner `"` as `\"`, so the
-    // observed substring is `\":T\"` (literal backslash-quote-colon-
-    // T-backslash-quote — 6 chars). Anchoring on backslash-quote
-    // avoids false-positive on the head suffix `foldl<T,Acc>`
-    // (where T appears unquoted).
+    // The type variable ":T" appears inside a Bundle as a structured
+    // Keyword node (post arc 221 Stone 221.5: `watast_to_holon` now maps
+    // WatAST::Keyword → HolonAST::Keyword). The EDN renderer emits Keyword
+    // payloads WITHOUT surrounding quotes, so the rendered token is
+    // `#wat-edn.holon/Keyword :T`. Anchoring on `Keyword :T` avoids
+    // false-positive on the head suffix `foldl<T_Acc>` (where T appears
+    // unquoted and without the `Keyword` tag).
     assert!(
-        line.contains(r#"\":T\""#),
-        "expected escaped-quoted `\\\":T\\\"` substring in foldl signature; got: {}",
+        line.contains("Keyword :T"),
+        "expected 'Keyword :T' (structured Keyword node) in foldl signature; got: {}",
         line
     );
     // Negative — the pre-arc-201 flat spelling for the Fn parameter
