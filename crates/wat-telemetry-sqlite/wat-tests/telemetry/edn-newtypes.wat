@@ -34,7 +34,7 @@
          (:wat::core::first handle)
         ack-rx
          (:wat::core::second handle)
-        ast (:wat::holon::Atom "hello")
+        ast (:wat::holon::to-holon "hello")
         tagged  (:wat::edn::Tagged/new ast)
         notag   (:wat::edn::NoTag/new  ast)
         entries

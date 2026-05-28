@@ -34,9 +34,9 @@
         tags
          (:wat::core::assoc
            (:wat::core::assoc
-             (:wat::core::HashMap :wat::telemetry::Tag)
-             (:wat::holon::Atom :asset) (:wat::holon::Atom :BTC))
-           (:wat::holon::Atom :stage) (:wat::holon::Atom :market))
+             (:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST)
+             (:wat::holon::to-holon :asset) (:wat::holon::to-holon :BTC))
+           (:wat::holon::to-holon :stage) (:wat::holon::to-holon :market))
         entries
          (:wat::core::Vector :test::Tagged::Event
            (:test::Tagged::Event::Log tags))

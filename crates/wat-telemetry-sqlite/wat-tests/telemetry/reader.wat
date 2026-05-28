@@ -36,7 +36,7 @@
         data-tag (:wat::edn::Tagged/new data-ast)
         tags
          (:wat::core::HashMap
-           :(wat::holon::HolonAST,wat::holon::HolonAST))]
+           :wat::holon::HolonAST :wat::holon::HolonAST)]
        (:wat::telemetry::Event::Log
          time-ns ns-notag cal-notag lvl-notag
          "test-reader-uuid" tags data-tag)))
@@ -239,7 +239,7 @@
       (:wat::core::match
         (:wat::telemetry::Event::Log/data-ast first-evt)
         -> :wat::core::String
-        ((:wat::core::Some h) (:wat::core::atom-value h))
+        ((:wat::core::Some h) (:wat::holon::from-holon h))
         (:wat::core::None "fail"))]
     (:wat::test::assert-eq msg "first")))
 

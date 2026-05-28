@@ -12,10 +12,11 @@
 ;;   - test-tags-empty           empty tags map round-trips
 ;;   - test-tags-roundtrip       declared tags readable via :wat::core::get
 ;;
-;; Keys are HolonAST throughout — `(:wat::holon::Atom :requests)`
-;; lifts a wat keyword into the algebra. Passing a bare keyword
-;; would type-check-fail since the WorkUnit/incr! signature
-;; declares `name :wat::holon::HolonAST`.
+;; Keys are HolonAST throughout — `(:wat::holon::to-holon :requests)`
+;; lifts a wat keyword into the algebra (arc 225; to-holon is the
+;; ∀T value→HolonAST bridge). Passing a bare keyword would
+;; type-check-fail since the WorkUnit/incr! signature declares
+;; `name :wat::holon::HolonAST`.
 ;;
 ;; The mutation-visible-across-calls property is implicit in
 ;; test-incr-many — if mutation didn't persist between
@@ -32,11 +33,11 @@
 (:wat::test::make-deftest :deftest
   ((:wat::core::define
      (:wat-telemetry::empty-tags -> :wat::telemetry::Tags)
-     (:wat::core::HashMap :wat::telemetry::Tag))
+     (:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST))
 
    (:wat::core::define
      (:wat-telemetry::default-ns -> :wat::holon::HolonAST)
-     (:wat::holon::Atom :wat-telemetry::test::ns))
+     (:wat::holon::to-holon :wat-telemetry::test::ns))
 
    ;; Probe helper — `:wat::core::Fn(X)->fn(Y)->Z`. Locks the substrate's
    ;; nested-fn-return capability that WorkUnit/make-scope needs.
@@ -340,7 +341,7 @@
     [thr-rx
       (:test::wu-spawn-stub-scope-unit
         (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::nil
-          (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
+          (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::to-holon :hits))))
      driver (:wat::core::first thr-rx)
      stub-rx (:wat::core::second thr-rx)
      got (:test::wu-recv-event-is-some stub-rx)
@@ -380,7 +381,7 @@
 (:deftest :wat-telemetry::WorkUnit::test-counter-default
   (:wat::core::let
     [wu (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags))
-     name (:wat::holon::Atom :never-incremented)
+     name (:wat::holon::to-holon :never-incremented)
      n (:wat::telemetry::WorkUnit/counter wu name)]
     (:wat::test::assert-eq n 0)))
 
@@ -390,7 +391,7 @@
 (:deftest :wat-telemetry::WorkUnit::test-incr-then-counter
   (:wat::core::let
     [wu (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags))
-     name (:wat::holon::Atom :requests)
+     name (:wat::holon::to-holon :requests)
      _ (:wat::telemetry::WorkUnit/incr! wu name)
      n (:wat::telemetry::WorkUnit/counter wu name)]
     (:wat::test::assert-eq n 1)))
@@ -401,7 +402,7 @@
 (:deftest :wat-telemetry::WorkUnit::test-incr-many
   (:wat::core::let
     [wu (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags))
-     name (:wat::holon::Atom :requests)
+     name (:wat::holon::to-holon :requests)
      _a (:wat::telemetry::WorkUnit/incr! wu name)
      _b (:wat::telemetry::WorkUnit/incr! wu name)
      _c (:wat::telemetry::WorkUnit/incr! wu name)
@@ -414,7 +415,7 @@
 (:deftest :wat-telemetry::WorkUnit::test-append-dt-then-read
   (:wat::core::let
     [wu (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags))
-     name (:wat::holon::Atom :sql-page)
+     name (:wat::holon::to-holon :sql-page)
      _a (:wat::telemetry::WorkUnit/append-dt! wu name 0.5)
      _b (:wat::telemetry::WorkUnit/append-dt! wu name 1.5)
      dts (:wat::telemetry::WorkUnit/durations wu name)]
@@ -438,7 +439,7 @@
     [wu
       (:wat::telemetry::WorkUnit::new
         (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags))
-     name (:wat::holon::Atom :sql-fetch)
+     name (:wat::holon::to-holon :sql-fetch)
      result
       (:wat::telemetry::WorkUnit/timed wu name
         (:wat::core::fn [] -> :wat::core::i64 99))
@@ -456,7 +457,7 @@
     [wu
       (:wat::telemetry::WorkUnit::new
         (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags))
-     name (:wat::holon::Atom :work)
+     name (:wat::holon::to-holon :work)
      _r1
       (:wat::telemetry::WorkUnit/timed wu name
         (:wat::core::fn [] -> :wat::core::i64 1))
@@ -486,12 +487,12 @@
 ;; and readable via :wat::core::get.
 (:deftest :wat-telemetry::WorkUnit::test-tags-roundtrip
   (:wat::core::let
-    [asset-key (:wat::holon::Atom :asset)
-     asset-val (:wat::holon::Atom :BTC)
-     stage-key (:wat::holon::Atom :stage)
-     stage-val (:wat::holon::Atom :market-eval)
+    [asset-key (:wat::holon::to-holon :asset)
+     asset-val (:wat::holon::to-holon :BTC)
+     stage-key (:wat::holon::to-holon :stage)
+     stage-val (:wat::holon::to-holon :market-eval)
      tags
-      (:wat::core::HashMap :wat::telemetry::Tag
+      (:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST
         asset-key asset-val
         stage-key stage-val)
      wu (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) tags)
@@ -516,7 +517,7 @@
       (:wat::telemetry::WorkUnit/scope ns tags
         (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::i64
           (:wat::core::do
-            (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))
+            (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::to-holon :hits))
             42)))]
     (:wat::test::assert-eq result 42)))
 
@@ -536,7 +537,7 @@
       (:test::wu-spawn-stub-scope-str
         (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::String
           (:wat::core::do
-            (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :requests))
+            (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::to-holon :requests))
             (:wat::telemetry::WorkUnit/uuid wu))))
      driver (:wat::core::first thr-and-pair)
      str-and-rx (:wat::core::second thr-and-pair)
@@ -562,7 +563,7 @@
       (:test::wu-spawn-stub-scope-str
         (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::String
           (:wat::core::do
-            (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5)
+            (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::to-holon :sql-page) 0.5)
             (:wat::telemetry::WorkUnit/uuid wu))))
      driver (:wat::core::first thr-and-pair)
      str-and-rx (:wat::core::second thr-and-pair)
@@ -622,8 +623,8 @@
       (:test::wu-spawn-stub-scope-unit
         (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::nil
           (:wat::core::let
-            [_a (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5)
-             _b (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 1.5)]
+            [_a (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::to-holon :sql-page) 0.5)
+             _b (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::to-holon :sql-page) 1.5)]
             ())))
      driver (:wat::core::first thr-rx)
      stub-rx (:wat::core::second thr-rx)
@@ -659,7 +660,7 @@
 (:deftest :wat-telemetry::WorkUnit::test-namespace-roundtrip
   (:wat::core::let
     [tags (:wat-telemetry::empty-tags)
-     ns (:wat::holon::Atom :my::function)
+     ns (:wat::holon::to-holon :my::function)
      wu (:wat::telemetry::WorkUnit::new ns tags)
      got (:wat::telemetry::WorkUnit/namespace wu)]
     (:wat::test::assert-eq got ns)))
@@ -711,7 +712,7 @@
       (:test::wu-spawn-stub-scope-i64
         (:wat::core::fn [wu <- :wat::telemetry::WorkUnit] -> :wat::core::i64
           (:wat::core::do
-            (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))
+            (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::to-holon :hits))
             42)))
      driver (:wat::core::first thr-and-pair)
      i64-and-rx (:wat::core::second thr-and-pair)

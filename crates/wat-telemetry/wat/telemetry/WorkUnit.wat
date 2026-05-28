@@ -23,10 +23,11 @@
 ;; convention (cf. :wat::core::set!). Reads have no suffix.
 ;;
 ;; Keys are HolonAST. A wat keyword like `:requests` becomes
-;; HolonAST via `(:wat::holon::Atom :requests)`. Per arc 057 the
-;; substrate's hashmap_key accepts any hashable Value, so the
-;; runtime is permissive — the wat-level type discipline is what
-;; keeps slice 4's edn-write-notag rendering clean.
+;; HolonAST via `(:wat::holon::to-holon :requests)` (arc 225;
+;; to-holon is the ∀T value→HolonAST bridge). The substrate's
+;; hashmap_key accepts any hashable Value, so the runtime is
+;; permissive — the wat-level type discipline is what keeps
+;; slice 4's edn-write-notag rendering clean.
 ;;
 ;; Arc 091 slice 3.
 
