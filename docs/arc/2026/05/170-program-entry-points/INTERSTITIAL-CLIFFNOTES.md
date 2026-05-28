@@ -150,7 +150,19 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-27 — arc 237 RECORDS FLAVOR THREAD CLOSED + arc 238 CLOSED; tree clean, all pushed, Sonnet idle. NEXT = arc 237 arithmetic tail 237.7→237.8→237.9. AUTHORITY for remaining order = `docs/arc/2026/05/237-polymorphism-consolidation/REMAINING-ORDER.md` — read it, then `git log`.)
+## Currently (2026-05-28 — SESSION PIVOT: **the INTRINSIC BOUNDARY**. 237.7a SHIPPED; arc 239 span-rot mostly closed. AUTHORITY: memory `project_intrinsic_boundary` + `docs/arc/2026/05/237-polymorphism-consolidation/DESIGN-STONE-237.7-intrinsic-kill.md` + `docs/arc/2026/05/239-span-rot-sweep/BRIEF.md` — read those, then `git log`. The "Headline state" fenced block BELOW is pre-pivot/STALE; this section is truth.)
+
+### THE PIVOT (read first)
+**The intrinsic boundary** (memory `project_intrinsic_boundary`): wat is a SURFACE on a Rust SUBSTRATE. Verbs needing `∀T`/accept-any/raw-`Value` inspection MUST be **intrinsics** (Rust builtins, the `:wat::core::type` shape); userland can't author them (closed universe: `:Any` BANNED 058-030, generics Rust-only — proven via probes, NO :Any needed). "intrinsic" RATIFIED · "substrate"=concept word · "kernel" RETIRED. Namespace reorg QUEUED arc 109 (#565): `:wat::kernel`→`:wat::linux`(clone-family fork/thread/signals/pipe/sandbox)+`:wat::chan`(CSP)+`:wat::io`(stdio).
+
+**237.7 RESHAPED**: was "Dispatch→defclause"; NOW "collection ops → ∀T INTRINSICS; kill define-dispatch" (defclause CAN'T host them — closed universe can't bind "any"). Arithmetic (237.8) STAYS defclause (concrete; rest-binder fold over `'` kernels). 237.7a ✓ SHIPPED `8100d9d2` (`:wat::core::length`=∀T intrinsic, mirror eval_type; define-dispatch :length decl deleted). **NEXT = 237.7b**: empty?/contains?/get/conj/assoc → ∀T intrinsics (route to existing leaves); registry deletion after 237.8.
+
+**arc 239 — span-rot sweep** (hidden behind the `--lib` metric, which never compiles `tests/*.rs`): ✓ span-arity cascade FIXED (`de7a2fcf`) + ✓ 3 stale tests fixed (`wat_arc144` length→empty? exemplar; `probe_arc234_stone15`→holonic variant; `wat_arc201`→structured rendering). REMAINING runtime-rot (classify each, HIGH BAR to defer — affirmative cited-open-arc only): `wat_arc220_list` conj→**justified defer to 237.7b** (conj-intrinsic gets List arm); first-on-List + `wat_bundle_capacity`(Bundle/:Holons) + `wat_cli` + crate `test` → CLASSIFY (stale vs real-gap); `probe_arc216_stone5c`→only legit-defer-candidate IF arc 216 #411 stones 216.8/9/10 reshape it (verify). #566 = green-gate class-fix (add `--tests` build to gate). #564 = f64 floor/ceil gap.
+
+**NEXT MOVE**: finish runtime-rot classification (first-List / bundle_capacity / wat_cli / test / arc216-stone5c) → fix-stale or fix-real-gap or defer-with-cite; THEN 237.7b. Sonnet idle, no agent in flight, all pushed.
+
+---
+### Headline state (⚠ PRE-PIVOT / STALE — see § THE PIVOT above; kept only for the HEAD/frozen pointers)
 
 ### Headline state
 ```
