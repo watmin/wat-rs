@@ -6797,6 +6797,19 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 237 Stone 237.7c — `:wat::core::assoc` ∀T intrinsic spanning HashMap + Record.
+            // Records-doctrine slice: promotes the surface name from a HashMap-only alias to a
+            // polymorphic intrinsic with a custom inference arm. Two arms:
+            //   HashMap<K,V> + K + V → HashMap<K,V>   (type-preserving; arg2 unifies with V, NOT K)
+            //   :wat::Record + :keyword + ∀T → :wat::Record  (arg2 free; flavor preserved at runtime)
+            ":wat::core::assoc" => {
+                let (val, mut errs) = infer_assoc(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 220 Stone 220.4 — `:wat::core::rest` is polymorphic over
             // Vector<T> and List<T>.  For Vector<T> → Vector<T> (existing);
             // for List<T> → List<T> (arc 220 extension; runtime already handles
@@ -14268,14 +14281,143 @@ fn infer_polymorphic_holon_to_i64(
 // "get-by-equality" is just `:contains?` per arc 146 DESIGN audit
 // table; that path migrated to the contains? dispatch.
 
-// Arc 146 slice 4 — `infer_assoc` / `infer_dissoc` / `infer_keys` /
-// `infer_values` retired. Each is now a user-define alias (declared in
-// `wat/core-aliases.wat`) delegating to `:wat::core::HashMap/assoc` /
-// `dissoc` / `keys` / `values`. Aliases reach the standard env.get
-// scheme path; per-Type impls carry clean rank-1 schemes registered in
-// `register_builtins`. The pre-arc-146 Vec branch on assoc was a
-// Vec-as-HashMap-anachronism per arc 146 DESIGN audit table; Vec/set
-// is the honest verb for "replace at index" and lives independently.
+// Arc 146 slice 4 — `infer_dissoc` / `infer_keys` / `infer_values` retired.
+// Each is now a user-define alias (declared in `wat/core-aliases.wat`) delegating
+// to `:wat::core::HashMap/dissoc` / `keys` / `values`. Aliases reach the standard
+// env.get scheme path; per-Type impls carry clean rank-1 schemes registered in
+// `register_builtins`. The pre-arc-146 Vec branch on assoc was a Vec-as-
+// HashMap-anachronism per arc 146 DESIGN audit table; Vec/set is the honest verb
+// for "replace at index" and lives independently.
+//
+// Arc 237 Stone 237.7c — `infer_assoc` is a LIVE custom inference arm (see below).
+
+/// Type-check `(:wat::core::assoc coll key new-value)` — arc 237 Stone 237.7c.
+///
+/// Custom inference arm (Tier B): dispatches across two heterogeneous collection
+/// families. Return is type-preserving per arm (no Option wrap, unlike `get`).
+///
+/// - `HashMap<K,V>` → arg1 must unify with **`K`** (the key); arg2 must unify
+///   with **`V`** (the value — NOT K; watch the K-vs-V trap). Returns `HashMap<K,V>`
+///   (type-preserving via `apply_subst(&coll_ty, subst)`).
+/// - `:wat::Record` (umbrella path) → arg1 must unify with `:wat::core::keyword`
+///   (the field name). **arg2 is free ∀T — DO NOT unify it with anything.** Field-type
+///   stability is enforced at runtime by `eval_record_assoc`; check-time narrowing
+///   is deferred to arc 232.1. Returns `:wat::Record` (umbrella; flavor is a
+///   runtime property per Liskov: base → base, holonic → holonic).
+/// - else → teaching `CheckError::TypeMismatch` (`"HashMap<K,V> or :wat::Record"`).
+fn infer_assoc(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::assoc";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    // Fallback type used for arity-error only; success paths return the collection type.
+    let fallback_ty = fresh.fresh();
+    if args.len() != 3 {
+        local_errors.push(CheckError::ArityMismatch {
+            callee: OP.into(),
+            expected: 3,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // Infer arg0 (the collection).
+    let arg0_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // Infer arg1 (the key / field name) — always, so we surface all errors.
+    let arg1_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // Infer arg2 (the new value) — always; free ∀T for Record arm, V for HashMap arm.
+    let arg2_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(coll_ty) = arg0_ty {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match &reduced {
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashMap" => {
+                // HashMap<K,V>: arg1 unifies with K, arg2 unifies with V.
+                // Return is type-preserving: HashMap<K,V> (unchanged).
+                let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
+                let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
+                // Unify arg1 against K.
+                if let Some(arg1) = arg1_ty {
+                    if unify(&arg1, &key_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#2".into(),
+                            expected: format_type(&key_ty),
+                            got: format_type(&apply_subst(&arg1, subst)),
+                            span: args[1].span().clone(),
+                        });
+                    }
+                }
+                // Unify arg2 against V (NOT K — the K-vs-V trap).
+                if let Some(arg2) = arg2_ty {
+                    if unify(&arg2, &val_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#3".into(),
+                            expected: format_type(&val_ty),
+                            got: format_type(&apply_subst(&arg2, subst)),
+                            span: args[2].span().clone(),
+                        });
+                    }
+                }
+                // Return type-preserving HashMap<K,V>.
+                let ret_ty = apply_subst(&coll_ty, subst);
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            TypeExpr::Path(p) if p == ":wat::Record" || p == ":wat::holon::Record" => {
+                // Record umbrella (base :wat::Record or holonic :wat::holon::Record):
+                // arg1 must be :keyword; arg2 is free ∀T — DO NOT unify.
+                // Both paths reduce to their respective umbrella Path; both flavors satisfy
+                // the Liskov umbrella — flavor is preserved at runtime by eval_record_assoc.
+                let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+                if let Some(arg1) = arg1_ty {
+                    if unify(&arg1, &keyword_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#2".into(),
+                            expected: format_type(&keyword_ty),
+                            got: format_type(&apply_subst(&arg1, subst)),
+                            span: args[1].span().clone(),
+                        });
+                    }
+                }
+                // arg2 is free ∀T — no unification. Flavor preserved at runtime via eval_record_assoc.
+                // (arg2_ty was inferred above to surface any parse errors; no unification follows.)
+                // Return the umbrella :wat::Record (covers both flavors per Liskov).
+                let ret_ty = TypeExpr::Path(":wat::Record".into());
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            _ => {
+                local_errors.push(CheckError::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "HashMap<K,V> or :wat::Record".into(),
+                    got: format_type(&apply_subst(&coll_ty, subst)),
+                    span: args[0].span().clone(),
+                });
+            }
+        }
+    }
+
+    if local_errors.is_empty() {
+        CheckResult::ok(fallback_ty)
+    } else {
+        CheckResult::partial_with(fallback_ty, local_errors)
+    }
+}
 
 // Arc 146 slice 3 — `infer_empty_q`, `infer_conj`, `infer_contains_q`
 // retired. Polymorphism is now honest via the Dispatch entities
@@ -19940,6 +20082,20 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 237 Stone 237.7c — :wat::core::assoc as a ∀T intrinsic spanning HashMap + Record.
+    // Fallback rank-1 TypeScheme: forall T. T × T × T -> T (plain ∀T — the custom arm in
+    // `infer_assoc` overrides at `infer_list` dispatch before this scheme is consulted;
+    // the scheme is the fallback for the env.get path and reflection tools).
+    env.register(
+        ":wat::core::assoc".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var(), t_var(), t_var()],
+            ret: t_var(),
             rest_param_type: None,
         },
     );

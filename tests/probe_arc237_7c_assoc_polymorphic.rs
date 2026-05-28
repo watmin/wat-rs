@@ -122,7 +122,6 @@ fn assoc_non_collection_arg0_rejected() {
 // ─── Record arm — disconfirming AT HEAD; un-ignore in Stone 237.7c ─────────────────
 
 #[test]
-#[ignore = "Stone 237.7c: remove this #[ignore] when the intrinsic ships — Record arm requires the new infer_assoc + eval_assoc"]
 fn assoc_base_record_returns_base_record_struct_only() {
     // Mint a 1-field defrecord, instantiate, assoc a new value, read back via
     // the auto-accessor. Base record (no holon_form) — assoc rebuilds struct only.
@@ -142,7 +141,6 @@ fn assoc_base_record_returns_base_record_struct_only() {
 }
 
 #[test]
-#[ignore = "Stone 237.7c: remove this #[ignore] when the intrinsic ships — holonic Record arm requires the new infer_assoc + eval_assoc"]
 fn assoc_holonic_record_returns_holonic_record_parity_preserved() {
     // Same shape but holonic (`:wat::holon::Record::def`). The holonic arm in
     // `eval_record_assoc` rebuilds BOTH struct_form AND holon_form in parity.

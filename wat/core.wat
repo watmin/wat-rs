@@ -47,7 +47,8 @@
 ;; delegating user-define whose head copies the target's signature
 ;; with the alias name substituted.
 
-(:wat::runtime::define-alias :wat::core::assoc   :wat::core::HashMap/assoc)
+;; arc 237 Stone 237.7c — `:wat::core::assoc` is now a Rust ∀T intrinsic with custom inference
+;; arm spanning HashMap + Record; see `src/check.rs::infer_assoc` + `src/runtime.rs::eval_assoc`.
 (:wat::runtime::define-alias :wat::core::dissoc  :wat::core::HashMap/dissoc)
 (:wat::runtime::define-alias :wat::core::keys    :wat::core::HashMap/keys)
 (:wat::runtime::define-alias :wat::core::values  :wat::core::HashMap/values)

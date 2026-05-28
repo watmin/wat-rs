@@ -5339,6 +5339,10 @@ fn dispatch_keyword_head_value(
         // Tier B: Option<element> precision enforced at check by infer_get (src/check.rs); behavior-preserving.
         // NO HashSet arm — HashSet has no positional get.
         ":wat::core::get" => eval_get(args, list_span, env, sym),
+        // Arc 237 Stone 237.7c — `:wat::core::assoc` ∀T intrinsic spanning HashMap + Record.
+        // Records-doctrine slice: HashMap<K,V>+K+V → HashMap<K,V>; :wat::Record+:keyword+∀T → :wat::Record.
+        // Routes to hashmap_assoc_inner (HashMap) or eval_record_assoc (base + holonic).
+        ":wat::core::assoc" => eval_assoc(args, list_span, env, sym),
         // Arc 237 Stone 237.5 — `:wat::core::conforms?` general type-conformance primitive.
         // Recursive walker over the TypeExpr grammar (Path / Parametric / Tuple / Alias / Union).
         // Signature: (value :TypeExpr) -> :wat::core::bool
@@ -12491,14 +12495,57 @@ fn eval_hashmap_ctor(
 // "get-by-equality" is just `:contains?` per arc 146 DESIGN audit
 // table.
 
-// Arc 146 slice 4 — `eval_assoc` / `eval_dissoc` / `eval_keys` /
-// `eval_values` retired. The single-impl polymorphism is honest now:
-// aliases (declared in `wat/core-aliases.wat`) map the short surface
-// names to the per-Type `:wat::core::HashMap/assoc` / `dissoc` /
-// `keys` / `values` impls (defined above adjacent to the slice 2/3
-// per-Type block). The pre-arc-146 Vec branch on assoc was a Vec-as-
-// HashMap-anachronism per arc 146 DESIGN audit table; Vec/set is the
-// honest verb for "replace at index" and lives independently.
+// Arc 146 slice 4 — `eval_dissoc` / `eval_keys` / `eval_values` retired.
+// The single-impl polymorphism is honest now: aliases (declared in
+// `wat/core-aliases.wat`) map the short surface names to the per-Type
+// `:wat::core::HashMap/dissoc` / `keys` / `values` impls (defined above
+// adjacent to the slice 2/3 per-Type block). The pre-arc-146 Vec branch on
+// assoc was a Vec-as-HashMap-anachronism per arc 146 DESIGN audit table;
+// Vec/set is the honest verb for "replace at index" and lives independently.
+//
+// Arc 237 Stone 237.7c — `eval_assoc` is LIVE below (see fn eval_assoc).
+
+/// `(:wat::core::assoc coll key new-value)` — arc 237 Stone 237.7c.
+///
+/// Polymorphic write verb spanning two heterogeneous collection families:
+///
+/// - `Value::wat__std__HashMap(_)` → `hashmap_assoc_inner` (functional clone-insert).
+/// - `Value::wat__Record { .. } | Value::wat__holon__Record { .. }` →
+///   `eval_record_assoc` (base early-return rebuilds struct only; holonic fallthrough
+///   rebuilds BOTH struct_form + holon_form in parity — the PARITY invariant).
+///   Flavor is preserved: base → base, holonic → holonic.
+/// - else → teaching `RuntimeError::TypeMismatch`.
+fn eval_assoc(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::assoc";
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let arg2_val = eval_inner(&args[2], env, sym)?.value_owned();
+    match &arg0_val {
+        Value::wat__std__HashMap(_) => hashmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val),
+        Value::wat__Record { .. } | Value::wat__holon__Record { .. } => {
+            eval_record_assoc(args, list_span, env, sym)
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V> or :wat::Record",
+            got: ValueSnapshot::of(other),
+            span: list_span.clone(),
+        }),
+    }
+}
 
 /// `(:wat::core::HashSet :T x1 x2 x3 ...)` — first arg is a type
 /// keyword read by the checker; remaining args are elements. Duplicate
@@ -31333,13 +31380,13 @@ mod tests {
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
 
-    // Arc 146 slice 4 — `assoc` is HashMap-only post-migration (DESIGN
-    // audit table). The pre-arc-146 Vec branch was a Vec-as-HashMap
-    // anachronism (arc 025); Vec/set is the honest verb for "replace
-    // at index" and lives independently. These tests now assert the
-    // post-migration honest behaviour: the alias delegates to
-    // `:wat::core::HashMap/assoc`, which surfaces a TypeMismatch when
-    // a Vec is passed.
+    // Arc 237 Stone 237.7c — `assoc` is now a ∀T intrinsic (eval_assoc) spanning
+    // HashMap + Record. The pre-arc-146 Vec branch was a Vec-as-HashMap anachronism
+    // (arc 025); Vec/set is the honest verb for "replace at index" and lives
+    // independently. The test below asserts the post-7c honest behaviour:
+    // the intrinsic's else-arm returns a TypeMismatch with op ":wat::core::assoc"
+    // (mechanism-swap from the old alias's ":wat::core::HashMap/assoc"; correct
+    // mechanical correction per arc 237 Stone 237.7c).
 
     #[test]
     fn assoc_on_vec_rejects_post_slice4() {
@@ -31349,8 +31396,8 @@ mod tests {
         let err = eval_expr(src).unwrap_err();
         assert!(
             matches!(err, RuntimeError::TypeMismatch { ref op, .. }
-                     if op == ":wat::core::HashMap/assoc"),
-            "expected HashMap/assoc TypeMismatch on Vec; got {:?}",
+                     if op == ":wat::core::assoc"),
+            "expected :wat::core::assoc TypeMismatch on Vec; got {:?}",
             err
         );
     }
