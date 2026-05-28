@@ -151,7 +151,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-27 night — **INTRINSIC BOUNDARY** + **THE DECISION** both fully enacted at the substrate level. **arc 237.8a COMPLETE — widest-contagion DELETED; arithmetic + comparison are now same-type-only at check; the 4 `define-dispatch` decls + 8 mixed-type leaves + lexer entries all retired**. Consumer cascade was 0 sites (spot-checks were honest). **The dragon is killed.** NEXT = 237.8b (DispatchRegistry HARD CUT — mechanical, 0-tenant cleanup) → 237.9 INSCRIPTION. Song #40 Contagion soundtracked the act (the pun: "widest-contagion" = the song's title). AUTHORITY: memory `project_intrinsic_boundary` + `feedback_no_implicit_coercion` + `feedback_sonnet_bash_firewall` + `DESIGN-STONE-237.8.md` — read those + `git log`. HEAD `154ca713`. The "Headline state" fenced block BELOW is pre-pivot/STALE; this section is truth.)
+## Currently (2026-05-27 night — **arc 237 PAUSED at 237.8b**; **arc 241 (function-signature parser unification) OPEN as precursor**. The 237.8b recipe (per-Type binary primitives + wat-defclause polymorphic surface for arithmetic + ordering) HIT a trap door: defclause's argspec parser doesn't support `&` rest-binders. Dig revealed FOUR copies of the argspec-parser logic across the substrate (`parse_fn_signature` × 3 + `parse_defclause_args` × 1) — duplication the code itself acknowledges. User pivoted: **"this is the point of the 109 endeavor — pause this arc — spawn a new one — go unify func sigs — we should have exactly one way to define args"**. Arc 241 spawns to consolidate. Per spawn-block winding: 237 closes after 241. AUTHORITY: memory `project_intrinsic_boundary` + `project_failure_engineering` + `feedback_no_implicit_coercion` + `feedback_spawn_block_winding` + `DESIGN.md` for arc 241 + `PAUSE-CONTEXT.md` for arc 237 — read those + `git log`. HEAD just after arc 241 spawn. The "Headline state" fenced block BELOW is pre-pivot/STALE; this section is truth.)
 
 ### THE PIVOT (read first)
 **The intrinsic boundary** (memory `project_intrinsic_boundary`): wat is a SURFACE on a Rust SUBSTRATE. Verbs needing `∀T`/accept-any/raw-`Value` inspection MUST be **intrinsics** (Rust builtins, the `:wat::core::type` shape); userland can't author them (closed universe: `:Any` BANNED 058-030, generics Rust-only — proven via probes). "intrinsic" RATIFIED · "substrate"=concept word · "kernel" RETIRED. Namespace reorg QUEUED arc 109 (#565).
@@ -178,14 +178,13 @@ Tier-A/B four-template recipe fully proven (concrete-bool / type-preserving / Op
 
 **GREEN-GATE (momentary)**: `cargo test --release --lib -p wat` + `cargo build --release --tests --workspace`. **NEVER invoke wrapper scripts in BRIEFs or agent prompts** (firewall denies; `feedback_sonnet_bash_firewall` updated 2026-05-27). Full `cargo test --workspace` RUN held off until arc 170 closes process leaks.
 
-**NEXT MOVE — DECISION-POINT (arc 237's final seam)**: clean checkpoint at HEAD `154ca713` (lib 834/0, test-build 0 errors, three 237 probe files 22/22 across all rows). The behavior change is shipped; what remains is mechanical + closure. User's call between:
+**NEXT MOVE — arc 241 (function-signature parser unification)**: stone sketch is 6+1 (241.0 AUDIT → 241.1 mint canonical `parse_argspec_triples` → 241.2/3/4 migrate fn / defclause / other binding sites → 241.5 extend with `&` rest-binder support → 241.6 INSCRIPTION). 241.5 is the gate that unblocks 237.8b. Failure class being eliminated: **parser divergence across binding sites** — post-241 cannot manifest because the situation that produces it (multiple parsers) cannot be constructed (one canonical entry point + ParseOptions for per-site invariants). Pure failure-engineering per `/home/watmin/work/holon/scratch/FAILURE-ENGINEERING.md`.
 
-  1. **237.8b — DispatchRegistry HARD CUT** (mechanical cleanup, <15 min Mode-A predicted). `src/dispatch.rs` + `dispatch_registry` field on CheckEnv + SymbolTable + `set_dispatch_registry` / getter + the guard at `check.rs:5460`. Now 0-tenant after 8a evacuated the last `define-dispatch` decls. No behavior change; workspace compiles + tests pass identically.
-  2. **237.9 INSCRIPTION** (the closure). Folds arc 146 + arc 148 + arc 237 + arc 234 USER-GUIDE owed sentence (base-vs-holonic records) + THE DECISION as canonical reference + Song #36 chainsaw-inward + Song #40 diagnostic + Convergence #17 Liskov-walked-into-for-free. Goes after 8b.
-  3. **Pause + checkpoint** at the seam (the dragon is killed; INSCRIPTION can wait if you want to step back and breathe).
-  4. (Background queue, not blocking): arc 109 #564/#565; deferred KNOWN-BROKEN under 119/130/170/213.
+**237's PAUSED chain** (resumes when 241 closes): 237.8b (recipe-lock + numeric grid; DESIGN + probe COMMITTED `49e2e13b`) → 237.8c (full primitive equality grid + composite recursive equality; bundled per Q2-C) → 237.8d (DispatchRegistry HARD CUT; mechanical) → 237.9 (INSCRIPTION + `feedback_per_type_binary_primitives` doctrine + USER-GUIDE base-vs-holonic + Convergence #17). PAUSE-CONTEXT.md preserves locked decisions across the pause.
 
-No agent in flight; no uncommitted dirt. Awaiting decision.
+Background queue: arc 109 #564/#565; deferred KNOWN-BROKEN under 119/130/170/213.
+
+No agent in flight; tree clean post arc-241 spawn. Drafting first stone (241.0 AUDIT) next.
 
 ---
 ### Headline state (⚠ PRE-PIVOT / STALE — see § THE PIVOT above; kept only for the HEAD/frozen pointers)
