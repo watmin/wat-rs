@@ -28,10 +28,9 @@
 ;; HashMap requires key+value pairing, so :wat::core::assoc is the
 ;; right verb there (DESIGN audit table).
 
-(:wat::core::define-dispatch :wat::core::empty?
-  ((:wat::core::Vector<T>)    :wat::core::Vector/empty?)
-  ((:wat::core::HashMap<K,V>) :wat::core::HashMap/empty?)
-  ((:wat::core::HashSet<T>)   :wat::core::HashSet/empty?))
+;; Arc 237 Stone 237.7b-i — :wat::core::empty? evacuated to Rust ∀T intrinsic (src/check.rs +
+;; src/runtime.rs). define-dispatch decl removed; the per-type leaves (:Vector/empty?,
+;; :HashMap/empty?, :HashSet/empty?) and the DispatchRegistry remain for other ops.
 
 (:wat::core::define-dispatch :wat::core::contains?
   ((:wat::core::Vector<T>    :T) :wat::core::Vector/contains?)

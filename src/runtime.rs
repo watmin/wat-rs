@@ -5321,6 +5321,10 @@ fn dispatch_keyword_head_value(
         // Polymorphic collection-length: Vector<T> / HashMap<K,V> / HashSet<T> → i64.
         // Reborn from define-dispatch (core.wat) to Rust builtin; mechanism-swap behavior-preserving.
         ":wat::core::length" => eval_length(args, list_span, env, sym),
+        // Arc 237 Stone 237.7b-i — `:wat::core::empty?` ∀T intrinsic.
+        // Polymorphic collection-empty predicate: Vector<T> / HashMap<K,V> / HashSet<T> → bool.
+        // Reborn from define-dispatch (core.wat) to Rust builtin; mechanism-swap behavior-preserving.
+        ":wat::core::empty?" => eval_empty(args, list_span, env, sym),
         // Arc 237 Stone 237.5 — `:wat::core::conforms?` general type-conformance primitive.
         // Recursive walker over the TypeExpr grammar (Path / Parametric / Tuple / Alias / Union).
         // Signature: (value :TypeExpr) -> :wat::core::bool
@@ -16172,6 +16176,46 @@ fn eval_length(
         Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
         Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
         Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
+            got: ValueSnapshot::of(other),
+            span: list_span.clone(),
+        }),
+    }
+}
+
+// ─── Arc 237 Stone 237.7b-i — :wat::core::empty? ────────────────────────────
+
+/// `(:wat::core::empty? <collection>) -> :wat::core::bool` — arc 237 Stone 237.7b-i.
+///
+/// Polymorphic collection-empty predicate: ∀T. T -> bool.
+/// Mirrors `eval_length` in shape: arity-1, eval arg, match Value variant.
+/// Accepted variants:
+/// - `Value::Vec(..)` → true iff vector is empty
+/// - `Value::wat__std__HashMap(..)` → true iff map has no entries
+/// - `Value::wat__std__HashSet(..)` → true iff set has no elements
+/// All other variants produce a teaching `RuntimeError::TypeMismatch`.
+fn eval_empty(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::empty?";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    match &arg_val {
+        Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
+        Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
+        Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",

@@ -19617,6 +19617,22 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Arc 237 Stone 237.7b-i — :wat::core::empty? as a ∀T intrinsic.
+    // Polymorphic collection-empty predicate: forall T. T -> bool.
+    // Accepts Vector<T> / HashMap<K,V> / HashSet<T>; rejects other values
+    // with a teaching RuntimeError at eval time.
+    // Reborn from define-dispatch (core.wat) to Rust builtin; same TypeScheme
+    // shape as :wat::core::length with bool return in place of i64.
+    env.register(
+        ":wat::core::empty?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
     // Arc 234 Stone 234.2a — :wat::Record::of + :wat::Record/field-at substrate primitives.
     //
     // :wat::Record::of — TypeScheme registration REMOVED (Stone 234.2a forward-correction).
