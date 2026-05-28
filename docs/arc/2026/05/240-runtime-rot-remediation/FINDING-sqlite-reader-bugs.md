@@ -35,15 +35,26 @@ mechanical drift (verb namespace/rename), BUT downstream of Error 1 (the None
 branch is only reached because the cursor bug leaves the event vec empty), so
 fixing the name alone will not green the test.
 
-## Disposition
+## Disposition — DEFER → arc 170 (user direction 2026-05-27)
 
-- **NOT arc 240 scope** (consumer-`.wat` drift, which is complete). Surfaced here;
-  to be fixed in a focused stone — the substrate-as-teacher cascade continues
-  (arc 239 → 240 → this).
+- **NOT arc 240 scope** (consumer-`.wat` drift, which is complete). The
+  wat-telemetry-sqlite log sink is a **daemon** (the auto-spawned `Service`,
+  arc 089/095), and **arc 170 is actively reworking the whole spawn / Service /
+  process-management layer it lives in.** Per the in-flight-dependency rule
+  ("broken in code an open arc is actively building → defer + mark"), this is
+  arc 170's to correct as part of that daemon rework. User: *"handle it in 170
+  since it's reworking all the async process management stuff — this is a daemon
+  to go correct."* Marked on `docs/arc/2026/05/170-program-entry-points/KNOWN-BROKEN.md`.
+- **Aim the fix true:** the specific defect is decode-side —
+  `decode_notag_holon` (cursor.rs) EDN-rejects `::`-namespaced keywords on
+  read-back. When 170 corrects the daemon, fix that decode path. **If 170's
+  rework does NOT touch the row-decode logic, re-home to arc 219b** (wat-edn EDN
+  spec conformance, #445) — the `::`-keyword parse rejection may be a wat-edn
+  parser conformance gap rather than a daemon concern.
 - The 6 `reader` tests in `wat-telemetry-sqlite` are **known-red, documented**
-  (this file). reader.wat's correct drift-fixes ARE committed (240.3b); the two
-  bugs above are the remaining blockers.
-- A fix stone (when taken) addresses Error 1 first (cursor), then Error 2 (the
-  verb rename), and re-runs `cargo test -p wat-telemetry-sqlite` → 0 failed.
+  (here + arc 170 KNOWN-BROKEN). reader.wat's correct drift-fixes ARE committed
+  (240.3b); Error 1 (cursor) + Error 2 (`:wat::test::assertion-failed` →
+  `:wat::kernel::assertion-failed!`) are the remaining blockers.
 
-Cross-ref: arc 240 DESIGN (root cause A); 240.3b SCORE; arc 230 (keyword→Bind).
+Cross-ref: arc 240 DESIGN (root cause A); 240.3b SCORE; arc 230 (keyword→Bind);
+arc 170 KNOWN-BROKEN; arc 219b (#445, EDN conformance — fallback owner).

@@ -27,4 +27,18 @@ diagnostics → "expected 2 records, got 5", exit-code drift). Those clear when
 arc 240.3 ships. Re-run `cargo test -p wat-cli` after 240.3 to isolate the
 true arc-170 residual before closing this list.
 
-Cross-ref: `docs/arc/2026/05/240-runtime-rot-remediation/DESIGN.md` (root causes G + E / DEFER set).
+**Red tests — wat-telemetry-sqlite log daemon (added 2026-05-27, user-assigned to 170):**
+The sqlite log sink is a daemon (auto-spawned `Service`, arc 089/095) living in the
+spawn/Service/process layer this arc reworks. Arc 240's `.wat` drift sweep cleared
+its check errors and uncovered two pre-existing runtime bugs (6 `reader` tests):
+- `deftest_wat_telemetry_sqlite_reader_*` (6 tests) — `crates/wat-telemetry-sqlite/`
+  - **Error 1 (blocker):** `src/cursor.rs` `decode_notag_holon` EDN-rejects
+    `::`-namespaced keywords on log-row read-back ("keyword begins with ::";
+    likely arc-230 keyword→Bind ripple). **Fix the decode path when correcting the
+    daemon.** If 170's rework doesn't touch row-decode, re-home to arc 219b (#445,
+    wat-edn EDN conformance).
+  - **Error 2 (downstream):** `wat-tests/telemetry/reader.wat:235,270` call
+    `:wat::test::assertion-failed` (only `:wat::kernel::assertion-failed!` exists).
+- Full detail: `docs/arc/2026/05/240-runtime-rot-remediation/FINDING-sqlite-reader-bugs.md`.
+
+Cross-ref: `docs/arc/2026/05/240-runtime-rot-remediation/DESIGN.md` (root causes G + E + the sqlite-daemon finding / DEFER set).
