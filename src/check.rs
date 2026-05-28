@@ -5882,6 +5882,67 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 220 Stone 220.4 — `:wat::core::List/of` variadic constructor.
+            // `(:wat::core::List/of x1 x2 ...)` → `List<T>`.  No leading type keyword;
+            // T is inferred from the elements.
+            ":wat::core::List/of" => {
+                let (val, mut errs) = infer_linked_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            // Arc 220 Stone 220.4 — `:wat::core::List/conj` prepend.
+            // `(:wat::core::List/conj list item)` → `List<T>`.
+            // Clojure semantic: prepends item to front; distinct from Vector/conj (append).
+            ":wat::core::List/conj" => {
+                if args.len() != 2 {
+                    local_errors.push(CheckError::ArityMismatch {
+                        callee: ":wat::core::List/conj".into(),
+                        expected: 2,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                    for arg in args {
+                        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                    }
+                    let t = fresh.fresh();
+                    let list_ty = TypeExpr::Parametric { head: "wat::core::List".into(), args: vec![t] };
+                    return if local_errors.is_empty() { CheckResult::ok(list_ty) } else { CheckResult::partial_with(list_ty, local_errors) };
+                }
+                let list_arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                let item_arg_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                let elem_ty = fresh.fresh();
+                if let Some(lt) = &list_arg_ty {
+                    let reduced = reduce(lt, subst, env.types());
+                    match &reduced {
+                        TypeExpr::Parametric { head, args: ta } if head == "wat::core::List" => {
+                            if let Some(inner) = ta.first() {
+                                let _ = unify(&elem_ty, inner, subst, env.types());
+                            }
+                        }
+                        TypeExpr::Var(_) => {}
+                        _ => {
+                            local_errors.push(CheckError::TypeMismatch {
+                                callee: ":wat::core::List/conj".into(),
+                                param: "#1".into(),
+                                expected: "List<T>".into(),
+                                got: format_type(&apply_subst(lt, subst)),
+                                span: args[0].span().clone(),
+                            });
+                        }
+                    }
+                }
+                if let Some(it) = &item_arg_ty {
+                    let _ = unify(it, &elem_ty, subst, env.types());
+                }
+                let list_ty = TypeExpr::Parametric {
+                    head: "wat::core::List".into(),
+                    args: vec![apply_subst(&elem_ty, subst)],
+                };
+                return if local_errors.is_empty() { CheckResult::ok(list_ty) } else { CheckResult::partial_with(list_ty, local_errors) };
+            }
             ":wat::core::list" => {
                 // Arc 109 slice 1g — :wat::core::list retires.
                 // Was always a duplicate of :wat::core::vec; both
@@ -6699,6 +6760,67 @@ fn infer_list(
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
                     None => CheckResult::errs(local_errors),
                 };
+            }
+            // Arc 220 Stone 220.4 — `:wat::core::rest` is polymorphic over
+            // Vector<T> and List<T>.  For Vector<T> → Vector<T> (existing);
+            // for List<T> → List<T> (arc 220 extension; runtime already handles
+            // both branches in eval_vec_rest).  Registered TypeScheme only covers
+            // Vector; this arm supersedes it for List inputs.
+            ":wat::core::rest" => {
+                if args.len() != 1 {
+                    local_errors.push(CheckError::ArityMismatch {
+                        callee: ":wat::core::rest".into(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                    for arg in args {
+                        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                    }
+                    let t = fresh.fresh();
+                    let vec_ty = TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] };
+                    return if local_errors.is_empty() { CheckResult::ok(vec_ty) } else { CheckResult::partial_with(vec_ty, local_errors) };
+                }
+                let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                let result_ty = if let Some(ty) = &arg_ty {
+                    let reduced = reduce(ty, subst, env.types());
+                    match &reduced {
+                        TypeExpr::Parametric { head, args: ta } if head == "wat::core::List" => {
+                            let inner = ta.first().cloned().unwrap_or_else(|| fresh.fresh());
+                            TypeExpr::Parametric {
+                                head: "wat::core::List".into(),
+                                args: vec![apply_subst(&inner, subst)],
+                            }
+                        }
+                        TypeExpr::Parametric { head, args: ta } if head == "wat::core::Vector" => {
+                            let inner = ta.first().cloned().unwrap_or_else(|| fresh.fresh());
+                            TypeExpr::Parametric {
+                                head: "wat::core::Vector".into(),
+                                args: vec![apply_subst(&inner, subst)],
+                            }
+                        }
+                        TypeExpr::Var(_) => {
+                            // Unresolved — return Vec<fresh> to match the TypeScheme fallback.
+                            let t = fresh.fresh();
+                            TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                        }
+                        _ => {
+                            local_errors.push(CheckError::TypeMismatch {
+                                callee: ":wat::core::rest".into(),
+                                param: "#1".into(),
+                                expected: "Vec<T> or List<T>".into(),
+                                got: format_type(&apply_subst(ty, subst)),
+                                span: args[0].span().clone(),
+                            });
+                            let t = fresh.fresh();
+                            TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                        }
+                    }
+                } else {
+                    let t = fresh.fresh();
+                    TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                };
+                return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
             }
             ":wat::core::and" | ":wat::core::or" => {
                 let (val, mut errs) = infer_boolean_shortcircuit(args, head_span, env, locals, fresh, subst).into_parts();
@@ -12140,11 +12262,25 @@ fn infer_positional_accessor(
                     return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
                 }
             }
+            // List<T>: mirrors Vec<T> arm — return Option<T>; runtime
+            // already handles Value::wat__core__List in eval_positional_accessor.
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::List" => {
+                if let Some(inner) = targs.first() {
+                    let result_ty = TypeExpr::Parametric {
+                        head: "wat::core::Option".into(),
+                        args: vec![apply_subst(inner, subst)],
+                    };
+                    return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
+                } else {
+                    // HARVEST (236.2): silent-by-intent — List type has no inner; polymorphic.
+                    return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
+                }
+            }
             _ => {
                 local_errors.push(CheckError::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
-                    expected: "tuple or Vec<T>".into(),
+                    expected: "tuple, Vec<T>, or List<T>".into(),
                     got: format_type(&apply_subst(&ty, subst)),
                     span: args[0].span().clone(),
                 });
@@ -13627,8 +13763,10 @@ fn infer_holon_bundle(
             // type constraint must still be enforced at the call site.
             // Pre-Stone-234.5 TypeScheme said Vector<HolonAST>; we now also accept
             // Vector<Record>. Any other Vector<T> is rejected (TypeMismatch).
+            // Use reduce (not apply_subst) so typealiases like :wat::holon::Holons
+            // (= Vector<HolonAST>) unfold before the structural match.
             if let Some(t) = infer(other, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-                let resolved = apply_subst(&t, subst);
+                let resolved = reduce(&t, subst, env.types());
                 let ok = match &resolved {
                     TypeExpr::Parametric { head, args: ta } if head == "wat::core::Vector" => {
                         ta.len() == 1 && is_holon_or_record(&ta[0])
@@ -14435,6 +14573,43 @@ fn infer_list_constructor(
     }
     let ty = TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
+        args: vec![apply_subst(&elem_ty, subst)],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 220 Stone 220.4 — `:wat::core::List/of` variadic constructor.
+///
+/// `(:wat::core::List/of x1 x2 ...)` — no leading type-keyword; all args
+/// are data elements.  Infers T from the first element (fresh var then
+/// unification); returns `List<T>`.  Zero args → `List<T>` with a fresh T.
+/// Mirrors `infer_list_constructor` but for the `:wat::core::List` head.
+fn infer_linked_list_constructor(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let elem_ty = fresh.fresh();
+    for (i, arg) in args.iter().enumerate() {
+        let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        if let Some(arg_ty) = arg_ty {
+            if unify(&arg_ty, &elem_ty, subst, env.types()).is_err() {
+                local_errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::List/of".into(),
+                    param: format!("#{}", i + 1),
+                    expected: format_type(&apply_subst(&elem_ty, subst)),
+                    got: format_type(&apply_subst(&arg_ty, subst)),
+                    span: arg.span().clone(),
+                });
+            }
+        }
+    }
+    let ty = TypeExpr::Parametric {
+        head: "wat::core::List".into(),
         args: vec![apply_subst(&elem_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
