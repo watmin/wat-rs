@@ -23,11 +23,11 @@
 (:wat::test::make-deftest :deftest
   ((:wat::core::define
      (:wat-telemetry::log-test::empty-tags -> :wat::telemetry::Tags)
-     (:wat::core::HashMap :wat::telemetry::Tag))
+     (:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST))
 
    (:wat::core::define
      (:wat-telemetry::log-test::default-ns -> :wat::holon::HolonAST)
-     (:wat::holon::Atom :wat-telemetry::log-test::ns))
+     (:wat::holon::to-holon :wat-telemetry::log-test::ns))
 
    (:wat::core::define
      (:wat-telemetry::log-test::default-caller -> :wat::core::keyword)
@@ -72,7 +72,7 @@
      (:wat::core::match event -> :wat::core::keyword
        ((:wat::telemetry::Event::Log
           _t _ns _c level-notag _u _tags _d)
-         (:wat::core::atom-value
+         (:wat::holon::from-holon
            (:wat::edn::NoTag/0 level-notag)))
        ((:wat::telemetry::Event::Metric
           _s _e _ns _u _tags _n _v _unit)

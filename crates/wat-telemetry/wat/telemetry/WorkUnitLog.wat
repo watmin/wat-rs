@@ -86,18 +86,18 @@
      ns (:wat::telemetry::WorkUnit/namespace wu)
      uuid               (:wat::telemetry::WorkUnit/uuid wu)
      tags (:wat::telemetry::WorkUnit/tags wu)
-     ;; Lift keyword → HolonAST → NoTag. Atom is polymorphic per
-     ;; arc 057 (∀T. T → HolonAST); a runtime keyword Value lifts
-     ;; to a holon-ast leaf.
-     caller-ast (:wat::holon::Atom caller)
-     level-ast (:wat::holon::Atom level)
+     ;; Lift keyword → HolonAST → NoTag. to-holon is the ∀T value→HolonAST
+     ;; bridge (arc 225; Atom narrowed to HolonAST→HolonAST); a runtime
+     ;; keyword Value lifts to its holon-form.
+     caller-ast (:wat::holon::to-holon caller)
+     level-ast (:wat::holon::to-holon level)
      ns-notag  (:wat::edn::NoTag/new ns)
      caller-notag  (:wat::edn::NoTag/new caller-ast)
      level-notag  (:wat::edn::NoTag/new level-ast)
-     ;; Lower the captured form to a HolonAST (Atom's WatAST arm —
-     ;; runtime.rs:6129's `watast_to_holon` — handles the structural
-     ;; lowering: primitives → leaves, list-forms → Bundles).
-     data-holon (:wat::holon::Atom data)
+     ;; Lower the captured WatAST to a HolonAST via from-wat (arc 225
+     ;; rename of from-watast; the WatAST→HolonAST bridge) — handles the
+     ;; structural lowering: primitives → leaves, list-forms → Bundles.
+     data-holon (:wat::holon::from-wat data)
      ;; Tagged-wrap so the sqlite shim writes via :wat::edn::write
      ;; (round-trip-safe; logs read back as HolonAST and pattern-
      ;; match per arc 091's design).
