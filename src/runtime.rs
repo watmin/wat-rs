@@ -5600,51 +5600,13 @@ fn dispatch_keyword_head_value(
             }
         }),
 
-        // Arc 148 slice 4 — mixed-type binary leaves. Substrate-internal
-        // addressing for the binary Dispatch entities at
-        // `:wat::core::<v>,2` (declared in `wat/core.wat`). Reachable
-        // per the no-privacy doctrine; rarely needed at user-call sites
-        // (the polymorphic variadic `:wat::core::<v>` covers mixed
-        // numerics ergonomically). Per the comma-typed-leaf rule:
-        // these exist iff Rust impls genuinely differ per type-pair —
-        // i64+i64 and i64+f64 ARE different functions, so the leaves
-        // are honest substrate.
-        ":wat::core::+'i64'f64" => {
-            eval_i64_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b))
-        }
-        ":wat::core::-'i64'f64" => {
-            eval_i64_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b))
-        }
-        ":wat::core::*'i64'f64" => {
-            eval_i64_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b))
-        }
-        ":wat::core::/'i64'f64" => {
-            eval_i64_f64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-                if b == 0.0 {
-                    Err(RuntimeError::DivisionByZero(b_span.clone()))
-                } else {
-                    Ok(a / b)
-                }
-            })
-        }
-        ":wat::core::+'f64'i64" => {
-            eval_f64_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b))
-        }
-        ":wat::core::-'f64'i64" => {
-            eval_f64_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b))
-        }
-        ":wat::core::*'f64'i64" => {
-            eval_f64_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b))
-        }
-        ":wat::core::/'f64'i64" => {
-            eval_f64_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-                if b == 0.0 {
-                    Err(RuntimeError::DivisionByZero(b_span.clone()))
-                } else {
-                    Ok(a / b)
-                }
-            })
-        }
+        // arc 237 Stone 237.8a — mixed-type binary leaf arms DELETED
+        // under THE DECISION (`feedback_no_implicit_coercion`).
+        // +'i64'f64, -'i64'f64, *'i64'f64, /'i64'f64,
+        // +'f64'i64, -'f64'i64, *'f64'i64, /'f64'i64 — all retired.
+        // Their eval helpers (eval_i64_f64_arith / eval_f64_i64_arith)
+        // and Value-level inner helpers (arith_i64_f64_inner /
+        // arith_f64_i64_inner) are also deleted below.
         // Float min/max — strict f64. Arc 046.
         ":wat::core::f64::max" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.max(b))),
         ":wat::core::f64::min" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.min(b))),
@@ -8552,96 +8514,10 @@ where
     }
 }
 
-/// Arc 148 slice 4 — mixed-type leaf: `(i64, f64) → f64`.
-///
-/// Substrate-internal addressing for the 4 binary Dispatch entities
-/// (`:wat::core::{+,-,*,/},2`). Promotion rule: LHS i64 cast to f64,
-/// then f64 binary op. Names registered as
-/// `:wat::core::<v>,i64-f64`. Always binary; no variadic possible
-/// over a fixed type-pair.
-fn eval_i64_f64_arith<F>(
-    head: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: F,
-) -> Result<Value, RuntimeError>
-where
-    F: Fn(f64, f64, &Span) -> Result<f64, RuntimeError>,
-{
-    if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: head.into(),
-            expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        });
-    }
-    let a_span = args[0].span().clone();
-    let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
-    match (a, b) {
-        (Value::i64(x), Value::f64(y)) => Ok(Value::f64(op(x as f64, y, &b_span)?)),
-        (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::TypeMismatch {
-            op: head.into(),
-            expected: "i64",
-            got: ValueSnapshot::of(&other),
-            span: a_span,
-        }),
-        (_, other) => Err(RuntimeError::TypeMismatch {
-            op: head.into(),
-            expected: "f64",
-            got: ValueSnapshot::of(&other),
-            span: b_span,
-        }),
-    }
-}
-
-/// Arc 148 slice 4 — mixed-type leaf: `(f64, i64) → f64`.
-///
-/// Sibling to `eval_i64_f64_arith`. RHS i64 cast to f64, then f64
-/// binary op. Names registered as `:wat::core::<v>,f64-i64`.
-fn eval_f64_i64_arith<F>(
-    head: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: F,
-) -> Result<Value, RuntimeError>
-where
-    F: Fn(f64, f64, &Span) -> Result<f64, RuntimeError>,
-{
-    if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: head.into(),
-            expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        });
-    }
-    let a_span = args[0].span().clone();
-    let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
-    match (a, b) {
-        (Value::f64(x), Value::i64(y)) => Ok(Value::f64(op(x, y as f64, &b_span)?)),
-        (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::TypeMismatch {
-            op: head.into(),
-            expected: "f64",
-            got: ValueSnapshot::of(&other),
-            span: a_span,
-        }),
-        (_, other) => Err(RuntimeError::TypeMismatch {
-            op: head.into(),
-            expected: "i64",
-            got: ValueSnapshot::of(&other),
-            span: b_span,
-        }),
-    }
-}
+// arc 237 Stone 237.8a — eval_i64_f64_arith and eval_f64_i64_arith
+// DELETED under THE DECISION (`feedback_no_implicit_coercion`).
+// Mixed-type leaf eval helpers are dead; their only callers were the
+// +'i64'f64 / +'f64'i64 (etc.) match arms, which are also deleted.
 
 // ─── Scalar conversions (arc 014) ───────────────────────────────────
 //
@@ -9848,39 +9724,14 @@ fn apply_arith_pair(
                 }
             }
         },
-        (Value::i64(x), Value::f64(y)) => {
-            let xf = *x as f64;
-            match op {
-                ArithOp::Add => Ok(Value::f64(xf + y)),
-                ArithOp::Sub => Ok(Value::f64(xf - y)),
-                ArithOp::Mul => Ok(Value::f64(xf * y)),
-                ArithOp::Div => {
-                    if *y == 0.0 {
-                        Err(RuntimeError::DivisionByZero(b_span.clone()))
-                    } else {
-                        Ok(Value::f64(xf / y))
-                    }
-                }
-            }
-        }
-        (Value::f64(x), Value::i64(y)) => {
-            let yf = *y as f64;
-            match op {
-                ArithOp::Add => Ok(Value::f64(x + yf)),
-                ArithOp::Sub => Ok(Value::f64(x - yf)),
-                ArithOp::Mul => Ok(Value::f64(x * yf)),
-                ArithOp::Div => {
-                    if yf == 0.0 {
-                        Err(RuntimeError::DivisionByZero(b_span.clone()))
-                    } else {
-                        Ok(Value::f64(x / yf))
-                    }
-                }
-            }
-        }
+        // arc 237 Stone 237.8a — THE DECISION: cross-type promotion arms
+        // DELETED. Mixed (i64, f64) and (f64, i64) are TypeMismatch at
+        // runtime (defense-in-depth; check-time tightening in
+        // `infer_arithmetic` is the primary gate). Callers homogenize
+        // explicitly via `:wat::core::i64::to-f64` before calling.
         _ => Err(RuntimeError::TypeMismatch {
             op: head.into(),
-            expected: "matching numeric pair (i64 or f64)",
+            expected: "matching numeric pair (i64, i64) or (f64, f64)",
             got: ValueSnapshot::of(&a),
             span: a_span.clone(),
         }),
@@ -11747,15 +11598,15 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        // Arc 148 slice 4 — arithmetic leaves reachable via the binary
-        // Dispatch entities at `:wat::core::<v>,2` (declared in
-        // `wat/core.wat`). The dispatch routes here once an arm
-        // matches; the Value-level helpers live alongside the
-        // AST-level `eval_*_arith` functions and operate on the
-        // already-evaluated args.
+        // Arc 148 slice 4 — per-Type arithmetic leaves reachable via
+        // direct substrate addressing (no-privacy doctrine). The binary
+        // Dispatch entity decls were DELETED in arc 237 Stone 237.8a
+        // (no more cross-type arms); these per-Type leaves remain as
+        // the irreducible primitives.
         //
-        // 4 same-type i64-i64 + 4 same-type f64-f64 + 4 mixed
-        // i64-f64 + 4 mixed f64-i64 = 16 leaves.
+        // arc 237 Stone 237.8a — 4 same-type i64-i64 + 4 same-type
+        // f64-f64 = 8 leaves. Mixed-type leaves (+'i64'f64 etc.)
+        // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
         ":wat::core::i64::+'2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_add(b)))),
         ":wat::core::i64::-'2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_sub(b)))),
         ":wat::core::i64::*'2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_mul(b)))),
@@ -11768,30 +11619,16 @@ pub(crate) fn dispatch_substrate_impl(
         ":wat::core::f64::/'2" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| {
             if b == 0.0 { Err(()) } else { Ok(a / b) }
         })),
-        ":wat::core::+'i64'f64" => Some(arith_i64_f64_inner(impl_name, vals, |a, b| Ok(a + b))),
-        ":wat::core::-'i64'f64" => Some(arith_i64_f64_inner(impl_name, vals, |a, b| Ok(a - b))),
-        ":wat::core::*'i64'f64" => Some(arith_i64_f64_inner(impl_name, vals, |a, b| Ok(a * b))),
-        ":wat::core::/'i64'f64" => Some(arith_i64_f64_inner(impl_name, vals, |a, b| {
-            if b == 0.0 { Err(()) } else { Ok(a / b) }
-        })),
-        ":wat::core::+'f64'i64" => Some(arith_f64_i64_inner(impl_name, vals, |a, b| Ok(a + b))),
-        ":wat::core::-'f64'i64" => Some(arith_f64_i64_inner(impl_name, vals, |a, b| Ok(a - b))),
-        ":wat::core::*'f64'i64" => Some(arith_f64_i64_inner(impl_name, vals, |a, b| Ok(a * b))),
-        ":wat::core::/'f64'i64" => Some(arith_f64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0.0 { Err(()) } else { Ok(a / b) }
-        })),
         _ => None,
     }
 }
 
 /// Arc 148 slice 4 — Value-level arithmetic leaves used by
-/// `dispatch_substrate_impl` when the binary Dispatch entity at
-/// `:wat::core::<v>'2` routes to a per-Type or mixed-type leaf with
-/// already-evaluated args. The four shape-specific helpers below
-/// (i64-i64, f64-f64, i64-f64, f64-i64) mirror the AST-level
-/// `eval_<T>_arith` helpers; they exist so direct calls to the
-/// dispatch entity (e.g., `(:wat::core::+'2 1 2.0)`) reach the same
-/// leaf code as the polymorphic variadic's per-pair fold.
+/// `dispatch_substrate_impl` when a per-Type leaf is addressed directly.
+/// Two same-type helpers remain (i64-i64, f64-f64).
+///
+/// arc 237 Stone 237.8a — mixed-type helpers (i64-f64, f64-i64)
+/// DELETED under THE DECISION (`feedback_no_implicit_coercion`).
 ///
 /// The `Err(())` channel signals divide-by-zero (the helper translates
 /// to `RuntimeError::DivisionByZero` with a synthesized span — the
@@ -11845,53 +11682,10 @@ where
     }
 }
 
-fn arith_i64_f64_inner<F>(
-    impl_name: &str,
-    vals: &[Value],
-    op: F,
-) -> Result<Value, RuntimeError>
-where
-    F: Fn(f64, f64) -> Result<f64, ()>,
-{
-    let a = vals.first().expect("arity-checked");
-    let b = vals.get(1).expect("arity-checked");
-    match (a, b) {
-        (Value::i64(x), Value::f64(y)) => match op(*x as f64, *y) {
-            Ok(r) => Ok(Value::f64(r)),
-            Err(()) => Err(RuntimeError::DivisionByZero(Span::unknown())),
-        },
-        _ => Err(RuntimeError::TypeMismatch {
-            op: impl_name.into(),
-            expected: "(i64, f64)",
-            got: ValueSnapshot::of(&a),
-            span: Span::unknown(),
-        }),
-    }
-}
-
-fn arith_f64_i64_inner<F>(
-    impl_name: &str,
-    vals: &[Value],
-    op: F,
-) -> Result<Value, RuntimeError>
-where
-    F: Fn(f64, f64) -> Result<f64, ()>,
-{
-    let a = vals.first().expect("arity-checked");
-    let b = vals.get(1).expect("arity-checked");
-    match (a, b) {
-        (Value::f64(x), Value::i64(y)) => match op(*x, *y as f64) {
-            Ok(r) => Ok(Value::f64(r)),
-            Err(()) => Err(RuntimeError::DivisionByZero(Span::unknown())),
-        },
-        _ => Err(RuntimeError::TypeMismatch {
-            op: impl_name.into(),
-            expected: "(f64, i64)",
-            got: ValueSnapshot::of(&a),
-            span: Span::unknown(),
-        }),
-    }
-}
+// arc 237 Stone 237.8a — arith_i64_f64_inner and arith_f64_i64_inner
+// DELETED under THE DECISION (`feedback_no_implicit_coercion`).
+// Their only callers were the +'i64'f64 / +'f64'i64 dispatch arms,
+// which are also deleted.
 
 // Arc 146 slice 3 — `eval_empty_q` retired. The polymorphism is
 // honest now: a Dispatch (declared in `wat/core.wat`) routes
@@ -26474,16 +26268,8 @@ fn step_list(
         | ":wat::core::f64::abs"
         | ":wat::core::f64::max"
         | ":wat::core::f64::min"
-        // Arc 148 slice 4 — mixed-type arithmetic leaves.
-        // Substrate-internal addressing reachable per no-privacy.
-        | ":wat::core::+'i64'f64"
-        | ":wat::core::-'i64'f64"
-        | ":wat::core::*'i64'f64"
-        | ":wat::core::/'i64'f64"
-        | ":wat::core::+'f64'i64"
-        | ":wat::core::-'f64'i64"
-        | ":wat::core::*'f64'i64"
-        | ":wat::core::/'f64'i64"
+        // arc 237 Stone 237.8a — +'i64'f64 / +'f64'i64 etc. mixed-type
+        // canonical entries DELETED under THE DECISION.
         | ":wat::core::u8" => step_descend_then_fire(items, list_span, env, sym),
         // Holon constructors — pure ops over the closed algebra (arc 057).
         // They use a holon-canonical fire condition: a list whose head is

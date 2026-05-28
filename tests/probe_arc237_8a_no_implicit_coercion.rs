@@ -132,7 +132,6 @@ fn comparison_string_same_type_works() {
 // comes off.
 
 #[test]
-#[ignore = "Stone 237.8a: remove this #[ignore] when the substrate tightens — i64+f64 must reject at check"]
 fn arith_i64_f64_mixed_rejected_at_check() {
     let result = try_startup(
         r#"(:wat::core::define (:user::compute -> :wat::core::f64)
@@ -146,7 +145,6 @@ fn arith_i64_f64_mixed_rejected_at_check() {
 }
 
 #[test]
-#[ignore = "Stone 237.8a: remove this #[ignore] when the substrate tightens — f64+i64 must reject at check"]
 fn arith_f64_i64_mixed_rejected_at_check() {
     let result = try_startup(
         r#"(:wat::core::define (:user::compute -> :wat::core::f64)
@@ -160,7 +158,6 @@ fn arith_f64_i64_mixed_rejected_at_check() {
 }
 
 #[test]
-#[ignore = "Stone 237.8a: remove this #[ignore] when the substrate tightens — comparison cross-numeric must reject at check"]
 fn comparison_i64_f64_mixed_rejected_at_check() {
     let result = try_startup(
         r#"(:wat::core::define (:user::compute -> :wat::core::bool)

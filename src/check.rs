@@ -13107,18 +13107,19 @@ fn infer_hashset_constructor(
 /// Arc 050 — polymorphic comparison/equality inference.
 ///
 /// Check-side signature inference for the polymorphic comparison
-/// family (`:wat::core::{=,not=,<,>,<=,>=}`). Same-type-for-non-
-/// numeric, cross-numeric-promotion-for-(i64,f64) pairs. Always
-/// returns `:bool`.
+/// family (`:wat::core::{=,not=,<,>,<=,>=}`). Same-type or
+/// subtype-related required per THE DECISION. Always returns `:bool`.
+///
+/// arc 237 Stone 237.8a — THE DECISION (`feedback_no_implicit_coercion`):
+/// cross-numeric path DELETED. `(< 1 2.0)` → TypeMismatch at check.
+/// Numeric comparison is now same-type-only: (i64, i64) succeeds via
+/// unify; (f64, f64) succeeds via unify; (i64, f64) fails unify AND
+/// neither is a subtype of the other → TypeMismatch. Callers
+/// homogenize explicitly before comparing.
 ///
 /// The runtime path (`eval_eq` / `eval_compare` / `eval_not_eq`
-/// over `values_equal` / `values_compare`) already handles
-/// cross-numeric routing AND universal same-type delegation (arc
-/// 148 slice 3). This checker branch is the call-side companion
-/// that admits the (i64, f64) mixed pair and otherwise unifies
-/// the two arg types — which is genuine custom inference (any-
-/// same-type-with-PartialOrd + mixed-numeric exception) that no
-/// arc-146 Dispatch entity can express without arm-explosion.
+/// over `values_equal` / `values_compare`) is the defense-in-depth
+/// companion; check-time tightening is the primary gate.
 ///
 /// Renamed from `infer_polymorphic_compare` in arc 148 slice 5
 /// to drop the polymorphic-handler anti-pattern framing. The
@@ -13154,11 +13155,12 @@ fn infer_comparison(
     if let (Some(a), Some(b)) = (a_ty, b_ty) {
         let a_resolved = apply_subst(&a, subst);
         let b_resolved = apply_subst(&b, subst);
-        // Numeric cross-type allowed: (i64, f64) and (f64, i64) accepted.
-        if is_numeric(&a_resolved) && is_numeric(&b_resolved) {
-            return if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) };
-        }
-        // Non-numeric: same-type or subtype-related required.
+        // arc 237 Stone 237.8a — THE DECISION: cross-numeric path DELETED.
+        // (i64, f64) and (f64, i64) now fall through to the same-type-or-
+        // subtype check below; they fail unify and neither is a subtype of
+        // the other → TypeMismatch. Callers homogenize explicitly.
+        //
+        // Same-type or subtype-related required.
         // `=` is type-strict at runtime (different variants → false), but
         // type-COMPATIBLE at check time: two types that share a common ancestor
         // via the `typesub` hierarchy may be compared — the result may be false
@@ -13192,14 +13194,20 @@ fn infer_comparison(
 /// `infer_polymorphic_arith` per slice 5 precedent: the polymorphic-
 /// handler anti-pattern framing was the issue; the function itself
 /// is honest substrate. Custom inference is the right shape because
-/// no wat type expresses "Vector of mixed numerics with f64-promoting
-/// fold" — Vector<T> can't unify across i64/f64; an untyped vector
-/// would lose all check-time safety.
+/// no wat type expresses "Vector of homogeneous numerics" — Vector<T>
+/// can't unify across i64/f64; an untyped vector would lose all
+/// check-time safety.
 ///
-/// All args must be numeric (`:i64` or `:f64`). Result type is `:f64`
-/// if any arg is `:f64` (or 1-ary `-`/`/` with f64 arg), else `:i64`.
-/// Mixed inputs promote at runtime (i64 cast to f64) per the binary
-/// Dispatch entity arms at `:wat::core::<v>,2`.
+/// arc 237 Stone 237.8a — THE DECISION (`feedback_no_implicit_coercion`):
+/// no implicit numeric coercion. All numeric args MUST be the same
+/// type. `(+ 1 2.0)` → TypeMismatch at check. Callers homogenize
+/// explicitly via `:wat::core::i64::to-f64` (or `:f64::to-i64`).
+/// Mixed-type Dispatch entity arms and leaves DELETED; same-type
+/// routes directly through per-Type leaves.
+///
+/// All args must be numeric (`:i64` or `:f64`) and same-type. Result
+/// is `:i64` if all args are `:i64`; `:f64` if all are `:f64`. Mixed
+/// (i64 + f64) → TypeMismatch; callers homogenize explicitly.
 ///
 /// Lisp/Clojure arity rules per DESIGN § "Arity rules":
 /// - `+`/`*` 0-ary returns `:i64` (identity 0/1)
@@ -13207,7 +13215,7 @@ fn infer_comparison(
 /// - 1-ary `+`/`*` returns the arg unchanged (preserves type)
 /// - 1-ary `-`/`/` inserts identity-on-left (negation/reciprocal;
 ///   preserves type)
-/// - 2+-ary folds left via the binary Dispatch (per-pair routing)
+/// - 2+-ary folds left via per-Type leaves (same-type only)
 fn infer_arithmetic(
     op: &str,
     head_span: &Span,
@@ -13277,14 +13285,36 @@ fn infer_arithmetic(
         return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
     }
 
-    // 2+-ary: result type is :f64 if ANY arg is :f64; else :i64.
-    let any_f64 = resolved.iter().any(|o| matches!(o, Some(t) if !is_i64(t) && is_numeric(t)));
-    let all_known_numeric = resolved.iter().all(|o| matches!(o, Some(t) if is_numeric(t)));
-    let ty = if all_known_numeric {
-        if any_f64 { f64_ty } else { i64_ty }
-    } else {
-        // Unknown or non-numeric somewhere — fall back to f64.
-        f64_ty
+    // 2+-ary: THE DECISION — all args MUST be the same numeric type.
+    // Mixed (i64 + f64) is rejected at check; callers homogenize
+    // explicitly via `:i64::to-f64` (or vice versa).
+    let all_i64 = resolved.iter().all(|o| matches!(o, Some(t) if is_i64(t)));
+    let all_f64 = resolved.iter().all(|o| matches!(o, Some(t) if is_numeric(t) && !is_i64(t)));
+    let ty = match (all_i64, all_f64) {
+        (true, _) => i64_ty,
+        (_, true) => f64_ty,
+        _ => {
+            // Mixed or unknown — push TypeMismatch naming the first
+            // arg whose type differs from arg #1 (the canonical offender).
+            if let Some(Some(first_ty)) = resolved.first() {
+                for (i, t_opt) in resolved.iter().enumerate().skip(1) {
+                    if let Some(t) = t_opt {
+                        if unify(t, first_ty, subst, env.types()).is_err() {
+                            local_errors.push(CheckError::TypeMismatch {
+                                callee: op.into(),
+                                param: format!("#{}", i + 1),
+                                expected: format_type(first_ty),
+                                got: format_type(t),
+                                span: args[i].span().clone(),
+                            });
+                            break;
+                        }
+                    }
+                }
+            }
+            // Fallback return type; the error was pushed above.
+            f64_ty
+        }
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -16283,44 +16313,11 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
 
-    // Arc 148 slice 4 — mixed-type arithmetic leaves. Per the locked
-    // DESIGN: the 4 binary Dispatch entities at `:wat::core::<v>,2`
-    // (declared in `wat/core.wat`) route mixed-numeric calls to
-    // these named arms. Substrate-internal addressing reachable per
-    // no-privacy; rarely needed at user-call sites (the polymorphic
-    // variadic `:wat::core::<v>` covers mixed numerics ergonomically).
-    for op in &[
-        ":wat::core::+'i64'f64",
-        ":wat::core::-'i64'f64",
-        ":wat::core::*'i64'f64",
-        ":wat::core::/'i64'f64",
-    ] {
-        env.register(
-            op.to_string(),
-            TypeScheme {
-                type_params: vec![],
-                params: vec![i64_ty(), f64_ty()],
-                ret: f64_ty(),
-                rest_param_type: None,
-            },
-        );
-    }
-    for op in &[
-        ":wat::core::+'f64'i64",
-        ":wat::core::-'f64'i64",
-        ":wat::core::*'f64'i64",
-        ":wat::core::/'f64'i64",
-    ] {
-        env.register(
-            op.to_string(),
-            TypeScheme {
-                type_params: vec![],
-                params: vec![f64_ty(), i64_ty()],
-                ret: f64_ty(),
-                rest_param_type: None,
-            },
-        );
-    }
+    // arc 237 Stone 237.8a — mixed-type arithmetic leaf registrations
+    // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
+    // +'i64'f64, -'i64'f64, *'i64'f64, /'i64'f64,
+    // +'f64'i64, -'f64'i64, *'f64'i64, /'f64'i64 — all retired.
+    // Per-Type leaves (i64::+'2 etc.) remain (irreducible primitives).
     // Arc 019 — f64 rounding primitive. `(round v digits) -> f64`
     // rounds `v` to `digits` decimal places using round-half-away-
     // from-zero. `digits=0` rounds to the nearest integer;

@@ -1060,10 +1060,11 @@ mod tests {
 
     #[test]
     fn keyword_apostrophe_full_op_table() {
-        // C — all four mixed-type variants parse as single keywords.
+        // arc 237 Stone 237.8a — mixed-type op variants (cross-numeric)
+        // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
+        // Only the same-type variants (op'f64'f64, op'i64'i64) remain
+        // as lexer-level test coverage.
         for kw in &[
-            ":wat::core::op'f64'i64",
-            ":wat::core::op'i64'f64",
             ":wat::core::op'f64'f64",
         ] {
             assert_eq!(

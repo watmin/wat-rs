@@ -56,52 +56,30 @@
 
 ;; ─── Arc 148 slice 4 — Numeric arithmetic ────────────────────────────
 ;;
-;; Each of `+`, `-`, `*`, `/` is now a polymorphic surface backed by
-;; a binary Dispatch entity routing to per-Type Rust leaves. Three
-;; layers per the locked DESIGN § "Arithmetic — three layers":
+;; arc 237 Stone 237.8a — `:wat::core::<op>'2` define-dispatch decls
+;; retired under THE DECISION (`feedback_no_implicit_coercion`);
+;; same-type arithmetic routes directly through per-Type leaves
+;; (`:wat::core::i64::+'2` / `:wat::core::f64::+'2`); cross-type is
+;; rejected at check by `infer_arithmetic` (no longer f64-promoting).
+;; Mixed-type Rust leaves (`+'i64'f64` etc.) deleted from substrate.
+;;
+;; Each of `+`, `-`, `*`, `/` remains a polymorphic surface at the
+;; variadic level. Two layers remain per THE DECISION:
 ;;
 ;;   1. Polymorphic variadic at `:wat::core::<v>` (bare name) — STAYS
-;;      as a substrate primitive (Path C of slice 4's BRIEF). Custom
-;;      inference (`infer_arithmetic`) is honest substrate; no wat
-;;      type expresses "Vector of mixed numerics with f64-promoting
-;;      fold." Variadic arity per Lisp/Clojure tradition.
+;;      as a substrate primitive with same-type-only discipline.
+;;      Custom inference (`infer_arithmetic`) rejects mixed numeric
+;;      pairs at check time; callers homogenize explicitly via
+;;      `:wat::core::i64::to-f64` (or vice versa).
 ;;
-;;   2. Binary Dispatch entity at `:wat::core::<v>'2` — declared
-;;      below. 4 arms covering (i64,i64), (f64,f64), (i64,f64),
-;;      (f64,i64). Routes to per-Type leaves and mixed leaves.
-;;
-;;   3. Per-Type Rust binary primitives at `:wat::core::<Type>::<v>'2`
-;;      and mixed-type leaves at `:wat::core::<v>'<type1>'<type2>` —
-;;      registered in `register_builtins` (src/runtime.rs +
+;;   2. Per-Type Rust binary primitives at `:wat::core::<Type>::<v>'2`
+;;      — registered in `register_builtins` (src/runtime.rs +
 ;;      src/check.rs). Reachable per the no-privacy doctrine.
+;;      Mixed-type leaves (`+'i64'f64` etc.) DELETED.
 ;;
 ;; Same-type variadic wat fns at `:wat::core::<Type>::<v>` (the bare
 ;; per-Type name) wrap the per-Type binary leaf via arc 150's variadic
-;; define + `:wat::core::foldl` — declared after the dispatches below.
-
-(:wat::core::define-dispatch :wat::core::+'2
-  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::+'2)
-  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::+'2)
-  ((:wat::core::i64 :wat::core::f64)  :wat::core::+'i64'f64)
-  ((:wat::core::f64 :wat::core::i64)  :wat::core::+'f64'i64))
-
-(:wat::core::define-dispatch :wat::core::-'2
-  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::-'2)
-  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::-'2)
-  ((:wat::core::i64 :wat::core::f64)  :wat::core::-'i64'f64)
-  ((:wat::core::f64 :wat::core::i64)  :wat::core::-'f64'i64))
-
-(:wat::core::define-dispatch :wat::core::*'2
-  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::*'2)
-  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::*'2)
-  ((:wat::core::i64 :wat::core::f64)  :wat::core::*'i64'f64)
-  ((:wat::core::f64 :wat::core::i64)  :wat::core::*'f64'i64))
-
-(:wat::core::define-dispatch :wat::core::/'2
-  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::/'2)
-  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::/'2)
-  ((:wat::core::i64 :wat::core::f64)  :wat::core::/'i64'f64)
-  ((:wat::core::f64 :wat::core::i64)  :wat::core::/'f64'i64))
+;; define + `:wat::core::foldl` — declared after this comment block.
 
 ;; ─── Same-type variadic wat fns (8 total) ─────────────────────────────
 ;;
