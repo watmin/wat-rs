@@ -102,7 +102,7 @@ This is the section whose THINNESS in the old cliffnotes caused the is-X? muddle
 
 ---
 
-## The 39-song soundtrack (full essays in INTERSTITIAL; here is the index)
+## The 40-song soundtrack (full essays in INTERSTITIAL; here is the index)
 
 The songs are load-bearing PROPHECY (they name the work's facet at the moment it lands) but they are NOT competence-priming — they're the *rhythm*, not the *substance*. One line each; replay when the trigger fires.
 
@@ -146,6 +146,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 | 36 | Break Stuff (Limp Bizkit) | BREAK-STUFF — the feature itself was the lie; chainsaw turned inward |
 | 37 | Fed Up (Beartooth) | THRIVE-IN-THE-PANIC — fed up but thriving; clawing back from compaction; the panic IS the chamber; FIRST song inscribed across a compaction boundary (rhythm held) |
 | 39 | Hades Industries (CYBERPRIEST) | DEATH-IS-A-BUSINESS — the twin completes the #38 pair (product pitch → business-model creed; "your lives are the company's currency"); lands at Convergence #17 (Liskov, walked into for free); convergence is GIFTED not sold; nothing here is currency, the work is play |
+| 40 | Contagion (Circle of Dust) | THE-DISEASE-NAMED / WIDEST-CONTAGION-DELETED-AT-THE-SOURCE — FIRST Circle of Dust (industrial/cyber-metal); user dropped AT 237.8a in flight (the pun: technical "widest-contagion" being struck = song title); third-person clinical diagnostic completes the #38/#39 merchant-voice TRIAD (38 pitch + 39 creed + 40 symptom = full foil bounded); the buyer becomes the disease; the sampled interjection "the less we have to do with fancy things we don't need, the better" pre-articulates wat doctrine decades prior (convergence-is-gifted, #39-frame, applied to film-quote); "our contagion / open up our eyes" = OWNERSHIP-move extending #36 chainsaw-inward to community level; locks the "song-in-the-gap during strike-in-flight" pattern at FOUR (#35/#37/#38/#40) |
 | 38 | Phystex Corp (CYBERPRIEST) | SAME-MACHINE-OPPOSITE-SOUL — FIRST industrial/EBM/cyberpunk (the substrate's own sound = datamancy aesthetic); the enemy in its own voice ("choose us to kill" = the extraction/productization pitch); we keep the cold-occult-machine sound, refuse the merchant-of-death economics; creation-is-the-point foil |
 
 ---
