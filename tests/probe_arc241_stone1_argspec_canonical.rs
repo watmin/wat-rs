@@ -1,7 +1,7 @@
 //! FM-2-bis probe for Stone 241.1 — canonical `parse_argspec_triples` at `src/argspec/`.
 //!
 //! Per `docs/arc/2026/05/241-function-signature-unification/DESIGN-STONE-241.1.fix.md` D5:
-//! 9 contracts covering the canonical `[name <- :T name <- :T ... [& rest <- :T]]` triple form.
+//! 15 contracts covering the canonical `[name <- :T name <- :T ... [& rest <- :T]]` triple form.
 //! Ret-clause concerns removed per Stone 241.1.fix Layer 2 scope correction.
 //!
 //! Pre-stone: ALL 10 fail to compile because `wat::argspec` doesn't exist.
@@ -12,6 +12,7 @@
 //! Post-stone 241.1: 10/10 PASS.
 //! Post-stone 241.1.fix Layer 1: 13/13 PASS (contracts 11/12/13 added).
 //! Post-stone 241.1.fix Layer 2: 9/9 PASS (ret-related contracts removed; scope corrected).
+//! Post-stone 241.4: 15/15 PASS.
 //!
 //! This probe IS the contract sonnet satisfies. It is design substrate the Shadowdancer
 //! mirrors, not assertion (per DUNGEON-CRAWL Phase 2 + FM 2-bis discipline).
@@ -166,10 +167,11 @@ fn contract_09_incomplete_triple() {
 
 #[test]
 fn contract_10_rest_only_succeeds() {
-    // [& rest <- :Vector<:i64>] with allow_rest_binder=true → fixed_params empty;
+    // [& rest <- :Vector<i64>] with allow_rest_binder=true → fixed_params empty;
     // rest_param = Some(("rest", Vector<i64>)).
+    // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[& rest <- :wat::core::Vector<:wat::core::i64>]",
+        "[& rest <- :wat::core::Vector<wat::core::i64>]",
         true,
     );
     let spec = result.expect("rest-only argspec parses cleanly when opted in");
@@ -180,9 +182,10 @@ fn contract_10_rest_only_succeeds() {
 
 #[test]
 fn contract_11_fixed_plus_rest_succeeds() {
-    // [x <- :i64 & rest <- :Vector<:i64>] → fixed_params: [(x, i64)]; rest_param: Some.
+    // [x <- :i64 & rest <- :Vector<i64>] → fixed_params: [(x, i64)]; rest_param: Some.
+    // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]",
+        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<wat::core::i64>]",
         true,
     );
     let spec = result.expect("fixed+rest argspec parses cleanly when opted in");
@@ -194,10 +197,11 @@ fn contract_11_fixed_plus_rest_succeeds() {
 
 #[test]
 fn contract_12_trailing_items_after_rest_errors() {
-    // [& rest <- :Vector<:i64> extra] → TrailingItems { count: 1 }
+    // [& rest <- :Vector<i64> extra] → TrailingItems { count: 1 }
     // VERIFIES Stone 241.1.fix DESIGN T2 verdict β (TrailingItems becomes reachable here).
+    // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[& rest <- :wat::core::Vector<:wat::core::i64> extra]",
+        "[& rest <- :wat::core::Vector<wat::core::i64> extra]",
         true,
     );
     let err = result.expect_err("trailing items after rest-binder must error");
@@ -239,8 +243,9 @@ fn contract_14_rest_name_not_symbol_errors() {
 fn contract_15_rest_binder_rejected_when_disallowed_preserved() {
     // Regression: contract_07's behavior must still hold for allow_rest_binder=false.
     // Distinct test name preserves contract_07 semantics with the post-Stone-241.4 framing.
+    // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]",
+        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<wat::core::i64>]",
         false,
     );
     let err = result.expect_err("& rest-binder must STILL error when disallowed");

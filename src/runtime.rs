@@ -699,6 +699,9 @@ pub enum Value {
 pub struct Clause {
     /// Parallel vectors: binding names and declared types.
     pub args: Vec<(String, crate::types::TypeExpr)>,
+    /// Stone 241.4 — Optional rest-binder `(name, type)` from `& name <- :T`
+    /// in the clause argspec. `None` when no rest-binder is present.
+    pub rest_param: Option<(String, crate::types::TypeExpr)>,
     /// Return type declared for this clause (resolved from shared_return in
     /// Option A, or per-clause `-> :T` in Option B).
     pub return_type: crate::types::TypeExpr,
@@ -6819,26 +6822,6 @@ fn parse_fn_signature(
 
 // ─── Stone 237.2 — defclause parse + eval ────────────────────────────────────
 
-/// Parse the args-vector `[name <- :T ...]` from a defclause clause.
-///
-/// Routes through the canonical `parse_argspec_triples`; `?` converts
-/// `ArgSpecError → RuntimeError` via `From<ArgSpecError> for RuntimeError`
-/// (Stone 241.1.fix). Returns `spec.fixed_params` directly — defclause's
-/// `Vec<(String, TypeExpr)>` return shape IS the canonical `fixed_params` shape.
-fn parse_defclause_args(
-    args_vec: &[WatAST],
-    head: &str,
-    form_span: &Span,
-) -> Result<Vec<(String, crate::types::TypeExpr)>, RuntimeError> {
-    let spec = crate::argspec::parse_argspec_triples(
-        args_vec,
-        head,
-        form_span,
-        crate::argspec::ParseOptions { allow_rest_binder: false },
-    )?;
-    Ok(spec.fixed_params)
-}
-
 /// Parse a single clause from a defclause.
 ///
 /// Stone 237.3 full shape:
@@ -6889,7 +6872,14 @@ fn parse_defclause_clause(
         }
     };
 
-    let args = parse_defclause_args(args_vec, head, &form_span)?;
+    let spec = crate::argspec::parse_argspec_triples(
+        args_vec,
+        head,
+        &form_span,
+        crate::argspec::ParseOptions { allow_rest_binder: true },
+    )?;
+    let args = spec.fixed_params;
+    let rest_param = spec.rest_param;
 
     // Stone 237.3: flexible scan of items[1..] for optional :guard, :ensure, ->, body.
     //
@@ -7065,6 +7055,7 @@ fn parse_defclause_clause(
 
     Ok(Clause {
         args,
+        rest_param,
         return_type,
         guard: guard_ast,
         ensure_fn: ensure_ast,

@@ -28,9 +28,7 @@ pub enum ArgSpecError {
         inner: Box<TypeError>,
     },
     /// Items remain after the expected end of the argspec
-    /// (after the final triple).
-    // rune:purgare(future-fixture) — Stone 241.4 makes TrailingItems reachable after
-    //                                rest-binder logic ships; 241.1 loop consumes full slice.
+    /// (after the rest-binder triple).
     TrailingItems { span: Span, head: String, count: usize },
     /// The triple at some position is incomplete — fewer than 3
     /// items remain before end-of-slice or a rest-marker.

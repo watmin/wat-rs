@@ -45,12 +45,18 @@
 //!
 //! ## Migration plan
 //!
-//! - **Stone 241.1 (this)** — mints the canonical parser ALONGSIDE the old ones.
-//!   A1/A2/A3/A4 remain untouched; probe `tests/probe_arc241_stone1_argspec_canonical.rs`
-//!   verifies the new parser independently.
-//! - **Stones 241.2/241.3** — migrate A1/A2/A3 and A4 to route through here.
-//! - **Stone 241.4** — adds `&` rest-binder parsing (`allow_rest_binder = true` path).
-//! - **Stone 241.5** — defclause opt-in to rest-binder; probe 237.8b Gate 1 flips green.
+//! - **Stone 241.1** — minted the canonical parser ALONGSIDE the old ones.
+//!   A1/A2/A3/A4 remained untouched; probe `tests/probe_arc241_stone1_argspec_canonical.rs`
+//!   verified the new parser independently. DONE.
+//! - **Stone 241.2** — migrated A1+A2+A3 (the three fn-form parsers: runtime.rs
+//!   `parse_fn_signature` + check.rs `parse_fn_signature_for_check` +
+//!   `parse_fn_signature_for_check_diag`) to route through here. DONE.
+//! - **Stone 241.3** — migrated A4 (runtime.rs `parse_defclause_args`) to route
+//!   through here; Phase 1 closed (all 4 parsers route through canonical). DONE.
+//! - **Stone 241.4** — added `&` rest-binder parsing (`allow_rest_binder = true` path);
+//!   A4 inlined at `parse_defclause_clause` (wrapper deleted as thin braid). DONE.
+//! - **Stone 241.5** — runtime dispatch wiring in `eval_clause_set` (unblocks probe
+//!   237.8b Gate 1). PENDING.
 
 mod error;
 mod parse;

@@ -82,7 +82,7 @@ fn try_compute(src: &str) -> Result<Value, String> {
 /// (parser extension + clause-matching + binding-to-Vector<T> at eval). Then
 /// 8b proceeds. Un-ignore this gate after 8b-prep ships.
 #[test]
-#[ignore = "Stone 237.8b-prep: defclause `&` rest-binder support must be minted FIRST (substrate gap surfaced 2026-05-27); un-ignore after extension lands"]
+#[ignore = "Stone 241.4 shipped parser + storage (canonical `&` rest-binder + ArgSpec.rest_param + Clause.rest_param threading); runtime dispatch wiring in eval_clause_set deferred to Stone 241.5 (~40-60 lines per Stone 241.4 SCORE STOP-6 surface). Un-ignore when 241.5 ships."]
 fn gate_1_defclause_supports_rest_binder() {
     let src = r#"
         (:wat::core::defclause :my::sum-all
