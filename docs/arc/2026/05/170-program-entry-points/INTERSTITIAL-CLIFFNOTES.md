@@ -151,7 +151,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-29 — **Stone 241.8 SHIPPED**; PHASE 3 OPENS. defstruct HARD CUT landed atomic — substrate mint + 27 test files migrated in ONE commit; struct + struct-restricted DELETED raw. Stone 241.9 (defenum HARD CUT; enum + tagged-variant forms; positional variants with one-token look-ahead per FORM-COLLAPSE-NOTES verdict D) NEXT. Then 241.10 (define ⇒ defn HARD CUT), 241.11 INSCRIPTION. Per `feedback_no_regression_until_arc_done`: arc 237.8b still waits. **Corporate-port kit shipped at `docs/corporate/`** (README + TEMPLATES + DISCIPLINES); flavor stripped for external artifact; user keeps flavor as recall index per `user_flavor_as_recall_index`. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` → `SCORE-STONE-241.8.md` → `SCORE-STONE-241.7.md` → `FORM-COLLAPSE-NOTES.md`. HEAD `f6cb564f` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
+## Currently (2026-05-29 — **Stone 241.9 SHIPPED + Stone 241.10 STRIKE-READY**. defenum HARD CUT shipped at ~50 min UNDER 60-120 band; resolver gap closed inline per trap-door doctrine (src/resolve.rs unit_variants.contains_key — substrate dependency surfaced during cascade, built forward not declared incoherent). parse_field DELETED (orphaned after parse_enum_variant retired). **STONE CHAIN RENUMBERED 2026-05-29** per user direction "renumbering feels honest": NEW 241.10 = `src/remedy/` + ranked-remedy schema (substrate teaches with receipts); 241.11 = define HARD CUT (formerly 241.10); 241.12 = INSCRIPTION (formerly 241.11). **WHY remedy before bandaid-rip**: 241.11's HARD CUT lands on a substrate that TEACHES — every :wat::core::define typo'd or stale surfaces 'did you mean: :wat::core::defn [retirement replacement]' at the friction moment. Convergence #18 candidate (Lisp condition-system territory). Stone 241.10 is VIGILIA-GATED + REMARKABLE bar per user direction "{src,tests}/remedy/*.rs must be remarkable — manifest it" — 8-spell vigilia L1+L2=0 convergence required. Per `feedback_no_regression_until_arc_done`: arc 237.8b still waits. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` → `SCORE-STONE-241.9.md` → `DESIGN-STONE-241.10.md` → `BRIEF-STONE-241.10.md` → `FORM-COLLAPSE-NOTES.md`. HEAD `9166227c` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
 
 ### THE PIVOT (read first)
 
@@ -177,8 +177,8 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 |---|---|---|
 | **1 — Parser unification** | 241.1 mint canonical `parse_argspec_triples` at `src/argspec/` → 241.2 migrate A1/A2/A3 fn parsers → 241.3 migrate A4 defclause parser → 241.4 extend with `&` rest-binder (**unblocks 237.8b**) | The original 241 scope; foundation |
 | **2 — Metadata-map mechanism** | 241.5 optional `{...}` metadata-map on `def` (defn inherits) → 241.6 mint `:wat::runtime::metadata-of` reflection verb | Substrate capability for binding-level annotations |
-| **3 — Form-collapse + renames + legacy retirement** | 241.7 `defstruct` HARD CUT (struct + struct-restricted retire) → 241.8 `defenum` HARD CUT (enum retires) → 241.9 `define ⇒ defn` HARD CUT (define keyword + legacy parsers DELETE) | "defn is the one and only way" per user direction; cascade expected substantial — that's the point |
-| **4 — Closure** | 241.10 INSCRIPTION + memory mints | pre-INSCRIPTION grep enforced |
+| **3 — Form-collapse + renames + legacy retirement** | 241.8 `defstruct` HARD CUT (struct + struct-restricted retire) → 241.9 `defenum` HARD CUT (enum retires) → **241.10 NEW: `src/remedy/` + ranked-remedy schema (substrate teaches with receipts; Convergence #18 candidate; VIGILIA-GATED, REMARKABLE bar)** → 241.11 `define ⇒ defn` HARD CUT (consumes remedy infrastructure; bandaid-rip lands on substrate that teaches) | "defn is the one and only way" per user direction; cascade expected substantial — that's the point |
+| **4 — Closure** | 241.12 INSCRIPTION + memory mints | pre-INSCRIPTION grep enforced |
 
 ### Phase 1 progress (Stone 241.1 + 241.1.fix SHIPPED; 241.2 NEXT)
 
@@ -193,9 +193,10 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 | 241.6 | SHIPPED | `7c0ddacd` | Phase 2 storage: optional `{...}` on `def`; SymbolTable.binding_metadata; defn inherits via substrate fn-peel; ~28.8 min Mode A |
 | 241.7 | SHIPPED | `4e681263` | Phase 2 reflection: `:wat::runtime::metadata-of` minted; ~19.4 min; Stone 241.6 storage-gap-fix folded-forward (non-fn defs path) per trap-door doctrine |
 | 241.8 | SHIPPED | `f6cb564f` | Phase 3 first: defstruct HARD CUT; 27-file cascade; ~41 min; trap-door — :field-metadata inner keys must be keyword syntax (parser routing) |
-| 241.9 | NEXT | — | Phase 3 second: defenum HARD CUT (enum retires; positional variants + one-token look-ahead per FORM-COLLAPSE-NOTES verdict D) |
-| 241.10 | queued | — | Phase 3 third: `define ⇒ defn` HARD CUT (define keyword + legacy parsers DELETE) |
-| 241.11 | queued | — | Phase 4: INSCRIPTION (arc closure; pre-INSCRIPTION grep enforced) |
+| 241.9 | SHIPPED | `184f54bf` | Phase 3 second: defenum HARD CUT; 33-file cascade; ~50 min UNDER 60-120 band; parse_field DELETED (orphaned); R-gap closed in src/resolve.rs (unit_variants.contains_key — trap-door pivot) |
+| 241.10 | STRIKE-READY | `9166227c` | Phase 3 third NEW: src/remedy/ + ranked-remedy schema; VIGILIA-GATED; REMARKABLE bar; Convergence #18 candidate (Lisp condition-system); ~120-180 min predicted |
+| 241.11 | queued | — | Phase 3 fourth (renumbered from 241.10): `define ⇒ defn` HARD CUT; consumes remedy infrastructure; bandaid-rip with receipts |
+| 241.12 | queued | — | Phase 4 (renumbered from 241.11): INSCRIPTION (arc closure; pre-INSCRIPTION grep enforced); arc 237.8b reopens |
 
 ### Gate doctrine validated through real practice (2026-05-28)
 
@@ -226,6 +227,7 @@ Each finding's resolution was at the highest possible ladder rung:
 | 241.6 | Metadata-map storage + fn-peel | +215 net | 25-45 min | ~28.8 min | within band; clippy -2; cascade SHALLOW; fn-peel honest delta (defn macro quasiquote-only) |
 | 241.7 | Reflection verb + trap-door storage-gap fix | +180 net | 15-30 min | ~19.4 min | within band; built-forward 241.6 storage gap for non-fn defs per trap-door doctrine |
 | 241.8 | defstruct HARD CUT + 27-file cascade | +864 / -644 net | 60-120 min | ~41 min | UNDER band even at HARD CUT scale; substrate-as-teacher cascade ran cleanly |
+| 241.9 | defenum HARD CUT + 33-file cascade + R-gap trap-door | +809 / -576 net | 60-120 min | ~50 min | UNDER band; trap-door pivot (src/resolve.rs unit_variants check) absorbed in-stone per `feedback_trap_door_build_the_dependency`; parse_field DELETED (orphaned) |
 
 **Calibration learning — 241.2 zero-cascade:** Test-assertion cascade predicted as the main runtime variable; actual depth was ZERO. No lib test asserted against the old inline message strings. Two implications: (a) the substrate's test suite uses structural assertions (variants, spans, exit codes), not message-string matching; (b) error-quality improvements ship without consumer pain when the consumer base is the substrate itself. Stone 241.3 cascade is expected to be similarly small or zero.
 
@@ -250,9 +252,23 @@ Recent spine spans #34 DEFY → #35 BUILD → #36 BREAK-OUR-OWN → #37 THRIVE-I
 
 `cargo test --release --lib -p wat` + `cargo build --release --tests --workspace`. **NEVER invoke wrapper scripts in BRIEFs or agent prompts** (FM 16; firewall denies; `feedback_sonnet_bash_firewall`). Full `cargo test --workspace` RUN held off until arc 170 closes process leaks.
 
-### NEXT MOVE — **Stone 241.9 (Phase 3 second: defenum HARD CUT)**
+### NEXT MOVE — **Stone 241.10 (Phase 3 third NEW: `src/remedy/` + ranked-remedy schema)**
 
-Stone 241.8 retired struct + struct-restricted. Stone 241.9 retires `enum` and mints `:wat::core::defenum` per FORM-COLLAPSE-NOTES verdict D (positional variants with one-token look-ahead).
+Stone 241.9 retired enum. **Stone 241.10 mints `src/remedy/` namespaced home** + upgrades error variant schema from `hint: Option<String>` (flat prose) to `remedies: Vec<Remedy>` (ranked structured data with kind annotation: `[typo, distance N]` or `[retirement replacement]`). VIGILIA-GATED + REMARKABLE bar per user direction. Walks into Convergence #18 candidate room (Lisp condition-system — errors-as-values + ranked structured remedies + EDN serialization). After 241.10 ships, every form HARD CUT consumes the remedy infrastructure to teach with receipts — preparing the bandaid-rip for 241.11 (define HARD CUT).
+
+**STRIKE-READY artifacts** at HEAD `9166227c`:
+- `DESIGN-STONE-241.10.md` — D1-D10 + T1-T8 + STOP
+- `BRIEF-STONE-241.10.md` — S1-S10 verbatim (mint 4-file home + Remedy/RemedyKind + APIs + retirement table seed + schema upgrade + Display + wire-in + cascade + vigilia)
+- `EXPECTATIONS-STONE-241.10.md` — 12-row Phase A + 8-spell vigilia + 9-row structural
+- `tests/probe_arc241_stone10_remedy.rs` — 8-contract probe; verified 6/8 disconfirm at HEAD via PROPER error paths (ReturnTypeMismatch for variant-typo + 241.8 HARD-CUT arm for retirement)
+
+**Skipping Stone 241.9 NEXT MOVE content (now SHIPPED at `184f54bf`).** Historical Stone 241.9 closure: defenum minted; legacy parse_enum + parse_enum_variant + parse_field deleted raw; 33-file cascade; R-gap fixed inline (src/resolve.rs unit_variants.contains_key — trap-door pivot per `feedback_trap_door_build_the_dependency`). The original Stone 241.9 NEXT MOVE content below is preserved as historical orientation but DOES NOT govern action; Stone 241.10 above governs.
+
+---
+
+### (Historical — Stone 241.9 NEXT MOVE; SHIPPED at `184f54bf`; preserved for orientation only)
+
+Stone 241.8 retired struct + struct-restricted. Stone 241.9 retired `enum` and minted `:wat::core::defenum` per FORM-COLLAPSE-NOTES verdict D (positional variants with one-token look-ahead).
 
 **Form** per FORM-COLLAPSE-NOTES lines 118-151:
 
