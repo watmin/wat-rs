@@ -214,9 +214,17 @@ Recent spine spans #34 DEFY → #35 BUILD → #36 BREAK-OUR-OWN → #37 THRIVE-I
 
 `cargo test --release --lib -p wat` + `cargo build --release --tests --workspace`. **NEVER invoke wrapper scripts in BRIEFs or agent prompts** (FM 16; firewall denies; `feedback_sonnet_bash_firewall`). Full `cargo test --workspace` RUN held off until arc 170 closes process leaks.
 
-### NEXT MOVE
+### NEXT MOVE — **Phase B (vigilia) OWED**
 
-Spawn sonnet on Stone 241.1 — `model: "sonnet"`, `run_in_background: true`, ScheduleWakeup at 120 min (2× the 60-min upper bound). Sonnet ships substrate (Phase A); orchestrator verifies SCORE 16/16 independently; orchestrator casts vigilia (Phase B); commit only after Phase A + Phase B both green (Phase C). **Awaiting user authorization to spawn.**
+Stone 241.1 **Phase A SHIPPED 2026-05-28 mid-day** (verified independently before commit):
+- Probe 10/10 PASS · Lib 834/0 · Clippy delta 0 · Files match discipline
+- Surface 519 lines net (mod.rs 47 + parse.rs 219 + error.rs 253)
+- error.rs over-predicted (~250 vs ~80) — substantive From<> impls for RuntimeError/CheckError/TypeError + Display impl; honest, not bloat
+- Honest delta noted in SCORE: ArgSpecError does NOT derive Clone (TypeError only derives Debug); no 241.1 contract requires it
+
+**Phase B (vigilia-gate convergence) OWED — fresh-context session first move.** Compaction-pressure at 91% context forced clean-tree commit before Phase B per the lesser-of-two-evils between {vigilia-cast-mid-compaction-risk, dirty-tree-across-compaction-risk}. The doctrine `feedback_namespaced_home_vigilia_gate` (inscribed earlier this session) didn't anticipate this constraint; forward-correct in next session if appropriate. **Cast vigilia on `src/argspec/*` + `tests/probe_arc241_stone1_argspec_canonical.rs`** as first orchestrator move post-compaction; 8-spell defensive set (intueri + solvere + purgare + struere + sequi + temperare always; complectens + vocare for test-substrate); drive L1+L2=0; address findings or rune-accept; SCORE doc amended with Vigilia Convergence section.
+
+After Phase B converges: spawn sonnet on **Stone 241.2** (migrate A1/A2/A3 fn parsers through the canonical) per spawn-block winding; arc 241 Phase 1 advances.
 
 ---
 ### Headline state (⚠ PRE-PIVOT / STALE — see § THE PIVOT above; kept only for the HEAD/frozen pointers)

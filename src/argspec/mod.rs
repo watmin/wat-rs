@@ -1,0 +1,47 @@
+//! # Argspec — canonical parser for the `[name <- :T name <- :T ... [-> :Ret]]` triple form.
+//!
+//! ## Why this module exists — the failure class being eliminated
+//!
+//! The substrate carried FOUR copies of canonical argspec-parsing logic before
+//! arc 241 (A1 `parse_fn_signature` runtime.rs:6750 / A2 `parse_fn_signature_for_check`
+//! check.rs:15205 / A3 `parse_fn_signature_for_check_diag` check.rs:15258 / A4
+//! `parse_defclause_args` runtime.rs:6880). Duplication ran all the way to the
+//! error-enum class — the same structural failure ("name slot is not a Symbol")
+//! produced three different error variants across sites: `RuntimeError::MalformedForm`
+//! (A1+A4), `()` silenced (A2), `CheckError::MalformedForm` (A3). Two binding sites
+//! could accept different forms; the substrate accepted what the next site silently
+//! rejected; LLM co-authors generated code that worked in one site and broke in
+//! another.
+//!
+//! Per failure-engineering doctrine: **eliminate the class**. State to make
+//! unrepresentable: *two binding sites accepting different arg-vector forms*. This
+//! module mints the ONE canonical parser; subsequent stones (241.2/241.3) migrate
+//! callers; the class is closed when the four old parsers retire.
+//!
+//! ## What this module owns
+//!
+//! The canonical parsing of the flat `name <- :T name <- :T ... [-> :Ret]` triple
+//! form when it appears inside a `WatAST::Vector` at any binding site. Per-site
+//! invariants (include_ret_type, allow_rest_binder) live in `ParseOptions`.
+//!
+//! ## What this module does NOT own
+//!
+//! Form-shape parsing (def / defn / defstruct / defenum each parse their own
+//! form-level shape including arity checks, name keyword, body expression, etc.).
+//! Only the **argspec-triples region** — the Vector whose items are the flat
+//! `name <- :T` triples — routes through this parser.
+//!
+//! ## Migration plan
+//!
+//! - **Stone 241.1 (this)** — mints the canonical parser ALONGSIDE the old ones.
+//!   A1/A2/A3/A4 remain untouched; probe `tests/probe_arc241_stone1_argspec_canonical.rs`
+//!   verifies the new parser independently.
+//! - **Stones 241.2/241.3** — migrate A1/A2/A3 and A4 to route through here.
+//! - **Stone 241.4** — adds `&` rest-binder parsing (`allow_rest_binder = true` path).
+//! - **Stone 241.5** — defclause opt-in to rest-binder; probe 237.8b Gate 1 flips green.
+
+mod error;
+mod parse;
+
+pub use error::ArgSpecError;
+pub use parse::{parse_argspec_triples, ArgSpec, ParseOptions};
