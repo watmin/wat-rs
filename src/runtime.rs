@@ -6765,9 +6765,9 @@ fn parse_fn_signature(
     let arrow_node = &args[1];
     let ret_type_node = &args[2];
 
-    // args[0] must be a Vector (the args-vector).
-    let args_vec = match args_vec_node {
-        WatAST::Vector(items, _) => items,
+    // args[0] must be a Vector (the args-vector); capture span for canonical parser.
+    let (args_vec, args_vec_span) = match args_vec_node {
+        WatAST::Vector(items, span) => (items, span),
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::fn".into(),
@@ -6804,68 +6804,15 @@ fn parse_fn_signature(
         }
     };
 
-    // Walk the args-vector in chunks of 3: name <- :T.
-    let mut params = Vec::new();
-    let mut param_types = Vec::new();
-    let mut i = 0;
-    while i < args_vec.len() {
-        let triple_pos = params.len();
-        if i + 2 >= args_vec.len() {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::fn".into(),
-                reason: format!(
-                    "fn arg-vector triple at position {} must be `name <- :T`; got incomplete trailing tokens (need 3 elements: name, `<-`, type)",
-                    triple_pos
-                ),
-                span: args_vec[i].span().clone(),
-            });
-        }
-        let pname = match &args_vec[i] {
-            WatAST::Symbol(s, _) => s.name.clone(),
-            other => {
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::fn".into(),
-                    reason: format!(
-                        "fn arg-vector triple at position {} must be `name <- :T`; got {} at name slot",
-                        triple_pos,
-                        ast_variant_name(other)
-                    ),
-                    span: other.span().clone(),
-                });
-            }
-        };
-        match &args_vec[i + 1] {
-            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
-            other => {
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::fn".into(),
-                    reason: format!(
-                        "fn arg-vector triple at position {} must be `name <- :T`; got {} where `<-` was expected",
-                        triple_pos,
-                        ast_variant_name(other)
-                    ),
-                    span: other.span().clone(),
-                });
-            }
-        }
-        let ptype = match &args_vec[i + 2] {
-            WatAST::Keyword(k, _) => parse_type_keyword(k)?,
-            other => {
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::fn".into(),
-                    reason: format!(
-                        "fn arg-vector triple at position {} must be `name <- :T`; got {} at type slot",
-                        triple_pos,
-                        ast_variant_name(other)
-                    ),
-                    span: other.span().clone(),
-                });
-            }
-        };
-        params.push(pname);
-        param_types.push(ptype);
-        i += 3;
-    }
+    // Route through the canonical argspec parser; `?` converts ArgSpecError → RuntimeError.
+    let spec = crate::argspec::parse_argspec_triples(
+        args_vec,
+        ":wat::core::fn",
+        args_vec_span,
+        crate::argspec::ParseOptions { allow_rest_binder: false },
+    )?;
+    let (params, param_types): (Vec<String>, Vec<crate::types::TypeExpr>) =
+        spec.fixed_params.into_iter().unzip();
 
     Ok((params, param_types, ret_type))
 }

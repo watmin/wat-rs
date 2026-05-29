@@ -15208,8 +15208,8 @@ fn parse_fn_signature_for_check(
     if args.len() != 4 {
         return Err(());
     }
-    let args_vec = match &args[0] {
-        WatAST::Vector(items, _) => items,
+    let (args_vec, args_vec_span) = match &args[0] {
+        WatAST::Vector(items, span) => (items, span),
         _ => return Err(()),
     };
     // args[1] must be the symbol `->`.
@@ -15222,30 +15222,15 @@ fn parse_fn_signature_for_check(
         WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|_| ())?,
         _ => return Err(()),
     };
-    // args_vec walks in chunks of 3: name <- :T.
-    let mut names = Vec::new();
-    let mut types = Vec::new();
-    let mut i = 0;
-    while i < args_vec.len() {
-        if i + 2 >= args_vec.len() {
-            return Err(());
-        }
-        let name = match &args_vec[i] {
-            WatAST::Symbol(s, _) => s.name.clone(),
-            _ => return Err(()),
-        };
-        match &args_vec[i + 1] {
-            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
-            _ => return Err(()),
-        }
-        let ty = match &args_vec[i + 2] {
-            WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|_| ())?,
-            _ => return Err(()),
-        };
-        names.push(name);
-        types.push(ty);
-        i += 3;
-    }
+    // Route through canonical argspec parser; silence any error as `()`.
+    let spec = crate::argspec::parse_argspec_triples(
+        args_vec,
+        ":wat::core::fn",
+        args_vec_span,
+        crate::argspec::ParseOptions { allow_rest_binder: false },
+    ).map_err(|_| ())?;
+    let (names, types): (Vec<String>, Vec<TypeExpr>) =
+        spec.fixed_params.into_iter().unzip();
     Ok((names, types, ret_type))
 }
 
@@ -15262,8 +15247,8 @@ fn parse_fn_signature_for_check_diag(
     if args.len() != 4 {
         return None;
     }
-    let args_vec = match &args[0] {
-        WatAST::Vector(items, _) => items,
+    let (args_vec, args_vec_span) = match &args[0] {
+        WatAST::Vector(items, span) => (items, span),
         _ => return None,
     };
     // args[1] must be `->`.
@@ -15293,72 +15278,21 @@ fn parse_fn_signature_for_check_diag(
             return None;
         }
     };
-    // Walk the args-vector in chunks of 3.
-    let mut names = Vec::new();
-    let mut types = Vec::new();
-    let mut i = 0;
-    while i < args_vec.len() {
-        let triple_pos = names.len();
-        if i + 2 >= args_vec.len() {
-            errors.push(CheckError::MalformedForm {
-                head: ":wat::core::fn".into(),
-                reason: format!(
-                    "fn arg-vector triple at position {} must be `name <- :T`; got incomplete trailing tokens",
-                    triple_pos
-                ),
-                span: args_vec[i].span().clone(),
-            });
+    // Route through canonical argspec parser; push CheckError and return None on failure.
+    let spec = match crate::argspec::parse_argspec_triples(
+        args_vec,
+        ":wat::core::fn",
+        args_vec_span,
+        crate::argspec::ParseOptions { allow_rest_binder: false },
+    ) {
+        Ok(s) => s,
+        Err(e) => {
+            errors.push(e.into());
             return None;
         }
-        let name = match &args_vec[i] {
-            WatAST::Symbol(s, _) => s.name.clone(),
-            other => {
-                errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::fn".into(),
-                    reason: format!(
-                        "fn arg-vector triple at position {} must be `name <- :T`; got non-symbol at name slot",
-                        triple_pos
-                    ),
-                    span: other.span().clone(),
-                });
-                return None;
-            }
-        };
-        match &args_vec[i + 1] {
-            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
-            other => {
-                errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::fn".into(),
-                    reason: format!(
-                        "fn arg-vector triple at position {} must be `name <- :T`; got non-`<-` token where `<-` was expected",
-                        triple_pos
-                    ),
-                    span: other.span().clone(),
-                });
-                return None;
-            }
-        }
-        let ty = match &args_vec[i + 2] {
-            WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-                Ok(t) => t,
-                Err(_) => return None,
-            },
-            other => {
-                errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::fn".into(),
-                    reason: format!(
-                        "fn arg-vector triple at position {} must be `name <- :T`; got non-keyword at type slot",
-                        triple_pos
-                    ),
-                    span: other.span().clone(),
-                });
-                return None;
-            }
-        };
-        names.push(name);
-        types.push(ty);
-        i += 3;
-    }
+    };
+    let (names, types): (Vec<String>, Vec<TypeExpr>) =
+        spec.fixed_params.into_iter().unzip();
     Some((names, types, ret_type))
 }
 
