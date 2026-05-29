@@ -101,9 +101,9 @@ fn vector_distinct_atoms_distinct_vectors() {
 #[test]
 fn vector_as_struct_field_roundtrip() {
     let src = r##"
-        (:wat::core::struct :my::Engram
-          (label :wat::core::String)
-          (vec :wat::holon::Vector))
+        (:wat::core::defstruct :my::Engram
+          [label <- :wat::core::String
+           vec   <- :wat::holon::Vector])
 
         (:wat::core::define
           (:user::main -> :wat::core::nil)

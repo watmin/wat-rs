@@ -85,7 +85,7 @@ fn probe_parent_has_no_prelude_struct_accessors() {
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
 
         (:wat::test::deftest-hermetic :test::g::my-hermetic-test
-          ((:wat::core::struct :test::g::IsolatedType (field :wat::core::i64)))
+          ((:wat::core::defstruct :test::g::IsolatedType [field <- :wat::core::i64]))
           (:wat::core::do
             (:test::g::IsolatedType/new 42)
             :wat::core::nil))
@@ -134,11 +134,11 @@ fn probe_cross_test_prelude_isolation_same_fqdn_no_collision() {
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
 
         (:wat::test::deftest-hermetic :test::g::first-hermetic-test
-          ((:wat::core::struct :test::g::SharedName (value :wat::core::i64)))
+          ((:wat::core::defstruct :test::g::SharedName [value <- :wat::core::i64]))
           :wat::core::nil)
 
         (:wat::test::deftest-hermetic :test::g::second-hermetic-test
-          ((:wat::core::struct :test::g::SharedName (label :wat::core::String)))
+          ((:wat::core::defstruct :test::g::SharedName [label <- :wat::core::String]))
           :wat::core::nil)
     "#;
     // Both tests freeze cleanly — no collision in parent TypeEnv.
@@ -186,9 +186,9 @@ fn probe_test_fn_visible_prelude_content_invisible() {
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
 
         (:wat::test::deftest-hermetic :test::g::visible-test
-          ((:wat::core::struct :test::g::HiddenStruct
-             (x :wat::core::i64)
-             (y :wat::core::i64))
+          ((:wat::core::defstruct :test::g::HiddenStruct
+             [x <- :wat::core::i64
+              y <- :wat::core::i64])
            (:wat::core::define
              (:test::g::hidden-helper -> :test::g::HiddenStruct)
              (:test::g::HiddenStruct/new 0 0)))

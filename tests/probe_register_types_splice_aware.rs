@@ -66,9 +66,9 @@ fn do_typealias_registers_in_type_env() {
 fn do_struct_registers_in_type_env() {
     let src = r#"
         (:wat::core::do
-          (:wat::core::struct :diag::Point
-            (x :wat::core::i64)
-            (y :wat::core::i64))
+          (:wat::core::defstruct :diag::Point
+            [x <- :wat::core::i64
+             y <- :wat::core::i64])
           (:wat::core::define (:diag::origin -> :diag::Point)
             (:diag::Point/new 0 0)))
     "#;

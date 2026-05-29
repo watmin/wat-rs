@@ -162,9 +162,9 @@ fn probe_5_keyword_accessor_on_hashmap_none() {
 #[test]
 fn probe_6_keyword_accessor_on_struct() {
     let src = r#"
-(:wat::core::struct :myapp::Point
-  (x :wat::core::i64)
-  (y :wat::core::i64))
+(:wat::core::defstruct :myapp::Point
+  [x <- :wat::core::i64
+   y <- :wat::core::i64])
 
 (:wat::core::define (:user::compute -> :wat::core::i64)
   (:wat::core::let

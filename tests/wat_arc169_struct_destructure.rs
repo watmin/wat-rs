@@ -29,9 +29,9 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const PROLOGUE: &str = r#"
-(:wat::core::struct :test::PaperResolved
-  (outcome       :wat::core::String)
-  (grace-residue :wat::core::f64))
+(:wat::core::defstruct :test::PaperResolved
+  [outcome       <- :wat::core::String
+   grace-residue <- :wat::core::f64])
 "#;
 
 fn with_nil_main(src: &str) -> String {

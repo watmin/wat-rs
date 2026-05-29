@@ -244,11 +244,11 @@ fn lookup_form_quasiquote_returns_special_form() {
 
 #[test]
 fn lookup_form_struct_returns_special_form() {
-    assert_special_form(":wat::core::struct", ":wat::core::struct");
-    let (_, sig, _) = three_probes(":wat::core::struct");
+    assert_special_form(":wat::core::defstruct", ":wat::core::defstruct");
+    let (_, sig, _) = three_probes(":wat::core::defstruct");
     assert!(
-        sig.contains("<name>") && sig.contains("<field>+"),
-        "expected <name>/<field>+ in struct signature, got: {}",
+        sig.contains("<name>") && sig.contains("[<field> <- <type>]+"),
+        "expected <name>/[<field> <- <type>]+ in defstruct signature, got: {}",
         sig
     );
 }

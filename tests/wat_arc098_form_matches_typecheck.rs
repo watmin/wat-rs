@@ -59,9 +59,9 @@ fn expect_check_error(src: &str, expected_substring: &str) {
 /// pattern but the slice-1 runtime stub never fires. The `if false`
 /// path is dead at runtime; type-check still walks both branches.
 const PROLOGUE_VALID: &str = r#"
-(:wat::core::struct :test::PaperResolved
-  (outcome :wat::core::String)
-  (grace-residue :wat::core::f64))
+(:wat::core::defstruct :test::PaperResolved
+  [outcome <- :wat::core::String
+   grace-residue <- :wat::core::f64])
 (:wat::core::define
   (:user::main -> :wat::core::nil)
   (:wat::core::let
@@ -77,9 +77,9 @@ fn valid_src(matches_call: &str) -> String {
 }
 
 const PROLOGUE_INVALID: &str = r#"
-(:wat::core::struct :test::PaperResolved
-  (outcome :wat::core::String)
-  (grace-residue :wat::core::f64))
+(:wat::core::defstruct :test::PaperResolved
+  [outcome <- :wat::core::String
+   grace-residue <- :wat::core::f64])
 (:wat::core::define
   (:user::main -> :wat::core::nil)
   (:wat::core::let

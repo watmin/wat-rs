@@ -121,17 +121,17 @@ fn probe_spawn_process_inherits_parent_struct() {
     // The struct declaration moves INTO the spawn-process program shape
     // (top-level form preceding the :user::main define).
     let src = r##"
-        (:wat::core::struct :test::proto::Point
-          (x :wat::core::i64)
-          (y :wat::core::i64))
+        (:wat::core::defstruct :test::proto::Point
+          [x <- :wat::core::i64
+           y <- :wat::core::i64])
 
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::forms
-              (:wat::core::struct :test::proto::Point
-                (x :wat::core::i64)
-                (y :wat::core::i64))
+              (:wat::core::defstruct :test::proto::Point
+                [x <- :wat::core::i64
+                 y <- :wat::core::i64])
               (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let
                   [s "#test.proto/Point {:x 3 :y 4}"
@@ -234,17 +234,17 @@ fn probe_spawn_process_inherits_parametric_type() {
     // Arc 170 slice 6 — parametric struct declared in the spawn-process
     // program prelude.
     let src = r##"
-        (:wat::core::struct :test::proto::Wrapper<E>
-          (label :wat::core::String)
-          (value :wat::core::i64))
+        (:wat::core::defstruct :test::proto::Wrapper<E>
+          [label <- :wat::core::String
+           value <- :wat::core::i64])
 
         (:wat::core::define
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::forms
-              (:wat::core::struct :test::proto::Wrapper<E>
-                (label :wat::core::String)
-                (value :wat::core::i64))
+              (:wat::core::defstruct :test::proto::Wrapper<E>
+                [label <- :wat::core::String
+                 value <- :wat::core::i64])
               (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let
                   [s "#test.proto/Wrapper {:label :empty :value 42}"

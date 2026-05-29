@@ -157,9 +157,9 @@ fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::forms
-              (:wat::core::struct :h::LocalPoint
-                (x :wat::core::i64)
-                (y :wat::core::i64))
+              (:wat::core::defstruct :h::LocalPoint
+                [x <- :wat::core::i64
+                 y <- :wat::core::i64])
               (:wat::core::define (:user::main -> :wat::core::nil)
                 (:wat::core::let [p (:h::LocalPoint/new 3 4)] :wat::core::nil)))))
 
@@ -220,8 +220,8 @@ fn probe_mixed_prelude_lift() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::forms
-              (:wat::core::struct :h::LocalItem
-                (value :wat::core::i64))
+              (:wat::core::defstruct :h::LocalItem
+                [value <- :wat::core::i64])
               (:wat::core::enum :h::LocalKind
                 :A
                 :B)

@@ -617,9 +617,9 @@ fn enum_ord_raises_type_mismatch() {
 #[test]
 fn struct_ord_raises_type_mismatch() {
     let src = r#"
-        (:wat::core::struct :my::Point
-          (x :wat::core::i64)
-          (y :wat::core::i64))
+        (:wat::core::defstruct :my::Point
+          [x <- :wat::core::i64
+           y <- :wat::core::i64])
 
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::let

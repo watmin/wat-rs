@@ -60,9 +60,9 @@ fn user_struct_constructor_and_accessor_round_trip() {
     // /new; read back via /open and /close accessors.
     let src = r#"
 
-        (:wat::core::struct :my::market::Bar
-          (open  :wat::core::f64)
-          (close :wat::core::f64))
+        (:wat::core::defstruct :my::market::Bar
+          [open <- :wat::core::f64
+           close <- :wat::core::f64])
 
         (:wat::core::define (:my::compute -> :wat::core::f64)
           (:wat::core::let
@@ -84,9 +84,9 @@ fn user_method_can_use_auto_accessors_in_body() {
     // :my::market::spread/of computes high - low from a Bar.
     let src = r#"
 
-        (:wat::core::struct :my::market::Bar
-          (high :wat::core::f64)
-          (low  :wat::core::f64))
+        (:wat::core::defstruct :my::market::Bar
+          [high <- :wat::core::f64
+           low  <- :wat::core::f64])
 
         (:wat::core::define (:my::market::spread-of (b :my::market::Bar) -> :wat::core::f64)
           (:wat::core::f64::-'2 (:my::market::Bar/high b) (:my::market::Bar/low b)))
@@ -106,10 +106,10 @@ fn user_method_can_use_auto_accessors_in_body() {
 fn struct_can_hold_heterogeneous_fields() {
     let src = r#"
 
-        (:wat::core::struct :my::market::Tick
-          (symbol :wat::core::String)
-          (price  :wat::core::f64)
-          (volume :wat::core::i64))
+        (:wat::core::defstruct :my::market::Tick
+          [symbol <- :wat::core::String
+           price  <- :wat::core::f64
+           volume <- :wat::core::i64])
 
         (:wat::core::define (:my::compute -> :wat::core::i64)
           (:wat::core::let
@@ -130,9 +130,9 @@ fn structs_are_values_that_survive_rebinding() {
     // passing through let bindings and function calls.
     let src = r#"
 
-        (:wat::core::struct :my::Point
-          (x :wat::core::i64)
-          (y :wat::core::i64))
+        (:wat::core::defstruct :my::Point
+          [x <- :wat::core::i64
+           y <- :wat::core::i64])
 
         (:wat::core::define (:my::y-of (p :my::Point) -> :wat::core::i64)
           (:my::Point/y p))
@@ -157,9 +157,9 @@ fn constructor_arity_mismatch_rejected_at_check() {
     // Bad code in :my::probe; canonical nil main appended.
     let src = r#"
 
-        (:wat::core::struct :my::market::Bar
-          (open  :wat::core::f64)
-          (close :wat::core::f64))
+        (:wat::core::defstruct :my::market::Bar
+          [open <- :wat::core::f64
+           close <- :wat::core::f64])
 
         (:wat::core::define (:my::probe -> :my::market::Bar)
           (:my::market::Bar/new 1.0))
@@ -181,9 +181,9 @@ fn constructor_field_type_mismatch_rejected_at_check() {
     // Bad code in :my::probe; canonical nil main appended.
     let src = r#"
 
-        (:wat::core::struct :my::market::Bar
-          (open  :wat::core::f64)
-          (close :wat::core::f64))
+        (:wat::core::defstruct :my::market::Bar
+          [open <- :wat::core::f64
+           close <- :wat::core::f64])
 
         (:wat::core::define (:my::probe -> :my::market::Bar)
           (:my::market::Bar/new "not-a-float" 2.0))
@@ -207,9 +207,9 @@ fn accessor_returns_correct_field_type() {
     // Bad code in :my::probe; canonical nil main appended.
     let src = r#"
 
-        (:wat::core::struct :my::market::Bar
-          (open  :wat::core::f64)
-          (volume :wat::core::i64))
+        (:wat::core::defstruct :my::market::Bar
+          [open <- :wat::core::f64
+           volume <- :wat::core::i64])
 
         (:wat::core::define (:my::probe -> :wat::core::f64)
           (:wat::core::let
@@ -257,8 +257,8 @@ fn builtin_capacity_exceeded_cannot_be_redeclared() {
     // duplicate surfaces as a startup error (not a silent override).
     let src = r#"
 
-        (:wat::core::struct :wat::holon::CapacityExceeded
-          (boom :wat::core::bool))
+        (:wat::core::defstruct :wat::holon::CapacityExceeded
+          [boom <- :wat::core::bool])
 
         (:wat::core::define (:user::main -> :()) ())
     "#;

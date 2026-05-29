@@ -250,9 +250,9 @@ fn type_lookup_define_smoke() {
     // (full trio with head + body-of returns :None). This pins the
     // cross-test invariant on a different struct shape.
     let src = r##"
-        (:wat::core::struct :my::Pair
-          (a :wat::core::i64)
-          (b :wat::core::i64))
+        (:wat::core::defstruct :my::Pair
+          [a <- :wat::core::i64
+           b <- :wat::core::i64])
 
         (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
@@ -264,8 +264,8 @@ fn type_lookup_define_smoke() {
     "##;
     let line = run_string(src);
     assert!(
-        line.contains(":wat::core::struct"),
-        "expected ':wat::core::struct' head in struct lookup-define AST, got: {}",
+        line.contains(":wat::core::defstruct"),
+        "expected ':wat::core::defstruct' head in struct lookup-define AST, got: {}",
         line
     );
     assert!(

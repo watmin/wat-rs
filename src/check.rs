@@ -6932,12 +6932,21 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Stone 241.8 — HARD CUT: legacy struct forms are REJECTED at check time.
+            // They are no longer recognized type-declaration forms; use :wat::core::defstruct.
+            ":wat::core::struct" | ":wat::core::struct-restricted" => {
+                return CheckResult::errs(vec![CheckError::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!(
+                        "'{}' is retired (Stone 241.8); use ':wat::core::defstruct' instead",
+                        k
+                    ),
+                    span: head_span.clone(),
+                }]);
+            }
             ":wat::core::define"
-            | ":wat::core::struct"
-            // Arc 203 — struct-restricted is a type declaration (stripped into
-            // TypeEnv by register_types before check_program sees the residue).
-            // It does not participate in expression-level inference.
-            | ":wat::core::struct-restricted"
+            // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
+            | ":wat::core::defstruct"
             | ":wat::core::enum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"

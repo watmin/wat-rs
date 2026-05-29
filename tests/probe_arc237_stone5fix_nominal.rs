@@ -30,8 +30,8 @@ const PRELUDE: &str = r#"
 (:wat::core::enum :my::Color :Red :Blue :Green)
 (:wat::core::enum :my::Suit :Hearts :Spades)
 (:wat::core::newtype :my::Price :wat::core::f64)
-(:wat::core::struct :my::Point (x :wat::core::i64) (y :wat::core::i64))
-(:wat::core::struct :my::Pair (a :wat::core::i64) (b :wat::core::i64))
+(:wat::core::defstruct :my::Point [x <- :wat::core::i64 y <- :wat::core::i64])
+(:wat::core::defstruct :my::Pair [a <- :wat::core::i64 b <- :wat::core::i64])
 (:wat::Record::def :my::Circle [radius <- :wat::core::f64])
 "#;
 

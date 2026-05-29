@@ -117,10 +117,10 @@ fn newtype_as_struct_field_roundtrip() {
     let src = r##"
         (:wat::core::newtype :my::trading::Price :wat::core::f64)
 
-        (:wat::core::struct :my::Order
-          (label :wat::core::String)
-          (price :my::trading::Price)
-          (qty   :wat::core::i64))
+        (:wat::core::defstruct :my::Order
+          [label <- :wat::core::String
+           price <- :my::trading::Price
+           qty   <- :wat::core::i64])
 
         (:wat::core::define (:my::compute -> :wat::core::String)
           (:wat::core::let

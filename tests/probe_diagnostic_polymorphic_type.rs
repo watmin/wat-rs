@@ -175,7 +175,7 @@ fn probe_7_type_on_defrecord_instance() {
 #[test]
 fn probe_8_type_on_struct_instance() {
     let src = r#"
-(:wat::core::struct :myapp::Point (x :wat::core::i64) (y :wat::core::i64))
+(:wat::core::defstruct :myapp::Point [x <- :wat::core::i64 y <- :wat::core::i64])
 
 (:wat::core::define (:user::compute -> :wat::core::String)
   (:wat::core::type (:wat::core::struct-new :myapp::Point 3 4)))

@@ -274,9 +274,9 @@ fn probe_mixed_declaration_prelude_now_includes_def() {
           (:wat::kernel::spawn-process
             (:wat::core::forms
               (:wat::core::def :h::def-answer 99)
-              (:wat::core::struct :h::MixPoint8
-                (x :wat::core::i64)
-                (y :wat::core::i64))
+              (:wat::core::defstruct :h::MixPoint8
+                [x <- :wat::core::i64
+                 y <- :wat::core::i64])
               (:wat::core::enum :h::MixDir8
                 :Up
                 :Down)

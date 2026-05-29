@@ -66,9 +66,11 @@ fn contract_02_defstruct_with_restricted_to_metadata() {
 fn contract_03_defstruct_with_field_metadata() {
     // defstruct with :field-metadata (per-field restrictions; replaces struct-restricted's
     // restricted-section).
+    // Note: field keys in :field-metadata use keyword syntax (:witness) because the
+    // parser routes {sym {map}} to struct-destructure (parse error); keyword keys parse correctly.
     let src = r#"
         (:wat::core::defstruct :my::Capability
-          {:field-metadata {witness {:restricted-to [:my::]}}}
+          {:field-metadata {:witness {:restricted-to [:my::]}}}
           [witness <- :wat::core::i64
            data <- :wat::core::i64])
     "#;
@@ -83,11 +85,13 @@ fn contract_03_defstruct_with_field_metadata() {
 #[test]
 fn contract_04_defstruct_with_both_form_and_field_metadata() {
     // Both form-level AND per-field metadata (full Counter::Client capability shape).
+    // Note: field keys in :field-metadata use keyword syntax (:server-id, :client-id)
+    // because the parser routes {sym {map}} to struct-destructure; keyword keys parse correctly.
     let src = r#"
         (:wat::core::defstruct :my::Client
           {:restricted-to  [:my::]
-           :field-metadata {server-id {:restricted-to [:my::]}
-                            client-id {:restricted-to [:my::]}}}
+           :field-metadata {:server-id {:restricted-to [:my::]}
+                            :client-id {:restricted-to [:my::]}}}
           [server-id <- :wat::core::Uuid
            client-id <- :wat::core::Uuid
            public-data <- :wat::core::i64])

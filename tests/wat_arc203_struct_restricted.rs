@@ -1,16 +1,14 @@
-//! Arc 203 — `:wat::core::struct-restricted` substrate primitive.
+//! Arc 203 — capability-flavored struct declarations via `:wat::core::defstruct`.
 //!
-//! `struct-restricted` declares a struct AND records per-constructor +
-//! per-accessor allowed-caller-prefix whitelists. The arc 198 walker
-//! (`walk_for_def_restricted_call`) enforces the whitelists at type-check
-//! time — no new walker code; same HashMap, same prefix-matching rules.
+//! Stone 241.8 HARD CUT retired `:wat::core::struct-restricted`. All restriction
+//! metadata now lives in the defstruct metadata-map:
 //!
-//! Form:
 //! ```scheme
-//! (:wat::core::struct-restricted :Name
-//!   [<ctor-whitelist-prefixes>...]          ;; slot 1 — guards Name/new
-//!   ([<wlist>] field <- :T ...)             ;; slot 2 — restricted attrs
-//!   (field <- :T ...))                      ;; slot 3 — public attrs
+//! (:wat::core::defstruct :Name
+//!   {:restricted-to   [<ctor-whitelist-prefixes>...]    ;; guards Name/new
+//!    :field-metadata  {:field-kw {:restricted-to [...]}  ;; per-field restriction
+//!                      ...}}
+//!   [field <- :T ...])
 //! ```
 //!
 //! Prefix matching (inherited from arc 198):
@@ -40,15 +38,17 @@ fn startup_ok(src: &str) {
 
 #[test]
 fn struct_restricted_form_parses_and_accessors_callable_from_whitelist() {
-    // A struct-restricted declaration compiles cleanly. The auto-synthesized
-    // constructor (Token/new) and restricted accessor (Token/secret) are
-    // callable from the whitelisted namespace `:my::issuer::`. The public
-    // accessor (Token/id) is callable from any namespace.
+    // A defstruct declaration with :restricted-to + :field-metadata compiles
+    // cleanly. The auto-synthesized constructor (Token/new) is restricted to
+    // :my::issuer::. The restricted accessor (Token/secret) is accessible only
+    // from :my::issuer:: (per :field-metadata). The public accessor (Token/id)
+    // is callable from any namespace.
     let src = r#"
-        (:wat::core::struct-restricted :my::Token
-          [:my::issuer::]
-          ([:my::issuer::] secret <- :wat::core::i64)
-          (id <- :wat::core::i64))
+        (:wat::core::defstruct :my::Token
+          {:restricted-to  [:my::issuer::]
+           :field-metadata {:secret {:restricted-to [:my::issuer::]}}}
+          [secret <- :wat::core::i64
+           id     <- :wat::core::i64])
 
         (:wat::core::defn :my::issuer::mint [] -> :my::Token
           (:my::Token/new 42 99))
@@ -70,14 +70,13 @@ fn struct_restricted_form_parses_and_accessors_callable_from_whitelist() {
 
 #[test]
 fn struct_restricted_ctor_restriction_fires_on_illegal_caller() {
-    // Token/new is guarded by whitelist [:my::issuer::]. A caller in
+    // Token/new is guarded by :restricted-to [:my::issuer::]. A caller in
     // namespace :user:: does NOT start with that prefix — the walker fires
     // DefRestrictedCallerNotAllowed.
     let src = r#"
-        (:wat::core::struct-restricted :my::Token
-          [:my::issuer::]
-          ()
-          (id <- :wat::core::i64))
+        (:wat::core::defstruct :my::Token
+          {:restricted-to [:my::issuer::]}
+          [id <- :wat::core::i64])
 
         (:wat::core::defn :user::bad-mint [] -> :my::Token
           (:my::Token/new 7))
@@ -106,15 +105,15 @@ fn struct_restricted_ctor_restriction_fires_on_illegal_caller() {
 
 #[test]
 fn struct_restricted_per_field_restriction_fires_on_illegal_caller() {
-    // A struct with one restricted field (secret) and one public field (id).
-    // A caller outside the secret's whitelist trying to call Token/secret
-    // gets DefRestrictedCallerNotAllowed. A caller outside the ctor whitelist
-    // but inside a field's whitelist can still read that field.
+    // A struct with one restricted field (secret) and one public field (name).
+    // A caller outside the secret's whitelist trying to call Vault/secret
+    // gets DefRestrictedCallerNotAllowed.
     let denied_src = r#"
-        (:wat::core::struct-restricted :my::Vault
-          [:my::admin::]
-          ([:my::admin::] secret <- :wat::core::i64)
-          (name <- :wat::core::i64))
+        (:wat::core::defstruct :my::Vault
+          {:restricted-to  [:my::admin::]
+           :field-metadata {:secret {:restricted-to [:my::admin::]}}}
+          [secret <- :wat::core::i64
+           name   <- :wat::core::i64])
 
         (:wat::core::defn :user::outsider::read-secret
           [v <- :my::Vault] -> :wat::core::i64
@@ -134,13 +133,14 @@ fn struct_restricted_per_field_restriction_fires_on_illegal_caller() {
         err
     );
 
-    // A caller whose FQDN IS in the field's whitelist can access the restricted field,
-    // even if it's not in the ctor whitelist.
+    // A caller whose FQDN IS in the field's whitelist can access the restricted
+    // field, even if it's not in the ctor whitelist.
     let allowed_src = r#"
-        (:wat::core::struct-restricted :my::Vault
-          [:my::admin::]
-          ([:my::auditor::] secret <- :wat::core::i64)
-          (name <- :wat::core::i64))
+        (:wat::core::defstruct :my::Vault
+          {:restricted-to  [:my::admin::]
+           :field-metadata {:secret {:restricted-to [:my::auditor::]}}}
+          [secret <- :wat::core::i64
+           name   <- :wat::core::i64])
 
         (:wat::core::defn :my::admin::mint [] -> :my::Vault
           (:my::Vault/new 0 0))
@@ -158,14 +158,15 @@ fn struct_restricted_per_field_restriction_fires_on_illegal_caller() {
 
 #[test]
 fn struct_restricted_public_accessors_unrestricted() {
-    // The public-attrs section carries no whitelist. Any caller can read
+    // The public field carries no :field-metadata entry. Any caller can read
     // public fields regardless of namespace — including a caller entirely
     // outside the ctor or any field whitelist.
     let src = r#"
-        (:wat::core::struct-restricted :my::Token
-          [:my::issuer::]
-          ([:my::issuer::] private-field <- :wat::core::i64)
-          (public-field <- :wat::core::i64))
+        (:wat::core::defstruct :my::Token
+          {:restricted-to  [:my::issuer::]
+           :field-metadata {:private-field {:restricted-to [:my::issuer::]}}}
+          [private-field <- :wat::core::i64
+           public-field  <- :wat::core::i64])
 
         (:wat::core::defn :my::issuer::mint [] -> :my::Token
           (:my::Token/new 1 2))
@@ -179,18 +180,16 @@ fn struct_restricted_public_accessors_unrestricted() {
     startup_ok(src);
 }
 
-// ─── Test 5 — Empty sections honored ────────────────────────────────────────
+// ─── Test 5 — Various capability shapes ─────────────────────────────────────
 
 #[test]
 fn struct_restricted_empty_sections_honored() {
-    // Case A: empty restricted section () — all fields are public; ctor still
-    // restricted. Any caller can read the field; only whitelisted callers can
-    // mint.
+    // Case A: ctor restricted, no per-field restrictions — all fields public;
+    // only whitelisted callers can mint.
     let ctor_only_src = r#"
-        (:wat::core::struct-restricted :my::PublicToken
-          [:my::issuer::]
-          ()
-          (payload <- :wat::core::i64))
+        (:wat::core::defstruct :my::PublicToken
+          {:restricted-to [:my::issuer::]}
+          [payload <- :wat::core::i64])
 
         (:wat::core::defn :my::issuer::mint [] -> :my::PublicToken
           (:my::PublicToken/new 42))
@@ -203,13 +202,13 @@ fn struct_restricted_empty_sections_honored() {
     "#;
     startup_ok(ctor_only_src);
 
-    // Case B: empty public section () — every field restricted; ctor restricted.
-    // Only whitelisted callers can read any field or mint.
+    // Case B: ctor restricted + all fields restricted — only whitelisted callers
+    // can read any field or mint.
     let all_restricted_src = r#"
-        (:wat::core::struct-restricted :my::Secret
-          [:my::internal::]
-          ([:my::internal::] data <- :wat::core::i64)
-          ())
+        (:wat::core::defstruct :my::Secret
+          {:restricted-to  [:my::internal::]
+           :field-metadata {:data {:restricted-to [:my::internal::]}}}
+          [data <- :wat::core::i64])
 
         (:wat::core::defn :my::internal::make [] -> :my::Secret
           (:my::Secret/new 0))
@@ -222,14 +221,12 @@ fn struct_restricted_empty_sections_honored() {
     "#;
     startup_ok(all_restricted_src);
 
-    // Case C: ctor restricted, empty public section — outsider cannot mint but
-    // CAN the read field if in field whitelist.
-    // Negative: outsider cannot call data field (restricted to :my::internal::)
+    // Case C: ctor restricted + field restricted — outsider cannot read data field.
     let field_denied_src = r#"
-        (:wat::core::struct-restricted :my::Secret
-          [:my::internal::]
-          ([:my::internal::] data <- :wat::core::i64)
-          ())
+        (:wat::core::defstruct :my::Secret
+          {:restricted-to  [:my::internal::]
+           :field-metadata {:data {:restricted-to [:my::internal::]}}}
+          [data <- :wat::core::i64])
 
         (:wat::core::defn :user::outsider::get-data
           [s <- :my::Secret] -> :wat::core::i64
@@ -249,49 +246,32 @@ fn struct_restricted_empty_sections_honored() {
 
 #[test]
 fn struct_restricted_malformed_shapes_rejected() {
-    // Case A: wrong arity — missing sections.
-    let wrong_arity_src = r#"
+    // Case A: empty metadata map {} ILLEGAL (FORM-COLLAPSE-NOTES).
+    let empty_metadata_src = r#"
+        (:wat::core::defstruct :my::Bad
+          {}
+          [field <- :wat::core::i64])
+
+        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    "#;
+    let err = startup_err(empty_metadata_src);
+    assert!(
+        err.contains("MalformedDecl") || err.contains("empty") || err.contains("metadata"),
+        "empty metadata error should mention MalformedDecl or empty; got: {}",
+        err
+    );
+
+    // Case B: legacy :wat::core::struct-restricted HARD CUT — rejected.
+    let legacy_src = r#"
         (:wat::core::struct-restricted :my::Bad
           [:my::ns::])
 
         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
     "#;
-    let err = startup_err(wrong_arity_src);
+    let err = startup_err(legacy_src);
     assert!(
-        err.contains("struct-restricted") || err.contains("MalformedDecl") || err.contains("args after head"),
-        "wrong-arity error should mention struct-restricted or MalformedDecl; got: {}",
-        err
-    );
-
-    // Case B: ctor whitelist entries must be keywords (not symbols).
-    let bad_ctor_wlist_src = r#"
-        (:wat::core::struct-restricted :my::Bad
-          [not-a-keyword]
-          ()
-          (field <- :wat::core::i64))
-
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
-    "#;
-    let err = startup_err(bad_ctor_wlist_src);
-    assert!(
-        err.contains("keyword") || err.contains("whitelist") || err.contains("MalformedDecl"),
-        "bad ctor whitelist error should mention keywords or whitelist; got: {}",
-        err
-    );
-
-    // Case C: restricted section items count not divisible by 4.
-    let bad_restricted_section_src = r#"
-        (:wat::core::struct-restricted :my::Bad
-          [:my::ns::]
-          ([:my::ns::] only-two-items)
-          ())
-
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
-    "#;
-    let err = startup_err(bad_restricted_section_src);
-    assert!(
-        err.contains("4") || err.contains("chunk") || err.contains("MalformedDecl") || err.contains("divisible"),
-        "bad restricted section error should mention chunk size; got: {}",
+        err.contains("struct-restricted") || err.contains("retired") || err.contains("MalformedForm"),
+        "legacy struct-restricted must be HARD CUT rejected; got: {}",
         err
     );
 }

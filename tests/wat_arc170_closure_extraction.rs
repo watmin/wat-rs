@@ -316,9 +316,9 @@ fn t2_toplevel_defn_calls_other_defns() {
 #[test]
 fn t3_toplevel_defn_uses_user_types() {
     let src = r#"
-        (:wat::core::struct :my::Point
-          (x :wat::core::i64)
-          (y :wat::core::i64))
+        (:wat::core::defstruct :my::Point
+          [x <- :wat::core::i64
+           y <- :wat::core::i64])
         (:wat::core::enum :my::Side
           :Left
           :Right)
@@ -409,8 +409,8 @@ fn t4_inline_lambda_no_captures() {
 #[test]
 fn t5_inline_lambda_captures_let_scope_struct() {
     let src = r#"
-        (:wat::core::struct :my::Config
-          (offset :wat::core::i64))
+        (:wat::core::defstruct :my::Config
+          [offset <- :wat::core::i64])
         (:wat::core::define (:my::make-adder -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
           (:wat::core::let
             [cfg (:my::Config/new 10)]
@@ -450,8 +450,8 @@ fn t5_inline_lambda_captures_let_scope_struct() {
 #[test]
 fn t6_lambda_captures_multiple_mixed_types() {
     let src = r#"
-        (:wat::core::struct :my::Cfg
-          (label :wat::core::String))
+        (:wat::core::defstruct :my::Cfg
+          [label <- :wat::core::String])
         (:wat::core::define (:my::make-multi -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
           (:wat::core::let
             [n 7
@@ -490,8 +490,8 @@ fn t6_lambda_captures_multiple_mixed_types() {
 #[test]
 fn t7_factory_pattern() {
     let src = r#"
-        (:wat::core::struct :my::Cfg
-          (val :wat::core::i64))
+        (:wat::core::defstruct :my::Cfg
+          [val <- :wat::core::i64])
         (:wat::core::define
           (:my::factory (config :my::Cfg) -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
           (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
@@ -575,8 +575,8 @@ fn t9_captured_struct_holds_sender_field_nested() {
     // The captured value is a struct; encoding walks fields and the
     // Sender field surfaces as NonPortableCapture.
     let src = r#"
-        (:wat::core::struct :my::Pack
-          (tx :wat::kernel::Sender<wat::core::i64>))
+        (:wat::core::defstruct :my::Pack
+          [tx <- :wat::kernel::Sender<wat::core::i64>])
         (:wat::core::define
           (:my::make-pack -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
           (:wat::core::let
@@ -639,9 +639,9 @@ fn t10_captures_with_type_alias() {
 fn t11_captures_with_recursive_struct() {
     // Recursive type via Vector — `:my::Tree` holds a `:Vector<:my::Tree>`.
     let src = r#"
-        (:wat::core::struct :my::Tree
-          (value :wat::core::i64)
-          (children :wat::core::Vector<my::Tree>))
+        (:wat::core::defstruct :my::Tree
+          [value    <- :wat::core::i64
+           children <- :wat::core::Vector<my::Tree>])
         (:wat::core::define (:my::root-value (t :my::Tree) -> :wat::core::i64)
           (:my::Tree/value t))
         (:wat::core::define (:user::main -> :wat::core::nil)
@@ -796,7 +796,7 @@ fn t15_behavior_equivalence_across_shapes() {
     }
     // T5 — captures struct.
     let src5 = r#"
-        (:wat::core::struct :my::Config (offset :wat::core::i64))
+        (:wat::core::defstruct :my::Config [offset <- :wat::core::i64])
         (:wat::core::define (:my::make-adder -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
           (:wat::core::let
             [cfg (:my::Config/new 99)]
@@ -1148,7 +1148,7 @@ fn collect_type_decl_names(forms: &[WatAST]) -> Vec<String> {
                     if let Some(WatAST::Keyword(head, _)) = items.first() {
                         let is_type_decl = matches!(
                             head.as_str(),
-                            ":wat::core::struct"
+                            ":wat::core::defstruct"
                                 | ":wat::core::enum"
                                 | ":wat::core::newtype"
                                 | ":wat::core::typealias"

@@ -1861,13 +1861,8 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
     if let WatAST::List(items, _) = form {
         if let Some(WatAST::Keyword(k, _)) = items.first() {
             match k.as_str() {
-                ":wat::core::struct" => return Some("struct"),
-                // Arc 203 — struct-restricted is a type declaration; parsed into
-                // a StructDef with restriction metadata attached. Registers into
-                // TypeEnv like a plain struct so register_struct_methods can
-                // synthesize the same Function entries + write the whitelists into
-                // SymbolTable.defined_value_restrictions.
-                ":wat::core::struct-restricted" => return Some("struct-restricted"),
+                // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
+                ":wat::core::defstruct" => return Some("defstruct"),
                 ":wat::core::enum" => return Some("enum"),
                 ":wat::core::newtype" => return Some("newtype"),
                 ":wat::core::typealias" => return Some("typealias"),
@@ -1900,9 +1895,8 @@ fn parse_type_decl(
     let mut iter = items.into_iter();
     let _head_kw = iter.next();
     match head {
-        "struct" => parse_struct(iter.collect(), decl_span),
-        // Arc 203 — parse the four-slot struct-restricted form.
-        "struct-restricted" => parse_struct_restricted(iter.collect(), decl_span),
+        // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
+        "defstruct" => parse_defstruct(iter.collect(), decl_span),
         "enum" => parse_enum(iter.collect(), decl_span),
         "newtype" => parse_newtype(iter.collect(), decl_span),
         "typealias" => parse_typealias(iter.collect(), decl_span),
@@ -1914,268 +1908,342 @@ fn parse_type_decl(
     }
 }
 
-fn parse_struct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    let mut iter = args.into_iter();
-    let name_kw = iter.next().ok_or_else(|| TypeError::MalformedDecl {
-        head: "struct".into(),
-        reason: "missing name".into(),
-        span: decl_span.clone(),
-    })?;
-    let (name, type_params) = parse_declared_name("struct", &name_kw, &decl_span)?;
-    let mut fields = Vec::new();
-    for item in iter {
-        fields.push(parse_field(item)?);
-    }
-    Ok(TypeDef::Struct(StructDef {
-        name,
-        type_params,
-        fields,
-        restrictions: None,
-    }))
-}
+/// Stone 241.8 — parse a `(:wat::core::defstruct :Name [...fields...])` or
+/// `(:wat::core::defstruct :Name {metadata} [...fields...])` declaration.
+///
+/// Three positional forms after the head keyword (consumed by `parse_type_decl`):
+///   args[0]       — name keyword (e.g. `:my::ns::MyType`)
+///   args[1..N-1]  — optional metadata-map `{...}` (WatAST::List with head
+///                   `:wat::core::HashMap`); absent in the 2-arg form.
+///   args[last]    — field-vector `[field <- :T ...]` (WatAST::Vector)
+///
+/// Metadata keys recognized:
+///   `:restricted-to [kwlist]`          — form-level ctor restriction
+///   `:field-metadata {sym → meta}`     — per-field metadata map
+///   (unknown keys are silently stored; D5)
+///
+/// Empty `{}` is REJECTED per FORM-COLLAPSE-NOTES (divide-by-zero principle).
+/// Field-vector is parsed by `parse_argspec_triples` with
+/// `ParseOptions { allow_rest_binder: false }`.
+fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
+    const HEAD: &str = ":wat::core::defstruct";
 
-/// Arc 203 — parse a `(:wat::core::struct-restricted :Name [ctor-wlist] (restricted-section) (public-section))`
-/// declaration into a `TypeDef::Struct` carrying restriction metadata.
-///
-/// Four positional slots after the head keyword (consumed by `parse_type_decl` before
-/// calling this function):
-///   args[0] — name keyword (e.g. `:my::Token`)
-///   args[1] — ctor whitelist Vector of keyword prefixes
-///   args[2] — restricted-attrs section: a List with flat items in groups of 4:
-///             `[wlist] field-symbol <- :T`  (where `<-` is a bare Symbol)
-///   args[3] — public-attrs section: a List with flat items in groups of 3:
-///             `field-symbol <- :T`
-///
-/// Both sections may be empty Lists `()`.
-///
-/// The full field list (restricted fields first, then public fields) is stored
-/// in `StructDef.fields` in declaration order. Restriction metadata (ctor whitelist +
-/// per-field whitelists) lives in `StructDef.restrictions` so `register_struct_methods`
-/// can write them into `SymbolTable.defined_value_restrictions` alongside the
-/// synthesized Function entries.
-fn parse_struct_restricted(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    const HEAD: &str = "struct-restricted";
-    if args.len() != 4 {
+    // Need at least: name + field-vector (2 args).
+    if args.len() < 2 {
         return Err(TypeError::MalformedDecl {
             head: HEAD.into(),
             reason: format!(
-                "expected (:wat::core::struct-restricted :Name [ctor-wlist] (restricted-section) (public-section)); got {} args after head",
+                "expected (:wat::core::defstruct :Name [fields]) or with optional metadata-map; got {} args after head",
                 args.len()
             ),
             span: decl_span,
         });
     }
+    // More than 3 args is malformed (name, metadata, fields = 3 max).
+    if args.len() > 3 {
+        return Err(TypeError::MalformedDecl {
+            head: HEAD.into(),
+            reason: format!(
+                "too many args: expected 2 (name + fields) or 3 (name + metadata + fields); got {}",
+                args.len()
+            ),
+            span: decl_span,
+        });
+    }
+
     let mut iter = args.into_iter();
 
     // Slot 0 — name keyword.
     let name_kw = iter.next().unwrap();
     let (name, type_params) = parse_declared_name(HEAD, &name_kw, &decl_span)?;
 
-    // Slot 1 — ctor whitelist Vector.
-    let ctor_whitelist_ast = iter.next().unwrap();
-    let ctor_whitelist = match &ctor_whitelist_ast {
-        WatAST::Vector(items, _) => {
-            let mut prefixes = Vec::with_capacity(items.len());
-            for item in items {
-                match item {
-                    WatAST::Keyword(k, _) => prefixes.push(k.clone()),
-                    _ => {
-                        return Err(TypeError::MalformedDecl {
-                            head: HEAD.into(),
-                            reason: "ctor whitelist entries must be keyword prefixes (e.g. `:my::ns::`)".into(),
-                            span: item.span().clone(),
-                        });
-                    }
-                }
-            }
-            prefixes
-        }
-        _ => {
-            return Err(TypeError::MalformedDecl {
-                head: HEAD.into(),
-                reason: "second arg must be a Vector of keyword prefixes `[...]`".into(),
-                span: ctor_whitelist_ast.span().clone(),
-            });
-        }
+    // Discriminate: 2-arg form vs 3-arg form.
+    let (metadata_node_opt, fields_node) = if iter.len() == 1 {
+        // 2-arg form: name + fields (no metadata).
+        (None, iter.next().unwrap())
+    } else {
+        // 3-arg form: name + metadata + fields.
+        let meta_node = iter.next().unwrap();
+        let fields_node = iter.next().unwrap();
+        (Some(meta_node), fields_node)
     };
 
-    // Slot 2 — restricted-attrs section (List; flat chunks of 4: [wlist] field <- :T).
-    let restricted_ast = iter.next().unwrap();
-    let restricted_items = match restricted_ast {
-        WatAST::List(items, _) => items,
-        _ => {
-            return Err(TypeError::MalformedDecl {
-                head: HEAD.into(),
-                reason: "third arg must be a List `(...)` for the restricted-attrs section".into(),
-                span: decl_span.clone(),
-            });
-        }
-    };
-
-    // Slot 3 — public-attrs section (List; flat chunks of 3: field <- :T).
-    let public_ast = iter.next().unwrap();
-    let public_items = match public_ast {
-        WatAST::List(items, _) => items,
-        _ => {
-            return Err(TypeError::MalformedDecl {
-                head: HEAD.into(),
-                reason: "fourth arg must be a List `(...)` for the public-attrs section".into(),
-                span: decl_span.clone(),
-            });
-        }
-    };
-
-    // Parse restricted section: flat chunks of 4 — [wlist] field <- :T.
-    let mut fields: Vec<(String, crate::types::TypeExpr)> = Vec::new();
+    // Parse optional metadata-map.
+    let mut ctor_whitelist: Vec<String> = Vec::new();
     let mut field_restrictions: HashMap<String, Vec<String>> = HashMap::new();
 
-    let ri = restricted_items;
-    if ri.len() % 4 != 0 {
-        return Err(TypeError::MalformedDecl {
-            head: HEAD.into(),
-            reason: format!(
-                "restricted-attrs section must have items in groups of 4 ([wlist] field <- :T); got {} items (not divisible by 4)",
-                ri.len()
-            ),
-            span: decl_span.clone(),
-        });
-    }
-    let mut idx = 0;
-    while idx < ri.len() {
-        // [wlist]
-        let wlist_prefixes = match &ri[idx] {
-            WatAST::Vector(items, _) => {
-                let mut prefixes = Vec::with_capacity(items.len());
-                for item in items {
-                    match item {
-                        WatAST::Keyword(k, _) => prefixes.push(k.clone()),
+    if let Some(meta_node) = metadata_node_opt {
+        // Validate it IS a HashMap list.
+        let meta_items = match &meta_node {
+            WatAST::List(items, _) => items,
+            _ => {
+                return Err(TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "expected a metadata-map `{...}` as second arg".into(),
+                    span: meta_node.span().clone(),
+                });
+            }
+        };
+        // Head must be :wat::core::HashMap.
+        match meta_items.first() {
+            Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
+            _ => {
+                return Err(TypeError::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "second arg must be a metadata-map `{...}` (HashMap form)".into(),
+                    span: meta_node.span().clone(),
+                });
+            }
+        }
+        // Structure: [head, K-type, V-type, k0, v0, k1, v1, ...]
+        // Minimum: 3 items (head + K + V). Pairs start at index 3.
+        if meta_items.len() < 3 {
+            return Err(TypeError::MalformedDecl {
+                head: HEAD.into(),
+                reason: "malformed metadata-map (internal structure corrupt)".into(),
+                span: meta_node.span().clone(),
+            });
+        }
+        let pairs = &meta_items[3..];
+        // Empty {} → pairs.len() == 0 → REJECTED per FORM-COLLAPSE-NOTES.
+        if pairs.is_empty() {
+            return Err(TypeError::MalformedDecl {
+                head: HEAD.into(),
+                reason: "empty `{}` metadata-map is illegal (use no metadata-map arg for plain struct)".into(),
+                span: meta_node.span().clone(),
+            });
+        }
+        // Walk key/value pairs.
+        let mut idx = 0;
+        while idx + 1 < pairs.len() {
+            let key_str = match &pairs[idx] {
+                WatAST::Keyword(k, _) => k.clone(),
+                other => {
+                    return Err(TypeError::MalformedDecl {
+                        head: HEAD.into(),
+                        reason: "metadata-map keys must be keywords".into(),
+                        span: other.span().clone(),
+                    });
+                }
+            };
+            let val = &pairs[idx + 1];
+            match key_str.as_str() {
+                ":restricted-to" => {
+                    // Value must be a Vector of keyword prefixes.
+                    match val {
+                        WatAST::Vector(prefix_items, _) => {
+                            for item in prefix_items {
+                                match item {
+                                    WatAST::Keyword(k, _) => ctor_whitelist.push(k.clone()),
+                                    _ => {
+                                        return Err(TypeError::MalformedDecl {
+                                            head: HEAD.into(),
+                                            reason: ":restricted-to entries must be keyword prefixes".into(),
+                                            span: item.span().clone(),
+                                        });
+                                    }
+                                }
+                            }
+                        }
                         _ => {
                             return Err(TypeError::MalformedDecl {
                                 head: HEAD.into(),
-                                reason: "restricted-attrs field whitelist entries must be keyword prefixes".into(),
-                                span: item.span().clone(),
+                                reason: ":restricted-to value must be a Vector of keyword prefixes `[...]`".into(),
+                                span: val.span().clone(),
                             });
                         }
                     }
                 }
-                prefixes
+                ":field-metadata" => {
+                    // Value must be a HashMap list mapping field-symbols to metadata-maps.
+                    let fm_items = match val {
+                        WatAST::List(items, _) => items,
+                        _ => {
+                            return Err(TypeError::MalformedDecl {
+                                head: HEAD.into(),
+                                reason: ":field-metadata value must be a map `{field {meta} ...}`".into(),
+                                span: val.span().clone(),
+                            });
+                        }
+                    };
+                    // Head must be :wat::core::HashMap.
+                    match fm_items.first() {
+                        Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
+                        _ => {
+                            return Err(TypeError::MalformedDecl {
+                                head: HEAD.into(),
+                                reason: ":field-metadata value must be a HashMap map form `{...}`".into(),
+                                span: val.span().clone(),
+                            });
+                        }
+                    }
+                    // Structure: [head, K-type, V-type, field0, meta0, field1, meta1, ...]
+                    if fm_items.len() < 3 {
+                        return Err(TypeError::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: "malformed :field-metadata map (internal structure corrupt)".into(),
+                            span: val.span().clone(),
+                        });
+                    }
+                    let fm_pairs = &fm_items[3..];
+                    let mut fi = 0;
+                    while fi + 1 < fm_pairs.len() {
+                        // field identifier — Keyword with optional leading colon stripped to get bare name.
+                        // In the HashMap literal form {witness {meta}}, `witness` must be written as
+                        // `:witness` (keyword) because the parser routes `{sym {map}}` to
+                        // struct-destructure (parse error). Keyword `:witness` → strip colon → "witness".
+                        let field_sym = match &fm_pairs[fi] {
+                            WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
+                            WatAST::Symbol(ident, _) => ident.name.clone(),
+                            other => {
+                                return Err(TypeError::MalformedDecl {
+                                    head: HEAD.into(),
+                                    reason: ":field-metadata field keys must be keyword field names (e.g. `:witness`)".into(),
+                                    span: other.span().clone(),
+                                });
+                            }
+                        };
+                        // field metadata-map — a HashMap list.
+                        let fmeta = &fm_pairs[fi + 1];
+                        let fmeta_items = match fmeta {
+                            WatAST::List(items, _) => items,
+                            _ => {
+                                return Err(TypeError::MalformedDecl {
+                                    head: HEAD.into(),
+                                    reason: format!(
+                                        ":field-metadata value for field '{}' must be a map `{{...}}`",
+                                        field_sym
+                                    ),
+                                    span: fmeta.span().clone(),
+                                });
+                            }
+                        };
+                        match fmeta_items.first() {
+                            Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
+                            _ => {
+                                return Err(TypeError::MalformedDecl {
+                                    head: HEAD.into(),
+                                    reason: format!(
+                                        ":field-metadata value for field '{}' must be a HashMap map form",
+                                        field_sym
+                                    ),
+                                    span: fmeta.span().clone(),
+                                });
+                            }
+                        }
+                        if fmeta_items.len() < 3 {
+                            return Err(TypeError::MalformedDecl {
+                                head: HEAD.into(),
+                                reason: format!(
+                                    "malformed :field-metadata for field '{}' (corrupt structure)",
+                                    field_sym
+                                ),
+                                span: fmeta.span().clone(),
+                            });
+                        }
+                        let fpairs = &fmeta_items[3..];
+                        // Parse inner keys: recognize :restricted-to.
+                        let mut field_wlist: Vec<String> = Vec::new();
+                        let mut fpi = 0;
+                        while fpi + 1 < fpairs.len() {
+                            let fkey = match &fpairs[fpi] {
+                                WatAST::Keyword(k, _) => k.clone(),
+                                other => {
+                                    return Err(TypeError::MalformedDecl {
+                                        head: HEAD.into(),
+                                        reason: format!(
+                                            ":field-metadata inner keys for '{}' must be keywords",
+                                            field_sym
+                                        ),
+                                        span: other.span().clone(),
+                                    });
+                                }
+                            };
+                            let fval = &fpairs[fpi + 1];
+                            if fkey == ":restricted-to" {
+                                match fval {
+                                    WatAST::Vector(prefix_items, _) => {
+                                        for item in prefix_items {
+                                            match item {
+                                                WatAST::Keyword(k, _) => field_wlist.push(k.clone()),
+                                                _ => {
+                                                    return Err(TypeError::MalformedDecl {
+                                                        head: HEAD.into(),
+                                                        reason: format!(
+                                                            ":field-metadata :restricted-to entries for '{}' must be keyword prefixes",
+                                                            field_sym
+                                                        ),
+                                                        span: item.span().clone(),
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        return Err(TypeError::MalformedDecl {
+                                            head: HEAD.into(),
+                                            reason: format!(
+                                                ":field-metadata :restricted-to for '{}' must be a Vector `[...]`",
+                                                field_sym
+                                            ),
+                                            span: fval.span().clone(),
+                                        });
+                                    }
+                                }
+                            }
+                            // Unknown inner keys silently accepted (D5).
+                            fpi += 2;
+                        }
+                        if !field_wlist.is_empty() {
+                            field_restrictions.insert(field_sym, field_wlist);
+                        }
+                        fi += 2;
+                    }
+                }
+                _ => {
+                    // Unknown metadata keys silently accepted (D5).
+                }
             }
-            _ => {
-                return Err(TypeError::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "restricted-attrs section chunk must start with a Vector `[...]` whitelist".into(),
-                    span: ri[idx].span().clone(),
-                });
-            }
-        };
-        // field symbol
-        let field_name = match &ri[idx + 1] {
-            WatAST::Symbol(ident, _) => ident.name.clone(),
-            _ => {
-                return Err(TypeError::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "restricted-attrs field name must be a bare symbol (no leading colon)".into(),
-                    span: ri[idx + 1].span().clone(),
-                });
-            }
-        };
-        // <- arrow
-        match &ri[idx + 2] {
-            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
-            _ => {
-                return Err(TypeError::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "restricted-attrs chunk must have `<-` arrow between field name and type".into(),
-                    span: ri[idx + 2].span().clone(),
-                });
-            }
+            idx += 2;
         }
-        // :T keyword
-        let field_type = match &ri[idx + 3] {
-            WatAST::Keyword(k, span) => parse_type_expr_with_span(k, span)
-                .map_err(|e| TypeError::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: format!("restricted-attrs field type parse error: {}", e),
-                    span: ri[idx + 3].span().clone(),
-                })?,
-            _ => {
-                return Err(TypeError::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "restricted-attrs field type must be a keyword (e.g. `:wat::core::i64`)".into(),
-                    span: ri[idx + 3].span().clone(),
-                });
-            }
-        };
-        fields.push((field_name.clone(), field_type));
-        field_restrictions.insert(field_name, wlist_prefixes);
-        idx += 4;
     }
 
-    // Parse public section: flat chunks of 3 — field <- :T.
-    let pi = public_items;
-    if pi.len() % 3 != 0 {
-        return Err(TypeError::MalformedDecl {
-            head: HEAD.into(),
-            reason: format!(
-                "public-attrs section must have items in groups of 3 (field <- :T); got {} items (not divisible by 3)",
-                pi.len()
-            ),
-            span: decl_span.clone(),
-        });
-    }
-    let mut pidx = 0;
-    while pidx < pi.len() {
-        // field symbol
-        let field_name = match &pi[pidx] {
-            WatAST::Symbol(ident, _) => ident.name.clone(),
-            _ => {
-                return Err(TypeError::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "public-attrs field name must be a bare symbol (no leading colon)".into(),
-                    span: pi[pidx].span().clone(),
-                });
-            }
-        };
-        // <- arrow
-        match &pi[pidx + 1] {
-            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
-            _ => {
-                return Err(TypeError::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "public-attrs chunk must have `<-` arrow between field name and type".into(),
-                    span: pi[pidx + 1].span().clone(),
-                });
-            }
+    // Parse field-vector via canonical parse_argspec_triples.
+    let (field_items, field_span) = match fields_node {
+        WatAST::Vector(items, span) => (items, span),
+        other => {
+            return Err(TypeError::MalformedDecl {
+                head: HEAD.into(),
+                reason: "field-vector must be a Vector `[field <- :T ...]`".into(),
+                span: other.span().clone(),
+            });
         }
-        // :T keyword
-        let field_type = match &pi[pidx + 2] {
-            WatAST::Keyword(k, span) => parse_type_expr_with_span(k, span)
-                .map_err(|e| TypeError::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: format!("public-attrs field type parse error: {}", e),
-                    span: pi[pidx + 2].span().clone(),
-                })?,
-            _ => {
-                return Err(TypeError::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "public-attrs field type must be a keyword (e.g. `:wat::core::i64`)".into(),
-                    span: pi[pidx + 2].span().clone(),
-                });
-            }
-        };
-        fields.push((field_name, field_type));
-        // public fields get NO entry in field_restrictions.
-        pidx += 3;
-    }
+    };
+    let argspec = crate::argspec::parse_argspec_triples(
+        &field_items,
+        HEAD,
+        &field_span,
+        crate::argspec::ParseOptions { allow_rest_binder: false },
+    )
+    .map_err(TypeError::from)?;
+
+    let fields: Vec<(String, TypeExpr)> = argspec.fixed_params;
+
+    // Build restrictions: None if no whitelist + no field restrictions; Some(_) otherwise.
+    let restrictions = if ctor_whitelist.is_empty() && field_restrictions.is_empty() {
+        None
+    } else {
+        Some(StructRestrictions {
+            ctor_whitelist,
+            field_restrictions,
+        })
+    };
 
     Ok(TypeDef::Struct(StructDef {
         name,
         type_params,
         fields,
-        restrictions: Some(StructRestrictions {
-            ctor_whitelist,
-            field_restrictions,
-        }),
+        restrictions,
     }))
 }
 
@@ -3422,12 +3490,13 @@ mod tests {
 
     #[test]
     fn simple_struct() {
+        // Stone 241.8 — migrated from :wat::core::struct pair-form to defstruct triples.
         let (env, rest) = collect(
-            r#"(:wat::core::struct :project::market::Candle
-                  (open :wat::core::f64)
-                  (high :wat::core::f64)
-                  (low :wat::core::f64)
-                  (close :wat::core::f64))"#,
+            r#"(:wat::core::defstruct :project::market::Candle
+                  [open  <- :wat::core::f64
+                   high  <- :wat::core::f64
+                   low   <- :wat::core::f64
+                   close <- :wat::core::f64])"#,
         )
         .unwrap();
         assert!(rest.is_empty());
@@ -3446,10 +3515,11 @@ mod tests {
 
     #[test]
     fn parametric_struct() {
+        // Stone 241.8 — migrated from :wat::core::struct pair-form to defstruct triples.
         let (env, _) = collect(
-            r#"(:wat::core::struct :my::Container<T>
-                  (value :T)
-                  (count :i64))"#,
+            r#"(:wat::core::defstruct :my::Container<T>
+                  [value <- :T
+                   count <- :i64])"#,
         )
         .unwrap();
         let def = env.get(":my::Container").expect("registered");
@@ -3464,10 +3534,11 @@ mod tests {
 
     #[test]
     fn parametric_struct_multiple_params() {
+        // Stone 241.8 — migrated from :wat::core::struct pair-form to defstruct triples.
         let (env, _) = collect(
-            r#"(:wat::core::struct :my::Pair<K,V>
-                  (key :K)
-                  (value :V))"#,
+            r#"(:wat::core::defstruct :my::Pair<K,V>
+                  [key   <- :K
+                   value <- :V])"#,
         )
         .unwrap();
         let def = env.get(":my::Pair").expect("registered");
@@ -3630,10 +3701,11 @@ mod tests {
 
     #[test]
     fn duplicate_type_rejected() {
+        // Stone 241.8 — migrated from :wat::core::struct to defstruct.
         let err = collect(
             r#"
-            (:wat::core::struct :my::T (x :f64))
-            (:wat::core::struct :my::T (y :i64))
+            (:wat::core::defstruct :my::T [x <- :f64])
+            (:wat::core::defstruct :my::T [y <- :i64])
             "#,
         )
         .unwrap_err();
@@ -3642,13 +3714,14 @@ mod tests {
 
     #[test]
     fn reserved_prefix_rejected() {
-        let err = collect(r#"(:wat::core::struct :wat::core::MyStruct (x :f64))"#).unwrap_err();
+        // Stone 241.8 — migrated from :wat::core::struct to defstruct.
+        let err = collect(r#"(:wat::core::defstruct :wat::core::MyStruct [x <- :f64])"#).unwrap_err();
         assert!(matches!(err, TypeError::ReservedPrefix { .. }));
 
-        let err = collect(r#"(:wat::core::struct :wat::holon::Bad (x :f64))"#).unwrap_err();
+        let err = collect(r#"(:wat::core::defstruct :wat::holon::Bad [x <- :f64])"#).unwrap_err();
         assert!(matches!(err, TypeError::ReservedPrefix { .. }));
 
-        let err = collect(r#"(:wat::core::struct :wat::std::Bad (x :f64))"#).unwrap_err();
+        let err = collect(r#"(:wat::core::defstruct :wat::std::Bad [x <- :f64])"#).unwrap_err();
         assert!(matches!(err, TypeError::ReservedPrefix { .. }));
     }
 
@@ -3660,8 +3733,11 @@ mod tests {
 
     #[test]
     fn malformed_field_rejected() {
-        let err = collect(r#"(:wat::core::struct :my::T (oops))"#).unwrap_err();
-        assert!(matches!(err, TypeError::MalformedField { .. }));
+        // Stone 241.8 — migrated to defstruct; old MalformedField (pair-form) replaced by
+        // MalformedDecl from parse_argspec_triples (name-not-symbol / missing-arrow variants).
+        // Incomplete triple [x] fails with MalformedDecl.
+        let err = collect(r#"(:wat::core::defstruct :my::T [x])"#).unwrap_err();
+        assert!(matches!(err, TypeError::MalformedDecl { .. }));
     }
 
     #[test]
@@ -3672,7 +3748,8 @@ mod tests {
         // name. Post-arc-072 the lexer rejects at lex layer with a
         // clean diagnostic — same property (rejection) at a better
         // layer.
-        let err = collect_lenient(r#"(:wat::core::struct :my::Bad<T (x :T))"#)
+        // Stone 241.8 — migrated to defstruct.
+        let err = collect_lenient(r#"(:wat::core::defstruct :my::Bad<T [x <- :T])"#)
             .expect_err("expected rejection");
         assert!(
             err.contains("UnclosedBracketInKeyword")
@@ -3687,9 +3764,10 @@ mod tests {
 
     #[test]
     fn non_type_forms_preserved() {
+        // Stone 241.8 — migrated from :wat::core::struct to defstruct.
         let (_env, rest) = collect(
             r#"
-            (:wat::core::struct :my::T (x :f64))
+            (:wat::core::defstruct :my::T [x <- :f64])
             (:wat::holon::Atom "hello")
             42
             "#,

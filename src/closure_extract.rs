@@ -605,7 +605,8 @@ fn walk_free_symbols(
                         ":wat::core::match" => {
                             return walk_match_form(rest, locals, state);
                         }
-                        ":wat::core::struct" => {
+                        // Stone 241.8 — defstruct replaces struct (HARD CUT).
+                        ":wat::core::defstruct" => {
                             return walk_struct_form(rest, state);
                         }
                         ":wat::core::enum" => {
@@ -778,44 +779,51 @@ fn walk_define_form(
     Ok(())
 }
 
-/// Walk a `(:wat::core::struct :TypeName (field1 :T1) (field2 :T2) ...)` form.
+/// Walk a `(:wat::core::defstruct :TypeName [field <- :T1 ...])` or
+/// `(:wat::core::defstruct :TypeName {metadata} [field <- :T1 ...])` form.
 ///
+/// Stone 241.8 — replaces walk of old `(:wat::core::struct ...)` pair-form.
 /// Arc 170 slice 3 Gap H. Struct forms appear in fn body do-prefixes when
 /// the user declares a local type inside a spawned fn. The form is a
 /// freeze-time declaration, not a runtime expression. When `walk_free_symbols`
-/// encounters a struct form in a do body, it must NOT recurse into it as a
-/// plain list because field names (`field1`, `field2`, ...) are binding
-/// positions (not free-symbol references) and would be misclassified as
-/// `UnresolvedSymbol`.
+/// encounters a defstruct form in a do body, it must NOT recurse into it as a
+/// plain list because field names are binding positions (not free-symbol
+/// references) and would be misclassified as `UnresolvedSymbol`.
 ///
-/// Correct walk:
-///   - `args[0]` = `:TypeName` keyword — walk for type-dep recording (it's
-///     a user type being DECLARED; it won't be in parent_types yet, so the
-///     walk does nothing harmful — the child registers it from the prologue).
-///   - `args[1..]` = field `(fieldName :TypeKeyword)` pairs. For each pair:
-///     skip the field-name Symbol (binding position); walk the type keyword
-///     for type-ref recording.
-///
-/// This walk records any referenced types (field types) into the captured
-/// type set. The struct's own name is a new type declaration — it need not
-/// be in the parent's TypeEnv and is NOT looked up there.
+/// Correct walk for defstruct:
+///   - `args[0]` = `:TypeName` keyword — skip (being declared; no lookup).
+///   - `args[1]` = metadata-map or field-vector; `args[2]` = field-vector (if metadata at [1]).
+///   - Field-vector items are triples: field(Symbol) <- :Type. The type keyword
+///     (position 2 in each triple: 2, 5, 8, ...) is walked for type-dep recording.
+///     Field-name Symbols are binding positions — skipped.
 fn walk_struct_form(
     args: &[WatAST],
     state: &mut ExtractState<'_>,
 ) -> Result<(), ExtractionError> {
-    // args[0] is the struct name keyword (or absent on malformed input).
-    // args[1..] are field pairs: (fieldName :TypeKeyword).
-    // Skip args[0] (the type name being declared — no lookup needed).
-    for field_pair in args.iter().skip(1) {
-        if let WatAST::List(pair_items, _) = field_pair {
-            // pair_items[0] = field name (Symbol, binding position — skip)
-            // pair_items[1] = field type (Keyword — walk for type deps)
-            for type_kw in pair_items.iter().skip(1) {
-                // The field type keyword may reference a user type;
-                // walk_free_symbols records it correctly (keyword arm).
-                let empty_locals = std::collections::BTreeSet::new();
-                walk_free_symbols(type_kw, &empty_locals, state)?;
+    // args[0] is the type name keyword — skip (declaration, not lookup).
+    // Find the field-vector: args[1] if it is a Vector; args[2] if args[1] is metadata.
+    let field_vec = match args.get(1) {
+        Some(WatAST::Vector(fv, _)) => Some(fv.as_slice()),
+        Some(WatAST::List(_, _)) => {
+            // args[1] is metadata-map; field-vector at args[2].
+            match args.get(2) {
+                Some(WatAST::Vector(fv, _)) => Some(fv.as_slice()),
+                _ => None,
             }
+        }
+        _ => None,
+    };
+    if let Some(fv) = field_vec {
+        // Walk triples: field(0) <-(1) :Type(2) ...
+        // Type keywords are at positions 2, 5, 8, ... in the flat vector.
+        let mut idx = 0;
+        while idx + 2 < fv.len() {
+            // fv[idx] = field name Symbol (binding position — skip)
+            // fv[idx+1] = `<-` Symbol (skip)
+            // fv[idx+2] = type keyword — walk for type dep recording
+            let empty_locals = std::collections::BTreeSet::new();
+            walk_free_symbols(&fv[idx + 2], &empty_locals, state)?;
+            idx += 3;
         }
     }
     Ok(())
@@ -1875,14 +1883,14 @@ fn value_static_type_keyword(
 ///
 /// A form is a prelude form if it is a list whose head keyword is one of:
 ///   - `:wat::core::define`
-///   - `:wat::core::struct`
+///   - `:wat::core::defstruct` (Stone 241.8; was `:wat::core::struct`)
 ///   - `:wat::core::enum`
 ///
 /// These are the three forms that `startup_from_forms` processes at
 /// top-level (step 5 for types, step 6 for defines). They cannot be
 /// evaluated at expression position inside `eval_do_tail` (which returns
 /// `DefineInExpressionPosition` for `define`; `UnknownFunction` for
-/// `struct` / `enum` which are freeze-time forms, not runtime ones).
+/// `defstruct` / `enum` which are freeze-time forms, not runtime ones).
 /// Returns the head keyword string of a `WatAST::List` form, or `None`
 /// for non-list nodes or lists whose head is not a `Keyword`.
 fn head_keyword(node: &WatAST) -> Option<&str> {
@@ -1901,7 +1909,7 @@ fn head_keyword(node: &WatAST) -> Option<&str> {
 /// If `body` is a `(:wat::core::do ...)` form:
 ///   - Scans children left-to-right collecting consecutive declaration forms
 ///     (per [`crate::freeze::is_declaration_form`]: def/define/defmacro/
-///     define-dispatch/struct/enum/newtype/typealias). Stops at the FIRST
+///     define-dispatch/defstruct/enum/newtype/typealias). Stops at the FIRST
 ///     non-declaration child.
 ///   - Returns `(prelude_forms, reconstructed_residual_do_or_expr)`.
 ///   - If `prelude_forms` is empty (no leading declarations), returns
@@ -2174,20 +2182,21 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
     let span = Span::unknown();
     match def {
         TypeDef::Struct(s) => {
-            let mut items = vec![
-                WatAST::Keyword(":wat::core::struct".into(), span.clone()),
-                WatAST::Keyword(format_type_decl_name(&s.name, &s.type_params), span.clone()),
-            ];
+            // Stone 241.8 — emit defstruct triple-form: [field <- :T ...].
+            let mut field_vec_items = Vec::with_capacity(s.fields.len() * 3);
             for (fname, fty) in &s.fields {
-                items.push(WatAST::List(
-                    vec![
-                        WatAST::Symbol(Identifier::bare(fname.clone()), span.clone()),
-                        WatAST::Keyword(crate::check::format_type(fty), span.clone()),
-                    ],
-                    span.clone(),
-                ));
+                field_vec_items.push(WatAST::Symbol(Identifier::bare(fname.clone()), span.clone()));
+                field_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
+                field_vec_items.push(WatAST::Keyword(crate::check::format_type(fty), span.clone()));
             }
-            WatAST::List(items, span)
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::defstruct".into(), span.clone()),
+                    WatAST::Keyword(format_type_decl_name(&s.name, &s.type_params), span.clone()),
+                    WatAST::Vector(field_vec_items, span.clone()),
+                ],
+                span,
+            )
         }
         TypeDef::Enum(e) => {
             let mut items = vec![

@@ -844,12 +844,13 @@ fn startup_from_forms_post_config(
     let _stdlib_function_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
     let residue = register_defines(post_types, &mut symbols)?;
 
-    // 6a. Struct auto-methods. For every `(:wat::core::struct ...)`
+    // 6a. Struct auto-methods. For every `(:wat::core::defstruct ...)`
     //     declaration (built-in + user), synthesize its `/new`
     //     constructor and one `/<field>` accessor per field, all as
     //     ordinary `Function` entries in the symbol table. Runs
     //     after user defines so collisions with user-authored names
     //     surface as `DuplicateDefine`.
+    //     (Stone 241.8: renamed from :wat::core::struct to :wat::core::defstruct)
     crate::runtime::register_struct_methods(&types, &mut symbols)?;
     // 6.5. Enum variant constructors — arc 048. Walks enum decls
     //      and synthesizes per-variant constructors (units into
@@ -1379,7 +1380,8 @@ fn is_mutation_form(head: &str) -> bool {
             | ":wat::core::define"
             | ":wat::core::defmacro"
             | ":wat::core::define-dispatch"
-            | ":wat::core::struct"
+            // Stone 241.8 — defstruct replaces struct (HARD CUT).
+            | ":wat::core::defstruct"
             | ":wat::core::enum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
@@ -1417,7 +1419,8 @@ pub fn is_declaration_form(head: &str) -> bool {
             | ":wat::core::define"
             | ":wat::core::defmacro"
             | ":wat::core::define-dispatch"
-            | ":wat::core::struct"
+            // Stone 241.8 — defstruct replaces struct (HARD CUT).
+            | ":wat::core::defstruct"
             | ":wat::core::enum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
@@ -1471,9 +1474,10 @@ mod tests {
 
     #[test]
     fn user_type_registers() {
+        // Stone 241.8 — migrated from :wat::core::struct to defstruct.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::struct :my::Candle (open :wat::core::f64) (close :wat::core::f64))
+            (:wat::core::defstruct :my::Candle [open <- :wat::core::f64 close <- :wat::core::f64])
         "#;
         let world = startup(src).expect("startup");
         assert!(world.types().contains(":my::Candle"));
@@ -1509,11 +1513,12 @@ mod tests {
 
     #[test]
     fn type_error_bubbles_up() {
-        // Duplicate struct declaration.
+        // Duplicate defstruct declaration.
+        // Stone 241.8 — migrated from :wat::core::struct to defstruct.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::struct :my::Candle (x :wat::core::f64))
-            (:wat::core::struct :my::Candle (y :wat::core::i64))
+            (:wat::core::defstruct :my::Candle [x <- :wat::core::f64])
+            (:wat::core::defstruct :my::Candle [y <- :wat::core::i64])
         "#;
         let err = startup(src).unwrap_err();
         assert!(matches!(err, StartupError::Type(_)));
@@ -1724,13 +1729,14 @@ mod tests {
 
     #[test]
     fn eval_refuses_struct() {
+        // Stone 241.8 — migrated to defstruct.
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
         let ast = crate::parse_one!(
-            r#"(:wat::core::struct :evil::T (x :i64))"#,
+            r#"(:wat::core::defstruct :evil::T [x <- :i64])"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();

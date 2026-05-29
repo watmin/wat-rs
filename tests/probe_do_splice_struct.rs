@@ -30,8 +30,8 @@ use wat::load::InMemoryLoader;
 fn probe_do_struct_accessor_visible() {
     let src = r#"
         (:wat::core::do
-          (:wat::core::struct :my::State
-            (counter :wat::core::i64))
+          (:wat::core::defstruct :my::State
+            [counter <- :wat::core::i64])
           (:wat::core::define (:my::main -> :my::State)
             (:my::State/new 42)))
     "#;
@@ -52,9 +52,9 @@ fn probe_do_struct_via_macro_emission() {
         (:wat::core::defmacro
           (:my::probe (body :AST<wat::core::nil>) -> :AST<wat::core::nil>)
           `(:wat::core::do
-             (:wat::core::struct :my::probe::Point
-               (x :wat::core::i64)
-               (y :wat::core::i64))
+             (:wat::core::defstruct :my::probe::Point
+               [x <- :wat::core::i64
+                y <- :wat::core::i64])
              ~body))
 
         (:my::probe

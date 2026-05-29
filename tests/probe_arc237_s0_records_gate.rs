@@ -47,7 +47,7 @@ fn s0_t1a_macro_emitted_struct_synthesizes_is_predicate() {
     let src = r#"
         (:wat::core::defmacro
           (:my::defthing (name :AST<wat::core::nil>) -> :AST<wat::core::nil>)
-          `(:wat::core::struct ~name (n :wat::core::i64)))
+          `(:wat::core::defstruct ~name [n <- :wat::core::i64]))
 
         (:my::defthing :my::g::Widget)
     "#;

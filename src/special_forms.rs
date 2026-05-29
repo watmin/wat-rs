@@ -199,7 +199,8 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // Dispatch sites: `src/check.rs:3393-3396` (return None at
     // expression position) + `src/freeze.rs:833-836` (top-level
     // mutation forms).
-    insert(&mut m, ":wat::core::struct", &["<name>", "<field>+"]);
+    // Stone 241.8 — defstruct replaces struct (HARD CUT).
+    insert(&mut m, ":wat::core::defstruct", &["<name>", "[<field> <- <type>]+"]);
     insert(&mut m, ":wat::core::enum", &["<name>", "<variant>+"]);
     insert(&mut m, ":wat::core::newtype", &["<name>", "<target>"]);
     insert(&mut m, ":wat::core::typealias", &["<name>", "<target>"]);
@@ -361,7 +362,8 @@ mod tests {
             ":wat::core::let",
             ":wat::core::fn",
             ":wat::core::define",
-            ":wat::core::struct",
+            // Stone 241.8 — defstruct replaces struct.
+            ":wat::core::defstruct",
             ":wat::core::Result/try",
             ":wat::core::try",
             ":wat::core::quote",

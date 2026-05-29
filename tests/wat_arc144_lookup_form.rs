@@ -137,13 +137,11 @@ fn body_of_macro_returns_some_with_template() {
 #[test]
 fn lookup_define_struct_returns_some_and_emits_struct_head() {
     // A struct decl reflects through lookup-define. The emission's
-    // head keyword is `:wat::core::struct` (slice 1's honest sentinel
-    // shape — head + name + sentinel body slot; field rendering is a
-    // future arc).
+    // head keyword is `:wat::core::defstruct` (Stone 241.8 canonical form).
     let src = r##"
-        (:wat::core::struct :my::Bar
-          (open  :wat::core::f64)
-          (close :wat::core::f64))
+        (:wat::core::defstruct :my::Bar
+          [open <- :wat::core::f64
+           close <- :wat::core::f64])
 
         (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
@@ -155,8 +153,8 @@ fn lookup_define_struct_returns_some_and_emits_struct_head() {
     "##;
     let line = run_string(src);
     assert!(
-        line.contains("struct"),
-        "expected 'struct' head in rendered type define-ast, got: {}",
+        line.contains("defstruct"),
+        "expected 'defstruct' head in rendered type define-ast, got: {}",
         line
     );
     assert!(
@@ -169,9 +167,9 @@ fn lookup_define_struct_returns_some_and_emits_struct_head() {
 #[test]
 fn signature_of_defn_struct_returns_some() {
     let src = r##"
-        (:wat::core::struct :my::Point
-          (x :wat::core::f64)
-          (y :wat::core::f64))
+        (:wat::core::defstruct :my::Point
+          [x <- :wat::core::f64
+           y <- :wat::core::f64])
 
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match
@@ -189,8 +187,8 @@ fn body_of_struct_returns_none() {
     // returns :None — honest about absence (the declaration is the
     // lookup-define output).
     let src = r##"
-        (:wat::core::struct :my::Tick
-          (price :wat::core::f64))
+        (:wat::core::defstruct :my::Tick
+          [price <- :wat::core::f64])
 
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::match

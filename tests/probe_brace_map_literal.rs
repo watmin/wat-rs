@@ -244,9 +244,9 @@ fn probe_7_odd_count_rejected_at_parse() {
 #[test]
 fn probe_8_struct_pattern_preserved() {
     let src = r#"
-        (:wat::core::struct :test214::PaperResult
-          (outcome       :wat::core::String)
-          (grace-residue :wat::core::f64))
+        (:wat::core::defstruct :test214::PaperResult
+          [outcome       <- :wat::core::String
+           grace-residue <- :wat::core::f64])
         (:wat::core::define (:user::compute -> :wat::core::String)
           (:wat::core::let
             [p (:test214::PaperResult/new "kept" 3.14)
