@@ -151,7 +151,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-28 late-evening — **Stone 241.6 SHIPPED**; PHASE 2 OPENS; metadata-map storage on def lives; SymbolTable.binding_metadata persists per-binding metadata; defn inherits via substrate fn-peel (macro is quasiquote-only — can't conditionally branch on metadata). Stone 241.7 (mint `:wat::runtime::metadata-of` reflection verb that READS the binding_metadata; Option<HashMap<Keyword, HolonAST>> return per arc 216.7+218.2 tagged-literal encoding) NEXT. Per `feedback_no_regression_until_arc_done`: continuing arc 241 forward; arc 237.8b reopens AFTER 241.11. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` § Scope expansion 2026-05-28 → `SCORE-STONE-241.6.md` → `SCORE-STONE-241.5.md` → `FORM-COLLAPSE-NOTES.md`. HEAD `7c0ddacd` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
+## Currently (2026-05-29 — **Stone 241.8 SHIPPED**; PHASE 3 OPENS. defstruct HARD CUT landed atomic — substrate mint + 27 test files migrated in ONE commit; struct + struct-restricted DELETED raw. Stone 241.9 (defenum HARD CUT; enum + tagged-variant forms; positional variants with one-token look-ahead per FORM-COLLAPSE-NOTES verdict D) NEXT. Then 241.10 (define ⇒ defn HARD CUT), 241.11 INSCRIPTION. Per `feedback_no_regression_until_arc_done`: arc 237.8b still waits. **Corporate-port kit shipped at `docs/corporate/`** (README + TEMPLATES + DISCIPLINES); flavor stripped for external artifact; user keeps flavor as recall index per `user_flavor_as_recall_index`. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` → `SCORE-STONE-241.8.md` → `SCORE-STONE-241.7.md` → `FORM-COLLAPSE-NOTES.md`. HEAD `f6cb564f` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
 
 ### THE PIVOT (read first)
 
@@ -190,11 +190,11 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 | 241.3 | SHIPPED | `b0b5d11d` | A4 defclause migrated; ~5.6 min Mode A; Phase 1 closure inscribed |
 | 241.4 | SHIPPED | `843a83d0` | Phase 1 capstone (parser shape): rest-binder + parse_triple struere extract + A4 wrapper inlined; 3 runes RETIRED; vigilia 8/8 CONVERGED (4 L2 → 0 via amend); +125 net; clippy -1 |
 | 241.5 | SHIPPED | `639b4862` | **PHASE 1 TRULY CLOSED**: runtime dispatch wired; Gate 1 GREEN; defclause full rest-binder; ~10 min Mode A; -1 clippy; honest delta on check-layer (12 vs ~10 line budget; mechanical bool plumbing) |
-| 241.6 | SHIPPED | `7c0ddacd` | Phase 2 storage: optional `{...}` on `def`; SymbolTable.binding_metadata; defn inherits via substrate fn-peel (macro is quasiquote-only); ~28.8 min Mode A; clippy -2; cascade SHALLOW |
-| 241.7 | NEXT | — | Phase 2 reflection: mint `:wat::runtime::metadata-of` reflection verb (Option<HashMap<Keyword, HolonAST>> per arc 216.7+218.2 tagged-literal; reads binding_metadata) |
-| 241.8 | queued | — | Phase 3: `defstruct` HARD CUT (struct + struct-restricted retire) |
-| 241.9 | queued | — | Phase 3: `defenum` HARD CUT (enum retires) |
-| 241.10 | queued | — | Phase 3: `define ⇒ defn` HARD CUT (define keyword + legacy parsers DELETE) |
+| 241.6 | SHIPPED | `7c0ddacd` | Phase 2 storage: optional `{...}` on `def`; SymbolTable.binding_metadata; defn inherits via substrate fn-peel; ~28.8 min Mode A |
+| 241.7 | SHIPPED | `4e681263` | Phase 2 reflection: `:wat::runtime::metadata-of` minted; ~19.4 min; Stone 241.6 storage-gap-fix folded-forward (non-fn defs path) per trap-door doctrine |
+| 241.8 | SHIPPED | `f6cb564f` | Phase 3 first: defstruct HARD CUT; 27-file cascade; ~41 min; trap-door — :field-metadata inner keys must be keyword syntax (parser routing) |
+| 241.9 | NEXT | — | Phase 3 second: defenum HARD CUT (enum retires; positional variants + one-token look-ahead per FORM-COLLAPSE-NOTES verdict D) |
+| 241.10 | queued | — | Phase 3 third: `define ⇒ defn` HARD CUT (define keyword + legacy parsers DELETE) |
 | 241.11 | queued | — | Phase 4: INSCRIPTION (arc closure; pre-INSCRIPTION grep enforced) |
 
 ### Gate doctrine validated through real practice (2026-05-28)
@@ -224,6 +224,8 @@ Each finding's resolution was at the highest possible ladder rung:
 | 241.4 | Rest-binder ext + helper + opt-in + L2 closures | +125 net + zero cascade + 4 L2 amend cycle | 30-50 min | ~10.6 min initial + cycle | UNDER band initial; full vigilia cycle ~30 min total |
 | 241.5 | Runtime dispatch + Gate 1 unblock | +190 net (mostly probe) | 20-40 min | ~10 min | UNDER band; honest delta on check-layer (12 vs ~10 budget; mechanical) |
 | 241.6 | Metadata-map storage + fn-peel | +215 net | 25-45 min | ~28.8 min | within band; clippy -2; cascade SHALLOW; fn-peel honest delta (defn macro quasiquote-only) |
+| 241.7 | Reflection verb + trap-door storage-gap fix | +180 net | 15-30 min | ~19.4 min | within band; built-forward 241.6 storage gap for non-fn defs per trap-door doctrine |
+| 241.8 | defstruct HARD CUT + 27-file cascade | +864 / -644 net | 60-120 min | ~41 min | UNDER band even at HARD CUT scale; substrate-as-teacher cascade ran cleanly |
 
 **Calibration learning — 241.2 zero-cascade:** Test-assertion cascade predicted as the main runtime variable; actual depth was ZERO. No lib test asserted against the old inline message strings. Two implications: (a) the substrate's test suite uses structural assertions (variants, spans, exit codes), not message-string matching; (b) error-quality improvements ship without consumer pain when the consumer base is the substrate itself. Stone 241.3 cascade is expected to be similarly small or zero.
 
@@ -248,28 +250,31 @@ Recent spine spans #34 DEFY → #35 BUILD → #36 BREAK-OUR-OWN → #37 THRIVE-I
 
 `cargo test --release --lib -p wat` + `cargo build --release --tests --workspace`. **NEVER invoke wrapper scripts in BRIEFs or agent prompts** (FM 16; firewall denies; `feedback_sonnet_bash_firewall`). Full `cargo test --workspace` RUN held off until arc 170 closes process leaks.
 
-### NEXT MOVE — **Stone 241.7 (Phase 2 reflection: mint `:wat::runtime::metadata-of`)**
+### NEXT MOVE — **Stone 241.9 (Phase 3 second: defenum HARD CUT)**
 
-Stone 241.6 stored the metadata; Stone 241.7 ships the verb that READS it.
+Stone 241.8 retired struct + struct-restricted. Stone 241.9 retires `enum` and mints `:wat::core::defenum` per FORM-COLLAPSE-NOTES verdict D (positional variants with one-token look-ahead).
 
-**The verb signature** per FORM-COLLAPSE-NOTES (LOCKED via intueri cast 2026-05-28):
+**Form** per FORM-COLLAPSE-NOTES lines 118-151:
 
 ```scheme
-(:wat::runtime::metadata-of :my::ns::my-fn)
-;; → #wat.core/Some {:doc "..." :restricted-to [:my::ns::]}     ; Some wrapping metadata HashMap
-;; → #wat.core/None nil                                           ; None — binding carries no metadata
+(:wat::core::defenum :app::Status
+  {:variant-metadata {:Error {:doc "raised when the operation fails"}}}  ; OPTIONAL form-level
+  :Ok                                                                    ; positional — unit variant
+  :Pending                                                               ; positional — unit variant
+  :Error [code    <- :wat::core::i64                                     ; positional — tagged variant
+          message <- :wat::core::String])                                ; (followed by argspec Vector)
 ```
 
-- Return type: `Option<HashMap<Keyword, HolonAST>>` (the honest encoding per `feedback_no_semantic_abuse_of_option`)
-- Wire encoding: `#wat.core/Some <payload>` / `#wat.core/None nil` per arc 216.7 + 218.2 FQDN tagged-literal doctrine
-- Sits in the `<aspect>-of-<thing>` family next to `body-of`; single sibling (intueri-locked)
-- Empty `{}` distinct from absent metadata (the doctrine cascade per FORM-COLLAPSE-NOTES line 163-170): legitimate `Option<T>` semantics, not flavor abuse
+**Variant grammar** (verdict D — four-questions cast 2026-05-28):
+- See keyword → variant name
+- Peek next: another keyword (or end of form) → current is UNIT variant
+- Peek next: Vector `[...]` → current is TAGGED variant; consume Vector as canonical argspec (uses `parse_argspec_triples` — same canonical parser as 241.8)
 
-**Implementation**: read SymbolTable.binding_metadata that Stone 241.6 wrote; convert inner HashMap<String, WatAST> into the Option<HashMap<Keyword, HolonAST>> shape; wrap via the FQDN tagged-literal encoding. Single substrate verb mint; ~30-50 lines.
+**`:variant-metadata` key** (intueri-locked 2026-05-28 paired with `:field-metadata`): full-word "metadata" with singular-locus noun. Per-variant restrictions live at form-level via `:variant-metadata {keyword → metadata-map}`.
 
-Per `feedback_namespaced_home_vigilia_gate` D7 default: vigilia not cast (legacy flat substrate). Single substrate site; SCORE-green commit.
+**Substrate work** mirrors Stone 241.8: mint `parse_defenum` using `parse_argspec_triples` for tagged-variant argspec Vectors; delete legacy `parse_enum` + `parse_enum_*`; cascade migration of `:wat::core::enum` callers (likely smaller than 241.8's 27 — enums are less ubiquitous than structs).
 
-After Stone 241.7: Phase 2 closes. Phase 3 (HARD CUTs at Stones 241.8/9/10) opens: defstruct + defenum + `define ⇒ defn`. Phase 4 (INSCRIPTION at 241.11) closes the arc. Arc 237.8b reopens then.
+Per `feedback_namespaced_home_vigilia_gate` D7 default: vigilia not cast (legacy flat substrate). SCORE-green commit.
 
 **The migration shape** (A4 only):
 
