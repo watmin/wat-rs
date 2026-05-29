@@ -251,10 +251,8 @@ fn fn_form_param_pairs(shape: &FnFormShape) -> Vec<(String, String)> {
 #[test]
 fn t1_toplevel_defn_no_deps_no_captures() {
     let src = r#"
-        (:wat::core::define (:my::add-one (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::+'2 n 1))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::add-one [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 n 1))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::add-one");
@@ -281,12 +279,9 @@ fn t1_toplevel_defn_no_deps_no_captures() {
 #[test]
 fn t2_toplevel_defn_calls_other_defns() {
     let src = r#"
-        (:wat::core::define (:my::times-two (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::*'2 n 2))
-        (:wat::core::define (:my::times-four (n :wat::core::i64) -> :wat::core::i64)
-          (:my::times-two (:my::times-two n)))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::times-two [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 n 2))
+        (:wat::core::defn :my::times-four [n <- :wat::core::i64] -> :wat::core::i64 (:my::times-two (:my::times-two n)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::times-four");
@@ -324,10 +319,8 @@ fn t3_toplevel_defn_uses_user_types() {
           :Right)
         (:wat::core::newtype :my::PriceUsd :wat::core::f64)
         (:wat::core::typealias :my::Coord :wat::core::i64)
-        (:wat::core::define (:my::compute (p :my::Point) -> :wat::core::i64)
-          (:wat::core::i64::+'2 (:my::Point/x p) (:my::Point/y p)))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::compute [p <- :my::Point] -> :wat::core::i64 (:wat::core::i64::+'2 (:my::Point/x p) (:my::Point/y p)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::compute");
@@ -371,11 +364,10 @@ fn t3_toplevel_defn_uses_user_types() {
 fn t4_inline_lambda_no_captures() {
     // Factory returns a lambda; we extract it.
     let src = r#"
-        (:wat::core::define (:my::factory -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
+        (:wat::core::defn :my::factory [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-            (:wat::core::i64::+'2 n 7)))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+                      (:wat::core::i64::+'2 n 7)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let lambda = synth_lambda(&parent, ":my::factory");
@@ -411,13 +403,12 @@ fn t5_inline_lambda_captures_let_scope_struct() {
     let src = r#"
         (:wat::core::defstruct :my::Config
           [offset <- :wat::core::i64])
-        (:wat::core::define (:my::make-adder -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
+        (:wat::core::defn :my::make-adder [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::let
-            [cfg (:my::Config/new 10)]
-            (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+'2 n (:my::Config/offset cfg)))))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+                      [cfg (:my::Config/new 10)]
+                      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::i64::+'2 n (:my::Config/offset cfg)))))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let lambda = synth_lambda(&parent, ":my::make-adder");
@@ -452,17 +443,16 @@ fn t6_lambda_captures_multiple_mixed_types() {
     let src = r#"
         (:wat::core::defstruct :my::Cfg
           [label <- :wat::core::String])
-        (:wat::core::define (:my::make-multi -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
+        (:wat::core::defn :my::make-multi [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::let
-            [n 7
-             cfg (:my::Cfg/new "ok")
-             xs (:wat::core::Vector :wat::core::i64 1 2 3)]
-            (:wat::core::fn [m <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+'2 m
-                (:wat::core::i64::+'2 n
-                  (:wat::core::Vector/length xs))))))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+                      [n 7
+                       cfg (:my::Cfg/new "ok")
+                       xs (:wat::core::Vector :wat::core::i64 1 2 3)]
+                      (:wat::core::fn [m <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::i64::+'2 m
+                          (:wat::core::i64::+'2 n
+                            (:wat::core::Vector/length xs))))))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let lambda = synth_lambda(&parent, ":my::make-multi");
@@ -492,14 +482,11 @@ fn t7_factory_pattern() {
     let src = r#"
         (:wat::core::defstruct :my::Cfg
           [val <- :wat::core::i64])
-        (:wat::core::define
-          (:my::factory (config :my::Cfg) -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
+        (:wat::core::defn :my::factory [config <- :my::Cfg] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-            (:wat::core::i64::+'2 n (:my::Cfg/val config))))
-        (:wat::core::define (:my::make -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
-          (:my::factory (:my::Cfg/new 100)))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+                      (:wat::core::i64::+'2 n (:my::Cfg/val config))))
+        (:wat::core::defn :my::make [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64 (:my::factory (:my::Cfg/new 100)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let lambda = synth_lambda(&parent, ":my::make");
@@ -527,17 +514,15 @@ fn t8_lambda_captures_sender_is_non_portable() {
     // here. Capturing the Sender in the closed env is enough to
     // surface NonPortableCapture.
     let src = r#"
-        (:wat::core::define
-          (:my::make-snd -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
+        (:wat::core::defn :my::make-snd [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::let
-            [[tx rx] (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-             dropped rx]
-            (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::do
-                tx
-                n))))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+                      [[tx rx] (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                       dropped rx]
+                      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::do
+                          tx
+                          n))))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let lambda = synth_lambda(&parent, ":my::make-snd");
@@ -577,16 +562,14 @@ fn t9_captured_struct_holds_sender_field_nested() {
     let src = r#"
         (:wat::core::defstruct :my::Pack
           [tx <- :wat::kernel::Sender<wat::core::i64>])
-        (:wat::core::define
-          (:my::make-pack -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
+        (:wat::core::defn :my::make-pack [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::let
-            [[tx rx] (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-             pack (:my::Pack/new tx)
-             unused rx]
-            (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::do pack n))))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+                      [[tx rx] (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                       pack (:my::Pack/new tx)
+                       unused rx]
+                      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::do pack n))))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Ok(w) => w,
@@ -615,10 +598,8 @@ fn t9_captured_struct_holds_sender_field_nested() {
 fn t10_captures_with_type_alias() {
     let src = r#"
         (:wat::core::typealias :my::Coord :wat::core::i64)
-        (:wat::core::define (:my::compute (c :my::Coord) -> :wat::core::i64)
-          (:wat::core::i64::+'2 c 1))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::compute [c <- :my::Coord] -> :wat::core::i64 (:wat::core::i64::+'2 c 1))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::compute");
@@ -642,10 +623,8 @@ fn t11_captures_with_recursive_struct() {
         (:wat::core::defstruct :my::Tree
           [value    <- :wat::core::i64
            children <- :wat::core::Vector<my::Tree>])
-        (:wat::core::define (:my::root-value (t :my::Tree) -> :wat::core::i64)
-          (:my::Tree/value t))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::root-value [t <- :my::Tree] -> :wat::core::i64 (:my::Tree/value t))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::root-value");
@@ -677,13 +656,12 @@ fn t12_body_uses_expanded_substrate_primitive_macro() {
     // We verify the body's expanded form makes it through extraction
     // and re-freezes cleanly.
     let src = r#"
-        (:wat::core::define (:my::classify (n :wat::core::i64) -> :wat::core::String)
+        (:wat::core::defn :my::classify [n <- :wat::core::i64] -> :wat::core::String
           (:wat::core::cond -> :wat::core::String
-            ((:wat::core::< n 0) "negative")
-            ((:wat::core::= n 0) "zero")
-            (:else "positive")))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+                      ((:wat::core::< n 0) "negative")
+                      ((:wat::core::= n 0) "zero")
+                      (:else "positive")))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::classify");
@@ -710,10 +688,8 @@ fn t13_body_uses_user_defined_macro_post_expansion() {
         (:wat::core::defmacro (:my::triple (x))
           (:wat::core::quasiquote
             (:wat::core::i64::*'2 (:wat::core::unquote x) 3)))
-        (:wat::core::define (:my::compute (n :wat::core::i64) -> :wat::core::i64)
-          (:my::triple n))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::compute [n <- :wat::core::i64] -> :wat::core::i64 (:my::triple n))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::compute");
@@ -739,14 +715,10 @@ fn t13_body_uses_user_defined_macro_post_expansion() {
 #[test]
 fn t14_transitive_three_level_dep_chain() {
     let src = r#"
-        (:wat::core::define (:my::a (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::+'2 n 1))
-        (:wat::core::define (:my::b (n :wat::core::i64) -> :wat::core::i64)
-          (:my::a (:my::a n)))
-        (:wat::core::define (:my::c (n :wat::core::i64) -> :wat::core::i64)
-          (:my::b (:my::b n)))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::a [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 n 1))
+        (:wat::core::defn :my::b [n <- :wat::core::i64] -> :wat::core::i64 (:my::a (:my::a n)))
+        (:wat::core::defn :my::c [n <- :wat::core::i64] -> :wat::core::i64 (:my::b (:my::b n)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::c");
@@ -777,9 +749,8 @@ fn t15_behavior_equivalence_across_shapes() {
     //
     // T1 — top-level defn no captures.
     let src1 = r#"
-        (:wat::core::define (:my::add-one (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::+'2 n 1))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :my::add-one [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 n 1))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let p1 = freeze(src1);
     let f1 = lookup_fn(&p1, ":my::add-one");
@@ -797,12 +768,12 @@ fn t15_behavior_equivalence_across_shapes() {
     // T5 — captures struct.
     let src5 = r#"
         (:wat::core::defstruct :my::Config [offset <- :wat::core::i64])
-        (:wat::core::define (:my::make-adder -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
+        (:wat::core::defn :my::make-adder [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::let
-            [cfg (:my::Config/new 99)]
-            (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+'2 n (:my::Config/offset cfg)))))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+                      [cfg (:my::Config/new 99)]
+                      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::i64::+'2 n (:my::Config/offset cfg)))))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let p5 = freeze(src5);
     let lambda5 = synth_lambda(&p5, ":my::make-adder");
@@ -849,12 +820,11 @@ fn t16_match_some_pattern_binds_name() {
     // `n` surfaced as a free symbol; post-fix, `n` is bound by the
     // arm pattern and resolves locally.
     let src = r#"
-        (:wat::core::define
-          (:my::option-or-zero (opt :wat::core::Option<wat::core::i64>) -> :wat::core::i64)
+        (:wat::core::defn :my::option-or-zero [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::i64
           (:wat::core::match opt -> :wat::core::i64
-            ((:wat::core::Some n) n)
-            (:wat::core::None    0)))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+                      ((:wat::core::Some n) n)
+                      (:wat::core::None    0)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::option-or-zero");
@@ -878,12 +848,11 @@ fn t17_match_wildcard_does_not_surface_as_free() {
     // free-symbol queue and triggered UnresolvedSymbol. Post-fix, `_`
     // is filtered at the Symbol arm and ignored at pattern position.
     let src = r#"
-        (:wat::core::define
-          (:my::is-some? (opt :wat::core::Option<wat::core::i64>) -> :wat::core::bool)
+        (:wat::core::defn :my::is-some? [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::bool
           (:wat::core::match opt -> :wat::core::bool
-            ((:wat::core::Some _) true)
-            (:wat::core::None     false)))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+                      ((:wat::core::Some _) true)
+                      (:wat::core::None     false)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let (parent_v, fresh_v) = extract_and_invoke(
         src,
@@ -919,12 +888,11 @@ fn t18_match_result_patterns_bind_arm_names() {
     // Both Ok and Err patterns; Ok-arm binds `b`, Err-arm has wildcard.
     // This is the dominant shape in the failing eval-coincident tests.
     let src = r#"
-        (:wat::core::define
-          (:my::unwrap-or-false (r :wat::core::Result<wat::core::bool,wat::core::String>) -> :wat::core::bool)
+        (:wat::core::defn :my::unwrap-or-false [r <- :wat::core::Result<wat::core::bool,wat::core::String>] -> :wat::core::bool
           (:wat::core::match r -> :wat::core::bool
-            ((:wat::core::Ok b)  b)
-            ((:wat::core::Err _) false)))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+                      ((:wat::core::Ok b)  b)
+                      ((:wat::core::Err _) false)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let (p, f) = extract_and_invoke(
         src,
@@ -961,15 +929,14 @@ fn t19_match_arm_body_with_inner_let() {
     // arm bindings) and `i` surfaced as free. The time.wat /
     // iso8601 tests exercise exactly this shape.
     let src = r#"
-        (:wat::core::define
-          (:my::inc-or-default (opt :wat::core::Option<wat::core::i64>) -> :wat::core::i64)
+        (:wat::core::defn :my::inc-or-default [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::i64
           (:wat::core::match opt -> :wat::core::i64
-            ((:wat::core::Some i)
-             (:wat::core::let
-               [s (:wat::core::i64::+'2 i 1)]
-               s))
-            (:wat::core::None 0)))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+                      ((:wat::core::Some i)
+                       (:wat::core::let
+                         [s (:wat::core::i64::+'2 i 1)]
+                         s))
+                      (:wat::core::None 0)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let (p, f) = extract_and_invoke(
         src,
@@ -1009,12 +976,11 @@ fn t20_match_user_enum_variant_records_type_dep() {
           :Rect [w <- :wat::core::i64
                  h <- :wat::core::i64]
           :Circle [r <- :wat::core::i64])
-        (:wat::core::define
-          (:my::shape-area (s :my::Shape) -> :wat::core::i64)
+        (:wat::core::defn :my::shape-area [s <- :my::Shape] -> :wat::core::i64
           (:wat::core::match s -> :wat::core::i64
-            ((:my::Shape::Rect w h) (:wat::core::i64::*'2 w h))
-            ((:my::Shape::Circle r) (:wat::core::i64::*'2 r r))))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+                      ((:my::Shape::Rect w h) (:wat::core::i64::*'2 w h))
+                      ((:my::Shape::Circle r) (:wat::core::i64::*'2 r r))))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let parent = freeze(src);
     let fn_value = lookup_fn(&parent, ":my::shape-area");
@@ -1052,14 +1018,13 @@ fn t21_match_arm_binding_shadows_outer_let() {
     // post-fix we still need the shadowing to be a no-op (locals are
     // BTreeSet so re-inserting an already-bound name is harmless).
     let src = r#"
-        (:wat::core::define
-          (:my::shadow-test (opt :wat::core::Option<wat::core::i64>) -> :wat::core::i64)
+        (:wat::core::defn :my::shadow-test [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::i64
           (:wat::core::let
-            [n 100]
-            (:wat::core::match opt -> :wat::core::i64
-              ((:wat::core::Some n) n)
-              (:wat::core::None     n))))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+                      [n 100]
+                      (:wat::core::match opt -> :wat::core::i64
+                        ((:wat::core::Some n) n)
+                        (:wat::core::None     n))))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let (p, f) = extract_and_invoke(
         src,

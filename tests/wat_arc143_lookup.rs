@@ -78,17 +78,14 @@ fn lookup_define_user_define_returns_some() {
     // Define a user function and verify lookup-define returns Some.
     let src = r##"
 
-        (:wat::core::define
-          (:user::my-add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::+ x y))
+        (:wat::core::defn :user::my-add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::lookup-define :user::my-add)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "pass"))
-            (:wat::core::None    (:wat::kernel::println "fail"))))
+                      (:wat::runtime::lookup-define :user::my-add)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
+                      (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
@@ -99,13 +96,12 @@ fn lookup_define_substrate_primitive_returns_some() {
     // return Some (synthesised from its TypeScheme).
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::lookup-define :wat::core::foldl)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "pass"))
-            (:wat::core::None    (:wat::kernel::println "fail"))))
+                      (:wat::runtime::lookup-define :wat::core::foldl)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
+                      (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
@@ -115,13 +111,12 @@ fn lookup_define_unknown_name_returns_none() {
     // A completely made-up name returns :None.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::lookup-define :user::this-does-not-exist)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "fail"))
-            (:wat::core::None    (:wat::kernel::println "pass"))))
+                      (:wat::runtime::lookup-define :user::this-does-not-exist)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "fail"))
+                      (:wat::core::None    (:wat::kernel::println "pass"))))
     "##;
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
@@ -133,17 +128,14 @@ fn signature_of_defn_user_define_returns_some() {
     // User-defined function → signature-of-defn returns Some.
     let src = r##"
 
-        (:wat::core::define
-          (:user::my-mul (a :wat::core::i64) (b :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::* a b))
+        (:wat::core::defn :user::my-mul [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* a b))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::signature-of-defn :user::my-mul)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "pass"))
-            (:wat::core::None    (:wat::kernel::println "fail"))))
+                      (:wat::runtime::signature-of-defn :user::my-mul)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
+                      (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
@@ -153,13 +145,12 @@ fn signature_of_defn_substrate_primitive_returns_some() {
     // :wat::core::foldl → synthesised head; must be Some.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::signature-of-defn :wat::core::foldl)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "pass"))
-            (:wat::core::None    (:wat::kernel::println "fail"))))
+                      (:wat::runtime::signature-of-defn :wat::core::foldl)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
+                      (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
@@ -168,13 +159,12 @@ fn signature_of_defn_substrate_primitive_returns_some() {
 fn signature_of_defn_unknown_name_returns_none() {
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::signature-of-defn :no::such::function)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "fail"))
-            (:wat::core::None    (:wat::kernel::println "pass"))))
+                      (:wat::runtime::signature-of-defn :no::such::function)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "fail"))
+                      (:wat::core::None    (:wat::kernel::println "pass"))))
     "##;
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
@@ -186,17 +176,14 @@ fn body_of_user_define_returns_some() {
     // User-defined function → body-of returns Some (the wat body).
     let src = r##"
 
-        (:wat::core::define
-          (:user::my-neg (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::- 0 n))
+        (:wat::core::defn :user::my-neg [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::- 0 n))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::body-of :user::my-neg)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "pass"))
-            (:wat::core::None    (:wat::kernel::println "fail"))))
+                      (:wat::runtime::body-of :user::my-neg)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
+                      (:wat::core::None    (:wat::kernel::println "fail"))))
     "##;
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
@@ -207,13 +194,12 @@ fn body_of_substrate_primitive_returns_none() {
     // (lookup-define returns the sentinel; body-of is honest about absence.)
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::body-of :wat::core::foldl)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "fail"))
-            (:wat::core::None    (:wat::kernel::println "pass"))))
+                      (:wat::runtime::body-of :wat::core::foldl)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "fail"))
+                      (:wat::core::None    (:wat::kernel::println "pass"))))
     "##;
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
@@ -222,13 +208,12 @@ fn body_of_substrate_primitive_returns_none() {
 fn body_of_unknown_name_returns_none() {
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::body-of :totally::unknown)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "fail"))
-            (:wat::core::None    (:wat::kernel::println "pass"))))
+                      (:wat::runtime::body-of :totally::unknown)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "fail"))
+                      (:wat::core::None    (:wat::kernel::println "pass"))))
     "##;
     assert_eq!(run(src), vec!["\"pass\"".to_string()]);
 }
@@ -243,14 +228,13 @@ fn signature_of_defn_foldl_renders_synthesised_shape() {
     // the return type. We render via edn::write and check key substrings.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig-opt
-              (:wat::runtime::signature-of-defn :wat::core::foldl)
-             rendered
-              (:wat::edn::write sig-opt)]
-            (:wat::kernel::println rendered)))
+                      [sig-opt
+                        (:wat::runtime::signature-of-defn :wat::core::foldl)
+                       rendered
+                        (:wat::edn::write sig-opt)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -285,18 +269,15 @@ fn lookup_define_user_function_contains_define_keyword() {
     // includes the "define" form marker.
     let src = r##"
 
-        (:wat::core::define
-          (:user::my-square (x :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::* x x))
+        (:wat::core::defn :user::my-square [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x x))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :user::my-square)
-             rendered
-              (:wat::edn::write def-opt)]
-            (:wat::kernel::println rendered)))
+                      [def-opt
+                        (:wat::runtime::lookup-define :user::my-square)
+                       rendered
+                        (:wat::edn::write def-opt)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line");

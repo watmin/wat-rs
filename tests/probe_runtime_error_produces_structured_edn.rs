@@ -58,14 +58,14 @@ fn probe_runtime_error_produces_structured_edn() {
     // through apply_function as Err(RuntimeError) and landing in the
     // Ok(Err(runtime_err)) arm of spawn_process_child_branch.
     let src = r#"
-        (:wat::core::define (:probe::runtime-err -> :wat::kernel::RunResult)
+        (:wat::core::defn :probe::runtime-err [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            ;; Division by zero → RuntimeError::DivisionByZero.
-            ;; Passes type-check; fails at child runtime.
-            ;; Hits Ok(Err(runtime_err)) arm in spawn_process_child_branch.
-            (:wat::core::let [_ (:wat::core::i64::/'2 1 0)] :wat::core::nil)))
+                      ;; Division by zero → RuntimeError::DivisionByZero.
+                      ;; Passes type-check; fails at child runtime.
+                      ;; Hits Ok(Err(runtime_err)) arm in spawn_process_child_branch.
+                      (:wat::core::let [_ (:wat::core::i64::/'2 1 0)] :wat::core::nil)))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let func = world.symbols().get(":probe::runtime-err").expect("defined");

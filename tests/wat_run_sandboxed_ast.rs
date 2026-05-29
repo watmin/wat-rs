@@ -25,7 +25,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -57,17 +57,17 @@ fn ast_entry_prints_hello() {
     // Outer is :my::compute returning the captured stdout line.
     let src = r##"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::core::define (:my::compute -> :wat::core::String)
+        (:wat::core::defn :my::compute [] -> :wat::core::String
           (:wat::core::let
-            [r
-              (:wat::test::run-hermetic
-                (:wat::kernel::println "hello"))
-             lines (:wat::kernel::RunResult/stdout r)
-             line
-              (:wat::core::match (:wat::core::first lines) -> :wat::core::String
-                ((:wat::core::Some s) s)
-                (:wat::core::None ""))]
-            line))
+                      [r
+                        (:wat::test::run-hermetic
+                          (:wat::kernel::println "hello"))
+                       lines (:wat::kernel::RunResult/stdout r)
+                       line
+                        (:wat::core::match (:wat::core::first lines) -> :wat::core::String
+                          ((:wat::core::Some s) s)
+                          (:wat::core::None ""))]
+                      line))
     "##;
     // :wat::kernel::println EDN-serializes strings with quotes.
     assert_eq!(unwrap_string(run(src)), "\"hello\"");
@@ -88,16 +88,16 @@ fn ast_entry_captures_assertion_failure() {
     // which the thread driver populates from the cascade chain.
     let src = r##"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [r
-              (:wat::test::run-thread
-                (:wat::test::assert-eq 1 2))
-             fail
-              (:wat::kernel::RunResult/failure r)]
-            (:wat::core::match fail -> :wat::core::i64
-              ((:wat::core::Some _) 1)
-              (:wat::core::None    0))))
+                      [r
+                        (:wat::test::run-thread
+                          (:wat::test::assert-eq 1 2))
+                       fail
+                        (:wat::kernel::RunResult/failure r)]
+                      (:wat::core::match fail -> :wat::core::i64
+                        ((:wat::core::Some _) 1)
+                        (:wat::core::None    0))))
     "##;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 1, "expected failure to be detected (1); got {}", n),

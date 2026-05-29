@@ -59,15 +59,14 @@ fn run(src: &str) -> Vec<String> {
 #[test]
 fn mean_known_input() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0)
-             m (:wat::std::stat::mean xs)
-             v
-              (:wat::core::match m -> :wat::core::f64
-                ((:wat::core::Some x) x) (:wat::core::None -1.0))]
-            (:wat::kernel::println (:wat::core::f64::to-string v))))
+                      [xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0)
+                       m (:wat::std::stat::mean xs)
+                       v
+                        (:wat::core::match m -> :wat::core::f64
+                          ((:wat::core::Some x) x) (:wat::core::None -1.0))]
+                      (:wat::kernel::println (:wat::core::f64::to-string v))))
     "##;
     assert_eq!(run(src), vec!["\"3\"".to_string()]);
 }
@@ -75,15 +74,14 @@ fn mean_known_input() {
 #[test]
 fn mean_empty_is_none() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [xs (:wat::core::Vector :wat::core::f64)
-             m (:wat::std::stat::mean xs)
-             label
-              (:wat::core::match m -> :wat::core::String
-                ((:wat::core::Some _) "some") (:wat::core::None "none"))]
-            (:wat::kernel::println label)))
+                      [xs (:wat::core::Vector :wat::core::f64)
+                       m (:wat::std::stat::mean xs)
+                       label
+                        (:wat::core::match m -> :wat::core::String
+                          ((:wat::core::Some _) "some") (:wat::core::None "none"))]
+                      (:wat::kernel::println label)))
     "##;
     assert_eq!(run(src), vec!["\"none\"".to_string()]);
 }
@@ -93,14 +91,13 @@ fn variance_population_known_input() {
     // {1, 2, 3, 4, 5}: mean=3, var = ((1-3)² + (2-3)² + 0 + (4-3)² + (5-3)²) / 5
     //                       = (4+1+0+1+4)/5 = 2.0.
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0)
-             v
-              (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
-                ((:wat::core::Some x) x) (:wat::core::None -1.0))]
-            (:wat::kernel::println (:wat::core::f64::to-string v))))
+                      [xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0)
+                       v
+                        (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
+                          ((:wat::core::Some x) x) (:wat::core::None -1.0))]
+                      (:wat::kernel::println (:wat::core::f64::to-string v))))
     "##;
     assert_eq!(run(src), vec!["\"2\"".to_string()]);
 }
@@ -108,14 +105,13 @@ fn variance_population_known_input() {
 #[test]
 fn variance_single_point_zero() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [xs (:wat::core::Vector :wat::core::f64 7.0)
-             v
-              (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
-                ((:wat::core::Some x) x) (:wat::core::None -1.0))]
-            (:wat::kernel::println (:wat::core::f64::to-string v))))
+                      [xs (:wat::core::Vector :wat::core::f64 7.0)
+                       v
+                        (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
+                          ((:wat::core::Some x) x) (:wat::core::None -1.0))]
+                      (:wat::kernel::println (:wat::core::f64::to-string v))))
     "##;
     assert_eq!(run(src), vec!["\"0\"".to_string()]);
 }
@@ -124,16 +120,15 @@ fn variance_single_point_zero() {
 fn stddev_known_input() {
     // {1, 2, 3, 4, 5}: variance=2, stddev = sqrt(2) ≈ 1.4142...
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0)
-             sd
-              (:wat::core::match (:wat::std::stat::stddev xs) -> :wat::core::f64
-                ((:wat::core::Some x) x) (:wat::core::None -1.0))]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::> sd 1.41) -> :wat::core::String
-                "ok" "bad"))))
+                      [xs (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0)
+                       sd
+                        (:wat::core::match (:wat::std::stat::stddev xs) -> :wat::core::f64
+                          ((:wat::core::Some x) x) (:wat::core::None -1.0))]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::> sd 1.41) -> :wat::core::String
+                          "ok" "bad"))))
     "##;
     assert_eq!(run(src), vec!["\"ok\"".to_string()]);
 }

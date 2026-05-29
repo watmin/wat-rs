@@ -32,7 +32,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -52,10 +52,10 @@ fn probe_1_record_q_true_on_record() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::bool)
+(:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)]
-    (:wat::core::record? v)))
+      [v (:myapp::Voltage 5.0)]
+      (:wat::core::record? v)))
 "#;
     match run_compute(src) {
         Ok(Value::bool(b)) => assert!(
@@ -74,8 +74,7 @@ fn probe_1_record_q_true_on_record() {
 #[test]
 fn probe_2_record_q_false_on_i64() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::bool)
-  (:wat::core::record? 42))
+(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::record? 42))
 "#;
     match run_compute(src) {
         Ok(Value::bool(b)) => assert!(
@@ -96,13 +95,13 @@ fn probe_3_record_to_map_single_field() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)
-     m (:wat::core::record->map v)]
-    (:wat::core::Option/expect -> :wat::core::f64
-      (:wat::core::get m :magnitude)
-      "record->map probe 3: :magnitude key missing")))
+      [v (:myapp::Voltage 5.0)
+       m (:wat::core::record->map v)]
+      (:wat::core::Option/expect -> :wat::core::f64
+        (:wat::core::get m :magnitude)
+        "record->map probe 3: :magnitude key missing")))
 "#;
     match run_compute(src) {
         Ok(Value::f64(f)) => assert!(
@@ -125,13 +124,13 @@ fn probe_4_record_to_map_multi_field_heterogeneous() {
 (:wat::Record::def :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [t (:myapp::Triple 7 "hello" true)
-     m (:wat::core::record->map t)]
-    (:wat::core::Option/expect -> :wat::core::String
-      (:wat::core::get m :b)
-      "record->map probe 4: :b key missing")))
+      [t (:myapp::Triple 7 "hello" true)
+       m (:wat::core::record->map t)]
+      (:wat::core::Option/expect -> :wat::core::String
+        (:wat::core::get m :b)
+        "record->map probe 4: :b key missing")))
 "#;
     match run_compute(src) {
         Ok(Value::String(s)) => assert_eq!(
@@ -153,11 +152,11 @@ fn probe_5_record_to_map_zero_field() {
     let src = r#"
 (:wat::Record::def :myapp::Tag [])
 
-(:wat::core::define (:user::compute -> :wat::core::bool)
+(:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [t (:myapp::Tag)
-     m (:wat::core::record->map t)]
-    (:wat::core::empty? m)))
+      [t (:myapp::Tag)
+       m (:wat::core::record->map t)]
+      (:wat::core::empty? m)))
 "#;
     match run_compute(src) {
         Ok(Value::bool(b)) => assert!(
@@ -179,16 +178,16 @@ fn probe_6_predicate_then_map_composition() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [v (:myapp::Voltage 99.0)]
-    (:wat::core::if
-      (:wat::core::record? v)
-      -> :wat::core::f64
-      (:wat::core::Option/expect -> :wat::core::f64
-        (:wat::core::get (:wat::core::record->map v) :magnitude)
-        "probe 6: missing :magnitude")
-      -1.0)))
+      [v (:myapp::Voltage 99.0)]
+      (:wat::core::if
+        (:wat::core::record? v)
+        -> :wat::core::f64
+        (:wat::core::Option/expect -> :wat::core::f64
+          (:wat::core::get (:wat::core::record->map v) :magnitude)
+          "probe 6: missing :magnitude")
+        -1.0)))
 "#;
     match run_compute(src) {
         Ok(Value::f64(f)) => assert!(

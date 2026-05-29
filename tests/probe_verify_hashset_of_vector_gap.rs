@@ -19,7 +19,7 @@ use wat::runtime::Environment;
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -27,12 +27,12 @@ fn with_nil_main(src: &str) -> String {
 #[test]
 fn verify_hashset_of_vector_constructs_or_errors() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [v1     (:wat::core::Vector :wat::core::i64 1 2)
-             v2     (:wat::core::Vector :wat::core::i64 3 4)
-             outer  (:wat::core::HashSet :wat::type::Infer v1 v2)]
-            (:wat::core::HashSet/length outer)))
+                      [v1     (:wat::core::Vector :wat::core::i64 1 2)
+                       v2     (:wat::core::Vector :wat::core::i64 3 4)
+                       outer  (:wat::core::HashSet :wat::type::Infer v1 v2)]
+                      (:wat::core::HashSet/length outer)))
     "#;
     let src = with_nil_main(src);
 

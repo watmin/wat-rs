@@ -1467,8 +1467,7 @@ mod tests {
     fn user_define_registers() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::app::add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::+'2 x y))
+            (:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x y))
         "#;
         let world = startup(src).expect("startup");
         assert!(world.symbols().get(":my::app::add").is_some());
@@ -1549,17 +1548,21 @@ mod tests {
 
     #[test]
     fn any_in_type_position_bubbles_up_as_type_error() {
-        // :Any is banned at parse_type_expr time; bubbles up as a
-        // RuntimeError via register_defines (parse_type_expr is called
-        // inside parse_define_signature).
+        // :Any is banned at parse_type_expr time.
+        // Stone 241.11 — defn macro-expands to def before register_defines,
+        // so the :Any check happens either at register_defines (if
+        // try_parse_fn_shape_def returns None, deferring to check_program)
+        // or at check_program itself. Either way, startup fails.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::bad (x :Any) -> :wat::core::i64) 42)
+            (:wat::core::defn :my::bad [x <- :Any] -> :wat::core::i64 42)
         "#;
         let err = startup(src).unwrap_err();
-        // register_defines calls parse_type_expr which raises AnyBanned;
-        // runtime wraps it in MalformedForm.
-        assert!(matches!(err, StartupError::Runtime(_)));
+        // Startup must fail — accept Runtime or Check errors.
+        assert!(
+            matches!(err, StartupError::Runtime(_)) || matches!(err, StartupError::Check(_)),
+            "expected startup error, got {:?}", err
+        );
     }
 
     // ─── Frozen world is immutable ──────────────────────────────────────
@@ -1587,8 +1590,7 @@ mod tests {
         let mut loader = InMemoryLoader::new();
         loader.add_source(
             "lib.wat",
-            r#"(:wat::core::define (:lib::square (x :wat::core::i64) -> :wat::core::i64)
-                 (:wat::core::i64::*'2 x x))"#,
+            r#"(:wat::core::defn :lib::square [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x x))"#,
         );
         let entry = r#"
             (:wat::config::set-capacity-mode! :error)
@@ -1607,8 +1609,7 @@ mod tests {
         // substrate maps to libc::exit(0).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:user::main -> :wat::core::nil)
-              :wat::core::nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
@@ -1621,10 +1622,8 @@ mod tests {
         // side-effects (or in this minimal case, just produces nil).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::app::do-work -> :wat::core::nil)
-              :wat::core::nil)
-            (:wat::core::define (:user::main -> :wat::core::nil)
-              (:my::app::do-work))
+            (:wat::core::defn :my::app::do-work [] -> :wat::core::nil :wat::core::nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil (:my::app::do-work))
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
@@ -1665,8 +1664,7 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::app::triple (x :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::*'2 x 3))
+            (:wat::core::defn :my::app::triple [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x 3))
         "#,
         );
         let ast = crate::parse_one!("(:my::app::triple 7)").unwrap();
@@ -1695,6 +1693,13 @@ mod tests {
 
     #[test]
     fn eval_refuses_define() {
+        // Stone 241.11 — `:wat::core::define` is HARD CUT at startup (check time).
+        // At eval time (eval_in_frozen), `:wat::core::define` is still a mutation
+        // form and is refused via `is_mutation_head`. This test bypasses startup
+        // (uses parse_one! + eval_in_frozen directly) to verify the eval-time guard
+        // independently of the startup-time HARD CUT. The test input is a raw
+        // `define` form — never reaches a user at startup time, but the eval guard
+        // must still fire for defense-in-depth.
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
@@ -1847,6 +1852,9 @@ mod tests {
     fn eval_refuses_mutation_form_at_any_depth() {
         // A mutation form nested inside otherwise-legal structure is
         // still refused. The walker descends into every child.
+        // Stone 241.11 — use `:wat::core::define` (still in is_mutation_head)
+        // since `:wat::core::defn` is not a mutation form (it's a macro);
+        // this test bypasses macro expansion via parse_one!.
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
@@ -2024,6 +2032,8 @@ mod tests {
         // Even a correctly-signed / correctly-digested AST that
         // contains a mutation form is refused — verification is BEFORE
         // the mutation-form walk, but both guards must pass.
+        // Stone 241.11 — use `:wat::core::define` (still in is_mutation_head)
+        // since `:wat::core::defn` is not a mutation form at eval time.
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)

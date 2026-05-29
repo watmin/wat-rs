@@ -44,7 +44,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -79,8 +79,7 @@ fn assert_type_returns(probe_label: &str, src: &str, expected: &str) {
 #[test]
 fn probe_1_type_on_i64() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::type 5))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::type 5))
 "#;
     assert_type_returns("Probe 1 (i64)", src, "wat::core::i64");
 }
@@ -91,8 +90,7 @@ fn probe_1_type_on_i64() {
 #[test]
 fn probe_2_type_on_string() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::type "hello"))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::type "hello"))
 "#;
     assert_type_returns("Probe 2 (String)", src, "wat::core::String");
 }
@@ -103,8 +101,7 @@ fn probe_2_type_on_string() {
 #[test]
 fn probe_3_type_on_bool() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::type true))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::type true))
 "#;
     assert_type_returns("Probe 3 (bool)", src, "wat::core::bool");
 }
@@ -115,8 +112,7 @@ fn probe_3_type_on_bool() {
 #[test]
 fn probe_4_type_on_keyword() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::type :foo))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::type :foo))
 "#;
     assert_type_returns("Probe 4 (keyword)", src, "wat::core::keyword");
 }
@@ -127,8 +123,7 @@ fn probe_4_type_on_keyword() {
 #[test]
 fn probe_5_type_on_vector() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::type [1 2 3]))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::type [1 2 3]))
 "#;
     assert_type_returns("Probe 5 (Vector)", src, "wat::core::Vector");
 }
@@ -139,8 +134,7 @@ fn probe_5_type_on_vector() {
 #[test]
 fn probe_6_type_on_hashmap() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::type {:a 1}))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::type {:a 1}))
 "#;
     assert_type_returns("Probe 6 (HashMap)", src, "wat::core::HashMap");
 }
@@ -158,8 +152,7 @@ fn probe_7_type_on_defrecord_instance() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::type (:myapp::Voltage 5.0)))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::type (:myapp::Voltage 5.0)))
 "#;
     assert_type_returns("Probe 7 (defrecord instance)", src, "myapp::Voltage");
 }
@@ -177,8 +170,7 @@ fn probe_8_type_on_struct_instance() {
     let src = r#"
 (:wat::core::defstruct :myapp::Point [x <- :wat::core::i64 y <- :wat::core::i64])
 
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::type (:wat::core::struct-new :myapp::Point 3 4)))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::type (:wat::core::struct-new :myapp::Point 3 4)))
 "#;
     match run_compute(src) {
         Ok(v) => {

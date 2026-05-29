@@ -58,11 +58,10 @@ fn run(src: &str) -> Vec<String> {
 #[test]
 fn not_eq_i64_true_when_different() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::kernel::println
-            (:wat::core::if (:wat::core::not= 3 5) -> :wat::core::String
-              "yes" "no")))
+                      (:wat::core::if (:wat::core::not= 3 5) -> :wat::core::String
+                        "yes" "no")))
     "##;
     assert_eq!(run(src), vec!["\"yes\"".to_string()]);
 }
@@ -70,11 +69,10 @@ fn not_eq_i64_true_when_different() {
 #[test]
 fn not_eq_i64_false_when_same() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::kernel::println
-            (:wat::core::if (:wat::core::not= 7 7) -> :wat::core::String
-              "yes" "no")))
+                      (:wat::core::if (:wat::core::not= 7 7) -> :wat::core::String
+                        "yes" "no")))
     "##;
     assert_eq!(run(src), vec!["\"no\"".to_string()]);
 }
@@ -82,11 +80,10 @@ fn not_eq_i64_false_when_same() {
 #[test]
 fn not_eq_f64_cross_numeric_coerce() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::kernel::println
-            (:wat::core::if (:wat::core::not= 3 3.0) -> :wat::core::String
-              "yes" "no")))
+                      (:wat::core::if (:wat::core::not= 3 3.0) -> :wat::core::String
+                        "yes" "no")))
     "##;
     assert_eq!(run(src), vec!["\"no\"".to_string()]);
 }
@@ -95,18 +92,17 @@ fn not_eq_f64_cross_numeric_coerce() {
 fn eq_on_enum_unit_variants() {
     let src = r##"
         (:wat::core::defenum :my::Color :Red :Blue :Green)
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a :my::Color::Red
-             b :my::Color::Red
-             c :my::Color::Blue]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::and
-                                (:wat::core::= a b)
-                                (:wat::core::not= a c))
-                              -> :wat::core::String
-                "yes" "no"))))
+                      [a :my::Color::Red
+                       b :my::Color::Red
+                       c :my::Color::Blue]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::and
+                                          (:wat::core::= a b)
+                                          (:wat::core::not= a c))
+                                        -> :wat::core::String
+                          "yes" "no"))))
     "##;
     assert_eq!(run(src), vec!["\"yes\"".to_string()]);
 }

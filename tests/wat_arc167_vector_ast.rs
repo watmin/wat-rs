@@ -121,11 +121,9 @@ fn vector_at_value_position_works_after_arc215() {
     use wat::freeze::{eval_in_frozen, startup_from_source};
     use wat::runtime::{Environment, Value};
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::i64)
-          (:wat::core::length [1 2 3]))
+        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::length [1 2 3]))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("arc 215 stone 2: [1 2 3] at value position must type-check");
@@ -152,11 +150,9 @@ fn vector_at_value_position_in_define_body_works_after_arc215() {
     use wat::runtime::{Environment, Value};
     // The return type uses the explicit parametric path.
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::i64)
-          (:wat::core::length [1 2 3]))
+        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::length [1 2 3]))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("arc 215 stone 2: [1 2 3] in define body must type-check");

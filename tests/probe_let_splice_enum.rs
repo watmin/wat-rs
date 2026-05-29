@@ -33,8 +33,7 @@ fn probe_let_enum_constructor_visible() {
           (:wat::core::defenum :my::Request
             :Push [value <- :wat::core::i64]
             :NoOp)
-          (:wat::core::define (:my::make-push -> :my::Request)
-            (:my::Request::Push 99)))
+          (:wat::core::defn :my::make-push [] -> :my::Request (:my::Request::Push 99)))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("freeze");
     assert!(world.symbols().get(":my::Request::Push").is_some(), ":my::Request::Push not registered");
@@ -59,8 +58,7 @@ fn probe_let_enum_via_macro_emission() {
              ~body))
 
         (:my::probe
-          (:wat::core::define (:my::probe::make-created -> :my::probe::Event)
-            (:my::probe::Event::Created 1)))
+          (:wat::core::defn :my::probe::make-created [] -> :my::probe::Event (:my::probe::Event::Created 1)))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("freeze");
     assert!(world.symbols().get(":my::probe::Event::Created").is_some(), ":my::probe::Event::Created not registered");

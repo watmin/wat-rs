@@ -87,7 +87,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -123,10 +123,10 @@ fn expect_startup_err(src: &str) -> String {
 fn probe_defrecord_single_fqdn_positive() {
     let src = r#"
         (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:test::Voltage 5.0)]
-            (:test::is-Voltage? instance)))
+                      [instance (:test::Voltage 5.0)]
+                      (:test::is-Voltage? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -144,8 +144,7 @@ fn probe_defrecord_single_fqdn_negative() {
     let src = r#"
         (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
         (:wat::Record::def :test::Current [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:test::is-Voltage? (:test::Current 1.0)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:test::is-Voltage? (:test::Current 1.0)))
     "#;
     assert!(
         !run_bool(src),
@@ -164,10 +163,10 @@ fn probe_defrecord_cross_namespace_app_a_positive() {
     let src = r#"
         (:wat::Record::def :appA::Voltage [value <- :wat::core::i64])
         (:wat::Record::def :appB::Voltage [value <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [a-instance (:appA::Voltage 42)]
-            (:appA::is-Voltage? a-instance)))
+                      [a-instance (:appA::Voltage 42)]
+                      (:appA::is-Voltage? a-instance)))
     "#;
     assert!(
         run_bool(src),
@@ -183,10 +182,10 @@ fn probe_defrecord_cross_namespace_discrimination() {
     let src = r#"
         (:wat::Record::def :appA::Voltage [value <- :wat::core::i64])
         (:wat::Record::def :appB::Voltage [value <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [b-instance (:appB::Voltage 42)]
-            (:appA::is-Voltage? b-instance)))
+                      [b-instance (:appB::Voltage 42)]
+                      (:appA::is-Voltage? b-instance)))
     "#;
     assert!(
         !run_bool(src),
@@ -204,10 +203,10 @@ fn probe_defrecord_same_namespace_celsius_positive() {
     let src = r#"
         (:wat::Record::def :test::Celsius [value <- :wat::core::f64])
         (:wat::Record::def :test::Kelvin [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [c (:test::Celsius 100.0)]
-            (:test::is-Celsius? c)))
+                      [c (:test::Celsius 100.0)]
+                      (:test::is-Celsius? c)))
     "#;
     assert!(
         run_bool(src),
@@ -223,10 +222,10 @@ fn probe_defrecord_same_namespace_cross_discrimination() {
     let src = r#"
         (:wat::Record::def :test::Celsius [value <- :wat::core::f64])
         (:wat::Record::def :test::Kelvin [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [c (:test::Celsius 100.0)]
-            (:test::is-Kelvin? c)))
+                      [c (:test::Celsius 100.0)]
+                      (:test::is-Kelvin? c)))
     "#;
     assert!(
         !run_bool(src),
@@ -243,10 +242,10 @@ fn probe_defrecord_same_namespace_cross_discrimination() {
 fn probe_defrecord_user_type_vs_builtin_user_positive() {
     let src = r#"
         (:wat::Record::def :test::MyMap [value <- :wat::core::String])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:test::MyMap "data")]
-            (:test::is-MyMap? instance)))
+                      [instance (:test::MyMap "data")]
+                      (:test::is-MyMap? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -264,10 +263,10 @@ fn probe_defrecord_user_type_vs_builtin_not_map() {
     let src = r#"
         (:wat::Record::def :test::MyMap [value <- :wat::core::String])
         (:wat::Record::def :test::Other [value <- :wat::core::String])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:test::MyMap "data")]
-            (:test::is-Other? instance)))
+                      [instance (:test::MyMap "data")]
+                      (:test::is-Other? instance)))
     "#;
     assert!(
         !run_bool(src),
@@ -287,10 +286,10 @@ fn probe_defrecord_user_type_vs_builtin_not_map() {
 fn probe_defrecord_polymorphic_is_fqdn_positive() {
     let src = r#"
         (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:test::Voltage 5.0)]
-            (:test::is-Voltage? instance)))
+                      [instance (:test::Voltage 5.0)]
+                      (:test::is-Voltage? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -308,10 +307,10 @@ fn probe_defrecord_polymorphic_is_bare_basename_negative() {
     let src = r#"
         (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
         (:wat::Record::def :test::Current [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:test::Current 2.0)]
-            (:test::is-Voltage? instance)))
+                      [instance (:test::Current 2.0)]
+                      (:test::is-Voltage? instance)))
     "#;
     assert!(
         !run_bool(src),
@@ -329,8 +328,7 @@ fn probe_defrecord_polymorphic_is_bare_basename_negative() {
 fn probe_defrecord_constructor_typed_rejects_wrong_type() {
     let err = expect_startup_err(r#"
         (:wat::Record::def :test::Voltage [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
-          (:test::Voltage "not-a-float"))
+        (:wat::core::defn :user::compute [] -> :wat::holon::HolonAST (:test::Voltage "not-a-float"))
     "#);
     assert!(
         !err.contains("no error"),
@@ -348,10 +346,10 @@ fn probe_defrecord_constructor_typed_rejects_wrong_type() {
 fn probe_defrecord_multi_segment_namespace_positive() {
     let src = r#"
         (:wat::Record::def :awesome::lib::Sensor [value <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:awesome::lib::Sensor 42)]
-            (:awesome::lib::is-Sensor? instance)))
+                      [instance (:awesome::lib::Sensor 42)]
+                      (:awesome::lib::is-Sensor? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -368,10 +366,10 @@ fn probe_defrecord_multi_segment_namespace_positive() {
 fn probe_defrecord_multi_segment_polymorphic_is() {
     let src = r#"
         (:wat::Record::def :awesome::lib::Sensor [value <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:awesome::lib::Sensor 42)]
-            (:awesome::lib::is-Sensor? instance)))
+                      [instance (:awesome::lib::Sensor 42)]
+                      (:awesome::lib::is-Sensor? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -388,10 +386,10 @@ fn probe_defrecord_multi_segment_polymorphic_is() {
 fn probe_defrecord_predicate_name_shape() {
     let src = r#"
         (:wat::Record::def :test::BasisPoint [value <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:test::BasisPoint 25)]
-            (:test::is-BasisPoint? instance)))
+                      [instance (:test::BasisPoint 25)]
+                      (:test::is-BasisPoint? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -408,10 +406,10 @@ fn probe_defrecord_predicate_name_shape() {
 fn probe_defrecord_i64_payload() {
     let src = r#"
         (:wat::Record::def :test::Count [value <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:test::Count 99)]
-            (:test::is-Count? instance)))
+                      [instance (:test::Count 99)]
+                      (:test::is-Count? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -429,10 +427,10 @@ fn probe_defrecord_cross_type_discrimination_kelvin_positive() {
     let src = r#"
         (:wat::Record::def :test::Celsius [value <- :wat::core::f64])
         (:wat::Record::def :test::Kelvin [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [k (:test::Kelvin 373.15)]
-            (:test::is-Kelvin? k)))
+                      [k (:test::Kelvin 373.15)]
+                      (:test::is-Kelvin? k)))
     "#;
     assert!(
         run_bool(src),
@@ -449,10 +447,10 @@ fn probe_defrecord_cross_type_discrimination_kelvin_positive() {
 fn probe_defrecord_no_user_namespace_insertion() {
     let src = r#"
         (:wat::Record::def :test::Celsius [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [c (:test::Celsius 273.15)]
-            (:test::is-Celsius? c)))
+                      [c (:test::Celsius 273.15)]
+                      (:test::is-Celsius? c)))
     "#;
     assert!(
         run_bool(src),
@@ -470,10 +468,10 @@ fn probe_defrecord_cross_namespace_app_b_positive() {
     let src = r#"
         (:wat::Record::def :appA::Voltage [value <- :wat::core::i64])
         (:wat::Record::def :appB::Voltage [value <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [b-instance (:appB::Voltage 99)]
-            (:appB::is-Voltage? b-instance)))
+                      [b-instance (:appB::Voltage 99)]
+                      (:appB::is-Voltage? b-instance)))
     "#;
     assert!(
         run_bool(src),
@@ -492,10 +490,10 @@ fn probe_defrecord_cross_namespace_app_b_positive() {
 fn probe_defrecord_empty_field_list_zero_arg_constructor() {
     let src = r#"
         (:wat::Record::def :test::Tag [])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:test::Tag)]
-            (:test::is-Tag? instance)))
+                      [instance (:test::Tag)]
+                      (:test::is-Tag? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -512,8 +510,7 @@ fn probe_defrecord_empty_field_list_zero_arg_constructor() {
 fn probe_defrecord_tagged_unit_predicate_true() {
     let src = r#"
         (:wat::Record::def :ns::Done [])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:ns::is-Done? (:ns::Done)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:ns::is-Done? (:ns::Done)))
     "#;
     assert!(
         run_bool(src),
@@ -531,8 +528,7 @@ fn probe_defrecord_tagged_unit_predicate_false_for_non_instance() {
     let src = r#"
         (:wat::Record::def :ns::Done [])
         (:wat::Record::def :ns::Pending [])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:ns::is-Done? (:ns::Pending)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:ns::is-Done? (:ns::Pending)))
     "#;
     assert!(
         !run_bool(src),
@@ -549,10 +545,10 @@ fn probe_defrecord_tagged_unit_predicate_false_for_non_instance() {
 fn probe_defrecord_single_field_string_constructor() {
     let src = r#"
         (:wat::Record::def :test::Label [text <- :wat::core::String])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:test::Label "hello")]
-            (:test::is-Label? instance)))
+                      [instance (:test::Label "hello")]
+                      (:test::is-Label? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -571,10 +567,10 @@ fn probe_defrecord_cross_namespace_tags_distinct() {
     let src = r#"
         (:wat::Record::def :nsA::Tag [])
         (:wat::Record::def :nsB::Tag [])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [a-tag (:nsA::Tag)]
-            (:nsA::is-Tag? a-tag)))
+                      [a-tag (:nsA::Tag)]
+                      (:nsA::is-Tag? a-tag)))
     "#;
     assert!(
         run_bool(src),
@@ -592,8 +588,7 @@ fn probe_defrecord_cross_namespace_tags_distinct() {
 fn probe_defrecord_field_type_check_bool_rejected() {
     let err = expect_startup_err(r#"
         (:wat::Record::def :test::Measured [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
-          (:test::Measured true))
+        (:wat::core::defn :user::compute [] -> :wat::holon::HolonAST (:test::Measured true))
     "#);
     assert!(
         !err.contains("no error"),
@@ -611,10 +606,10 @@ fn probe_defrecord_field_type_check_bool_rejected() {
 fn probe_defrecord_multi_segment_with_field() {
     let src = r#"
         (:wat::Record::def :my::deep::ns::Reading [value <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:my::deep::ns::Reading 3.14)]
-            (:my::deep::ns::is-Reading? instance)))
+                      [instance (:my::deep::ns::Reading 3.14)]
+                      (:my::deep::ns::is-Reading? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -633,7 +628,7 @@ fn probe_defrecord_multi_segment_with_field() {
 fn probe_two_arg_form_only_one_arg_errors() {
     let err = expect_startup_err(r#"
         (:wat::Record::def :test::Orphan)
-        (:wat::core::define (:user::compute -> :wat::core::bool) :wat::core::true)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool :wat::core::true)
     "#);
     assert!(
         err.contains("ArityMismatch") || err.contains("arity") || !err.contains("no error"),
@@ -663,8 +658,7 @@ fn probe_zero_field_instance_uses_empty_bundle() {
     // Part a: instance is recognized by predicate (classifier is correct)
     let pred_src = r#"
         (:wat::Record::def :ns::Tag [])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:ns::is-Tag? (:ns::Tag)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:ns::is-Tag? (:ns::Tag)))
     "#;
     assert!(
         run_bool(pred_src),
@@ -673,11 +667,11 @@ fn probe_zero_field_instance_uses_empty_bundle() {
 
     // Part b: empty Bundle has 0 children (proves Bundle() is the empty-inner form)
     let bundle_src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::holon::statement-length
-            (:wat::core::Result/expect -> :wat::holon::HolonAST
-              (:wat::holon::Bundle [])
-              "empty bundle should not overflow")))
+                      (:wat::core::Result/expect -> :wat::holon::HolonAST
+                        (:wat::holon::Bundle [])
+                        "empty bundle should not overflow")))
     "#;
     let result = {
         let src = with_nil_main(bundle_src);
@@ -708,8 +702,7 @@ fn probe_one_field_instance_uses_bundle_with_one_bind() {
     // Part a: instance is recognized by predicate
     let pred_src = r#"
         (:wat::Record::def :ns::W [v <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:ns::is-W? (:ns::W 42)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:ns::is-W? (:ns::W 42)))
     "#;
     assert!(
         run_bool(pred_src),
@@ -718,15 +711,15 @@ fn probe_one_field_instance_uses_bundle_with_one_bind() {
 
     // Part b: Bundle([one-item]) has statement-length = 1
     let bundle_src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [field-bind (:wat::holon::Bind
-                          (:wat::holon::Atom (:wat::holon::to-holon "v"))
-                          (:wat::holon::Atom (:wat::holon::to-holon 42)))]
-            (:wat::holon::statement-length
-              (:wat::core::Result/expect -> :wat::holon::HolonAST
-                (:wat::holon::Bundle [field-bind])
-                "single-item bundle should not overflow"))))
+                      [field-bind (:wat::holon::Bind
+                                    (:wat::holon::Atom (:wat::holon::to-holon "v"))
+                                    (:wat::holon::Atom (:wat::holon::to-holon 42)))]
+                      (:wat::holon::statement-length
+                        (:wat::core::Result/expect -> :wat::holon::HolonAST
+                          (:wat::holon::Bundle [field-bind])
+                          "single-item bundle should not overflow"))))
     "#;
     let result = {
         let src = with_nil_main(bundle_src);
@@ -754,10 +747,10 @@ fn probe_one_field_instance_uses_bundle_with_one_bind() {
 fn probe_two_field_construct_with_typed_args() {
     let src = r#"
         (:wat::Record::def :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:ns::P 5 "hi")]
-            (:ns::is-P? instance)))
+                      [instance (:ns::P 5 "hi")]
+                      (:ns::is-P? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -775,8 +768,7 @@ fn probe_two_field_instance_bundle_has_two_binds() {
     // Part a: predicate works for N=2
     let pred_src = r#"
         (:wat::Record::def :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:ns::is-P? (:ns::P 99 "test")))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:ns::is-P? (:ns::P 99 "test")))
     "#;
     assert!(
         run_bool(pred_src),
@@ -785,18 +777,18 @@ fn probe_two_field_instance_bundle_has_two_binds() {
 
     // Part b: Bundle([field-a, field-b]) has statement-length = 2
     let bundle_src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [fa (:wat::holon::Bind
-                  (:wat::holon::Atom (:wat::holon::to-holon "a"))
-                  (:wat::holon::Atom (:wat::holon::to-holon 5)))
-             fb (:wat::holon::Bind
-                  (:wat::holon::Atom (:wat::holon::to-holon "b"))
-                  (:wat::holon::Atom (:wat::holon::to-holon "hi")))]
-            (:wat::holon::statement-length
-              (:wat::core::Result/expect -> :wat::holon::HolonAST
-                (:wat::holon::Bundle [fa fb])
-                "two-item bundle should not overflow"))))
+                      [fa (:wat::holon::Bind
+                            (:wat::holon::Atom (:wat::holon::to-holon "a"))
+                            (:wat::holon::Atom (:wat::holon::to-holon 5)))
+                       fb (:wat::holon::Bind
+                            (:wat::holon::Atom (:wat::holon::to-holon "b"))
+                            (:wat::holon::Atom (:wat::holon::to-holon "hi")))]
+                      (:wat::holon::statement-length
+                        (:wat::core::Result/expect -> :wat::holon::HolonAST
+                          (:wat::holon::Bundle [fa fb])
+                          "two-item bundle should not overflow"))))
     "#;
     let result = {
         let src = with_nil_main(bundle_src);
@@ -824,10 +816,10 @@ fn probe_two_field_instance_bundle_has_two_binds() {
 fn probe_three_field_construct_with_typed_args() {
     let src = r#"
         (:wat::Record::def :ns::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [instance (:ns::T 7 "world" true)]
-            (:ns::is-T? instance)))
+                      [instance (:ns::T 7 "world" true)]
+                      (:ns::is-T? instance)))
     "#;
     assert!(
         run_bool(src),
@@ -843,8 +835,7 @@ fn probe_three_field_instance_bundle_has_three_binds() {
     // Part a: predicate works for N=3
     let pred_src = r#"
         (:wat::Record::def :ns::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:ns::is-T? (:ns::T 1 "x" false)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:ns::is-T? (:ns::T 1 "x" false)))
     "#;
     assert!(
         run_bool(pred_src),
@@ -853,21 +844,21 @@ fn probe_three_field_instance_bundle_has_three_binds() {
 
     // Part b: Bundle([fa, fb, fc]) has statement-length = 3
     let bundle_src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [fa (:wat::holon::Bind
-                  (:wat::holon::Atom (:wat::holon::to-holon "a"))
-                  (:wat::holon::Atom (:wat::holon::to-holon 7)))
-             fb (:wat::holon::Bind
-                  (:wat::holon::Atom (:wat::holon::to-holon "b"))
-                  (:wat::holon::Atom (:wat::holon::to-holon "world")))
-             fc (:wat::holon::Bind
-                  (:wat::holon::Atom (:wat::holon::to-holon "c"))
-                  (:wat::holon::Atom (:wat::holon::to-holon true)))]
-            (:wat::holon::statement-length
-              (:wat::core::Result/expect -> :wat::holon::HolonAST
-                (:wat::holon::Bundle [fa fb fc])
-                "three-item bundle should not overflow"))))
+                      [fa (:wat::holon::Bind
+                            (:wat::holon::Atom (:wat::holon::to-holon "a"))
+                            (:wat::holon::Atom (:wat::holon::to-holon 7)))
+                       fb (:wat::holon::Bind
+                            (:wat::holon::Atom (:wat::holon::to-holon "b"))
+                            (:wat::holon::Atom (:wat::holon::to-holon "world")))
+                       fc (:wat::holon::Bind
+                            (:wat::holon::Atom (:wat::holon::to-holon "c"))
+                            (:wat::holon::Atom (:wat::holon::to-holon true)))]
+                      (:wat::holon::statement-length
+                        (:wat::core::Result/expect -> :wat::holon::HolonAST
+                          (:wat::holon::Bundle [fa fb fc])
+                          "three-item bundle should not overflow"))))
     "#;
     let result = {
         let src = with_nil_main(bundle_src);
@@ -896,32 +887,28 @@ fn probe_predicate_works_for_n0_n1_n2_n3() {
     // N=0: tagged unit
     let src0 = r#"
         (:wat::Record::def :multi::Tag [])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:multi::is-Tag? (:multi::Tag)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:multi::is-Tag? (:multi::Tag)))
     "#;
     assert!(run_bool(src0), "N=0 predicate must work");
 
     // N=1
     let src1 = r#"
         (:wat::Record::def :multi::W [v <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:multi::is-W? (:multi::W 42)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:multi::is-W? (:multi::W 42)))
     "#;
     assert!(run_bool(src1), "N=1 predicate must work");
 
     // N=2
     let src2 = r#"
         (:wat::Record::def :multi::P [a <- :wat::core::i64  b <- :wat::core::String])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:multi::is-P? (:multi::P 5 "hi")))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:multi::is-P? (:multi::P 5 "hi")))
     "#;
     assert!(run_bool(src2), "N=2 predicate must work");
 
     // N=3
     let src3 = r#"
         (:wat::Record::def :multi::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:multi::is-T? (:multi::T 1 "x" false)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:multi::is-T? (:multi::T 1 "x" false)))
     "#;
     assert!(run_bool(src3), "N=3 predicate must work");
 
@@ -929,8 +916,7 @@ fn probe_predicate_works_for_n0_n1_n2_n3() {
     let src_neg = r#"
         (:wat::Record::def :multi::P [a <- :wat::core::i64  b <- :wat::core::String])
         (:wat::Record::def :multi::Q [a <- :wat::core::i64  b <- :wat::core::String])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:multi::is-P? (:multi::Q 1 "y")))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:multi::is-P? (:multi::Q 1 "y")))
     "#;
     assert!(
         !run_bool(src_neg),
@@ -949,8 +935,7 @@ fn probe_cross_namespace_distinct_classifiers_n2() {
     let src_a = r#"
         (:wat::Record::def :appA::Point [x <- :wat::core::i64  y <- :wat::core::i64])
         (:wat::Record::def :appB::Point [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:appA::is-Point? (:appA::Point 1 2)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:appA::is-Point? (:appA::Point 1 2)))
     "#;
     assert!(run_bool(src_a), "appA::is-Point? must return true for appA::Point N=2 instance");
 
@@ -958,8 +943,7 @@ fn probe_cross_namespace_distinct_classifiers_n2() {
     let src_neg = r#"
         (:wat::Record::def :appA::Point [x <- :wat::core::i64  y <- :wat::core::i64])
         (:wat::Record::def :appB::Point [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:appA::is-Point? (:appB::Point 1 2)))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:appA::is-Point? (:appB::Point 1 2)))
     "#;
     assert!(
         !run_bool(src_neg),
@@ -977,8 +961,7 @@ fn probe_constructor_rejects_wrong_typed_field() {
     // Wrong type for first field of N=2 constructor
     let err = expect_startup_err(r#"
         (:wat::Record::def :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
-        (:wat::core::define (:user::compute -> :wat::holon::HolonAST)
-          (:ns::P "wrong" "hi"))
+        (:wat::core::defn :user::compute [] -> :wat::holon::HolonAST (:ns::P "wrong" "hi"))
     "#);
     assert!(
         !err.contains("no error"),

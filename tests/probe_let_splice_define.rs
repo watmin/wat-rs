@@ -27,10 +27,8 @@ use wat::load::InMemoryLoader;
 fn probe_let_define_two_vars_visible() {
     let src = r#"
         (:wat::core::let []
-          (:wat::core::define (:my::helper -> :wat::core::i64)
-            42)
-          (:wat::core::define (:my::main -> :wat::core::i64)
-            (:my::helper)))
+          (:wat::core::defn :my::helper [] -> :wat::core::i64 42)
+          (:wat::core::defn :my::main [] -> :wat::core::i64 (:my::helper)))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("freeze");
     assert!(world.symbols().get(":my::helper").is_some(), ":my::helper not registered");
@@ -48,13 +46,11 @@ fn probe_let_define_via_macro_emission() {
         (:wat::core::defmacro
           (:my::probe (body :AST<wat::core::nil>) -> :AST<wat::core::nil>)
           `(:wat::core::let []
-             (:wat::core::define (:my::probe::helper -> :wat::core::i64)
-               42)
+             (:wat::core::defn :my::probe::helper [] -> :wat::core::i64 42)
              ~body))
 
         (:my::probe
-          (:wat::core::define (:my::probe::main -> :wat::core::i64)
-            (:my::probe::helper)))
+          (:wat::core::defn :my::probe::main [] -> :wat::core::i64 (:my::probe::helper)))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("freeze");
     assert!(world.symbols().get(":my::probe::helper").is_some(), ":my::probe::helper not registered");

@@ -410,10 +410,10 @@
                         (:sub::dispatch registry next-id))))))
 
               ;; Entry point — substrate calls :user::main when subprocess starts.
-              (:wat::core::define (:user::main -> :wat::core::nil)
+              (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:sub::dispatch
-                  (:wat::core::Vector :sub::RegEntry)
-                  0))))
+                                  (:wat::core::Vector :sub::RegEntry)
+                                  0))))
 
 
         ;; Build ProcessPeer — verbose-is-honest composition per Stone C2.
@@ -739,10 +739,10 @@
           (:wat::kernel::spawn-process
             (:wat::core::forms
               ;; A subprocess that panics immediately — simulates abnormal subprocess death
-              (:wat::core::define (:user::main -> :wat::core::nil)
+              (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::kernel::assertion-failed!
-                  "crash-test-proc: intentional panic for ServerDied demonstration"
-                  :wat::core::None :wat::core::None))))]
+                                  "crash-test-proc: intentional panic for ServerDied demonstration"
+                                  :wat::core::None :wat::core::None))))]
        ;; No peer construction needed — we only care about the exit result
        ;; Process/drain-and-join detects abnormal exit → Err(ProcessDiedError chain)
        (:wat::core::match (:wat::kernel::Process/drain-and-join crash-proc)

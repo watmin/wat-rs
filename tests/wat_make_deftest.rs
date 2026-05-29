@@ -31,12 +31,11 @@ fn diag_make_deftest_with_prelude_expansion() {
 ;; effect via stderr? No — we need to inspect structurally from Rust.
 ;; Approach: register a :define that returns the expansion, then
 ;; invoke it manually from Rust-level symbol lookup.
-(:wat::core::define (:probe::get-expansion -> :wat::WatAST)
+(:wat::core::defn :probe::get-expansion [] -> :wat::WatAST
   (:wat::core::macroexpand-1
-    (:wat::core::quote (:my-deftest :my-test (:wat::test::assert-eq 1 1)))))
+      (:wat::core::quote (:my-deftest :my-test (:wat::test::assert-eq 1 1)))))
 
-(:wat::core::define (:user::main -> :wat::core::nil)
-  ())
+(:wat::core::defn :user::main [] -> :wat::core::nil ())
 "##;
 
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))

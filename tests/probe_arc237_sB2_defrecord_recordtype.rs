@@ -40,8 +40,8 @@ const PRELUDE: &str = r#"
 fn run(compute_expr: &str, ret_ty: &str) -> Result<Value, String> {
     let full = format!(
         "{prelude}\n\
-         (:wat::core::define (:user::compute -> {ret}) {expr})\n\
-         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+         (:wat::core::defn :user::compute [] -> {ret} {expr})\n\
+         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         prelude = PRELUDE,
         ret = ret_ty,
         expr = compute_expr

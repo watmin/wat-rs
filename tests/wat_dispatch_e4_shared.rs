@@ -50,7 +50,7 @@ fn install() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -70,11 +70,11 @@ fn shared_handle_reads_message() {
     let src = r#"
         (:wat::core::use! :rust::test::Greeting)
 
-        (:wat::core::define (:my::compute -> :wat::core::String)
+        (:wat::core::defn :my::compute [] -> :wat::core::String
           (:wat::core::let
-            [g
-              (:rust::test::Greeting::new "hello" 2026)]
-            (:rust::test::Greeting::message g)))
+                      [g
+                        (:rust::test::Greeting::new "hello" 2026)]
+                      (:rust::test::Greeting::message g)))
     "#;
     match run(src) {
         Value::String(s) => assert_eq!(&*s, "hello"),
@@ -88,11 +88,11 @@ fn shared_handle_reads_year() {
     let src = r#"
         (:wat::core::use! :rust::test::Greeting)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [g
-              (:rust::test::Greeting::new "any" 2026)]
-            (:rust::test::Greeting::year g)))
+                      [g
+                        (:rust::test::Greeting::new "any" 2026)]
+                      (:rust::test::Greeting::year g)))
     "#;
     assert!(matches!(run(src), Value::i64(2026)), "got {:?}", run(src));
 }
@@ -114,11 +114,10 @@ fn shared_handle_survives_thread_crossing() {
     let src_make = r#"
         (:wat::core::use! :rust::test::Greeting)
 
-        (:wat::core::define (:my::compute -> :rust::test::Greeting)
-          (:rust::test::Greeting::new "crossed" 1999))
+        (:wat::core::defn :my::compute [] -> :rust::test::Greeting (:rust::test::Greeting::new "crossed" 1999))
     "#;
     let src_make_with_nil = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src_make
     );
     let world = startup_from_source(&src_make_with_nil, None, Arc::new(InMemoryLoader::new()))

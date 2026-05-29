@@ -80,10 +80,10 @@ fn lambda_post_retirement_silently_aliases_to_fn() {
     // Arc 163 follow-up — walker re-armed; bare :wat::core::lambda
     // fires BareLegacyLambda fatal (replaces the soft fall-through).
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::defn :user::main [] -> :wat::core::i64
           ((:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64)
-             x)
-           5))
+                       x)
+                     5))
     "#;
     let err = startup_err(src);
     assert!(
@@ -102,13 +102,12 @@ fn fn_keyword_operator_position_works() {
     // fully wired. Computation moved to `(:my::apply ...)` helper;
     // main is canonical nil (arc 170 slice 1f-ζ migration).
     let src = r#"
-        (:wat::core::define (:my::apply -> :wat::core::i64)
+        (:wat::core::defn :my::apply [] -> :wat::core::i64
           ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-             x)
-           5))
+                       x)
+                     5))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -129,13 +128,13 @@ fn bare_fn_type_post_retirement_walker_silent() {
     // Arc 163 follow-up — walker re-armed; bare `:fn(...)` fires
     // BareLegacyLowercaseFn fatal.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::defn :user::main [] -> :wat::core::i64
           ((:wat::core::fn
-             [g <- :fn(wat::core::i64)->wat::core::i64]
-              ->
-              :wat::core::i64
-             (g 5))
-           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)))
+                       [g <- :fn(wat::core::i64)->wat::core::i64]
+                        ->
+                        :wat::core::i64
+                       (g 5))
+                     (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)))
     "#;
     let err = startup_err(src);
     assert!(
@@ -154,20 +153,15 @@ fn fqdn_fn_type_position_works() {
     // No BareLegacyLowercaseFn fires. Canonical form is fully wired.
     // Main is canonical nil (arc 170 slice 1f-ζ migration).
     let src = r#"
-        (:wat::core::define (:user::apply
-                              (f :wat::core::Fn(wat::core::i64)->wat::core::i64)
-                              (x :wat::core::i64)
-                              -> :wat::core::i64)
-          (f x))
+        (:wat::core::defn :user::apply [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f x))
 
-        (:wat::core::define (:my::invoke -> :wat::core::i64)
+        (:wat::core::defn :my::invoke [] -> :wat::core::i64
           (:user::apply
-            (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-              x)
-            42))
+                      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+                        x)
+                      42))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -182,13 +176,12 @@ fn fn_operator_keyword_does_not_fire_lowercase_fn_walker() {
     // (`:wat::core::fn` ≠ `:fn(` — different prefix.)
     // Main is canonical nil (arc 170 slice 1f-ζ migration).
     let src = r#"
-        (:wat::core::define (:my::apply -> :wat::core::i64)
+        (:wat::core::defn :my::apply [] -> :wat::core::i64
           ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-             x)
-           7))
+                       x)
+                     7))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err_str = match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Ok(_) => String::new(),
@@ -210,20 +203,15 @@ fn fqdn_fn_type_does_not_fire_lowercase_fn_walker() {
     // canonical FQDN form.
     // Main is canonical nil (arc 170 slice 1f-ζ migration).
     let src = r#"
-        (:wat::core::define (:user::apply
-                              (f :wat::core::Fn(wat::core::i64)->wat::core::i64)
-                              (x :wat::core::i64)
-                              -> :wat::core::i64)
-          (f x))
+        (:wat::core::defn :user::apply [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f x))
 
-        (:wat::core::define (:my::invoke -> :wat::core::i64)
+        (:wat::core::defn :my::invoke [] -> :wat::core::i64
           (:user::apply
-            (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+'2 x 1))
-            10))
+                      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::i64::+'2 x 1))
+                      10))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err_str = match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Ok(_) => String::new(),
@@ -247,10 +235,10 @@ fn multiple_lambda_sites_post_retirement_silently_alias() {
     // Arc 163 follow-up — walker re-armed; bare :wat::core::lambda
     // fires BareLegacyLambda fatal.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::defn :user::main [] -> :wat::core::i64
           ((:wat::core::lambda (() -> :wat::core::i64)
-             (:wat::core::i64::+'2 1 2))
-           ))
+                       (:wat::core::i64::+'2 1 2))
+                     ))
     "#;
     let err = startup_err(src);
     assert!(
@@ -270,18 +258,14 @@ fn fn_body_in_tail_position_type_checks() {
     // the former `infer_lambda`.
     // Main is canonical nil (arc 170 slice 1f-ζ migration).
     let src = r#"
-        (:wat::core::define (:user::double
-                              (n :wat::core::i64)
-                              -> :wat::core::i64)
-          (:wat::core::i64::*'2 n 2))
+        (:wat::core::defn :user::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 n 2))
 
-        (:wat::core::define (:my::apply -> :wat::core::i64)
+        (:wat::core::defn :my::apply [] -> :wat::core::i64
           ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-             (:user::double n))
-           5))
+                       (:user::double n))
+                     5))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -295,20 +279,15 @@ fn mixed_canonical_fn_operator_and_fn_type_work_together() {
     // `(:wat::core::fn ...)` for the function value.
     // Main is canonical nil (arc 170 slice 1f-ζ migration).
     let src = r#"
-        (:wat::core::define (:user::apply
-                              (f :wat::core::Fn(wat::core::i64)->wat::core::i64)
-                              (x :wat::core::i64)
-                              -> :wat::core::i64)
-          (f x))
+        (:wat::core::defn :user::apply [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f x))
 
-        (:wat::core::define (:my::invoke -> :wat::core::i64)
+        (:wat::core::defn :my::invoke [] -> :wat::core::i64
           (:user::apply
-            (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+'2 x 1))
-            5))
+                      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::i64::+'2 x 1))
+                      5))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -322,16 +301,15 @@ fn fn_body_with_let_type_checks() {
     // operator composes with other renamed forms from today).
     // Main is canonical nil (arc 170 slice 1f-ζ migration).
     let src = r#"
-        (:wat::core::define (:my::apply -> :wat::core::i64)
+        (:wat::core::defn :my::apply [] -> :wat::core::i64
           ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-             (:wat::core::let
-               [a (:wat::core::i64::+'2 x 5)
-                b (:wat::core::i64::*'2 a 2)]
-               b))
-           3))
+                       (:wat::core::let
+                         [a (:wat::core::i64::+'2 x 5)
+                          b (:wat::core::i64::*'2 a 2)]
+                         b))
+                     3))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -346,13 +324,12 @@ fn reflection_fn_registry_entry_exists() {
     // + `eval_fn`.
     // Main is canonical nil (arc 170 slice 1f-ζ migration).
     let src = r#"
-        (:wat::core::define (:my::apply -> :wat::core::i64)
+        (:wat::core::defn :my::apply [] -> :wat::core::i64
           ((:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-             (:wat::core::i64::+'2 a b))
-           10 20))
+                       (:wat::core::i64::+'2 a b))
+                     10 20))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -369,13 +346,13 @@ fn both_legacy_walkers_retired_silently_alias() {
     // Arc 163 follow-up — walker re-armed for both surfaces; mixed
     // legacy program now fires BOTH BareLegacyLambda + BareLegacyLowercaseFn.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
+        (:wat::core::defn :user::main [] -> :wat::core::i64
           ((:wat::core::lambda
-             ((g :fn(wat::core::i64)->wat::core::i64)
-              ->
-              :wat::core::i64)
-             (g 5))
-           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)))
+                       ((g :fn(wat::core::i64)->wat::core::i64)
+                        ->
+                        :wat::core::i64)
+                       (g 5))
+                     (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)))
     "#;
     let err = startup_err(src);
     assert!(

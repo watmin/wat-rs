@@ -31,6 +31,7 @@
 //! | `":wat::core::struct"`            | 241.8 | struct (original) | defstruct |
 //! | `":wat::core::struct-restricted"` | 241.8 | struct-restricted  | defstruct |
 //! | `":wat::core::enum"`              | 241.9 | enum (original)    | defenum   |
+//! | `":wat::core::define"`            | 241.11 | define (function binding) | defn |
 
 use super::{Remedy, RemedyKind};
 
@@ -44,7 +45,8 @@ const RETIREMENT_TABLE: &[(&str, &str)] = &[
     (":wat::core::struct-restricted", ":wat::core::defstruct"),
     // Stone 241.9 — defenum replaces enum.
     (":wat::core::enum",              ":wat::core::defenum"),
-    // Stone 241.11 entry added at 241.11 ship time; do NOT pre-emptively add.
+    // Stone 241.11 — defn replaces define.
+    (":wat::core::define",            ":wat::core::defn"),
 ];
 
 /// Look up `needle` in the retirement table.

@@ -18,8 +18,7 @@ const DIMS_AND_MODE: &str = r##"
 fn nil_main_body(body: &str) -> String {
     format!(
         r##"{}
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          {})
+        (:wat::core::defn :user::main [] -> :wat::core::nil {})
         "##,
         DIMS_AND_MODE, body
     )
@@ -47,8 +46,7 @@ fn harness_injects_stdin_lines() {
     // Test verifies the program compiles and runs cleanly.
     let src = format!(
         r##"{}
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
         "##,
         DIMS_AND_MODE
     );
@@ -91,7 +89,7 @@ fn harness_main_signature_mismatch() {
     // pre-empts this for any non-nil-returning main.
     let src = format!(
         r##"{}
-        (:wat::core::define (:user::main -> :wat::core::i64) 42)
+        (:wat::core::defn :user::main [] -> :wat::core::i64 42)
         "##,
         DIMS_AND_MODE
     );

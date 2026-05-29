@@ -27,7 +27,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -68,27 +68,26 @@ fn from_receiver_wraps_raw_queue_into_stream() {
     // collect would wait forever on a never-closing channel.
     let src = r#"
 
-        (:wat::core::define (:test::build-stream -> :wat::stream::Stream<wat::core::i64>)
+        (:wat::core::defn :test::build-stream [] -> :wat::stream::Stream<wat::core::i64>
           (:wat::core::let
-            [pair
-              (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-             tx (:wat::core::first pair)
-             rx (:wat::core::second pair)
-             handle
-              (:wat::kernel::spawn-thread
-                (:wat::core::fn
-                  [_in <- :wat::kernel::Receiver<wat::core::nil>
-                   _out <- :wat::kernel::Sender<wat::core::nil>]
-                   -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 10) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 20) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 30) "test producer: tx disconnected")
-                    ())))]
-            (:wat::stream::from-receiver rx handle)))
+                      [pair
+                        (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                       tx (:wat::core::first pair)
+                       rx (:wat::core::second pair)
+                       handle
+                        (:wat::kernel::spawn-thread
+                          (:wat::core::fn
+                            [_in <- :wat::kernel::Receiver<wat::core::nil>
+                             _out <- :wat::kernel::Sender<wat::core::nil>]
+                             -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 10) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 20) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 30) "test producer: tx disconnected")
+                              ())))]
+                      (:wat::stream::from-receiver rx handle)))
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
-          (:wat::stream::collect (:test::build-stream)))
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64> (:wat::stream::collect (:test::build-stream)))
     "#;
     assert_eq!(collected_i64(src), vec![10, 20, 30]);
 }
@@ -99,33 +98,33 @@ fn from_receiver_composes_with_map() {
     // Same helper-define pattern so tx drops before collect runs.
     let src = r#"
 
-        (:wat::core::define (:test::build-stream -> :wat::stream::Stream<wat::core::i64>)
+        (:wat::core::defn :test::build-stream [] -> :wat::stream::Stream<wat::core::i64>
           (:wat::core::let
-            [pair
-              (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-             tx (:wat::core::first pair)
-             rx (:wat::core::second pair)
-             handle
-              (:wat::kernel::spawn-thread
-                (:wat::core::fn
-                  [_in <- :wat::kernel::Receiver<wat::core::nil>
-                   _out <- :wat::kernel::Sender<wat::core::nil>]
-                   -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    ())))]
-            (:wat::stream::from-receiver rx handle)))
+                      [pair
+                        (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                       tx (:wat::core::first pair)
+                       rx (:wat::core::second pair)
+                       handle
+                        (:wat::kernel::spawn-thread
+                          (:wat::core::fn
+                            [_in <- :wat::kernel::Receiver<wat::core::nil>
+                             _out <- :wat::kernel::Sender<wat::core::nil>]
+                             -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              ())))]
+                      (:wat::stream::from-receiver rx handle)))
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source (:test::build-stream)
-             doubled
-              (:wat::stream::map source
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::i64::*'2 n 2)))]
-            (:wat::stream::collect doubled)))
+                      [source (:test::build-stream)
+                       doubled
+                        (:wat::stream::map source
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                            (:wat::core::i64::*'2 n 2)))]
+                      (:wat::stream::collect doubled)))
     "#;
     assert_eq!(collected_i64(src), vec![2, 4, 6]);
 }
@@ -136,15 +135,15 @@ fn from_receiver_composes_with_map() {
 fn spawn_producer_plus_collect_round_trips_three_values() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::stream::collect
-            (:wat::stream::spawn-producer
-              (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                (:wat::core::do
-                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                  ())))))
+                      (:wat::stream::spawn-producer
+                        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                          (:wat::core::do
+                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                            ())))))
     "#;
     assert_eq!(collected_i64(src), vec![1, 2, 3]);
 }
@@ -155,22 +154,22 @@ fn spawn_producer_plus_collect_round_trips_three_values() {
 fn spawn_producer_map_collect_doubles_each_value() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
-                    ())))
-             doubled
-              (:wat::stream::map source
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::i64::*'2 n 2)))]
-            (:wat::stream::collect doubled)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
+                              ())))
+                       doubled
+                        (:wat::stream::map source
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                            (:wat::core::i64::*'2 n 2)))]
+                      (:wat::stream::collect doubled)))
     "#;
     assert_eq!(collected_i64(src), vec![2, 4, 6, 8]);
 }
@@ -184,25 +183,25 @@ fn three_stage_pipeline_map_map_collect() {
     // Stream<T>'s tuple. Drop cascade flushes on termination.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [s0
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 0) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    ())))
-             s1
-              (:wat::stream::map s0
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::i64::+'2 n 1)))
-             s2
-              (:wat::stream::map s1
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::i64::*'2 n 3)))]
-            (:wat::stream::collect s2)))
+                      [s0
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 0) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              ())))
+                       s1
+                        (:wat::stream::map s0
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                            (:wat::core::i64::+'2 n 1)))
+                       s2
+                        (:wat::stream::map s1
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                            (:wat::core::i64::*'2 n 3)))]
+                      (:wat::stream::collect s2)))
     "#;
     // (0+1)*3, (1+1)*3, (2+1)*3 = 3, 6, 9
     assert_eq!(collected_i64(src), vec![3, 6, 9]);
@@ -214,11 +213,11 @@ fn three_stage_pipeline_map_map_collect() {
 fn empty_producer_yields_empty_collected_vec() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::stream::collect
-            (:wat::stream::spawn-producer
-              (:wat::core::fn [_tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                ()))))
+                      (:wat::stream::spawn-producer
+                        (:wat::core::fn [_tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                          ()))))
     "#;
     assert_eq!(collected_i64(src), Vec::<i64>::new());
 }
@@ -229,15 +228,15 @@ fn empty_producer_yields_empty_collected_vec() {
 fn for_each_returns_unit_on_finite_producer() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::nil)
+        (:wat::core::defn :my::compute [] -> :wat::core::nil
           (:wat::stream::for-each
-            (:wat::stream::spawn-producer
-              (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                (:wat::core::do
-                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                  ())))
-            (:wat::core::fn [_n <- :wat::core::i64] -> :wat::core::nil ())))
+                      (:wat::stream::spawn-producer
+                        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                          (:wat::core::do
+                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                            ())))
+                      (:wat::core::fn [_n <- :wat::core::i64] -> :wat::core::nil ())))
     "#;
     assert!(matches!(run(src), Value::Unit));
 }
@@ -249,25 +248,25 @@ fn filter_keeps_only_passing_values() {
     // 1..=6, keep evens → [2, 4, 6].
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 6) "test producer: tx disconnected")
-                    ())))
-             evens
-              (:wat::stream::filter source
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool
-                  (:wat::core::= (:wat::core::i64::/'2 (:wat::core::i64::*'2 n 2) 2)
-                                 n)))]
-            (:wat::stream::collect evens)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 6) "test producer: tx disconnected")
+                              ())))
+                       evens
+                        (:wat::stream::filter source
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool
+                            (:wat::core::= (:wat::core::i64::/'2 (:wat::core::i64::*'2 n 2) 2)
+                                           n)))]
+                      (:wat::stream::collect evens)))
     "#;
     // Identity check inside the fn — (n*2)/2 == n is always true.
     // Swap in a real parity check:
@@ -284,18 +283,18 @@ fn filter_keeps_only_passing_values() {
 fn fold_sums_the_stream() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::stream::fold
-            (:wat::stream::spawn-producer
-              (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                (:wat::core::do
-                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 10) "test producer: tx disconnected")
-                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 20) "test producer: tx disconnected")
-                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 30) "test producer: tx disconnected")
-                  ())))
-            0
-            (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+'2 acc x))))
+                      (:wat::stream::spawn-producer
+                        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                          (:wat::core::do
+                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 10) "test producer: tx disconnected")
+                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 20) "test producer: tx disconnected")
+                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 30) "test producer: tx disconnected")
+                            ())))
+                      0
+                      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::i64::+'2 acc x))))
     "#;
     assert!(matches!(run(src), Value::i64(60)));
 }
@@ -304,14 +303,14 @@ fn fold_sums_the_stream() {
 fn fold_with_empty_stream_returns_init() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::stream::fold
-            (:wat::stream::spawn-producer
-              (:wat::core::fn [_tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                ()))
-            42
-            (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+'2 acc x))))
+                      (:wat::stream::spawn-producer
+                        (:wat::core::fn [_tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                          ()))
+                      42
+                      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::i64::+'2 acc x))))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
 }
@@ -325,21 +324,21 @@ fn chunks_groups_by_size_flushes_remainder() {
     // every future stateful-stage with EOS cleanup.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::Vector<wat::core::i64>>
           (:wat::stream::collect
-            (:wat::stream::chunks
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 6) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
-                    ())))
-              3)))
+                      (:wat::stream::chunks
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 6) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
+                              ())))
+                        3)))
     "#;
     match run(src) {
         Value::Vec(outer) => {
@@ -371,20 +370,20 @@ fn chunks_with_exact_multiple_emits_no_partial_flush() {
     // 6 items, size 3 → [[1,2,3], [4,5,6]]. No partial flush.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::Vector<wat::core::i64>>
           (:wat::stream::collect
-            (:wat::stream::chunks
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 6) "test producer: tx disconnected")
-                    ())))
-              3)))
+                      (:wat::stream::chunks
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 6) "test producer: tx disconnected")
+                              ())))
+                        3)))
     "#;
     match run(src) {
         Value::Vec(outer) => {
@@ -413,24 +412,24 @@ fn chunks_into_map_composes() {
     // [[1,2], [3,4], [5]] → [3, 7, 5].
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::stream::collect
-            (:wat::stream::map
-              (:wat::stream::chunks
-                (:wat::stream::spawn-producer
-                  (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                    (:wat::core::do
-                      (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                      (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                      (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                      (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
-                      (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
-                      ())))
-                2)
-              (:wat::core::fn [batch <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-                (:wat::core::foldl batch 0
-                  (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                    (:wat::core::i64::+'2 acc x)))))))
+                      (:wat::stream::map
+                        (:wat::stream::chunks
+                          (:wat::stream::spawn-producer
+                            (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                              (:wat::core::do
+                                (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                                (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                                (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                                (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
+                                (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
+                                ())))
+                          2)
+                        (:wat::core::fn [batch <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+                          (:wat::core::foldl batch 0
+                            (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                              (:wat::core::i64::+'2 acc x)))))))
     "#;
     assert_eq!(collected_i64(src), vec![3, 7, 5]);
 }
@@ -445,26 +444,26 @@ fn take_cuts_off_at_n_with_producer_that_would_send_more() {
     // is the core test that take's drop cascade works.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 6) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 8) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 9) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 10) "test producer: tx disconnected")
-                    ())))
-             taken
-              (:wat::stream::take source 3)]
-            (:wat::stream::collect taken)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 6) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 8) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 9) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 10) "test producer: tx disconnected")
+                              ())))
+                       taken
+                        (:wat::stream::take source 3)]
+                      (:wat::stream::collect taken)))
     "#;
     assert_eq!(collected_i64(src), vec![1, 2, 3]);
 }
@@ -475,18 +474,18 @@ fn take_returns_all_when_n_exceeds_available() {
     // counter hits 0; exits cleanly; collect returns the 2 items.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 100) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 200) "test producer: tx disconnected")
-                    ())))
-             taken
-              (:wat::stream::take source 5)]
-            (:wat::stream::collect taken)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 100) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 200) "test producer: tx disconnected")
+                              ())))
+                       taken
+                        (:wat::stream::take source 5)]
+                      (:wat::stream::collect taken)))
     "#;
     assert_eq!(collected_i64(src), vec![100, 200]);
 }
@@ -497,18 +496,18 @@ fn take_zero_emits_nothing() {
     // on first recv; collect returns empty.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    ())))
-             taken
-              (:wat::stream::take source 0)]
-            (:wat::stream::collect taken)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              ())))
+                       taken
+                        (:wat::stream::take source 0)]
+                      (:wat::stream::collect taken)))
     "#;
     assert_eq!(collected_i64(src), Vec::<i64>::new());
 }
@@ -520,25 +519,25 @@ fn take_composes_with_map() {
     // producer.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
-                    ())))
-             mapped
-              (:wat::stream::map source
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::i64::+'2 n 10)))
-             taken
-              (:wat::stream::take mapped 2)]
-            (:wat::stream::collect taken)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 4) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 5) "test producer: tx disconnected")
+                              ())))
+                       mapped
+                        (:wat::stream::map source
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                            (:wat::core::i64::+'2 n 10)))
+                       taken
+                        (:wat::stream::take mapped 2)]
+                      (:wat::stream::collect taken)))
     "#;
     assert_eq!(collected_i64(src), vec![11, 12]);
 }
@@ -552,20 +551,20 @@ fn inspect_passes_values_through_unchanged() {
     // before the effect is observable.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 10) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 20) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 30) "test producer: tx disconnected")
-                    ())))
-             inspected
-              (:wat::stream::inspect source
-                (:wat::core::fn [_n <- :wat::core::i64] -> :wat::core::nil ()))]
-            (:wat::stream::collect inspected)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 10) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 20) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 30) "test producer: tx disconnected")
+                              ())))
+                       inspected
+                        (:wat::stream::inspect source
+                          (:wat::core::fn [_n <- :wat::core::i64] -> :wat::core::nil ()))]
+                      (:wat::stream::collect inspected)))
     "#;
     assert_eq!(collected_i64(src), vec![10, 20, 30]);
 }
@@ -577,28 +576,28 @@ fn inspect_composes_between_map_and_collect() {
     // pass-through — output = (n+1)*10 per input.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [s0
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    ())))
-             s1
-              (:wat::stream::map s0
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::i64::+'2 n 1)))
-             s2
-              (:wat::stream::inspect s1
-                (:wat::core::fn [_n <- :wat::core::i64] -> :wat::core::nil ()))
-             s3
-              (:wat::stream::map s2
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::i64::*'2 n 10)))]
-            (:wat::stream::collect s3)))
+                      [s0
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              ())))
+                       s1
+                        (:wat::stream::map s0
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                            (:wat::core::i64::+'2 n 1)))
+                       s2
+                        (:wat::stream::inspect s1
+                          (:wat::core::fn [_n <- :wat::core::i64] -> :wat::core::nil ()))
+                       s3
+                        (:wat::stream::map s2
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                            (:wat::core::i64::*'2 n 10)))]
+                      (:wat::stream::collect s3)))
     "#;
     assert_eq!(collected_i64(src), vec![20, 30, 40]);
 }
@@ -610,21 +609,21 @@ fn flat_map_expands_each_input_to_two_outputs() {
     // 1:N — each n becomes [n, n*10]. 3 inputs → 6 outputs.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    ())))
-             expanded
-              (:wat::stream::flat-map source
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::Vector<wat::core::i64>
-                  (:wat::core::Vector :wat::core::i64 n (:wat::core::i64::*'2 n 10))))]
-            (:wat::stream::collect expanded)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              ())))
+                       expanded
+                        (:wat::stream::flat-map source
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::Vector<wat::core::i64>
+                            (:wat::core::Vector :wat::core::i64 n (:wat::core::i64::*'2 n 10))))]
+                      (:wat::stream::collect expanded)))
     "#;
     assert_eq!(collected_i64(src), vec![1, 10, 2, 20, 3, 30]);
 }
@@ -635,20 +634,20 @@ fn flat_map_empty_expansion_emits_nothing() {
     // downstream emissions. collect returns empty Vec.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    ())))
-             expanded
-              (:wat::stream::flat-map source
-                (:wat::core::fn [_n <- :wat::core::i64] -> :wat::core::Vector<wat::core::i64>
-                  (:wat::core::Vector :wat::core::i64)))]
-            (:wat::stream::collect expanded)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              ())))
+                       expanded
+                        (:wat::stream::flat-map source
+                          (:wat::core::fn [_n <- :wat::core::i64] -> :wat::core::Vector<wat::core::i64>
+                            (:wat::core::Vector :wat::core::i64)))]
+                      (:wat::stream::collect expanded)))
     "#;
     assert_eq!(collected_i64(src), Vec::<i64>::new());
 }
@@ -659,25 +658,25 @@ fn flat_map_mixed_expansion_sizes() {
     // → total 5 outputs in input order.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
-                    (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
-                    ())))
-             expanded
-              (:wat::stream::flat-map source
-                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::Vector<wat::core::i64>
-                  (:wat::core::if (:wat::core::= n 1) -> :wat::core::Vector<wat::core::i64>
-                    (:wat::core::Vector :wat::core::i64 100 101 102)
-                    (:wat::core::if (:wat::core::= n 2) -> :wat::core::Vector<wat::core::i64>
-                      (:wat::core::Vector :wat::core::i64)
-                      (:wat::core::Vector :wat::core::i64 300 301)))))]
-            (:wat::stream::collect expanded)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 1) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 2) "test producer: tx disconnected")
+                              (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 3) "test producer: tx disconnected")
+                              ())))
+                       expanded
+                        (:wat::stream::flat-map source
+                          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::Vector<wat::core::i64>
+                            (:wat::core::if (:wat::core::= n 1) -> :wat::core::Vector<wat::core::i64>
+                              (:wat::core::Vector :wat::core::i64 100 101 102)
+                              (:wat::core::if (:wat::core::= n 2) -> :wat::core::Vector<wat::core::i64>
+                                (:wat::core::Vector :wat::core::i64)
+                                (:wat::core::Vector :wat::core::i64 300 301)))))]
+                      (:wat::stream::collect expanded)))
     "#;
     assert_eq!(collected_i64(src), vec![100, 101, 102, 300, 301]);
 }

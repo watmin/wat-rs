@@ -68,8 +68,7 @@ fn unwrap_receiver_inner(v: &Value) -> &wat::typed_channel::ReceiverInner {
 fn probe_sender_receiver_from_pipe_dispatch_arms() {
     // Minimal world — just needs to freeze.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let env = Environment::new();
@@ -180,8 +179,7 @@ fn probe_sender_receiver_from_pipe_edn_dispatch_via_eval() {
     //    (does not surface UnknownFunction).
     // 2. Calling it with a wrong type gives TypeMismatch (not UnknownFunction).
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let env = Environment::new();

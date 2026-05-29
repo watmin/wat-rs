@@ -20,8 +20,8 @@ const PRELUDE: &str = "(:wat::Record::def :my::Pt [x <- :wat::core::f64  y <- :w
 fn eval_f64(compute_expr: &str) -> f64 {
     let full = format!(
         "{prelude}\
-         (:wat::core::define (:user::compute -> :wat::core::f64) {expr})\n\
-         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+         (:wat::core::defn :user::compute [] -> :wat::core::f64 {expr})\n\
+         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         prelude = PRELUDE,
         expr = compute_expr
     );

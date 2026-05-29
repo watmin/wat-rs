@@ -31,7 +31,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -106,10 +106,8 @@ fn def_type_mismatch_via_registered_type() {
     // (arc 170 slice 1f-ζ migration).
     let src = r#"
         (:wat::core::def :pi 3.14159)
-        (:wat::core::define (:my::probe -> :wat::core::i64)
-          (:wat::core::i64::+'2 :pi 1))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::i64::+'2 :pi 1))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -127,8 +125,7 @@ fn def_type_mismatch_via_registered_type() {
 fn def_type_error_in_expr() {
     // Unambiguous type error: passing a String where the helper expects i64.
     let src = r#"
-        (:wat::core::define (:user::helper (x :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::+'2 x 1))
+        (:wat::core::defn :user::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x 1))
         (:wat::core::def :bad (:user::helper "not-an-int"))
     "#;
     let err = startup_err(src);
@@ -243,8 +240,7 @@ fn def_position_illegal_inside_define_body() {
     // (:my::f) is called at runtime — not tested here.
     // The end-to-end runtime probe is in tests/probe_def_not_special.rs.
     let src = r#"
-        (:wat::core::define (:my::f -> :wat::core::nil)
-          (:wat::core::def :a 1))
+        (:wat::core::defn :my::f [] -> :wat::core::nil (:wat::core::def :a 1))
     "#;
     startup_ok(src);
 }
@@ -286,8 +282,7 @@ fn def_runtime_pi_resolves_to_value() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute is the probe.
     let src = r#"
         (:wat::core::def :pi 3.14159)
-        (:wat::core::define (:my::compute -> :wat::core::f64)
-          :pi)
+        (:wat::core::defn :my::compute [] -> :wat::core::f64 :pi)
     "#;
     let v = run(src);
     match v {
@@ -312,10 +307,10 @@ fn def_runtime_pi_in_let_addition() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute is the probe.
     let src = r#"
         (:wat::core::def :pi 3.14159)
-        (:wat::core::define (:my::compute -> :wat::core::f64)
+        (:wat::core::defn :my::compute [] -> :wat::core::f64
           (:wat::core::let
-            [x 2.0]
-            (:wat::core::f64::+'2 x :pi)))
+                      [x 2.0]
+                      (:wat::core::f64::+'2 x :pi)))
     "#;
     let v = run(src);
     match v {
@@ -350,8 +345,7 @@ fn def_runtime_let_splice_closure_capture() {
           (:wat::core::def :get-config
             (:wat::core::fn [] -> :wat::core::i64
               config)))
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:get-config))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:get-config))
     "#;
     let v = run(src);
     match v {
@@ -393,8 +387,7 @@ fn def_redef_set_redef_true_same_type_succeeds() {
         (:wat::config::set-redef! true)
         (:wat::core::def :a 1)
         (:wat::core::def :a 2)
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          :a)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 :a)
     "#;
     let v = run(src);
     match v {

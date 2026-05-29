@@ -12,5 +12,4 @@
 
 (:wat::load-file! "helper.wat")
 
-(:wat::core::define (:user::main -> :wat::core::nil)
-  (:wat::kernel::println (:user::with_loader::helper::greeting)))
+(:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:user::with_loader::helper::greeting)))

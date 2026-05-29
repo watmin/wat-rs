@@ -48,10 +48,9 @@
    ;; single println call to fd 1. EDN encoding of the wat::core::String
    ;; "hello" is the quoted form "hello" (with literal double quotes)
    ;; — that's what the trio writes line by line.
-   (:wat::core::define
-     (:test::run-println-string -> :wat::kernel::RunResult)
+   (:wat::core::defn :test::run-println-string [] -> :wat::kernel::RunResult
      (:wat::test::run-hermetic
-       (:wat::kernel::println "hello")))
+            (:wat::kernel::println "hello")))
 
    ;; ─── Layer 1 helper — run inner program that prints an i64 ───────
    ;;
@@ -59,33 +58,30 @@
    ;; i64 is its decimal literal (no quotes). Proves the trio doesn't
    ;; only handle pre-formatted strings — println renders any T via
    ;; value_to_edn_with.
-   (:wat::core::define
-     (:test::run-println-i64 -> :wat::kernel::RunResult)
+   (:wat::core::defn :test::run-println-i64 [] -> :wat::kernel::RunResult
      (:wat::test::run-hermetic
-       (:wat::kernel::println 42)))
+            (:wat::kernel::println 42)))
 
    ;; ─── Layer 2 helper — run inner program that eprints "err" ───────
    ;;
    ;; eprintln routes to fd 2 instead of fd 1. The RunResult separates
    ;; stdout (empty) from stderr ("err"). Proves the two fd pipelines
    ;; don't cross-talk: a single eprintln lands ONLY in stderr.
-   (:wat::core::define
-     (:test::run-eprintln-string -> :wat::kernel::RunResult)
+   (:wat::core::defn :test::run-eprintln-string [] -> :wat::kernel::RunResult
      (:wat::test::run-hermetic
-       (:wat::kernel::eprintln "err")))
+            (:wat::kernel::eprintln "err")))
 
    ;; ─── Layer 3 helper — run inner program with two println calls ───
    ;;
    ;; Two sequential calls. The trio ack-rx blocks after each Write so
    ;; the lines land in send order. Proves order preservation across
    ;; multiple round trips through the same fd pipeline.
-   (:wat::core::define
-     (:test::run-println-twice -> :wat::kernel::RunResult)
+   (:wat::core::defn :test::run-println-twice [] -> :wat::kernel::RunResult
      (:wat::test::run-hermetic
-       (:wat::core::do
-         (:wat::kernel::println "first")
-         (:wat::kernel::println "second")
-         :wat::core::nil)))
+            (:wat::core::do
+              (:wat::kernel::println "first")
+              (:wat::kernel::println "second")
+              :wat::core::nil)))
 
    ;; ─── Layer 4 helper — readln round trip via Layer 2 typed I/O ────
    ;;
@@ -112,15 +108,14 @@
    ;; send (newline framing built in), and child exit closes fd 1 so
    ;; the parent's Receiver/from-pipe drain sees EOF cleanly. T18
    ;; bounded I/O: one send → one recv → child exits.
-   (:wat::core::define
-     (:test::run-readln-echo -> :wat::test::RunResultIO<wat::core::String>)
+   (:wat::core::defn :test::run-readln-echo [] -> :wat::test::RunResultIO<wat::core::String>
      (:wat::test::run-hermetic-with-io
-       :wat::core::String                                  ;; input element type
-       :wat::core::String                                  ;; output element type
-       (:wat::core::Vector :wat::core::String "echo me")   ;; native String (Sender/from-pipe EDN-encodes)
-       (:wat::core::let
-         [echoed (:wat::kernel::readln -> :wat::core::String)]
-         (:wat::kernel::println echoed))))
+            :wat::core::String                                  ;; input element type
+            :wat::core::String                                  ;; output element type
+            (:wat::core::Vector :wat::core::String "echo me")   ;; native String (Sender/from-pipe EDN-encodes)
+            (:wat::core::let
+              [echoed (:wat::kernel::readln -> :wat::core::String)]
+              (:wat::kernel::println echoed))))
    ))
 
 ;; ─── Layer 0 — :test::run-println-string ────────────────────────────

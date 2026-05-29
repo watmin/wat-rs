@@ -29,7 +29,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -71,26 +71,24 @@ fn eval_bool(src: &str) -> bool {
 fn three_probes(name_keyword: &str) -> (String, String, bool) {
     let def_rendered = eval_string(&format!(
         r##"
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::edn::write (:wat::runtime::lookup-define {name})))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::edn::write (:wat::runtime::lookup-define {name})))
         "##,
         name = name_keyword
     ));
     let sig_rendered = eval_string(&format!(
         r##"
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::edn::write (:wat::runtime::signature-of-defn {name})))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::edn::write (:wat::runtime::signature-of-defn {name})))
         "##,
         name = name_keyword
     ));
     let body_is_none = eval_bool(&format!(
         r##"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::body-of {name})
-            -> :wat::core::bool
-            ((:wat::core::Some _) false)
-            (:wat::core::None    true)))
+                      (:wat::runtime::body-of {name})
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) false)
+                      (:wat::core::None    true)))
         "##,
         name = name_keyword
     ));
@@ -279,26 +277,26 @@ fn lookup_form_unknown_special_form_name_returns_none() {
     // primitives — same shape as slice 1's
     // `all_three_primitives_return_none_on_unknown_name` test.
     let src = r##"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [d-opt
-              (:wat::runtime::lookup-define :wat::core::not-a-special-form)
-             s-opt
-              (:wat::runtime::signature-of-defn :wat::core::not-a-special-form)
-             b-opt
-              (:wat::runtime::body-of    :wat::core::not-a-special-form)]
-            (:wat::core::match d-opt
-              -> :wat::core::bool
-              ((:wat::core::Some _) false)
-              (:wat::core::None
-                (:wat::core::match s-opt
-                  -> :wat::core::bool
-                  ((:wat::core::Some _) false)
-                  (:wat::core::None
-                    (:wat::core::match b-opt
-                      -> :wat::core::bool
-                      ((:wat::core::Some _) false)
-                      (:wat::core::None    true))))))))
+                      [d-opt
+                        (:wat::runtime::lookup-define :wat::core::not-a-special-form)
+                       s-opt
+                        (:wat::runtime::signature-of-defn :wat::core::not-a-special-form)
+                       b-opt
+                        (:wat::runtime::body-of    :wat::core::not-a-special-form)]
+                      (:wat::core::match d-opt
+                        -> :wat::core::bool
+                        ((:wat::core::Some _) false)
+                        (:wat::core::None
+                          (:wat::core::match s-opt
+                            -> :wat::core::bool
+                            ((:wat::core::Some _) false)
+                            (:wat::core::None
+                              (:wat::core::match b-opt
+                                -> :wat::core::bool
+                                ((:wat::core::Some _) false)
+                                (:wat::core::None    true))))))))
     "##;
     assert!(eval_bool(src), "unknown name should return None for all three primitives");
 }

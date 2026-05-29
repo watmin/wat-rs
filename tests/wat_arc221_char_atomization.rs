@@ -22,7 +22,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -66,34 +66,34 @@ fn run_i64(src: &str) -> i64 {
 fn probe_1_char_atom_round_trip_distinct_from_i64() {
     // atom(\a) = atom(\a) — same Char produces identical HolonAST.
     let same = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [atom-a1  (:wat::holon::to-holon \a)
-             atom-a2  (:wat::holon::to-holon \a)]
-            (:wat::core::= atom-a1 atom-a2)))
+                      [atom-a1  (:wat::holon::to-holon \a)
+                       atom-a2  (:wat::holon::to-holon \a)]
+                      (:wat::core::= atom-a1 atom-a2)))
     "#);
     assert!(same, "Atom(\\a) must equal Atom(\\a) — same Char leaf");
 
     // atom(\a) ≠ atom(\b) — different Chars produce distinct HolonAST.
     let diff = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [atom-a  (:wat::holon::to-holon \a)
-             atom-b  (:wat::holon::to-holon \b)
-             eq      (:wat::core::= atom-a atom-b)]
-            (:wat::core::not eq)))
+                      [atom-a  (:wat::holon::to-holon \a)
+                       atom-b  (:wat::holon::to-holon \b)
+                       eq      (:wat::core::= atom-a atom-b)]
+                      (:wat::core::not eq)))
     "#);
     assert!(diff, "Atom(\\a) must NOT equal Atom(\\b) — distinct Char leaves");
 
     // atom(\a) ≠ atom(97) — Char leaf is distinct from i64 leaf.
     // 'a' has codepoint 97; HolonAST::Char('a') ≠ HolonAST::I64(97).
     let not_i64 = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [atom-char  (:wat::holon::to-holon \a)
-             atom-int   (:wat::holon::to-holon 97)
-             eq         (:wat::core::= atom-char atom-int)]
-            (:wat::core::not eq)))
+                      [atom-char  (:wat::holon::to-holon \a)
+                       atom-int   (:wat::holon::to-holon 97)
+                       eq         (:wat::core::= atom-char atom-int)]
+                      (:wat::core::not eq)))
     "#);
     assert!(not_i64, "Atom(\\a) must NOT equal Atom(97) — Char leaf is distinct from i64 leaf");
 }
@@ -114,38 +114,38 @@ fn probe_1_char_atom_round_trip_distinct_from_i64() {
 fn probe_2_hashmap_char_key_insert_lookup() {
     // Insert \a -> 3, \b -> 7; get \a returns Some(3).
     let a_val = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [tally   (:wat::core::HashMap :wat::core::Char :wat::core::i64)
-             tally2  (:wat::core::HashMap/assoc tally \a 3)
-             tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
-            (:wat::core::match (:wat::core::HashMap/get tally3 \a) -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (_ -1))))
+                      [tally   (:wat::core::HashMap :wat::core::Char :wat::core::i64)
+                       tally2  (:wat::core::HashMap/assoc tally \a 3)
+                       tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
+                      (:wat::core::match (:wat::core::HashMap/get tally3 \a) -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (_ -1))))
     "#);
     assert_eq!(a_val, 3, "HashMap<Char,i64>: get \\a after insert must return 3");
 
     // get \b returns Some(7).
     let b_val = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [tally   (:wat::core::HashMap :wat::core::Char :wat::core::i64)
-             tally2  (:wat::core::HashMap/assoc tally \a 3)
-             tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
-            (:wat::core::match (:wat::core::HashMap/get tally3 \b) -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (_ -1))))
+                      [tally   (:wat::core::HashMap :wat::core::Char :wat::core::i64)
+                       tally2  (:wat::core::HashMap/assoc tally \a 3)
+                       tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
+                      (:wat::core::match (:wat::core::HashMap/get tally3 \b) -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (_ -1))))
     "#);
     assert_eq!(b_val, 7, "HashMap<Char,i64>: get \\b after insert must return 7");
 
     // length = 2 — two distinct Char keys.
     let len = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [tally   (:wat::core::HashMap :wat::core::Char :wat::core::i64)
-             tally2  (:wat::core::HashMap/assoc tally \a 3)
-             tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
-            (:wat::core::HashMap/length tally3)))
+                      [tally   (:wat::core::HashMap :wat::core::Char :wat::core::i64)
+                       tally2  (:wat::core::HashMap/assoc tally \a 3)
+                       tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
+                      (:wat::core::HashMap/length tally3)))
     "#);
     assert_eq!(len, 2, "HashMap<Char,i64>: two distinct Char keys → length 2");
 }
@@ -165,38 +165,38 @@ fn probe_2_hashmap_char_key_insert_lookup() {
 fn probe_3_hashset_char_insert_contains() {
     // \a is in the vowels set.
     let has_a = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)]
-            (:wat::core::contains? vowels \a)))
+                      [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)]
+                      (:wat::core::contains? vowels \a)))
     "#);
     assert!(has_a, "HashSet<Char>: \\a must be found in vowels set");
 
     // \e is in the vowels set.
     let has_e = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)]
-            (:wat::core::contains? vowels \e)))
+                      [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)]
+                      (:wat::core::contains? vowels \e)))
     "#);
     assert!(has_e, "HashSet<Char>: \\e must be found in vowels set");
 
     // \z is NOT in the vowels set.
     let has_z = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)
-             found  (:wat::core::contains? vowels \z)]
-            (:wat::core::not found)))
+                      [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)
+                       found  (:wat::core::contains? vowels \z)]
+                      (:wat::core::not found)))
     "#);
     assert!(has_z, "HashSet<Char>: \\z must NOT be found in vowels set");
 
     // Length = 5 — five distinct vowel Char elements.
     let len = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)]
-            (:wat::core::HashSet/length vowels)))
+                      [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)]
+                      (:wat::core::HashSet/length vowels)))
     "#);
     assert_eq!(len, 5, "HashSet<Char>: five distinct vowels → length 5");
 }

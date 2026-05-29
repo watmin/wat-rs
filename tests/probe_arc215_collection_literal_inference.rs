@@ -38,7 +38,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -84,14 +84,12 @@ fn startup_err(src: &str) -> String {
 #[test]
 fn probe_1_single_pair_inferred_v_i64() {
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:foo 42}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:foo 42}))
     "#;
     assert_eq!(run_i64(src_len), 1, "single-pair inferred map must have length 1");
 
     let src_contains = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::HashMap/contains-key? {:foo 42} :foo))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::HashMap/contains-key? {:foo 42} :foo))
     "#;
     assert!(
         run_bool(src_contains),
@@ -106,18 +104,17 @@ fn probe_1_single_pair_inferred_v_i64() {
 #[test]
 fn probe_2_multi_pair_inferred_v_i64() {
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:a 1 :b 2 :c 3}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:a 1 :b 2 :c 3}))
     "#;
     assert_eq!(run_i64(src_len), 3, "three-pair inferred map must have length 3");
 
     let src_get = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m {:a 1 :b 2 :c 3}]
-            (:wat::core::match (:wat::core::get m :b) -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (:wat::core::None -1))))
+                      [m {:a 1 :b 2 :c 3}]
+                      (:wat::core::match (:wat::core::get m :b) -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(run_i64(src_get), 2, "get :b from {{:a 1 :b 2 :c 3}} must return 2");
 }
@@ -129,8 +126,7 @@ fn probe_2_multi_pair_inferred_v_i64() {
 #[test]
 fn probe_3_string_valued_map_inferred_v() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:a "hello" :b "world"}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:a "hello" :b "world"}))
     "#;
     assert_eq!(run_i64(src), 2, "string-valued inferred map must have length 2");
 }
@@ -147,8 +143,7 @@ fn probe_3_string_valued_map_inferred_v() {
 fn probe_4_nested_map_literal_resolved() {
     // Outer length = 1.
     let src_outer_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:outer {:inner 42}}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:outer {:inner 42}}))
     "#;
     assert_eq!(
         run_i64(src_outer_len),
@@ -158,12 +153,12 @@ fn probe_4_nested_map_literal_resolved() {
 
     // Get :outer from outer map; call length on inner map.
     let src_inner_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [outer {:outer {:inner 42}}]
-            (:wat::core::match (:wat::core::get outer :outer) -> :wat::core::i64
-              ((:wat::core::Some inner-map) (:wat::core::length inner-map))
-              (:wat::core::None -1))))
+                      [outer {:outer {:inner 42}}]
+                      (:wat::core::match (:wat::core::get outer :outer) -> :wat::core::i64
+                        ((:wat::core::Some inner-map) (:wat::core::length inner-map))
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(
         run_i64(src_inner_len),
@@ -180,8 +175,7 @@ fn probe_4_nested_map_literal_resolved() {
 #[test]
 fn probe_5_mixed_value_types_rejected_at_check() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:a 1 :b "two"}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:a 1 :b "two"}))
     "#;
     let err = startup_err(src);
     assert!(
@@ -199,8 +193,7 @@ fn probe_5_mixed_value_types_rejected_at_check() {
 #[test]
 fn probe_6_empty_map_literal_length_zero() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {}))
     "#;
     assert_eq!(run_i64(src), 0, "empty map literal must have length 0");
 }
@@ -212,8 +205,7 @@ fn probe_6_empty_map_literal_length_zero() {
 #[test]
 fn probe_7_empty_set_literal_length_zero() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length #{}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length #{}))
     "#;
     assert_eq!(run_i64(src), 0, "empty set literal must have length 0");
 }
@@ -225,14 +217,12 @@ fn probe_7_empty_set_literal_length_zero() {
 #[test]
 fn probe_8_single_element_set() {
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length #{42}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length #{42}))
     "#;
     assert_eq!(run_i64(src_len), 1, "single-element set literal must have length 1");
 
     let src_contains = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::contains? #{42} 42))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::contains? #{42} 42))
     "#;
     assert!(
         run_bool(src_contains),
@@ -246,14 +236,12 @@ fn probe_8_single_element_set() {
 #[test]
 fn probe_9_multi_element_set() {
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length #{1 2 3}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length #{1 2 3}))
     "#;
     assert_eq!(run_i64(src_len), 3, "three-element set literal must have length 3");
 
     let src_contains = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::contains? #{1 2 3} 2))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::contains? #{1 2 3} 2))
     "#;
     assert!(
         run_bool(src_contains),
@@ -269,8 +257,7 @@ fn probe_9_multi_element_set() {
 #[test]
 fn probe_10_set_literal_dedup_at_construction() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length #{1 1 2 2 3}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length #{1 1 2 2 3}))
     "#;
     assert_eq!(
         run_i64(src),
@@ -287,8 +274,7 @@ fn probe_10_set_literal_dedup_at_construction() {
 #[test]
 fn probe_11_mixed_element_types_rejected_at_check() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length #{1 :foo "x"}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length #{1 :foo "x"}))
     "#;
     let err = startup_err(src);
     assert!(
@@ -307,8 +293,7 @@ fn probe_11_mixed_element_types_rejected_at_check() {
 fn probe_12_map_of_sets() {
     // Outer map length = 2.
     let src_outer_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:a #{1 2} :b #{3 4}}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:a #{1 2} :b #{3 4}}))
     "#;
     assert_eq!(
         run_i64(src_outer_len),
@@ -318,12 +303,12 @@ fn probe_12_map_of_sets() {
 
     // Get :a; inner set length = 2.
     let src_inner_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m {:a #{1 2} :b #{3 4}}]
-            (:wat::core::match (:wat::core::get m :a) -> :wat::core::i64
-              ((:wat::core::Some s) (:wat::core::length s))
-              (:wat::core::None -1))))
+                      [m {:a #{1 2} :b #{3 4}}]
+                      (:wat::core::match (:wat::core::get m :a) -> :wat::core::i64
+                        ((:wat::core::Some s) (:wat::core::length s))
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(
         run_i64(src_inner_len),

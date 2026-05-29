@@ -103,45 +103,32 @@
 ;; Builds a Vector<EventRx> parallel to routing-vec (index i in
 ;; the result corresponds to entry i in routing-vec).  The result is
 ;; fed to (:wat::kernel::select ...) alongside [control-rx].
-(:wat::core::define
-  (:wat::kernel::services::StdInService/routing-rxs
-    (routing-vec :wat::kernel::services::StdInService::RoutingVec)
-    -> :wat::core::Vector<wat::kernel::services::StdInService::EventRx>)
+(:wat::core::defn :wat::kernel::services::StdInService/routing-rxs [routing-vec <- :wat::kernel::services::StdInService::RoutingVec] -> :wat::core::Vector<wat::kernel::services::StdInService::EventRx>
   (:wat::core::map routing-vec
-    (:wat::core::fn
-      [entry <- :wat::kernel::services::StdInService::RoutingEntry]
-       -> :wat::kernel::services::StdInService::EventRx
-      (:wat::core::second entry))))
+      (:wat::core::fn
+        [entry <- :wat::kernel::services::StdInService::RoutingEntry]
+         -> :wat::kernel::services::StdInService::EventRx
+        (:wat::core::second entry))))
 
 
 ;; ─── Helper: handle Event::Add ────────────────────────────────────────────
 ;;
 ;; Appends a new RoutingEntry to routing-vec.  Returns the new vec.
-(:wat::core::define
-  (:wat::kernel::services::StdInService/handle-add
-    (routing-vec :wat::kernel::services::StdInService::RoutingVec)
-    (thread-id :wat::kernel::ThreadId)
-    (data-rx :wat::kernel::services::StdInService::EventRx)
-    (reply-tx :wat::kernel::Sender<wat::core::String>)
-    -> :wat::kernel::services::StdInService::RoutingVec)
+(:wat::core::defn :wat::kernel::services::StdInService/handle-add [routing-vec <- :wat::kernel::services::StdInService::RoutingVec thread-id <- :wat::kernel::ThreadId data-rx <- :wat::kernel::services::StdInService::EventRx reply-tx <- :wat::kernel::Sender<wat::core::String>] -> :wat::kernel::services::StdInService::RoutingVec
   (:wat::core::conj routing-vec
-    (:wat::core::Tuple thread-id data-rx reply-tx)))
+      (:wat::core::Tuple thread-id data-rx reply-tx)))
 
 
 ;; ─── Helper: handle Event::Remove ─────────────────────────────────────────
 ;;
 ;; Filters out the entry whose thread-id matches.  Returns the new vec.
-(:wat::core::define
-  (:wat::kernel::services::StdInService/handle-remove
-    (routing-vec :wat::kernel::services::StdInService::RoutingVec)
-    (target-id :wat::kernel::ThreadId)
-    -> :wat::kernel::services::StdInService::RoutingVec)
+(:wat::core::defn :wat::kernel::services::StdInService/handle-remove [routing-vec <- :wat::kernel::services::StdInService::RoutingVec target-id <- :wat::kernel::ThreadId] -> :wat::kernel::services::StdInService::RoutingVec
   (:wat::core::filter routing-vec
-    (:wat::core::fn
-      [entry <- :wat::kernel::services::StdInService::RoutingEntry]
-       -> :wat::core::bool
-      (:wat::core::not
-        (:wat::core::= (:wat::core::first entry) target-id)))))
+      (:wat::core::fn
+        [entry <- :wat::kernel::services::StdInService::RoutingEntry]
+         -> :wat::core::bool
+        (:wat::core::not
+          (:wat::core::= (:wat::core::first entry) target-id)))))
 
 
 ;; ─── Helper: handle Event::Read at index idx ──────────────────────────────
@@ -156,42 +143,37 @@
 ;;   3. On None (EOF): reply-tx disconnects when service shuts down;
 ;;      no special handling in this slice (slice 1f-gamma handles cascade).
 ;; Returns unit.
-(:wat::core::define
-  (:wat::kernel::services::StdInService/handle-read
-    (routing-vec :wat::kernel::services::StdInService::RoutingVec)
-    (reader :wat::io::IOReader)
-    (idx :wat::core::i64)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::kernel::services::StdInService/handle-read [routing-vec <- :wat::kernel::services::StdInService::RoutingVec reader <- :wat::io::IOReader idx <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match (:wat::core::get routing-vec idx) -> :wat::core::nil
-    ((:wat::core::Some entry)
-      (:wat::core::let
-        [reply-tx
-          (:wat::core::third entry)
-         line-opt
-          (:wat::io::IOReader/read-line reader)]
-        (:wat::core::match line-opt -> :wat::core::nil
-          ((:wat::core::Some line)
-            (:wat::core::Result/expect -> :wat::core::nil
-              (:wat::kernel::send reply-tx line)
-              "StdInService/handle-read: reply-tx disconnected -- thread died?"))
-          (:wat::core::None
-            ;; EOF on fd 0: client (parent process / pipe writer) disconnected.
-            ;; Per lock-step doctrine + feedback_silent_disconnect_hang, this
-            ;; is a contract violation and MUST surface as a panic — not be
-            ;; silently swallowed (the old `()` no-op spun the service
-            ;; thread forever on EOF, leaving callers' recv blocked).
-            ;; assertion-failed! invokes std::panic::panic_any: the service
-            ;; thread dies, reply-txs in the routing-vec drop, main thread's
-            ;; readln returns Disconnected, arc 110's Result/expect chain
-            ;; panics with the full diagnostic. Cascades cleanly down forked
-            ;; child trees (each child's StdInService panics the same way
-            ;; when its parent's pipe closes).
-            (:wat::kernel::assertion-failed!
-              "StdInService: EOF on fd 0 — client (parent process or pipe writer) disconnected. Lock-step contract violation; process must die."
-              :wat::core::None :wat::core::None)))))
-    (:wat::core::None
-      ;; idx out of range -- degenerate; cannot happen in practice.
-      ())))
+      ((:wat::core::Some entry)
+        (:wat::core::let
+          [reply-tx
+            (:wat::core::third entry)
+           line-opt
+            (:wat::io::IOReader/read-line reader)]
+          (:wat::core::match line-opt -> :wat::core::nil
+            ((:wat::core::Some line)
+              (:wat::core::Result/expect -> :wat::core::nil
+                (:wat::kernel::send reply-tx line)
+                "StdInService/handle-read: reply-tx disconnected -- thread died?"))
+            (:wat::core::None
+              ;; EOF on fd 0: client (parent process / pipe writer) disconnected.
+              ;; Per lock-step doctrine + feedback_silent_disconnect_hang, this
+              ;; is a contract violation and MUST surface as a panic — not be
+              ;; silently swallowed (the old `()` no-op spun the service
+              ;; thread forever on EOF, leaving callers' recv blocked).
+              ;; assertion-failed! invokes std::panic::panic_any: the service
+              ;; thread dies, reply-txs in the routing-vec drop, main thread's
+              ;; readln returns Disconnected, arc 110's Result/expect chain
+              ;; panics with the full diagnostic. Cascades cleanly down forked
+              ;; child trees (each child's StdInService panics the same way
+              ;; when its parent's pipe closes).
+              (:wat::kernel::assertion-failed!
+                "StdInService: EOF on fd 0 — client (parent process or pipe writer) disconnected. Lock-step contract violation; process must die."
+                :wat::core::None :wat::core::None)))))
+      (:wat::core::None
+        ;; idx out of range -- degenerate; cannot happen in practice.
+        ())))
 
 
 ;; ─── Dispatch helper ──────────────────────────────────────────────────────
@@ -204,68 +186,61 @@
 ;;   (Err _) at any idx             => prune / exit same as None
 ;;
 ;; Extracted from the loop body per one-let-per-function rule.
-(:wat::core::define
-  (:wat::kernel::services::StdInService/dispatch
-    (routing-vec :wat::kernel::services::StdInService::RoutingVec)
-    (reader :wat::io::IOReader)
-    (control-rx :wat::kernel::services::StdInService::EventRx)
-    (idx :wat::core::i64)
-    (maybe :wat::kernel::CommResult<wat::kernel::services::StdInService::Event>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::kernel::services::StdInService/dispatch [routing-vec <- :wat::kernel::services::StdInService::RoutingVec reader <- :wat::io::IOReader control-rx <- :wat::kernel::services::StdInService::EventRx idx <- :wat::core::i64 maybe <- :wat::kernel::CommResult<wat::kernel::services::StdInService::Event>] -> :wat::core::nil
   (:wat::core::let
-    [routing-len
-      (:wat::core::length routing-vec)
-     is-ctrl
-      (:wat::core::= idx routing-len)]
-    (:wat::core::match maybe -> :wat::core::nil
-      ;; ── Fire with a value ──────────────────────────────────────────
-      ((:wat::core::Ok (:wat::core::Some event))
-        (:wat::core::if is-ctrl -> :wat::core::nil
-          ;; Control channel fired -- Add or Remove.
-          (:wat::core::match event -> :wat::core::nil
-            ((:wat::kernel::services::StdInService::Event::Add t-id d-rx r-tx)
+      [routing-len
+        (:wat::core::length routing-vec)
+       is-ctrl
+        (:wat::core::= idx routing-len)]
+      (:wat::core::match maybe -> :wat::core::nil
+        ;; ── Fire with a value ──────────────────────────────────────────
+        ((:wat::core::Ok (:wat::core::Some event))
+          (:wat::core::if is-ctrl -> :wat::core::nil
+            ;; Control channel fired -- Add or Remove.
+            (:wat::core::match event -> :wat::core::nil
+              ((:wat::kernel::services::StdInService::Event::Add t-id d-rx r-tx)
+                (:wat::kernel::services::StdInService/loop
+                  (:wat::kernel::services::StdInService/handle-add
+                    routing-vec t-id d-rx r-tx)
+                  reader
+                  control-rx))
+              ((:wat::kernel::services::StdInService::Event::Remove t-id)
+                (:wat::kernel::services::StdInService/loop
+                  (:wat::kernel::services::StdInService/handle-remove
+                    routing-vec t-id)
+                  reader
+                  control-rx))
+              ;; Stone 241.9 — :Read is now a UNIT variant; arm uses keyword pattern directly.
+              (:wat::kernel::services::StdInService::Event::Read
+                ;; Read on control channel is unexpected; ignore + recurse.
+                (:wat::kernel::services::StdInService/loop
+                  routing-vec reader control-rx)))
+            ;; Data channel fired -- Read expected.
+            (:wat::core::let
+              [_ (:wat::kernel::services::StdInService/handle-read
+                    routing-vec reader idx)]
               (:wat::kernel::services::StdInService/loop
-                (:wat::kernel::services::StdInService/handle-add
-                  routing-vec t-id d-rx r-tx)
-                reader
-                control-rx))
-            ((:wat::kernel::services::StdInService::Event::Remove t-id)
-              (:wat::kernel::services::StdInService/loop
-                (:wat::kernel::services::StdInService/handle-remove
-                  routing-vec t-id)
-                reader
-                control-rx))
-            ;; Stone 241.9 — :Read is now a UNIT variant; arm uses keyword pattern directly.
-            (:wat::kernel::services::StdInService::Event::Read
-              ;; Read on control channel is unexpected; ignore + recurse.
-              (:wat::kernel::services::StdInService/loop
-                routing-vec reader control-rx)))
-          ;; Data channel fired -- Read expected.
-          (:wat::core::let
-            [_ (:wat::kernel::services::StdInService/handle-read
-                  routing-vec reader idx)]
+                routing-vec reader control-rx))))
+        ;; ── Clean disconnect ────────────────────────────────────────────
+        ((:wat::core::Ok :wat::core::None)
+          (:wat::core::if is-ctrl -> :wat::core::nil
+            ;; Control channel disconnected => shutdown.
+            ()
+            ;; Data channel disconnected => prune entry + recurse.
             (:wat::kernel::services::StdInService/loop
-              routing-vec reader control-rx))))
-      ;; ── Clean disconnect ────────────────────────────────────────────
-      ((:wat::core::Ok :wat::core::None)
-        (:wat::core::if is-ctrl -> :wat::core::nil
-          ;; Control channel disconnected => shutdown.
-          ()
-          ;; Data channel disconnected => prune entry + recurse.
-          (:wat::kernel::services::StdInService/loop
-            (:wat::std::list::remove-at routing-vec idx)
-            reader
-            control-rx)))
-      ;; ── Peer panic / cascade ────────────────────────────────────────
-      ((:wat::core::Err _died)
-        (:wat::core::if is-ctrl -> :wat::core::nil
-          ;; Control channel panicked => shutdown.
-          ()
-          ;; Data channel panicked => prune entry + recurse.
-          (:wat::kernel::services::StdInService/loop
-            (:wat::std::list::remove-at routing-vec idx)
-            reader
-            control-rx))))))
+              (:wat::std::list::remove-at routing-vec idx)
+              reader
+              control-rx)))
+        ;; ── Peer panic / cascade ────────────────────────────────────────
+        ((:wat::core::Err _died)
+          (:wat::core::if is-ctrl -> :wat::core::nil
+            ;; Control channel panicked => shutdown.
+            ()
+            ;; Data channel panicked => prune entry + recurse.
+            (:wat::kernel::services::StdInService/loop
+              (:wat::std::list::remove-at routing-vec idx)
+              reader
+              control-rx))))))
 
 
 ;; ─── Driver loop ──────────────────────────────────────────────────────────
@@ -282,28 +257,23 @@
 ;; delivers unit on its output Sender.
 ;;
 ;; One let per function per feedback_simple_forms_per_func.
-(:wat::core::define
-  (:wat::kernel::services::StdInService/loop
-    (routing-vec :wat::kernel::services::StdInService::RoutingVec)
-    (reader :wat::io::IOReader)
-    (control-rx :wat::kernel::services::StdInService::EventRx)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::kernel::services::StdInService/loop [routing-vec <- :wat::kernel::services::StdInService::RoutingVec reader <- :wat::io::IOReader control-rx <- :wat::kernel::services::StdInService::EventRx] -> :wat::core::nil
   (:wat::core::let
-    [data-rxs
-      (:wat::kernel::services::StdInService/routing-rxs routing-vec)
-     select-set
-      (:wat::core::concat data-rxs
-        (:wat::core::Vector
-          :wat::kernel::services::StdInService::EventRx
-          control-rx))
-     chosen
-      (:wat::kernel::select select-set)
-     idx
-      (:wat::core::first chosen)
-     maybe
-      (:wat::core::second chosen)]
-    (:wat::kernel::services::StdInService/dispatch
-      routing-vec reader control-rx idx maybe)))
+      [data-rxs
+        (:wat::kernel::services::StdInService/routing-rxs routing-vec)
+       select-set
+        (:wat::core::concat data-rxs
+          (:wat::core::Vector
+            :wat::kernel::services::StdInService::EventRx
+            control-rx))
+       chosen
+        (:wat::kernel::select select-set)
+       idx
+        (:wat::core::first chosen)
+       maybe
+        (:wat::core::second chosen)]
+      (:wat::kernel::services::StdInService/dispatch
+        routing-vec reader control-rx idx maybe)))
 
 
 ;; ─── spawn ────────────────────────────────────────────────────────────────
@@ -320,27 +290,24 @@
 ;;     ;; Send Add / Remove events on ctrl.
 ;;     ;; Drop ctrl => service shuts down.
 ;;     (Thread/join-result thr))
-(:wat::core::define
-  (:wat::kernel::services::StdInService/spawn
-    (reader :wat::io::IOReader)
-    -> :wat::kernel::services::StdInService::Spawn)
+(:wat::core::defn :wat::kernel::services::StdInService/spawn [reader <- :wat::io::IOReader] -> :wat::kernel::services::StdInService::Spawn
   (:wat::core::let
-    [ctrl-pair
-      (:wat::kernel::make-bounded-channel
-        :wat::kernel::services::StdInService::Event 1)
-     ctrl-tx
-      (:wat::core::first ctrl-pair)
-     ctrl-rx
-      (:wat::core::second ctrl-pair)
-     thr
-      (:wat::kernel::spawn-thread
-        (:wat::core::fn
-          [_in <- :wat::kernel::Receiver<wat::core::nil>
-           _out <- :wat::kernel::Sender<wat::core::nil>]
-           -> :wat::core::nil
-          (:wat::kernel::services::StdInService/loop
-            (:wat::core::Vector
-              :wat::kernel::services::StdInService::RoutingEntry)
-            reader
-            ctrl-rx)))]
-    (:wat::core::Tuple thr ctrl-tx)))
+      [ctrl-pair
+        (:wat::kernel::make-bounded-channel
+          :wat::kernel::services::StdInService::Event 1)
+       ctrl-tx
+        (:wat::core::first ctrl-pair)
+       ctrl-rx
+        (:wat::core::second ctrl-pair)
+       thr
+        (:wat::kernel::spawn-thread
+          (:wat::core::fn
+            [_in <- :wat::kernel::Receiver<wat::core::nil>
+             _out <- :wat::kernel::Sender<wat::core::nil>]
+             -> :wat::core::nil
+            (:wat::kernel::services::StdInService/loop
+              (:wat::core::Vector
+                :wat::kernel::services::StdInService::RoutingEntry)
+              reader
+              ctrl-rx)))]
+      (:wat::core::Tuple thr ctrl-tx)))

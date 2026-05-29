@@ -120,9 +120,10 @@ fn probe_06_builtin_roots() {
 /// Evaluate `(:wat::core::subtype? a b)` and return its Value (`Value::bool`) or Err.
 fn subtype_q(a: &str, b: &str) -> Result<Value, String> {
     let full = format!(
-        "(:wat::core::define (:user::compute -> :wat::core::bool) \
-           (:wat::core::subtype? {a} {b}))\n\
-         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "(:wat::core::defn :user::compute [] -> :wat::core::bool
+          \
+                     (:wat::core::subtype? {a} {b}))\n\
+         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         a = a,
         b = b
     );

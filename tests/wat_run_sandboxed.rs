@@ -30,7 +30,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -91,9 +91,9 @@ fn noop_main_yields_empty_stdout_and_stderr() {
     let src = r#"
 
         ;; Outer program: runs a hermetic no-op body.
-        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            :wat::core::nil))
+                      :wat::core::nil))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
     assert!(stdout.is_empty(), "expected empty stdout; got {:?}", stdout);
@@ -112,9 +112,9 @@ fn main_writes_single_line_to_stdout() {
     // Body calls println (rule 2); outer reads stdout (rule 1) — hermetic.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::kernel::println "hello")))
+                      (:wat::kernel::println "hello")))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
     // :wat::kernel::println EDN-serializes strings with quotes.
@@ -134,13 +134,13 @@ fn main_writes_to_both_stdout_and_stderr() {
     // (rule 1) — hermetic is the only honest container.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::core::do
-              (:wat::kernel::println "one")
-              (:wat::kernel::println "two")
-              (:wat::kernel::eprintln "oops")
-              :wat::core::nil)))
+                      (:wat::core::do
+                        (:wat::kernel::println "one")
+                        (:wat::kernel::println "two")
+                        (:wat::kernel::eprintln "oops")
+                        :wat::core::nil)))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
     // :wat::kernel::println EDN-serializes strings with quotes.
@@ -194,9 +194,9 @@ fn parse_error_in_source_surfaces_as_failure() {
     // slice (legacy verb retains the original capability until #310).
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::kernel::raise! (:wat::holon::leaf "inner-failure"))))
+                      (:wat::kernel::raise! (:wat::holon::leaf "inner-failure"))))
     "##;
     let (stdout, _stderr, failure) = unwrap_run_result_with_failure(run(src));
     assert!(stdout.is_empty());
@@ -223,9 +223,9 @@ fn missing_user_main_surfaces_as_failure() {
     // original capability until #310 retires it).
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::kernel::raise! (:wat::holon::leaf "needs-main-sentinel"))))
+                      (:wat::kernel::raise! (:wat::holon::leaf "needs-main-sentinel"))))
     "##;
     let (_, _, failure) = unwrap_run_result_with_failure(run(src));
     let msg = failure.expect("expected raised failure");
@@ -254,12 +254,12 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // needs separate coverage outside this slice.
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::core::let
-              [_ (:wat::kernel::println "before panic")
-               _ (:wat::kernel::raise! (:wat::holon::leaf "boom"))]
-              :wat::core::nil)))
+                      (:wat::core::let
+                        [_ (:wat::kernel::println "before panic")
+                         _ (:wat::kernel::raise! (:wat::holon::leaf "boom"))]
+                        :wat::core::nil)))
     "##;
     let (stdout, _, failure) = unwrap_run_result_with_failure(run(src));
     // Stdout captured BEFORE the raise! should survive.
@@ -335,13 +335,13 @@ fn scoped_file_eval_inside_scope_succeeds() {
     let src = format!(
         r##"
 
-        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::core::match
-              (:wat::eval-file! "{path}")
-              -> :wat::core::nil
-              ((:wat::core::Ok h) (:wat::kernel::println "ok"))
-              ((:wat::core::Err _) (:wat::kernel::eprintln "err")))))
+                      (:wat::core::match
+                        (:wat::eval-file! "{path}")
+                        -> :wat::core::nil
+                        ((:wat::core::Ok h) (:wat::kernel::println "ok"))
+                        ((:wat::core::Err _) (:wat::kernel::eprintln "err")))))
         "##,
         path = inner_source_path.display()
     );
@@ -379,13 +379,13 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
     let src = format!(
         r##"
 
-        (:wat::core::define (:my::compute -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::core::match
-              (:wat::eval-file! "{path}")
-              -> :wat::core::nil
-              ((:wat::core::Ok _) (:wat::kernel::println "leaked"))
-              ((:wat::core::Err _) (:wat::kernel::eprintln "blocked")))))
+                      (:wat::core::match
+                        (:wat::eval-file! "{path}")
+                        -> :wat::core::nil
+                        ((:wat::core::Ok _) (:wat::kernel::println "leaked"))
+                        ((:wat::core::Err _) (:wat::kernel::eprintln "blocked")))))
         "##,
         path = outside_file.display()
     );

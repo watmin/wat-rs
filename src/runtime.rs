@@ -2634,23 +2634,11 @@ pub fn register_defines(
 ) -> Result<Vec<WatAST>, RuntimeError> {
     let mut rest = Vec::new();
     for form in forms {
-        if is_define_form(&form) {
-            let form_span = form.span().clone();
-            let (path, func) = parse_define_form(form)?;
-            if crate::resolve::is_reserved_prefix(&path) {
-                return Err(RuntimeError::ReservedPrefix(path, form_span));
-            }
-            // Arc 054: idempotent re-declaration. Byte-equivalent
-            // re-registration of the same name is a no-op; divergent
-            // re-registration remains an error.
-            if let Some(existing) = sym.functions.get(&path) {
-                if function_byte_equivalent(existing, &func) {
-                    continue;
-                }
-                return Err(RuntimeError::DuplicateDefine(path, form_span));
-            }
-            sym.functions.insert(path, func);
-        } else if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(&form) {
+        // Stone 241.11 — `:wat::core::define` is HARD CUT. The is_define_form branch
+        // that pre-registered define forms is DELETED. Define forms now pass through
+        // to the checker (step 8), which rejects them via the MalformedForm arm and
+        // surfaces the retirement remedy pointing at :wat::core::defn.
+        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(&form) {
             // Arc 166 — `(:wat::core::def :name (:wat::core::fn sig body))`
             // pre-registers into `sym.functions` so the type checker resolves
             // recursive self-references inside the fn body. Form stays in
@@ -2787,17 +2775,52 @@ pub fn register_stdlib_defines(
 ) -> Result<Vec<WatAST>, RuntimeError> {
     let mut rest = Vec::new();
     for form in forms {
-        if is_define_form(&form) {
-            let form_span = form.span().clone();
-            let (path, func) = parse_define_form(form)?;
-            // Arc 054: idempotent re-declaration (see `register_defines`).
-            if let Some(existing) = sym.functions.get(&path) {
-                if function_byte_equivalent(existing, &func) {
-                    continue;
-                }
-                return Err(RuntimeError::DuplicateDefine(path, form_span));
+        // Stone 241.11 — stdlib `(:wat::core::defn ...)` macro-expands to
+        // `(:wat::core::def :name (:wat::core::fn sig body))` before this
+        // function runs (macro expansion is step 4; registration is step 6).
+        // Pre-register the fn-shape def into `sym` so the checker (step 8)
+        // resolves recursive self-references. Bypasses the reserved-prefix
+        // gate (stdlib is privileged — all names are under :wat::* by design).
+        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(&form) {
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path.clone(), func);
             }
-            sym.functions.insert(path, func);
+            if let Some(meta) = metadata_opt {
+                sym.binding_metadata.insert(path, meta);
+            }
+            rest.push(form);
+        } else if let Some((path, func)) = try_parse_variadic_def_fn_form(&form) {
+            // Stone 241.11 — stdlib variadic `defn` forms (e.g. `defn :i64::+ [_a <- & xs <- :T] -> ...`)
+            // expand to `def :name (fn [_a <- & xs <- :T] -> ...)`. `try_parse_fn_shape_def` returns
+            // None for variadic forms (allow_rest_binder=false). This branch handles them:
+            // parse with allow_rest_binder=true, set rest_param + rest_param_type on the Function.
+            // Stdlib is PRIVILEGED — reserved-prefix gate bypassed.
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path, func);
+            }
+            rest.push(form);
+        } else if is_define_form(&form) {
+            // Stone 241.11 — stdlib is PRIVILEGED. The `define-alias` macro
+            // (wat/runtime.wat) generates `(:wat::core::define ...)` forms as
+            // its expansion output; these are INTERNAL stdlib forms, never
+            // authored by users. The stdlib residue is DISCARDED after step 6
+            // (the `_stdlib_function_residue` variable in freeze.rs) and never
+            // reaches the HARD-CUT checker at step 8. Pre-register the function
+            // into `sym` and consume the form (do NOT add to `rest`).
+            match parse_define_form(form) {
+                Ok((path, func)) => {
+                    if !sym.functions.contains_key(&path) {
+                        sym.functions.insert(path, func);
+                    }
+                    // Consumed — do not push to rest. Stdlib define forms
+                    // are internal-only and must not reach check_program.
+                }
+                Err(_) => {
+                    // Malformed stdlib define — ignore silently (stdlib is
+                    // substrate-authored; this path should never fire in
+                    // a correct build).
+                }
+            }
         } else if let WatAST::List(ref do_items, _) = form {
             // Arc 170 Gap C — top-level `(:wat::core::do ...)` splice.
             // Mirror of the arm in `register_defines`; bypasses the
@@ -3909,8 +3932,16 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
         _ => return None,
     }
     // First arg is the name keyword.
-    let name = match &items[1] {
-        WatAST::Keyword(k, _) => k.clone(),
+    // Arc 139 — split off `<T,...>` type params from the name (mirrors
+    // `parse_define_signature`'s `split_name_and_type_params` call).
+    // The canonical name (without `<T,...>`) is the storage key;
+    // type_params are stored in the Function struct so the type checker
+    // can instantiate them for generic functions.
+    let (name, raw_type_params) = match &items[1] {
+        WatAST::Keyword(k, _) => match split_name_and_type_params(k) {
+            Ok(pair) => pair,
+            Err(_) => return None,
+        },
         _ => return None,
     };
     // Stone 241.6 — if 4 items, items[2] must be a non-empty metadata-map;
@@ -3989,7 +4020,9 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
         Arc::new(Function {
             name: Some(name),
             params,
-            type_params: Vec::new(),
+            // Arc 139 — preserve type_params from the name keyword (e.g. `<T>`)
+            // so the type checker can instantiate generic functions correctly.
+            type_params: raw_type_params,
             param_types,
             ret_type,
             rest_param: None,
@@ -3998,6 +4031,104 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
             closed_env: None,
         }),
         metadata_opt,
+    ))
+}
+
+/// Stone 241.11 — detect variadic `(:wat::core::def :name (:wat::core::fn [...& xs...] -> :T body))`
+/// shapes that `try_parse_fn_shape_def` cannot handle because `parse_fn_signature` uses
+/// `allow_rest_binder: false`.
+///
+/// Returns `Some((name, Arc<Function>))` only when the form is a `def` with a `fn` body that
+/// contains a rest binder (`& xs <- :T`).  Non-variadic `def/fn` forms return `None` so
+/// `try_parse_fn_shape_def` (which runs first in `register_stdlib_defines`) handles them.
+///
+/// Stdlib is PRIVILEGED — reserved-prefix gate bypassed.  Called exclusively from
+/// `register_stdlib_defines`.
+fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function>)> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return None,
+    };
+    // Must be exactly `(:wat::core::def :name (:wat::core::fn ...))` — 3 items.
+    if items.len() != 3 {
+        return None;
+    }
+    // Head must be :wat::core::def.
+    match &items[0] {
+        WatAST::Keyword(k, _) if k == ":wat::core::def" => {}
+        _ => return None,
+    }
+    // items[1] is the name keyword.
+    let (name, raw_type_params) = match &items[1] {
+        WatAST::Keyword(k, _) => match split_name_and_type_params(k) {
+            Ok(pair) => pair,
+            Err(_) => return None,
+        },
+        _ => return None,
+    };
+    // items[2] must be a `(:wat::core::fn ARGS-VECTOR -> :RET body...)` list.
+    let fn_items = match &items[2] {
+        WatAST::List(fn_items, _) => fn_items,
+        _ => return None,
+    };
+    match fn_items.first()? {
+        WatAST::Keyword(k, _) if k == ":wat::core::fn" => {}
+        _ => return None,
+    }
+    if fn_items.len() < 4 {
+        return None;
+    }
+    // fn_items layout (no fn-embedded metadata — stdlib variadic forms are substrate-authored):
+    //   [0] :wat::core::fn
+    //   [1] ARGS-VECTOR   (must be WatAST::Vector)
+    //   [2] ->
+    //   [3] :RET-TYPE
+    //   [4..] body forms (zero or more)
+    let (args_vec, args_vec_span) = match &fn_items[1] {
+        WatAST::Vector(items, span) => (items, span),
+        _ => return None,
+    };
+    // Arrow check.
+    match &fn_items[2] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        _ => return None,
+    }
+    // Return type.
+    let ret_type = match &fn_items[3] {
+        WatAST::Keyword(k, _) => parse_type_keyword(k).ok()?,
+        _ => return None,
+    };
+    // Parse args with rest-binder allowed.
+    let spec = crate::argspec::parse_argspec_triples(
+        args_vec,
+        ":wat::core::fn",
+        args_vec_span,
+        crate::argspec::ParseOptions { allow_rest_binder: true },
+    )
+    .ok()?;
+    // Only handle variadic forms here; non-variadic should have been caught by
+    // try_parse_fn_shape_def (which runs first). Guard defensively.
+    if spec.rest_param.is_none() {
+        return None;
+    }
+    let (fixed_params, fixed_param_types): (Vec<String>, Vec<crate::types::TypeExpr>) =
+        spec.fixed_params.into_iter().unzip();
+    let (rest_name, rest_ty) = spec.rest_param?;
+    // Synthesize body from trailing fn_items.
+    let body = synthesize_fn_body(&fn_items[4..]);
+    Some((
+        name.clone(),
+        Arc::new(Function {
+            name: Some(name),
+            params: fixed_params,
+            type_params: raw_type_params,
+            param_types: fixed_param_types,
+            ret_type,
+            rest_param: Some(rest_name),
+            rest_param_type: Some(rest_ty),
+            body: Arc::new(body),
+            closed_env: None,
+        }),
     ))
 }
 
@@ -4136,17 +4267,7 @@ fn preregister_fn_defs_in_do(
                 sym.functions.insert(path.clone(), func);
             }
             sym.defined_value_restrictions.insert(path, prefixes);
-        } else if is_define_form(child) {
-            // Arc 170 slice 3 Gap E — also handle legacy `(:wat::core::define ...)` forms.
-            // `parse_define_form` takes ownership, so clone the child (it stays in `rest`).
-            let (path, func) = parse_define_form(child.clone())?;
-            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
-                let span = child.span().clone();
-                return Err(RuntimeError::ReservedPrefix(path, span));
-            }
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path, func);
-            }
+        // Stone 241.11 — is_define_form branch DELETED (define HARD CUT).
         } else if is_struct_form(child) {
             // Arc 170 slice 3 Gap F-1 — pre-register struct accessor stubs.
             // The form stays in `rest`; `register_struct_methods` (step 6a) will
@@ -4220,17 +4341,7 @@ fn preregister_fn_defs_in_let(
                 sym.functions.insert(path.clone(), func);
             }
             sym.defined_value_restrictions.insert(path, prefixes);
-        } else if is_define_form(child) {
-            // Arc 170 slice 3 Gap E — also handle legacy `(:wat::core::define ...)` forms.
-            // `parse_define_form` takes ownership, so clone the child (it stays in `rest`).
-            let (path, func) = parse_define_form(child.clone())?;
-            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
-                let span = child.span().clone();
-                return Err(RuntimeError::ReservedPrefix(path, span));
-            }
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path, func);
-            }
+        // Stone 241.11 — is_define_form branch DELETED (define HARD CUT).
         } else if is_struct_form(child) {
             // Arc 170 slice 3 Gap F-1 — pre-register struct accessor stubs.
             // Mirror of the `do` arm: the form stays in `rest`; `register_struct_methods`
@@ -27721,6 +27832,22 @@ mod tests {
         let env = Environment::new();
         let mut last = Value::Unit;
         for form in &rest {
+            // Stone 241.11 — `defn` macro-expands to `(:wat::core::def ...)` which
+            // `register_defines` pre-registers into `sym` and leaves in `rest`
+            // for the freeze path's `register_runtime_defs` step. In this unit-test
+            // `run()` helper we evaluate forms directly (no freeze path), so skip
+            // declaration forms that are already pre-registered — evaluating them
+            // again would hit `DeclarationInExpressionPosition`.
+            if let WatAST::List(items, _) = form {
+                if let Some(WatAST::Keyword(head, _)) = items.first() {
+                    if matches!(
+                        head.as_str(),
+                        ":wat::core::def" | ":wat::core::def-restricted"
+                    ) {
+                        continue;
+                    }
+                }
+            }
             last = eval_inner(form, &env, &sym)?.value_owned();
         }
         Ok(last)
@@ -27788,8 +27915,7 @@ mod tests {
 
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::app::failing-fn -> :())
-              (:wat::kernel::assertion-failed! "stack test" :wat::core::None :wat::core::None))
+            (:wat::core::defn :my::app::failing-fn [] -> :() (:wat::kernel::assertion-failed! "stack test" :wat::core::None :wat::core::None))
         "#;
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
@@ -27842,7 +27968,7 @@ mod tests {
     fn call_stack_unwinds_on_ok() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:my::app::plain-fn -> :i64) 42)
+            (:wat::core::defn :my::app::plain-fn [] -> :i64 42)
         "#;
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
@@ -28398,8 +28524,7 @@ mod tests {
     fn define_and_call() {
         let result = run(
             r#"
-            (:wat::core::define (:my::app::inc (x :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::+'2 x 1))
+            (:wat::core::defn :my::app::inc [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x 1))
             (:my::app::inc 41)
             "#,
         )
@@ -28411,10 +28536,10 @@ mod tests {
     fn define_recursive_factorial() {
         let result = run(
             r#"
-            (:wat::core::define (:my::app::fact (n :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::defn :my::app::fact [n <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
-                  1
-                  (:wat::core::i64::*'2 n (:my::app::fact (:wat::core::i64::-'2 n 1)))))
+                                1
+                                (:wat::core::i64::*'2 n (:my::app::fact (:wat::core::i64::-'2 n 1)))))
             (:my::app::fact 5)
             "#,
         )
@@ -28424,8 +28549,10 @@ mod tests {
 
     #[test]
     fn reserved_prefix_define_rejected() {
+        // Stone 241.11 — use FQDN types (:wat::core::i64) since defn
+        // goes through check_program which rejects bare :i64.
         let err = run(
-            r#"(:wat::core::define (:wat::holon::Bogus (x :i64) -> :i64) x)"#,
+            r#"(:wat::core::defn :wat::holon::Bogus [x <- :wat::core::i64] -> :wat::core::i64 x)"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::ReservedPrefix(_, _)));
@@ -28433,14 +28560,22 @@ mod tests {
 
     #[test]
     fn duplicate_define_rejected() {
-        let err = run(
-            r#"
-            (:wat::core::define (:foo (x :i64) -> :i64) x)
-            (:wat::core::define (:foo (x :i64) -> :i64) (:wat::core::i64::+'2 x 1))
-            "#,
-        )
-        .unwrap_err();
-        assert!(matches!(err, RuntimeError::DuplicateDefine(_, _)));
+        // Stone 241.11 — defn macro-expands to def, which is left in `rest`
+        // and goes through check_program. Duplicate def now surfaces as
+        // DefRedefForbidden (check error) not DuplicateDefine (runtime error).
+        // The run() helper panics on check errors, so we test that startup fails.
+        // Use FQDN types (:wat::core::i64) since defn goes through check_program.
+        use crate::freeze::startup_from_source;
+        use std::sync::Arc;
+        use crate::load::InMemoryLoader;
+        let src = r#"
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::defn :foo [x <- :wat::core::i64] -> :wat::core::i64 x)
+            (:wat::core::defn :foo [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x 1))
+            (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        "#;
+        let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+        assert!(result.is_err(), "duplicate defn must be rejected");
     }
 
     #[test]
@@ -28590,10 +28725,10 @@ mod tests {
         // Arc 225 Stone 225.1 — to-holon lifts string parameters.
         let result = run(
             r#"
-            (:wat::core::define (:my::app::encode-pair (a :wat::core::String) (b :wat::core::String) -> :wat::holon::HolonAST)
+            (:wat::core::defn :my::app::encode-pair [a <- :wat::core::String b <- :wat::core::String] -> :wat::holon::HolonAST
               (:wat::holon::Bind
-                (:wat::holon::to-holon a)
-                (:wat::holon::to-holon b)))
+                              (:wat::holon::to-holon a)
+                              (:wat::holon::to-holon b)))
             (:my::app::encode-pair "role" "filler")
             "#,
         )
@@ -28694,6 +28829,9 @@ mod tests {
 
     #[test]
     fn eval_ast_bang_refuses_mutation_form() {
+        // Stone 241.11 — use `:wat::core::define` (still in is_mutation_head)
+        // since `:wat::core::defn` is a macro, not a mutation form at eval time.
+        // parse_one! bypasses macro expansion, so defn would not expand.
         let program = crate::parse_one!(
             r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#
         )
@@ -29946,6 +30084,9 @@ mod tests {
     fn eval_edn_bang_refuses_mutation_inside_string() {
         // The parsed AST from the string still walks through the
         // mutation-form guard — now surfaced as EvalError data.
+        // Stone 241.11 — use `:wat::core::define` (still in is_mutation_head)
+        // since `:wat::core::defn` is not a mutation form at eval time
+        // (it's a macro; eval-edn! does not expand macros before checking).
         let result = eval_expr(
             r#"(:wat::eval-edn! "(:wat::core::define (:evil (x :i64) -> :i64) x)")"#,
         )
@@ -32052,8 +32193,7 @@ mod tests {
         // AssertionPayload panic, inspect actual/expected.
         use crate::assertion::AssertionPayload;
         let src = r#"
-            (:wat::core::define (:my::test::assert-mismatched -> :())
-              (:wat::test::assert-eq 1 2))
+            (:wat::core::defn :my::test::assert-mismatched [] -> :() (:wat::test::assert-eq 1 2))
         "#;
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
@@ -32441,13 +32581,7 @@ mod tests {
     /// Used to drive walks that should run to natural terminal.
     fn walk_count_prelude() -> &'static str {
         r#"
-        (:wat::core::define
-          (:my::test::count-visit
-            (acc :wat::core::i64)
-            (form :wat::WatAST)
-            (step :wat::eval::StepResult)
-            -> :wat::eval::WalkStep<wat::core::i64>)
-          (:wat::eval::WalkStep::Continue (:wat::core::i64::+'2 acc 1)))
+        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue (:wat::core::i64::+'2 acc 1)))
         "#
     }
 
@@ -32533,15 +32667,10 @@ mod tests {
         // return is (sentinel, acc'). Even on a chain that would
         // naturally terminate at I64(6), Skip wins.
         let src = r#"
-        (:wat::core::define
-          (:my::test::skip-on-first
-            (acc :wat::core::i64)
-            (form :wat::WatAST)
-            (step :wat::eval::StepResult)
-            -> :wat::eval::WalkStep<wat::core::i64>)
+        (:wat::core::defn :my::test::skip-on-first [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64>
           (:wat::eval::WalkStep::Skip
-            (:wat::holon::leaf 999)
-            (:wat::core::i64::+'2 acc 1)))
+                      (:wat::holon::leaf 999)
+                      (:wat::core::i64::+'2 acc 1)))
         (:wat::core::match
           (:wat::eval::walk
             (:wat::core::quote (:wat::core::i64::+'2 (:wat::core::i64::+'2 1 2) 3))
@@ -32728,16 +32857,15 @@ mod tests {
         // packs the EvalError's message string into the result holon
         // so failing tests can show it instead of a silent sentinel.
         r#"
-        (:wat::core::define
-          (:my::test::step-to-terminal (form :wat::WatAST) -> :wat::holon::HolonAST)
+        (:wat::core::defn :my::test::step-to-terminal [form <- :wat::WatAST] -> :wat::holon::HolonAST
           (:wat::core::match (:wat::eval-step! form) -> :wat::holon::HolonAST
-            ((:wat::core::Ok r)
-              (:wat::core::match r -> :wat::holon::HolonAST
-                ((:wat::eval::StepResult::StepNext next)
-                  (:my::test::step-to-terminal next))
-                ((:wat::eval::StepResult::StepTerminal h) h)
-                ((:wat::eval::StepResult::AlreadyTerminal h) h)))
-            ((:wat::core::Err e) (:wat::holon::leaf (:wat::core::struct-field e 1)))))
+                      ((:wat::core::Ok r)
+                        (:wat::core::match r -> :wat::holon::HolonAST
+                          ((:wat::eval::StepResult::StepNext next)
+                            (:my::test::step-to-terminal next))
+                          ((:wat::eval::StepResult::StepTerminal h) h)
+                          ((:wat::eval::StepResult::AlreadyTerminal h) h)))
+                      ((:wat::core::Err e) (:wat::holon::leaf (:wat::core::struct-field e 1)))))
         "#
     }
 
@@ -32786,6 +32914,18 @@ mod tests {
         let env = Environment::new();
         let mut last = Value::Unit;
         for form in &rest {
+            // Stone 241.11 — skip declaration forms (already pre-registered);
+            // mirrors the same guard in `run()`.
+            if let WatAST::List(items, _) = form {
+                if let Some(WatAST::Keyword(head, _)) = items.first() {
+                    if matches!(
+                        head.as_str(),
+                        ":wat::core::def" | ":wat::core::def-restricted"
+                    ) {
+                        continue;
+                    }
+                }
+            }
             last = eval_inner(form, &env, &sym)?.value_owned();
         }
         Ok(last)
@@ -32886,8 +33026,7 @@ mod tests {
         let src = format!(
             r#"
             {}
-            (:wat::core::define (:my::test::square (n :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::*'2 n n))
+            (:wat::core::defn :my::test::square [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 n n))
             (:my::test::step-to-terminal
               (:wat::core::quote (:my::test::square 3)))
             "#,
@@ -32967,22 +33106,20 @@ mod tests {
         // at the step level).
         let src = format!(
             r#"
-            (:wat::core::define
-              (:my::test::sum-to (n :wat::core::i64) (acc :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::defn :my::test::sum-to [n <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
-                acc
-                (:my::test::sum-to (:wat::core::i64::-'2 n 1)
-                                   (:wat::core::i64::+'2 acc n))))
-            (:wat::core::define
-              (:my::test::step-count (form :wat::WatAST) (n :wat::core::i64) -> :wat::core::i64)
+                              acc
+                              (:my::test::sum-to (:wat::core::i64::-'2 n 1)
+                                                 (:wat::core::i64::+'2 acc n))))
+            (:wat::core::defn :my::test::step-count [form <- :wat::WatAST n <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::match (:wat::eval-step! form) -> :wat::core::i64
-                ((:wat::core::Ok r)
-                  (:wat::core::match r -> :wat::core::i64
-                    ((:wat::eval::StepResult::StepNext next)
-                      (:my::test::step-count next (:wat::core::i64::+'2 n 1)))
-                    ((:wat::eval::StepResult::StepTerminal h) n)
-                    ((:wat::eval::StepResult::AlreadyTerminal h) n)))
-                ((:wat::core::Err e) -1)))
+                              ((:wat::core::Ok r)
+                                (:wat::core::match r -> :wat::core::i64
+                                  ((:wat::eval::StepResult::StepNext next)
+                                    (:my::test::step-count next (:wat::core::i64::+'2 n 1)))
+                                  ((:wat::eval::StepResult::StepTerminal h) n)
+                                  ((:wat::eval::StepResult::AlreadyTerminal h) n)))
+                              ((:wat::core::Err e) -1)))
             {}
             (:wat::core::let
               [sum

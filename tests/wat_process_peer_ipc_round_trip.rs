@@ -154,11 +154,11 @@ fn process_peer_round_trips_string_via_real_subprocess() {
     // fd 0/1/2 to the OS pipes for the spawned subprocess; the
     // ambient verbs route through those.
     let server_program_src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [line (:wat::kernel::readln -> :wat::core::String)
-             _    (:wat::kernel::println line)]
-            :wat::core::nil))
+                      [line (:wat::kernel::readln -> :wat::core::String)
+                       _    (:wat::kernel::println line)]
+                      :wat::core::nil))
     "#;
     let spawn_call = build_spawn_process_call(server_program_src);
     let server = eval(&spawn_call, &Environment::new(), world.symbols())

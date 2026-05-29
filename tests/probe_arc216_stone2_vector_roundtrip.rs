@@ -52,7 +52,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -102,11 +102,11 @@ fn probe_1_forward_vec_to_bundle() {
     // Verify via round-trip: to-holon produces an encoding that from-holon decodes back
     // to a Vec of length 3. The element count proves encoding captured all 3 elements.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h   (:wat::holon::to-holon [1 2 3])
-             v   (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length v)))
+                      [h   (:wat::holon::to-holon [1 2 3])
+                       v   (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length v)))
     "#;
     assert_eq!(run_i64(src_len), 3, "classifier-wrapped Vector encoding must preserve 3 elements in round-trip");
 }
@@ -120,25 +120,25 @@ fn probe_1_forward_vec_to_bundle() {
 fn probe_2_reverse_bundle_to_vec_roundtrip() {
     // Length = 3 after round-trip.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h   (:wat::holon::to-holon [1 2 3])
-             v   (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length v)))
+                      [h   (:wat::holon::to-holon [1 2 3])
+                       v   (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length v)))
     "#;
     assert_eq!(run_i64(src_len), 3, "round-trip must preserve length 3");
 
     // First element = 1 after round-trip (order preserved).
     let src_first = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h   (:wat::holon::to-holon [1 2 3])
-             v   (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get v 0)
-              -> :wat::core::i64
-              ((:wat::core::Some x) x)
-              (:wat::core::None -1))))
+                      [h   (:wat::holon::to-holon [1 2 3])
+                       v   (:wat::holon::from-holon h)]
+                      (:wat::core::match
+                        (:wat::core::Vector/get v 0)
+                        -> :wat::core::i64
+                        ((:wat::core::Some x) x)
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(
         run_i64(src_first),
@@ -161,11 +161,11 @@ fn probe_3_empty_vec_forward() {
     // from-holon dispatches by classifier "Vector" → Vec of length 0.
     // Round-trip is now unambiguous (no consumer-hint needed).
     let src_fwd = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h  (:wat::holon::to-holon [])
-             v  (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length v)))
+                      [h  (:wat::holon::to-holon [])
+                       v  (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
         run_i64(src_fwd),
@@ -180,24 +180,24 @@ fn probe_3_empty_vec_forward() {
 #[test]
 fn probe_4_single_element_roundtrip() {
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon [42])
-             v (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length v)))
+                      [h (:wat::holon::to-holon [42])
+                       v (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length v)))
     "#;
     assert_eq!(run_i64(src_len), 1, "single-element round-trip must have length 1");
 
     let src_elem = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon [42])
-             v (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get v 0)
-              -> :wat::core::i64
-              ((:wat::core::Some x) x)
-              (:wat::core::None -1))))
+                      [h (:wat::holon::to-holon [42])
+                       v (:wat::holon::from-holon h)]
+                      (:wat::core::match
+                        (:wat::core::Vector/get v 0)
+                        -> :wat::core::i64
+                        ((:wat::core::Some x) x)
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(
         run_i64(src_elem),
@@ -214,15 +214,15 @@ fn probe_4_single_element_roundtrip() {
 fn probe_5_multi_t_types() {
     // Vec<i64>: additional element check.
     let src_i64 = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon [10 20 30])
-             v (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get v 1)
-              -> :wat::core::i64
-              ((:wat::core::Some x) x)
-              (:wat::core::None -1))))
+                      [h (:wat::holon::to-holon [10 20 30])
+                       v (:wat::holon::from-holon h)]
+                      (:wat::core::match
+                        (:wat::core::Vector/get v 1)
+                        -> :wat::core::i64
+                        ((:wat::core::Some x) x)
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(
         run_i64(src_i64),
@@ -232,11 +232,11 @@ fn probe_5_multi_t_types() {
 
     // Vec<String>: strings atomize as HolonAST::String leaves.
     let src_string = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::String "a" "b" "c"))
-             v (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length v)))
+                      [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::String "a" "b" "c"))
+                       v (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
         run_i64(src_string),
@@ -246,11 +246,11 @@ fn probe_5_multi_t_types() {
 
     // Vec<bool>: bool leaves atomize as HolonAST::Bool.
     let src_bool = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::bool true false true))
-             v (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length v)))
+                      [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::bool true false true))
+                       v (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
         run_i64(src_bool),
@@ -268,26 +268,26 @@ fn probe_5_multi_t_types() {
 #[test]
 fn probe_6_order_preservation() {
     let src_idx0 = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon [10 20 30])
-             v (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get v 0)
-              -> :wat::core::i64
-              ((:wat::core::Some x) x)
-              (:wat::core::None -1))))
+                      [h (:wat::holon::to-holon [10 20 30])
+                       v (:wat::holon::from-holon h)]
+                      (:wat::core::match
+                        (:wat::core::Vector/get v 0)
+                        -> :wat::core::i64
+                        ((:wat::core::Some x) x)
+                        (:wat::core::None -1))))
     "#;
     let src_idx2 = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon [10 20 30])
-             v (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get v 2)
-              -> :wat::core::i64
-              ((:wat::core::Some x) x)
-              (:wat::core::None -1))))
+                      [h (:wat::holon::to-holon [10 20 30])
+                       v (:wat::holon::from-holon h)]
+                      (:wat::core::match
+                        (:wat::core::Vector/get v 2)
+                        -> :wat::core::i64
+                        ((:wat::core::Some x) x)
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(
         run_i64(src_idx0),
@@ -314,14 +314,14 @@ fn probe_6_order_preservation() {
 fn probe_7_nested_vector_roundtrip() {
     // Outer length = 2 (two inner vecs).
     let src_outer_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner1  (:wat::core::Vector :wat::core::i64 1 2 3)
-             inner2  (:wat::core::Vector :wat::core::i64 4 5)
-             outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::to-holon outer)
-             v       (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length v)))
+                      [inner1  (:wat::core::Vector :wat::core::i64 1 2 3)
+                       inner2  (:wat::core::Vector :wat::core::i64 4 5)
+                       outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
+                       h       (:wat::holon::to-holon outer)
+                       v       (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
         run_i64(src_outer_len),
@@ -333,14 +333,14 @@ fn probe_7_nested_vector_roundtrip() {
     // Verify via second round-trip: outer Vec has 2 elements (already proven above).
     // Re-verify using a distinct sub-expression to confirm idempotency.
     let src_bundle_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner1  (:wat::core::Vector :wat::core::i64 1 2 3)
-             inner2  (:wat::core::Vector :wat::core::i64 4 5)
-             outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::to-holon outer)
-             v       (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length v)))
+                      [inner1  (:wat::core::Vector :wat::core::i64 1 2 3)
+                       inner2  (:wat::core::Vector :wat::core::i64 4 5)
+                       outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
+                       h       (:wat::holon::to-holon outer)
+                       v       (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length v)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
@@ -352,23 +352,23 @@ fn probe_7_nested_vector_roundtrip() {
     // then get element 0 from the inner Vec (which should be 1).
     // Use nested match: outer get → Some(inner_vec); inner get at index 0 → Some(1).
     let src_inner_elem = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner1  (:wat::core::Vector :wat::core::i64 1 2 3)
-             inner2  (:wat::core::Vector :wat::core::i64 4 5)
-             outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::to-holon outer)
-             v       (:wat::holon::from-holon h)]
-            (:wat::core::match
-              (:wat::core::Vector/get v 1)
-              -> :wat::core::i64
-              ((:wat::core::Some inner)
-                (:wat::core::match
-                  (:wat::core::Vector/get inner 0)
-                  -> :wat::core::i64
-                  ((:wat::core::Some x) x)
-                  (:wat::core::None -1)))
-              (:wat::core::None -1))))
+                      [inner1  (:wat::core::Vector :wat::core::i64 1 2 3)
+                       inner2  (:wat::core::Vector :wat::core::i64 4 5)
+                       outer   (:wat::core::Vector :wat::type::Infer inner1 inner2)
+                       h       (:wat::holon::to-holon outer)
+                       v       (:wat::holon::from-holon h)]
+                      (:wat::core::match
+                        (:wat::core::Vector/get v 1)
+                        -> :wat::core::i64
+                        ((:wat::core::Some inner)
+                          (:wat::core::match
+                            (:wat::core::Vector/get inner 0)
+                            -> :wat::core::i64
+                            ((:wat::core::Some x) x)
+                            (:wat::core::None -1)))
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(
         run_i64(src_inner_elem),
@@ -390,14 +390,14 @@ fn probe_7_nested_vector_roundtrip() {
 fn probe_8_mixed_nesting_vec_of_hashset() {
     // Outer length = 2.
     let src_outer_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [s1  (:wat::core::HashSet :wat::core::i64 1 2 3)
-             s2  (:wat::core::HashSet :wat::core::i64 4 5)
-             v   (:wat::core::Vector :wat::type::Infer s1 s2)
-             h   (:wat::holon::to-holon v)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length rv)))
+                      [s1  (:wat::core::HashSet :wat::core::i64 1 2 3)
+                       s2  (:wat::core::HashSet :wat::core::i64 4 5)
+                       v   (:wat::core::Vector :wat::type::Infer s1 s2)
+                       h   (:wat::holon::to-holon v)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length rv)))
     "#;
     assert_eq!(
         run_i64(src_outer_len),
@@ -408,14 +408,14 @@ fn probe_8_mixed_nesting_vec_of_hashset() {
     // Arc 228: Bundle/children no longer applies to the classifier-wrapped top-level Bind.
     // Verify the outer element count via round-trip: outer Vec has 2 elements.
     let src_bundle_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [s1  (:wat::core::HashSet :wat::core::i64 1 2 3)
-             s2  (:wat::core::HashSet :wat::core::i64 4 5)
-             v   (:wat::core::Vector :wat::type::Infer s1 s2)
-             h   (:wat::holon::to-holon v)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length rv)))
+                      [s1  (:wat::core::HashSet :wat::core::i64 1 2 3)
+                       s2  (:wat::core::HashSet :wat::core::i64 4 5)
+                       v   (:wat::core::Vector :wat::type::Infer s1 s2)
+                       h   (:wat::holon::to-holon v)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length rv)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
@@ -432,21 +432,21 @@ fn probe_8_mixed_nesting_vec_of_hashset() {
 #[test]
 fn probe_9_check_passes_for_atomizable_t() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon [1 2 3])]
-            1))
+                      [h (:wat::holon::to-holon [1 2 3])]
+                      1))
     "#;
     assert_eq!(run_i64(src), 1, "Atom on Vec<i64> must pass check and run");
 
     // Nested Vec<Vec<i64>> — predicate recurses through both levels.
     let src_nested = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner  (:wat::core::Vector :wat::core::i64 1 2)
-             outer  (:wat::core::Vector :wat::type::Infer inner)
-             h      (:wat::holon::to-holon outer)]
-            1))
+                      [inner  (:wat::core::Vector :wat::core::i64 1 2)
+                       outer  (:wat::core::Vector :wat::type::Infer inner)
+                       h      (:wat::holon::to-holon outer)]
+                      1))
     "#;
     assert_eq!(
         run_i64(src_nested),
@@ -468,10 +468,10 @@ fn probe_9_check_passes_for_atomizable_t() {
 #[test]
 fn probe_10_check_fails_for_non_atomizable_t() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil
           (:wat::core::let
-            [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
-            (:wat::holon::to-holon f)))
+                      [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
+                      (:wat::holon::to-holon f)))
     "#;
     let err = startup_err(src);
     assert!(

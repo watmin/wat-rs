@@ -60,7 +60,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 /// calling `:user::compute`. User source must define `:user::compute`.
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -78,8 +78,7 @@ fn probe_01_guard_true_body_fires() {
     let src = r#"
         (:wat::core::defclause :my::pick
           ([x <- :wat::core::i64] :guard (:wat::core::i64::> x 0) -> :wat::core::i64 x))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::pick 42))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::pick 42))
     "#;
     let result = run_compute(src).expect(":guard true should allow body to fire");
     assert_eq!(result, Value::i64(42));
@@ -91,8 +90,7 @@ fn probe_02_guard_false_no_match_runtime_error() {
     let src = r#"
         (:wat::core::defclause :my::pick
           ([x <- :wat::core::i64] :guard (:wat::core::i64::> x 0) -> :wat::core::i64 x))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::pick -5))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::pick -5))
     "#;
     let result = run_compute(src);
     assert!(
@@ -109,8 +107,7 @@ fn probe_03_guard_false_falls_through_to_next_clause() {
         (:wat::core::defclause :my::pick
           ([x <- :wat::core::i64] :guard (:wat::core::i64::> x 100) -> :wat::core::i64 999)
           ([x <- :wat::core::i64] :guard (:wat::core::i64::> x 0) -> :wat::core::i64 x))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::pick 42))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::pick 42))
     "#;
     let result = run_compute(src).expect("second clause guard true; should fire");
     assert_eq!(
@@ -129,8 +126,7 @@ fn probe_04_factorial_demo_via_guards() {
           ([n <- :wat::core::i64] :guard (:wat::core::i64::= n 0) -> :wat::core::i64 1)
           ([n <- :wat::core::i64] :guard (:wat::core::i64::> n 0) -> :wat::core::i64
             (:wat::core::i64::* n (:my::factorial (:wat::core::i64::- n 1)))))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::factorial 5))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::factorial 5))
     "#;
     let result = run_compute(src).expect("factorial(5) should compute via guard-dispatch");
     assert_eq!(result, Value::i64(120), "5! = 120");
@@ -143,7 +139,7 @@ fn probe_05_guard_non_boolean_errors_at_check() {
     let src = r#"
         (:wat::core::defclause :my::bad
           ([x <- :wat::core::i64] :guard (:wat::core::i64::+ x 1) -> :wat::core::i64 x))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -161,8 +157,7 @@ fn probe_06_ensure_true_returns_result() {
             :ensure (:wat::core::fn [result <- :wat::core::i64] -> :wat::core::bool
                       (:wat::core::i64::> result 0))
             x))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::positive 42))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::positive 42))
     "#;
     let result = run_compute(src).expect(":ensure true should return result");
     assert_eq!(result, Value::i64(42));
@@ -177,8 +172,7 @@ fn probe_07_ensure_false_raises_postcondition() {
             :ensure (:wat::core::fn [result <- :wat::core::i64] -> :wat::core::bool
                       (:wat::core::i64::> result 0))
             x))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::positive -5))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::positive -5))
     "#;
     let result = run_compute(src);
     assert!(
@@ -198,7 +192,7 @@ fn probe_08_ensure_fn_wrong_arity_errors_at_check() {
             :ensure (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
                       (:wat::core::i64::> a b))
             x))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -217,7 +211,7 @@ fn probe_09_ensure_fn_arg_type_mismatch_errors_at_check() {
             :ensure (:wat::core::fn [result <- :wat::core::String] -> :wat::core::bool
                       (:wat::core::String/empty? result))
             x))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -235,7 +229,7 @@ fn probe_10_ensure_fn_return_not_bool_errors_at_check() {
             :ensure (:wat::core::fn [result <- :wat::core::i64] -> :wat::core::i64
                       (:wat::core::i64::+ result 1))
             x))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -255,8 +249,7 @@ fn probe_11_full_shape_guard_and_ensure() {
             :ensure (:wat::core::fn [result <- :wat::core::i64] -> :wat::core::bool
                       (:wat::core::i64::> result 0))
             -> :wat::core::i64 x))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::strict-positive 42))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::strict-positive 42))
     "#;
     let result = run_compute(src).expect("guard true + ensure true should return result");
     assert_eq!(result, Value::i64(42));
@@ -272,7 +265,7 @@ fn probe_12_multiple_guards_rejected() {
             :guard (:wat::core::i64::> x 0)
             :guard (:wat::core::i64::< x 100)
             -> :wat::core::i64 x))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -292,7 +285,7 @@ fn probe_13_keyword_order_violation_rejected() {
                       (:wat::core::i64::> result 0))
             :guard (:wat::core::i64::> x 0)
             -> :wat::core::i64 x))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -326,8 +319,7 @@ fn probe_14_complex_demo_2_2_arity_guards_plus_3_arity_ensure() {
             (:wat::core::String/concat "result: sum="
               (:wat::core::i64/to-string
                 (:wat::core::i64::+ (:wat::core::i64::+ x y) z)))))
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:my::process 1 2 3))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:my::process 1 2 3))
     "#;
     let result = run_compute(src).expect("3-arity clause with ensure should compute + validate");
     // 1 + 2 + 3 = 6; "result: sum=6"; ensure passes (starts with "result:")

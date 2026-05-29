@@ -63,11 +63,11 @@ fn probe_no_default_rust_panic_noise_on_stderr() {
     // is suppressed. Only the structured #wat.kernel/ProcessPanics line
     // should appear on stderr.
     let src = r#"
-        (:wat::core::define (:probe::hook-test -> :wat::kernel::RunResult)
+        (:wat::core::defn :probe::hook-test [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::test::assert-eq "expected-value" "actual-value")))
+                      (:wat::test::assert-eq "expected-value" "actual-value")))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let func = world.symbols().get(":probe::hook-test").expect("defined");

@@ -27,7 +27,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -82,33 +82,33 @@ fn startup_err(src: &str) -> String {
 fn probe_1_construction_primitives() {
     // i64 elements
     let n = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::HashSet/length
-            (:wat::core::HashSet :wat::core::i64 1 2 3)))
+                      (:wat::core::HashSet :wat::core::i64 1 2 3)))
     "#);
     assert_eq!(n, 3, "i64 set length");
 
     // String elements
     let n2 = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::HashSet/length
-            (:wat::core::HashSet :wat::core::String "a" "b" "c")))
+                      (:wat::core::HashSet :wat::core::String "a" "b" "c")))
     "#);
     assert_eq!(n2, 3, "String set length");
 
     // bool elements (2 distinct: true, false)
     let n3 = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::HashSet/length
-            (:wat::core::HashSet :wat::core::bool true false)))
+                      (:wat::core::HashSet :wat::core::bool true false)))
     "#);
     assert_eq!(n3, 2, "bool set length");
 
     // keyword elements
     let n4 = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::HashSet/length
-            (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)))
+                      (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)))
     "#);
     assert_eq!(n4, 3, "keyword set length");
 }
@@ -119,42 +119,42 @@ fn probe_1_construction_primitives() {
 fn probe_2_contains_q_hit_and_miss() {
     // i64 hit
     assert!(run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [s (:wat::core::HashSet :wat::core::i64 10 20 30)]
-            (:wat::core::contains? s 20)))
+                      [s (:wat::core::HashSet :wat::core::i64 10 20 30)]
+                      (:wat::core::contains? s 20)))
     "#), "i64 hit");
 
     // i64 miss
     assert!(!run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [s (:wat::core::HashSet :wat::core::i64 10 20 30)]
-            (:wat::core::contains? s 99)))
+                      [s (:wat::core::HashSet :wat::core::i64 10 20 30)]
+                      (:wat::core::contains? s 99)))
     "#), "i64 miss");
 
     // String hit
     assert!(run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [s (:wat::core::HashSet :wat::core::String "apple" "banana")]
-            (:wat::core::contains? s "apple")))
+                      [s (:wat::core::HashSet :wat::core::String "apple" "banana")]
+                      (:wat::core::contains? s "apple")))
     "#), "String hit");
 
     // String miss
     assert!(!run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [s (:wat::core::HashSet :wat::core::String "apple" "banana")]
-            (:wat::core::contains? s "cherry")))
+                      [s (:wat::core::HashSet :wat::core::String "apple" "banana")]
+                      (:wat::core::contains? s "cherry")))
     "#), "String miss");
 
     // keyword hit
     assert!(run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [s (:wat::core::HashSet :wat::core::keyword :x :y)]
-            (:wat::core::contains? s :x)))
+                      [s (:wat::core::HashSet :wat::core::keyword :x :y)]
+                      (:wat::core::contains? s :x)))
     "#), "keyword hit");
 }
 
@@ -163,9 +163,9 @@ fn probe_2_contains_q_hit_and_miss() {
 #[test]
 fn probe_3_length() {
     let n = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::HashSet/length
-            (:wat::core::HashSet :wat::core::i64 1 2 3 4 5)))
+                      (:wat::core::HashSet :wat::core::i64 1 2 3 4 5)))
     "#);
     assert_eq!(n, 5);
 }
@@ -176,16 +176,16 @@ fn probe_3_length() {
 fn probe_4_empty_q() {
     // Non-empty
     assert!(!run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::HashSet/empty?
-            (:wat::core::HashSet :wat::core::i64 1)))
+                      (:wat::core::HashSet :wat::core::i64 1)))
     "#), "non-empty is false");
 
     // Deduped to one element — still non-empty
     assert!(!run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::HashSet/empty?
-            (:wat::core::HashSet :wat::core::i64 42 42 42)))
+                      (:wat::core::HashSet :wat::core::i64 42 42 42)))
     "#), "dedupe still non-empty");
 }
 
@@ -195,30 +195,30 @@ fn probe_4_empty_q() {
 fn probe_5_conj_and_dedupe() {
     // conj adds new element
     assert!(run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [s0 (:wat::core::HashSet :wat::core::i64 1 2)
-             s1 (:wat::core::conj s0 3)]
-            (:wat::core::contains? s1 3)))
+                      [s0 (:wat::core::HashSet :wat::core::i64 1 2)
+                       s1 (:wat::core::conj s0 3)]
+                      (:wat::core::contains? s1 3)))
     "#), "conj adds new element");
 
     // conj with existing element — idempotent (length unchanged)
     let n = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [s0 (:wat::core::HashSet :wat::core::i64 1 2)
-             s1 (:wat::core::conj s0 1)]
-            (:wat::core::HashSet/length s1)))
+                      [s0 (:wat::core::HashSet :wat::core::i64 1 2)
+                       s1 (:wat::core::conj s0 1)]
+                      (:wat::core::HashSet/length s1)))
     "#);
     assert_eq!(n, 2, "conj duplicate is idempotent");
 
     // conj is functional — input unchanged
     assert!(!run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [s0 (:wat::core::HashSet :wat::core::i64 1 2)
-             _  (:wat::core::conj s0 3)]
-            (:wat::core::contains? s0 3)))
+                      [s0 (:wat::core::HashSet :wat::core::i64 1 2)
+                       _  (:wat::core::conj s0 3)]
+                      (:wat::core::contains? s0 3)))
     "#), "conj does not mutate input");
 }
 
@@ -229,20 +229,20 @@ fn probe_6_conj_bool_elements() {
     // Verify conj works for bool (which has a distinct hash from i64 via discriminant tagging).
     // Stone 216.5b — native insert via Value: Hash + Eq.
     assert!(run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [s0 (:wat::core::HashSet :wat::core::bool true)
-             s1 (:wat::core::conj s0 false)]
-            (:wat::core::contains? s1 false)))
+                      [s0 (:wat::core::HashSet :wat::core::bool true)
+                       s1 (:wat::core::conj s0 false)]
+                      (:wat::core::contains? s1 false)))
     "#), "conj false into set-with-true and find it");
 
     // Verify dedupe: conj with already-present element
     let n = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [s0 (:wat::core::HashSet :wat::core::bool true false)
-             s1 (:wat::core::conj s0 true)]
-            (:wat::core::HashSet/length s1)))
+                      [s0 (:wat::core::HashSet :wat::core::bool true false)
+                       s1 (:wat::core::conj s0 true)]
+                      (:wat::core::HashSet/length s1)))
     "#);
     assert_eq!(n, 2, "conj of already-present bool element: length stays 2");
 }
@@ -253,33 +253,33 @@ fn probe_6_conj_bool_elements() {
 fn probe_7_nested_hashset() {
     // Build outer HashSet with two distinct inner HashSets.
     let n = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner1 (:wat::core::HashSet :wat::core::i64 1 2)
-             inner2 (:wat::core::HashSet :wat::core::i64 3 4)
-             outer  (:wat::core::HashSet :wat::type::Infer inner1 inner2)]
-            (:wat::core::HashSet/length outer)))
+                      [inner1 (:wat::core::HashSet :wat::core::i64 1 2)
+                       inner2 (:wat::core::HashSet :wat::core::i64 3 4)
+                       outer  (:wat::core::HashSet :wat::type::Infer inner1 inner2)]
+                      (:wat::core::HashSet/length outer)))
     "#);
     assert_eq!(n, 2, "outer HashSet has 2 inner sets");
 
     // contains? on the outer HashSet with an equal-value inner HashSet
     assert!(run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [inner1 (:wat::core::HashSet :wat::core::i64 1 2)
-             inner2 (:wat::core::HashSet :wat::core::i64 3 4)
-             outer  (:wat::core::HashSet :wat::type::Infer inner1 inner2)
-             probe  (:wat::core::HashSet :wat::core::i64 1 2)]
-            (:wat::core::contains? outer probe)))
+                      [inner1 (:wat::core::HashSet :wat::core::i64 1 2)
+                       inner2 (:wat::core::HashSet :wat::core::i64 3 4)
+                       outer  (:wat::core::HashSet :wat::type::Infer inner1 inner2)
+                       probe  (:wat::core::HashSet :wat::core::i64 1 2)]
+                      (:wat::core::contains? outer probe)))
     "#), "inner HashSet found by value equality");
 
     // Dedupe: inserting the same inner HashSet twice
     let n2 = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner (:wat::core::HashSet :wat::core::i64 1 2)
-             outer (:wat::core::HashSet :wat::type::Infer inner inner)]
-            (:wat::core::HashSet/length outer)))
+                      [inner (:wat::core::HashSet :wat::core::i64 1 2)
+                       outer (:wat::core::HashSet :wat::type::Infer inner inner)]
+                      (:wat::core::HashSet/length outer)))
     "#);
     assert_eq!(n2, 1, "duplicate inner HashSet deduped");
 }
@@ -291,23 +291,23 @@ fn probe_8_atom_round_trip() {
     // Stone 216.1 contract preserved: HashSet → to-holon (Bundle of bare atoms) → from-holon.
     // Stone 216.5b: value_to_atom iterates s.iter() (Values directly, not String keys).
     let n = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [s     (:wat::core::HashSet :wat::core::i64 10 20 30)
-             atom  (:wat::holon::to-holon s)
-             back  (:wat::holon::from-holon atom)]
-            (:wat::core::HashSet/length back)))
+                      [s     (:wat::core::HashSet :wat::core::i64 10 20 30)
+                       atom  (:wat::holon::to-holon s)
+                       back  (:wat::holon::from-holon atom)]
+                      (:wat::core::HashSet/length back)))
     "#);
     assert_eq!(n, 3, "round-trip preserves length");
 
     // contains? on round-tripped value
     assert!(run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [s     (:wat::core::HashSet :wat::core::i64 10 20 30)
-             atom  (:wat::holon::to-holon s)
-             back  (:wat::holon::from-holon atom)]
-            (:wat::core::contains? back 20)))
+                      [s     (:wat::core::HashSet :wat::core::i64 10 20 30)
+                       atom  (:wat::holon::to-holon s)
+                       back  (:wat::holon::from-holon atom)]
+                      (:wat::core::contains? back 20)))
     "#), "round-trip preserves membership");
 }
 
@@ -318,14 +318,14 @@ fn probe_9_hashset_as_hashmap_value() {
     // HashMap<keyword, HashSet<i64>>. HashMap still uses hashmap_key for keyword key;
     // HashSet uses native Hash for its elements. The boundary must work.
     assert!(run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [inner   (:wat::core::HashSet :wat::core::i64 1 2 3)
-             m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :my-set inner)
-             fetched (:wat::core::match (:wat::core::get m :my-set) -> :wat::core::bool
-                        ((:wat::core::Some v) (:wat::core::contains? v 2))
-                        (:wat::core::None     false))]
-            fetched))
+                      [inner   (:wat::core::HashSet :wat::core::i64 1 2 3)
+                       m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :my-set inner)
+                       fetched (:wat::core::match (:wat::core::get m :my-set) -> :wat::core::bool
+                                  ((:wat::core::Some v) (:wat::core::contains? v 2))
+                                  (:wat::core::None     false))]
+                      fetched))
     "#), "HashSet value retrieved from HashMap and membership verified");
 }
 
@@ -337,11 +337,11 @@ fn probe_10_hashset_as_hashmap_key() {
     // iterates s.iter() (Values) to compute the canonical key. Two HashSets with
     // the same elements must produce the same canonical key → same HashMap slot.
     assert!(run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [key   (:wat::core::HashSet :wat::core::i64 7 8 9)
-             m     (:wat::core::HashMap :wat::type::Infer :wat::core::String key "found-it")
-             probe (:wat::core::HashSet :wat::core::i64 7 8 9)]
-            (:wat::core::HashMap/contains-key? m probe)))
+                      [key   (:wat::core::HashSet :wat::core::i64 7 8 9)
+                       m     (:wat::core::HashMap :wat::type::Infer :wat::core::String key "found-it")
+                       probe (:wat::core::HashSet :wat::core::i64 7 8 9)]
+                      (:wat::core::HashMap/contains-key? m probe)))
     "#), "HashSet key found via HashMap/contains-key? (same elements = same canonical key)");
 }

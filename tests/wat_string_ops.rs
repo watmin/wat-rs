@@ -75,11 +75,10 @@ fn run_expecting_runtime_err(src: &str) -> String {
 fn bool_src(expr: &str) -> String {
     format!(
         r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::if {expr} -> :wat::core::nil
-            (:wat::kernel::println "true")
-            (:wat::kernel::println "false")))
+                      (:wat::kernel::println "true")
+                      (:wat::kernel::println "false")))
         "#,
     )
 }
@@ -87,9 +86,7 @@ fn bool_src(expr: &str) -> String {
 fn string_src(expr: &str) -> String {
     format!(
         r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
-          (:wat::kernel::println {expr}))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println {expr}))
         "#,
     )
 }
@@ -141,13 +138,12 @@ fn ends_with_hit_and_miss() {
 #[test]
 fn length_counts_chars_not_bytes() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [n (:wat::core::string::length "héllo")]
-            (:wat::core::if (:wat::core::= n 5) -> :wat::core::nil
-              (:wat::kernel::println "chars")
-              (:wat::kernel::println "bytes"))))
+                      [n (:wat::core::string::length "héllo")]
+                      (:wat::core::if (:wat::core::= n 5) -> :wat::core::nil
+                        (:wat::kernel::println "chars")
+                        (:wat::kernel::println "bytes"))))
     "#;
     assert_eq!(run(src), vec!["\"chars\"".to_string()]);
 }
@@ -167,13 +163,12 @@ fn trim_strips_whitespace() {
 #[test]
 fn split_produces_vec() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [pieces
-              (:wat::core::string::split "a,b,c" ",")]
-            (:wat::kernel::println
-              (:wat::core::string::join "|" pieces))))
+                      [pieces
+                        (:wat::core::string::split "a,b,c" ",")]
+                      (:wat::kernel::println
+                        (:wat::core::string::join "|" pieces))))
     "#;
     assert_eq!(run(src), vec!["\"a|b|c\"".to_string()]);
 }
@@ -181,12 +176,11 @@ fn split_produces_vec() {
 #[test]
 fn split_empty_separator_rejected() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_
-              (:wat::core::string::split "abc" "")]
-            ()))
+                      [_
+                        (:wat::core::string::split "abc" "")]
+                      ()))
     "#;
     let msg = run_expecting_runtime_err(src);
     assert!(
@@ -221,11 +215,10 @@ fn regex_matches_no_match() {
 #[test]
 fn regex_invalid_pattern_errors() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_ (:wat::core::regex::matches? "[unclosed" "x")]
-            ()))
+                      [_ (:wat::core::regex::matches? "[unclosed" "x")]
+                      ()))
     "#;
     let msg = run_expecting_runtime_err(src);
     assert!(

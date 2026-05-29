@@ -20,7 +20,7 @@ fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -49,11 +49,9 @@ fn simple_alias_unifies_with_its_expansion() {
 
         (:wat::core::typealias :my::Amount :wat::core::f64)
 
-        (:wat::core::define (:app::double (x :my::Amount) -> :my::Amount)
-          (:wat::core::f64::*'2 x 2.0))
+        (:wat::core::defn :app::double [x <- :my::Amount] -> :my::Amount (:wat::core::f64::*'2 x 2.0))
 
-        (:wat::core::define (:my::compute -> :wat::core::f64)
-          (:app::double 21.0))
+        (:wat::core::defn :my::compute [] -> :wat::core::f64 (:app::double 21.0))
     "#;
     match run(src) {
         Value::f64(n) => assert!((n - 42.0).abs() < 1e-9),
@@ -70,11 +68,9 @@ fn alias_of_alias_chain_expands_to_root() {
         (:wat::core::typealias :my::B :wat::core::f64)
         (:wat::core::typealias :my::A :my::B)
 
-        (:wat::core::define (:app::inc (x :my::A) -> :my::A)
-          (:wat::core::f64::+'2 x 1.0))
+        (:wat::core::defn :app::inc [x <- :my::A] -> :my::A (:wat::core::f64::+'2 x 1.0))
 
-        (:wat::core::define (:my::compute -> :wat::core::f64)
-          (:app::inc 41.0))
+        (:wat::core::defn :my::compute [] -> :wat::core::f64 (:app::inc 41.0))
     "#;
     match run(src) {
         Value::f64(n) => assert!((n - 42.0).abs() < 1e-9),
@@ -120,13 +116,11 @@ fn alias_preserves_type_mismatches() {
 
         (:wat::core::typealias :my::Amount :wat::core::f64)
 
-        (:wat::core::define (:app::double (x :my::Amount) -> :my::Amount)
-          (:wat::core::f64::*'2 x 2.0))
+        (:wat::core::defn :app::double [x <- :my::Amount] -> :my::Amount (:wat::core::f64::*'2 x 2.0))
 
-        (:wat::core::define (:my::probe -> :my::Amount)
-          (:app::double "not a number"))
+        (:wat::core::defn :my::probe [] -> :my::Amount (:app::double "not a number"))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let errs = check_errors(src);
     let hit = errs.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. }));
@@ -147,14 +141,14 @@ fn type_alias_works_at_hashmap_k_and_v_args() {
         (:wat::core::typealias :my::Key :wat::core::String)
         (:wat::core::typealias :my::Val :wat::core::i64)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [row
-              (:wat::core::HashMap :my::Key :my::Val "a" 1 "b" 2)
-             got (:wat::core::get row "b")]
-            (:wat::core::match got -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (:wat::core::None -1))))
+                      [row
+                        (:wat::core::HashMap :my::Key :my::Val "a" 1 "b" 2)
+                       got (:wat::core::get row "b")]
+                      (:wat::core::match got -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (:wat::core::None -1))))
     "#;
     assert!(matches!(run(src), Value::i64(2)));
 }
@@ -169,13 +163,13 @@ fn alias_over_hashmap_passes_through_std_get() {
 
         (:wat::core::typealias :my::Row :wat::core::HashMap<wat::core::String,wat::core::i64>)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [row (:wat::core::HashMap :wat::core::String :wat::core::i64 "a" 10 "b" 20)
-             got (:wat::core::get row "a")]
-            (:wat::core::match got -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (:wat::core::None -1))))
+                      [row (:wat::core::HashMap :wat::core::String :wat::core::i64 "a" 10 "b" 20)
+                       got (:wat::core::get row "a")]
+                      (:wat::core::match got -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (:wat::core::None -1))))
     "#;
     assert!(matches!(run(src), Value::i64(10)));
 }
@@ -191,30 +185,30 @@ fn alias_over_fn_type_works_at_spawn() {
           :my::Job
           :wat::core::Fn(rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::nil)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [job
-              (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                (:wat::core::do
-                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
-                  ()))
-             pair
-              (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-             tx (:wat::core::first pair)
-             rx (:wat::core::second pair)
-             h
-              (:wat::kernel::spawn-thread
-                (:wat::core::fn
-                  [_in <- :wat::kernel::Receiver<wat::core::nil>
-                   _out <- :wat::kernel::Sender<wat::core::nil>]
-                   -> :wat::core::nil
-                  (job tx)))
-             _
-              (:wat::kernel::Thread/drain-and-join h)]
-            (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
-              ((:wat::core::Ok (:wat::core::Some v)) v)
-              ((:wat::core::Ok :wat::core::None) 0)
-              ((:wat::core::Err _died) -1))))
+                      [job
+                        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                          (:wat::core::do
+                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
+                            ()))
+                       pair
+                        (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                       tx (:wat::core::first pair)
+                       rx (:wat::core::second pair)
+                       h
+                        (:wat::kernel::spawn-thread
+                          (:wat::core::fn
+                            [_in <- :wat::kernel::Receiver<wat::core::nil>
+                             _out <- :wat::kernel::Sender<wat::core::nil>]
+                             -> :wat::core::nil
+                            (job tx)))
+                       _
+                        (:wat::kernel::Thread/drain-and-join h)]
+                      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
+                        ((:wat::core::Ok (:wat::core::Some v)) v)
+                        ((:wat::core::Ok :wat::core::None) 0)
+                        ((:wat::core::Err _died) -1))))
     "#;
     assert!(matches!(run(src), Value::i64(7)));
 }
@@ -227,11 +221,9 @@ fn alias_return_type_accepts_expanded_literal() {
 
         (:wat::core::typealias :my::Amount :wat::core::f64)
 
-        (:wat::core::define (:app::zero -> :my::Amount)
-          0.0)
+        (:wat::core::defn :app::zero [] -> :my::Amount 0.0)
 
-        (:wat::core::define (:my::compute -> :wat::core::f64)
-          (:app::zero))
+        (:wat::core::defn :my::compute [] -> :wat::core::f64 (:app::zero))
     "#;
     match run(src) {
         Value::f64(n) => assert_eq!(n, 0.0),

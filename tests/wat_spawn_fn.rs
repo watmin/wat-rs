@@ -36,7 +36,7 @@ fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -58,52 +58,48 @@ fn spawn_thread_named_define_body() {
     // Arc 170 slice 1f-ζ: computation in :my::compute.
     let src = r#"
 
-        (:wat::core::define
-          (:app::increment
-            (in  :wat::kernel::Receiver<wat::core::i64>)
-            (out :wat::kernel::Sender<wat::core::i64>)
-            -> :wat::core::nil)
+        (:wat::core::defn :app::increment [in <- :wat::kernel::Receiver<wat::core::i64> out <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
           (:wat::core::let
-            [value
-              (:wat::core::match (:wat::kernel::recv in)
-                -> :wat::core::i64
-                ((:wat::core::Ok (:wat::core::Some n)) n)
-                ((:wat::core::Ok :wat::core::None)
-                 (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
-                ((:wat::core::Err _)
-                 (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
-             sum (:wat::core::i64::+'2 value 1)]
-            (:wat::core::match (:wat::kernel::send out sum)
-              -> :wat::core::nil
-              ((:wat::core::Ok _) ())
-              ((:wat::core::Err _)
-               (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))
+                      [value
+                        (:wat::core::match (:wat::kernel::recv in)
+                          -> :wat::core::i64
+                          ((:wat::core::Ok (:wat::core::Some n)) n)
+                          ((:wat::core::Ok :wat::core::None)
+                           (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
+                          ((:wat::core::Err _)
+                           (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
+                       sum (:wat::core::i64::+'2 value 1)]
+                      (:wat::core::match (:wat::kernel::send out sum)
+                        -> :wat::core::nil
+                        ((:wat::core::Ok _) ())
+                        ((:wat::core::Err _)
+                         (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [thr
-              (:wat::kernel::spawn-thread :app::increment)
-             tx
-              (:wat::kernel::Thread/input thr)
-             rx
-              (:wat::kernel::Thread/output thr)
-             _ack
-              (:wat::core::match (:wat::kernel::send tx 41)
-                -> :wat::core::nil
-                ((:wat::core::Ok _) ())
-                ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died"))))
-             result
-              (:wat::core::match (:wat::kernel::recv rx)
-                -> :wat::core::i64
-                ((:wat::core::Ok (:wat::core::Some n)) n)
-                ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
-                ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
-             _join
-              (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
-                -> :wat::core::nil
-                ((:wat::core::Ok _) ())
-                ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
-            result))
+                      [thr
+                        (:wat::kernel::spawn-thread :app::increment)
+                       tx
+                        (:wat::kernel::Thread/input thr)
+                       rx
+                        (:wat::kernel::Thread/output thr)
+                       _ack
+                        (:wat::core::match (:wat::kernel::send tx 41)
+                          -> :wat::core::nil
+                          ((:wat::core::Ok _) ())
+                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died"))))
+                       result
+                        (:wat::core::match (:wat::kernel::recv rx)
+                          -> :wat::core::i64
+                          ((:wat::core::Ok (:wat::core::Some n)) n)
+                          ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
+                          ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
+                       _join
+                        (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
+                          -> :wat::core::nil
+                          ((:wat::core::Ok _) ())
+                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
+                      result))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
 }
@@ -115,50 +111,50 @@ fn spawn_thread_inline_fn_body() {
     // Arc 170 slice 1f-ζ: computation in :my::compute.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [thr
-              (:wat::kernel::spawn-thread
-                (:wat::core::fn
-                  [in  <- :wat::kernel::Receiver<wat::core::i64>
-                   out <- :wat::kernel::Sender<wat::core::i64>]
-                   -> :wat::core::nil
-                  (:wat::core::let
-                    [value
-                      (:wat::core::match (:wat::kernel::recv in)
-                        -> :wat::core::i64
-                        ((:wat::core::Ok (:wat::core::Some n)) n)
-                        ((:wat::core::Ok :wat::core::None)
-                         (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
-                        ((:wat::core::Err _)
-                         (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
-                     doubled (:wat::core::i64::*'2 value 2)]
-                    (:wat::core::match (:wat::kernel::send out doubled)
-                      -> :wat::core::nil
-                      ((:wat::core::Ok _) ())
-                      ((:wat::core::Err _)
-                       (:wat::kernel::raise! (:wat::holon::leaf "output closed")))))))
-             tx
-              (:wat::kernel::Thread/input thr)
-             rx
-              (:wat::kernel::Thread/output thr)
-             _ack
-              (:wat::core::match (:wat::kernel::send tx 21)
-                -> :wat::core::nil
-                ((:wat::core::Ok _) ())
-                ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died"))))
-             result
-              (:wat::core::match (:wat::kernel::recv rx)
-                -> :wat::core::i64
-                ((:wat::core::Ok (:wat::core::Some n)) n)
-                ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
-                ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
-             _join
-              (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
-                -> :wat::core::nil
-                ((:wat::core::Ok _) ())
-                ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
-            result))
+                      [thr
+                        (:wat::kernel::spawn-thread
+                          (:wat::core::fn
+                            [in  <- :wat::kernel::Receiver<wat::core::i64>
+                             out <- :wat::kernel::Sender<wat::core::i64>]
+                             -> :wat::core::nil
+                            (:wat::core::let
+                              [value
+                                (:wat::core::match (:wat::kernel::recv in)
+                                  -> :wat::core::i64
+                                  ((:wat::core::Ok (:wat::core::Some n)) n)
+                                  ((:wat::core::Ok :wat::core::None)
+                                   (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
+                                  ((:wat::core::Err _)
+                                   (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
+                               doubled (:wat::core::i64::*'2 value 2)]
+                              (:wat::core::match (:wat::kernel::send out doubled)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _)
+                                 (:wat::kernel::raise! (:wat::holon::leaf "output closed")))))))
+                       tx
+                        (:wat::kernel::Thread/input thr)
+                       rx
+                        (:wat::kernel::Thread/output thr)
+                       _ack
+                        (:wat::core::match (:wat::kernel::send tx 21)
+                          -> :wat::core::nil
+                          ((:wat::core::Ok _) ())
+                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died"))))
+                       result
+                        (:wat::core::match (:wat::kernel::recv rx)
+                          -> :wat::core::i64
+                          ((:wat::core::Ok (:wat::core::Some n)) n)
+                          ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
+                          ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
+                       _join
+                        (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
+                          -> :wat::core::nil
+                          ((:wat::core::Ok _) ())
+                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
+                      result))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
 }
@@ -176,52 +172,52 @@ fn spawn_thread_closure_capture() {
     // Arc 170 slice 1f-ζ: computation in :my::compute.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [delta 100
-             body
-              (:wat::core::fn
-                [in  <- :wat::kernel::Receiver<wat::core::i64>
-                 out <- :wat::kernel::Sender<wat::core::i64>]
-                 -> :wat::core::nil
-                (:wat::core::let
-                  [n
-                    (:wat::core::match (:wat::kernel::recv in)
-                      -> :wat::core::i64
-                      ((:wat::core::Ok (:wat::core::Some v)) v)
-                      ((:wat::core::Ok :wat::core::None)
-                       (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
-                      ((:wat::core::Err _)
-                       (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
-                   sum (:wat::core::i64::+'2 n delta)]
-                  (:wat::core::match (:wat::kernel::send out sum)
-                    -> :wat::core::nil
-                    ((:wat::core::Ok _) ())
-                    ((:wat::core::Err _)
-                     (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))
-             thr
-              (:wat::kernel::spawn-thread body)
-             tx
-              (:wat::kernel::Thread/input thr)
-             rx
-              (:wat::kernel::Thread/output thr)
-             _ack
-              (:wat::core::match (:wat::kernel::send tx 23)
-                -> :wat::core::nil
-                ((:wat::core::Ok _) ())
-                ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died"))))
-             result
-              (:wat::core::match (:wat::kernel::recv rx)
-                -> :wat::core::i64
-                ((:wat::core::Ok (:wat::core::Some n)) n)
-                ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
-                ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
-             _join
-              (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
-                -> :wat::core::nil
-                ((:wat::core::Ok _) ())
-                ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
-            result))
+                      [delta 100
+                       body
+                        (:wat::core::fn
+                          [in  <- :wat::kernel::Receiver<wat::core::i64>
+                           out <- :wat::kernel::Sender<wat::core::i64>]
+                           -> :wat::core::nil
+                          (:wat::core::let
+                            [n
+                              (:wat::core::match (:wat::kernel::recv in)
+                                -> :wat::core::i64
+                                ((:wat::core::Ok (:wat::core::Some v)) v)
+                                ((:wat::core::Ok :wat::core::None)
+                                 (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
+                                ((:wat::core::Err _)
+                                 (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
+                             sum (:wat::core::i64::+'2 n delta)]
+                            (:wat::core::match (:wat::kernel::send out sum)
+                              -> :wat::core::nil
+                              ((:wat::core::Ok _) ())
+                              ((:wat::core::Err _)
+                               (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))
+                       thr
+                        (:wat::kernel::spawn-thread body)
+                       tx
+                        (:wat::kernel::Thread/input thr)
+                       rx
+                        (:wat::kernel::Thread/output thr)
+                       _ack
+                        (:wat::core::match (:wat::kernel::send tx 23)
+                          -> :wat::core::nil
+                          ((:wat::core::Ok _) ())
+                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died"))))
+                       result
+                        (:wat::core::match (:wat::kernel::recv rx)
+                          -> :wat::core::i64
+                          ((:wat::core::Ok (:wat::core::Some n)) n)
+                          ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
+                          ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
+                       _join
+                        (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
+                          -> :wat::core::nil
+                          ((:wat::core::Ok _) ())
+                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
+                      result))
     "#;
     assert!(matches!(run(src), Value::i64(123)));
 }
@@ -235,12 +231,12 @@ fn spawn_thread_rejects_non_callable_body() {
     // expects :Fn(Receiver<I>,Sender<O>) -> :() and i64 doesn't unify.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [not-fn 42
-             thr
-              (:wat::kernel::spawn-thread not-fn)]
-            ()))
+                      [not-fn 42
+                       thr
+                        (:wat::kernel::spawn-thread not-fn)]
+                      ()))
     "#;
     match startup(src) {
         Err(StartupError::Check(errs)) => {

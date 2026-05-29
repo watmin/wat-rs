@@ -24,8 +24,8 @@ const PRELUDE: &str = "\
 fn eq(expr: &str) -> bool {
     let full = format!(
         "{PRELUDE}\
-         (:wat::core::define (:user::compute -> :wat::core::bool) {expr})\n\
-         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)"
+         (:wat::core::defn :user::compute [] -> :wat::core::bool {expr})\n\
+         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)"
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
         .unwrap_or_else(|e| panic!("startup/check error for `{}`: {:?}", expr, e));

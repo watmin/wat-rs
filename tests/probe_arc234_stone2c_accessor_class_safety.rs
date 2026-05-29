@@ -33,7 +33,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -79,10 +79,10 @@ fn probe_1_correct_class_accessor_returns_value() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [v (:myapp::Voltage 42.5)]
-    (:myapp::Voltage/magnitude v)))
+      [v (:myapp::Voltage 42.5)]
+      (:myapp::Voltage/magnitude v)))
 "#;
     match run_or_catch(src) {
         Ok(Value::f64(f)) => assert!(
@@ -106,10 +106,10 @@ fn probe_2_wrong_class_panics() {
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 (:wat::Record::def :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [p (:myapp::Point 3 4)]
-    (:myapp::Voltage/magnitude p)))
+      [p (:myapp::Point 3 4)]
+      (:myapp::Voltage/magnitude p)))
 "#;
     match run_or_catch(src) {
         Ok(v) => panic!(
@@ -134,10 +134,10 @@ fn probe_3_panic_message_names_both_classes() {
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 (:wat::Record::def :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [p (:myapp::Point 3 4)]
-    (:myapp::Voltage/magnitude p)))
+      [p (:myapp::Point 3 4)]
+      (:myapp::Voltage/magnitude p)))
 "#;
     match run_or_catch(src) {
         Ok(v) => panic!(
@@ -171,10 +171,10 @@ fn probe_4_multi_field_each_accessor_checks_class() {
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 (:wat::Record::def :myapp::Other [x <- :wat::core::i64])
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [o (:myapp::Other 99)]
-    (:myapp::Triple/b o)))
+      [o (:myapp::Other 99)]
+      (:myapp::Triple/b o)))
 "#;
     match run_or_catch(src) {
         Ok(v) => panic!(
@@ -211,14 +211,14 @@ fn probe_5_predicate_gated_pattern_avoids_panic() {
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 (:wat::Record::def :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [p (:myapp::Point 3 4)]
-    (:wat::core::if
-      (:myapp::is-Voltage? p)
-      -> :wat::core::f64
-      (:myapp::Voltage/magnitude p)
-      -1.0)))
+      [p (:myapp::Point 3 4)]
+      (:wat::core::if
+        (:myapp::is-Voltage? p)
+        -> :wat::core::f64
+        (:myapp::Voltage/magnitude p)
+        -1.0)))
 "#;
     match run_or_catch(src) {
         Ok(Value::f64(f)) => assert!(

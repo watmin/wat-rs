@@ -52,7 +52,7 @@ fn install_fixture_shim() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -73,8 +73,7 @@ fn add_two_i64s_via_macro_generated_shim() {
     let src = r#"
         (:wat::core::use! :rust::test::MathUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:rust::test::MathUtils::add 40 2))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:rust::test::MathUtils::add 40 2))
     "#;
     assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
 }
@@ -86,10 +85,10 @@ fn option_some_via_macro_generated_shim() {
     let src = r#"
         (:wat::core::use! :rust::test::MathUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match (:rust::test::MathUtils::maybe_double 21) -> :wat::core::i64
-            ((:wat::core::Some v) v)
-            (:wat::core::None -1)))
+                      ((:wat::core::Some v) v)
+                      (:wat::core::None -1)))
     "#;
     assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
 }
@@ -101,10 +100,10 @@ fn option_none_via_macro_generated_shim() {
     let src = r#"
         (:wat::core::use! :rust::test::MathUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match (:rust::test::MathUtils::maybe_double 0) -> :wat::core::i64
-            ((:wat::core::Some v) v)
-            (:wat::core::None -1)))
+                      ((:wat::core::Some v) v)
+                      (:wat::core::None -1)))
     "#;
     assert!(matches!(run(src), Value::i64(-1)), "got {:?}", run(src));
 }
@@ -116,11 +115,9 @@ fn type_check_rejects_wrong_arg_types() {
     let src = r#"
         (:wat::core::use! :rust::test::MathUtils)
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 
-        (:wat::core::define (:my::probe -> :wat::core::i64)
-          (:rust::test::MathUtils::add "not-an-int" 2))
+        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:rust::test::MathUtils::add "not-an-int" 2))
     "#;
     let loader = InMemoryLoader::new();
     let result = startup_from_source(src, None, Arc::new(loader));

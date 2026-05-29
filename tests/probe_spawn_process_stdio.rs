@@ -52,12 +52,11 @@ fn probe_spawn_process_stdio() {
     // Arc 170 slice 6 — spawn-process takes a wat PROGRAM
     // (`Vec<WatAST>`); the child's :user::main is self-contained.
     let parent_src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(parent_src);
     let child_program_src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          (:wat::kernel::println 42))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println 42))
     "#;
     let child_forms = wat::parser::parse_all_with_file(child_program_src, "<probe>")
         .expect("child program parse");

@@ -42,11 +42,11 @@ fn probe_runtime_err_stderr_visibility() {
     // (we should see the cascade). Use this as the CONTROL: structured
     // path should populate stderr-chain properly.
     let src_structured = r#"
-        (:wat::core::define (:probe::structured -> :wat::kernel::RunResult)
+        (:wat::core::defn :probe::structured [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::test::assert-eq "intentional" "different")))
+                      (:wat::test::assert-eq "intentional" "different")))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src_structured);
     let func = world.symbols().get(":probe::structured").expect("defined");

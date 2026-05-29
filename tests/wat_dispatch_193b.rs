@@ -49,7 +49,7 @@ fn install_fixture_shim() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -70,13 +70,13 @@ fn counter_increments_and_reads_via_macro_generated_shim() {
     let src = r#"
         (:wat::core::use! :rust::test::Counter)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [c (:rust::test::Counter::new 10)
-             _ (:rust::test::Counter::increment c)
-             _ (:rust::test::Counter::increment c)
-             _ (:rust::test::Counter::increment c)]
-            (:rust::test::Counter::read c)))
+                      [c (:rust::test::Counter::new 10)
+                       _ (:rust::test::Counter::increment c)
+                       _ (:rust::test::Counter::increment c)
+                       _ (:rust::test::Counter::increment c)]
+                      (:rust::test::Counter::read c)))
     "#;
     assert!(matches!(run(src), Value::i64(13)), "got {:?}", run(src));
 }
@@ -88,10 +88,10 @@ fn counter_ref_read_preserves_state() {
     let src = r#"
         (:wat::core::use! :rust::test::Counter)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [c (:rust::test::Counter::new 42)]
-            (:rust::test::Counter::read c)))
+                      [c (:rust::test::Counter::new 42)]
+                      (:rust::test::Counter::read c)))
     "#;
     assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
 }

@@ -47,7 +47,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -67,18 +67,18 @@ fn run_compute(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_construction_returns_wat_record() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::holon::Record)
+(:wat::core::defn :user::compute [] -> :wat::holon::Record
   (:wat::holon::Record::of
-    :myapp::Voltage
-    [5.0]
-    (:wat::holon::Bind
-      (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
-      (:wat::core::Result/expect -> :wat::holon::HolonAST
-        (:wat::holon::Bundle
-          [(:wat::holon::Bind
-             (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
-             (:wat::holon::Atom (:wat::holon::to-holon 5.0)))])
-        "Bundle failed in Probe 1"))))
+      :myapp::Voltage
+      [5.0]
+      (:wat::holon::Bind
+        (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
+        (:wat::core::Result/expect -> :wat::holon::HolonAST
+          (:wat::holon::Bundle
+            [(:wat::holon::Bind
+               (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
+               (:wat::holon::Atom (:wat::holon::to-holon 5.0)))])
+          "Bundle failed in Probe 1"))))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -104,20 +104,20 @@ fn probe_1_construction_returns_wat_record() {
 #[test]
 fn probe_2_type_returns_class_fqdn() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [v (:wat::holon::Record::of
-         :myapp::Voltage
-         [5.0]
-         (:wat::holon::Bind
-           (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
-           (:wat::core::Result/expect -> :wat::holon::HolonAST
-             (:wat::holon::Bundle
-               [(:wat::holon::Bind
-                  (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
-                  (:wat::holon::Atom (:wat::holon::to-holon 5.0)))])
-             "Bundle failed in Probe 2")))]
-    (:wat::core::type v)))
+      [v (:wat::holon::Record::of
+           :myapp::Voltage
+           [5.0]
+           (:wat::holon::Bind
+             (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
+             (:wat::core::Result/expect -> :wat::holon::HolonAST
+               (:wat::holon::Bundle
+                 [(:wat::holon::Bind
+                    (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
+                    (:wat::holon::Atom (:wat::holon::to-holon 5.0)))])
+               "Bundle failed in Probe 2")))]
+      (:wat::core::type v)))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -139,18 +139,18 @@ fn probe_2_type_returns_class_fqdn() {
 #[test]
 fn probe_3_struct_form_field_at_zero() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::holon::Record)
+(:wat::core::defn :user::compute [] -> :wat::holon::Record
   (:wat::holon::Record::of
-    :myapp::Voltage
-    [42.0]
-    (:wat::holon::Bind
-      (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
-      (:wat::core::Result/expect -> :wat::holon::HolonAST
-        (:wat::holon::Bundle
-          [(:wat::holon::Bind
-             (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
-             (:wat::holon::Atom (:wat::holon::to-holon 42.0)))])
-        "Bundle failed in Probe 3"))))
+      :myapp::Voltage
+      [42.0]
+      (:wat::holon::Bind
+        (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
+        (:wat::core::Result/expect -> :wat::holon::HolonAST
+          (:wat::holon::Bundle
+            [(:wat::holon::Bind
+               (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
+               (:wat::holon::Atom (:wat::holon::to-holon 42.0)))])
+          "Bundle failed in Probe 3"))))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -178,21 +178,21 @@ fn probe_3_struct_form_field_at_zero() {
 #[test]
 fn probe_4_multi_field_construction() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::holon::Record)
+(:wat::core::defn :user::compute [] -> :wat::holon::Record
   (:wat::holon::Record::of
-    :myapp::Point
-    [3 4]
-    (:wat::holon::Bind
-      (:wat::holon::Atom (:wat::holon::to-holon "myapp::Point"))
-      (:wat::core::Result/expect -> :wat::holon::HolonAST
-        (:wat::holon::Bundle
-          [(:wat::holon::Bind
-             (:wat::holon::Atom (:wat::holon::to-holon "x"))
-             (:wat::holon::Atom (:wat::holon::to-holon 3)))
-           (:wat::holon::Bind
-             (:wat::holon::Atom (:wat::holon::to-holon "y"))
-             (:wat::holon::Atom (:wat::holon::to-holon 4)))])
-        "Bundle failed in Probe 4"))))
+      :myapp::Point
+      [3 4]
+      (:wat::holon::Bind
+        (:wat::holon::Atom (:wat::holon::to-holon "myapp::Point"))
+        (:wat::core::Result/expect -> :wat::holon::HolonAST
+          (:wat::holon::Bundle
+            [(:wat::holon::Bind
+               (:wat::holon::Atom (:wat::holon::to-holon "x"))
+               (:wat::holon::Atom (:wat::holon::to-holon 3)))
+             (:wat::holon::Bind
+               (:wat::holon::Atom (:wat::holon::to-holon "y"))
+               (:wat::holon::Atom (:wat::holon::to-holon 4)))])
+          "Bundle failed in Probe 4"))))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -222,23 +222,23 @@ fn probe_4_multi_field_construction() {
 #[test]
 fn probe_5_field_at_positional_access() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [v (:wat::holon::Record::of
-         :myapp::Point
-         [3 4]
-         (:wat::holon::Bind
-           (:wat::holon::Atom (:wat::holon::to-holon "myapp::Point"))
-           (:wat::core::Result/expect -> :wat::holon::HolonAST
-             (:wat::holon::Bundle
-               [(:wat::holon::Bind
-                  (:wat::holon::Atom (:wat::holon::to-holon "x"))
-                  (:wat::holon::Atom (:wat::holon::to-holon 3)))
-                (:wat::holon::Bind
-                  (:wat::holon::Atom (:wat::holon::to-holon "y"))
-                  (:wat::holon::Atom (:wat::holon::to-holon 4)))])
-             "Bundle failed in Probe 5")))]
-    (:wat::Record/field-at v 1)))
+      [v (:wat::holon::Record::of
+           :myapp::Point
+           [3 4]
+           (:wat::holon::Bind
+             (:wat::holon::Atom (:wat::holon::to-holon "myapp::Point"))
+             (:wat::core::Result/expect -> :wat::holon::HolonAST
+               (:wat::holon::Bundle
+                 [(:wat::holon::Bind
+                    (:wat::holon::Atom (:wat::holon::to-holon "x"))
+                    (:wat::holon::Atom (:wat::holon::to-holon 3)))
+                  (:wat::holon::Bind
+                    (:wat::holon::Atom (:wat::holon::to-holon "y"))
+                    (:wat::holon::Atom (:wat::holon::to-holon 4)))])
+               "Bundle failed in Probe 5")))]
+      (:wat::Record/field-at v 1)))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -270,18 +270,18 @@ fn probe_5_field_at_positional_access() {
 #[test]
 fn probe_7_equality_via_holon_form() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::holon::Record)
+(:wat::core::defn :user::compute [] -> :wat::holon::Record
   (:wat::holon::Record::of
-    :myapp::Voltage
-    [5.0]
-    (:wat::holon::Bind
-      (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
-      (:wat::core::Result/expect -> :wat::holon::HolonAST
-        (:wat::holon::Bundle
-          [(:wat::holon::Bind
-             (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
-             (:wat::holon::Atom (:wat::holon::to-holon 5.0)))])
-        "Bundle failed in Probe 7"))))
+      :myapp::Voltage
+      [5.0]
+      (:wat::holon::Bind
+        (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
+        (:wat::core::Result/expect -> :wat::holon::HolonAST
+          (:wat::holon::Bundle
+            [(:wat::holon::Bind
+               (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
+               (:wat::holon::Atom (:wat::holon::to-holon 5.0)))])
+          "Bundle failed in Probe 7"))))
 "#;
     let a = run_compute(src).expect("Probe 7: first construction failed");
     let b = run_compute(src).expect("Probe 7: second construction failed");

@@ -37,12 +37,12 @@ const PROLOGUE: &str = r#"
 (:wat::core::defstruct :test::PaperResolved
   [outcome       <- :wat::core::String
    grace-residue <- :wat::core::f64])
-(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 "#;
 
 fn program(body: &str) -> String {
     format!(
-        "{prologue}\n(:wat::core::define (:user::compute -> :wat::core::bool) {body})",
+        "{prologue}\n(:wat::core::defn :user::compute [] -> :wat::core::bool {body})",
         prologue = PROLOGUE,
         body = body
     )
@@ -267,13 +267,13 @@ fn struct_type_mismatch_returns_false() {
     let src = format!(
         "{prologue}\n
         (:wat::core::defstruct :test::Other [x <- :wat::core::i64])
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [o (:test::Other/new 42)]
-            (:wat::form::matches? o
-              (:test::PaperResolved
-                (= ?gr :grace-residue)
-                (> ?gr 5.0)))))
+                      [o (:test::Other/new 42)]
+                      (:wat::form::matches? o
+                        (:test::PaperResolved
+                          (= ?gr :grace-residue)
+                          (> ?gr 5.0)))))
         ",
         prologue = PROLOGUE
     );

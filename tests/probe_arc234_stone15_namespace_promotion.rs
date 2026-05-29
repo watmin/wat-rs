@@ -74,7 +74,7 @@ fn hash_value(v: &Value) -> u64 {
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -153,11 +153,9 @@ fn probe_3_eq_hash_consistency_under_rename() {
 #[test]
 fn probe_4_namespace_type_registration() {
     let src = r#"
-(:wat::core::define (:user::accept-record (_v :wat::Record) -> :wat::core::nil)
-  :wat::core::nil)
+(:wat::core::defn :user::accept-record [_v <- :wat::Record] -> :wat::core::nil :wat::core::nil)
 
-(:wat::core::define (:user::compute -> :wat::core::nil)
-  :wat::core::nil)
+(:wat::core::defn :user::compute [] -> :wat::core::nil :wat::core::nil)
 "#;
     match run_compute(src) {
         Ok(_) => {} // PASS — startup_from_source accepted the type annotation

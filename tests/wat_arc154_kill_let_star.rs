@@ -65,14 +65,13 @@ fn let_accepts_sequential_bindings() {
     // `:wat::core::let` — `b`'s RHS sees `a`. Type check passes;
     // execution returns 6.
     let src = r#"
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [a 5
-             b (:wat::core::i64::+'2 a 1)]
-            b))
+                      [a 5
+                       b (:wat::core::i64::+'2 a 1)]
+                      b))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -98,13 +97,12 @@ fn let_star_post_retirement_silently_aliases_to_let() {
     // BareLegacyLetStar at check time (consistent with the
     // FQDN-everywhere discipline).
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::i64)
+        (:wat::core::defn :my::probe [] -> :wat::core::i64
           (:wat::core::let*
-            (((a :wat::core::i64) 5))
-            a))
+                      (((a :wat::core::i64) 5))
+                      a))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -124,10 +122,10 @@ fn let_body_type_mismatch_surfaces() {
     // fires, proving inference still surfaces the contract violation
     // post-rename.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a 5]
-            a))
+                      [a 5]
+                      a))
     "#;
     let err = startup_err(src);
     assert!(
@@ -147,20 +145,17 @@ fn let_in_tail_position_threads_through_eval_let_tail() {
     // exercise the path with a self-recursive countdown that uses
     // `let` to pre-compute a value before the recursive tail call.
     let src = r#"
-        (:wat::core::define (:user::countdown
-                              (n :wat::core::i64)
-                              -> :wat::core::i64)
+        (:wat::core::defn :user::countdown [n <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::if
-            (:wat::core::= n 0)
-            ->
-            :wat::core::i64
-            n
-            (:wat::core::let
-              [m (:wat::core::i64::-'2 n 1)]
-              (:user::countdown m))))
+                      (:wat::core::= n 0)
+                      ->
+                      :wat::core::i64
+                      n
+                      (:wat::core::let
+                        [m (:wat::core::i64::-'2 n 1)]
+                        (:user::countdown m))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -174,15 +169,14 @@ fn nested_lets_compose_with_outer_visible_to_inner() {
     // is enforced; cross-let composition relies on standard env
     // chaining (no special-case post-rename).
     let src = r#"
-        (:wat::core::define (:my::nested -> :wat::core::i64)
+        (:wat::core::defn :my::nested [] -> :wat::core::i64
           (:wat::core::let
-            [a 10]
-            (:wat::core::let
-              [b (:wat::core::i64::+'2 a 5)]
-              b)))
+                      [a 10]
+                      (:wat::core::let
+                        [b (:wat::core::i64::+'2 a 5)]
+                        b)))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -194,16 +188,15 @@ fn fn_body_with_let_preserves_sequential() {
     // Sequential `let` inside a fn body: `b` sees `a`. The fn
     // is invoked at call site; result is 7.
     let src = r#"
-        (:wat::core::define (:my::add5 (x :wat::core::i64) -> :wat::core::i64)
+        (:wat::core::defn :my::add5 [x <- :wat::core::i64] -> :wat::core::i64
           ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-             (:wat::core::let
-               [a x
-                b (:wat::core::i64::+'2 a 5)]
-               b))
-           x))
+                       (:wat::core::let
+                         [a x
+                          b (:wat::core::i64::+'2 a 5)]
+                         b))
+                     x))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -217,13 +210,12 @@ fn empty_bindings_evaluates_body_directly() {
     // sequential-under-let path preserves this corner. Updated
     // to flat-shape vector bindings per arc 168 slice 2 sweep.
     let src = r#"
-        (:wat::core::define (:my::empty-let -> :wat::core::i64)
+        (:wat::core::defn :my::empty-let [] -> :wat::core::i64
           (:wat::core::let
-            []
-            42))
+                      []
+                      42))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -238,17 +230,16 @@ fn walker_narrowness_other_keywords_unaffected() {
     // A program that uses many non-let* keywords plus the canonical
     // `:wat::core::let` should startup cleanly.
     let src = r#"
-        (:wat::core::define (:my::multi-let -> :wat::core::i64)
+        (:wat::core::defn :my::multi-let [] -> :wat::core::i64
           (:wat::core::do
-            (:wat::core::let
-              [x 1]
-              x)
-            (:wat::core::let
-              [y 2]
-              y)))
+                      (:wat::core::let
+                        [x 1]
+                        x)
+                      (:wat::core::let
+                        [y 2]
+                        y)))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -262,18 +253,17 @@ fn multiple_let_star_sites_post_retirement_silently_alias() {
     // `:wat::core::let`. Multiple `:wat::core::let*` source forms in
     // one program all silently work (arc 113 scaffolding pattern).
     let src = r#"
-        (:wat::core::define (:user::a -> :wat::core::i64)
+        (:wat::core::defn :user::a [] -> :wat::core::i64
           (:wat::core::let*
-            (((x :wat::core::i64) 1))
-            x))
+                      (((x :wat::core::i64) 1))
+                      x))
 
-        (:wat::core::define (:user::b -> :wat::core::i64)
+        (:wat::core::defn :user::b [] -> :wat::core::i64
           (:wat::core::let*
-            (((y :wat::core::i64) 2))
-            y))
+                      (((y :wat::core::i64) 2))
+                      y))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     // Arc 163 follow-up — walker re-armed; both let* forms fire
     // BareLegacyLetStar fatal (one error per site).
@@ -304,14 +294,13 @@ fn reflection_lookup_form_finds_canonical_let() {
     // registry entry survived the substrate edit and the canonical
     // sequential semantics are the registered shape.
     let src = r#"
-        (:wat::core::define (:my::lookup-probe -> :wat::core::i64)
+        (:wat::core::defn :my::lookup-probe [] -> :wat::core::i64
           (:wat::core::let
-            [a 1
-             b (:wat::core::i64::+'2 a 2)]
-            b))
+                      [a 1
+                       b (:wat::core::i64::+'2 a 2)]
+                      b))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }

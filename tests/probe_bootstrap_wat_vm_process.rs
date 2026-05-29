@@ -75,7 +75,7 @@ fn probe_bootstrap_callable_services_threadio() {
     let _ = uninstall_thread_io();
 
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
 
@@ -137,7 +137,7 @@ fn probe_bootstrap_drop_removes_threadio() {
     let _ = uninstall_thread_io();
 
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
 

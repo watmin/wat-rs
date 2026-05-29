@@ -55,7 +55,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -144,12 +144,12 @@ fn probe_1_forward_2tuple_to_bundle() {
     // Verify via round-trip: from-holon returns Tuple (classifier "Tuple" is distinct).
     // Return the Tuple directly with explicit type annotation; extract first element in Rust.
     let src = r#"
-        (:wat::core::define (:user::compute -> :(wat::core::i64,wat::core::String))
+        (:wat::core::defn :user::compute [] -> :(wat::core::i64,wat::core::String)
           (:wat::core::let
-            [t  (:wat::core::Tuple 1 "hello")
-             h  (:wat::holon::to-holon t)
-             rt (:wat::holon::from-holon h)]
-            rt))
+                      [t  (:wat::core::Tuple 1 "hello")
+                       h  (:wat::holon::to-holon t)
+                       rt (:wat::holon::from-holon h)]
+                      rt))
     "#;
     let v = run_value(src);
     assert_eq!(
@@ -177,12 +177,12 @@ fn probe_2_reverse_bundle_to_vec_honest_asymmetry() {
     // Arc 228: from-holon returns Tuple (not Vec). Return Tuple with explicit type annotation.
     // Second element is "hello" (String); verify first element = 1 (i64) at Rust level.
     let src_first = r#"
-        (:wat::core::define (:user::compute -> :(wat::core::i64,wat::core::String))
+        (:wat::core::defn :user::compute [] -> :(wat::core::i64,wat::core::String)
           (:wat::core::let
-            [t  (:wat::core::Tuple 1 "hello")
-             h  (:wat::holon::to-holon t)
-             rt (:wat::holon::from-holon h)]
-            rt))
+                      [t  (:wat::core::Tuple 1 "hello")
+                       h  (:wat::holon::to-holon t)
+                       rt (:wat::holon::from-holon h)]
+                      rt))
     "#;
     let v = run_value(src_first);
     assert_eq!(
@@ -204,12 +204,12 @@ fn probe_3_three_tuple_primitives_bundle_shape() {
     // Arc 228: round-trip via from-holon → Tuple. Return with explicit 3-Tuple type annotation.
     // Extract element at index 1 (42) at Rust level from the returned Value::Tuple.
     let src = r#"
-        (:wat::core::define (:user::compute -> :(wat::core::bool,wat::core::i64,wat::core::String))
+        (:wat::core::defn :user::compute [] -> :(wat::core::bool,wat::core::i64,wat::core::String)
           (:wat::core::let
-            [t  (:wat::core::Tuple true 42 "wat")
-             h  (:wat::holon::to-holon t)
-             rt (:wat::holon::from-holon h)]
-            rt))
+                      [t  (:wat::core::Tuple true 42 "wat")
+                       h  (:wat::holon::to-holon t)
+                       rt (:wat::holon::from-holon h)]
+                      rt))
     "#;
     let v = run_value(src);
     assert_eq!(
@@ -235,13 +235,13 @@ fn probe_4_nested_tuple_roundtrip() {
     // The function body is just `rt` — no need to call first/second at wat level.
     // Inner Tuple elements verified at Rust level from Value::Tuple.
     let src_outer = r#"
-        (:wat::core::define (:user::compute -> :((wat::core::i64,wat::core::i64),wat::core::String))
+        (:wat::core::defn :user::compute [] -> :((wat::core::i64,wat::core::i64),wat::core::String)
           (:wat::core::let
-            [inner (:wat::core::Tuple 1 2)
-             outer (:wat::core::Tuple inner "outer")
-             h     (:wat::holon::to-holon outer)
-             rt    (:wat::holon::from-holon h)]
-            rt))
+                      [inner (:wat::core::Tuple 1 2)
+                       outer (:wat::core::Tuple inner "outer")
+                       h     (:wat::holon::to-holon outer)
+                       rt    (:wat::holon::from-holon h)]
+                      rt))
     "#;
     let v = run_value(src_outer);
     // outer is Tuple; element 0 is inner Tuple; verify inner Tuple length = 2.
@@ -253,13 +253,13 @@ fn probe_4_nested_tuple_roundtrip() {
 
     // Inner Tuple first element = 1, second element = 2: verify via Rust-level extraction.
     let src_inner = r#"
-        (:wat::core::define (:user::compute -> :((wat::core::i64,wat::core::i64),wat::core::String))
+        (:wat::core::defn :user::compute [] -> :((wat::core::i64,wat::core::i64),wat::core::String)
           (:wat::core::let
-            [inner (:wat::core::Tuple 1 2)
-             outer (:wat::core::Tuple inner "outer")
-             h     (:wat::holon::to-holon outer)
-             rt    (:wat::holon::from-holon h)]
-            rt))
+                      [inner (:wat::core::Tuple 1 2)
+                       outer (:wat::core::Tuple inner "outer")
+                       h     (:wat::holon::to-holon outer)
+                       rt    (:wat::holon::from-holon h)]
+                      rt))
     "#;
     let v2 = run_value(src_inner);
     match v2 {
@@ -286,13 +286,13 @@ fn probe_5_tuple_containing_vec_roundtrip() {
     // Return Tuple directly with explicit type annotation; extract inner Vec length at Rust level.
     // Type annotation: :(wat::core::Vector<wat::core::i64>,wat::core::String) — no leading `:` on inner elements.
     let src = r#"
-        (:wat::core::define (:user::compute -> :(wat::core::Vector<wat::core::i64>,wat::core::String))
+        (:wat::core::defn :user::compute [] -> :(wat::core::Vector<wat::core::i64>,wat::core::String)
           (:wat::core::let
-            [v    [1 2 3]
-             t    (:wat::core::Tuple v "tag")
-             h    (:wat::holon::to-holon t)
-             rt   (:wat::holon::from-holon h)]
-            rt))
+                      [v    [1 2 3]
+                       t    (:wat::core::Tuple v "tag")
+                       h    (:wat::holon::to-holon t)
+                       rt   (:wat::holon::from-holon h)]
+                      rt))
     "#;
     let v = run_value(src);
     assert_eq!(
@@ -303,13 +303,13 @@ fn probe_5_tuple_containing_vec_roundtrip() {
 
     // Inner Vec element at index 0 = 1: verify via Rust-level extraction.
     let src_inner = r#"
-        (:wat::core::define (:user::compute -> :(wat::core::Vector<wat::core::i64>,wat::core::String))
+        (:wat::core::defn :user::compute [] -> :(wat::core::Vector<wat::core::i64>,wat::core::String)
           (:wat::core::let
-            [v    [1 2 3]
-             t    (:wat::core::Tuple v "tag")
-             h    (:wat::holon::to-holon t)
-             rt   (:wat::holon::from-holon h)]
-            rt))
+                      [v    [1 2 3]
+                       t    (:wat::core::Tuple v "tag")
+                       h    (:wat::holon::to-holon t)
+                       rt   (:wat::holon::from-holon h)]
+                      rt))
     "#;
     match run_value(src_inner) {
         Value::Tuple(outer_items) => match outer_items.first() {
@@ -334,13 +334,13 @@ fn probe_6_tuple_containing_hashset() {
     // Return Tuple directly with explicit type annotation; extract inner HashSet length at Rust level.
     // Type annotation: :(wat::core::HashSet<wat::core::i64>,wat::core::String).
     let src = r#"
-        (:wat::core::define (:user::compute -> :(wat::core::HashSet<wat::core::i64>,wat::core::String))
+        (:wat::core::defn :user::compute [] -> :(wat::core::HashSet<wat::core::i64>,wat::core::String)
           (:wat::core::let
-            [s   (:wat::core::HashSet :wat::core::i64 1 2)
-             t   (:wat::core::Tuple s "label")
-             h   (:wat::holon::to-holon t)
-             rt  (:wat::holon::from-holon h)]
-            rt))
+                      [s   (:wat::core::HashSet :wat::core::i64 1 2)
+                       t   (:wat::core::Tuple s "label")
+                       h   (:wat::holon::to-holon t)
+                       rt  (:wat::holon::from-holon h)]
+                      rt))
     "#;
     match run_value(src) {
         Value::Tuple(outer_items) => match outer_items.first() {
@@ -361,21 +361,21 @@ fn probe_6_tuple_containing_hashset() {
 fn probe_7_is_atomizable_tuple() {
     // Admits: (:wat::core::Tuple 1 "hello") — i64 and String are atomizable.
     let src_admit = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [t  (:wat::core::Tuple 1 "hello")
-             h  (:wat::holon::to-holon t)]
-            1))
+                      [t  (:wat::core::Tuple 1 "hello")
+                       h  (:wat::holon::to-holon t)]
+                      1))
     "#;
     assert_eq!(run_i64(src_admit), 1, "Tuple<i64, String> must pass is_atomizable check");
 
     // Rejects: Tuple containing a Fn — Fn types are not atomizable.
     let src_reject = r#"
-        (:wat::core::define (:user::compute -> :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil
           (:wat::core::let
-            [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
-             t (:wat::core::Tuple f "tag")]
-            (:wat::holon::to-holon t)))
+                      [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
+                       t (:wat::core::Tuple f "tag")]
+                      (:wat::holon::to-holon t)))
     "#;
     let err = startup_err(src_reject);
     assert!(

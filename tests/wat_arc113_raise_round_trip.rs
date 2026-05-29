@@ -22,7 +22,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -55,21 +55,20 @@ fn raise_data_round_trips_through_failure_message() {
     // three rules fire — no stdio-slot reads, no stdio verbs in body, no
     // runtime config mutation. Thread is the correct (cheaper) destination.
     let src = r##"
-        (:wat::core::define
-          (:my::compute -> :wat::core::Option<wat::holon::HolonAST>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Option<wat::holon::HolonAST>
           (:wat::core::let
-            [r
-              (:wat::test::run-thread
-                (:wat::kernel::raise!
-                  (:wat::holon::leaf 42)))
-             fail
-              (:wat::kernel::RunResult/failure r)
-             recovered
-              (:wat::core::match fail -> :wat::core::Option<wat::holon::HolonAST>
-                ((:wat::core::Some f)
-                 (:wat::core::Some (:wat::edn::read (:wat::kernel::Failure/message f))))
-                (:wat::core::None :wat::core::None))]
-            recovered))
+                      [r
+                        (:wat::test::run-thread
+                          (:wat::kernel::raise!
+                            (:wat::holon::leaf 42)))
+                       fail
+                        (:wat::kernel::RunResult/failure r)
+                       recovered
+                        (:wat::core::match fail -> :wat::core::Option<wat::holon::HolonAST>
+                          ((:wat::core::Some f)
+                           (:wat::core::Some (:wat::edn::read (:wat::kernel::Failure/message f))))
+                          (:wat::core::None :wat::core::None))]
+                      recovered))
     "##;
     let v = run(src);
     let inner = match v {

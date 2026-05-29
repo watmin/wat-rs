@@ -53,18 +53,17 @@ fn run(src: &str) -> Vec<String> {
 #[test]
 fn subspace_construct_dim_k_n_zero() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [s (:wat::holon::OnlineSubspace/new 10000 16)
-             d (:wat::holon::OnlineSubspace/dim s)
-             k (:wat::holon::OnlineSubspace/k s)
-             n (:wat::holon::OnlineSubspace/n s)]
-            (:wat::kernel::println
-              (:wat::core::if
-                (:wat::core::and (:wat::core::= d 10000)
-                  (:wat::core::and (:wat::core::= k 16) (:wat::core::= n 0))) -> :wat::core::String
-                "ok" "wrong"))))
+                      [s (:wat::holon::OnlineSubspace/new 10000 16)
+                       d (:wat::holon::OnlineSubspace/dim s)
+                       k (:wat::holon::OnlineSubspace/k s)
+                       n (:wat::holon::OnlineSubspace/n s)]
+                      (:wat::kernel::println
+                        (:wat::core::if
+                          (:wat::core::and (:wat::core::= d 10000)
+                            (:wat::core::and (:wat::core::= k 16) (:wat::core::= n 0))) -> :wat::core::String
+                          "ok" "wrong"))))
     "##;
     assert_eq!(run(src), vec!["\"ok\"".to_string()]);
 }
@@ -72,15 +71,14 @@ fn subspace_construct_dim_k_n_zero() {
 #[test]
 fn subspace_update_increments_n_and_returns_residual() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [s (:wat::holon::OnlineSubspace/new 10000 4)
-             v (:wat::holon::encode (:wat::holon::to-holon "x"))
-             residual (:wat::holon::OnlineSubspace/update s v)
-             n (:wat::holon::OnlineSubspace/n s)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= n 1) -> :wat::core::String "incremented" "stuck"))))
+                      [s (:wat::holon::OnlineSubspace/new 10000 4)
+                       v (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       residual (:wat::holon::OnlineSubspace/update s v)
+                       n (:wat::holon::OnlineSubspace/n s)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= n 1) -> :wat::core::String "incremented" "stuck"))))
     "##;
     assert_eq!(run(src), vec!["\"incremented\"".to_string()]);
 }
@@ -88,14 +86,13 @@ fn subspace_update_increments_n_and_returns_residual() {
 #[test]
 fn subspace_eigenvalues_returns_k_floats() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [s (:wat::holon::OnlineSubspace/new 10000 8)
-             eigs (:wat::holon::OnlineSubspace/eigenvalues s)
-             len (:wat::core::length eigs)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= len 8) -> :wat::core::String "k-eigs" "wrong-len"))))
+                      [s (:wat::holon::OnlineSubspace/new 10000 8)
+                       eigs (:wat::holon::OnlineSubspace/eigenvalues s)
+                       len (:wat::core::length eigs)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= len 8) -> :wat::core::String "k-eigs" "wrong-len"))))
     "##;
     assert_eq!(run(src), vec!["\"k-eigs\"".to_string()]);
 }

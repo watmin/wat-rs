@@ -62,7 +62,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -111,12 +111,12 @@ fn probe_1_forward_hashmap_to_bundle() {
     // Verify via round-trip: to-holon produces an encoding that from-holon decodes back
     // to a HashMap of length 2. The entry count proves encoding captured both pairs.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   {:foo 42 :bar 99}
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   {:foo 42 :bar 99}
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -134,23 +134,23 @@ fn probe_1_forward_hashmap_to_bundle() {
 fn probe_2_reverse_bundle_to_hashmap_roundtrip() {
     // Length = 2 after round-trip.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   {:foo 42 :bar 99}
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   {:foo 42 :bar 99}
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_len), 2, "round-trip must preserve length 2");
 
     // contains-key? :foo returns true.
     let src_key = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [m   {:foo 42 :bar 99}
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/contains-key? rv :foo)))
+                      [m   {:foo 42 :bar 99}
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/contains-key? rv :foo)))
     "#;
     assert!(
         run_bool(src_key),
@@ -159,12 +159,12 @@ fn probe_2_reverse_bundle_to_hashmap_roundtrip() {
 
     // contains-key? :bar returns true.
     let src_bar = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [m   {:foo 42 :bar 99}
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/contains-key? rv :bar)))
+                      [m   {:foo 42 :bar 99}
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/contains-key? rv :bar)))
     "#;
     assert!(
         run_bool(src_bar),
@@ -185,12 +185,12 @@ fn probe_3_empty_map_roundtrip_consumer_declared() {
     // from-holon dispatches by classifier "Map" → empty HashMap (no consumer hint needed).
     // The "-> :T" annotation form is still valid syntax but no longer required for disambiguation.
     let src_forward = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_forward),
@@ -200,12 +200,12 @@ fn probe_3_empty_map_roundtrip_consumer_declared() {
 
     // Reverse via consumer-declared type: still valid syntax; classifier dispatch takes precedence.
     let src_reverse = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h -> :wat::core::HashMap)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h -> :wat::core::HashMap)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_reverse),
@@ -222,45 +222,45 @@ fn probe_3_empty_map_roundtrip_consumer_declared() {
 fn probe_4_multi_k_types() {
     // HashMap<keyword, i64> — 2 entries.
     let src_keyword = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :a 1 :b 2)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :a 1 :b 2)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_keyword), 2, "HashMap<keyword,i64> round-trip: length 2");
 
     // HashMap<String, i64> — 2 entries (String keys).
     let src_string = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::String :wat::core::i64 "x" 10 "y" 20)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::String :wat::core::i64 "x" 10 "y" 20)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_string), 2, "HashMap<String,i64> round-trip: length 2");
 
     // HashMap<i64, String> — 2 entries (i64 keys).
     let src_i64 = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_i64), 2, "HashMap<i64,String> round-trip: length 2");
 
     // HashMap<bool, i64> — 2 entries (bool keys).
     let src_bool = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::bool :wat::core::i64 true 1 false 0)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::bool :wat::core::i64 true 1 false 0)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_bool), 2, "HashMap<bool,i64> round-trip: length 2");
 }
@@ -273,45 +273,45 @@ fn probe_4_multi_k_types() {
 fn probe_5_multi_v_types() {
     // HashMap<keyword, i64> — V = i64.
     let src_i64 = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   {:foo 42}
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   {:foo 42}
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_i64), 1, "HashMap<keyword,i64> V=i64 round-trip: length 1");
 
     // HashMap<keyword, String> — V = String.
     let src_string = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::String :name "alice" :city "paris")
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::String :name "alice" :city "paris")
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_string), 2, "HashMap<keyword,String> V=String round-trip: length 2");
 
     // HashMap<keyword, bool> — V = bool.
     let src_bool = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::bool :active true :disabled false)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::bool :active true :disabled false)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_bool), 2, "HashMap<keyword,bool> V=bool round-trip: length 2");
 
     // HashMap<keyword, keyword> — V = keyword.
     let src_kw = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::keyword :role :admin :mode :active)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::keyword :role :admin :mode :active)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_kw), 2, "HashMap<keyword,keyword> V=keyword round-trip: length 2");
 }
@@ -325,23 +325,23 @@ fn probe_5_multi_v_types() {
 fn probe_6_non_keyword_keys_i64_string() {
     // Length = 2 after round-trip.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_len), 2, "HashMap<i64,String> round-trip: length 2");
 
     // contains-key? 100 returns true.
     let src_key = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/contains-key? rv 100)))
+                      [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/contains-key? rv 100)))
     "#;
     assert!(
         run_bool(src_key),
@@ -359,26 +359,26 @@ fn probe_6_non_keyword_keys_i64_string() {
 fn probe_7_nested_map_roundtrip() {
     // Outer length = 1.
     let src_outer_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1 :y 2)
-             outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
-             h     (:wat::holon::to-holon outer)
-             rv    (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1 :y 2)
+                       outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
+                       h     (:wat::holon::to-holon outer)
+                       rv    (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(run_i64(src_outer_len), 1, "nested map outer length = 1");
 
     // Arc 228: Bundle/children no longer applies to the classifier-wrapped top-level Bind.
     // Verify outer entry count via round-trip (already done above).
     let src_bundle_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1 :y 2)
-             outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
-             h     (:wat::holon::to-holon outer)
-             rv    (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1 :y 2)
+                       outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
+                       h     (:wat::holon::to-holon outer)
+                       rv    (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
@@ -396,13 +396,13 @@ fn probe_7_nested_map_roundtrip() {
 fn probe_8_mixed_nesting_hashmap_of_vec() {
     // Outer length = 1; inner vec length = 3.
     let src_outer_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [v   (:wat::core::Vector :wat::core::i64 10 20 30)
-             m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data v)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [v   (:wat::core::Vector :wat::core::i64 10 20 30)
+                       m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data v)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_outer_len),
@@ -413,13 +413,13 @@ fn probe_8_mixed_nesting_hashmap_of_vec() {
     // Arc 228: Bundle/children no longer applies to the classifier-wrapped top-level Bind.
     // Verify outer entry count via round-trip.
     let src_bundle_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [v   (:wat::core::Vector :wat::core::i64 10 20 30)
-             m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data v)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [v   (:wat::core::Vector :wat::core::i64 10 20 30)
+                       m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data v)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
@@ -437,13 +437,13 @@ fn probe_8_mixed_nesting_hashmap_of_vec() {
 fn probe_9_mixed_nesting_hashmap_of_hashset() {
     // Outer length = 1.
     let src_outer_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [s   (:wat::core::HashSet :wat::core::i64 1 2 3)
-             m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data s)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [s   (:wat::core::HashSet :wat::core::i64 1 2 3)
+                       m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data s)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_outer_len),
@@ -454,13 +454,13 @@ fn probe_9_mixed_nesting_hashmap_of_hashset() {
     // Arc 228: Bundle/children no longer applies to the classifier-wrapped top-level Bind.
     // Verify outer entry count via round-trip.
     let src_bundle_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [s   (:wat::core::HashSet :wat::core::i64 1 2 3)
-             m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data s)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [s   (:wat::core::HashSet :wat::core::i64 1 2 3)
+                       m   (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data s)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_bundle_len),
@@ -477,11 +477,11 @@ fn probe_9_mixed_nesting_hashmap_of_hashset() {
 #[test]
 fn probe_10_check_passes_atomizable_k_v() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :a 1)]
-            (:wat::holon::to-holon m)
-            1))
+                      [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :a 1)]
+                      (:wat::holon::to-holon m)
+                      1))
     "#;
     assert_eq!(
         run_i64(src),
@@ -491,12 +491,12 @@ fn probe_10_check_passes_atomizable_k_v() {
 
     // Nested: HashMap<keyword, HashMap<keyword, i64>> — predicate recurses both levels.
     let src_nested = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1)
-             outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
-             h     (:wat::holon::to-holon outer)]
-            1))
+                      [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 1)
+                       outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)
+                       h     (:wat::holon::to-holon outer)]
+                      1))
     "#;
     assert_eq!(
         run_i64(src_nested),
@@ -517,10 +517,10 @@ fn probe_10_check_passes_atomizable_k_v() {
 #[test]
 fn probe_11_check_fails_non_atomizable() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil
           (:wat::core::let
-            [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
-            (:wat::holon::to-holon f)))
+                      [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
+                      (:wat::holon::to-holon f)))
     "#;
     let err = startup_err(src);
     assert!(
@@ -671,12 +671,12 @@ fn probe_13_shape_disambiguation_non_sequential_i64() {
     // is produced by constructing a HashMap with i64 keys 0 and 5.
     // atom-value on the result → HashMap (length 2; not Vec).
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 0 "a" 5 "b")
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::i64 :wat::core::String 0 "a" 5 "b")
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -700,12 +700,12 @@ fn probe_14_empty_bundle_disambiguation_consumer_declares_hashmap() {
     // Arc 228: unannotated form now returns HashMap (classifier "Map" is unambiguous).
     // The arc 216 conservative-default behavior (empty Bundle → HashSet) is retired.
     let src_unannotated = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_unannotated),
@@ -715,12 +715,12 @@ fn probe_14_empty_bundle_disambiguation_consumer_declares_hashmap() {
 
     // Annotated form: `-> :HashMap` is still valid syntax; classifier dispatch takes precedence.
     let src_annotated = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             h   (:wat::holon::to-holon m)
-             rv  (:wat::holon::from-holon h -> :wat::core::HashMap)]
-            (:wat::core::HashMap/length rv)))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+                       h   (:wat::holon::to-holon m)
+                       rv  (:wat::holon::from-holon h -> :wat::core::HashMap)]
+                      (:wat::core::HashMap/length rv)))
     "#;
     assert_eq!(
         run_i64(src_annotated),

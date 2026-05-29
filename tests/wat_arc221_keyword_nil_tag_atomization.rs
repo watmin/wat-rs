@@ -27,7 +27,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -81,33 +81,33 @@ fn run_string(src: &str) -> String {
 fn probe_1_keyword_atom_round_trip_distinct_from_string() {
     // atom(:foo) = atom(:foo) — same keyword produces identical HolonAST.
     let same = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [atom-foo1  (:wat::holon::to-holon :foo)
-             atom-foo2  (:wat::holon::to-holon :foo)]
-            (:wat::core::= atom-foo1 atom-foo2)))
+                      [atom-foo1  (:wat::holon::to-holon :foo)
+                       atom-foo2  (:wat::holon::to-holon :foo)]
+                      (:wat::core::= atom-foo1 atom-foo2)))
     "#);
     assert!(same, "Atom(:foo) must equal Atom(:foo) — same Keyword leaf");
 
     // atom(:foo) ≠ atom(:bar) — different keywords produce distinct HolonAST.
     let diff = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [atom-foo  (:wat::holon::to-holon :foo)
-             atom-bar  (:wat::holon::to-holon :bar)
-             eq        (:wat::core::= atom-foo atom-bar)]
-            (:wat::core::not eq)))
+                      [atom-foo  (:wat::holon::to-holon :foo)
+                       atom-bar  (:wat::holon::to-holon :bar)
+                       eq        (:wat::core::= atom-foo atom-bar)]
+                      (:wat::core::not eq)))
     "#);
     assert!(diff, "Atom(:foo) must NOT equal Atom(:bar) — distinct Keyword leaves");
 
     // atom(:foo) ≠ atom("foo") — Keyword leaf is distinct from String leaf.
     let not_string = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [atom-kw  (:wat::holon::to-holon :foo)
-             atom-str (:wat::holon::to-holon "foo")
-             eq       (:wat::core::= atom-kw atom-str)]
-            (:wat::core::not eq)))
+                      [atom-kw  (:wat::holon::to-holon :foo)
+                       atom-str (:wat::holon::to-holon "foo")
+                       eq       (:wat::core::= atom-kw atom-str)]
+                      (:wat::core::not eq)))
     "#);
     assert!(not_string, "Atom(:foo) must NOT equal Atom(\"foo\") — Keyword leaf distinct from String leaf");
 }
@@ -130,11 +130,11 @@ fn probe_1_keyword_atom_round_trip_distinct_from_string() {
 fn probe_2_nil_atom_round_trip_distinct_from_keyword_nil() {
     // atom(:wat::core::nil) = atom(:wat::core::nil) — same nil produces identical HolonAST::Nil.
     let same = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [atom-nil1  (:wat::holon::to-holon :wat::core::nil)
-             atom-nil2  (:wat::holon::to-holon :wat::core::nil)]
-            (:wat::core::= atom-nil1 atom-nil2)))
+                      [atom-nil1  (:wat::holon::to-holon :wat::core::nil)
+                       atom-nil2  (:wat::holon::to-holon :wat::core::nil)]
+                      (:wat::core::= atom-nil1 atom-nil2)))
     "#);
     assert!(same, "Atom(:wat::core::nil) must equal itself — same Nil leaf");
 
@@ -143,12 +143,12 @@ fn probe_2_nil_atom_round_trip_distinct_from_keyword_nil() {
     // :nil evaluates to Value::keyword(":nil") → HolonAST::Keyword("nil") (PRIM_TAG_KEYWORD="keyword").
     // Two distinct leaf tags → distinct canonical bytes → distinct HolonAST identity.
     let diff = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [atom-nil  (:wat::holon::to-holon :wat::core::nil)
-             atom-knil (:wat::holon::to-holon :nil)
-             eq        (:wat::core::= atom-nil atom-knil)]
-            (:wat::core::not eq)))
+                      [atom-nil  (:wat::holon::to-holon :wat::core::nil)
+                       atom-knil (:wat::holon::to-holon :nil)
+                       eq        (:wat::core::= atom-nil atom-knil)]
+                      (:wat::core::not eq)))
     "#);
     assert!(diff, "Atom(:wat::core::nil) must NOT equal Atom(:nil) — Nil leaf distinct from Keyword leaf");
 }
@@ -172,28 +172,28 @@ fn probe_3_uuid_atom_round_trip_closes_arc_207_false_flag() {
     // atom(uuid-v5-same-args) = atom(uuid-v5-same-args) — deterministic Uuid produces
     // identical HolonAST::Bind(Tag("uuid"), String(hex)) via the Uuid arm.
     let same = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [ns    (:wat::core::Uuid/nil)
-             u1    (:wat::core::Uuid/v5 ns "hello")
-             u2    (:wat::core::Uuid/v5 ns "hello")
-             a1    (:wat::holon::to-holon u1)
-             a2    (:wat::holon::to-holon u2)]
-            (:wat::core::= a1 a2)))
+                      [ns    (:wat::core::Uuid/nil)
+                       u1    (:wat::core::Uuid/v5 ns "hello")
+                       u2    (:wat::core::Uuid/v5 ns "hello")
+                       a1    (:wat::holon::to-holon u1)
+                       a2    (:wat::holon::to-holon u2)]
+                      (:wat::core::= a1 a2)))
     "#);
     assert!(same, "Atom(Uuid/v5 same-args) must equal itself — deterministic tagged composition");
 
     // atom(uuid-v5-"hello") ≠ atom(uuid-v5-"world") — different UUIDs produce distinct Bind.
     let diff = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [ns    (:wat::core::Uuid/nil)
-             u1    (:wat::core::Uuid/v5 ns "hello")
-             u2    (:wat::core::Uuid/v5 ns "world")
-             a1    (:wat::holon::to-holon u1)
-             a2    (:wat::holon::to-holon u2)
-             eq    (:wat::core::= a1 a2)]
-            (:wat::core::not eq)))
+                      [ns    (:wat::core::Uuid/nil)
+                       u1    (:wat::core::Uuid/v5 ns "hello")
+                       u2    (:wat::core::Uuid/v5 ns "world")
+                       a1    (:wat::holon::to-holon u1)
+                       a2    (:wat::holon::to-holon u2)
+                       eq    (:wat::core::= a1 a2)]
+                      (:wat::core::not eq)))
     "#);
     assert!(diff, "Atom(Uuid/v5 \"hello\") must NOT equal Atom(Uuid/v5 \"world\") — distinct tagged compositions");
 }
@@ -211,38 +211,38 @@ fn probe_3_uuid_atom_round_trip_closes_arc_207_false_flag() {
 fn probe_4_hashmap_keyword_key_insert_lookup() {
     // Insert :tag-a → 10, :tag-b → 20; get :tag-a returns Some(10).
     let a_val = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             m2  (:wat::core::HashMap/assoc m :tag-a 10)
-             m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
-            (:wat::core::match (:wat::core::HashMap/get m3 :tag-a) -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (_ -1))))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+                       m2  (:wat::core::HashMap/assoc m :tag-a 10)
+                       m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
+                      (:wat::core::match (:wat::core::HashMap/get m3 :tag-a) -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (_ -1))))
     "#);
     assert_eq!(a_val, 10, "HashMap<keyword,i64>: get :tag-a after insert must return 10");
 
     // get :tag-b returns Some(20).
     let b_val = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             m2  (:wat::core::HashMap/assoc m :tag-a 10)
-             m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
-            (:wat::core::match (:wat::core::HashMap/get m3 :tag-b) -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (_ -1))))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+                       m2  (:wat::core::HashMap/assoc m :tag-a 10)
+                       m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
+                      (:wat::core::match (:wat::core::HashMap/get m3 :tag-b) -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (_ -1))))
     "#);
     assert_eq!(b_val, 20, "HashMap<keyword,i64>: get :tag-b after insert must return 20");
 
     // length = 2 — two distinct keyword keys.
     let len = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-             m2  (:wat::core::HashMap/assoc m :tag-a 10)
-             m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
-            (:wat::core::HashMap/length m3)))
+                      [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+                       m2  (:wat::core::HashMap/assoc m :tag-a 10)
+                       m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
+                      (:wat::core::HashMap/length m3)))
     "#);
     assert_eq!(len, 2, "HashMap<keyword,i64>: two distinct keyword keys → length 2");
 }
@@ -259,38 +259,38 @@ fn probe_4_hashmap_keyword_key_insert_lookup() {
 fn probe_5_hashset_keyword_insert_contains() {
     // :foo is in the set.
     let has_foo = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
-            (:wat::core::contains? tags :foo)))
+                      [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
+                      (:wat::core::contains? tags :foo)))
     "#);
     assert!(has_foo, "HashSet<keyword>: :foo must be found in set");
 
     // :bar is in the set.
     let has_bar = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
-            (:wat::core::contains? tags :bar)))
+                      [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
+                      (:wat::core::contains? tags :bar)))
     "#);
     assert!(has_bar, "HashSet<keyword>: :bar must be found in set");
 
     // :unknown is NOT in the set.
     let no_unknown = run_bool(r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [tags  (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)
-             found (:wat::core::contains? tags :unknown)]
-            (:wat::core::not found)))
+                      [tags  (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)
+                       found (:wat::core::contains? tags :unknown)]
+                      (:wat::core::not found)))
     "#);
     assert!(no_unknown, "HashSet<keyword>: :unknown must NOT be found in set");
 
     // length = 3 — three distinct keyword elements.
     let len = run_i64(r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
-            (:wat::core::HashSet/length tags)))
+                      [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
+                      (:wat::core::HashSet/length tags)))
     "#);
     assert_eq!(len, 3, "HashSet<keyword>: three distinct keywords → length 3");
 }
@@ -311,30 +311,30 @@ fn probe_5_hashset_keyword_insert_contains() {
 fn probe_6_hashmap_uuid_key_insert_lookup_closes_arc_207() {
     // Insert (v5-nil-"hello") → "world-entry"; get same uuid returns Some("world-entry").
     let retrieved = run_string(r#"
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [ns   (:wat::core::Uuid/nil)
-             u1   (:wat::core::Uuid/v5 ns "hello")
-             m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
-             m2   (:wat::core::HashMap/assoc m u1 "world-entry")]
-            (:wat::core::match (:wat::core::HashMap/get m2 u1) -> :wat::core::String
-              ((:wat::core::Some v) v)
-              (_ "NOT-FOUND"))))
+                      [ns   (:wat::core::Uuid/nil)
+                       u1   (:wat::core::Uuid/v5 ns "hello")
+                       m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
+                       m2   (:wat::core::HashMap/assoc m u1 "world-entry")]
+                      (:wat::core::match (:wat::core::HashMap/get m2 u1) -> :wat::core::String
+                        ((:wat::core::Some v) v)
+                        (_ "NOT-FOUND"))))
     "#);
     assert_eq!(retrieved, "world-entry", "HashMap<Uuid,String>: get after insert must return the inserted value");
 
     // Different Uuid key returns None (mapped to "NOT-FOUND" sentinel).
     let not_found = run_string(r#"
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [ns   (:wat::core::Uuid/nil)
-             u1   (:wat::core::Uuid/v5 ns "hello")
-             u2   (:wat::core::Uuid/v5 ns "world")
-             m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
-             m2   (:wat::core::HashMap/assoc m u1 "hello-entry")]
-            (:wat::core::match (:wat::core::HashMap/get m2 u2) -> :wat::core::String
-              ((:wat::core::Some v) v)
-              (_ "NOT-FOUND"))))
+                      [ns   (:wat::core::Uuid/nil)
+                       u1   (:wat::core::Uuid/v5 ns "hello")
+                       u2   (:wat::core::Uuid/v5 ns "world")
+                       m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
+                       m2   (:wat::core::HashMap/assoc m u1 "hello-entry")]
+                      (:wat::core::match (:wat::core::HashMap/get m2 u2) -> :wat::core::String
+                        ((:wat::core::Some v) v)
+                        (_ "NOT-FOUND"))))
     "#);
     assert_eq!(not_found, "NOT-FOUND", "HashMap<Uuid,String>: lookup by different Uuid must return None");
 }

@@ -43,7 +43,7 @@ fn install() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -63,10 +63,10 @@ fn ticket_redeems_once_successfully() {
     let src = r#"
         (:wat::core::use! :rust::test::Ticket)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [t (:rust::test::Ticket::new 777)]
-            (:rust::test::Ticket::redeem t)))
+                      [t (:rust::test::Ticket::new 777)]
+                      (:rust::test::Ticket::redeem t)))
     "#;
     assert!(matches!(run(src), Value::i64(777)), "got {:?}", run(src));
 }
@@ -77,11 +77,11 @@ fn ticket_second_redemption_errors() {
     let src = r#"
         (:wat::core::use! :rust::test::Ticket)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [t (:rust::test::Ticket::new 42)
-             first (:rust::test::Ticket::redeem t)]
-            (:rust::test::Ticket::redeem t)))
+                      [t (:rust::test::Ticket::new 42)
+                       first (:rust::test::Ticket::redeem t)]
+                      (:rust::test::Ticket::redeem t)))
     "#;
     let src_with_nil = with_nil_main(src);
     let world = startup_from_source(&src_with_nil, None, Arc::new(InMemoryLoader::new()))

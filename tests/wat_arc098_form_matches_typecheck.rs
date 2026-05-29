@@ -62,14 +62,13 @@ const PROLOGUE_VALID: &str = r#"
 (:wat::core::defstruct :test::PaperResolved
   [outcome <- :wat::core::String
    grace-residue <- :wat::core::f64])
-(:wat::core::define
-  (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [p
-      (:test::PaperResolved/new "Grace" 7.5)
-     b
-      (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)]
-    (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
+      [p
+        (:test::PaperResolved/new "Grace" 7.5)
+       b
+        (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)]
+      (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
 "#;
 
 fn valid_src(matches_call: &str) -> String {
@@ -80,14 +79,13 @@ const PROLOGUE_INVALID: &str = r#"
 (:wat::core::defstruct :test::PaperResolved
   [outcome <- :wat::core::String
    grace-residue <- :wat::core::f64])
-(:wat::core::define
-  (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [p
-      (:test::PaperResolved/new "Grace" 7.5)
-     b
-      (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)]
-    (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
+      [p
+        (:test::PaperResolved/new "Grace" 7.5)
+       b
+        (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)]
+      (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
 "#;
 
 fn invalid_src(matches_call: &str) -> String {
@@ -188,11 +186,10 @@ fn rejects_where_body_non_bool() {
 #[test]
 fn rejects_arity_zero() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [b (:wat::core::if true -> :wat::core::bool true (:wat::form::matches?))]
-            (:wat::io::IOWriter/println stdout "ok")))
+                      [b (:wat::core::if true -> :wat::core::bool true (:wat::form::matches?))]
+                      (:wat::io::IOWriter/println stdout "ok")))
     "#;
     expect_check_error(src, ":wat::form::matches?");
 }

@@ -36,7 +36,7 @@ const PROLOGUE: &str = r#"
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -68,11 +68,11 @@ fn single_field() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 7.5)
-             {{outcome}} p]
-            outcome))
+                      [p (:test::PaperResolved/new "Grace" 7.5)
+                       {{outcome}} p]
+                      outcome))
         "#,
         prologue = PROLOGUE
     );
@@ -91,11 +91,11 @@ fn multi_field() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::f64)
+        (:wat::core::defn :user::compute [] -> :wat::core::f64
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 7.5)
-             {{outcome grace-residue}} p]
-            grace-residue))
+                      [p (:test::PaperResolved/new "Grace" 7.5)
+                       {{outcome grace-residue}} p]
+                      grace-residue))
         "#,
         prologue = PROLOGUE
     );
@@ -115,12 +115,12 @@ fn mixed_with_regular_bindings() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::f64)
+        (:wat::core::defn :user::compute [] -> :wat::core::f64
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 3.5)
-             whole p
-             {{outcome grace-residue}} whole]
-            grace-residue))
+                      [p (:test::PaperResolved/new "Grace" 3.5)
+                       whole p
+                       {{outcome grace-residue}} whole]
+                      grace-residue))
         "#,
         prologue = PROLOGUE
     );
@@ -140,13 +140,13 @@ fn nested_let() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::f64)
+        (:wat::core::defn :user::compute [] -> :wat::core::f64
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 4.0)
-             {{outcome grace-residue}} p]
-            (:wat::core::let
-              [doubled (:wat::core::f64::*'2 grace-residue 2.0)]
-              doubled)))
+                      [p (:test::PaperResolved/new "Grace" 4.0)
+                       {{outcome grace-residue}} p]
+                      (:wat::core::let
+                        [doubled (:wat::core::f64::*'2 grace-residue 2.0)]
+                        doubled)))
         "#,
         prologue = PROLOGUE
     );
@@ -167,11 +167,11 @@ fn field_order_can_differ_from_declaration() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 5.5)
-             {{grace-residue outcome}} p]
-            outcome))
+                      [p (:test::PaperResolved/new "Grace" 5.5)
+                       {{grace-residue outcome}} p]
+                      outcome))
         "#,
         prologue = PROLOGUE
     );
@@ -193,11 +193,11 @@ fn unknown_field_name_is_clean_malformed_form() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 5.5)
-             {{nonexistent}} p]
-            nonexistent))
+                      [p (:test::PaperResolved/new "Grace" 5.5)
+                       {{nonexistent}} p]
+                      nonexistent))
         "#,
         prologue = PROLOGUE
     );
@@ -223,10 +223,10 @@ fn non_struct_subject_is_clean_type_mismatch() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [{{outcome}} 42]
-            outcome))
+                      [{{outcome}} 42]
+                      outcome))
         "#,
         prologue = PROLOGUE
     );
@@ -251,11 +251,11 @@ fn empty_brace_form_is_clean_malformed_form() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 5.5)
-             {{}} p]
-            "ok"))
+                      [p (:test::PaperResolved/new "Grace" 5.5)
+                       {{}} p]
+                      "ok"))
         "#,
         prologue = PROLOGUE
     );
@@ -279,11 +279,11 @@ fn non_symbol_inside_brace_form_is_clean_malformed_form() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 5.5)
-             {{42}} p]
-            "ok"))
+                      [p (:test::PaperResolved/new "Grace" 5.5)
+                       {{42}} p]
+                      "ok"))
         "#,
         prologue = PROLOGUE
     );
@@ -308,13 +308,13 @@ fn multi_form_body_with_destructure() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::f64)
+        (:wat::core::defn :user::compute [] -> :wat::core::f64
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 1.0)
-             {{outcome grace-residue}} p]
-            (:wat::core::f64::+'2 grace-residue 99.0)
-            (:wat::core::f64::+'2 grace-residue 50.0)
-            (:wat::core::f64::+'2 grace-residue 41.0)))
+                      [p (:test::PaperResolved/new "Grace" 1.0)
+                       {{outcome grace-residue}} p]
+                      (:wat::core::f64::+'2 grace-residue 99.0)
+                      (:wat::core::f64::+'2 grace-residue 50.0)
+                      (:wat::core::f64::+'2 grace-residue 41.0)))
         "#,
         prologue = PROLOGUE
     );
@@ -334,11 +334,11 @@ fn hyphenated_field_names_work() {
     let src = format!(
         r#"
         {prologue}
-        (:wat::core::define (:user::compute -> :wat::core::f64)
+        (:wat::core::defn :user::compute [] -> :wat::core::f64
           (:wat::core::let
-            [p (:test::PaperResolved/new "Grace" 9.25)
-             {{grace-residue}} p]
-            grace-residue))
+                      [p (:test::PaperResolved/new "Grace" 9.25)
+                       {{grace-residue}} p]
+                      grace-residue))
         "#,
         prologue = PROLOGUE
     );

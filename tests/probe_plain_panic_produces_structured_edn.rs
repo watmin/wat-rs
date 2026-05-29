@@ -72,22 +72,22 @@ fn probe_plain_panic_produces_structured_edn() {
     // `set-capacity-mode!` (rule 3 of FM 7-ter) so hermetic is the
     // required destination — the body needs a private, mutable runtime.
     let outer_src = r#"
-(:wat::core::define (:probe::plain-panic -> :wat::kernel::RunResult)
+(:wat::core::defn :probe::plain-panic [] -> :wat::kernel::RunResult
   (:wat::test::run-hermetic
-    (:wat::core::do
-      (:wat::config::set-dim-count! 1)
-      (:wat::config::set-capacity-mode! :panic)
-      ;; Two Atom children exceed floor(sqrt(1))=1 budget
-      ;; → panic!("capacity exceeded under :panic") fires inside eval_algebra_bundle.
-      (:wat::core::let
-        [_bundle
-          (:wat::holon::Bundle
-            (:wat::core::Vector :wat::holon::HolonAST
-              (:wat::holon::to-holon "key1")
-              (:wat::holon::to-holon "key2")))]
-        :wat::core::nil))))
+      (:wat::core::do
+        (:wat::config::set-dim-count! 1)
+        (:wat::config::set-capacity-mode! :panic)
+        ;; Two Atom children exceed floor(sqrt(1))=1 budget
+        ;; → panic!("capacity exceeded under :panic") fires inside eval_algebra_bundle.
+        (:wat::core::let
+          [_bundle
+            (:wat::holon::Bundle
+              (:wat::core::Vector :wat::holon::HolonAST
+                (:wat::holon::to-holon "key1")
+                (:wat::holon::to-holon "key2")))]
+          :wat::core::nil))))
 
-(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 "#;
 
     let world = freeze_ok(outer_src);

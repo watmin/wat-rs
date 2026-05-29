@@ -66,18 +66,18 @@ fn probe_spawn_process_stdin() {
     // is freeze-only; it doesn't need the worker fn at all because the
     // child's program is self-contained.
     let parent_src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(parent_src);
     // Build the child program as a single :user::main define whose body
     // is the read-plus-print logic. Use parse to construct the body —
     // simpler than manual AST surgery and matches the source-form path.
     let child_program_src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [n    (:wat::kernel::readln -> :wat::core::i64)
-             _out (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
-            :wat::core::nil))
+                      [n    (:wat::kernel::readln -> :wat::core::i64)
+                       _out (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
+                      :wat::core::nil))
     "#;
     let child_forms = wat::parser::parse_all_with_file(child_program_src, "<probe>")
         .expect("child program parse");

@@ -47,16 +47,15 @@
 ;; `:wat::edn::read` cleanly. `:user::main` returns
 ;; `:wat::core::nil` (arc 170 slice 1e canonical entry shape).
 
-(:wat::core::define
-  (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [;; Routine flow → stdout
-     _a (:wat::kernel::println (:demo::Event::Buy 100.5 7))
-     _b (:wat::kernel::println (:demo::Event::Sell 102.25 3 "stop-loss"))
-     ;; Diagnostic detail → stdout
-     _c (:wat::kernel::println (:demo::Event::Buy 99.0 12))
-     ;; Concerning event → stderr
-     _d (:wat::kernel::eprintln (:demo::Event::CircuitBreak "spike-volume"))
-     ;; Failure → stderr
-     _e (:wat::kernel::eprintln (:demo::Event::CircuitBreak "exchange-disconnected"))]
-    :wat::core::nil))
+      [;; Routine flow → stdout
+       _a (:wat::kernel::println (:demo::Event::Buy 100.5 7))
+       _b (:wat::kernel::println (:demo::Event::Sell 102.25 3 "stop-loss"))
+       ;; Diagnostic detail → stdout
+       _c (:wat::kernel::println (:demo::Event::Buy 99.0 12))
+       ;; Concerning event → stderr
+       _d (:wat::kernel::eprintln (:demo::Event::CircuitBreak "spike-volume"))
+       ;; Failure → stderr
+       _e (:wat::kernel::eprintln (:demo::Event::CircuitBreak "exchange-disconnected"))]
+      :wat::core::nil))

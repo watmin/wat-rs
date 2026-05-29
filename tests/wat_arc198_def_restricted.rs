@@ -50,7 +50,7 @@ fn def_restricted_caller_inside_allowed_namespace_passes() {
         (:wat::core::defn :my::kernel::caller [] -> :wat::core::i64
           (:my::kernel::restricted-fn 7))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -69,7 +69,7 @@ fn def_restricted_caller_outside_allowed_namespace_fails() {
         (:wat::core::defn :user::app::caller [] -> :wat::core::i64
           (:my::kernel::restricted-fn 7))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -104,7 +104,7 @@ fn def_restricted_exact_fqdn_match_only_allows_named_caller() {
         (:wat::core::defn :my::kernel::specific-caller [] -> :wat::core::i64
           (:my::kernel::restricted-fn 7))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(allowed_src);
 
@@ -116,7 +116,7 @@ fn def_restricted_exact_fqdn_match_only_allows_named_caller() {
         (:wat::core::defn :my::kernel::other-caller [] -> :wat::core::i64
           (:my::kernel::restricted-fn 7))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = startup_err(denied_src);
     assert!(
@@ -149,7 +149,7 @@ fn def_restricted_multi_prefix_whitelist_admits_either_namespace() {
         (:wat::core::defn :my::test::test-caller [] -> :wat::core::i64
           (:my::kernel::restricted-fn 2))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -173,7 +173,7 @@ fn defn_restricted_macro_expands_to_def_restricted_plus_fn() {
         (:wat::core::defn :my::kernel::caller [] -> :wat::core::i64
           (:my::kernel::restricted-fn 9))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(positive_src);
 
@@ -189,7 +189,7 @@ fn defn_restricted_macro_expands_to_def_restricted_plus_fn() {
         (:wat::core::defn :user::app::caller [] -> :wat::core::i64
           (:my::kernel::restricted-fn 9))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = startup_err(negative_src);
     assert!(

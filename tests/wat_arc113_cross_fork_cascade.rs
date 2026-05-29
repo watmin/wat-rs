@@ -33,7 +33,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -65,28 +65,27 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
     //
     // Arc 170 slice 1f-ζ: outer uses :my::compute; inner uses canonical nil main.
     let src = r##"
-        (:wat::core::define
-          (:my::compute -> :wat::core::Vector<wat::core::String>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::String>
           (:wat::core::let
-            [r
-              (:wat::test::run-hermetic
-                (:wat::test::assert-eq 1 2))
-             fail
-              (:wat::kernel::RunResult/failure r)
-             rendered
-              (:wat::core::match fail -> :wat::core::Vector<wat::core::String>
-                ((:wat::core::Some f)
-                 (:wat::core::Vector :wat::core::String
-                   (:wat::kernel::Failure/message f)
-                   (:wat::core::match (:wat::kernel::Failure/actual f) -> :wat::core::String
-                     ((:wat::core::Some a) a)
-                     (:wat::core::None ":None"))
-                   (:wat::core::match (:wat::kernel::Failure/expected f) -> :wat::core::String
-                     ((:wat::core::Some e) e)
-                     (:wat::core::None ":None"))))
-                (:wat::core::None
-                 (:wat::core::Vector :wat::core::String "NO-FAILURE")))]
-            rendered))
+                      [r
+                        (:wat::test::run-hermetic
+                          (:wat::test::assert-eq 1 2))
+                       fail
+                        (:wat::kernel::RunResult/failure r)
+                       rendered
+                        (:wat::core::match fail -> :wat::core::Vector<wat::core::String>
+                          ((:wat::core::Some f)
+                           (:wat::core::Vector :wat::core::String
+                             (:wat::kernel::Failure/message f)
+                             (:wat::core::match (:wat::kernel::Failure/actual f) -> :wat::core::String
+                               ((:wat::core::Some a) a)
+                               (:wat::core::None ":None"))
+                             (:wat::core::match (:wat::kernel::Failure/expected f) -> :wat::core::String
+                               ((:wat::core::Some e) e)
+                               (:wat::core::None ":None"))))
+                          (:wat::core::None
+                           (:wat::core::Vector :wat::core::String "NO-FAILURE")))]
+                      rendered))
     "##;
     let result = run(src);
     let lines: Vec<String> = match result {

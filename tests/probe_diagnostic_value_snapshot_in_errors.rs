@@ -37,7 +37,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -60,10 +60,10 @@ fn run_compute(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_not_callable_renders_offending_keyword() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [plus :wat::core::i64::+'2]
-    (plus 2 3)))
+      [plus :wat::core::i64::+'2]
+      (plus 2 3)))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 1: expected NotCallable; got {:?}", v),
@@ -94,10 +94,10 @@ fn probe_1_not_callable_renders_offending_keyword() {
 #[test]
 fn probe_2_not_callable_renders_runtime_built_keyword() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [head (:wat::core::keyword/from-string "ns::nonexistent-verb")]
-    (head 1 2)))
+      [head (:wat::core::keyword/from-string "ns::nonexistent-verb")]
+      (head 1 2)))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 2: expected NotCallable; got {:?}", v),
@@ -129,8 +129,7 @@ fn probe_2_not_callable_renders_runtime_built_keyword() {
 #[test]
 fn probe_3_type_mismatch_renders_non_keyword_head() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
-  (:wat::core::apply -> :wat::core::i64 "not-a-keyword" [1 2]))
+(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 "not-a-keyword" [1 2]))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 3: expected TypeMismatch; got {:?}", v),
@@ -160,8 +159,7 @@ fn probe_3_type_mismatch_renders_non_keyword_head() {
 #[test]
 fn probe_4_type_mismatch_renders_non_vector_spread() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
-  (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+'2") 42))
+(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+'2") 42))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 4: expected TypeMismatch; got {:?}", v),
@@ -199,10 +197,10 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
 #[test]
 fn probe_6_runtime_built_keyword_renders_producer_info() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [head (:wat::core::keyword/from-string "ns::nonexistent-verb")]
-    (head 1 2)))
+      [head (:wat::core::keyword/from-string "ns::nonexistent-verb")]
+      (head 1 2)))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 6: expected NotCallable; got {:?}", v),
@@ -239,12 +237,12 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
 #[test]
 fn probe_7_from_holon_produces_tagged_value() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [holon-rep (:wat::holon::to-holon "not-a-callable-string")]
-    (:wat::core::let
-      [v (:wat::holon::from-holon holon-rep)]
-      (v 1 2))))
+      [holon-rep (:wat::holon::to-holon "not-a-callable-string")]
+      (:wat::core::let
+        [v (:wat::holon::from-holon holon-rep)]
+        (v 1 2))))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 7: expected error; got {:?}", v),
@@ -273,10 +271,10 @@ fn probe_7_from_holon_produces_tagged_value() {
 #[test]
 fn probe_8_edn_read_produces_tagged_value() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [v (:wat::edn::read "\"not-a-callable\"")]
-    (v 1 2)))
+      [v (:wat::edn::read "\"not-a-callable\"")]
+      (v 1 2)))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 8: expected error; got {:?}", v),

@@ -207,8 +207,7 @@
            ;; Entry point — the substrate calls :user::main when the subprocess
            ;; starts. Per user 2026-05-16: "processes must always define
            ;; :user::main ... there is no :user::main-process".
-           (:wat::core::define (:user::main -> :wat::core::nil)
-             (:counter/dispatch 10))))
+           (:wat::core::defn :user::main [] -> :wat::core::nil (:counter/dispatch 10))))
      ;; Build ProcessPeer — verbose-is-honest composition.
      ;; Receiver/from-pipe reads what the subprocess prints to stdout.
      ;; Sender/from-pipe writes to the subprocess's stdin (what it reads).

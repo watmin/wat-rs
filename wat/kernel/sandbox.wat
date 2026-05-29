@@ -52,17 +52,14 @@
 ;; here. :wat::kernel::StartupError is a struct with one field
 ;; (message :wat::core::String); the auto-generated accessor
 ;; StartupError/message extracts it.
-(:wat::core::define
-  (:wat::kernel::failure-from-startup
-    (err :wat::kernel::StartupError)
-    -> :wat::kernel::Failure)
+(:wat::core::defn :wat::kernel::failure-from-startup [err <- :wat::kernel::StartupError] -> :wat::kernel::Failure
   (:wat::core::struct-new :wat::kernel::Failure
-    (:wat::core::string::concat
-      "startup: " (:wat::kernel::StartupError/message err))
-    :wat::core::None
-    (:wat::core::Vector :wat::kernel::Frame)
-    :wat::core::None
-    :wat::core::None))
+      (:wat::core::string::concat
+        "startup: " (:wat::kernel::StartupError/message err))
+      :wat::core::None
+      (:wat::core::Vector :wat::kernel::Frame)
+      :wat::core::None
+      :wat::core::None))
 
 ;; Common driver — runs a Process (already spawned successfully),
 ;; pre-seeds stdin, closes the writer to signal EOF, drains
@@ -77,101 +74,84 @@
 ;; used. Empty wat::core::Vector<String> joins to the empty string; write-string
 ;; is a no-op on zero bytes; close still fires; child sees EOF on
 ;; first read-line.
-(:wat::core::define
-  (:wat::kernel::drive-sandbox<I,O>
-    (proc  :wat::kernel::Program<I,O>)
-    (stdin :wat::core::Vector<wat::core::String>)
-    -> :wat::kernel::RunResult)
+(:wat::core::defn :wat::kernel::drive-sandbox<I,O> [proc <- :wat::kernel::Program<I,O> stdin <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::RunResult
   ;; Outer scope: proc handle + join-result.  SERVICE-PROGRAMS.md § "The
-  ;; lockstep": inner-let owns every output Receiver; when inner body
-  ;; returns, stdout-r and stderr-r drop; drain threads see EOF; child
-  ;; can exit; outer join-result unblocks cleanly.
-  (:wat::core::let
-    [stdin-w        (:wat::kernel::Process/stdin proc)
-     joined         (:wat::core::string::join "\n" stdin)
-     _n             (:wat::io::IOWriter/write-string stdin-w joined)
-     _close         (:wat::io::IOWriter/close stdin-w)
-     ;; Inner scope: output Receivers + drained lines.
-     ;; Dropping stdout-r and stderr-r lets the child's OS pipes
-     ;; drain to EOF before join.
-     drain-pair
-      (:wat::core::let
-        [stdout-r      (:wat::kernel::Process/stdout proc)
-         stderr-r      (:wat::kernel::Process/stderr proc)
-         stdout-lines  (:wat::kernel::drain-lines stdout-r)
-         stderr-lines  (:wat::kernel::drain-lines stderr-r)]
-        (:wat::core::Tuple stdout-lines stderr-lines))
-     stdout-lines   (:wat::core::first drain-pair)
-     stderr-lines   (:wat::core::second drain-pair)
-     ;; Inner scope has exited; Receivers dropped; child can exit.
-     joined-result
-      (:wat::kernel::Process/join-result proc)
-     ;; Arc 113 slice 3 — symmetry with the thread cascade. When
-     ;; the forked child panicked with an upstream-chain-bearing
-     ;; AssertionPayload, fork.rs's emit_panics_to_stderr
-     ;; rendered the chain as a tagged EDN line on stderr. The
-     ;; substrate verb extract-panics walks stderr lines and
-     ;; recovers the typed wat::core::Vector<ProcessDiedError>; we prefer it over
-     ;; Process/join-result's singleton "exited N" shape.
-     ;; Threads pass DiedError values directly through crossbeam;
-     ;; processes pass them as EDN over kernel pipes; the chain at
-     ;; the caller is identical regardless. Only the wire differs.
-     stderr-chain
-      (:wat::kernel::extract-panics stderr-lines)
-     failure
-      (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
-        ((:wat::core::Ok _)    :wat::core::None)
-        ((:wat::core::Err err)
-         (:wat::core::Some (:wat::kernel::failure-from-process-died
-                 ;; spawn-program / spawn-program-ast use in-process thread
-                 ;; spawns, not forked processes. The thread panic chain comes
-                 ;; through the crossbeam channel (join-result Err arm), not
-                 ;; through a subprocess stderr pipe. extract-panics returns
-                 ;; None for thread-based spawns; fall through to the
-                 ;; join-result chain (err) which carries the full ProcessDiedError.
-                 (:wat::core::match stderr-chain
-                   -> :wat::core::Vector<wat::kernel::ProcessDiedError>
-                   ((:wat::core::Some chain) chain)
-                   (:wat::core::None         err))))))]
-    (:wat::core::struct-new :wat::kernel::RunResult
-      stdout-lines stderr-lines failure)))
+    ;; lockstep": inner-let owns every output Receiver; when inner body
+    ;; returns, stdout-r and stderr-r drop; drain threads see EOF; child
+    ;; can exit; outer join-result unblocks cleanly.
+    (:wat::core::let
+      [stdin-w        (:wat::kernel::Process/stdin proc)
+       joined         (:wat::core::string::join "\n" stdin)
+       _n             (:wat::io::IOWriter/write-string stdin-w joined)
+       _close         (:wat::io::IOWriter/close stdin-w)
+       ;; Inner scope: output Receivers + drained lines.
+       ;; Dropping stdout-r and stderr-r lets the child's OS pipes
+       ;; drain to EOF before join.
+       drain-pair
+        (:wat::core::let
+          [stdout-r      (:wat::kernel::Process/stdout proc)
+           stderr-r      (:wat::kernel::Process/stderr proc)
+           stdout-lines  (:wat::kernel::drain-lines stdout-r)
+           stderr-lines  (:wat::kernel::drain-lines stderr-r)]
+          (:wat::core::Tuple stdout-lines stderr-lines))
+       stdout-lines   (:wat::core::first drain-pair)
+       stderr-lines   (:wat::core::second drain-pair)
+       ;; Inner scope has exited; Receivers dropped; child can exit.
+       joined-result
+        (:wat::kernel::Process/join-result proc)
+       ;; Arc 113 slice 3 — symmetry with the thread cascade. When
+       ;; the forked child panicked with an upstream-chain-bearing
+       ;; AssertionPayload, fork.rs's emit_panics_to_stderr
+       ;; rendered the chain as a tagged EDN line on stderr. The
+       ;; substrate verb extract-panics walks stderr lines and
+       ;; recovers the typed wat::core::Vector<ProcessDiedError>; we prefer it over
+       ;; Process/join-result's singleton "exited N" shape.
+       ;; Threads pass DiedError values directly through crossbeam;
+       ;; processes pass them as EDN over kernel pipes; the chain at
+       ;; the caller is identical regardless. Only the wire differs.
+       stderr-chain
+        (:wat::kernel::extract-panics stderr-lines)
+       failure
+        (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
+          ((:wat::core::Ok _)    :wat::core::None)
+          ((:wat::core::Err err)
+           (:wat::core::Some (:wat::kernel::failure-from-process-died
+                   ;; spawn-program / spawn-program-ast use in-process thread
+                   ;; spawns, not forked processes. The thread panic chain comes
+                   ;; through the crossbeam channel (join-result Err arm), not
+                   ;; through a subprocess stderr pipe. extract-panics returns
+                   ;; None for thread-based spawns; fall through to the
+                   ;; join-result chain (err) which carries the full ProcessDiedError.
+                   (:wat::core::match stderr-chain
+                     -> :wat::core::Vector<wat::kernel::ProcessDiedError>
+                     ((:wat::core::Some chain) chain)
+                     (:wat::core::None         err))))))]
+      (:wat::core::struct-new :wat::kernel::RunResult
+        stdout-lines stderr-lines failure)))
 
 ;; Build a RunResult that captures a startup-time spawn failure.
 ;; Empty stdout/stderr (the child never ran); failure carries the
 ;; StartupError message. Mirrors what the deleted substrate
 ;; eval_kernel_run_sandboxed did when startup_from_source returned
 ;; Err.
-(:wat::core::define
-  (:wat::kernel::startup-failure-result
-    (err :wat::kernel::StartupError)
-    -> :wat::kernel::RunResult)
+(:wat::core::defn :wat::kernel::startup-failure-result [err <- :wat::kernel::StartupError] -> :wat::kernel::RunResult
   (:wat::core::struct-new :wat::kernel::RunResult
-    (:wat::core::Vector :wat::core::String)
-    (:wat::core::Vector :wat::core::String)
-    (:wat::core::Some (:wat::kernel::failure-from-startup err))))
+      (:wat::core::Vector :wat::core::String)
+      (:wat::core::Vector :wat::core::String)
+      (:wat::core::Some (:wat::kernel::failure-from-startup err))))
 
 
 ;; --- :wat::kernel::run-sandboxed (source-string entry) ---
-(:wat::core::define
-  (:wat::kernel::run-sandboxed
-    (src   :wat::core::String)
-    (stdin :wat::core::Vector<wat::core::String>)
-    (scope :wat::core::Option<wat::core::String>)
-    -> :wat::kernel::RunResult)
+(:wat::core::defn :wat::kernel::run-sandboxed [src <- :wat::core::String stdin <- :wat::core::Vector<wat::core::String> scope <- :wat::core::Option<wat::core::String>] -> :wat::kernel::RunResult
   (:wat::core::match (:wat::kernel::spawn-program src scope)
-    -> :wat::kernel::RunResult
-    ((:wat::core::Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
-    ((:wat::core::Err err)  (:wat::kernel::startup-failure-result err))))
+      -> :wat::kernel::RunResult
+      ((:wat::core::Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
+      ((:wat::core::Err err)  (:wat::kernel::startup-failure-result err))))
 
 
 ;; --- :wat::kernel::run-sandboxed-ast (AST entry) ---
-(:wat::core::define
-  (:wat::kernel::run-sandboxed-ast
-    (forms :wat::core::Vector<wat::WatAST>)
-    (stdin :wat::core::Vector<wat::core::String>)
-    (scope :wat::core::Option<wat::core::String>)
-    -> :wat::kernel::RunResult)
+(:wat::core::defn :wat::kernel::run-sandboxed-ast [forms <- :wat::core::Vector<wat::WatAST> stdin <- :wat::core::Vector<wat::core::String> scope <- :wat::core::Option<wat::core::String>] -> :wat::kernel::RunResult
   (:wat::core::match (:wat::kernel::spawn-program-ast forms scope)
-    -> :wat::kernel::RunResult
-    ((:wat::core::Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
-    ((:wat::core::Err err)  (:wat::kernel::startup-failure-result err))))
+      -> :wat::kernel::RunResult
+      ((:wat::core::Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
+      ((:wat::core::Err err)  (:wat::kernel::startup-failure-result err))))

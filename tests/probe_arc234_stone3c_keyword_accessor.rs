@@ -26,7 +26,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -44,10 +44,10 @@ fn probe_1_keyword_accessor_on_single_field_record() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)]
-    (:magnitude v)))
+      [v (:myapp::Voltage 5.0)]
+      (:magnitude v)))
 "#;
     match run_compute(src) {
         Ok(Value::f64(f)) => assert!(
@@ -67,10 +67,10 @@ fn probe_2_keyword_accessor_on_multi_field_record() {
 (:wat::Record::def :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [t (:myapp::Triple 7 "hello" true)]
-    (:b t)))
+      [t (:myapp::Triple 7 "hello" true)]
+      (:b t)))
 "#;
     match run_compute(src) {
         Ok(Value::String(s)) => assert_eq!(
@@ -90,10 +90,10 @@ fn probe_3_unknown_field_on_record_errors() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)]
-    (:nonexistent v)))
+      [v (:myapp::Voltage 5.0)]
+      (:nonexistent v)))
 "#;
     match run_compute(src) {
         Ok(v) => panic!(
@@ -112,13 +112,13 @@ fn probe_3_unknown_field_on_record_errors() {
 #[test]
 fn probe_4_keyword_accessor_on_hashmap_some() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [m {:port 8080}
-     v (:port m)]
-    (:wat::core::Option/expect -> :wat::core::i64
-      v
-      "probe 4: expected :port key present")))
+      [m {:port 8080}
+       v (:port m)]
+      (:wat::core::Option/expect -> :wat::core::i64
+        v
+        "probe 4: expected :port key present")))
 "#;
     match run_compute(src) {
         Ok(Value::i64(n)) => assert_eq!(
@@ -135,13 +135,13 @@ fn probe_4_keyword_accessor_on_hashmap_some() {
 #[test]
 fn probe_5_keyword_accessor_on_hashmap_none() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::bool)
+(:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [m {:host "localhost"}
-     v (:missing m)]
-    (:wat::core::match v -> :wat::core::bool
-      ((:wat::core::Some _) false)
-      (:wat::core::None     true))))
+      [m {:host "localhost"}
+       v (:missing m)]
+      (:wat::core::match v -> :wat::core::bool
+        ((:wat::core::Some _) false)
+        (:wat::core::None     true))))
 "#;
     match run_compute(src) {
         Ok(Value::bool(b)) => assert!(
@@ -166,10 +166,10 @@ fn probe_6_keyword_accessor_on_struct() {
   [x <- :wat::core::i64
    y <- :wat::core::i64])
 
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [p (:wat::core::struct-new :myapp::Point 3 4)]
-    (:x p)))
+      [p (:wat::core::struct-new :myapp::Point 3 4)]
+      (:x p)))
 "#;
     match run_compute(src) {
         Ok(Value::i64(n)) => assert_eq!(

@@ -31,8 +31,7 @@ fn probe_let_struct_accessor_visible() {
         (:wat::core::let []
           (:wat::core::defstruct :my::State
             [counter <- :wat::core::i64])
-          (:wat::core::define (:my::main -> :my::State)
-            (:my::State/new 42)))
+          (:wat::core::defn :my::main [] -> :my::State (:my::State/new 42)))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("freeze");
     assert!(world.symbols().get(":my::State/new").is_some(), ":my::State/new not registered");
@@ -56,8 +55,7 @@ fn probe_let_struct_via_macro_emission() {
              ~body))
 
         (:my::probe
-          (:wat::core::define (:my::probe::make-origin -> :my::probe::Point)
-            (:my::probe::Point/new 0 0)))
+          (:wat::core::defn :my::probe::make-origin [] -> :my::probe::Point (:my::probe::Point/new 0 0)))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("freeze");
     assert!(world.symbols().get(":my::probe::Point/new").is_some(), ":my::probe::Point/new not registered");

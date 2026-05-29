@@ -55,7 +55,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 /// calling `:user::compute`. User source must define `:user::compute`.
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -75,7 +75,7 @@ fn probe_01_single_clause_defclause_basic() {
     let src = r#"
         (:wat::core::defclause :my::identity
           ([x <- :wat::core::i64] -> :wat::core::i64 x))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     try_startup(src).expect("single-clause defclause should parse + type-check");
 }
@@ -90,8 +90,7 @@ fn probe_02_multi_arity_dispatches_by_arity() {
             (:wat::core::i64::+ x y))
           ([x <- :wat::core::i64 y <- :wat::core::i64 z <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::i64::+ (:wat::core::i64::+ x y) z)))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::add 10 20 30))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::add 10 20 30))
     "#;
     let result = run_compute(src).expect("3-arity defclause call should evaluate");
     assert_eq!(
@@ -111,8 +110,7 @@ fn probe_03_same_arity_different_types_dispatches_by_type() {
             (:wat::core::i64::+ x y))
           ([x <- :wat::core::f64 y <- :wat::core::f64] -> :wat::core::f64
             (:wat::core::f64::+ x y)))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::sum 7 3))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum 7 3))
     "#;
     let result = run_compute(src).expect("i64 clause should fire for i64 args");
     assert_eq!(
@@ -131,11 +129,11 @@ fn probe_04_typeunion_arg_accepts_via_bounded_existential() {
         (:wat::core::typeunion :my::Numeric [:wat::core::i64 :wat::core::f64])
         (:wat::core::defclause :my::identity-num
           ([x <- :my::Numeric] -> :my::Numeric x))
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::do
-            (:my::identity-num 42)
-            (:my::identity-num 3.14)
-            :wat::core::nil))
+                      (:my::identity-num 42)
+                      (:my::identity-num 3.14)
+                      :wat::core::nil))
     "#;
     try_startup(src)
         .expect("typeunion-typed defclause arg should accept i64 + f64 via bounded existential");
@@ -149,8 +147,7 @@ fn probe_05_shared_return_type_applies_to_all_clauses() {
         (:wat::core::defclause :my::pick -> :wat::core::i64
           ([x <- :wat::core::i64] x)
           ([x <- :wat::core::i64 y <- :wat::core::i64] (:wat::core::i64::+ x y)))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::pick 5 7))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::pick 5 7))
     "#;
     let result = run_compute(src).expect("shared return :i64 should accept i64 clauses");
     assert_eq!(result, Value::i64(12), "2-arity clause fires; 5+7=12");
@@ -165,8 +162,7 @@ fn probe_06_per_clause_return_types_pick_at_call_site() {
         (:wat::core::defclause :my::process
           ([x <- :wat::core::i64] -> :wat::core::i64 x)
           ([x <- :wat::core::f64] -> :wat::core::f64 x))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::process 42))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::process 42))
     "#;
     let result = run_compute(src).expect("i64 clause fires; return :i64 matches :user::compute return");
     assert_eq!(result, Value::i64(42));
@@ -179,7 +175,7 @@ fn probe_07_body_return_type_mismatch_errors() {
     let src = r#"
         (:wat::core::defclause :my::bad
           ([x <- :wat::core::i64] -> :wat::core::i64 3.14))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -195,10 +191,10 @@ fn probe_08_no_matching_clause_at_call_site_errors() {
     let src = r#"
         (:wat::core::defclause :my::only-i64
           ([x <- :wat::core::i64] -> :wat::core::i64 x))
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::do
-            (:my::only-i64 "string-arg")
-            :wat::core::nil))
+                      (:my::only-i64 "string-arg")
+                      :wat::core::nil))
     "#;
     let result = try_startup(src);
     assert!(
@@ -215,8 +211,7 @@ fn probe_09_runtime_computes_correct_result() {
         (:wat::core::defclause :my::factorial-like
           ([n <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::i64::* n n)))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::factorial-like 7))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::factorial-like 7))
     "#;
     let result = run_compute(src).expect("defclause should evaluate to i64 result");
     assert_eq!(result, Value::i64(49), "7*7=49");
@@ -230,8 +225,7 @@ fn probe_10_single_clause_defclause_equivalent_to_defn() {
         (:wat::core::defclause :my::double
           ([n <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::i64::* n 2)))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::double 21))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::double 21))
     "#;
     let result = run_compute(src).expect("single-clause defclause runs like defn");
     assert_eq!(result, Value::i64(42));
@@ -243,7 +237,7 @@ fn probe_11_empty_defclause_rejected() {
     // defclause with ZERO clauses should be rejected at parse/registration.
     let src = r#"
         (:wat::core::defclause :my::empty)
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -261,7 +255,7 @@ fn probe_12_binding_contract_preserved_no_literal_patterns() {
     let src = r#"
         (:wat::core::defclause :my::bad-pattern
           ([0 <- :wat::core::i64] -> :wat::core::i64 1))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let result = try_startup(src);
     assert!(

@@ -45,7 +45,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -94,11 +94,11 @@ fn probe_1_forward_hashset_to_bundle() {
     // Verify via round-trip: to-holon produces an encoding that from-holon decodes back
     // to a HashSet of length 3. The element count (3) proves the encoding captured all items.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h   (:wat::holon::to-holon #{1 2 3})
-             s   (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length s)))
+                      [h   (:wat::holon::to-holon #{1 2 3})
+                       s   (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src_len), 3, "classifier-wrapped Set encoding must preserve 3 elements in round-trip");
 }
@@ -112,21 +112,21 @@ fn probe_1_forward_hashset_to_bundle() {
 fn probe_2_reverse_bundle_to_hashset_roundtrip() {
     // Length = 3 after round-trip.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h   (:wat::holon::to-holon #{1 2 3})
-             s   (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length s)))
+                      [h   (:wat::holon::to-holon #{1 2 3})
+                       s   (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src_len), 3, "round-trip must preserve length 3");
 
     // Contains element 2 after round-trip.
     let src_contains = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [h   (:wat::holon::to-holon #{1 2 3})
-             s   (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/contains? s 2)))
+                      [h   (:wat::holon::to-holon #{1 2 3})
+                       s   (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/contains? s 2)))
     "#;
     assert!(run_bool(src_contains), "round-trip must preserve element 2");
 }
@@ -137,11 +137,11 @@ fn probe_2_reverse_bundle_to_hashset_roundtrip() {
 #[test]
 fn probe_3_empty_set_roundtrip() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon #{})
-             s (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length s)))
+                      [h (:wat::holon::to-holon #{})
+                       s (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src), 0, "empty set round-trip must preserve length 0");
 }
@@ -152,20 +152,20 @@ fn probe_3_empty_set_roundtrip() {
 #[test]
 fn probe_4_single_element_roundtrip() {
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon #{42})
-             s (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length s)))
+                      [h (:wat::holon::to-holon #{42})
+                       s (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src_len), 1, "single-element round-trip must have length 1");
 
     let src_contains = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [h (:wat::holon::to-holon #{42})
-             s (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/contains? s 42)))
+                      [h (:wat::holon::to-holon #{42})
+                       s (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/contains? s 42)))
     "#;
     assert!(
         run_bool(src_contains),
@@ -181,31 +181,31 @@ fn probe_4_single_element_roundtrip() {
 fn probe_5_multi_t_types() {
     // HashSet<i64>: additional containment check.
     let src_i64 = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [h (:wat::holon::to-holon #{10 20 30})
-             s (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/contains? s 20)))
+                      [h (:wat::holon::to-holon #{10 20 30})
+                       s (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/contains? s 20)))
     "#;
     assert!(run_bool(src_i64), "HashSet<i64> round-trip must contain 20");
 
     // HashSet<String>: strings atomize as HolonAST::String leaves.
     let src_string = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::String "a" "b" "c"))
-             s (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length s)))
+                      [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::String "a" "b" "c"))
+                       s (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src_string), 3, "HashSet<String> round-trip: length must be 3");
 
     // HashSet<bool>: bool leaves atomize as HolonAST::Bool.
     let src_bool = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::bool true false))
-             s (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length s)))
+                      [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::bool true false))
+                       s (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(run_i64(src_bool), 2, "HashSet<bool> round-trip: length must be 2");
 }
@@ -218,11 +218,11 @@ fn probe_5_multi_t_types() {
 #[test]
 fn probe_6_dedupe_semantic() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon #{1 1 2 2 3})
-             s (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length s)))
+                      [h (:wat::holon::to-holon #{1 1 2 2 3})
+                       s (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -250,14 +250,14 @@ fn probe_6_dedupe_semantic() {
 fn probe_7_nested_set_roundtrip() {
     // Outer length = 2 (two distinct inner sets).
     let src_outer_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner1  (:wat::core::HashSet :wat::core::i64 1 2)
-             inner2  (:wat::core::HashSet :wat::core::i64 3)
-             outer   (:wat::core::HashSet :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::to-holon outer)
-             s       (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length s)))
+                      [inner1  (:wat::core::HashSet :wat::core::i64 1 2)
+                       inner2  (:wat::core::HashSet :wat::core::i64 3)
+                       outer   (:wat::core::HashSet :wat::type::Infer inner1 inner2)
+                       h       (:wat::holon::to-holon outer)
+                       s       (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(
         run_i64(src_outer_len),
@@ -273,14 +273,14 @@ fn probe_7_nested_set_roundtrip() {
     // the round-trip preserves both inner sets, so the outer length = 2 is the authoritative check.
     // (The inner bundle child count = 2 is already proven by the round-trip above.)
     let src_outer_len_again = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner1  (:wat::core::HashSet :wat::core::i64 1 2)
-             inner2  (:wat::core::HashSet :wat::core::i64 3)
-             outer   (:wat::core::HashSet :wat::type::Infer inner1 inner2)
-             h       (:wat::holon::to-holon outer)
-             s       (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length s)))
+                      [inner1  (:wat::core::HashSet :wat::core::i64 1 2)
+                       inner2  (:wat::core::HashSet :wat::core::i64 3)
+                       outer   (:wat::core::HashSet :wat::type::Infer inner1 inner2)
+                       h       (:wat::holon::to-holon outer)
+                       s       (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length s)))
     "#;
     assert_eq!(
         run_i64(src_outer_len_again),
@@ -296,21 +296,21 @@ fn probe_7_nested_set_roundtrip() {
 #[test]
 fn probe_8_check_passes_for_atomizable_t() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [h (:wat::holon::to-holon #{1 2 3})]
-            1))
+                      [h (:wat::holon::to-holon #{1 2 3})]
+                      1))
     "#;
     assert_eq!(run_i64(src), 1, "Atom on HashSet<i64> must pass check and run");
 
     // Nested: HashSet<HashSet<i64>> — predicate recurses through both levels.
     let src_nested = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner  (:wat::core::HashSet :wat::core::i64 1 2)
-             outer  (:wat::core::HashSet :wat::type::Infer inner)
-             h      (:wat::holon::to-holon outer)]
-            1))
+                      [inner  (:wat::core::HashSet :wat::core::i64 1 2)
+                       outer  (:wat::core::HashSet :wat::type::Infer inner)
+                       h      (:wat::holon::to-holon outer)]
+                      1))
     "#;
     assert_eq!(
         run_i64(src_nested),
@@ -336,10 +336,10 @@ fn probe_9_check_fails_for_non_atomizable_t() {
     // f has type Fn([i64])->i64 — TypeExpr::Fn{...} — not atomizable.
     // Check must reject with TypeMismatch naming :wat::holon::to-holon.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil
           (:wat::core::let
-            [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
-            (:wat::holon::to-holon f)))
+                      [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
+                      (:wat::holon::to-holon f)))
     "#;
     let err = startup_err(src);
     assert!(

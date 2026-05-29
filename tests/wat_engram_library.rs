@@ -53,13 +53,12 @@ fn run(src: &str) -> Vec<String> {
 #[test]
 fn library_construct_empty() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [lib (:wat::holon::EngramLibrary/new 10000)
-             n (:wat::holon::EngramLibrary/len lib)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= n 0) -> :wat::core::String "empty" "non-empty"))))
+                      [lib (:wat::holon::EngramLibrary/new 10000)
+                       n (:wat::holon::EngramLibrary/len lib)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= n 0) -> :wat::core::String "empty" "non-empty"))))
     "##;
     assert_eq!(run(src), vec!["\"empty\"".to_string()]);
 }
@@ -67,23 +66,22 @@ fn library_construct_empty() {
 #[test]
 fn library_add_subspace_then_count() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [lib (:wat::holon::EngramLibrary/new 10000)
-             sub (:wat::holon::OnlineSubspace/new 10000 4)
-             v (:wat::holon::encode (:wat::holon::to-holon "x"))
-             ;; Train at least once so the subspace is non-trivial.
-             r (:wat::holon::OnlineSubspace/update sub v)
-             u (:wat::holon::EngramLibrary/add lib "pattern-a" sub)
-             n (:wat::holon::EngramLibrary/len lib)
-             found (:wat::holon::EngramLibrary/contains lib "pattern-a")
-             missing (:wat::holon::EngramLibrary/contains lib "absent")]
-            (:wat::kernel::println
-              (:wat::core::if
-                (:wat::core::and (:wat::core::= n 1)
-                  (:wat::core::and found (:wat::core::not missing))) -> :wat::core::String
-                "ok" "wrong"))))
+                      [lib (:wat::holon::EngramLibrary/new 10000)
+                       sub (:wat::holon::OnlineSubspace/new 10000 4)
+                       v (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       ;; Train at least once so the subspace is non-trivial.
+                       r (:wat::holon::OnlineSubspace/update sub v)
+                       u (:wat::holon::EngramLibrary/add lib "pattern-a" sub)
+                       n (:wat::holon::EngramLibrary/len lib)
+                       found (:wat::holon::EngramLibrary/contains lib "pattern-a")
+                       missing (:wat::holon::EngramLibrary/contains lib "absent")]
+                      (:wat::kernel::println
+                        (:wat::core::if
+                          (:wat::core::and (:wat::core::= n 1)
+                            (:wat::core::and found (:wat::core::not missing))) -> :wat::core::String
+                          "ok" "wrong"))))
     "##;
     assert_eq!(run(src), vec!["\"ok\"".to_string()]);
 }
@@ -91,20 +89,19 @@ fn library_add_subspace_then_count() {
 #[test]
 fn library_match_returns_named_pairs() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [lib (:wat::holon::EngramLibrary/new 10000)
-             sub (:wat::holon::OnlineSubspace/new 10000 4)
-             v (:wat::holon::encode (:wat::holon::to-holon "x"))
-             r (:wat::holon::OnlineSubspace/update sub v)
-             u (:wat::holon::EngramLibrary/add lib "alpha" sub)
-             ;; Match against the same vector — should return 1 pair (name, residual).
-             matches
-              (:wat::holon::EngramLibrary/match-vec lib v 5 5)
-             nmatches (:wat::core::length matches)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= nmatches 1) -> :wat::core::String "one-match" "wrong"))))
+                      [lib (:wat::holon::EngramLibrary/new 10000)
+                       sub (:wat::holon::OnlineSubspace/new 10000 4)
+                       v (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       r (:wat::holon::OnlineSubspace/update sub v)
+                       u (:wat::holon::EngramLibrary/add lib "alpha" sub)
+                       ;; Match against the same vector — should return 1 pair (name, residual).
+                       matches
+                        (:wat::holon::EngramLibrary/match-vec lib v 5 5)
+                       nmatches (:wat::core::length matches)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= nmatches 1) -> :wat::core::String "one-match" "wrong"))))
     "##;
     assert_eq!(run(src), vec!["\"one-match\"".to_string()]);
 }

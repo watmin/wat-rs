@@ -2,9 +2,7 @@
 ;; Tests whether check infers T at the call site.
 
 (:wat::test::deftest :wat-tests::tmp::generic-3tuple-inferred
-  ((:wat::core::define
-     (:test::make-3tuple<T> (mid :T) -> :(wat::core::i64,T,wat::core::String))
-     (:wat::core::Tuple 42 mid "hello")))
+  ((:wat::core::defn :test::make-3tuple<T> [mid <- :T] -> :(wat::core::i64,T,wat::core::String) (:wat::core::Tuple 42 mid "hello")))
   (:wat::core::let
     [triple
       (:test::make-3tuple true)

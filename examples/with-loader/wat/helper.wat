@@ -11,5 +11,4 @@
 
 (:wat::load-file! "deeper.wat")
 
-(:wat::core::define (:user::with_loader::helper::greeting -> :wat::core::String)
-  (:user::with_loader::deeper::compute))
+(:wat::core::defn :user::with_loader::helper::greeting [] -> :wat::core::String (:user::with_loader::deeper::compute))

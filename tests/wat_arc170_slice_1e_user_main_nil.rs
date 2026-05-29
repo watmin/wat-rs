@@ -51,8 +51,7 @@ fn freeze_err(src: &str) -> String {
 fn t1_canonical_main_freezes_and_invokes() {
     // Canonical post-arc-170-slice-1e shape: empty params + nil return.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
 
@@ -88,8 +87,7 @@ fn t2_wrong_return_type_fires_walker() {
     // non-nil return. The slice-1e walker fires on anything that isn't
     // `[] -> :wat::core::nil`.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::i64)
-          42)
+        (:wat::core::defn :user::main [] -> :wat::core::i64 42)
     "#;
     let err = freeze_err(src);
     assert!(
@@ -106,13 +104,7 @@ fn t2_legacy_3arg_main_fires_walker() {
     // The pre-arc-170 shape — 3-arg with stdio, nil return. Still
     // not canonical post-slice-1e because params are non-empty.
     let src = r#"
-        (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = freeze_err(src);
     assert!(
@@ -128,14 +120,7 @@ fn t2_arc170_slice_2_main_fires_walker() {
     // The slice-2-shape (4-arg with argv + ExitCode return) is also
     // non-canonical post-slice-1e. Slice 1e's walker fires on it.
     let src = r#"
-        (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            (argv :wat::core::Vector<wat::core::String>)
-            -> :wat::kernel::ExitCode)
-          (:wat::core::u8 0))
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode (:wat::core::u8 0))
     "#;
     let err = freeze_err(src);
     assert!(
@@ -168,10 +153,10 @@ fn t3_runtime_argv_ambient_reachable_from_main() {
     // value is dropped after the binding scope; the substrate
     // produced a Value::Vec<Value::String> matching argv contents.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [argv (:wat::runtime::argv)]
-            :wat::core::nil))
+                      [argv (:wat::runtime::argv)]
+                      :wat::core::nil))
     "#;
     let world = freeze_ok(src);
     let result = invoke_user_main(&world, Vec::new())
@@ -193,8 +178,7 @@ fn t3_runtime_argv_ambient_eval_arm_produces_vector() {
     use wat::runtime::Environment;
 
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let ast = wat::parse_one!("(:wat::runtime::argv)").expect("parse argv expr");
@@ -216,8 +200,7 @@ fn t3_runtime_current_thread_eval_arm_produces_string() {
     use wat::runtime::Environment;
 
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let ast = wat::parse_one!("(:wat::runtime::current-thread)")

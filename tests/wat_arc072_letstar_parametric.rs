@@ -81,16 +81,15 @@ fn run(src: &str) -> Result<Vec<String>, String> {
 #[test]
 fn letstar_result_no_whitespace_simple_payload() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [wrapped
-              (:wat::core::Ok 42)
-             extracted
-              (:wat::core::match wrapped -> :wat::core::i64
-                ((:wat::core::Ok n) (:wat::core::i64::+'2 n 1))
-                ((:wat::core::Err _) -1))]
-            (:wat::kernel::println (:wat::core::i64::to-string extracted))))
+                      [wrapped
+                        (:wat::core::Ok 42)
+                       extracted
+                        (:wat::core::match wrapped -> :wat::core::i64
+                          ((:wat::core::Ok n) (:wat::core::i64::+'2 n 1))
+                          ((:wat::core::Err _) -1))]
+                      (:wat::kernel::println (:wat::core::i64::to-string extracted))))
     "#;
     match run(src) {
         Ok(lines) => assert_eq!(lines, vec!["\"43\"".to_string()]),
@@ -105,19 +104,16 @@ fn letstar_result_no_whitespace_simple_payload() {
 #[test]
 fn letstar_result_no_whitespace_tuple_payload() {
     let src = r#"
-        (:wat::core::define
-          (:user::wrap-it -> :wat::core::Result<(wat::core::i64,wat::core::i64),wat::core::i64>)
-          (:wat::core::Ok (:wat::core::Tuple 7 11)))
+        (:wat::core::defn :user::wrap-it [] -> :wat::core::Result<(wat::core::i64,wat::core::i64),wat::core::i64> (:wat::core::Ok (:wat::core::Tuple 7 11)))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [wrapped (:user::wrap-it)
-             extracted
-              (:wat::core::match wrapped -> :wat::core::i64
-                ((:wat::core::Ok pair) (:wat::core::second pair))
-                ((:wat::core::Err _) -1))]
-            (:wat::kernel::println (:wat::core::i64::to-string extracted))))
+                      [wrapped (:user::wrap-it)
+                       extracted
+                        (:wat::core::match wrapped -> :wat::core::i64
+                          ((:wat::core::Ok pair) (:wat::core::second pair))
+                          ((:wat::core::Err _) -1))]
+                      (:wat::kernel::println (:wat::core::i64::to-string extracted))))
     "#;
     match run(src) {
         Ok(lines) => assert_eq!(lines, vec!["\"11\"".to_string()]),
@@ -132,12 +128,11 @@ fn letstar_result_no_whitespace_tuple_payload() {
 #[test]
 fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            (((m :HashMap<String, i64>)
-              (:wat::core::HashMap :wat::core::String :wat::core::i64)))
-            (:wat::kernel::println "ok")))
+                      (((m :HashMap<String, i64>)
+                        (:wat::core::HashMap :wat::core::String :wat::core::i64)))
+                      (:wat::kernel::println "ok")))
     "#;
     let err = run(src).expect_err("expected lex error on `:HashMap<String, i64>`");
     assert!(
@@ -153,13 +148,12 @@ fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
 #[test]
 fn operator_lt_gt_keywords_still_lex() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::if (:wat::core::< 1 2) -> :wat::core::nil
-            (:wat::core::if (:wat::core::>= 5 5) -> :wat::core::nil
-              (:wat::kernel::println "ok")
-              (:wat::kernel::println "ge-fail"))
-            (:wat::kernel::println "lt-fail")))
+                      (:wat::core::if (:wat::core::>= 5 5) -> :wat::core::nil
+                        (:wat::kernel::println "ok")
+                        (:wat::kernel::println "ge-fail"))
+                      (:wat::kernel::println "lt-fail")))
     "#;
     match run(src) {
         Ok(lines) => assert_eq!(lines, vec!["\"ok\"".to_string()]),

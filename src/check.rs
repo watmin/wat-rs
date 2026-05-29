@@ -930,7 +930,7 @@ impl fmt::Display for CheckError {
             ),
             CheckError::BareLegacyMainSignature { span } => write!(
                 f,
-                "{}`:user::main` declared with a non-canonical signature is retired (arc 170 slice 1e — REALIZATIONS pass 7 + pass 10); canonical shape is `[] -> :wat::core::nil`. The four-arg shape (stdin/stdout/stderr/argv) retired: argv moves to the ambient `(:wat::runtime::argv)`; stdio access moves to the three substrate services (`:wat::kernel::StdInService` / `StdOutService` / `StdErrService` per slice 1f). `nil` IS the success exit code — clean nil-return maps to libc::exit(0); panic-cascade maps to libc::exit(N) via the StdErrService epilogue. User code never participates in exit-code arithmetic. Migrate the define to:\n  (:wat::core::define (:user::main -> :wat::core::nil)\n    <body that does work and returns :wat::core::nil>)\nor with `defn`:\n  (:wat::core::defn :user::main [] -> :wat::core::nil\n    <body>)",
+                "{}`:user::main` declared with a non-canonical signature is retired (arc 170 slice 1e — REALIZATIONS pass 7 + pass 10); canonical shape is `[] -> :wat::core::nil`. The four-arg shape (stdin/stdout/stderr/argv) retired: argv moves to the ambient `(:wat::runtime::argv)`; stdio access moves to the three substrate services (`:wat::kernel::StdInService` / `StdOutService` / `StdErrService` per slice 1f). `nil` IS the success exit code — clean nil-return maps to libc::exit(0); panic-cascade maps to libc::exit(N) via the StdErrService epilogue. User code never participates in exit-code arithmetic. Migrate the define to:\n  (:wat::core::defn :user::main [] -> :wat::core::nil \n    <body that does work and returns :wat::core::nil>)\nor with `defn`:\n  (:wat::core::defn :user::main [] -> :wat::core::nil\n    <body>)",
                 span_prefix(span)
             ),
             CheckError::BareLegacyForkProgram { verb, span } => write!(
@@ -7039,9 +7039,19 @@ fn infer_list(
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),
                 }]);
             }
-            ":wat::core::define"
+            // Stone 241.11 — HARD CUT: legacy define form is REJECTED at check time.
+            // It is no longer a recognized function-binding form; use :wat::core::defn.
+            ":wat::core::define" => {
+                return CheckResult::errs(vec![CheckError::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!("'{}' is retired (Stone 241.11)", k),
+                    span: head_span.clone(),
+                    // Stone 241.10: retirement_lookup hits the table → structured remedy.
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
+                }]);
+            }
             // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
-            | ":wat::core::defstruct"
+            ":wat::core::defstruct"
             // Stone 241.9 — defenum replaces enum (HARD CUT).
             | ":wat::core::defenum"
             | ":wat::core::newtype"
@@ -20667,9 +20677,7 @@ mod tests {
         // assertion (SandboxScopeLeak fires) no longer holds under
         // the new deftest expansion; the test will fail if un-ignored.
         let src = r#"
-            (:wat::core::define
-              (:my::helper (x :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::*'2 x 2))
+            (:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x 2))
 
             (:wat::test::deftest :test::leaky
               ()
@@ -20695,9 +20703,7 @@ mod tests {
     fn sandbox_scope_no_leak_when_in_prelude() {
         let src = r#"
             (:wat::test::deftest :test::clean
-              ((:wat::core::define
-                 (:my::helper (x :wat::core::i64) -> :wat::core::i64)
-                 (:wat::core::i64::*'2 x 2)))
+              ((:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x 2)))
               (:wat::test::assert-eq (:my::helper 21) 42))
         "#;
         // No outer-scope :my::helper define exists; the only define
@@ -20808,8 +20814,7 @@ mod tests {
     #[test]
     fn user_define_body_matches_signature() {
         assert!(check(
-            r#"(:wat::core::define (:my::app::add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
-                 (:wat::core::i64::+'2 x y))"#
+            r#"(:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x y))"#
         )
         .is_ok());
     }
@@ -20817,8 +20822,7 @@ mod tests {
     #[test]
     fn user_define_body_wrong_return_rejected() {
         let err = check(
-            r#"(:wat::core::define (:my::app::add (x :i64) (y :i64) -> :bool)
-                 (:wat::core::i64::+'2 x y))"#,
+            r#"(:wat::core::defn :my::app::add [x <- :i64 y <- :i64] -> :bool (:wat::core::i64::+'2 x y))"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::ReturnTypeMismatch { .. })));
@@ -20829,7 +20833,7 @@ mod tests {
         // Identity: ∀T. T -> T. Body returns x, which has type T.
         // With rigid type variables, x: T unifies with ret: T.
         assert!(check(
-            r#"(:wat::core::define (:my::app::id<T> (x :T) -> :T) x)"#
+            r#"(:wat::core::defn :my::app::id<T> [x <- :T] -> :T x)"#
         )
         .is_ok());
     }
@@ -20839,7 +20843,7 @@ mod tests {
         // Declared ret T; body returns an :i64 constant. Rigid T
         // doesn't unify with :i64.
         let err = check(
-            r#"(:wat::core::define (:my::app::bad<T> (x :T) -> :T) 42)"#,
+            r#"(:wat::core::defn :my::app::bad<T> [x <- :T] -> :T 42)"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::ReturnTypeMismatch { .. })));
@@ -21051,11 +21055,10 @@ mod tests {
               :Empty
               :Filled [value <- :T])
 
-            (:wat::core::define
-              (:my::is-empty<T> (b :my::Box<T>) -> :wat::core::bool)
+            (:wat::core::defn :my::is-empty<T> [b <- :my::Box<T>] -> :wat::core::bool
               (:wat::core::match b -> :wat::core::bool
-                (:my::Box::Empty true)
-                ((:my::Box::Filled _v) false)))
+                              (:my::Box::Empty true)
+                              ((:my::Box::Filled _v) false)))
         "#;
         let result = check(src);
         assert!(
@@ -21075,11 +21078,10 @@ mod tests {
               :Left  [value <- :L]
               :Right [value <- :R])
 
-            (:wat::core::define
-              (:my::is-left<L,R> (e :my::Either<L,R>) -> :wat::core::bool)
+            (:wat::core::defn :my::is-left<L,R> [e <- :my::Either<L,R>] -> :wat::core::bool
               (:wat::core::match e -> :wat::core::bool
-                ((:my::Either::Left _v) true)
-                ((:my::Either::Right _v) false)))
+                              ((:my::Either::Left _v) true)
+                              ((:my::Either::Right _v) false)))
         "#;
         let result = check(src);
         assert!(
@@ -21100,11 +21102,10 @@ mod tests {
               :Empty
               :Filled [value <- :T])
 
-            (:wat::core::define
-              (:my::default-or<T> (b :my::Box<T>) (d :T) -> :T)
+            (:wat::core::defn :my::default-or<T> [b <- :my::Box<T> d <- :T] -> :T
               (:wat::core::match b -> :T
-                (:my::Box::Empty d)
-                ((:my::Box::Filled v) v)))
+                              (:my::Box::Empty d)
+                              ((:my::Box::Filled v) v)))
         "#;
         let result = check(src);
         assert!(
@@ -21122,27 +21123,26 @@ mod tests {
     #[test]
     fn arc_128_outer_scope_deadlock_still_fires() {
         let src = r#"
-            (:wat::core::define
-              (:my::deadlock-at-outer -> :wat::core::nil)
+            (:wat::core::defn :my::deadlock-at-outer [] -> :wat::core::nil
               (:wat::core::let
-                [pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-                 rx
-                  (:wat::core::second pair)
-                 thr
-                  (:wat::kernel::spawn-thread
-                    (:wat::core::fn
-                      [_in <- :wat::kernel::Receiver<wat::core::nil>
-                       _out <- :wat::kernel::Sender<wat::core::i64>]
-                      -> :wat::core::nil
-                      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
-                        ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [pair
+                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                               rx
+                                (:wat::core::second pair)
+                               thr
+                                (:wat::kernel::spawn-thread
+                                  (:wat::core::fn
+                                    [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                     _out <- :wat::kernel::Sender<wat::core::i64>]
+                                    -> :wat::core::nil
+                                    (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                                      ((:wat::core::Ok _) ())
+                                      ((:wat::core::Err _) ()))))]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let err = check(src).expect_err(
             "outer-scope deadlock pattern must still fire ScopeDeadlock post-arc-128",
@@ -21164,37 +21164,36 @@ mod tests {
     #[test]
     fn arc_128_inner_scope_deadlock_skipped_in_sandboxed_forms() {
         let src = r#"
-            (:wat::core::define
-              (:my::deftest-style -> :wat::kernel::RunResult)
+            (:wat::core::defn :my::deftest-style [] -> :wat::kernel::RunResult
               (:wat::kernel::run-sandboxed-hermetic-ast
-                (:wat::core::forms
-                  (:wat::core::define
-                    (:user::main
-                      (_stdin  :wat::io::IOReader)
-                      (_stdout :wat::io::IOWriter)
-                      (_stderr :wat::io::IOWriter)
-                      -> :wat::core::nil)
-                    (:wat::core::let
-                      [pair
-                        (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-                       rx
-                        (:wat::core::second pair)
-                       thr
-                        (:wat::kernel::spawn-thread
-                          (:wat::core::fn
-                            [_in <- :wat::kernel::Receiver<wat::core::nil>
-                             _out <- :wat::kernel::Sender<wat::core::i64>]
-                            -> :wat::core::nil
-                            (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
-                              ((:wat::core::Ok _) ())
-                              ((:wat::core::Err _) ()))))]
-                      (:wat::core::match
-                        (:wat::kernel::Thread/join-result thr)
-                        -> :wat::core::nil
-                        ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ())))))
-                (:wat::core::Vector :wat::core::String)
-                :wat::core::None))
+                              (:wat::core::forms
+                                (:wat::core::define
+                                  (:user::main
+                                    (_stdin  :wat::io::IOReader)
+                                    (_stdout :wat::io::IOWriter)
+                                    (_stderr :wat::io::IOWriter)
+                                    -> :wat::core::nil)
+                                  (:wat::core::let
+                                    [pair
+                                      (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                                     rx
+                                      (:wat::core::second pair)
+                                     thr
+                                      (:wat::kernel::spawn-thread
+                                        (:wat::core::fn
+                                          [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                           _out <- :wat::kernel::Sender<wat::core::i64>]
+                                          -> :wat::core::nil
+                                          (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                                            ((:wat::core::Ok _) ())
+                                            ((:wat::core::Err _) ()))))]
+                                    (:wat::core::match
+                                      (:wat::kernel::Thread/join-result thr)
+                                      -> :wat::core::nil
+                                      ((:wat::core::Ok _) ())
+                                      ((:wat::core::Err _) ())))))
+                              (:wat::core::Vector :wat::core::String)
+                              :wat::core::None))
         "#;
         let result = check(src);
         // The outer freeze must NOT see the inner anti-pattern.
@@ -21227,23 +21226,17 @@ mod tests {
         // Structural truth — same pair-anchor IS same channel — so
         // the rule fires regardless of helper-verb's body.
         let src = r#"
-            (:wat::core::define
-              (:my::helper-verb
-                (tx :wat::kernel::Sender<wat::core::nil>)
-                (rx :wat::kernel::Receiver<wat::core::nil>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::helper-verb [tx <- :wat::kernel::Sender<wat::core::nil> rx <- :wat::kernel::Receiver<wat::core::nil>] -> :wat::core::nil ())
 
-            (:wat::core::define
-              (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
+            (:wat::core::defn :my::caller [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                ((pair
-                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 (tx
-                  (:wat::core::first pair))
-                 (rx
-                  (:wat::core::second pair)))
-                (:my::helper-verb tx rx)))
+                              ((pair
+                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                               (tx
+                                (:wat::core::first pair))
+                               (rx
+                                (:wat::core::second pair)))
+                              (:my::helper-verb tx rx)))
         "#;
         let err = check(src).unwrap_err();
         assert!(
@@ -21266,25 +21259,19 @@ mod tests {
         // to a distinct pair-anchor. Different anchors = different
         // channels = no deadlock. The rule must NOT fire.
         let src = r#"
-            (:wat::core::define
-              (:my::helper-verb
-                (tx :wat::kernel::Sender<wat::core::nil>)
-                (rx :wat::kernel::Receiver<wat::core::nil>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::helper-verb [tx <- :wat::kernel::Sender<wat::core::nil> rx <- :wat::kernel::Receiver<wat::core::nil>] -> :wat::core::nil ())
 
-            (:wat::core::define
-              (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
+            (:wat::core::defn :my::caller [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                ((pair-a
-                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 (pair-b
-                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 (tx
-                  (:wat::core::first pair-a))
-                 (rx
-                  (:wat::core::second pair-b)))
-                (:my::helper-verb tx rx)))
+                              ((pair-a
+                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                               (pair-b
+                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                               (tx
+                                (:wat::core::first pair-a))
+                               (rx
+                                (:wat::core::second pair-b)))
+                              (:my::helper-verb tx rx)))
         "#;
         let result = check(src);
         // Two-different-pairs is a legitimate shape (the arc 126
@@ -21318,35 +21305,28 @@ mod tests {
             (:wat::core::typealias :my::Handle
               :(wat::kernel::Sender<wat::core::nil>,wat::kernel::Receiver<wat::core::nil>))
 
-            (:wat::core::define
-              (:my::pop-handle (_d :wat::core::nil) -> :my::Handle)
+            (:wat::core::defn :my::pop-handle [_d <- :wat::core::nil] -> :my::Handle
               (:wat::core::let
-                ((p
-                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 (q
-                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 (req-tx
-                  (:wat::core::first p))
-                 (ack-rx
-                  (:wat::core::second q)))
-                (:wat::core::Tuple req-tx ack-rx)))
+                              ((p
+                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                               (q
+                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                               (req-tx
+                                (:wat::core::first p))
+                               (ack-rx
+                                (:wat::core::second q)))
+                              (:wat::core::Tuple req-tx ack-rx)))
 
-            (:wat::core::define
-              (:my::helper-verb
-                (tx :wat::kernel::Sender<wat::core::nil>)
-                (rx :wat::kernel::Receiver<wat::core::nil>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::helper-verb [tx <- :wat::kernel::Sender<wat::core::nil> rx <- :wat::kernel::Receiver<wat::core::nil>] -> :wat::core::nil ())
 
-            (:wat::core::define
-              (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
+            (:wat::core::defn :my::caller [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                ((handle (:my::pop-handle))
-                 (req-tx
-                  (:wat::core::first handle))
-                 (ack-rx
-                  (:wat::core::second handle)))
-                (:my::helper-verb req-tx ack-rx)))
+                              ((handle (:my::pop-handle))
+                               (req-tx
+                                (:wat::core::first handle))
+                               (ack-rx
+                                (:wat::core::second handle)))
+                              (:my::helper-verb req-tx ack-rx)))
         "#;
         let result = check(src);
         assert!(
@@ -21371,23 +21351,17 @@ mod tests {
         // contract: the Display impl MUST emit "channel-pair-deadlock"
         // verbatim. Divergent phrasing breaks the verification chain.
         let src = r#"
-            (:wat::core::define
-              (:my::helper-verb
-                (tx :wat::kernel::Sender<wat::core::nil>)
-                (rx :wat::kernel::Receiver<wat::core::nil>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::helper-verb [tx <- :wat::kernel::Sender<wat::core::nil> rx <- :wat::kernel::Receiver<wat::core::nil>] -> :wat::core::nil ())
 
-            (:wat::core::define
-              (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
+            (:wat::core::defn :my::caller [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                ((pair
-                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 (tx
-                  (:wat::core::first pair))
-                 (rx
-                  (:wat::core::second pair)))
-                (:my::helper-verb tx rx)))
+                              ((pair
+                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                               (tx
+                                (:wat::core::first pair))
+                               (rx
+                                (:wat::core::second pair)))
+                              (:my::helper-verb tx rx)))
         "#;
         let err = check(src).unwrap_err();
         let pair_err = err
@@ -21413,32 +21387,31 @@ mod tests {
     #[test]
     fn channel_pair_deadlock_skipped_in_sandboxed_forms() {
         let src = r#"
-            (:wat::core::define
-              (:my::deftest-style -> :wat::kernel::RunResult)
+            (:wat::core::defn :my::deftest-style [] -> :wat::kernel::RunResult
               (:wat::kernel::run-sandboxed-hermetic-ast
-                (:wat::core::forms
-                  (:wat::core::define
-                    (:my::helper-verb
-                      (tx :wat::kernel::Sender<wat::core::nil>)
-                      (rx :wat::kernel::Receiver<wat::core::nil>)
-                      -> :wat::core::nil)
-                    ())
-                  (:wat::core::define
-                    (:user::main
-                      (_stdin  :wat::io::IOReader)
-                      (_stdout :wat::io::IOWriter)
-                      (_stderr :wat::io::IOWriter)
-                      -> :wat::core::nil)
-                    (:wat::core::let
-                      ((pair
-                        (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                       (tx
-                        (:wat::core::first pair))
-                       (rx
-                        (:wat::core::second pair)))
-                      (:my::helper-verb tx rx))))
-                (:wat::core::Vector :wat::core::String)
-                :wat::core::None))
+                              (:wat::core::forms
+                                (:wat::core::define
+                                  (:my::helper-verb
+                                    (tx :wat::kernel::Sender<wat::core::nil>)
+                                    (rx :wat::kernel::Receiver<wat::core::nil>)
+                                    -> :wat::core::nil)
+                                  ())
+                                (:wat::core::define
+                                  (:user::main
+                                    (_stdin  :wat::io::IOReader)
+                                    (_stdout :wat::io::IOWriter)
+                                    (_stderr :wat::io::IOWriter)
+                                    -> :wat::core::nil)
+                                  (:wat::core::let
+                                    ((pair
+                                      (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                                     (tx
+                                      (:wat::core::first pair))
+                                     (rx
+                                      (:wat::core::second pair)))
+                                    (:my::helper-verb tx rx))))
+                              (:wat::core::Vector :wat::core::String)
+                              :wat::core::None))
         "#;
         let result = check(src);
         // The outer freeze must NOT see the inner anti-pattern.
@@ -21486,28 +21459,27 @@ mod tests {
         // recv on its input. Without recv there is no recv-loop to
         // hang, no deadlock, and the rule should not fire.
         let src = r#"
-            (:wat::core::define
-              (:my::deadlock-via-handlepool -> :wat::core::nil)
+            (:wat::core::defn :my::deadlock-via-handlepool [] -> :wat::core::nil
               (:wat::core::let
-                [pool
-                  (:wat::kernel::HandlePool::new
-                    "pool"
-                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>))
-                 thr
-                  (:wat::kernel::spawn-thread
-                    (:wat::core::fn
-                      [_in <- :wat::kernel::Receiver<wat::core::nil>
-                       _out <- :wat::kernel::Sender<wat::core::i64>]
-                      -> :wat::core::nil
-                      (:wat::core::match (:wat::kernel::recv _in)
-                        -> :wat::core::nil
-                        ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [pool
+                                (:wat::kernel::HandlePool::new
+                                  "pool"
+                                  (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>))
+                               thr
+                                (:wat::kernel::spawn-thread
+                                  (:wat::core::fn
+                                    [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                     _out <- :wat::kernel::Sender<wat::core::i64>]
+                                    -> :wat::core::nil
+                                    (:wat::core::match (:wat::kernel::recv _in)
+                                      -> :wat::core::nil
+                                      ((:wat::core::Ok _) ())
+                                      ((:wat::core::Err _) ()))))]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let err = check(src).expect_err(
             "HandlePool<HandleAlias-with-Sender> sibling to Thread/join-result must fire ScopeDeadlock",
@@ -21536,25 +21508,24 @@ mod tests {
     #[test]
     fn arc_131_handlepool_without_sender_silent() {
         let src = r#"
-            (:wat::core::define
-              (:my::no-deadlock-on-bare-handlepool -> :wat::core::nil)
+            (:wat::core::defn :my::no-deadlock-on-bare-handlepool [] -> :wat::core::nil
               (:wat::core::let
-                [pool
-                  (:wat::kernel::HandlePool::new
-                    "pool"
-                    (:wat::core::Vector :wat::core::i64))
-                 thr
-                  (:wat::kernel::spawn-thread
-                    (:wat::core::fn
-                      [_in <- :wat::kernel::Receiver<wat::core::nil>
-                       _out <- :wat::kernel::Sender<wat::core::i64>]
-                      -> :wat::core::nil
-                      ()))]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [pool
+                                (:wat::kernel::HandlePool::new
+                                  "pool"
+                                  (:wat::core::Vector :wat::core::i64))
+                               thr
+                                (:wat::kernel::spawn-thread
+                                  (:wat::core::fn
+                                    [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                     _out <- :wat::kernel::Sender<wat::core::i64>]
+                                    -> :wat::core::nil
+                                    ()))]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let result = check(src);
         // HandlePool<i64> has no embedded Sender — the rule must
@@ -21596,28 +21567,27 @@ mod tests {
         // form narrowing only exempts no-recv fn bodies; this
         // test's body is recv-bearing so the rule still fires.
         let src = r#"
-            (:wat::core::define
-              (:my::typed-name-still-fires -> :wat::core::nil)
+            (:wat::core::defn :my::typed-name-still-fires [] -> :wat::core::nil
               (:wat::core::let
-                [pool
-                  (:wat::kernel::HandlePool::new
-                    "pool"
-                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>))
-                 thr
-                  (:wat::kernel::spawn-thread
-                    (:wat::core::fn
-                      [_in <- :wat::kernel::Receiver<wat::core::nil>
-                       _out <- :wat::kernel::Sender<wat::core::i64>]
-                      -> :wat::core::nil
-                      (:wat::core::match (:wat::kernel::recv _in)
-                        -> :wat::core::nil
-                        ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [pool
+                                (:wat::kernel::HandlePool::new
+                                  "pool"
+                                  (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>))
+                               thr
+                                (:wat::kernel::spawn-thread
+                                  (:wat::core::fn
+                                    [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                     _out <- :wat::kernel::Sender<wat::core::i64>]
+                                    -> :wat::core::nil
+                                    (:wat::core::match (:wat::kernel::recv _in)
+                                      -> :wat::core::nil
+                                      ((:wat::core::Ok _) ())
+                                      ((:wat::core::Err _) ()))))]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let err = check(src).expect_err(
             "arc 133: typed-name HandlePool sibling to Thread/join-result must still fire ScopeDeadlock after structural walker retirement",
@@ -21663,32 +21633,30 @@ mod tests {
         // exercised. The helper's return type is declared as a tuple
         // so that `process_let_binding`'s destructure arm fires.
         let src = r#"
-            (:wat::core::define
-              (:my::spawn-svc -> :(wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>,wat::kernel::Thread<wat::core::nil,wat::core::i64>))
+            (:wat::core::defn :my::spawn-svc [] -> :(wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>,wat::kernel::Thread<wat::core::nil,wat::core::i64>)
               (:wat::core::let
-                [pool
-                  (:wat::kernel::HandlePool::new
-                    "pool"
-                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>))
-                 driver
-                  (:wat::kernel::spawn-thread
-                    (:wat::core::fn
-                      [_in <- :wat::kernel::Receiver<wat::core::nil>
-                       _out <- :wat::kernel::Sender<wat::core::i64>]
-                      -> :wat::core::nil
-                      ()))]
-                (:wat::core::Tuple pool driver)))
+                              [pool
+                                (:wat::kernel::HandlePool::new
+                                  "pool"
+                                  (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>))
+                               driver
+                                (:wat::kernel::spawn-thread
+                                  (:wat::core::fn
+                                    [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                     _out <- :wat::kernel::Sender<wat::core::i64>]
+                                    -> :wat::core::nil
+                                    ()))]
+                              (:wat::core::Tuple pool driver)))
 
-            (:wat::core::define
-              (:my::caller-via-destructure -> :wat::core::nil)
+            (:wat::core::defn :my::caller-via-destructure [] -> :wat::core::nil
               (:wat::core::let
-                [[pool driver]
-                  (:my::spawn-svc)]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result driver)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [[pool driver]
+                                (:my::spawn-svc)]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result driver)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let err = check(src).expect_err(
             "arc 133: tuple-destructure of (HandlePool, Thread) with Thread/join-result in body must fire ScopeDeadlock",
@@ -21724,29 +21692,27 @@ mod tests {
     #[test]
     fn arc_133_tuple_destructure_silent_when_clean() {
         let src = r#"
-            (:wat::core::define
-              (:my::spawn-clean -> :(wat::core::i64,wat::kernel::Thread<wat::core::nil,wat::core::nil>))
+            (:wat::core::defn :my::spawn-clean [] -> :(wat::core::i64,wat::kernel::Thread<wat::core::nil,wat::core::nil>)
               (:wat::core::let
-                [counter 42
-                 driver
-                  (:wat::kernel::spawn-thread
-                    (:wat::core::fn
-                      [_in <- :wat::kernel::Receiver<wat::core::nil>
-                       _out <- :wat::kernel::Sender<wat::core::nil>]
-                      -> :wat::core::nil
-                      ()))]
-                (:wat::core::Tuple counter driver)))
+                              [counter 42
+                               driver
+                                (:wat::kernel::spawn-thread
+                                  (:wat::core::fn
+                                    [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                     _out <- :wat::kernel::Sender<wat::core::nil>]
+                                    -> :wat::core::nil
+                                    ()))]
+                              (:wat::core::Tuple counter driver)))
 
-            (:wat::core::define
-              (:my::clean-caller -> :wat::core::nil)
+            (:wat::core::defn :my::clean-caller [] -> :wat::core::nil
               (:wat::core::let
-                [[counter driver]
-                  (:my::spawn-clean)]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result driver)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [[counter driver]
+                                (:my::spawn-clean)]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result driver)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let result = check(src);
         match result {
@@ -21779,19 +21745,13 @@ mod tests {
     #[test]
     fn arc_133_tuple_destructure_pair_check_fires() {
         let src = r#"
-            (:wat::core::define
-              (:my::helper-pair
-                (tx :wat::kernel::Sender<wat::core::i64>)
-                (rx :wat::kernel::Receiver<wat::core::i64>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::helper-pair [tx <- :wat::kernel::Sender<wat::core::i64> rx <- :wat::kernel::Receiver<wat::core::i64>] -> :wat::core::nil ())
 
-            (:wat::core::define
-              (:my::caller-destructure (_d :wat::core::nil) -> :wat::core::nil)
+            (:wat::core::defn :my::caller-destructure [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                [[tx rx]
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)]
-                (:my::helper-pair tx rx)))
+                              [[tx rx]
+                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)]
+                              (:my::helper-pair tx rx)))
         "#;
         let err = check(src).expect_err(
             "arc 133: tuple-destructure of make-bounded-channel with both halves passed to one helper must fire ChannelPairDeadlock",
@@ -21824,26 +21784,21 @@ mod tests {
     #[test]
     fn arc_134_thread_input_output_does_not_fire() {
         let src = r#"
-            (:wat::core::define
-              (:my::worker
-                (in :wat::kernel::Receiver<wat::core::i64>)
-                (out :wat::kernel::Sender<wat::core::i64>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::worker [in <- :wat::kernel::Receiver<wat::core::i64> out <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil ())
 
-            (:wat::core::define (:my::caller -> :wat::core::nil)
+            (:wat::core::defn :my::caller [] -> :wat::core::nil
               (:wat::core::let
-                [thr
-                  (:wat::kernel::spawn-thread :my::worker)
-                 tx
-                  (:wat::kernel::Thread/input thr)
-                 rx
-                  (:wat::kernel::Thread/output thr)]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [thr
+                                (:wat::kernel::spawn-thread :my::worker)
+                               tx
+                                (:wat::kernel::Thread/input thr)
+                               rx
+                                (:wat::kernel::Thread/output thr)]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let result = check(src);
         match result {
@@ -21875,27 +21830,23 @@ mod tests {
     #[test]
     fn arc_134_parent_allocated_channel_still_fires() {
         let src = r#"
-            (:wat::core::define
-              (:my::worker
-                (in :wat::kernel::Receiver<wat::core::i64>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::worker [in <- :wat::kernel::Receiver<wat::core::i64>] -> :wat::core::nil ())
 
-            (:wat::core::define (:my::caller -> :wat::core::nil)
+            (:wat::core::defn :my::caller [] -> :wat::core::nil
               (:wat::core::let
-                [pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-                 tx
-                  (:wat::core::first pair)
-                 rx
-                  (:wat::core::second pair)
-                 thr
-                  (:wat::kernel::spawn-thread :my::worker)]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [pair
+                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                               tx
+                                (:wat::core::first pair)
+                               rx
+                                (:wat::core::second pair)
+                               thr
+                                (:wat::kernel::spawn-thread :my::worker)]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let err = check(src).expect_err(
             "arc 134: parent-allocated Sender (from make-bounded-channel) sibling to Thread with join-result MUST still fire ScopeDeadlock — arc 117's canonical anchor",
@@ -21930,35 +21881,32 @@ mod tests {
     #[test]
     fn arc_134_no_recv_in_fn_body_does_not_fire() {
         let src = r#"
-            (:wat::core::define
-              (:my::sender-helper
-                (tx :wat::kernel::Sender<wat::core::i64>)
-                -> :wat::core::nil)
+            (:wat::core::defn :my::sender-helper [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx 7)
-                -> :wat::core::nil
-                ((:wat::core::Ok _) ())
-                ((:wat::core::Err _) ())))
+                              -> :wat::core::nil
+                              ((:wat::core::Ok _) ())
+                              ((:wat::core::Err _) ())))
 
-            (:wat::core::define (:my::caller -> :wat::core::nil)
+            (:wat::core::defn :my::caller [] -> :wat::core::nil
               (:wat::core::let
-                [pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-                 tx
-                  (:wat::core::first pair)
-                 rx
-                  (:wat::core::second pair)
-                 thr
-                  (:wat::kernel::spawn-thread
-                    (:wat::core::fn
-                      [_in <- :wat::kernel::Receiver<wat::core::nil>
-                       _out <- :wat::kernel::Sender<wat::core::nil>]
-                      -> :wat::core::nil
-                      (:my::sender-helper tx)))]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [pair
+                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                               tx
+                                (:wat::core::first pair)
+                               rx
+                                (:wat::core::second pair)
+                               thr
+                                (:wat::kernel::spawn-thread
+                                  (:wat::core::fn
+                                    [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                     _out <- :wat::kernel::Sender<wat::core::nil>]
+                                    -> :wat::core::nil
+                                    (:my::sender-helper tx)))]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let result = check(src);
         match result {
@@ -22014,20 +21962,14 @@ mod tests {
     #[test]
     fn arc_158a_walker_fires_on_new_shape_channel_binding() {
         let src = r#"
-            (:wat::core::define
-              (:my::helper-verb-158a-1
-                (tx :wat::kernel::Sender<wat::core::i64>)
-                (rx :wat::kernel::Receiver<wat::core::i64>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::helper-verb-158a-1 [tx <- :wat::kernel::Sender<wat::core::i64> rx <- :wat::kernel::Receiver<wat::core::i64>] -> :wat::core::nil ())
 
-            (:wat::core::define
-              (:my::new-shape-channel-binding (_d :wat::core::nil) -> :wat::core::nil)
+            (:wat::core::defn :my::new-shape-channel-binding [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 (tx (:wat::core::first pair))
-                 (rx (:wat::core::second pair)))
-                (:my::helper-verb-158a-1 tx rx)))
+                              ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                               (tx (:wat::core::first pair))
+                               (rx (:wat::core::second pair)))
+                              (:my::helper-verb-158a-1 tx rx)))
         "#;
         let err = check(src).expect_err(
             "arc 158a: new-shape channel binding must fire ChannelPairDeadlock",
@@ -22052,20 +21994,14 @@ mod tests {
     #[test]
     fn arc_158a_walker_traces_second_in_new_shape() {
         let src = r#"
-            (:wat::core::define
-              (:my::helper-verb-158a-2
-                (tx :wat::kernel::Sender<wat::core::i64>)
-                (rx :wat::kernel::Receiver<wat::core::i64>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::helper-verb-158a-2 [tx <- :wat::kernel::Sender<wat::core::i64> rx <- :wat::kernel::Receiver<wat::core::i64>] -> :wat::core::nil ())
 
-            (:wat::core::define
-              (:my::new-shape-trace-second (_d :wat::core::nil) -> :wat::core::nil)
+            (:wat::core::defn :my::new-shape-trace-second [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 (tx (:wat::core::first pair))
-                 (rx (:wat::core::second pair)))
-                (:my::helper-verb-158a-2 tx rx)))
+                              ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                               (tx (:wat::core::first pair))
+                               (rx (:wat::core::second pair)))
+                              (:my::helper-verb-158a-2 tx rx)))
         "#;
         let err = check(src).expect_err(
             "arc 158a: new-shape second-trace must fire ChannelPairDeadlock",
@@ -22087,27 +22023,26 @@ mod tests {
     #[test]
     fn arc_158a_legacy_shape_still_fires() {
         let src = r#"
-            (:wat::core::define
-              (:my::legacy-shape-still-fires -> :wat::core::nil)
+            (:wat::core::defn :my::legacy-shape-still-fires [] -> :wat::core::nil
               (:wat::core::let
-                [pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-                 rx
-                  (:wat::core::second pair)
-                 thr
-                  (:wat::kernel::spawn-thread
-                    (:wat::core::fn
-                      [_in <- :wat::kernel::Receiver<wat::core::nil>
-                       _out <- :wat::kernel::Sender<wat::core::i64>]
-                      -> :wat::core::nil
-                      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
-                        ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [pair
+                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                               rx
+                                (:wat::core::second pair)
+                               thr
+                                (:wat::kernel::spawn-thread
+                                  (:wat::core::fn
+                                    [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                     _out <- :wat::kernel::Sender<wat::core::i64>]
+                                    -> :wat::core::nil
+                                    (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                                      ((:wat::core::Ok _) ())
+                                      ((:wat::core::Err _) ()))))]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let err = check(src).expect_err(
             "arc 158a: legacy-shape Channel binding must still fire ScopeDeadlock (regression)",
@@ -22131,26 +22066,25 @@ mod tests {
     #[test]
     fn arc_158a_mixed_shape_let_fires() {
         let src = r#"
-            (:wat::core::define
-              (:my::mixed-shape-let -> :wat::core::nil)
+            (:wat::core::defn :my::mixed-shape-let [] -> :wat::core::nil
               (:wat::core::let
-                [pair
-                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-                 rx (:wat::core::second pair)
-                 thr
-                  (:wat::kernel::spawn-thread
-                    (:wat::core::fn
-                      [_in <- :wat::kernel::Receiver<wat::core::nil>
-                       _out <- :wat::kernel::Sender<wat::core::i64>]
-                      -> :wat::core::nil
-                      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
-                        ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _) ()))))]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [pair
+                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                               rx (:wat::core::second pair)
+                               thr
+                                (:wat::kernel::spawn-thread
+                                  (:wat::core::fn
+                                    [_in <- :wat::kernel::Receiver<wat::core::nil>
+                                     _out <- :wat::kernel::Sender<wat::core::i64>]
+                                    -> :wat::core::nil
+                                    (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                                      ((:wat::core::Ok _) ())
+                                      ((:wat::core::Err _) ()))))]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let err = check(src).expect_err(
             "arc 158a: mixed-shape let (legacy pair, new-shape rx) must fire ScopeDeadlock",
@@ -22175,15 +22109,12 @@ mod tests {
         // `(:my::user-make-thing)` is a call with no Sender/Receiver args,
         // so no ChannelPairDeadlock fires. Walker gives up conservatively.
         let src = r#"
-            (:wat::core::define
-              (:my::user-make-thing -> :wat::core::i64)
-              42)
+            (:wat::core::defn :my::user-make-thing [] -> :wat::core::i64 42)
 
-            (:wat::core::define
-              (:my::unrecognized-rhs-no-false-positive -> :wat::core::i64)
+            (:wat::core::defn :my::unrecognized-rhs-no-false-positive [] -> :wat::core::i64
               (:wat::core::let
-                ((x (:my::user-make-thing)))
-                x))
+                              ((x (:my::user-make-thing)))
+                              x))
         "#;
         let result = check(src);
         match result {
@@ -22213,20 +22144,14 @@ mod tests {
     #[test]
     fn arc_158a_arc126_pattern_in_new_shape() {
         let src = r#"
-            (:wat::core::define
-              (:my::helper-verb-158a-6
-                (tx :wat::kernel::Sender<wat::core::nil>)
-                (rx :wat::kernel::Receiver<wat::core::nil>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::helper-verb-158a-6 [tx <- :wat::kernel::Sender<wat::core::nil> rx <- :wat::kernel::Receiver<wat::core::nil>] -> :wat::core::nil ())
 
-            (:wat::core::define
-              (:my::arc126-in-new-shape (_d :wat::core::nil) -> :wat::core::nil)
+            (:wat::core::defn :my::arc126-in-new-shape [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                ((pair (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 (tx (:wat::core::first pair))
-                 (rx (:wat::core::second pair)))
-                (:my::helper-verb-158a-6 tx rx)))
+                              ((pair (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                               (tx (:wat::core::first pair))
+                               (rx (:wat::core::second pair)))
+                              (:my::helper-verb-158a-6 tx rx)))
         "#;
         let err = check(src).expect_err(
             "arc 158a: arc 126 canonical pattern in new shape must fire ChannelPairDeadlock",
@@ -22247,20 +22172,14 @@ mod tests {
     #[test]
     fn arc_158a_unbounded_channel_new_shape_fires() {
         let src = r#"
-            (:wat::core::define
-              (:my::helper-verb-158a-7
-                (tx :wat::kernel::Sender<wat::core::i64>)
-                (rx :wat::kernel::Receiver<wat::core::i64>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::helper-verb-158a-7 [tx <- :wat::kernel::Sender<wat::core::i64> rx <- :wat::kernel::Receiver<wat::core::i64>] -> :wat::core::nil ())
 
-            (:wat::core::define
-              (:my::unbounded-new-shape-deadlock (_d :wat::core::nil) -> :wat::core::nil)
+            (:wat::core::defn :my::unbounded-new-shape-deadlock [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                ((pair (:wat::kernel::make-unbounded-channel :wat::core::i64))
-                 (tx (:wat::core::first pair))
-                 (rx (:wat::core::second pair)))
-                (:my::helper-verb-158a-7 tx rx)))
+                              ((pair (:wat::kernel::make-unbounded-channel :wat::core::i64))
+                               (tx (:wat::core::first pair))
+                               (rx (:wat::core::second pair)))
+                              (:my::helper-verb-158a-7 tx rx)))
         "#;
         let err = check(src).expect_err(
             "arc 158a: new-shape make-unbounded-channel must fire ChannelPairDeadlock",
@@ -22313,24 +22232,19 @@ mod tests {
         // Named function so spawn_thread_fn_body_has_no_recv cannot
         // inspect the body and exempt — the rule fires unconditionally.
         let src = r#"
-            (:wat::core::define
-              (:my::worker-arc159
-                (in :wat::kernel::Receiver<wat::core::i64>)
-                (out :wat::kernel::Sender<wat::core::nil>)
-                -> :wat::core::nil)
-              ())
+            (:wat::core::defn :my::worker-arc159 [in <- :wat::kernel::Receiver<wat::core::i64> out <- :wat::kernel::Sender<wat::core::nil>] -> :wat::core::nil ())
 
-            (:wat::core::define (:my::caller-arc159 -> :wat::core::nil)
+            (:wat::core::defn :my::caller-arc159 [] -> :wat::core::nil
               (:wat::core::let
-                [pair (:wat::kernel::make-bounded-channel :wat::core::i64 1)
-                 tx (:wat::core::first pair)
-                 rx (:wat::core::second pair)
-                 thr (:wat::kernel::spawn-thread :my::worker-arc159)]
-                (:wat::core::match
-                  (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::nil
-                  ((:wat::core::Ok _) ())
-                  ((:wat::core::Err _) ()))))
+                              [pair (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                               tx (:wat::core::first pair)
+                               rx (:wat::core::second pair)
+                               thr (:wat::kernel::spawn-thread :my::worker-arc159)]
+                              (:wat::core::match
+                                (:wat::kernel::Thread/join-result thr)
+                                -> :wat::core::nil
+                                ((:wat::core::Ok _) ())
+                                ((:wat::core::Err _) ()))))
         "#;
         let err = check(src).expect_err(
             "arc 159: ScopeDeadlock must fire on new-shape channel binding at outer scope",

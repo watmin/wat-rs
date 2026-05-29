@@ -44,7 +44,7 @@ fn install() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -64,8 +64,7 @@ fn sum_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64 10 20 30)))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64 10 20 30)))
     "#;
     assert!(matches!(run(src), Value::i64(60)), "got {:?}", run(src));
 }
@@ -76,13 +75,13 @@ fn reverse_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match
-            (:wat::core::first
-              (:rust::test::VecUtils::reverse (:wat::core::Vector :wat::core::i64 1 2 3)))
-            -> :wat::core::i64
-            ((:wat::core::Some n) n)
-            (:wat::core::None -1)))
+                      (:wat::core::first
+                        (:rust::test::VecUtils::reverse (:wat::core::Vector :wat::core::i64 1 2 3)))
+                      -> :wat::core::i64
+                      ((:wat::core::Some n) n)
+                      (:wat::core::None -1)))
     "#;
     assert!(matches!(run(src), Value::i64(3)), "got {:?}", run(src));
 }
@@ -93,13 +92,13 @@ fn sort_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match
-            (:wat::core::first
-              (:rust::test::VecUtils::sort (:wat::core::Vector :wat::core::i64 5 2 8 1)))
-            -> :wat::core::i64
-            ((:wat::core::Some n) n)
-            (:wat::core::None -1)))
+                      (:wat::core::first
+                        (:rust::test::VecUtils::sort (:wat::core::Vector :wat::core::i64 5 2 8 1)))
+                      -> :wat::core::i64
+                      ((:wat::core::Some n) n)
+                      (:wat::core::None -1)))
     "#;
     assert!(matches!(run(src), Value::i64(1)), "got {:?}", run(src));
 }
@@ -110,8 +109,7 @@ fn empty_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64)))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64)))
     "#;
     assert!(matches!(run(src), Value::i64(0)), "got {:?}", run(src));
 }

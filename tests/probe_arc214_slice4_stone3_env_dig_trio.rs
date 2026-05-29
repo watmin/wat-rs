@@ -69,7 +69,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -183,32 +183,28 @@ fn run_panics(src: &str) -> bool {
 /// Env with a String at :foo.
 fn env_with_string_foo() -> &'static str {
     r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:foo (:wat::holon::to-holon "bar")})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:foo (:wat::holon::to-holon "bar")})
     "#
 }
 
 /// Env with i64 at :num.
 fn env_with_i64_num() -> &'static str {
     r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:num (:wat::holon::to-holon 42)})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:num (:wat::holon::to-holon 42)})
     "#
 }
 
 /// Env with bool at :flag.
 fn env_with_bool_flag() -> &'static str {
     r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:flag (:wat::holon::to-holon true)})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:flag (:wat::holon::to-holon true)})
     "#
 }
 
 /// Env with keyword at :tag.
 fn env_with_keyword_tag() -> &'static str {
     r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:tag (:wat::holon::to-holon :hello)})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:tag (:wat::holon::to-holon :hello)})
     "#
 }
 
@@ -217,8 +213,7 @@ fn env_with_keyword_tag() -> &'static str {
 /// not a nested HashMap.  Multi-step path [:outer :inner] returns None.
 fn env_with_outer_leaf() -> &'static str {
     r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:outer (:wat::holon::to-holon "bar")})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:outer (:wat::holon::to-holon "bar")})
     "#
 }
 
@@ -231,8 +226,7 @@ fn probe_1_dig_single_step_equivalent_to_get() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [:foo] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [:foo] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -252,8 +246,7 @@ fn probe_2_dig_single_step_miss() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [:missing] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [:missing] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -278,8 +271,7 @@ fn probe_3_two_step_path_stop1_documented() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [:outer :inner] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [:outer :inner] -> :wat::core::String))
         "#,
         env_with_outer_leaf()
     );
@@ -298,8 +290,7 @@ fn probe_4_three_step_path_stop1_documented() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [:outer :middle :inner] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [:outer :middle :inner] -> :wat::core::String))
         "#,
         env_with_outer_leaf()
     );
@@ -316,8 +307,7 @@ fn probe_5_missing_intermediate_key() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [:does-not-exist :inner] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [:does-not-exist :inner] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -333,8 +323,7 @@ fn probe_6_missing_final_key() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [:gone] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [:gone] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -351,8 +340,7 @@ fn probe_7_non_hashmap_intermediate_early_termination() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [:foo :inner] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [:foo :inner] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -369,8 +357,7 @@ fn probe_8_type_extraction_success() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
-          (:wat::program::Env/dig (:user::make-env) [:num] -> :wat::core::i64))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::i64> (:wat::program::Env/dig (:user::make-env) [:num] -> :wat::core::i64))
         "#,
         env_with_i64_num()
     );
@@ -387,8 +374,7 @@ fn probe_9_type_extraction_wrong_t_returns_none() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
-          (:wat::program::Env/dig (:user::make-env) [:foo] -> :wat::core::i64))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::i64> (:wat::program::Env/dig (:user::make-env) [:foo] -> :wat::core::i64))
         "#,
         env_with_string_foo()
     );
@@ -404,8 +390,7 @@ fn probe_10_multiple_t_types() {
     let src_i64 = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
-          (:wat::program::Env/dig (:user::make-env) [:num] -> :wat::core::i64))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::i64> (:wat::program::Env/dig (:user::make-env) [:num] -> :wat::core::i64))
         "#,
         env_with_i64_num()
     );
@@ -419,8 +404,7 @@ fn probe_10_multiple_t_types() {
     let src_string = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [:foo] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [:foo] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -434,8 +418,7 @@ fn probe_10_multiple_t_types() {
     let src_bool = with_nil_main(&format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::bool>)
-          (:wat::program::Env/dig (:user::make-env) [:flag] -> :wat::core::bool))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::bool> (:wat::program::Env/dig (:user::make-env) [:flag] -> :wat::core::bool))
         "#,
         env_with_bool_flag()
     ));
@@ -455,8 +438,7 @@ fn probe_10_multiple_t_types() {
     let src_kw = with_nil_main(&format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::keyword>)
-          (:wat::program::Env/dig (:user::make-env) [:tag] -> :wat::core::keyword))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::keyword> (:wat::program::Env/dig (:user::make-env) [:tag] -> :wat::core::keyword))
         "#,
         env_with_keyword_tag()
     ));
@@ -482,8 +464,7 @@ fn probe_11_expect_dig_found() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/expect-dig (:user::make-env) [:foo] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/expect-dig (:user::make-env) [:foo] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -499,8 +480,7 @@ fn probe_12_expect_dig_not_found_panics() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/expect-dig (:user::make-env) [:missing] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/expect-dig (:user::make-env) [:missing] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -516,8 +496,7 @@ fn probe_13_expect_dig_wrong_type_panics() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::program::Env/expect-dig (:user::make-env) [:foo] -> :wat::core::i64))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::program::Env/expect-dig (:user::make-env) [:foo] -> :wat::core::i64))
         "#,
         env_with_string_foo()
     );
@@ -533,8 +512,7 @@ fn probe_14_dig_default_found_ignores_default() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/dig-default (:user::make-env) [:foo] "fallback" -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/dig-default (:user::make-env) [:foo] "fallback" -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -554,8 +532,7 @@ fn probe_15_dig_default_not_found_returns_default() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/dig-default (:user::make-env) [:missing] "fallback" -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/dig-default (:user::make-env) [:missing] "fallback" -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -572,8 +549,7 @@ fn probe_16_dig_default_wrong_type_returns_default() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::program::Env/dig-default (:user::make-env) [:foo] 99 -> :wat::core::i64))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::program::Env/dig-default (:user::make-env) [:foo] 99 -> :wat::core::i64))
         "#,
         env_with_string_foo()
     );
@@ -597,8 +573,7 @@ fn probe_17_empty_path() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -620,8 +595,7 @@ fn probe_18_non_keyword_path_step_rejected_at_check() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/dig (:user::make-env) [42] -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/dig (:user::make-env) [42] -> :wat::core::String))
         "#,
         env_with_string_foo()
     );

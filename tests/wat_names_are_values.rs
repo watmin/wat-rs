@@ -19,7 +19,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -43,14 +43,13 @@ fn named_define_is_a_function_value() {
     // Arc 170 slice 1f-ζ: returns i64 (42) via :my::compute.
     let src = r##"
 
-        (:wat::core::define (:my::double (x :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::*'2 x 2))
+        (:wat::core::defn :my::double [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x 2))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [f :my::double
-             result (f 21)]
-            result))
+                      [f :my::double
+                       result (f 21)]
+                      result))
     "##;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 42, "expected 42; got {}", n),
@@ -68,14 +67,11 @@ fn named_define_passes_to_higher_order_fn() {
     // Arc 170 slice 1f-ζ: returns i64 (7) via :my::compute.
     let src = r##"
 
-        (:wat::core::define (:my::inc (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::+'2 n 1))
+        (:wat::core::defn :my::inc [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 n 1))
 
-        (:wat::core::define (:my::apply-twice (f :wat::core::Fn(wat::core::i64)->wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
-          (f (f x)))
+        (:wat::core::defn :my::apply-twice [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f (f x)))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:my::apply-twice :my::inc 5))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::apply-twice :my::inc 5))
     "##;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 7, "expected 7; got {}", n),
@@ -92,13 +88,11 @@ fn polymorphic_named_define_instantiates_at_use_site() {
     // Arc 170 slice 1f-ζ: returns i64 (99) via :my::compute.
     let src = r##"
 
-        (:wat::core::define (:my::identity<T> (x :T) -> :T) x)
+        (:wat::core::defn :my::identity<T> [x <- :T] -> :T x)
 
-        (:wat::core::define (:my::apply (f :wat::core::Fn(wat::core::i64)->wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
-          (f x))
+        (:wat::core::defn :my::apply [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f x))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:my::apply :my::identity 99))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::apply :my::identity 99))
     "##;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 99, "expected 99; got {}", n),
@@ -116,13 +110,13 @@ fn unregistered_keyword_still_a_literal() {
     // Arc 170 slice 1f-ζ: returns i64 (1=pass, 0=fail) via :my::compute.
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [tag :my-app::tag::user-event
-             same? (:wat::core::= tag :my-app::tag::user-event)]
-            (:wat::core::if same? -> :wat::core::i64
-              1
-              0)))
+                      [tag :my-app::tag::user-event
+                       same? (:wat::core::= tag :my-app::tag::user-event)]
+                      (:wat::core::if same? -> :wat::core::i64
+                        1
+                        0)))
     "##;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 1, "expected 1 (pass); got {}", n),
@@ -139,37 +133,36 @@ fn named_define_as_stream_map_fn() {
     // Arc 170 slice 1f-ζ: returns i64 via :my::compute (first doubled value = 2).
     let src = r##"
 
-        (:wat::core::define (:my::double (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::*'2 n 2))
+        (:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 n 2))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [source
-              (:wat::stream::spawn-producer
-                (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                  (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::nil
-                      (:wat::kernel::send tx 1)
-                      "producer: tx disconnected on send 1")
-                    (:wat::core::Result/expect -> :wat::core::nil
-                      (:wat::kernel::send tx 2)
-                      "producer: tx disconnected on send 2")
-                    (:wat::core::Result/expect -> :wat::core::nil
-                      (:wat::kernel::send tx 3)
-                      "producer: tx disconnected on send 3")
-                    ())))
-             doubled
-              (:wat::stream::map source :my::double)
-             collected (:wat::stream::collect doubled)
-             first
-              (:wat::core::match (:wat::core::first collected) -> :wat::core::i64
-                ((:wat::core::Some n) n)
-                (:wat::core::None -1))
-             len (:wat::core::length collected)]
-            (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
-              -> :wat::core::i64
-              1
-              0)))
+                      [source
+                        (:wat::stream::spawn-producer
+                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
+                            (:wat::core::do
+                              (:wat::core::Result/expect -> :wat::core::nil
+                                (:wat::kernel::send tx 1)
+                                "producer: tx disconnected on send 1")
+                              (:wat::core::Result/expect -> :wat::core::nil
+                                (:wat::kernel::send tx 2)
+                                "producer: tx disconnected on send 2")
+                              (:wat::core::Result/expect -> :wat::core::nil
+                                (:wat::kernel::send tx 3)
+                                "producer: tx disconnected on send 3")
+                              ())))
+                       doubled
+                        (:wat::stream::map source :my::double)
+                       collected (:wat::stream::collect doubled)
+                       first
+                        (:wat::core::match (:wat::core::first collected) -> :wat::core::i64
+                          ((:wat::core::Some n) n)
+                          (:wat::core::None -1))
+                       len (:wat::core::length collected)]
+                      (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
+                        -> :wat::core::i64
+                        1
+                        0)))
     "##;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 1, "expected 1 (pass); got {}", n),

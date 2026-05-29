@@ -218,6 +218,14 @@ fn check_form(
                 // Arguments are data — do not recurse into any child.
                 return;
             }
+            // Stone 241.11 — HARD CUT: :wat::core::define is retired.
+            // The checker (step 8) rejects it with a structured MalformedForm
+            // retirement remedy. The resolver must NOT recurse into the body
+            // (step 7 runs before the checker); the body's call references are
+            // irrelevant since the form itself will be rejected.
+            if head == ":wat::core::define" {
+                return;
+            }
             if head == ":wat::core::quasiquote" {
                 // Template is data except inside unquote/unquote-splicing.
                 // items[1] is the template argument (if present).
@@ -311,6 +319,17 @@ fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry
     if sym.unit_variants.contains_key(canonical) {
         return true;
     }
+    // Stone 241.11 — dispatch-registered heads are valid call heads.
+    // Before this fix, `define` bodies were consumed by `register_defines`
+    // and never walked by the resolver. `defn` bodies stay in residue and
+    // ARE walked (step 7), so dispatch heads inside those bodies must be
+    // accepted here. `:h::describe`, `:h::mix-count`, etc. are registered
+    // at step 6b (before resolve at step 7).
+    if let Some(dr) = sym.dispatch_registry() {
+        if dr.contains(canonical) {
+            return true;
+        }
+    }
     // A macro call — shouldn't survive expansion, but accept for
     // completeness. The checker notes it as suspicious in the
     // context string when a macro is the reason.
@@ -398,9 +417,12 @@ mod tests {
 
     #[test]
     fn user_define_resolves() {
+        // Stone 241.11 — the resolve() test helper does not load stdlib macros,
+        // so `defn` (a macro) would not expand. Use `def` + `fn` (the post-expansion
+        // form) to directly test the resolver without requiring macro expansion.
         assert!(resolve(
             r#"
-            (:wat::core::define (:my::app::inc (x :i64) -> :i64) (:wat::core::i64::+'2 x 1))
+            (:wat::core::def :my::app::inc (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+'2 x 1)))
             (:my::app::inc 41)
             "#,
         )
@@ -423,10 +445,12 @@ mod tests {
 
     #[test]
     fn nested_references_all_resolve() {
+        // Stone 241.11 — use `def` + `fn` (the post-macro-expansion form)
+        // since the resolve() test helper does not load stdlib macros.
         assert!(resolve(
             r#"
-            (:wat::core::define (:my::app::add-one (x :i64) -> :i64) (:wat::core::i64::+'2 x 1))
-            (:wat::core::define (:my::app::double (x :i64) -> :i64) (:wat::core::i64::*'2 x 2))
+            (:wat::core::def :my::app::add-one (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+'2 x 1)))
+            (:wat::core::def :my::app::double (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::*'2 x 2)))
             (:my::app::add-one (:my::app::double 10))
             "#,
         )

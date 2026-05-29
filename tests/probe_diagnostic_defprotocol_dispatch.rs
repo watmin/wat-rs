@@ -67,7 +67,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -110,14 +110,14 @@ fn probe_1_dispatcher_routes_to_per_type_impl() {
      mangled-kw    (:wat::core::keyword/from-string mangled-str)]
     (:wat::core::apply -> :wat::core::String mangled-kw [self])))
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)
-     c (:myapp::Celsius 20.0)
-     vf (:myapp::Formattable/format v)
-     cf (:myapp::Formattable/format c)
-     joined (:wat::core::string::concat vf "|")]
-    (:wat::core::string::concat joined cf)))
+      [v (:myapp::Voltage 5.0)
+       c (:myapp::Celsius 20.0)
+       vf (:myapp::Formattable/format v)
+       cf (:myapp::Formattable/format c)
+       joined (:wat::core::string::concat vf "|")]
+      (:wat::core::string::concat joined cf)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -163,8 +163,7 @@ fn probe_2_open_extension_after_dispatcher() {
   [self <- :wat::Record] -> :wat::core::String
   "voltage-after-dispatcher")
 
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:myapp::Formattable/format (:myapp::Voltage 5.0)))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:myapp::Formattable/format (:myapp::Voltage 5.0)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -201,8 +200,7 @@ fn probe_3_missing_impl_raises_observable_error() {
      mangled-kw    (:wat::core::keyword/from-string mangled-str)]
     (:wat::core::apply -> :wat::core::String mangled-kw [self])))
 
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:myapp::Formattable/format (:myapp::Unhandled 42)))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:myapp::Formattable/format (:myapp::Unhandled 42)))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 3: expected error for missing impl; got: {:?}", v),

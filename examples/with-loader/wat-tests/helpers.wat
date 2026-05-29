@@ -7,5 +7,4 @@
 ;; as a library and skips freezing it standalone. The entry test file
 ;; (test-loader.wat) commits config + `(:wat::load-file!)`s this file.
 
-(:wat::core::define (:user::with_loader::test_helpers::magic -> :wat::core::i64)
-  42)
+(:wat::core::defn :user::with_loader::test_helpers::magic [] -> :wat::core::i64 42)

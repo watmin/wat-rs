@@ -117,14 +117,13 @@ fn signature_of_fn_emits_anonymous_head() {
     // appears verbatim in the rendered EDN.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f   (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-                   (:wat::core::i64::+'2 a b))
-             sig (:wat::runtime::signature-of-fn f)
-             rendered (:wat::edn::write sig)]
-            (:wat::kernel::println rendered)))
+                      [f   (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
+                             (:wat::core::i64::+'2 a b))
+                       sig (:wat::runtime::signature-of-fn f)
+                       rendered (:wat::edn::write sig)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -145,14 +144,13 @@ fn signature_of_fn_extracts_monomorphic_arg_types() {
     // Symbols (not Bundles).
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f   (:wat::core::fn [n <- :wat::core::i64 s <- :wat::core::String] -> :wat::core::String
-                   s)
-             sig (:wat::runtime::signature-of-fn f)
-             rendered (:wat::edn::write sig)]
-            (:wat::kernel::println rendered)))
+                      [f   (:wat::core::fn [n <- :wat::core::i64 s <- :wat::core::String] -> :wat::core::String
+                             s)
+                       sig (:wat::runtime::signature-of-fn f)
+                       rendered (:wat::edn::write sig)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -201,14 +199,13 @@ fn signature_of_fn_extracts_parametric_arg_types() {
     // spelling does NOT.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f   (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-                   42)
-             sig (:wat::runtime::signature-of-fn f)
-             rendered (:wat::edn::write sig)]
-            (:wat::kernel::println rendered)))
+                      [f   (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+                             42)
+                       sig (:wat::runtime::signature-of-fn f)
+                       rendered (:wat::edn::write sig)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -243,13 +240,12 @@ fn signature_of_fn_extracts_return_type_path() {
     // the same constraint.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f   (:wat::core::fn [] -> :wat::core::i64 7)
-             sig (:wat::runtime::signature-of-fn f)
-             rendered (:wat::edn::write sig)]
-            (:wat::kernel::println rendered)))
+                      [f   (:wat::core::fn [] -> :wat::core::i64 7)
+                       sig (:wat::runtime::signature-of-fn f)
+                       rendered (:wat::edn::write sig)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -273,14 +269,13 @@ fn signature_of_fn_extracts_return_type_parametric() {
     // the standalone Vector head appears and the flat spelling does not.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f   (:wat::core::fn [] -> :wat::core::Vector<wat::core::i64>
-                   (:wat::core::Vector :wat::core::i64))
-             sig (:wat::runtime::signature-of-fn f)
-             rendered (:wat::edn::write sig)]
-            (:wat::kernel::println rendered)))
+                      [f   (:wat::core::fn [] -> :wat::core::Vector<wat::core::i64>
+                             (:wat::core::Vector :wat::core::i64))
+                       sig (:wat::runtime::signature-of-fn f)
+                       rendered (:wat::edn::write sig)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -308,16 +303,15 @@ fn signature_of_fn_composes_with_extract_arg_names() {
     // composes cleanly with the existing reflection-walker surface.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f      (:wat::core::fn [logger <- :wat::core::String counter <- :wat::core::i64]
-                     -> :wat::core::String
-                     logger)
-             sig    (:wat::runtime::signature-of-fn f)
-             names  (:wat::runtime::extract-arg-names sig)
-             rendered (:wat::edn::write names)]
-            (:wat::kernel::println rendered)))
+                      [f      (:wat::core::fn [logger <- :wat::core::String counter <- :wat::core::i64]
+                               -> :wat::core::String
+                               logger)
+                       sig    (:wat::runtime::signature-of-fn f)
+                       names  (:wat::runtime::extract-arg-names sig)
+                       rendered (:wat::edn::write names)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -347,16 +341,15 @@ fn signature_of_fn_composes_with_bundle_children() {
     // round-trips through the EDN renderer).
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f      (:wat::core::fn [peer <- :wat::core::Vector<wat::core::String>]
-                     -> :wat::core::String
-                     "ok")
-             sig    (:wat::runtime::signature-of-fn f)
-             kids   (:wat::holon::Bundle/children sig)
-             rendered (:wat::edn::write kids)]
-            (:wat::kernel::println rendered)))
+                      [f      (:wat::core::fn [peer <- :wat::core::Vector<wat::core::String>]
+                               -> :wat::core::String
+                               "ok")
+                       sig    (:wat::runtime::signature-of-fn f)
+                       kids   (:wat::holon::Bundle/children sig)
+                       rendered (:wat::edn::write kids)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -391,11 +384,10 @@ fn signature_of_fn_errors_on_non_fn_input() {
     // the OP tag and an expected-message that points at the right shape.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_ (:wat::runtime::signature-of-fn 42)]
-            (:wat::kernel::println "unreachable")))
+                      [_ (:wat::runtime::signature-of-fn 42)]
+                      (:wat::kernel::println "unreachable")))
     "##;
     let err = run_expecting_runtime_error(src)
         .expect("expected runtime error from signature-of-fn on non-fn input");

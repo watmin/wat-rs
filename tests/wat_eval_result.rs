@@ -22,7 +22,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -65,10 +65,10 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
           (:wat::core::let
-            [program (:wat::core::quote (:wat::holon::to-holon "hello"))]
-            (:wat::eval-ast! program)))
+                      [program (:wat::core::quote (:wat::holon::to-holon "hello"))]
+                      (:wat::eval-ast! program)))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -89,12 +89,12 @@ fn eval_ast_bang_mutation_form_surfaces_as_err() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
           (:wat::core::let
-            [program
-              (:wat::core::quote
-                (:wat::core::define (:evil (x :wat::core::i64) -> :wat::core::i64) x))]
-            (:wat::eval-ast! program)))
+                      [program
+                        (:wat::core::quote
+                          (:wat::core::define (:evil (x :wat::core::i64) -> :wat::core::i64) x))]
+                      (:wat::eval-ast! program)))
     "#;
     let result = run(src);
     assert_eq!(err_kind(&result), "mutation-form-refused");
@@ -109,8 +109,7 @@ fn eval_edn_bang_parse_failure_surfaces_as_err() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::eval-edn! "(:wat::core::i64::+'2 1"))
+        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError> (:wat::eval-edn! "(:wat::core::i64::+'2 1"))
     "#;
     let result = run(src);
     assert_eq!(err_kind(&result), "malformed-form");
@@ -124,11 +123,11 @@ fn eval_digest_string_bang_hash_mismatch_surfaces_as_err() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
           (:wat::eval-digest-string!
- "(:wat::holon::to-holon \"x\")"
-            :wat::verify::digest-sha256
-            :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"))
+           "(:wat::holon::to-holon \"x\")"
+                      :wat::verify::digest-sha256
+                      :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"))
     "#;
     let result = run(src);
     assert_eq!(err_kind(&result), "verification-failed");
@@ -142,8 +141,7 @@ fn eval_edn_bang_wrong_arity_surfaces_as_err() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::eval-edn! "foo" "bar-extra"))
+        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError> (:wat::eval-edn! "foo" "bar-extra"))
     "#;
     // Structural arity mismatch fires before the EvalError wrap; this
     // shows up at startup (the type checker catches it as wrong-arity).
@@ -164,18 +162,16 @@ fn try_propagates_eval_err_through_helper() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
     let src = r#"
 
-        (:wat::core::define (:app::run-dynamic (program :wat::WatAST)
-                             -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::Ok (:wat::core::Result/try (:wat::eval-ast! program))))
+        (:wat::core::defn :app::run-dynamic [program <- :wat::WatAST] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError> (:wat::core::Ok (:wat::core::Result/try (:wat::eval-ast! program))))
 
-        (:wat::core::define (:my::compute -> :wat::core::String)
+        (:wat::core::defn :my::compute [] -> :wat::core::String
           (:wat::core::let
-            [bad
-              (:wat::core::quote
-                (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))]
-            (:wat::core::match (:app::run-dynamic bad) -> :wat::core::String
-              ((:wat::core::Ok _) "should-not-reach")
-              ((:wat::core::Err e) (:wat::core::EvalError/kind e)))))
+                      [bad
+                        (:wat::core::quote
+                          (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))]
+                      (:wat::core::match (:app::run-dynamic bad) -> :wat::core::String
+                        ((:wat::core::Ok _) "should-not-reach")
+                        ((:wat::core::Err e) (:wat::core::EvalError/kind e)))))
     "#;
     match run(src) {
         Value::String(s) => {
@@ -192,20 +188,20 @@ fn eval_err_exposes_both_kind_and_message() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :(wat::core::String,wat::core::String))
+        (:wat::core::defn :my::compute [] -> :(wat::core::String,wat::core::String)
           (:wat::core::let
-            [bad
-              (:wat::core::quote
-                (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))
-             r
-              (:wat::eval-ast! bad)]
-            (:wat::core::match r -> :(wat::core::String,wat::core::String)
-              ((:wat::core::Ok _)
-                (:wat::core::Tuple "unreachable" "unreachable"))
-              ((:wat::core::Err e)
-                (:wat::core::Tuple
-                  (:wat::core::EvalError/kind e)
-                  (:wat::core::EvalError/message e))))))
+                      [bad
+                        (:wat::core::quote
+                          (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))
+                       r
+                        (:wat::eval-ast! bad)]
+                      (:wat::core::match r -> :(wat::core::String,wat::core::String)
+                        ((:wat::core::Ok _)
+                          (:wat::core::Tuple "unreachable" "unreachable"))
+                        ((:wat::core::Err e)
+                          (:wat::core::Tuple
+                            (:wat::core::EvalError/kind e)
+                            (:wat::core::EvalError/message e))))))
     "#;
     match run(src) {
         Value::Tuple(t) => {

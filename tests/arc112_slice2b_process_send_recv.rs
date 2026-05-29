@@ -53,26 +53,26 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
         ;; Arc 170 slice 6: spawn-process accepts a wat PROGRAM
         ;; (`Vec<WatAST>`) — the program here is a one-form program: the
         ;; child's `:user::main` define whose body invokes the worker fn.
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [proc (:wat::kernel::spawn-process
-                    (:wat::core::forms
-                      (:wat::core::define (:user::main -> :wat::core::nil)
-                        (:my::echo-worker))))
-             tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
-             rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
-             ;; send: use Result/expect (non-silent per arc 110).
-             _sent (:wat::core::Result/expect -> :wat::core::nil
-                     (:wat::kernel::send tx 41)
-                     "send failed")
-             ;; recv returns Result<Option<I>, RecvError>; match all three
-             ;; states per arc 110 grammar rule.
-             recv-result (:wat::kernel::recv rx)
-             _val (:wat::core::match recv-result -> :wat::core::i64
-                    ((:wat::core::Ok (:wat::core::Some v)) v)
-                    ((:wat::core::Ok :wat::core::None)    0)
-                    ((:wat::core::Err _)                  0))]
-            :wat::core::nil))
+                      [proc (:wat::kernel::spawn-process
+                              (:wat::core::forms
+                                (:wat::core::define (:user::main -> :wat::core::nil)
+                                  (:my::echo-worker))))
+                       tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
+                       rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
+                       ;; send: use Result/expect (non-silent per arc 110).
+                       _sent (:wat::core::Result/expect -> :wat::core::nil
+                               (:wat::kernel::send tx 41)
+                               "send failed")
+                       ;; recv returns Result<Option<I>, RecvError>; match all three
+                       ;; states per arc 110 grammar rule.
+                       recv-result (:wat::kernel::recv rx)
+                       _val (:wat::core::match recv-result -> :wat::core::i64
+                              ((:wat::core::Ok (:wat::core::Some v)) v)
+                              ((:wat::core::Ok :wat::core::None)    0)
+                              ((:wat::core::Err _)                  0))]
+                      :wat::core::nil))
     "##;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     if let Err(e) = result {

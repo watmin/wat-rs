@@ -43,34 +43,26 @@
 ;; slots carry the rendered values so the test runner can display them
 ;; alongside the source location. Used to be `:None :None` (just "the
 ;; assertion fired"); arc 064 closed the diagnostic gap.
-(:wat::core::define
-  (:wat::test::assert-eq<T>
-    (actual :T)
-    (expected :T)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::test::assert-eq<T> [actual <- :T expected <- :T] -> :wat::core::nil
   (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
-    :wat::core::nil
-    (:wat::kernel::assertion-failed!
-      "assert-eq failed"
-      (:wat::core::Some (:wat::core::show actual))
-      (:wat::core::Some (:wat::core::show expected)))))
+      :wat::core::nil
+      (:wat::kernel::assertion-failed!
+        "assert-eq failed"
+        (:wat::core::Some (:wat::core::show actual))
+        (:wat::core::Some (:wat::core::show expected)))))
 
 ;; ─── assert-contains ──────────────────────────────────────────────────
 ;;
 ;; String substring check. Unlike assert-eq, both sides are :wat::core::String so
 ;; we can populate actual/expected with the real values — the failure
 ;; in a RunResult shows the user which haystack/needle fired.
-(:wat::core::define
-  (:wat::test::assert-contains
-    (haystack :wat::core::String)
-    (needle :wat::core::String)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::test::assert-contains [haystack <- :wat::core::String needle <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if (:wat::core::string::contains? haystack needle) -> :wat::core::nil
-    :wat::core::nil
-    (:wat::kernel::assertion-failed!
-      "assert-contains failed"
-      (:wat::core::Some haystack)
-      (:wat::core::Some needle))))
+      :wat::core::nil
+      (:wat::kernel::assertion-failed!
+        "assert-contains failed"
+        (:wat::core::Some haystack)
+        (:wat::core::Some needle))))
 
 ;; ─── assert-coincident ────────────────────────────────────────────────
 ;;
@@ -94,48 +86,41 @@
 ;; smallest sigma at which the pair would coincide — distinguishes
 ;; "calibration boundary" from "structurally distant" from "encoding
 ;; shape wrong" without a separate diagnostic round-trip.
-(:wat::core::define
-  (:wat::test::assert-coincident
-    (a :wat::holon::HolonAST)
-    (b :wat::holon::HolonAST)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::test::assert-coincident [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::core::nil
   (:wat::core::let
-    [expl
-      (:wat::holon::coincident-explain a b)
-     ok
-      (:wat::holon::CoincidentExplanation/coincident expl)]
-    (:wat::core::if ok -> :wat::core::nil
-      :wat::core::nil
-      (:wat::kernel::assertion-failed!
-        "assert-coincident failed — holons not at the same point"
-        (:wat::core::Some (:wat::test::render-coincident-explanation expl))
-        :wat::core::None))))
+      [expl
+        (:wat::holon::coincident-explain a b)
+       ok
+        (:wat::holon::CoincidentExplanation/coincident expl)]
+      (:wat::core::if ok -> :wat::core::nil
+        :wat::core::nil
+        (:wat::kernel::assertion-failed!
+          "assert-coincident failed — holons not at the same point"
+          (:wat::core::Some (:wat::test::render-coincident-explanation expl))
+          :wat::core::None))))
 
 ;; Helper — turn a CoincidentExplanation into a multi-line, named-
 ;; field string for assertion failure displays. Each field on its own
 ;; line, indented, so a developer reading test output sees the full
 ;; story without horizontal scrolling. Used by assert-coincident;
 ;; consumers wanting raw values call coincident-explain directly.
-(:wat::core::define
-  (:wat::test::render-coincident-explanation
-    (expl :wat::holon::CoincidentExplanation)
-    -> :wat::core::String)
+(:wat::core::defn :wat::test::render-coincident-explanation [expl <- :wat::holon::CoincidentExplanation] -> :wat::core::String
   (:wat::core::string::concat
-    "\n  cosine            = "
-    (:wat::core::f64::to-string
-      (:wat::holon::CoincidentExplanation/cosine expl))
-    "\n  floor             = "
-    (:wat::core::f64::to-string
-      (:wat::holon::CoincidentExplanation/floor expl))
-    "\n  dim               = "
-    (:wat::core::i64::to-string
-      (:wat::holon::CoincidentExplanation/dim expl))
-    "\n  sigma             = "
-    (:wat::core::i64::to-string
-      (:wat::holon::CoincidentExplanation/sigma expl))
-    "\n  min-sigma-to-pass = "
-    (:wat::core::i64::to-string
-      (:wat::holon::CoincidentExplanation/min-sigma-to-pass expl))))
+      "\n  cosine            = "
+      (:wat::core::f64::to-string
+        (:wat::holon::CoincidentExplanation/cosine expl))
+      "\n  floor             = "
+      (:wat::core::f64::to-string
+        (:wat::holon::CoincidentExplanation/floor expl))
+      "\n  dim               = "
+      (:wat::core::i64::to-string
+        (:wat::holon::CoincidentExplanation/dim expl))
+      "\n  sigma             = "
+      (:wat::core::i64::to-string
+        (:wat::holon::CoincidentExplanation/sigma expl))
+      "\n  min-sigma-to-pass = "
+      (:wat::core::i64::to-string
+        (:wat::holon::CoincidentExplanation/min-sigma-to-pass expl))))
 
 ;; ─── assert-stdout-is ─────────────────────────────────────────────────
 ;;
@@ -143,47 +128,35 @@
 ;; :wat::core::=, which is defined over T — for wat::core::Vector<String> it compares
 ;; elementwise. Joins both sides with "\n" into the Failure payload so
 ;; the user sees the diff in a RunResult.
-(:wat::core::define
-  (:wat::test::assert-stdout-is
-    (result :wat::kernel::RunResult)
-    (expected :wat::core::Vector<wat::core::String>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::test::assert-stdout-is [result <- :wat::kernel::RunResult expected <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
   (:wat::core::let
-    [actual (:wat::kernel::RunResult/stdout result)]
-    (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
-      :wat::core::nil
-      (:wat::kernel::assertion-failed!
-        "assert-stdout-is failed"
-        (:wat::core::Some (:wat::core::string::join "\n" actual))
-        (:wat::core::Some (:wat::core::string::join "\n" expected))))))
+      [actual (:wat::kernel::RunResult/stdout result)]
+      (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
+        :wat::core::nil
+        (:wat::kernel::assertion-failed!
+          "assert-stdout-is failed"
+          (:wat::core::Some (:wat::core::string::join "\n" actual))
+          (:wat::core::Some (:wat::core::string::join "\n" expected))))))
 
 ;; ─── assert-stderr-matches ────────────────────────────────────────────
 ;;
 ;; Regex match (unanchored) against each line of a RunResult's stderr.
 ;; Any line matching passes. Uses foldl over wat::core::Vector<String> to OR the
 ;; matches — a straightforward "any" without a new primitive.
-(:wat::core::define
-  (:wat::test::any-line-matches
-    (pattern :wat::core::String)
-    (lines :wat::core::Vector<wat::core::String>)
-    -> :wat::core::bool)
+(:wat::core::defn :wat::test::any-line-matches [pattern <- :wat::core::String lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::bool
   (:wat::core::foldl lines false
-    (:wat::core::fn [acc <- :wat::core::bool line <- :wat::core::String] -> :wat::core::bool
-      (:wat::core::or acc (:wat::core::regex::matches? pattern line)))))
+      (:wat::core::fn [acc <- :wat::core::bool line <- :wat::core::String] -> :wat::core::bool
+        (:wat::core::or acc (:wat::core::regex::matches? pattern line)))))
 
-(:wat::core::define
-  (:wat::test::assert-stderr-matches
-    (result :wat::kernel::RunResult)
-    (pattern :wat::core::String)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::test::assert-stderr-matches [result <- :wat::kernel::RunResult pattern <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let
-    [stderr-lines (:wat::kernel::RunResult/stderr result)]
-    (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::nil
-      :wat::core::nil
-      (:wat::kernel::assertion-failed!
-        "assert-stderr-matches failed — no stderr line matched pattern"
-        (:wat::core::Some (:wat::core::string::join "\n" stderr-lines))
-        (:wat::core::Some pattern)))))
+      [stderr-lines (:wat::kernel::RunResult/stderr result)]
+      (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::nil
+        :wat::core::nil
+        (:wat::kernel::assertion-failed!
+          "assert-stderr-matches failed — no stderr line matched pattern"
+          (:wat::core::Some (:wat::core::string::join "\n" stderr-lines))
+          (:wat::core::Some pattern)))))
 
 ;; ─── run / run-in-scope ───────────────────────────────────────────────
 ;;
@@ -191,20 +164,9 @@
 ;; the common case — no filesystem access at all (InMemoryLoader).
 ;; `run-in-scope` sets up ScopedLoader when the test uses load! with
 ;; fixture files.
-(:wat::core::define
-  (:wat::test::run
-    (src :wat::core::String)
-    (stdin :wat::core::Vector<wat::core::String>)
-    -> :wat::kernel::RunResult)
-  (:wat::kernel::run-sandboxed src stdin :wat::core::None))
+(:wat::core::defn :wat::test::run [src <- :wat::core::String stdin <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed src stdin :wat::core::None))
 
-(:wat::core::define
-  (:wat::test::run-in-scope
-    (src :wat::core::String)
-    (stdin :wat::core::Vector<wat::core::String>)
-    (scope :wat::core::String)
-    -> :wat::kernel::RunResult)
-  (:wat::kernel::run-sandboxed src stdin (:wat::core::Some scope)))
+(:wat::core::defn :wat::test::run-in-scope [src <- :wat::core::String stdin <- :wat::core::Vector<wat::core::String> scope <- :wat::core::String] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed src stdin (:wat::core::Some scope)))
 
 ;; ─── run-ast + program — AST-entry test sandbox ──────────────────────
 ;;
@@ -230,12 +192,7 @@
     -> :AST<wat::core::Vector<wat::WatAST>>)
   `(:wat::core::forms ~@forms))
 
-(:wat::core::define
-  (:wat::test::run-ast
-    (forms :wat::core::Vector<wat::WatAST>)
-    (stdin :wat::core::Vector<wat::core::String>)
-    -> :wat::kernel::RunResult)
-  (:wat::kernel::run-sandboxed-ast forms stdin :wat::core::None))
+(:wat::core::defn :wat::test::run-ast [forms <- :wat::core::Vector<wat::WatAST> stdin <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed-ast forms stdin :wat::core::None))
 
 ;; --- run-hermetic-ast — AST-entry hermetic sandbox ---
 ;;
@@ -250,12 +207,7 @@
 ;; (pure wat stdlib on top of fork-program-ast). The
 ;; child inherits AST in memory via COW — no subprocess reload, no
 ;; serialization, no binary-path coupling.
-(:wat::core::define
-  (:wat::test::run-hermetic-ast
-    (forms :wat::core::Vector<wat::WatAST>)
-    (stdin :wat::core::Vector<wat::core::String>)
-    -> :wat::kernel::RunResult)
-  (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :wat::core::None))
+(:wat::core::defn :wat::test::run-hermetic-ast [forms <- :wat::core::Vector<wat::WatAST> stdin <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :wat::core::None))
 
 ;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031; arc 170 slice 3 phase E V5; arc 170 slice 4a-γ-flip) ───
 ;;
@@ -303,8 +255,7 @@
     -> :AST<wat::core::nil>)
   `(:wat::core::do
      ~@prelude
-     (:wat::core::define (~name -> :wat::test::TestResult)
-       (:wat::test::run-thread ~body))))
+     (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread ~body))))
 
 ;; ─── deftest-hermetic — same shape, forked child for isolation ────────
 ;;
@@ -339,10 +290,10 @@
   ;; escape to top-level; the spawn-process pivot retires that workaround
   ;; — top-level forms ARE the substrate's program shape. Declarations
   ;; sit at their natural position from the start; no lift required.
-  `(:wat::core::define (~name -> :wat::test::TestResult)
-     (:wat::test::run-hermetic-with-prelude
-       ~prelude
-       ~body)))
+  `(:wat::core::defn ~name [] -> :wat::test::TestResult
+    (:wat::test::run-hermetic-with-prelude
+           ~prelude
+           ~body)))
 
 ;; ─── make-deftest — configured-deftest factory (arc 029; arc 031) ─────
 ;;
@@ -425,13 +376,9 @@
 ;; presence is irrelevant; their meaning is purely proc-macro-side.
 ;; An annotation attaches to the IMMEDIATELY NEXT deftest; intervening
 ;; non-annotation forms clear the pending annotation.
-(:wat::core::define
-  (:wat::test::ignore (_reason :wat::core::String) -> :wat::core::nil)
-  :wat::core::nil)
+(:wat::core::defn :wat::test::ignore [_reason <- :wat::core::String] -> :wat::core::nil :wat::core::nil)
 
-(:wat::core::define
-  (:wat::test::should-panic (_expected :wat::core::String) -> :wat::core::nil)
-  :wat::core::nil)
+(:wat::core::defn :wat::test::should-panic [_expected <- :wat::core::String] -> :wat::core::nil :wat::core::nil)
 
 ;; Arc 123 — :time-limit annotation. Sibling-form preceding a
 ;; deftest: when present, the proc macro wraps the generated
@@ -450,9 +397,7 @@
 ;;   (:wat::test::time-limit "30s")        ;; supported
 ;;   (:wat::test::time-limit "5m")         ;; supported
 ;;   (:wat::test::deftest :my::test () body)
-(:wat::core::define
-  (:wat::test::time-limit (_dur :wat::core::String) -> :wat::core::nil)
-  :wat::core::nil)
+(:wat::core::defn :wat::test::time-limit [_dur <- :wat::core::String] -> :wat::core::nil :wat::core::nil)
 
 ;; ─── Layer 1 testing-lib API (arc 170 slice 3 phase C) ─────────────────
 ;;
@@ -512,60 +457,57 @@
 ;; test runner's failure_to_diagnostic extracts actual/expected from
 ;; the AssertionFailed Failure struct. Falls back to join-result's
 ;; singleton when no panic-marker is found (clean exit).
-(:wat::core::define
-  (:wat::test::run-hermetic-driver
-    (proc :wat::kernel::Process<wat::core::nil,wat::core::nil>)
-    -> :wat::kernel::RunResult)
+(:wat::core::defn :wat::test::run-hermetic-driver [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>] -> :wat::kernel::RunResult
   ;; Outer scope: proc handle lives here; Process/join-result runs AFTER
-  ;; inner scope has dropped both output Receivers.  SERVICE-PROGRAMS.md
-  ;; § "The lockstep" — inner-let owns every output Receiver; when the
-  ;; inner body returns, stdout-r and stderr-r drop; substrate drain
-  ;; threads see EOF; child can exit; outer join-result unblocks cleanly.
-  (:wat::core::let
-    [drain-pair
-      (:wat::core::let
-        ;; Inner scope: stdin Sender + Receivers + drained lines.
-        ;; stdin-w drops at inner-let exit → child's StdInService sees EOF →
-        ;; child can exit. stdout-r/stderr-r also drop here → drain threads
-        ;; see EOF → child's OS pipes drain cleanly before outer join.
-        [stdin-w        (:wat::kernel::Process/stdin proc)
-         stdout-r       (:wat::kernel::Process/stdout proc)
-         stderr-r       (:wat::kernel::Process/stderr proc)
-         stdout-lines   (:wat::kernel::drain-lines stdout-r)
-         stderr-lines   (:wat::kernel::drain-lines stderr-r)]
-        (:wat::core::Tuple stdout-lines stderr-lines))
-     stdout-lines   (:wat::core::first drain-pair)
-     stderr-lines   (:wat::core::second drain-pair)
-     ;; Inner scope has exited; Receivers dropped; child can exit.
-     ;; join-result runs in the outer scope and returns immediately.
-     joined-result  (:wat::kernel::Process/join-result proc)
-     stderr-chain   (:wat::kernel::extract-panics stderr-lines)
-     failure
-      (:wat::core::match joined-result
-        -> :wat::core::Option<wat::kernel::Failure>
-        ((:wat::core::Ok _)  :wat::core::None)
-        ((:wat::core::Err chain)
-         (:wat::core::Some
-           (:wat::kernel::failure-from-process-died
-             (:wat::core::match stderr-chain
-               -> :wat::core::Vector<wat::kernel::ProcessDiedError>
-               ((:wat::core::Some sc) sc)
-               ;; Arc 170 slice 1i — substrate contract: every child error
-               ;; MUST emit a structured #wat.kernel/ProcessPanics line.
-               ;; None here means the substrate violated the contract —
-               ;; surface it as a substrate bug, not a silent fallback.
-               ;; Concat actual stderr-lines into the panic message so the
-               ;; substrate's contract violation is self-diagnosing — the
-               ;; reader sees what fd 2 carried (plain text or unparseable
-               ;; EDN) without having to inspect RunResult.stderr separately.
-               (:wat::core::None
-                (:wat::kernel::assertion-failed!
-                  (:wat::core::string::concat
-                    "structured-stderr-only contract violation: child error but no parseable ProcessPanics found on stderr.\nActual stderr content:\n"
-                    (:wat::core::string::join "\n" stderr-lines))
-                  :wat::core::None :wat::core::None)))))))]
-    (:wat::core::struct-new :wat::kernel::RunResult
-      stdout-lines stderr-lines failure)))
+    ;; inner scope has dropped both output Receivers.  SERVICE-PROGRAMS.md
+    ;; § "The lockstep" — inner-let owns every output Receiver; when the
+    ;; inner body returns, stdout-r and stderr-r drop; substrate drain
+    ;; threads see EOF; child can exit; outer join-result unblocks cleanly.
+    (:wat::core::let
+      [drain-pair
+        (:wat::core::let
+          ;; Inner scope: stdin Sender + Receivers + drained lines.
+          ;; stdin-w drops at inner-let exit → child's StdInService sees EOF →
+          ;; child can exit. stdout-r/stderr-r also drop here → drain threads
+          ;; see EOF → child's OS pipes drain cleanly before outer join.
+          [stdin-w        (:wat::kernel::Process/stdin proc)
+           stdout-r       (:wat::kernel::Process/stdout proc)
+           stderr-r       (:wat::kernel::Process/stderr proc)
+           stdout-lines   (:wat::kernel::drain-lines stdout-r)
+           stderr-lines   (:wat::kernel::drain-lines stderr-r)]
+          (:wat::core::Tuple stdout-lines stderr-lines))
+       stdout-lines   (:wat::core::first drain-pair)
+       stderr-lines   (:wat::core::second drain-pair)
+       ;; Inner scope has exited; Receivers dropped; child can exit.
+       ;; join-result runs in the outer scope and returns immediately.
+       joined-result  (:wat::kernel::Process/join-result proc)
+       stderr-chain   (:wat::kernel::extract-panics stderr-lines)
+       failure
+        (:wat::core::match joined-result
+          -> :wat::core::Option<wat::kernel::Failure>
+          ((:wat::core::Ok _)  :wat::core::None)
+          ((:wat::core::Err chain)
+           (:wat::core::Some
+             (:wat::kernel::failure-from-process-died
+               (:wat::core::match stderr-chain
+                 -> :wat::core::Vector<wat::kernel::ProcessDiedError>
+                 ((:wat::core::Some sc) sc)
+                 ;; Arc 170 slice 1i — substrate contract: every child error
+                 ;; MUST emit a structured #wat.kernel/ProcessPanics line.
+                 ;; None here means the substrate violated the contract —
+                 ;; surface it as a substrate bug, not a silent fallback.
+                 ;; Concat actual stderr-lines into the panic message so the
+                 ;; substrate's contract violation is self-diagnosing — the
+                 ;; reader sees what fd 2 carried (plain text or unparseable
+                 ;; EDN) without having to inspect RunResult.stderr separately.
+                 (:wat::core::None
+                  (:wat::kernel::assertion-failed!
+                    (:wat::core::string::concat
+                      "structured-stderr-only contract violation: child error but no parseable ProcessPanics found on stderr.\nActual stderr content:\n"
+                      (:wat::core::string::join "\n" stderr-lines))
+                    :wat::core::None :wat::core::None)))))))]
+      (:wat::core::struct-new :wat::kernel::RunResult
+        stdout-lines stderr-lines failure)))
 
 ;; ── run-hermetic macro ──────────────────────────────────────────────────
 ;;
@@ -604,8 +546,7 @@
   `(:wat::test::run-hermetic-driver
      (:wat::kernel::spawn-process
        (:wat::core::forms
-         (:wat::core::define (:user::main -> :wat::core::nil)
-           ~body)))))
+         (:wat::core::defn :user::main [] -> :wat::core::nil ~body)))))
 
 ;; ── run-hermetic-with-prelude — exposes the program prelude slot ────────
 ;;
@@ -670,8 +611,7 @@
      (:wat::kernel::spawn-process
        (:wat::core::forms
          ~@prelude
-         (:wat::core::define (:user::main -> :wat::core::nil)
-           ~body)))))
+         (:wat::core::defn :user::main [] -> :wat::core::nil ~body)))))
 
 ;; ─── Layer 1 — run-thread (cheap-thread default, arc 170 slice 4a-α) ──
 ;;
@@ -714,23 +654,20 @@
 ;; (where the process-side sibling lives). There's exactly one caller
 ;; — run-thread-driver, a test-layer helper. Promote to kernel:: if a
 ;; kernel-layer caller surfaces later.
-(:wat::core::define
-  (:wat::test::failure-from-thread-died
-    (chain :wat::core::Vector<wat::kernel::ThreadDiedError>)
-    -> :wat::kernel::Failure)
+(:wat::core::defn :wat::test::failure-from-thread-died [chain <- :wat::core::Vector<wat::kernel::ThreadDiedError>] -> :wat::kernel::Failure
   (:wat::core::match (:wat::core::first chain)
-    -> :wat::kernel::Failure
-    ((:wat::core::Some err) (:wat::kernel::ThreadDiedError/to-failure err))
-    (:wat::core::None
-     ;; Empty chain — should not occur; substrate always emits at
-     ;; least the immediate-peer death. Defensive default mirrors
-     ;; failure-from-process-died's None arm.
-     (:wat::core::struct-new :wat::kernel::Failure
-       "empty died-chain (substrate bug)"
-       :wat::core::None
-       (:wat::core::Vector :wat::kernel::Frame)
-       :wat::core::None
-       :wat::core::None))))
+      -> :wat::kernel::Failure
+      ((:wat::core::Some err) (:wat::kernel::ThreadDiedError/to-failure err))
+      (:wat::core::None
+       ;; Empty chain — should not occur; substrate always emits at
+       ;; least the immediate-peer death. Defensive default mirrors
+       ;; failure-from-process-died's None arm.
+       (:wat::core::struct-new :wat::kernel::Failure
+         "empty died-chain (substrate bug)"
+         :wat::core::None
+         (:wat::core::Vector :wat::kernel::Frame)
+         :wat::core::None
+         :wat::core::None))))
 
 ;; ── run-thread-driver — Thread<nil,nil> → RunResult ──────────────────
 ;;
@@ -741,21 +678,18 @@
 ;; stdio services (runtime.rs:16623-16648); there is no per-thread
 ;; stream to drain. The structurally-lighter driver is the honest
 ;; expression of the thread transport's properties.
-(:wat::core::define
-  (:wat::test::run-thread-driver
-    (thr :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-    -> :wat::kernel::RunResult)
+(:wat::core::defn :wat::test::run-thread-driver [thr <- :wat::kernel::Thread<wat::core::nil,wat::core::nil>] -> :wat::kernel::RunResult
   (:wat::core::let
-    [joined  (:wat::kernel::Thread/join-result thr)
-     failure (:wat::core::match joined
-               -> :wat::core::Option<wat::kernel::Failure>
-               ((:wat::core::Ok _)      :wat::core::None)
-               ((:wat::core::Err chain) (:wat::core::Some
-                                          (:wat::test::failure-from-thread-died chain))))]
-    (:wat::core::struct-new :wat::kernel::RunResult
-      (:wat::core::Vector :wat::core::String)
-      (:wat::core::Vector :wat::core::String)
-      failure)))
+      [joined  (:wat::kernel::Thread/join-result thr)
+       failure (:wat::core::match joined
+                 -> :wat::core::Option<wat::kernel::Failure>
+                 ((:wat::core::Ok _)      :wat::core::None)
+                 ((:wat::core::Err chain) (:wat::core::Some
+                                            (:wat::test::failure-from-thread-died chain))))]
+      (:wat::core::struct-new :wat::kernel::RunResult
+        (:wat::core::Vector :wat::core::String)
+        (:wat::core::Vector :wat::core::String)
+        failure)))
 
 ;; ── run-thread — Layer 1 macro (cheap-thread default) ───────────────
 ;;
@@ -846,25 +780,21 @@
 ;; Note: (:wat::core::first vec) returns Option<I> (arc 047 honest
 ;; absence design). We use Option/expect to unwrap since we only call
 ;; first after confirming Vector/empty? is false.
-(:wat::core::define
-  (:wat::test::run-hermetic-send-inputs<I>
-    (tx :wat::kernel::Sender<I>)
-    (inputs :wat::core::Vector<I>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::test::run-hermetic-send-inputs<I> [tx <- :wat::kernel::Sender<I> inputs <- :wat::core::Vector<I>] -> :wat::core::nil
   (:wat::core::if (:wat::core::Vector/empty? inputs)
-    -> :wat::core::nil
-    :wat::core::nil
-    (:wat::core::let
-      [item
-        (:wat::core::Option/expect -> :I
-          (:wat::core::first inputs)
-          "run-hermetic-send-inputs: first of non-empty vector was None (substrate bug)")
-       rest (:wat::core::rest inputs)
-       _
-        (:wat::core::Result/expect -> :wat::core::nil
-          (:wat::kernel::send tx item)
-          "run-hermetic-send-inputs: send failed — child disconnected")]
-      (:wat::test::run-hermetic-send-inputs tx rest))))
+      -> :wat::core::nil
+      :wat::core::nil
+      (:wat::core::let
+        [item
+          (:wat::core::Option/expect -> :I
+            (:wat::core::first inputs)
+            "run-hermetic-send-inputs: first of non-empty vector was None (substrate bug)")
+         rest (:wat::core::rest inputs)
+         _
+          (:wat::core::Result/expect -> :wat::core::nil
+            (:wat::kernel::send tx item)
+            "run-hermetic-send-inputs: send failed — child disconnected")]
+        (:wat::test::run-hermetic-send-inputs tx rest))))
 
 ;; ── run-hermetic-drain-outputs ───────────────────────────────────────────
 ;;
@@ -873,17 +803,13 @@
 ;; channel is disconnected (child exited; tx dropped) or signals Ok(None).
 ;; Accumulates outputs into `acc` and returns when the stream is exhausted.
 ;; Called exclusively from run-hermetic-with-io-driver.
-(:wat::core::define
-  (:wat::test::run-hermetic-drain-outputs<O>
-    (rx :wat::kernel::Receiver<O>)
-    (acc :wat::core::Vector<O>)
-    -> :wat::core::Vector<O>)
+(:wat::core::defn :wat::test::run-hermetic-drain-outputs<O> [rx <- :wat::kernel::Receiver<O> acc <- :wat::core::Vector<O>] -> :wat::core::Vector<O>
   (:wat::core::match (:wat::kernel::recv rx)
-    -> :wat::core::Vector<O>
-    ((:wat::core::Ok (:wat::core::Some v))
-     (:wat::test::run-hermetic-drain-outputs rx (:wat::core::conj acc v)))
-    ((:wat::core::Ok :wat::core::None) acc)
-    ((:wat::core::Err _died) acc)))
+      -> :wat::core::Vector<O>
+      ((:wat::core::Ok (:wat::core::Some v))
+       (:wat::test::run-hermetic-drain-outputs rx (:wat::core::conj acc v)))
+      ((:wat::core::Ok :wat::core::None) acc)
+      ((:wat::core::Err _died) acc)))
 
 ;; ── run-hermetic-with-io-driver ──────────────────────────────────────────
 ;;
@@ -907,61 +833,57 @@
 ;;   after processing all inputs, dropping its stdout pipe end (fd 1 closes
 ;;   when bootstrap services shut down). The drain-outputs sees disconnect
 ;;   (EOF) and returns. Join then finds the child already exited.
-(:wat::core::define
-  (:wat::test::run-hermetic-with-io-driver<I,O>
-    (proc :wat::kernel::Process<I,O>)
-    (inputs :wat::core::Vector<I>)
-    -> :wat::test::RunResultIO<O>)
+(:wat::core::defn :wat::test::run-hermetic-with-io-driver<I,O> [proc <- :wat::kernel::Process<I,O> inputs <- :wat::core::Vector<I>] -> :wat::test::RunResultIO<O>
   ;; Outer scope: proc handle + send inputs + join-result.
-  ;; SERVICE-PROGRAMS.md § "The lockstep" at the Process boundary:
-  ;;   1. Outer scope wraps Process/stdin as tx; sends all inputs.
-  ;;   2. Inner scope wraps Process/stdout as rx; drains all outputs +
-  ;;      stderr. When inner body returns, rx and stderr-r drop;
-  ;;      bootstrap drain threads see EOF; child can exit.
-  ;;   3. Outer join-result runs after inner exits — child already done.
-  (:wat::core::let
-    [;; Stone C: wrap Process/stdin (IOWriter) for typed sends.
-     tx           (:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))
-     _            (:wat::test::run-hermetic-send-inputs tx inputs)
-     ;; Inner scope: stdout Receiver + stderr Receiver + drained data.
-     ;; Dropping these bindings lets bootstrap's drain threads drain
-     ;; the child's OS pipes to EOF so the child can exit cleanly.
-     drain-triple
-      (:wat::core::let
-        [rx           (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
-         outputs      (:wat::test::run-hermetic-drain-outputs rx (:wat::core::Vector :O))
-         stderr-r     (:wat::kernel::Process/stderr proc)
-         stderr-lines (:wat::kernel::drain-lines stderr-r)]
-        (:wat::core::Tuple outputs stderr-lines))
-     outputs      (:wat::core::first drain-triple)
-     stderr-lines (:wat::core::second drain-triple)
-     ;; Inner scope has exited; rx and stderr-r dropped; child can exit.
-     joined-result  (:wat::kernel::Process/join-result proc)
-     stderr-chain   (:wat::kernel::extract-panics stderr-lines)
-     failure
-      (:wat::core::match joined-result
-        -> :wat::core::Option<wat::kernel::Failure>
-        ((:wat::core::Ok _) :wat::core::None)
-        ((:wat::core::Err chain)
-         (:wat::core::Some
-           (:wat::kernel::failure-from-process-died
-             (:wat::core::match stderr-chain
-               -> :wat::core::Vector<wat::kernel::ProcessDiedError>
-               ((:wat::core::Some sc) sc)
-               ;; Arc 170 slice 1i — substrate contract: every child error
-               ;; MUST emit structured #wat.kernel/ProcessPanics EDN.
-               ;; Concat actual stderr-lines into the panic message so the
-               ;; substrate's contract violation is self-diagnosing — the
-               ;; reader sees what fd 2 carried (plain text or unparseable
-               ;; EDN) without having to inspect RunResult.stderr separately.
-               (:wat::core::None
-                (:wat::kernel::assertion-failed!
-                  (:wat::core::string::concat
-                    "structured-stderr-only contract violation: child error but no parseable ProcessPanics found on stderr.\nActual stderr content:\n"
-                    (:wat::core::string::join "\n" stderr-lines))
-                  :wat::core::None :wat::core::None)))))))]
-    (:wat::core::struct-new :wat::test::RunResultIO
-      outputs stderr-lines failure)))
+    ;; SERVICE-PROGRAMS.md § "The lockstep" at the Process boundary:
+    ;;   1. Outer scope wraps Process/stdin as tx; sends all inputs.
+    ;;   2. Inner scope wraps Process/stdout as rx; drains all outputs +
+    ;;      stderr. When inner body returns, rx and stderr-r drop;
+    ;;      bootstrap drain threads see EOF; child can exit.
+    ;;   3. Outer join-result runs after inner exits — child already done.
+    (:wat::core::let
+      [;; Stone C: wrap Process/stdin (IOWriter) for typed sends.
+       tx           (:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))
+       _            (:wat::test::run-hermetic-send-inputs tx inputs)
+       ;; Inner scope: stdout Receiver + stderr Receiver + drained data.
+       ;; Dropping these bindings lets bootstrap's drain threads drain
+       ;; the child's OS pipes to EOF so the child can exit cleanly.
+       drain-triple
+        (:wat::core::let
+          [rx           (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
+           outputs      (:wat::test::run-hermetic-drain-outputs rx (:wat::core::Vector :O))
+           stderr-r     (:wat::kernel::Process/stderr proc)
+           stderr-lines (:wat::kernel::drain-lines stderr-r)]
+          (:wat::core::Tuple outputs stderr-lines))
+       outputs      (:wat::core::first drain-triple)
+       stderr-lines (:wat::core::second drain-triple)
+       ;; Inner scope has exited; rx and stderr-r dropped; child can exit.
+       joined-result  (:wat::kernel::Process/join-result proc)
+       stderr-chain   (:wat::kernel::extract-panics stderr-lines)
+       failure
+        (:wat::core::match joined-result
+          -> :wat::core::Option<wat::kernel::Failure>
+          ((:wat::core::Ok _) :wat::core::None)
+          ((:wat::core::Err chain)
+           (:wat::core::Some
+             (:wat::kernel::failure-from-process-died
+               (:wat::core::match stderr-chain
+                 -> :wat::core::Vector<wat::kernel::ProcessDiedError>
+                 ((:wat::core::Some sc) sc)
+                 ;; Arc 170 slice 1i — substrate contract: every child error
+                 ;; MUST emit structured #wat.kernel/ProcessPanics EDN.
+                 ;; Concat actual stderr-lines into the panic message so the
+                 ;; substrate's contract violation is self-diagnosing — the
+                 ;; reader sees what fd 2 carried (plain text or unparseable
+                 ;; EDN) without having to inspect RunResult.stderr separately.
+                 (:wat::core::None
+                  (:wat::kernel::assertion-failed!
+                    (:wat::core::string::concat
+                      "structured-stderr-only contract violation: child error but no parseable ProcessPanics found on stderr.\nActual stderr content:\n"
+                      (:wat::core::string::join "\n" stderr-lines))
+                    :wat::core::None :wat::core::None)))))))]
+      (:wat::core::struct-new :wat::test::RunResultIO
+        outputs stderr-lines failure)))
 
 ;; ── run-hermetic-with-io macro ───────────────────────────────────────────
 ;;
@@ -1013,6 +935,5 @@
   `(:wat::test::run-hermetic-with-io-driver
      (:wat::kernel::spawn-process
        (:wat::core::forms
-         (:wat::core::define (:user::main -> :wat::core::nil)
-           ~body)))
+         (:wat::core::defn :user::main [] -> :wat::core::nil ~body)))
      ~inputs))

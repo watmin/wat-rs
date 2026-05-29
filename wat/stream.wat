@@ -81,23 +81,20 @@
 ;; until done, then returns. Spawn wires the bounded(1) queue and
 ;; returns the Stream<T> to the caller. Caller consumes via a
 ;; combinator or a direct recv loop.
-(:wat::core::define
-  (:wat::stream::spawn-producer<T>
-    (producer :wat::stream::Producer<T>)
-    -> :wat::stream::Stream<T>)
+(:wat::core::defn :wat::stream::spawn-producer<T> [producer <- :wat::stream::Producer<T>] -> :wat::stream::Stream<T>
   (:wat::core::let
-    [pair
-      (:wat::kernel::make-bounded-channel :T 1)
-     tx (:wat::core::first pair)
-     rx (:wat::core::second pair)
-     handle
-      (:wat::kernel::spawn-thread
-        (:wat::core::fn
-          [_in <- :wat::kernel::Receiver<wat::core::nil>
-           _out <- :wat::kernel::Sender<wat::core::nil>]
-           -> :wat::core::nil
-          (producer tx)))]
-    (:wat::core::Tuple rx handle)))
+      [pair
+        (:wat::kernel::make-bounded-channel :T 1)
+       tx (:wat::core::first pair)
+       rx (:wat::core::second pair)
+       handle
+        (:wat::kernel::spawn-thread
+          (:wat::core::fn
+            [_in <- :wat::kernel::Receiver<wat::core::nil>
+             _out <- :wat::kernel::Sender<wat::core::nil>]
+             -> :wat::core::nil
+            (producer tx)))]
+      (:wat::core::Tuple rx handle)))
 
 ;; --- from-receiver ---
 ;;
@@ -112,12 +109,7 @@
 ;; If the caller doesn't have a handle, they don't have a stream —
 ;; they have a bare Receiver, and some other thread will never be
 ;; joined, which is a broken shutdown story. Don't hide that.
-(:wat::core::define
-  (:wat::stream::from-receiver<T>
-    (rx :wat::kernel::Receiver<T>)
-    (handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
-    -> :wat::stream::Stream<T>)
-  (:wat::core::Tuple rx handle))
+(:wat::core::defn :wat::stream::from-receiver<T> [rx <- :wat::kernel::Receiver<T> handle <- :wat::kernel::Thread<wat::core::nil,wat::core::nil>] -> :wat::stream::Stream<T> (:wat::core::Tuple rx handle))
 
 ;; --- map ---
 ;;
@@ -127,41 +119,32 @@
 ;; from upstream, it exits; on :None from its own send (consumer
 ;; dropped), it exits; otherwise it recurses.
 
-(:wat::core::define
-  (:wat::stream::map-worker<T,U>
-    (in :wat::kernel::Receiver<T>)
-    (out :wat::kernel::Sender<U>)
-    (f :wat::core::Fn(T)->U)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::stream::map-worker<T,U> [in <- :wat::kernel::Receiver<T> out <- :wat::kernel::Sender<U> f <- :wat::core::Fn(T)->U] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
-    ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::core::let
-        [u (f v)]
-        (:wat::core::match (:wat::kernel::send out u) -> :wat::core::nil
-          ((:wat::core::Ok _) (:wat::stream::map-worker in out f))
-          ((:wat::core::Err _) :wat::core::nil))))
-    ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-    ((:wat::core::Err _died) :wat::core::nil)))
+      ((:wat::core::Ok (:wat::core::Some v))
+        (:wat::core::let
+          [u (f v)]
+          (:wat::core::match (:wat::kernel::send out u) -> :wat::core::nil
+            ((:wat::core::Ok _) (:wat::stream::map-worker in out f))
+            ((:wat::core::Err _) :wat::core::nil))))
+      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+      ((:wat::core::Err _died) :wat::core::nil)))
 
-(:wat::core::define
-  (:wat::stream::map<T,U>
-    (upstream :wat::stream::Stream<T>)
-    (f :wat::core::Fn(T)->U)
-    -> :wat::stream::Stream<U>)
+(:wat::core::defn :wat::stream::map<T,U> [upstream <- :wat::stream::Stream<T> f <- :wat::core::Fn(T)->U] -> :wat::stream::Stream<U>
   (:wat::core::let
-    [up-rx (:wat::core::first upstream)
-     pair
-      (:wat::kernel::make-bounded-channel :U 1)
-     tx (:wat::core::first pair)
-     rx (:wat::core::second pair)
-     handle
-      (:wat::kernel::spawn-thread
-        (:wat::core::fn
-          [_in <- :wat::kernel::Receiver<wat::core::nil>
-           _out <- :wat::kernel::Sender<wat::core::nil>]
-           -> :wat::core::nil
-          (:wat::stream::map-worker up-rx tx f)))]
-    (:wat::core::Tuple rx handle)))
+      [up-rx (:wat::core::first upstream)
+       pair
+        (:wat::kernel::make-bounded-channel :U 1)
+       tx (:wat::core::first pair)
+       rx (:wat::core::second pair)
+       handle
+        (:wat::kernel::spawn-thread
+          (:wat::core::fn
+            [_in <- :wat::kernel::Receiver<wat::core::nil>
+             _out <- :wat::kernel::Sender<wat::core::nil>]
+             -> :wat::core::nil
+            (:wat::stream::map-worker up-rx tx f)))]
+      (:wat::core::Tuple rx handle)))
 
 ;; --- for-each ---
 ;;
@@ -170,31 +153,23 @@
 ;; returns :(). Drives the pipeline to completion on the calling
 ;; thread — no new worker spawned here.
 
-(:wat::core::define
-  (:wat::stream::for-each-drain<T>
-    (rx :wat::kernel::Receiver<T>)
-    (handler :wat::core::Fn(T)->wat::core::nil)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::stream::for-each-drain<T> [rx <- :wat::kernel::Receiver<T> handler <- :wat::core::Fn(T)->wat::core::nil] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
-    ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::core::do
-        (handler v)
-        (:wat::stream::for-each-drain rx handler)))
-    ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-    ((:wat::core::Err _died) :wat::core::nil)))
+      ((:wat::core::Ok (:wat::core::Some v))
+        (:wat::core::do
+          (handler v)
+          (:wat::stream::for-each-drain rx handler)))
+      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+      ((:wat::core::Err _died) :wat::core::nil)))
 
-(:wat::core::define
-  (:wat::stream::for-each<T>
-    (stream :wat::stream::Stream<T>)
-    (handler :wat::core::Fn(T)->wat::core::nil)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::stream::for-each<T> [stream <- :wat::stream::Stream<T> handler <- :wat::core::Fn(T)->wat::core::nil] -> :wat::core::nil
   (:wat::core::let
-    [rx (:wat::core::first stream)
-     handle (:wat::core::second stream)
-     _ (:wat::stream::for-each-drain rx handler)
-     _
-      (:wat::kernel::Thread/join-result handle)]
-    :wat::core::nil))
+      [rx (:wat::core::first stream)
+       handle (:wat::core::second stream)
+       _ (:wat::stream::for-each-drain rx handler)
+       _
+        (:wat::kernel::Thread/join-result handle)]
+      :wat::core::nil))
 
 ;; --- collect ---
 ;;
@@ -203,70 +178,54 @@
 ;; whose output fits in memory. For unbounded or large streams, use
 ;; for-each or a fold-style terminal instead.
 
-(:wat::core::define
-  (:wat::stream::collect-drain<T>
-    (rx :wat::kernel::Receiver<T>)
-    (acc :wat::core::Vector<T>)
-    -> :wat::core::Vector<T>)
+(:wat::core::defn :wat::stream::collect-drain<T> [rx <- :wat::kernel::Receiver<T> acc <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
   (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::Vector<T>
-    ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::stream::collect-drain rx (:wat::core::conj acc v)))
-    ((:wat::core::Ok :wat::core::None) acc)
-    ((:wat::core::Err _died) acc)))
+      ((:wat::core::Ok (:wat::core::Some v))
+        (:wat::stream::collect-drain rx (:wat::core::conj acc v)))
+      ((:wat::core::Ok :wat::core::None) acc)
+      ((:wat::core::Err _died) acc)))
 
-(:wat::core::define
-  (:wat::stream::collect<T>
-    (stream :wat::stream::Stream<T>)
-    -> :wat::core::Vector<T>)
+(:wat::core::defn :wat::stream::collect<T> [stream <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
   (:wat::core::let
-    [rx (:wat::core::first stream)
-     handle (:wat::core::second stream)
-     items
-      (:wat::stream::collect-drain rx (:wat::core::Vector :T))
-     _
-      (:wat::kernel::Thread/join-result handle)]
-    items))
+      [rx (:wat::core::first stream)
+       handle (:wat::core::second stream)
+       items
+        (:wat::stream::collect-drain rx (:wat::core::Vector :T))
+       _
+        (:wat::kernel::Thread/join-result handle)]
+      items))
 
 ;; --- filter ---
 ;;
 ;; 1:0..1. Spawns a worker that pulls from upstream; for each item,
 ;; calls the predicate; forwards only items for which it returned true.
 ;; Same tail-recursive shape as map. Empty downstream drops.
-(:wat::core::define
-  (:wat::stream::filter-worker<T>
-    (in :wat::kernel::Receiver<T>)
-    (out :wat::kernel::Sender<T>)
-    (pred :wat::core::Fn(T)->wat::core::bool)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::stream::filter-worker<T> [in <- :wat::kernel::Receiver<T> out <- :wat::kernel::Sender<T> pred <- :wat::core::Fn(T)->wat::core::bool] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
-    ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::core::if (pred v) -> :wat::core::nil
-        (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
-          ((:wat::core::Ok _) (:wat::stream::filter-worker in out pred))
-          ((:wat::core::Err _) :wat::core::nil))
-        (:wat::stream::filter-worker in out pred)))
-    ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-    ((:wat::core::Err _died) :wat::core::nil)))
+      ((:wat::core::Ok (:wat::core::Some v))
+        (:wat::core::if (pred v) -> :wat::core::nil
+          (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
+            ((:wat::core::Ok _) (:wat::stream::filter-worker in out pred))
+            ((:wat::core::Err _) :wat::core::nil))
+          (:wat::stream::filter-worker in out pred)))
+      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+      ((:wat::core::Err _died) :wat::core::nil)))
 
-(:wat::core::define
-  (:wat::stream::filter<T>
-    (upstream :wat::stream::Stream<T>)
-    (pred :wat::core::Fn(T)->wat::core::bool)
-    -> :wat::stream::Stream<T>)
+(:wat::core::defn :wat::stream::filter<T> [upstream <- :wat::stream::Stream<T> pred <- :wat::core::Fn(T)->wat::core::bool] -> :wat::stream::Stream<T>
   (:wat::core::let
-    [up-rx (:wat::core::first upstream)
-     pair
-      (:wat::kernel::make-bounded-channel :T 1)
-     tx (:wat::core::first pair)
-     rx (:wat::core::second pair)
-     handle
-      (:wat::kernel::spawn-thread
-        (:wat::core::fn
-          [_in <- :wat::kernel::Receiver<wat::core::nil>
-           _out <- :wat::kernel::Sender<wat::core::nil>]
-           -> :wat::core::nil
-          (:wat::stream::filter-worker up-rx tx pred)))]
-    (:wat::core::Tuple rx handle)))
+      [up-rx (:wat::core::first upstream)
+       pair
+        (:wat::kernel::make-bounded-channel :T 1)
+       tx (:wat::core::first pair)
+       rx (:wat::core::second pair)
+       handle
+        (:wat::kernel::spawn-thread
+          (:wat::core::fn
+            [_in <- :wat::kernel::Receiver<wat::core::nil>
+             _out <- :wat::kernel::Sender<wat::core::nil>]
+             -> :wat::core::nil
+            (:wat::stream::filter-worker up-rx tx pred)))]
+      (:wat::core::Tuple rx handle)))
 
 ;; --- inspect ---
 ;;
@@ -276,41 +235,32 @@
 ;; ignores f's return and sends v instead of (f v). Debugging
 ;; ergonomics: drop an inspect into a pipeline to log / count / trace
 ;; without perturbing the values.
-(:wat::core::define
-  (:wat::stream::inspect-worker<T>
-    (in :wat::kernel::Receiver<T>)
-    (out :wat::kernel::Sender<T>)
-    (f :wat::core::Fn(T)->wat::core::nil)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::stream::inspect-worker<T> [in <- :wat::kernel::Receiver<T> out <- :wat::kernel::Sender<T> f <- :wat::core::Fn(T)->wat::core::nil] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
-    ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::core::do
-        (f v)
-        (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
-          ((:wat::core::Ok _) (:wat::stream::inspect-worker in out f))
-          ((:wat::core::Err _) :wat::core::nil))))
-    ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-    ((:wat::core::Err _died) :wat::core::nil)))
+      ((:wat::core::Ok (:wat::core::Some v))
+        (:wat::core::do
+          (f v)
+          (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
+            ((:wat::core::Ok _) (:wat::stream::inspect-worker in out f))
+            ((:wat::core::Err _) :wat::core::nil))))
+      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+      ((:wat::core::Err _died) :wat::core::nil)))
 
-(:wat::core::define
-  (:wat::stream::inspect<T>
-    (upstream :wat::stream::Stream<T>)
-    (f :wat::core::Fn(T)->wat::core::nil)
-    -> :wat::stream::Stream<T>)
+(:wat::core::defn :wat::stream::inspect<T> [upstream <- :wat::stream::Stream<T> f <- :wat::core::Fn(T)->wat::core::nil] -> :wat::stream::Stream<T>
   (:wat::core::let
-    [up-rx (:wat::core::first upstream)
-     pair
-      (:wat::kernel::make-bounded-channel :T 1)
-     tx (:wat::core::first pair)
-     rx (:wat::core::second pair)
-     handle
-      (:wat::kernel::spawn-thread
-        (:wat::core::fn
-          [_in <- :wat::kernel::Receiver<wat::core::nil>
-           _out <- :wat::kernel::Sender<wat::core::nil>]
-           -> :wat::core::nil
-          (:wat::stream::inspect-worker up-rx tx f)))]
-    (:wat::core::Tuple rx handle)))
+      [up-rx (:wat::core::first upstream)
+       pair
+        (:wat::kernel::make-bounded-channel :T 1)
+       tx (:wat::core::first pair)
+       rx (:wat::core::second pair)
+       handle
+        (:wat::kernel::spawn-thread
+          (:wat::core::fn
+            [_in <- :wat::kernel::Receiver<wat::core::nil>
+             _out <- :wat::kernel::Sender<wat::core::nil>]
+             -> :wat::core::nil
+            (:wat::stream::inspect-worker up-rx tx f)))]
+      (:wat::core::Tuple rx handle)))
 
 ;; --- fold ---
 ;;
@@ -318,31 +268,21 @@
 ;; with the caller's function. Generalizes collect (which is
 ;; `fold init=[] f=conj`) and gives sum / count / any / all as
 ;; one-liners. Joins the handle; returns the final accumulator.
-(:wat::core::define
-  (:wat::stream::fold-drain<T,Acc>
-    (rx :wat::kernel::Receiver<T>)
-    (acc :Acc)
-    (f :wat::core::Fn(Acc,T)->Acc)
-    -> :Acc)
+(:wat::core::defn :wat::stream::fold-drain<T,Acc> [rx <- :wat::kernel::Receiver<T> acc <- :Acc f <- :wat::core::Fn(Acc,T)->Acc] -> :Acc
   (:wat::core::match (:wat::kernel::recv rx) -> :Acc
-    ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::stream::fold-drain rx (f acc v) f))
-    ((:wat::core::Ok :wat::core::None) acc)
-    ((:wat::core::Err _died) acc)))
+      ((:wat::core::Ok (:wat::core::Some v))
+        (:wat::stream::fold-drain rx (f acc v) f))
+      ((:wat::core::Ok :wat::core::None) acc)
+      ((:wat::core::Err _died) acc)))
 
-(:wat::core::define
-  (:wat::stream::fold<T,Acc>
-    (stream :wat::stream::Stream<T>)
-    (init :Acc)
-    (f :wat::core::Fn(Acc,T)->Acc)
-    -> :Acc)
+(:wat::core::defn :wat::stream::fold<T,Acc> [stream <- :wat::stream::Stream<T> init <- :Acc f <- :wat::core::Fn(Acc,T)->Acc] -> :Acc
   (:wat::core::let
-    [rx (:wat::core::first stream)
-     handle (:wat::core::second stream)
-     result (:wat::stream::fold-drain rx init f)
-     _
-      (:wat::kernel::Thread/join-result handle)]
-    result))
+      [rx (:wat::core::first stream)
+       handle (:wat::core::second stream)
+       result (:wat::stream::fold-drain rx init f)
+       _
+        (:wat::kernel::Thread/join-result handle)]
+      result))
 
 ;; --- chunks ---
 ;;
@@ -373,82 +313,65 @@
 ;; circuit state machine. Arc 006 BACKLOG's resolution named this
 ;; shape as the substrate every stateful-stage combinator wants.
 
-(:wat::core::define
-  (:wat::stream::drain-items<U>
-    (out :wat::kernel::Sender<U>)
-    (items :wat::core::Vector<U>)
-    -> :wat::core::Option<wat::core::nil>)
+(:wat::core::defn :wat::stream::drain-items<U> [out <- :wat::kernel::Sender<U> items <- :wat::core::Vector<U>] -> :wat::core::Option<wat::core::nil>
   ;; Tail-recursive helper: send every item in `items`, stop early
-  ;; (returning :None) if the consumer dropped. Returns (Some ()) on
-  ;; full drain; returns :None if any send failed, signaling the
-  ;; caller to exit.
-  (:wat::core::if (:wat::core::empty? items) -> :wat::core::Option<wat::core::nil>
-    (:wat::core::Some :wat::core::nil)
-    ;; Vec is non-empty (just checked); first returns Some<U> via
-    ;; arc 047. The :None arm is unreachable but the type checker
-    ;; demands totality.
-    (:wat::core::match (:wat::core::first items) -> :wat::core::Option<wat::core::nil>
-      ((:wat::core::Some item)
-        (:wat::core::let
-          [rest-items (:wat::core::rest items)]
-          (:wat::core::match (:wat::kernel::send out item) -> :wat::core::Option<wat::core::nil>
-            ((:wat::core::Ok _)
-              (:wat::stream::drain-items out rest-items))
-            ((:wat::core::Err _) :wat::core::None))))
-      (:wat::core::None :wat::core::None))))
+    ;; (returning :None) if the consumer dropped. Returns (Some ()) on
+    ;; full drain; returns :None if any send failed, signaling the
+    ;; caller to exit.
+    (:wat::core::if (:wat::core::empty? items) -> :wat::core::Option<wat::core::nil>
+      (:wat::core::Some :wat::core::nil)
+      ;; Vec is non-empty (just checked); first returns Some<U> via
+      ;; arc 047. The :None arm is unreachable but the type checker
+      ;; demands totality.
+      (:wat::core::match (:wat::core::first items) -> :wat::core::Option<wat::core::nil>
+        ((:wat::core::Some item)
+          (:wat::core::let
+            [rest-items (:wat::core::rest items)]
+            (:wat::core::match (:wat::kernel::send out item) -> :wat::core::Option<wat::core::nil>
+              ((:wat::core::Ok _)
+                (:wat::stream::drain-items out rest-items))
+              ((:wat::core::Err _) :wat::core::None))))
+        (:wat::core::None :wat::core::None))))
 
-(:wat::core::define
-  (:wat::stream::with-state-worker<T,U,Acc>
-    (in :wat::kernel::Receiver<T>)
-    (out :wat::kernel::Sender<U>)
-    (step :wat::core::Fn(Acc,T)->(Acc,wat::core::Vector<U>))
-    (flush :wat::core::Fn(Acc)->wat::core::Vector<U>)
-    (acc :Acc)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::stream::with-state-worker<T,U,Acc> [in <- :wat::kernel::Receiver<T> out <- :wat::kernel::Sender<U> step <- :wat::core::Fn(Acc,T)->(Acc,wat::core::Vector<U>) flush <- :wat::core::Fn(Acc)->wat::core::Vector<U> acc <- :Acc] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
-    ((:wat::core::Ok (:wat::core::Some item))
-      (:wat::core::let
-        [stepped (step acc item)
-         new-acc (:wat::core::first stepped)
-         to-emit (:wat::core::second stepped)
-         drain-result
-          (:wat::stream::drain-items out to-emit)]
-        (:wat::core::match drain-result -> :wat::core::nil
-          ((:wat::core::Some _)
-            (:wat::stream::with-state-worker in out step flush new-acc))
-          (:wat::core::None :wat::core::nil))))
-    ((:wat::core::Ok :wat::core::None)
-      ;; Upstream disconnected. Flush final state; drain whatever it
-      ;; produced. Consumer-dropped during flush is swallowed silently
-      ;; — same behavior chunks had for its final partial buffer.
-      (:wat::core::let
-        [final-emits (flush acc)
-         _
-          (:wat::stream::drain-items out final-emits)]
-        :wat::core::nil))
-    ((:wat::core::Err _died) :wat::core::nil)))
+      ((:wat::core::Ok (:wat::core::Some item))
+        (:wat::core::let
+          [stepped (step acc item)
+           new-acc (:wat::core::first stepped)
+           to-emit (:wat::core::second stepped)
+           drain-result
+            (:wat::stream::drain-items out to-emit)]
+          (:wat::core::match drain-result -> :wat::core::nil
+            ((:wat::core::Some _)
+              (:wat::stream::with-state-worker in out step flush new-acc))
+            (:wat::core::None :wat::core::nil))))
+      ((:wat::core::Ok :wat::core::None)
+        ;; Upstream disconnected. Flush final state; drain whatever it
+        ;; produced. Consumer-dropped during flush is swallowed silently
+        ;; — same behavior chunks had for its final partial buffer.
+        (:wat::core::let
+          [final-emits (flush acc)
+           _
+            (:wat::stream::drain-items out final-emits)]
+          :wat::core::nil))
+      ((:wat::core::Err _died) :wat::core::nil)))
 
-(:wat::core::define
-  (:wat::stream::with-state<T,U,Acc>
-    (upstream :wat::stream::Stream<T>)
-    (init :Acc)
-    (step :wat::core::Fn(Acc,T)->(Acc,wat::core::Vector<U>))
-    (flush :wat::core::Fn(Acc)->wat::core::Vector<U>)
-    -> :wat::stream::Stream<U>)
+(:wat::core::defn :wat::stream::with-state<T,U,Acc> [upstream <- :wat::stream::Stream<T> init <- :Acc step <- :wat::core::Fn(Acc,T)->(Acc,wat::core::Vector<U>) flush <- :wat::core::Fn(Acc)->wat::core::Vector<U>] -> :wat::stream::Stream<U>
   (:wat::core::let
-    [up-rx (:wat::core::first upstream)
-     pair
-      (:wat::kernel::make-bounded-channel :U 1)
-     tx (:wat::core::first pair)
-     rx (:wat::core::second pair)
-     handle
-      (:wat::kernel::spawn-thread
-        (:wat::core::fn
-          [_in <- :wat::kernel::Receiver<wat::core::nil>
-           _out <- :wat::kernel::Sender<wat::core::nil>]
-           -> :wat::core::nil
-          (:wat::stream::with-state-worker up-rx tx step flush init)))]
-    (:wat::core::Tuple rx handle)))
+      [up-rx (:wat::core::first upstream)
+       pair
+        (:wat::kernel::make-bounded-channel :U 1)
+       tx (:wat::core::first pair)
+       rx (:wat::core::second pair)
+       handle
+        (:wat::kernel::spawn-thread
+          (:wat::core::fn
+            [_in <- :wat::kernel::Receiver<wat::core::nil>
+             _out <- :wat::kernel::Sender<wat::core::nil>]
+             -> :wat::core::nil
+            (:wat::stream::with-state-worker up-rx tx step flush init)))]
+      (:wat::core::Tuple rx handle)))
 
 ;; --- chunks (rewritten on top of with-state) ---
 ;;
@@ -466,46 +389,34 @@
 ;; factoring — the state transitions now live in step/flush fns
 ;; instead of in-worker branches.
 
-(:wat::core::define
-  (:wat::stream::chunks-step<T>
-    (buffer :wat::core::Vector<T>)
-    (item :T)
-    (size :wat::core::i64)
-    -> :wat::stream::ChunkStep<T>)
+(:wat::core::defn :wat::stream::chunks-step<T> [buffer <- :wat::core::Vector<T> item <- :T size <- :wat::core::i64] -> :wat::stream::ChunkStep<T>
   (:wat::core::let
-    [new-buffer (:wat::core::conj buffer item)]
-    (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size)
-      -> :wat::stream::ChunkStep<T>
-      (:wat::core::Tuple
-        (:wat::core::Vector :T)
-        (:wat::core::Vector :wat::core::Vector<T> new-buffer))
-      (:wat::core::Tuple
-        new-buffer
-        (:wat::core::Vector :wat::core::Vector<T>)))))
+      [new-buffer (:wat::core::conj buffer item)]
+      (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size)
+        -> :wat::stream::ChunkStep<T>
+        (:wat::core::Tuple
+          (:wat::core::Vector :T)
+          (:wat::core::Vector :wat::core::Vector<T> new-buffer))
+        (:wat::core::Tuple
+          new-buffer
+          (:wat::core::Vector :wat::core::Vector<T>)))))
 
-(:wat::core::define
-  (:wat::stream::chunks-flush<T>
-    (buffer :wat::core::Vector<T>)
-    -> :wat::core::Vector<wat::core::Vector<T>>)
+(:wat::core::defn :wat::stream::chunks-flush<T> [buffer <- :wat::core::Vector<T>] -> :wat::core::Vector<wat::core::Vector<T>>
   (:wat::core::if (:wat::core::empty? buffer) -> :wat::core::Vector<wat::core::Vector<T>>
-    (:wat::core::Vector :wat::core::Vector<T>)
-    (:wat::core::Vector :wat::core::Vector<T> buffer)))
+      (:wat::core::Vector :wat::core::Vector<T>)
+      (:wat::core::Vector :wat::core::Vector<T> buffer)))
 
-(:wat::core::define
-  (:wat::stream::chunks<T>
-    (upstream :wat::stream::Stream<T>)
-    (size :wat::core::i64)
-    -> :wat::stream::Stream<wat::core::Vector<T>>)
+(:wat::core::defn :wat::stream::chunks<T> [upstream <- :wat::stream::Stream<T> size <- :wat::core::i64] -> :wat::stream::Stream<wat::core::Vector<T>>
   ;; chunks-step takes (buf, item, size) — three args — but with-state
-  ;; wants (buf, item). The `size` parameter has to close over the
-  ;; chunks caller's argument, so step is genuinely a fn capturing
-  ;; `size`, not a pass-through. chunks-flush takes (buf) exactly, so
-  ;; it passes by name directly (arc 009 — names are values).
-  (:wat::stream::with-state upstream
-    (:wat::core::Vector :T)
-    (:wat::core::fn [buf <- :wat::core::Vector<T> item <- :T] -> :wat::stream::ChunkStep<T>
-      (:wat::stream::chunks-step buf item size))
-    :wat::stream::chunks-flush))
+    ;; wants (buf, item). The `size` parameter has to close over the
+    ;; chunks caller's argument, so step is genuinely a fn capturing
+    ;; `size`, not a pass-through. chunks-flush takes (buf) exactly, so
+    ;; it passes by name directly (arc 009 — names are values).
+    (:wat::stream::with-state upstream
+      (:wat::core::Vector :T)
+      (:wat::core::fn [buf <- :wat::core::Vector<T> item <- :T] -> :wat::stream::ChunkStep<T>
+        (:wat::stream::chunks-step buf item size))
+      :wat::stream::chunks-flush))
 
 ;; --- chunks-by ---
 ;;
@@ -517,57 +428,45 @@
 ;; Equality on K uses :wat::core::= (polymorphic, structural over
 ;; primitives and composite values).
 
-(:wat::core::define
-  (:wat::stream::chunks-by-step<T,K>
-    (state :(wat::core::Option<K>,wat::core::Vector<T>))
-    (item :T)
-    (key-fn :wat::core::Fn(T)->K)
-    -> :wat::stream::KeyedChunkStep<K,T>)
+(:wat::core::defn :wat::stream::chunks-by-step<T,K> [state <- :(wat::core::Option<K>,wat::core::Vector<T>) item <- :T key-fn <- :wat::core::Fn(T)->K] -> :wat::stream::KeyedChunkStep<K,T>
   (:wat::core::let
-    [last-key (:wat::core::first state)
-     buffer (:wat::core::second state)
-     k (key-fn item)]
-    (:wat::core::match last-key -> :wat::stream::KeyedChunkStep<K,T>
-      (:wat::core::None
-        ;; First item — start the run, emit nothing yet.
-        (:wat::core::Tuple
-          (:wat::core::Tuple (:wat::core::Some k) (:wat::core::Vector :T item))
-          (:wat::core::Vector :wat::core::Vector<T>)))
-      ((:wat::core::Some prev)
-        (:wat::core::if (:wat::core::= prev k)
-          -> :wat::stream::KeyedChunkStep<K,T>
-          ;; Same key — append to current run, emit nothing.
-          (:wat::core::Tuple
-            (:wat::core::Tuple (:wat::core::Some k) (:wat::core::conj buffer item))
-            (:wat::core::Vector :wat::core::Vector<T>))
-          ;; Key change — emit completed run, start new run.
+      [last-key (:wat::core::first state)
+       buffer (:wat::core::second state)
+       k (key-fn item)]
+      (:wat::core::match last-key -> :wat::stream::KeyedChunkStep<K,T>
+        (:wat::core::None
+          ;; First item — start the run, emit nothing yet.
           (:wat::core::Tuple
             (:wat::core::Tuple (:wat::core::Some k) (:wat::core::Vector :T item))
-            (:wat::core::Vector :wat::core::Vector<T> buffer)))))))
+            (:wat::core::Vector :wat::core::Vector<T>)))
+        ((:wat::core::Some prev)
+          (:wat::core::if (:wat::core::= prev k)
+            -> :wat::stream::KeyedChunkStep<K,T>
+            ;; Same key — append to current run, emit nothing.
+            (:wat::core::Tuple
+              (:wat::core::Tuple (:wat::core::Some k) (:wat::core::conj buffer item))
+              (:wat::core::Vector :wat::core::Vector<T>))
+            ;; Key change — emit completed run, start new run.
+            (:wat::core::Tuple
+              (:wat::core::Tuple (:wat::core::Some k) (:wat::core::Vector :T item))
+              (:wat::core::Vector :wat::core::Vector<T> buffer)))))))
 
-(:wat::core::define
-  (:wat::stream::chunks-by-flush<T,K>
-    (state :(wat::core::Option<K>,wat::core::Vector<T>))
-    -> :wat::core::Vector<wat::core::Vector<T>>)
+(:wat::core::defn :wat::stream::chunks-by-flush<T,K> [state <- :(wat::core::Option<K>,wat::core::Vector<T>)] -> :wat::core::Vector<wat::core::Vector<T>>
   (:wat::core::let
-    [buffer (:wat::core::second state)]
-    (:wat::core::if (:wat::core::empty? buffer) -> :wat::core::Vector<wat::core::Vector<T>>
-      (:wat::core::Vector :wat::core::Vector<T>)
-      (:wat::core::Vector :wat::core::Vector<T> buffer))))
+      [buffer (:wat::core::second state)]
+      (:wat::core::if (:wat::core::empty? buffer) -> :wat::core::Vector<wat::core::Vector<T>>
+        (:wat::core::Vector :wat::core::Vector<T>)
+        (:wat::core::Vector :wat::core::Vector<T> buffer))))
 
-(:wat::core::define
-  (:wat::stream::chunks-by<T,K>
-    (upstream :wat::stream::Stream<T>)
-    (key-fn :wat::core::Fn(T)->K)
-    -> :wat::stream::Stream<wat::core::Vector<T>>)
+(:wat::core::defn :wat::stream::chunks-by<T,K> [upstream <- :wat::stream::Stream<T> key-fn <- :wat::core::Fn(T)->K] -> :wat::stream::Stream<wat::core::Vector<T>>
   ;; init = (None, empty) — no key seen yet, no items buffered.
-  ;; step closes over key-fn; flush is size-agnostic so passes by name.
-  (:wat::stream::with-state upstream
-    (:wat::core::Tuple :wat::core::None (:wat::core::Vector :T))
-    (:wat::core::fn [state <- :(wat::core::Option<K>,wat::core::Vector<T>) item <- :T]
-                         -> :wat::stream::KeyedChunkStep<K,T>
-      (:wat::stream::chunks-by-step state item key-fn))
-    :wat::stream::chunks-by-flush))
+    ;; step closes over key-fn; flush is size-agnostic so passes by name.
+    (:wat::stream::with-state upstream
+      (:wat::core::Tuple :wat::core::None (:wat::core::Vector :T))
+      (:wat::core::fn [state <- :(wat::core::Option<K>,wat::core::Vector<T>) item <- :T]
+                           -> :wat::stream::KeyedChunkStep<K,T>
+        (:wat::stream::chunks-by-step state item key-fn))
+      :wat::stream::chunks-by-flush))
 
 ;; --- window ---
 ;;
@@ -584,55 +483,42 @@
 ;; named combinator ships one honest choice; richer shapes earn their
 ;; slots when real callers demand them.
 
-(:wat::core::define
-  (:wat::stream::window-step<T>
-    (buffer :wat::core::Vector<T>)
-    (item :T)
-    (size :wat::core::i64)
-    -> :wat::stream::ChunkStep<T>)
+(:wat::core::defn :wat::stream::window-step<T> [buffer <- :wat::core::Vector<T> item <- :T size <- :wat::core::i64] -> :wat::stream::ChunkStep<T>
   (:wat::core::let
-    [new-buf (:wat::core::conj buffer item)
-     new-len (:wat::core::length new-buf)]
-    (:wat::core::cond -> :wat::stream::ChunkStep<T>
-      ;; Over-size — slide: drop first, emit trimmed window, keep trimmed.
-      ((:wat::core::> new-len size)
-        (:wat::core::let
-          [trimmed (:wat::core::rest new-buf)]
-          (:wat::core::Tuple trimmed (:wat::core::Vector :wat::core::Vector<T> trimmed))))
-      ;; Exactly size — first full window. Emit and keep.
-      ((:wat::core::= new-len size)
-        (:wat::core::Tuple new-buf (:wat::core::Vector :wat::core::Vector<T> new-buf)))
-      ;; Under-size — still warming up. No emit.
-      (:else
-        (:wat::core::Tuple new-buf (:wat::core::Vector :wat::core::Vector<T>))))))
+      [new-buf (:wat::core::conj buffer item)
+       new-len (:wat::core::length new-buf)]
+      (:wat::core::cond -> :wat::stream::ChunkStep<T>
+        ;; Over-size — slide: drop first, emit trimmed window, keep trimmed.
+        ((:wat::core::> new-len size)
+          (:wat::core::let
+            [trimmed (:wat::core::rest new-buf)]
+            (:wat::core::Tuple trimmed (:wat::core::Vector :wat::core::Vector<T> trimmed))))
+        ;; Exactly size — first full window. Emit and keep.
+        ((:wat::core::= new-len size)
+          (:wat::core::Tuple new-buf (:wat::core::Vector :wat::core::Vector<T> new-buf)))
+        ;; Under-size — still warming up. No emit.
+        (:else
+          (:wat::core::Tuple new-buf (:wat::core::Vector :wat::core::Vector<T>))))))
 
-(:wat::core::define
-  (:wat::stream::window-flush<T>
-    (buffer :wat::core::Vector<T>)
-    (size :wat::core::i64)
-    -> :wat::core::Vector<wat::core::Vector<T>>)
+(:wat::core::defn :wat::stream::window-flush<T> [buffer <- :wat::core::Vector<T> size <- :wat::core::i64] -> :wat::core::Vector<wat::core::Vector<T>>
   ;; Flush-partial IFF buffer contains items that were never emitted
-  ;; as a full window. That's exactly the case len(buf) < size AND
-  ;; len(buf) > 0. The len == size case means a full window was
-  ;; already emitted on the sliding path — nothing to flush.
-  (:wat::core::cond -> :wat::core::Vector<wat::core::Vector<T>>
-    ((:wat::core::empty? buffer) (:wat::core::Vector :wat::core::Vector<T>))
-    ((:wat::core::< (:wat::core::length buffer) size)
-      (:wat::core::Vector :wat::core::Vector<T> buffer))
-    (:else (:wat::core::Vector :wat::core::Vector<T>))))
+    ;; as a full window. That's exactly the case len(buf) < size AND
+    ;; len(buf) > 0. The len == size case means a full window was
+    ;; already emitted on the sliding path — nothing to flush.
+    (:wat::core::cond -> :wat::core::Vector<wat::core::Vector<T>>
+      ((:wat::core::empty? buffer) (:wat::core::Vector :wat::core::Vector<T>))
+      ((:wat::core::< (:wat::core::length buffer) size)
+        (:wat::core::Vector :wat::core::Vector<T> buffer))
+      (:else (:wat::core::Vector :wat::core::Vector<T>))))
 
-(:wat::core::define
-  (:wat::stream::window<T>
-    (upstream :wat::stream::Stream<T>)
-    (size :wat::core::i64)
-    -> :wat::stream::Stream<wat::core::Vector<T>>)
+(:wat::core::defn :wat::stream::window<T> [upstream <- :wat::stream::Stream<T> size <- :wat::core::i64] -> :wat::stream::Stream<wat::core::Vector<T>>
   ;; Both step and flush close over size — two fn wrappers.
-  (:wat::stream::with-state upstream
-    (:wat::core::Vector :T)
-    (:wat::core::fn [buf <- :wat::core::Vector<T> item <- :T] -> :wat::stream::ChunkStep<T>
-      (:wat::stream::window-step buf item size))
-    (:wat::core::fn [buf <- :wat::core::Vector<T>] -> :wat::core::Vector<wat::core::Vector<T>>
-      (:wat::stream::window-flush buf size))))
+    (:wat::stream::with-state upstream
+      (:wat::core::Vector :T)
+      (:wat::core::fn [buf <- :wat::core::Vector<T> item <- :T] -> :wat::stream::ChunkStep<T>
+        (:wat::stream::window-step buf item size))
+      (:wat::core::fn [buf <- :wat::core::Vector<T>] -> :wat::core::Vector<wat::core::Vector<T>>
+        (:wat::stream::window-flush buf size))))
 
 ;; --- take ---
 ;;
@@ -646,43 +532,34 @@
 ;; `n <= 0` emits nothing (worker exits immediately). Upstream
 ;; ending before `n` is reached is fine — worker sees :None on recv,
 ;; exits, downstream gets :None naturally.
-(:wat::core::define
-  (:wat::stream::take-worker<T>
-    (in :wat::kernel::Receiver<T>)
-    (out :wat::kernel::Sender<T>)
-    (remaining :wat::core::i64)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::stream::take-worker<T> [in <- :wat::kernel::Receiver<T> out <- :wat::kernel::Sender<T> remaining <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::if (:wat::core::<= remaining 0) -> :wat::core::nil
-    :wat::core::nil
-    (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
-      ((:wat::core::Ok (:wat::core::Some v))
-        (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
-          ((:wat::core::Ok _)
-            (:wat::stream::take-worker in out
-              (:wat::core::i64::-'2 remaining 1)))
-          ((:wat::core::Err _) :wat::core::nil)))
-      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-      ((:wat::core::Err _died) :wat::core::nil))))
+      :wat::core::nil
+      (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
+        ((:wat::core::Ok (:wat::core::Some v))
+          (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
+            ((:wat::core::Ok _)
+              (:wat::stream::take-worker in out
+                (:wat::core::i64::-'2 remaining 1)))
+            ((:wat::core::Err _) :wat::core::nil)))
+        ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+        ((:wat::core::Err _died) :wat::core::nil))))
 
-(:wat::core::define
-  (:wat::stream::take<T>
-    (upstream :wat::stream::Stream<T>)
-    (n :wat::core::i64)
-    -> :wat::stream::Stream<T>)
+(:wat::core::defn :wat::stream::take<T> [upstream <- :wat::stream::Stream<T> n <- :wat::core::i64] -> :wat::stream::Stream<T>
   (:wat::core::let
-    [up-rx (:wat::core::first upstream)
-     pair
-      (:wat::kernel::make-bounded-channel :T 1)
-     tx (:wat::core::first pair)
-     rx (:wat::core::second pair)
-     handle
-      (:wat::kernel::spawn-thread
-        (:wat::core::fn
-          [_in <- :wat::kernel::Receiver<wat::core::nil>
-           _out <- :wat::kernel::Sender<wat::core::nil>]
-           -> :wat::core::nil
-          (:wat::stream::take-worker up-rx tx n)))]
-    (:wat::core::Tuple rx handle)))
+      [up-rx (:wat::core::first upstream)
+       pair
+        (:wat::kernel::make-bounded-channel :T 1)
+       tx (:wat::core::first pair)
+       rx (:wat::core::second pair)
+       handle
+        (:wat::kernel::spawn-thread
+          (:wat::core::fn
+            [_in <- :wat::kernel::Receiver<wat::core::nil>
+             _out <- :wat::kernel::Sender<wat::core::nil>]
+             -> :wat::core::nil
+            (:wat::stream::take-worker up-rx tx n)))]
+      (:wat::core::Tuple rx handle)))
 
 ;; --- flat-map ---
 ;;
@@ -696,47 +573,37 @@
 ;; expand. When pending has items, send the first and recurse with
 ;; the rest. One function, state threaded through the parameter —
 ;; the same pattern chunks uses for its accumulator.
-(:wat::core::define
-  (:wat::stream::flat-map-worker<T,U>
-    (in :wat::kernel::Receiver<T>)
-    (out :wat::kernel::Sender<U>)
-    (f :wat::core::Fn(T)->wat::core::Vector<U>)
-    (pending :wat::core::Vector<U>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::stream::flat-map-worker<T,U> [in <- :wat::kernel::Receiver<T> out <- :wat::kernel::Sender<U> f <- :wat::core::Fn(T)->wat::core::Vector<U> pending <- :wat::core::Vector<U>] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? pending) -> :wat::core::nil
-    (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
-      ((:wat::core::Ok (:wat::core::Some v))
-        (:wat::stream::flat-map-worker in out f (f v)))
-      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-      ((:wat::core::Err _died) :wat::core::nil))
-    ;; pending is non-empty; first returns Some<U> via arc 047.
-    ;; :None arm is unreachable but type-required.
-    (:wat::core::match (:wat::core::first pending) -> :wat::core::nil
-      ((:wat::core::Some item)
-        (:wat::core::let
-          [rest-items (:wat::core::rest pending)]
-          (:wat::core::match (:wat::kernel::send out item) -> :wat::core::nil
-            ((:wat::core::Ok _)
-              (:wat::stream::flat-map-worker in out f rest-items))
-            ((:wat::core::Err _) :wat::core::nil))))
-      (:wat::core::None :wat::core::nil))))
+      (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
+        ((:wat::core::Ok (:wat::core::Some v))
+          (:wat::stream::flat-map-worker in out f (f v)))
+        ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+        ((:wat::core::Err _died) :wat::core::nil))
+      ;; pending is non-empty; first returns Some<U> via arc 047.
+      ;; :None arm is unreachable but type-required.
+      (:wat::core::match (:wat::core::first pending) -> :wat::core::nil
+        ((:wat::core::Some item)
+          (:wat::core::let
+            [rest-items (:wat::core::rest pending)]
+            (:wat::core::match (:wat::kernel::send out item) -> :wat::core::nil
+              ((:wat::core::Ok _)
+                (:wat::stream::flat-map-worker in out f rest-items))
+              ((:wat::core::Err _) :wat::core::nil))))
+        (:wat::core::None :wat::core::nil))))
 
-(:wat::core::define
-  (:wat::stream::flat-map<T,U>
-    (upstream :wat::stream::Stream<T>)
-    (f :wat::core::Fn(T)->wat::core::Vector<U>)
-    -> :wat::stream::Stream<U>)
+(:wat::core::defn :wat::stream::flat-map<T,U> [upstream <- :wat::stream::Stream<T> f <- :wat::core::Fn(T)->wat::core::Vector<U>] -> :wat::stream::Stream<U>
   (:wat::core::let
-    [up-rx (:wat::core::first upstream)
-     pair
-      (:wat::kernel::make-bounded-channel :U 1)
-     tx (:wat::core::first pair)
-     rx (:wat::core::second pair)
-     handle
-      (:wat::kernel::spawn-thread
-        (:wat::core::fn
-          [_in <- :wat::kernel::Receiver<wat::core::nil>
-           _out <- :wat::kernel::Sender<wat::core::nil>]
-           -> :wat::core::nil
-          (:wat::stream::flat-map-worker up-rx tx f (:wat::core::Vector :U))))]
-    (:wat::core::Tuple rx handle)))
+      [up-rx (:wat::core::first upstream)
+       pair
+        (:wat::kernel::make-bounded-channel :U 1)
+       tx (:wat::core::first pair)
+       rx (:wat::core::second pair)
+       handle
+        (:wat::kernel::spawn-thread
+          (:wat::core::fn
+            [_in <- :wat::kernel::Receiver<wat::core::nil>
+             _out <- :wat::kernel::Sender<wat::core::nil>]
+             -> :wat::core::nil
+            (:wat::stream::flat-map-worker up-rx tx f (:wat::core::Vector :U))))]
+      (:wat::core::Tuple rx handle)))

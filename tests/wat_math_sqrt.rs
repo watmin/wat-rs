@@ -57,10 +57,9 @@ fn run(src: &str) -> Vec<String> {
 #[test]
 fn sqrt_perfect_square() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::kernel::println
-            (:wat::core::f64::to-string (:wat::std::math::sqrt 16.0))))
+                      (:wat::core::f64::to-string (:wat::std::math::sqrt 16.0))))
     "##;
     assert_eq!(run(src), vec!["\"4\"".to_string()]);
 }
@@ -68,10 +67,9 @@ fn sqrt_perfect_square() {
 #[test]
 fn sqrt_of_zero() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::kernel::println
-            (:wat::core::f64::to-string (:wat::std::math::sqrt 0.0))))
+                      (:wat::core::f64::to-string (:wat::std::math::sqrt 0.0))))
     "##;
     assert_eq!(run(src), vec!["\"0\"".to_string()]);
 }
@@ -79,13 +77,12 @@ fn sqrt_of_zero() {
 #[test]
 fn sqrt_round_trip_with_square() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [x 7.5
-             rt (:wat::std::math::sqrt (:wat::core::* x x))]
-            (:wat::kernel::println
-              (:wat::core::f64::to-string rt))))
+                      [x 7.5
+                       rt (:wat::std::math::sqrt (:wat::core::* x x))]
+                      (:wat::kernel::println
+                        (:wat::core::f64::to-string rt))))
     "##;
     assert_eq!(run(src), vec!["\"7.5\"".to_string()]);
 }

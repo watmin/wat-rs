@@ -63,17 +63,16 @@ fn run(src: &str) -> Vec<String> {
 #[test]
 fn simhash_deterministic_same_ast() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a
-              (:wat::holon::Bind
-                (:wat::holon::to-holon "role")
-                (:wat::holon::to-holon "filler"))
-             k1 (:wat::holon::simhash a)
-             k2 (:wat::holon::simhash a)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= k1 k2) -> :wat::core::String "yes" "no"))))
+                      [a
+                        (:wat::holon::Bind
+                          (:wat::holon::to-holon "role")
+                          (:wat::holon::to-holon "filler"))
+                       k1 (:wat::holon::simhash a)
+                       k2 (:wat::holon::simhash a)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= k1 k2) -> :wat::core::String "yes" "no"))))
     "##;
     assert_eq!(run(src), vec!["\"yes\"".to_string()]);
 }
@@ -83,13 +82,12 @@ fn simhash_deterministic_same_ast() {
 #[test]
 fn simhash_atom_zero_stable() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [k1 (:wat::holon::simhash (:wat::holon::to-holon 0))
-             k2 (:wat::holon::simhash (:wat::holon::to-holon 0))]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= k1 k2) -> :wat::core::String "yes" "no"))))
+                      [k1 (:wat::holon::simhash (:wat::holon::to-holon 0))
+                       k2 (:wat::holon::simhash (:wat::holon::to-holon 0))]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= k1 k2) -> :wat::core::String "yes" "no"))))
     "##;
     assert_eq!(run(src), vec!["\"yes\"".to_string()]);
 }
@@ -102,21 +100,20 @@ fn simhash_atom_zero_stable() {
 #[test]
 fn simhash_same_shape_zero_hamming() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a
-              (:wat::holon::Bind
-                (:wat::holon::to-holon "role")
-                (:wat::holon::to-holon "filler"))
-             b
-              (:wat::holon::Bind
-                (:wat::holon::to-holon "role")
-                (:wat::holon::to-holon "filler"))
-             k1 (:wat::holon::simhash a)
-             k2 (:wat::holon::simhash b)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= k1 k2) -> :wat::core::String "same" "diff"))))
+                      [a
+                        (:wat::holon::Bind
+                          (:wat::holon::to-holon "role")
+                          (:wat::holon::to-holon "filler"))
+                       b
+                        (:wat::holon::Bind
+                          (:wat::holon::to-holon "role")
+                          (:wat::holon::to-holon "filler"))
+                       k1 (:wat::holon::simhash a)
+                       k2 (:wat::holon::simhash b)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= k1 k2) -> :wat::core::String "same" "diff"))))
     "##;
     assert_eq!(run(src), vec!["\"same\"".to_string()]);
 }
@@ -131,15 +128,14 @@ fn simhash_same_shape_zero_hamming() {
 #[test]
 fn simhash_distinct_atoms_distinct_keys() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [alpha (:wat::holon::to-holon "alpha")
-             beta (:wat::holon::to-holon "beta")
-             k-a (:wat::holon::simhash alpha)
-             k-b (:wat::holon::simhash beta)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= k-a k-b) -> :wat::core::String "same" "diff"))))
+                      [alpha (:wat::holon::to-holon "alpha")
+                       beta (:wat::holon::to-holon "beta")
+                       k-a (:wat::holon::simhash alpha)
+                       k-b (:wat::holon::simhash beta)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= k-a k-b) -> :wat::core::String "same" "diff"))))
     "##;
     assert_eq!(run(src), vec!["\"diff\"".to_string()]);
 }
@@ -149,14 +145,13 @@ fn simhash_distinct_atoms_distinct_keys() {
 #[test]
 fn simhash_result_works_in_arithmetic() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [k (:wat::holon::simhash (:wat::holon::to-holon "x"))
-             doubled (:wat::core::+ k k)]
-            ;; Just checking the type-checker accepts arithmetic on
-            ;; the result. Print "ok" if we got here.
-            (:wat::kernel::println "ok")))
+                      [k (:wat::holon::simhash (:wat::holon::to-holon "x"))
+                       doubled (:wat::core::+ k k)]
+                      ;; Just checking the type-checker accepts arithmetic on
+                      ;; the result. Print "ok" if we got here.
+                      (:wat::kernel::println "ok")))
     "##;
     assert_eq!(run(src), vec!["\"ok\"".to_string()]);
 }

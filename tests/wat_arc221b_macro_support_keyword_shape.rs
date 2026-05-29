@@ -114,25 +114,22 @@ fn run_expecting_runtime_err(src: &str) -> bool {
 #[test]
 fn probe_1_rename_callable_name_accepts_keyword_first_child() {
     let src = r##"
-        (:wat::core::define
-          (:user::foo-fn (x :wat::core::i64) -> :wat::core::i64)
-          x)
+        (:wat::core::defn :user::foo-fn [x <- :wat::core::i64] -> :wat::core::i64 x)
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of-defn :user::foo-fn)
-                "expected Some for foo-fn")
-             renamed
-              (:wat::runtime::rename-callable-name
-                sig
-                :user::foo-fn
-                :user::bar-fn)
-             rendered
-              (:wat::edn::write renamed)]
-            (:wat::kernel::println rendered)))
+                      [sig
+                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                          (:wat::runtime::signature-of-defn :user::foo-fn)
+                          "expected Some for foo-fn")
+                       renamed
+                        (:wat::runtime::rename-callable-name
+                          sig
+                          :user::foo-fn
+                          :user::bar-fn)
+                       rendered
+                        (:wat::edn::write renamed)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected 1 output line, got: {:?}", out);
@@ -162,23 +159,20 @@ fn probe_1_rename_callable_name_accepts_keyword_first_child() {
 #[test]
 fn probe_2_rename_callable_name_from_mismatch_errors() {
     let src = r##"
-        (:wat::core::define
-          (:user::my-fn (x :wat::core::i64) -> :wat::core::i64)
-          x)
+        (:wat::core::defn :user::my-fn [x <- :wat::core::i64] -> :wat::core::i64 x)
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of-defn :user::my-fn)
-                "expected Some")
-             _
-              (:wat::runtime::rename-callable-name
-                sig
-                :user::wrong-name
-                :user::alias)]
-            (:wat::kernel::println "should not reach")))
+                      [sig
+                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                          (:wat::runtime::signature-of-defn :user::my-fn)
+                          "expected Some")
+                       _
+                        (:wat::runtime::rename-callable-name
+                          sig
+                          :user::wrong-name
+                          :user::alias)]
+                      (:wat::kernel::println "should not reach")))
     "##;
     assert!(
         run_expecting_runtime_err(src),
@@ -211,17 +205,16 @@ fn probe_3_define_alias_end_to_end() {
     let src = r##"
         (:wat::runtime::define-alias :user::my-length :wat::core::length)
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [v   (:wat::core::Vector :wat::core::i64 1 2 3)
-             r1  (:wat::core::length v)
-             r2  (:user::my-length v)]
-            (:wat::kernel::println
-              (:wat::core::string::concat
-                (:wat::edn::write r1)
-                " "
-                (:wat::edn::write r2)))))
+                      [v   (:wat::core::Vector :wat::core::i64 1 2 3)
+                       r1  (:wat::core::length v)
+                       r2  (:user::my-length v)]
+                      (:wat::kernel::println
+                        (:wat::core::string::concat
+                          (:wat::edn::write r1)
+                          " "
+                          (:wat::edn::write r2)))))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected 1 output line, got: {:?}", out);

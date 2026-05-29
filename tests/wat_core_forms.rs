@@ -14,7 +14,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -50,12 +50,12 @@ fn forms_captures_each_arg_as_wat_ast() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute returns bool.
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::core::bool)
+        (:wat::core::defn :my::compute [] -> :wat::core::bool
           (:wat::core::let
-            [captured
-              (:wat::core::forms (foo 1) (bar 2) (baz 3))
-             n (:wat::core::length captured)]
-            (:wat::core::= n 3)))
+                      [captured
+                        (:wat::core::forms (foo 1) (bar 2) (baz 3))
+                       n (:wat::core::length captured)]
+                      (:wat::core::= n 3)))
     "##;
     assert!(unwrap_bool(run(src)), "expected forms to capture 3 args");
 }
@@ -66,11 +66,11 @@ fn forms_empty_produces_empty_vec() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute returns bool.
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::core::bool)
+        (:wat::core::defn :my::compute [] -> :wat::core::bool
           (:wat::core::let
-            [captured (:wat::core::forms)
-             n (:wat::core::length captured)]
-            (:wat::core::= n 0)))
+                      [captured (:wat::core::forms)
+                       n (:wat::core::length captured)]
+                      (:wat::core::= n 0)))
     "##;
     assert!(unwrap_bool(run(src)), "expected forms() to produce empty vec");
 }
@@ -82,12 +82,12 @@ fn forms_args_are_not_evaluated() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute returns bool.
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::core::bool)
+        (:wat::core::defn :my::compute [] -> :wat::core::bool
           (:wat::core::let
-            [captured
-              (:wat::core::forms (:this::is::not::a::real::function 1 2 3))
-             n (:wat::core::length captured)]
-            (:wat::core::= n 1)))
+                      [captured
+                        (:wat::core::forms (:this::is::not::a::real::function 1 2 3))
+                       n (:wat::core::length captured)]
+                      (:wat::core::= n 1)))
     "##;
     assert!(unwrap_bool(run(src)), "expected forms to capture 1 unevaluated form");
 }
@@ -104,17 +104,17 @@ fn forms_composes_with_run_sandboxed_ast() {
     // hermetic.
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::core::String)
+        (:wat::core::defn :my::compute [] -> :wat::core::String
           (:wat::core::let
-            [r
-              (:wat::test::run-hermetic
-                (:wat::kernel::println "hello-from-inside"))
-             captured (:wat::kernel::RunResult/stdout r)
-             line
-              (:wat::core::match (:wat::core::first captured) -> :wat::core::String
-                ((:wat::core::Some s) s)
-                (:wat::core::None ""))]
-            line))
+                      [r
+                        (:wat::test::run-hermetic
+                          (:wat::kernel::println "hello-from-inside"))
+                       captured (:wat::kernel::RunResult/stdout r)
+                       line
+                        (:wat::core::match (:wat::core::first captured) -> :wat::core::String
+                          ((:wat::core::Some s) s)
+                          (:wat::core::None ""))]
+                      line))
     "##;
     // (:wat::kernel::println "hello-from-inside") EDN-serializes strings with quotes.
     assert_eq!(unwrap_string(run(src)), "\"hello-from-inside\"");
@@ -129,12 +129,12 @@ fn test_program_macro_expands_correctly() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute returns bool.
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::core::bool)
+        (:wat::core::defn :my::compute [] -> :wat::core::bool
           (:wat::core::let
-            [captured
-              (:wat::test::program (a 1) (b 2) (c 3))
-             n (:wat::core::length captured)]
-            (:wat::core::= n 3)))
+                      [captured
+                        (:wat::test::program (a 1) (b 2) (c 3))
+                       n (:wat::core::length captured)]
+                      (:wat::core::= n 3)))
     "##;
     assert!(unwrap_bool(run(src)), "expected :wat::test::program to capture 3 forms");
 }
@@ -149,17 +149,17 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
     // Arc 170 slice 1f-ζ: inner program uses canonical nil main + :wat::kernel::println.
     let src = r##"
 
-        (:wat::core::define (:my::compute -> :wat::core::String)
+        (:wat::core::defn :my::compute [] -> :wat::core::String
           (:wat::core::let
-            [r
-              (:wat::test::run-hermetic
-                (:wat::kernel::println "hi"))
-             captured (:wat::kernel::RunResult/stdout r)
-             line
-              (:wat::core::match (:wat::core::first captured) -> :wat::core::String
-                ((:wat::core::Some s) s)
-                (:wat::core::None ""))]
-            line))
+                      [r
+                        (:wat::test::run-hermetic
+                          (:wat::kernel::println "hi"))
+                       captured (:wat::kernel::RunResult/stdout r)
+                       line
+                        (:wat::core::match (:wat::core::first captured) -> :wat::core::String
+                          ((:wat::core::Some s) s)
+                          (:wat::core::None ""))]
+                      line))
     "##;
     // (:wat::kernel::println "hi") EDN-serializes strings with quotes.
     assert_eq!(unwrap_string(run(src)), "\"hi\"");

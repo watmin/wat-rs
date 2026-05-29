@@ -35,7 +35,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -57,10 +57,10 @@ fn probe_1_to_holon_returns_holon_form() {
     let src = r#"
 (:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::holon::HolonAST)
+(:wat::core::defn :user::compute [] -> :wat::holon::HolonAST
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)]
-    (:wat::holon::to-holon v)))
+      [v (:myapp::Voltage 5.0)]
+      (:wat::holon::to-holon v)))
 "#;
     match run_compute(src) {
         Ok(Value::holon__HolonAST(h)) => {
@@ -85,11 +85,11 @@ fn probe_2_cosine_accepts_records() {
     let src = r#"
 (:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [r1 (:myapp::Voltage 5.0)
-     r2 (:myapp::Voltage 5.0)]
-    (:wat::holon::cosine r1 r2)))
+      [r1 (:myapp::Voltage 5.0)
+       r2 (:myapp::Voltage 5.0)]
+      (:wat::holon::cosine r1 r2)))
 "#;
     match run_compute(src) {
         Ok(Value::f64(f)) => {
@@ -118,12 +118,12 @@ fn probe_3_bind_accepts_record_as_right() {
     let src = r#"
 (:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::holon::HolonAST)
+(:wat::core::defn :user::compute [] -> :wat::holon::HolonAST
   (:wat::core::let
-    [r (:myapp::Voltage 5.0)]
-    (:wat::holon::Bind
-      (:wat::holon::Atom (:wat::holon::to-holon "wrapper"))
-      r)))
+      [r (:myapp::Voltage 5.0)]
+      (:wat::holon::Bind
+        (:wat::holon::Atom (:wat::holon::to-holon "wrapper"))
+        r)))
 "#;
     match run_compute(src) {
         Ok(Value::holon__HolonAST(h)) => {
@@ -148,14 +148,14 @@ fn probe_4_bundle_accepts_records_as_children() {
     let src = r#"
 (:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::holon::HolonAST)
+(:wat::core::defn :user::compute [] -> :wat::holon::HolonAST
   (:wat::core::let
-    [r1 (:myapp::Voltage 1.0)
-     r2 (:myapp::Voltage 2.0)
-     r3 (:myapp::Voltage 3.0)]
-    (:wat::core::Result/expect -> :wat::holon::HolonAST
-      (:wat::holon::Bundle [r1 r2 r3])
-      "Bundle failed in Probe 4")))
+      [r1 (:myapp::Voltage 1.0)
+       r2 (:myapp::Voltage 2.0)
+       r3 (:myapp::Voltage 3.0)]
+      (:wat::core::Result/expect -> :wat::holon::HolonAST
+        (:wat::holon::Bundle [r1 r2 r3])
+        "Bundle failed in Probe 4")))
 "#;
     match run_compute(src) {
         Ok(Value::holon__HolonAST(h)) => {
@@ -181,10 +181,10 @@ fn probe_5_extract_classifier_on_record() {
     let src = r#"
 (:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [r (:myapp::Voltage 5.0)]
-    (:wat::holon::extract-classifier r)))
+      [r (:myapp::Voltage 5.0)]
+      (:wat::holon::extract-classifier r)))
 "#;
     match run_compute(src) {
         Ok(Value::String(s)) => assert_eq!(
@@ -206,17 +206,17 @@ fn probe_6_mixed_records_and_holon_asts() {
     let src = r#"
 (:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::holon::HolonAST)
+(:wat::core::defn :user::compute [] -> :wat::holon::HolonAST
   (:wat::core::let
-    [r          (:myapp::Voltage 5.0)
-     classifier (:wat::holon::Atom (:wat::holon::to-holon "wrapper"))]
-    (:wat::holon::Bind
-      classifier
-      (:wat::core::Result/expect -> :wat::holon::HolonAST
-        (:wat::holon::Bundle
-          [r
-           (:wat::holon::Atom (:wat::holon::to-holon "marker"))])
-        "Bundle failed in Probe 6"))))
+      [r          (:myapp::Voltage 5.0)
+       classifier (:wat::holon::Atom (:wat::holon::to-holon "wrapper"))]
+      (:wat::holon::Bind
+        classifier
+        (:wat::core::Result/expect -> :wat::holon::HolonAST
+          (:wat::holon::Bundle
+            [r
+             (:wat::holon::Atom (:wat::holon::to-holon "marker"))])
+          "Bundle failed in Probe 6"))))
 "#;
     match run_compute(src) {
         Ok(Value::holon__HolonAST(h)) => {

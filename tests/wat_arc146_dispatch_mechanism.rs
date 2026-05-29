@@ -88,13 +88,9 @@ fn try_startup(src: &str) -> Result<(), StartupError> {
 // substrate handles them today) plus a define_dispatch that routes
 // `:test::describe` over `:wat::core::i64` and `:wat::core::f64`.
 const PREAMBLE: &str = r##"
-    (:wat::core::define
-      (:test::i64-describe (x :wat::core::i64) -> :wat::core::String)
-      "i64-arm")
+    (:wat::core::defn :test::i64-describe [x <- :wat::core::i64] -> :wat::core::String "i64-arm")
 
-    (:wat::core::define
-      (:test::f64-describe (x :wat::core::f64) -> :wat::core::String)
-      "f64-arm")
+    (:wat::core::defn :test::f64-describe [x <- :wat::core::f64] -> :wat::core::String "f64-arm")
 
     (:wat::core::define-dispatch :test::describe
       ((:wat::core::i64) :test::i64-describe)
@@ -109,9 +105,7 @@ fn dispatch_dispatches_to_i64_arm() {
         r##"
         {preamble}
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
-          (:wat::kernel::println (:test::describe 42)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:test::describe 42)))
         "##,
         preamble = PREAMBLE,
     );
@@ -124,9 +118,7 @@ fn dispatch_dispatches_to_f64_arm() {
         r##"
         {preamble}
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
-          (:wat::kernel::println (:test::describe 3.14)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:test::describe 3.14)))
         "##,
         preamble = PREAMBLE,
     );
@@ -145,9 +137,7 @@ fn dispatch_no_arm_match_check_time() {
         r##"
         {preamble}
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
-          (:wat::kernel::println (:test::describe "not-a-number")))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:test::describe "not-a-number")))
         "##,
         preamble = PREAMBLE,
     );
@@ -176,14 +166,13 @@ fn lookup_form_returns_dispatch_binding() {
         r##"
         {preamble}
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :test::describe)
-             rendered
-              (:wat::edn::write def-opt)]
-            (:wat::kernel::println rendered)))
+                      [def-opt
+                        (:wat::runtime::lookup-define :test::describe)
+                       rendered
+                        (:wat::edn::write def-opt)]
+                      (:wat::kernel::println rendered)))
         "##,
         preamble = PREAMBLE,
     );
@@ -210,13 +199,12 @@ fn signature_of_defn_dispatch_returns_declaration() {
         r##"
         {preamble}
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::signature-of-defn :test::describe)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "pass"))
-            (:wat::core::None    (:wat::kernel::println "fail"))))
+                      (:wat::runtime::signature-of-defn :test::describe)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
+                      (:wat::core::None    (:wat::kernel::println "fail"))))
         "##,
         preamble = PREAMBLE,
     );
@@ -231,13 +219,12 @@ fn body_of_dispatch_returns_none() {
         r##"
         {preamble}
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match
-            (:wat::runtime::body-of :test::describe)
-            -> :wat::core::nil
-            ((:wat::core::Some _) (:wat::kernel::println "fail"))
-            (:wat::core::None    (:wat::kernel::println "pass"))))
+                      (:wat::runtime::body-of :test::describe)
+                      -> :wat::core::nil
+                      ((:wat::core::Some _) (:wat::kernel::println "fail"))
+                      (:wat::core::None    (:wat::kernel::println "pass"))))
         "##,
         preamble = PREAMBLE,
     );
@@ -254,20 +241,13 @@ fn define_dispatch_arity_mismatch_errors() {
     // diagnostic when the dispatch is called.
     let src = r##"
         ;; Two-arg impl (binary)
-        (:wat::core::define
-          (:test::two-arg-i64
-            (x :wat::core::i64)
-            (y :wat::core::i64)
-            -> :wat::core::String)
-          "two-arg")
+        (:wat::core::defn :test::two-arg-i64 [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::String "two-arg")
 
         ;; Dispatch with surface arity 1 but arm impl with arity 2
         (:wat::core::define-dispatch :test::arity-mismatched
           ((:wat::core::i64) :test::two-arg-i64))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
-          (:wat::kernel::println (:test::arity-mismatched 7)))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:test::arity-mismatched 7)))
     "##;
     let err = try_startup(src).expect_err("expected check-time arity mismatch");
     let msg = format!("{}", err);

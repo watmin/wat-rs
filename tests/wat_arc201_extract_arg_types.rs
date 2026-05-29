@@ -107,16 +107,15 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     // each rendered by `edn::write` with the full keyword path visible.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f    (:wat::core::fn [msg <- :wat::core::String count <- :wat::core::i64]
-                    -> :wat::core::String
-                    msg)
-             sig  (:wat::runtime::signature-of-fn f)
-             tys  (:wat::runtime::extract-arg-types sig)
-             rendered (:wat::edn::write tys)]
-            (:wat::kernel::println rendered)))
+                      [f    (:wat::core::fn [msg <- :wat::core::String count <- :wat::core::i64]
+                              -> :wat::core::String
+                              msg)
+                       sig  (:wat::runtime::signature-of-fn f)
+                       tys  (:wat::runtime::extract-arg-types sig)
+                       rendered (:wat::edn::write tys)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -137,16 +136,15 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     // exactly 2 items by checking the length separately.
     let len_src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f    (:wat::core::fn [msg <- :wat::core::String count <- :wat::core::i64]
-                    -> :wat::core::String
-                    msg)
-             sig  (:wat::runtime::signature-of-fn f)
-             tys  (:wat::runtime::extract-arg-types sig)
-             len  (:wat::core::length tys)]
-            (:wat::kernel::println (:wat::edn::write len))))
+                      [f    (:wat::core::fn [msg <- :wat::core::String count <- :wat::core::i64]
+                              -> :wat::core::String
+                              msg)
+                       sig  (:wat::runtime::signature-of-fn f)
+                       tys  (:wat::runtime::extract-arg-types sig)
+                       len  (:wat::core::length tys)]
+                      (:wat::kernel::println (:wat::edn::write len))))
     "##;
     let len_out = run(len_src);
     assert_eq!(len_out.len(), 1, "expected one length line; got {:?}", len_out);
@@ -169,16 +167,15 @@ fn extract_arg_types_returns_bundles_for_parametric_args() {
     // NOT as the flat pre-arc-201 `:wat::core::Vector<wat::core::i64>` string.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f    (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>]
-                    -> :wat::core::i64
-                    42)
-             sig  (:wat::runtime::signature-of-fn f)
-             tys  (:wat::runtime::extract-arg-types sig)
-             rendered (:wat::edn::write tys)]
-            (:wat::kernel::println rendered)))
+                      [f    (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>]
+                              -> :wat::core::i64
+                              42)
+                       sig  (:wat::runtime::signature-of-fn f)
+                       tys  (:wat::runtime::extract-arg-types sig)
+                       rendered (:wat::edn::write tys)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -213,19 +210,18 @@ fn extract_arg_types_arity_matches_extract_arg_names() {
     // We test with a 3-arg fn to confirm the walker walks all pairs.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f     (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::String c <- :wat::core::i64]
-                     -> :wat::core::String
-                     b)
-             sig   (:wat::runtime::signature-of-fn f)
-             names (:wat::runtime::extract-arg-names sig)
-             tys   (:wat::runtime::extract-arg-types sig)
-             nlen  (:wat::core::length names)
-             tlen  (:wat::core::length tys)]
-            (:wat::kernel::println (:wat::edn::write nlen))
-            (:wat::kernel::println (:wat::edn::write tlen))))
+                      [f     (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::String c <- :wat::core::i64]
+                               -> :wat::core::String
+                               b)
+                       sig   (:wat::runtime::signature-of-fn f)
+                       names (:wat::runtime::extract-arg-names sig)
+                       tys   (:wat::runtime::extract-arg-types sig)
+                       nlen  (:wat::core::length names)
+                       tlen  (:wat::core::length tys)]
+                      (:wat::kernel::println (:wat::edn::write nlen))
+                      (:wat::kernel::println (:wat::edn::write tlen))))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 2, "expected two output lines (name-len, type-len); got {:?}", out);
@@ -260,23 +256,22 @@ fn extract_arg_types_composes_with_bundle_children_on_parametric() {
     // This proves the full D2 chain works end-to-end.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [f       (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>]
-                       -> :wat::core::i64
-                       42)
-             sig     (:wat::runtime::signature-of-fn f)
-             tys     (:wat::runtime::extract-arg-types sig)
-             ;; The Vector param is the only arg; grab it via get index 0.
-             ;; get returns Option; unwrap with Option/expect.
-             ty0     (:wat::core::Option/expect -> :wat::holon::HolonAST
-                       (:wat::core::get tys 0)
-                       "expected first type entry")
-             ;; Decompose the Bundle: head = :wat::core::Vector, arg = :wat::core::i64
-             parts   (:wat::holon::Bundle/children ty0)
-             rendered (:wat::edn::write parts)]
-            (:wat::kernel::println rendered)))
+                      [f       (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>]
+                                 -> :wat::core::i64
+                                 42)
+                       sig     (:wat::runtime::signature-of-fn f)
+                       tys     (:wat::runtime::extract-arg-types sig)
+                       ;; The Vector param is the only arg; grab it via get index 0.
+                       ;; get returns Option; unwrap with Option/expect.
+                       ty0     (:wat::core::Option/expect -> :wat::holon::HolonAST
+                                 (:wat::core::get tys 0)
+                                 "expected first type entry")
+                       ;; Decompose the Bundle: head = :wat::core::Vector, arg = :wat::core::i64
+                       parts   (:wat::holon::Bundle/children ty0)
+                       rendered (:wat::edn::write parts)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -314,11 +309,10 @@ fn extract_arg_types_errors_on_non_bundle_input() {
     // fires at the "expected HolonAST" guard inside eval_extract_arg_types.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_ (:wat::runtime::extract-arg-types 42)]
-            (:wat::kernel::println "unreachable")))
+                      [_ (:wat::runtime::extract-arg-types 42)]
+                      (:wat::kernel::println "unreachable")))
     "##;
     let err = run_expecting_runtime_error(src)
         .expect("expected runtime error from extract-arg-types on non-HolonAST input");

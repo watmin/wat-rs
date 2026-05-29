@@ -43,7 +43,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -106,17 +106,15 @@ fn run_i64(src: &str) -> i64 {
 #[test]
 fn user_function_lookup_define_emits_define_head() {
     let src = r##"
-        (:wat::core::define
-          (:user::greet (n :wat::core::String) -> :wat::core::String)
-          n)
+        (:wat::core::defn :user::greet [n <- :wat::core::String] -> :wat::core::String n)
 
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :user::greet)
-             rendered
-              (:wat::edn::write def-opt)]
-            rendered))
+                      [def-opt
+                        (:wat::runtime::lookup-define :user::greet)
+                       rendered
+                        (:wat::edn::write def-opt)]
+                      rendered))
     "##;
     let line = run_string(src);
     assert!(
@@ -137,24 +135,22 @@ fn user_function_signature_and_body_return_some() {
     // body-of returns Some (functions have wat bodies — distinct from
     // Type/SpecialForm/Dispatch which return :None for body-of).
     let src = r##"
-        (:wat::core::define
-          (:user::add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::+ x y))
+        (:wat::core::defn :user::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))
 
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [sig-opt
-              (:wat::runtime::signature-of-defn :user::add)
-             body-opt
-              (:wat::runtime::body-of :user::add)]
-            (:wat::core::match sig-opt
-              -> :wat::core::bool
-              ((:wat::core::Some _)
-                (:wat::core::match body-opt
-                  -> :wat::core::bool
-                  ((:wat::core::Some _) true)
-                  (:wat::core::None    false)))
-              (:wat::core::None false))))
+                      [sig-opt
+                        (:wat::runtime::signature-of-defn :user::add)
+                       body-opt
+                        (:wat::runtime::body-of :user::add)]
+                      (:wat::core::match sig-opt
+                        -> :wat::core::bool
+                        ((:wat::core::Some _)
+                          (:wat::core::match body-opt
+                            -> :wat::core::bool
+                            ((:wat::core::Some _) true)
+                            (:wat::core::None    false)))
+                        (:wat::core::None false))))
     "##;
     assert!(run_bool(src), "signature-of-defn and body-of :user::add should both return Some");
 }
@@ -171,12 +167,12 @@ fn macro_lookup_define_smoke() {
     let src = r##"
         (:wat::core::defmacro (:my::id (x :AST) -> :AST) `~x)
 
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::lookup-define :my::id)
-            -> :wat::core::bool
-            ((:wat::core::Some _) true)
-            (:wat::core::None    false)))
+                      (:wat::runtime::lookup-define :my::id)
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) true)
+                      (:wat::core::None    false)))
     "##;
     assert!(run_bool(src), "lookup-define :my::id should return Some");
 }
@@ -192,20 +188,20 @@ fn primitive_lookup_define_and_signature_smoke() {
     // (signature-of-defn on foldl). This pins the slice 4 framing: a
     // TypeScheme primitive answers BOTH lookup-define + signature-of-defn.
     let src = r##"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :wat::core::foldl)
-             sig-opt
-              (:wat::runtime::signature-of-defn :wat::core::foldl)]
-            (:wat::core::match def-opt
-              -> :wat::core::bool
-              ((:wat::core::Some _)
-                (:wat::core::match sig-opt
-                  -> :wat::core::bool
-                  ((:wat::core::Some _) true)
-                  (:wat::core::None    false)))
-              (:wat::core::None false))))
+                      [def-opt
+                        (:wat::runtime::lookup-define :wat::core::foldl)
+                       sig-opt
+                        (:wat::runtime::signature-of-defn :wat::core::foldl)]
+                      (:wat::core::match def-opt
+                        -> :wat::core::bool
+                        ((:wat::core::Some _)
+                          (:wat::core::match sig-opt
+                            -> :wat::core::bool
+                            ((:wat::core::Some _) true)
+                            (:wat::core::None    false)))
+                        (:wat::core::None false))))
     "##;
     assert!(run_bool(src), "lookup-define and signature-of-defn :wat::core::foldl should both return Some");
 }
@@ -220,13 +216,13 @@ fn special_form_lookup_define_smoke() {
     // representative special form and asserts the slice-1 sentinel
     // marker is preserved in the rendered AST.
     let src = r##"
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :wat::core::if)
-             rendered
-              (:wat::edn::write def-opt)]
-            rendered))
+                      [def-opt
+                        (:wat::runtime::lookup-define :wat::core::if)
+                       rendered
+                        (:wat::edn::write def-opt)]
+                      rendered))
     "##;
     let line = run_string(src);
     assert!(
@@ -254,13 +250,13 @@ fn type_lookup_define_smoke() {
           [a <- :wat::core::i64
            b <- :wat::core::i64])
 
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :my::Pair)
-             rendered
-              (:wat::edn::write def-opt)]
-            rendered))
+                      [def-opt
+                        (:wat::runtime::lookup-define :my::Pair)
+                       rendered
+                        (:wat::edn::write def-opt)]
+                      rendered))
     "##;
     let line = run_string(src);
     assert!(
@@ -288,13 +284,13 @@ fn type_lookup_define_smoke() {
 #[test]
 fn dispatch_empty_lookup_define_emits_define_dispatch_head() {
     let src = r##"
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :wat::core::empty?)
-             rendered
-              (:wat::edn::write def-opt)]
-            rendered))
+                      [def-opt
+                        (:wat::runtime::lookup-define :wat::core::empty?)
+                       rendered
+                        (:wat::edn::write def-opt)]
+                      rendered))
     "##;
     let line = run_string(src);
     assert!(
@@ -333,20 +329,20 @@ fn dispatch_length_signature_and_body_shape() {
     // body-of returns :None (dispatchs have no wat-side body — the arms
     // table IS the contract; per arc 146 slice 1 BRIEF).
     let src = r##"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [sig-opt
-              (:wat::runtime::signature-of-defn :wat::core::length)
-             body-opt
-              (:wat::runtime::body-of :wat::core::length)]
-            (:wat::core::match sig-opt
-              -> :wat::core::bool
-              ((:wat::core::Some _)
-                (:wat::core::match body-opt
-                  -> :wat::core::bool
-                  ((:wat::core::Some _) false)
-                  (:wat::core::None    true)))
-              (:wat::core::None false))))
+                      [sig-opt
+                        (:wat::runtime::signature-of-defn :wat::core::length)
+                       body-opt
+                        (:wat::runtime::body-of :wat::core::length)]
+                      (:wat::core::match sig-opt
+                        -> :wat::core::bool
+                        ((:wat::core::Some _)
+                          (:wat::core::match body-opt
+                            -> :wat::core::bool
+                            ((:wat::core::Some _) false)
+                            (:wat::core::None    true)))
+                        (:wat::core::None false))))
     "##;
     assert!(run_bool(src), "signature-of-defn should return Some and body-of should return None for dispatch");
 }
@@ -366,10 +362,10 @@ fn length_canary_hashmap_via_define_alias() {
     let src = r##"
         (:wat::runtime::define-alias :user::size :wat::core::length)
 
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:user::size
-            (:wat::core::HashMap :wat::core::String :wat::core::i64
-              "a" 1 "b" 2 "c" 3)))
+                      (:wat::core::HashMap :wat::core::String :wat::core::i64
+                        "a" 1 "b" 2 "c" 3)))
     "##;
     let n = run_i64(src);
     assert_eq!(

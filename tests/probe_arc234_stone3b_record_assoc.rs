@@ -21,7 +21,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -39,11 +39,11 @@ fn probe_1_single_field_update() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [r  (:myapp::Voltage 5.0)
-     r2 (:wat::Record/assoc r :magnitude 6.0)]
-    (:myapp::Voltage/magnitude r2)))
+      [r  (:myapp::Voltage 5.0)
+       r2 (:wat::Record/assoc r :magnitude 6.0)]
+      (:myapp::Voltage/magnitude r2)))
 "#;
     match run_compute(src) {
         Ok(Value::f64(f)) => assert!(
@@ -63,11 +63,11 @@ fn probe_2_multi_field_update_one() {
 (:wat::Record::def :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [t  (:myapp::Triple 7 "hello" true)
-     t2 (:wat::Record/assoc t :b "world")]
-    (:myapp::Triple/b t2)))
+      [t  (:myapp::Triple 7 "hello" true)
+       t2 (:wat::Record/assoc t :b "world")]
+      (:myapp::Triple/b t2)))
 "#;
     match run_compute(src) {
         Ok(Value::String(s)) => assert_eq!(
@@ -88,10 +88,10 @@ fn probe_3_unknown_field_errors() {
 (:wat::Record::def :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
-(:wat::core::define (:user::compute -> :wat::Record)
+(:wat::core::defn :user::compute [] -> :wat::Record
   (:wat::core::let
-    [t (:myapp::Triple 7 "hello" true)]
-    (:wat::Record/assoc t :nonexistent 42)))
+      [t (:myapp::Triple 7 "hello" true)]
+      (:wat::Record/assoc t :nonexistent 42)))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 3 FAILED: expected UnknownField error; got Ok({:?})", v),
@@ -109,10 +109,10 @@ fn probe_4_type_mismatch_errors() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::Record)
+(:wat::core::defn :user::compute [] -> :wat::Record
   (:wat::core::let
-    [r (:myapp::Voltage 5.0)]
-    (:wat::Record/assoc r :magnitude 42)))
+      [r (:myapp::Voltage 5.0)]
+      (:wat::Record/assoc r :magnitude 42)))
 "#;
     match run_compute(src) {
         Ok(v) => panic!(
@@ -136,11 +136,11 @@ fn probe_5_original_record_unchanged() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [r1 (:myapp::Voltage 5.0)
-     r2 (:wat::Record/assoc r1 :magnitude 6.0)]
-    (:myapp::Voltage/magnitude r1)))
+      [r1 (:myapp::Voltage 5.0)
+       r2 (:wat::Record/assoc r1 :magnitude 6.0)]
+      (:myapp::Voltage/magnitude r1)))
 "#;
     match run_compute(src) {
         Ok(Value::f64(f)) => assert!(
@@ -160,16 +160,16 @@ fn probe_6_compose_multiple_assocs() {
 (:wat::Record::def :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [t  (:myapp::Triple 7 "hello" true)
-     t2 (:wat::Record/assoc
-          (:wat::Record/assoc t :a 100)
-          :b "world")]
-    (:wat::core::string::concat
-      (:wat::core::i64::to-string (:myapp::Triple/a t2))
-      "|"
-      (:myapp::Triple/b t2))))
+      [t  (:myapp::Triple 7 "hello" true)
+       t2 (:wat::Record/assoc
+            (:wat::Record/assoc t :a 100)
+            :b "world")]
+      (:wat::core::string::concat
+        (:wat::core::i64::to-string (:myapp::Triple/a t2))
+        "|"
+        (:myapp::Triple/b t2))))
 "#;
     match run_compute(src) {
         Ok(Value::String(s)) => assert_eq!(

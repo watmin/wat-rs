@@ -163,8 +163,7 @@
         ;; A helper define that the body invokes; the helper itself prints
         ;; the captured string so the test verifies the prelude binding
         ;; was actually registered + callable in the child.
-        ((:wat::core::define (:prelude::helper -> :wat::core::nil)
-           (:wat::kernel::println "from-prelude-helper")))
+        ((:wat::core::defn :prelude::helper [] -> :wat::core::nil (:wat::kernel::println "from-prelude-helper")))
         ;; Body — :user::main runs this.
         (:prelude::helper))
      expected (:wat::core::Vector :wat::core::String "\"from-prelude-helper\"")]

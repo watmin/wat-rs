@@ -33,7 +33,7 @@ fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -61,10 +61,10 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match (:wat::core::first (:my::vec-of 10 20 30)) -> :wat::core::i64
-            ((:wat::core::Some n) n)
-            (:wat::core::None -1)))
+                      ((:wat::core::Some n) n)
+                      (:wat::core::None -1)))
     "#;
     assert!(matches!(run(src), Value::i64(10)));
 }
@@ -81,8 +81,7 @@ fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
-          (:my::empty-vec))
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64> (:my::empty-vec))
     "#;
     match run(src) {
         Value::Vec(items) => assert_eq!(items.len(), 0),
@@ -113,8 +112,7 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:my::sum-of 100 1 2 3))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::sum-of 100 1 2 3))
     "#;
     assert!(matches!(run(src), Value::i64(106)));
 }
@@ -139,8 +137,7 @@ fn variadic_macro_requires_at_least_fixed_arity() {
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::i64)
-          (:my::sum-of))
+        (:wat::core::defn :user::main [] -> :wat::core::i64 (:my::sum-of))
     "#;
     match startup(src) {
         Err(StartupError::Macro(_)) => {}
@@ -163,7 +160,7 @@ fn double_rest_marker_refused_at_registration() {
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
-        (:wat::core::define (:user::main -> :wat::core::i64) 0)
+        (:wat::core::defn :user::main [] -> :wat::core::i64 0)
     "#;
     match startup(src) {
         Err(StartupError::Macro(_)) => {}
@@ -183,7 +180,7 @@ fn rest_marker_without_binder_refused_at_registration() {
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::i64::+'2 ~x 0))
 
-        (:wat::core::define (:user::main -> :wat::core::i64) 0)
+        (:wat::core::defn :user::main [] -> :wat::core::i64 0)
     "#;
     match startup(src) {
         Err(StartupError::Macro(_)) => {}

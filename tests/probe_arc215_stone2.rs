@@ -37,7 +37,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -83,19 +83,18 @@ fn startup_err(src: &str) -> String {
 fn probe_1_integer_vec_length_and_first_element() {
     // Length check.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length [1 2 3]))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length [1 2 3]))
     "#;
     assert_eq!(run_i64(src_len), 3, "[1 2 3] must have length 3");
 
     // First-element check via get at index 0 (Option<i64> → match → i64).
     let src_first = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::match
-            (:wat::core::Vector/get [1 2 3] 0)
-            -> :wat::core::i64
-            ((:wat::core::Some v) v)
-            (:wat::core::None -1)))
+                      (:wat::core::Vector/get [1 2 3] 0)
+                      -> :wat::core::i64
+                      ((:wat::core::Some v) v)
+                      (:wat::core::None -1)))
     "#;
     assert_eq!(run_i64(src_first), 1, "first element of [1 2 3] must be 1");
 }
@@ -106,8 +105,7 @@ fn probe_1_integer_vec_length_and_first_element() {
 #[test]
 fn probe_2_float_vec_length() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length [1.5 2.5]))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length [1.5 2.5]))
     "#;
     assert_eq!(run_i64(src), 2, "[1.5 2.5] must have length 2");
 }
@@ -118,8 +116,7 @@ fn probe_2_float_vec_length() {
 #[test]
 fn probe_3_string_vec_length() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length ["a" "b"]))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length ["a" "b"]))
     "#;
     assert_eq!(run_i64(src), 2, r#"["a" "b"] must have length 2"#);
 }
@@ -130,8 +127,7 @@ fn probe_3_string_vec_length() {
 #[test]
 fn probe_4_empty_vec_length_zero() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length []))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length []))
     "#;
     assert_eq!(run_i64(src), 0, "[] must have length 0");
 }
@@ -142,8 +138,7 @@ fn probe_4_empty_vec_length_zero() {
 #[test]
 fn probe_5_bool_vec_length() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length [true false true]))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length [true false true]))
     "#;
     assert_eq!(run_i64(src), 3, "[true false true] must have length 3");
 }
@@ -156,8 +151,7 @@ fn probe_5_bool_vec_length() {
 #[test]
 fn probe_6_explicit_infer_vector_form() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length (:wat::core::Vector :wat::type::Infer 1 2 3)))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length (:wat::core::Vector :wat::type::Infer 1 2 3)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -172,8 +166,7 @@ fn probe_6_explicit_infer_vector_form() {
 #[test]
 fn probe_7_explicit_infer_vector_form_empty() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length (:wat::core::Vector :wat::type::Infer)))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length (:wat::core::Vector :wat::type::Infer)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -189,8 +182,7 @@ fn probe_7_explicit_infer_vector_form_empty() {
 #[test]
 fn probe_8_mixed_type_vector_rejected_at_check() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length [1 "two"]))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length [1 "two"]))
     "#;
     let err = startup_err(src);
     assert!(
@@ -207,8 +199,7 @@ fn probe_8_mixed_type_vector_rejected_at_check() {
 #[test]
 fn probe_9_explicit_type_vector_form_preserved() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length (:wat::core::Vector :wat::core::i64 1 2 3)))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length (:wat::core::Vector :wat::core::i64 1 2 3)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -226,11 +217,11 @@ fn probe_9_explicit_type_vector_form_preserved() {
 #[test]
 fn probe_10_let_binder_vector_preserved() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [x 1
-             y 2]
-            (:wat::core::+ x y)))
+                      [x 1
+                       y 2]
+                      (:wat::core::+ x y)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -248,15 +239,13 @@ fn probe_10_let_binder_vector_preserved() {
 fn probe_11_int_keyed_map_length_and_get() {
     // Length check.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {1 "v" 2 "w"}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {1 "v" 2 "w"}))
     "#;
     assert_eq!(run_i64(src_len), 2, "{{1 \"v\" 2 \"w\"}} must have length 2");
 
     // Presence check: HashMap/contains-key? returns bool.
     let src_contains = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::HashMap/contains-key? {1 "v" 2 "w"} 1))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::HashMap/contains-key? {1 "v" 2 "w"} 1))
     "#;
     assert!(
         run_bool(src_contains),
@@ -272,15 +261,13 @@ fn probe_11_int_keyed_map_length_and_get() {
 fn probe_12_string_keyed_map_length_and_contains() {
     // Length check.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {"a" 1 "b" 2}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {"a" 1 "b" 2}))
     "#;
     assert_eq!(run_i64(src_len), 2, "{{\"a\" 1 \"b\" 2}} must have length 2");
 
     // Contains-key? check.
     let src_contains = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::HashMap/contains-key? {"a" 1 "b" 2} "a"))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::HashMap/contains-key? {"a" 1 "b" 2} "a"))
     "#;
     assert!(
         run_bool(src_contains),
@@ -296,8 +283,7 @@ fn probe_12_string_keyed_map_length_and_contains() {
 #[test]
 fn probe_13_mixed_k_map_rejected_at_check() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {1 "v" "two" "w"}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {1 "v" "two" "w"}))
     "#;
     let err = startup_err(src);
     assert!(

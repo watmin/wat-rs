@@ -37,7 +37,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -68,13 +68,13 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
 
         (:wat::runtime::define-alias :user::my-fold :wat::core::foldl)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:user::my-fold
-            (:wat::core::Vector :wat::core::i64 1 2 3 4)
-            0
-            (:wat::core::fn
-              [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::+ acc x))))
+                      (:wat::core::Vector :wat::core::i64 1 2 3 4)
+                      0
+                      (:wat::core::fn
+                        [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::+ acc x))))
     "##;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 10, "expected alias of foldl to sum [1,2,3,4] from 0 → 10; got {}", n),
@@ -94,9 +94,9 @@ fn define_alias_length_to_user_size_delegates_correctly() {
 
         (:wat::runtime::define-alias :user::my-size :wat::core::length)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:user::my-size
-            (:wat::core::Vector :wat::core::i64 10 20 30)))
+                      (:wat::core::Vector :wat::core::i64 10 20 30)))
     "##;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 3, "expected alias of length to return 3 for Vec of 3 elements; got {}", n),
@@ -120,8 +120,7 @@ fn define_alias_unknown_target_panics_at_expand_time() {
 
         (:wat::runtime::define-alias :user::alias :user::name-that-does-not-exist)
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "##;
     let result = std::panic::catch_unwind(|| {
         startup_from_source(

@@ -61,15 +61,12 @@ fn process_join_without_stdin_extraction_fails_check() {
     // restriction confirms arc 198 enforcement is intact; the stdin rule confirms
     // arc 202 detection is additive and independent.
     let src = r#"
-        (:wat::core::define
-          (:my::arc202::negative-no-stdin
-            (proc :wat::kernel::Process<wat::core::nil,wat::core::nil>)
-            -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
+        (:wat::core::defn :my::arc202::negative-no-stdin [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
           (:wat::core::let
-            [joined (:wat::kernel::Process/join-result proc)]
-            joined))
+                      [joined (:wat::kernel::Process/join-result proc)]
+                      joined))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -99,7 +96,7 @@ fn process_join_with_stdin_extraction_passes_check() {
     // fail with `ProcessJoinHoldsStdinSender` on that substrate function.
     // Startup succeeding = the canonical legal shape passes cleanly.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -117,16 +114,13 @@ fn process_join_with_stdin_present_does_not_fire_stdin_rule() {
     // This proves the rule correctly distinguishes absent-stdin (deadlock) from
     // present-stdin (either legal or a different shape the rule defers on).
     let src = r#"
-        (:wat::core::define
-          (:my::arc202::negative-stdin-present
-            (proc :wat::kernel::Process<wat::core::nil,wat::core::nil>)
-            -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
+        (:wat::core::defn :my::arc202::negative-stdin-present [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
           (:wat::core::let
-            [stdin-w (:wat::kernel::Process/stdin proc)
-             joined  (:wat::kernel::Process/join-result proc)]
-            joined))
+                      [stdin-w (:wat::kernel::Process/stdin proc)
+                       joined  (:wat::kernel::Process/join-result proc)]
+                      joined))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = startup_err(src);
     // Arc 202 rule must NOT fire — stdin is present.

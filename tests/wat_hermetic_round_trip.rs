@@ -24,7 +24,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -46,13 +46,13 @@ fn hermetic_inner_program_stdout_captured() {
     // :wat::kernel::println EDN-serializes strings with quotes.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [result
-              (:wat::test::run-hermetic
-                (:wat::kernel::println "tada!"))
-             lines (:wat::kernel::RunResult/stdout result)]
-            (:wat::core::length lines)))
+                      [result
+                        (:wat::test::run-hermetic
+                          (:wat::kernel::println "tada!"))
+                       lines (:wat::kernel::RunResult/stdout result)]
+                      (:wat::core::length lines)))
     "#;
     // Inner program wrote one line → captured stdout has 1 element.
     match run(src) {
@@ -76,18 +76,18 @@ fn hermetic_output_evaluated_in_outer_scope() {
     // parses it back to i64(42).
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
           (:wat::core::let
-            [hermetic-result
-              (:wat::test::run-hermetic
-                (:wat::kernel::println 42))
-             lines
-              (:wat::kernel::RunResult/stdout hermetic-result)
-             captured-src
-              (:wat::core::match (:wat::core::first lines) -> :wat::core::String
-                ((:wat::core::Some s) s)
-                (:wat::core::None ""))]
-            (:wat::eval-edn! captured-src)))
+                      [hermetic-result
+                        (:wat::test::run-hermetic
+                          (:wat::kernel::println 42))
+                       lines
+                        (:wat::kernel::RunResult/stdout hermetic-result)
+                       captured-src
+                        (:wat::core::match (:wat::core::first lines) -> :wat::core::String
+                          ((:wat::core::Some s) s)
+                          (:wat::core::None ""))]
+                      (:wat::eval-edn! captured-src)))
     "#;
     let result = run(src);
     let inner = unwrap_ok_result(result);

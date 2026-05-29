@@ -38,8 +38,7 @@ use wat::load::InMemoryLoader;
 fn probe_forms_argument_is_data() {
     let src = r#"
         (:wat::core::do
-          (:wat::core::define (:my::probe-f2::forms-helper -> :wat::core::nil)
-            :wat::core::nil)
+          (:wat::core::defn :my::probe-f2::forms-helper [] -> :wat::core::nil :wat::core::nil)
           (:wat::core::forms
             (:my::probe-f2::ghost-inner some-arg)
             (:my::probe-f2::ghost-other 1 2 3)))
@@ -63,8 +62,7 @@ fn probe_forms_argument_is_data() {
 fn probe_quote_argument_is_data() {
     let src = r#"
         (:wat::core::do
-          (:wat::core::define (:my::probe-f2::quote-helper -> :wat::core::nil)
-            :wat::core::nil)
+          (:wat::core::defn :my::probe-f2::quote-helper [] -> :wat::core::nil :wat::core::nil)
           (:wat::core::quote
             (:my::probe-f2::ghost-quoted deeply-nested-arg)))
     "#;
@@ -93,8 +91,7 @@ fn probe_quote_argument_is_data() {
 fn probe_quasiquote_unquote_resolves_correctly() {
     let src = r#"
         (:wat::core::do
-          (:wat::core::define (:my::probe-f2::live-fn -> :wat::core::nil)
-            :wat::core::nil)
+          (:wat::core::defn :my::probe-f2::live-fn [] -> :wat::core::nil :wat::core::nil)
           (:wat::core::quasiquote
             (:my::probe-f2::ghost-template
               (:wat::core::unquote (:my::probe-f2::live-fn)))))

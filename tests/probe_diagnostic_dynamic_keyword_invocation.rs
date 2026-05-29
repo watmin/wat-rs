@@ -28,7 +28,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -49,10 +49,10 @@ fn run_compute(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_bound_keyword_invokes_substrate_verb() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [plus :wat::core::i64::+'2]
-    (:wat::core::apply -> :wat::core::i64 plus [2 3])))
+      [plus :wat::core::i64::+'2]
+      (:wat::core::apply -> :wat::core::i64 plus [2 3])))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -77,10 +77,10 @@ fn probe_1_bound_keyword_invokes_substrate_verb() {
 #[test]
 fn probe_2_runtime_built_keyword_invokes_substrate_verb() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [plus (:wat::core::keyword/from-string "wat::core::i64::+'2")]
-    (:wat::core::apply -> :wat::core::i64 plus [2 3])))
+      [plus (:wat::core::keyword/from-string "wat::core::i64::+'2")]
+      (:wat::core::apply -> :wat::core::i64 plus [2 3])))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -106,13 +106,12 @@ fn probe_2_runtime_built_keyword_invokes_substrate_verb() {
 #[test]
 fn probe_3_mangled_namespace_invokes_user_defn() {
     let src = r#"
-(:wat::core::define (:ns::greeting (name :wat::core::String) -> :wat::core::String)
-  (:wat::core::string::concat "hello " name))
+(:wat::core::defn :ns::greeting [name <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat "hello " name))
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [verb (:wat::core::keyword/from-string "ns::greeting")]
-    (:wat::core::apply -> :wat::core::String verb ["world"])))
+      [verb (:wat::core::keyword/from-string "ns::greeting")]
+      (:wat::core::apply -> :wat::core::String verb ["world"])))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -137,19 +136,13 @@ fn probe_3_mangled_namespace_invokes_user_defn() {
 #[test]
 fn probe_4_apply_with_leading_args_and_tail_vec() {
     let src = r#"
-(:wat::core::define (:ns::add4
-    (a :wat::core::i64)
-    (b :wat::core::i64)
-    (c :wat::core::i64)
-    (d :wat::core::i64)
-    -> :wat::core::i64)
+(:wat::core::defn :ns::add4 [a <- :wat::core::i64 b <- :wat::core::i64 c <- :wat::core::i64 d <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::do
-    (:wat::core::i64::+'2
-      (:wat::core::i64::+'2 a b)
-      (:wat::core::i64::+'2 c d))))
+      (:wat::core::i64::+'2
+        (:wat::core::i64::+'2 a b)
+        (:wat::core::i64::+'2 c d))))
 
-(:wat::core::define (:user::compute -> :wat::core::i64)
-  (:wat::core::apply -> :wat::core::i64 :ns::add4 1 2 [3 4]))
+(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 :ns::add4 1 2 [3 4]))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -173,11 +166,9 @@ fn probe_4_apply_with_leading_args_and_tail_vec() {
 #[test]
 fn probe_5_apply_with_empty_args_vec() {
     let src = r#"
-(:wat::core::define (:ns::greet -> :wat::core::String)
-  "hello")
+(:wat::core::defn :ns::greet [] -> :wat::core::String "hello")
 
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::apply -> :wat::core::String :ns::greet []))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::apply -> :wat::core::String :ns::greet []))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -201,8 +192,7 @@ fn probe_5_apply_with_empty_args_vec() {
 #[test]
 fn probe_6_apply_rejects_special_form_head() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::apply -> :wat::core::String (:wat::core::keyword/from-string "wat::core::defn") []))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::apply -> :wat::core::String (:wat::core::keyword/from-string "wat::core::defn") []))
 "#;
     match run_compute(src) {
         Ok(v) => panic!(
@@ -227,8 +217,7 @@ fn probe_6_apply_rejects_special_form_head() {
 #[test]
 fn probe_7_apply_rejects_non_keyword_head() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::String)
-  (:wat::core::apply -> :wat::core::String "not-a-keyword" []))
+(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::apply -> :wat::core::String "not-a-keyword" []))
 "#;
     match run_compute(src) {
         Ok(v) => panic!(
@@ -253,8 +242,7 @@ fn probe_7_apply_rejects_non_keyword_head() {
 #[test]
 fn probe_8_apply_rejects_non_vector_last_arg() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
-  (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+'2") 42))
+(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+'2") 42))
 "#;
     match run_compute(src) {
         Ok(v) => panic!(

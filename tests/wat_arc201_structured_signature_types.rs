@@ -92,14 +92,13 @@ fn run(src: &str) -> Vec<String> {
 fn render_signature(target_keyword: &str) -> String {
     let src = format!(
         r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::runtime::signature-of-defn {target})
-             rendered
-              (:wat::edn::write sig)]
-            (:wat::kernel::println rendered)))
+                      [sig
+                        (:wat::runtime::signature-of-defn {target})
+                       rendered
+                        (:wat::edn::write sig)]
+                      (:wat::kernel::println rendered)))
         "##,
         target = target_keyword
     );
@@ -118,20 +117,18 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
     // Parametric emission.
     let src = r##"
 
-        (:wat::core::define
-          (:user::sum-list (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+        (:wat::core::defn :user::sum-list [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
-            (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+'2 acc x))))
+                      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::runtime::signature-of-defn :user::sum-list)
-             rendered
-              (:wat::edn::write sig)]
-            (:wat::kernel::println rendered)))
+                      [sig
+                        (:wat::runtime::signature-of-defn :user::sum-list)
+                       rendered
+                        (:wat::edn::write sig)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -244,18 +241,15 @@ fn signature_of_defn_emits_structured_tuple_return_type() {
     // return position; this is the typical place they surface.
     let src = r##"
 
-        (:wat::core::define
-          (:user::make-pair -> :(wat::core::i64,wat::core::String))
-          (:wat::core::Tuple 42 "hi"))
+        (:wat::core::defn :user::make-pair [] -> :(wat::core::i64,wat::core::String) (:wat::core::Tuple 42 "hi"))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::runtime::signature-of-defn :user::make-pair)
-             rendered
-              (:wat::edn::write sig)]
-            (:wat::kernel::println rendered)))
+                      [sig
+                        (:wat::runtime::signature-of-defn :user::make-pair)
+                       rendered
+                        (:wat::edn::write sig)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -304,17 +298,17 @@ fn define_alias_round_trips_on_parametric_signature() {
 
         (:wat::runtime::define-alias :user::my-fold :wat::core::foldl)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:user::my-fold
-            (:wat::core::Vector :wat::core::i64 1 2 3 4)
-            0
-            (:wat::core::fn
-              [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::+ acc x))))
+                      (:wat::core::Vector :wat::core::i64 1 2 3 4)
+                      0
+                      (:wat::core::fn
+                        [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::+ acc x))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::kernel::println
-            (:wat::core::i64::to-string (:my::compute))))
+                      (:wat::core::i64::to-string (:my::compute))))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);

@@ -74,7 +74,7 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
 /// any helper defines at parent freeze time (the child program is
 /// self-contained per the new substrate contract).
 const PARENT_TRIVIAL: &str = r#"
-    (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 "#;
 
 // ─── T1. :user::main [] -> :wat::core::nil signature freezes; 3-arg fires walker ──
@@ -83,8 +83,7 @@ const PARENT_TRIVIAL: &str = r#"
 fn t1_canonical_nil_main_freezes() {
     // Arc 170 slice 1e canonical shape: no params, nil return. Should freeze cleanly.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     // Validator agrees — the canonical signature passes.
@@ -103,13 +102,7 @@ fn t1_canonical_nil_main_freezes() {
 fn t1_legacy_3arg_main_fires_walker() {
     // The well-known pre-arc-170 shape: 3-arg with IOReader/Writer/Writer.
     let src = r#"
-        (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = freeze_err(src);
     assert!(
@@ -128,8 +121,7 @@ fn t2_canonical_main_returns_nil_value() {
     // nil IS the success exit code (arc 170 REALIZATIONS pass 10).
     // invoke_user_main on a canonical [] -> nil main returns nil.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main should run");
@@ -144,10 +136,10 @@ fn t2_canonical_main_with_let_body_returns_nil() {
     // A canonical main with a non-trivial body (let binding + discard)
     // still returns nil. Confirms the do-work-return-nil pattern runs.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_ (:wat::core::i64::+'2 1 2)]
-            :wat::core::nil))
+                      [_ (:wat::core::i64::+'2 1 2)]
+                      :wat::core::nil))
     "#;
     let world = freeze_ok(src);
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main should run");
@@ -167,10 +159,10 @@ fn t3_argv_reachable_via_ambient() {
     // At runtime the ambient vector is whatever set_argv was called with
     // (empty if never set). We just confirm the program freezes and runs.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_ (:wat::runtime::argv)]
-            :wat::core::nil))
+                      [_ (:wat::runtime::argv)]
+                      :wat::core::nil))
     "#;
     let world = freeze_ok(src);
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main runs");
@@ -266,11 +258,11 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
     let world = freeze_ok(PARENT_TRIVIAL);
     let call = build_spawn_process_call(
         r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [n    (:wat::kernel::readln -> :wat::core::i64)
-             _out (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
-            :wat::core::nil))
+                      [n    (:wat::kernel::readln -> :wat::core::i64)
+                       _out (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
+                      :wat::core::nil))
     "#,
     );
     let env = Environment::new();
@@ -348,16 +340,14 @@ fn t5_spawn_process_inline_lambda_round_trips() {
     // entry_form path of slice 1b retires under the new substrate; the
     // analogous shape is now an inline program. Child is self-contained.
     let src = r#"
-        (:wat::core::define
-          (:my::launch
-            -> :wat::kernel::Process<wat::core::i64,wat::core::i64>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::core::let
-                  [n    (:wat::kernel::readln -> :wat::core::i64)
-                   _out (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
-                  :wat::core::nil)))))
+                      (:wat::core::forms
+                        (:wat::core::define (:user::main -> :wat::core::nil)
+                          (:wat::core::let
+                            [n    (:wat::kernel::readln -> :wat::core::i64)
+                             _out (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
+                            :wat::core::nil)))))
     "#;
     let world = freeze_ok(src);
     // Invoke the launcher to get the Process Value.
@@ -421,19 +411,16 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     // interaction between runtime quasiquote and the Vector<WatAST>
     // constructor; the let-form isolates the quasiquote.
     let src = r#"
-        (:wat::core::define
-          (:my::launch
-            (offset :wat::core::i64)
-            -> :wat::kernel::Process<wat::core::i64,wat::core::i64>)
+        (:wat::core::defn :my::launch [offset <- :wat::core::i64] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
           (:wat::core::let
-            [main-form `(:wat::core::define (:user::main -> :wat::core::nil)
-                          (:wat::core::let
-                            [n    (:wat::kernel::readln -> :wat::core::i64)
-                             _out (:wat::kernel::println
-                                    (:wat::core::i64::+'2 n ~offset))]
-                            :wat::core::nil))]
-            (:wat::kernel::spawn-process
-              (:wat::core::Vector :wat::WatAST main-form))))
+                      [main-form `(:wat::core::define (:user::main -> :wat::core::nil)
+                                    (:wat::core::let
+                                      [n    (:wat::kernel::readln -> :wat::core::i64)
+                                       _out (:wat::kernel::println
+                                              (:wat::core::i64::+'2 n ~offset))]
+                                      :wat::core::nil))]
+                      (:wat::kernel::spawn-process
+                        (:wat::core::Vector :wat::WatAST main-form))))
     "#;
     let world = freeze_ok(src);
     let launcher = world.symbols().get(":my::launch").expect("launch defined");
@@ -499,29 +486,27 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
     // identity does not survive fork(2). Slice 1's portability check
     // refuses; spawn-process surfaces the diagnostic.
     let src = r#"
-        (:wat::core::define
-          (:my::launch
-            -> :wat::kernel::Process<wat::core::i64,wat::core::i64>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
           (:wat::core::let
-            [pair (:wat::kernel::make-unbounded-channel)
-             extra-tx (:wat::core::first pair)]
-            (:wat::kernel::spawn-process
-              (:wat::core::fn
-                [rx <- :wat::kernel::Receiver<wat::core::i64>
-                 tx <- :wat::kernel::Sender<wat::core::i64>]
-                -> :wat::core::nil
-                (:wat::core::let
-                  [n
-                    (:wat::core::Option/expect -> :wat::core::i64
-                      (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
-                        (:wat::kernel::recv rx)
-                        "recv failed")
-                      "stream closed")
-                   _send
-                    (:wat::core::Result/expect -> :wat::core::nil
-                      (:wat::kernel::send extra-tx n)
-                      "send failed")]
-                  :wat::core::nil)))))
+                      [pair (:wat::kernel::make-unbounded-channel)
+                       extra-tx (:wat::core::first pair)]
+                      (:wat::kernel::spawn-process
+                        (:wat::core::fn
+                          [rx <- :wat::kernel::Receiver<wat::core::i64>
+                           tx <- :wat::kernel::Sender<wat::core::i64>]
+                          -> :wat::core::nil
+                          (:wat::core::let
+                            [n
+                              (:wat::core::Option/expect -> :wat::core::i64
+                                (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
+                                  (:wat::kernel::recv rx)
+                                  "recv failed")
+                                "stream closed")
+                             _send
+                              (:wat::core::Result/expect -> :wat::core::nil
+                                (:wat::kernel::send extra-tx n)
+                                "send failed")]
+                            :wat::core::nil)))))
     "#;
     // The freeze may succeed (the closure-extract check fires at
     // spawn-process invocation, not at freeze). If the type-checker
@@ -579,16 +564,10 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
 #[test]
 fn t8_fork_program_callsite_fires_walker() {
     let src = r#"
-        (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            (argv :wat::core::Vector<wat::core::String>)
-            -> :wat::kernel::ExitCode)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode
           (:wat::core::do
-            (:wat::kernel::fork-program "" :wat::core::None)
-            (:wat::core::u8 0)))
+                      (:wat::kernel::fork-program "" :wat::core::None)
+                      (:wat::core::u8 0)))
     "#;
     let err = freeze_err(src);
     assert!(
@@ -601,16 +580,10 @@ fn t8_fork_program_callsite_fires_walker() {
 #[test]
 fn t8b_fork_program_ast_callsite_fires_walker() {
     let src = r#"
-        (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            (argv :wat::core::Vector<wat::core::String>)
-            -> :wat::kernel::ExitCode)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode
           (:wat::core::do
-            (:wat::kernel::fork-program-ast (:wat::core::Vector :wat::WatAST))
-            (:wat::core::u8 0)))
+                      (:wat::kernel::fork-program-ast (:wat::core::Vector :wat::WatAST))
+                      (:wat::core::u8 0)))
     "#;
     let err = freeze_err(src);
     assert!(
@@ -626,16 +599,10 @@ fn t8b_fork_program_ast_callsite_fires_walker() {
 #[test]
 fn t9_spawn_program_callsite_fires_walker() {
     let src = r#"
-        (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            (argv :wat::core::Vector<wat::core::String>)
-            -> :wat::kernel::ExitCode)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode
           (:wat::core::do
-            (:wat::kernel::spawn-program "" :wat::core::None)
-            (:wat::core::u8 0)))
+                      (:wat::kernel::spawn-program "" :wat::core::None)
+                      (:wat::core::u8 0)))
     "#;
     let err = freeze_err(src);
     assert!(
@@ -648,16 +615,10 @@ fn t9_spawn_program_callsite_fires_walker() {
 #[test]
 fn t9b_spawn_program_ast_callsite_fires_walker() {
     let src = r#"
-        (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            (argv :wat::core::Vector<wat::core::String>)
-            -> :wat::kernel::ExitCode)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode
           (:wat::core::do
-            (:wat::kernel::spawn-program-ast (:wat::core::Vector :wat::WatAST) :wat::core::None)
-            (:wat::core::u8 0)))
+                      (:wat::kernel::spawn-program-ast (:wat::core::Vector :wat::WatAST) :wat::core::None)
+                      (:wat::core::u8 0)))
     "#;
     let err = freeze_err(src);
     assert!(
@@ -732,13 +693,7 @@ fn t10_spawn_thread_unchanged_positive_control() {
 #[test]
 fn t11_legacy_main_signature_fires_walker_diagnostic() {
     let src = r#"
-        (:wat::core::define
-          (:user::main
-            (stdin :wat::io::IOReader)
-            (stdout :wat::io::IOWriter)
-            (stderr :wat::io::IOWriter)
-            -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = freeze_err(src);
     // The walker's Display output should mention the canonical 4-arg
@@ -764,8 +719,7 @@ fn t12_spawn_process_child_emits_without_recv() {
     let world = freeze_ok(PARENT_TRIVIAL);
     let call = build_spawn_process_call(
         r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          (:wat::kernel::println "hello-from-fork"))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "hello-from-fork"))
     "#,
     );
     let env = Environment::new();
@@ -797,7 +751,7 @@ fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
     let world = freeze_ok(PARENT_TRIVIAL);
     let call = build_spawn_process_call(
         r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#,
     );
     let env = Environment::new();
@@ -822,7 +776,7 @@ fn t14_spawn_process_wait_handle_is_idempotent() {
     let world = freeze_ok(PARENT_TRIVIAL);
     let call = build_spawn_process_call(
         r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#,
     );
     let env = Environment::new();
@@ -851,10 +805,10 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     let world = freeze_ok(PARENT_TRIVIAL);
     let call = build_spawn_process_call(
         r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::Option/expect -> :wat::core::nil
-            :wat::core::None
-            "intentional panic in child"))
+                      :wat::core::None
+                      "intentional panic in child"))
     "#,
     );
     let env = Environment::new();
@@ -908,9 +862,9 @@ fn t17_run_hermetic_layer1_passing_assertion() {
     // A passing assertion (2+2=4) means the child exits 0 and failure
     // is :None.
     let src = r#"
-        (:wat::core::define (:my::test::two-plus-two -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::test::two-plus-two [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::test::assert-eq (:wat::core::i64::+'2 2 2) 4)))
+                      (:wat::test::assert-eq (:wat::core::i64::+'2 2 2) 4)))
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -958,9 +912,9 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     // panics emit the structured chain; plain panics fall through to
     // the singleton "exited N" path.
     let src = r#"
-        (:wat::core::define (:my::test::one-neq-two -> :wat::kernel::RunResult)
+        (:wat::core::defn :my::test::one-neq-two [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::test::assert-eq (:wat::core::i64::+'2 1 0) 2)))
+                      (:wat::test::assert-eq (:wat::core::i64::+'2 1 0) 2)))
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -1042,15 +996,15 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
     // run-hermetic-with-io macro expands to [] fn; driver sends via Sender/from-pipe
     // over Process/stdin; child reads via readln and writes via println.
     let src = r#"
-        (:wat::core::define (:my::test::echo-doubled -> :wat::test::RunResultIO<wat::core::i64>)
+        (:wat::core::defn :my::test::echo-doubled [] -> :wat::test::RunResultIO<wat::core::i64>
           (:wat::test::run-hermetic-with-io
-            :wat::core::i64
-            :wat::core::i64
-            (:wat::core::Vector :wat::core::i64 21)
-            (:wat::core::let
-              [n (:wat::kernel::readln -> :wat::core::i64)
-               _ (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
-              :wat::core::nil)))
+                      :wat::core::i64
+                      :wat::core::i64
+                      (:wat::core::Vector :wat::core::i64 21)
+                      (:wat::core::let
+                        [n (:wat::kernel::readln -> :wat::core::i64)
+                         _ (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
+                        :wat::core::nil)))
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -1119,18 +1073,18 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
     // Stone C: child fn is [] -> nil; uses readln/println through bootstrap services.
     // Child reads n=2 via readln, assert-eq n 3 fails (child panics before println).
     let src = r#"
-        (:wat::core::define (:my::test::recv-assert-fail -> :wat::test::RunResultIO<wat::core::i64>)
+        (:wat::core::defn :my::test::recv-assert-fail [] -> :wat::test::RunResultIO<wat::core::i64>
           (:wat::test::run-hermetic-with-io
-            :wat::core::i64
-            :wat::core::i64
-            (:wat::core::Vector :wat::core::i64 2)
-            (:wat::core::let
-              [n (:wat::kernel::readln -> :wat::core::i64)
-               ;; assert-eq: n=2 vs expected=3 — this fails, child panics
-               _ (:wat::test::assert-eq n 3)
-               ;; println never reached:
-               _2 (:wat::kernel::println n)]
-              :wat::core::nil)))
+                      :wat::core::i64
+                      :wat::core::i64
+                      (:wat::core::Vector :wat::core::i64 2)
+                      (:wat::core::let
+                        [n (:wat::kernel::readln -> :wat::core::i64)
+                         ;; assert-eq: n=2 vs expected=3 — this fails, child panics
+                         _ (:wat::test::assert-eq n 3)
+                         ;; println never reached:
+                         _2 (:wat::kernel::println n)]
+                        :wat::core::nil)))
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -1213,7 +1167,7 @@ fn t16_spawn_process_sequential_spawns_no_fd_zombie_leak() {
     for _ in 0..3 {
         let call = build_spawn_process_call(
             r#"
-            (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
         "#,
         );
         let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();

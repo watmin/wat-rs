@@ -44,7 +44,7 @@ fn freeze(src: &str) -> wat::freeze::FrozenWorld {
 /// `:my::compute` then `eval_in_frozen` to drive the test.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -71,8 +71,7 @@ fn splice_of_vector_bound_symbol_succeeds() {
           (:my::splice-vec (xs :AST<wat::core::nil>) -> :AST<wat::core::nil>)
           `(:wat::core::Vector :wat::core::i64 ~@xs))
 
-        (:wat::core::define (:my::compute -> :wat::core::Vector<wat::core::i64>)
-          (:my::splice-vec [10 20 30]))
+        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64> (:my::splice-vec [10 20 30]))
     "#;
     match run_compute(src) {
         Value::Vec(items) => {
@@ -117,11 +116,9 @@ fn splice_inside_vector_template_fires() {
           `(:wat::core::fn [~@params] -> :wat::core::i64
               (:wat::core::i64::+'2 a b)))
 
-        (:wat::core::define (:my::adder -> :wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64)
-          (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
+        (:wat::core::defn :my::adder [] -> :wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64 (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          ((:my::adder) 7 35))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 ((:my::adder) 7 35))
     "#;
     match run_compute(src) {
         Value::i64(n) => assert_eq!(n, 42, "expected 7+35=42; got {}", n),
@@ -151,10 +148,10 @@ fn vector_splice_round_trip_matches_list_splice() {
           (:my::sum-vec (xs :AST<wat::core::nil>) -> :AST<wat::core::nil>)
           `(:wat::core::i64::+ ~@xs))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::i64::-'2
-            (:my::sum-vec [1 2 3 4])
-            (:my::sum-list 1 2 3 4)))
+                      (:my::sum-vec [1 2 3 4])
+                      (:my::sum-list 1 2 3 4)))
     "#;
     // Both expansions must produce the same numeric result; the
     // difference must be zero — proving Vector and List splice are

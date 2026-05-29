@@ -25,14 +25,14 @@
 ;; Arc 170 migration: canonical [] -> :nil signature; IOWriter/println
 ;; retired in favour of (:wat::kernel::println ...). println emits the
 ;; EDN-encoded form of the String value (arc 170 slice 1f-ι contract).
-(:wat::core::define (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [cache
-      (:wat::lru::LocalCache::new 16)
-     _
-      (:wat::lru::LocalCache::put cache "answer" 42)
-     got
-      (:wat::lru::LocalCache::get cache "answer")]
-    (:wat::core::match got -> :wat::core::nil
-      ((:wat::core::Some v) (:wat::kernel::println "hit"))
-      (:wat::core::None    (:wat::kernel::println "miss")))))
+      [cache
+        (:wat::lru::LocalCache::new 16)
+       _
+        (:wat::lru::LocalCache::put cache "answer" 42)
+       got
+        (:wat::lru::LocalCache::get cache "answer")]
+      (:wat::core::match got -> :wat::core::nil
+        ((:wat::core::Some v) (:wat::kernel::println "hit"))
+        (:wat::core::None    (:wat::kernel::println "miss")))))

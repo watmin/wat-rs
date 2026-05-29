@@ -109,15 +109,15 @@ use wat::span::Span;
 /// (:user::main -> :nil) define; the parent world only needs a trivial
 /// :user::main to freeze.
 const PARENT_SRC: &str = r#"
-    (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 "#;
 
 const CHILD_PROGRAM_SRC: &str = r#"
-    (:wat::core::define (:user::main -> :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil
       (:wat::core::let
-        [[tx rx] (:wat::kernel::make-unbounded-channel :wat::core::nil)
-         _       (:wat::kernel::recv rx)]
-        :wat::core::nil))
+              [[tx rx] (:wat::kernel::make-unbounded-channel :wat::core::nil)
+               _       (:wat::kernel::recv rx)]
+              :wat::core::nil))
 "#;
 
 fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {

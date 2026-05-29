@@ -32,7 +32,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -77,11 +77,11 @@ fn run(src: &str) -> Value {
 fn fn_with_flat_shape_compiles_and_runs() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute applies the fn.
     let src = r#"
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           ((:wat::core::fn [x <- :wat::core::i64 y <- :wat::core::i64]
-             -> :wat::core::i64
-             (:wat::core::i64::+'2 x y))
-           2 3))
+                       -> :wat::core::i64
+                       (:wat::core::i64::+'2 x y))
+                     2 3))
     "#;
     let v = run(src);
     match v {
@@ -104,8 +104,7 @@ fn defn_with_flat_shape_compiles_and_runs() {
           -> :wat::core::i64
           (:wat::core::i64::+'2 x y))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:user::add 2 3))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::add 2 3))
     "#;
     let v = run(src);
     match v {
@@ -131,8 +130,7 @@ fn recursive_defn_with_flat_shape() {
             1
             (:wat::core::i64::*'2 n (:user::fact (:wat::core::i64::-'2 n 1)))))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:user::fact 5))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::fact 5))
     "#;
     let v = run(src);
     match v {
@@ -151,8 +149,7 @@ fn recursive_defn_with_flat_shape() {
 fn zero_arg_fn_with_empty_vector() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute applies the zero-arg fn.
     let src = r#"
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          ((:wat::core::fn [] -> :wat::core::i64 42)))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 ((:wat::core::fn [] -> :wat::core::i64 42)))
     "#;
     let v = run(src);
     match v {
@@ -169,8 +166,7 @@ fn zero_arg_fn_with_empty_vector() {
 #[test]
 fn fn_body_type_mismatch_surfaces() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::nil x) 7))
+        (:wat::core::defn :user::main [] -> :wat::core::nil ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::nil x) 7))
     "#;
     let err = startup_err(src);
     assert!(
@@ -190,13 +186,12 @@ fn fn_body_type_mismatch_surfaces() {
 fn malformed_args_vector_clear_error() {
     // Arc 170 slice 1f-ζ: bad code in probe fn + nil main.
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::i64)
+        (:wat::core::defn :my::probe [] -> :wat::core::i64
           ((:wat::core::fn [x <- :wat::core::i64 y]
-             -> :wat::core::i64
-             x) 7))
+                       -> :wat::core::i64
+                       x) 7))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -225,12 +220,12 @@ fn reflection_on_flat_defn_resolves() {
           -> :wat::core::i64
           (:wat::core::i64::+'2 x y))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match
-            (:wat::runtime::lookup-define :user::add)
-            -> :wat::core::i64
-            ((:wat::core::Some _) 1)
-            (:wat::core::None    0)))
+                      (:wat::runtime::lookup-define :user::add)
+                      -> :wat::core::i64
+                      ((:wat::core::Some _) 1)
+                      (:wat::core::None    0)))
     "#;
     let v = run(src);
     match v {

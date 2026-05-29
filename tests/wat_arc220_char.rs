@@ -92,15 +92,14 @@ fn run_expecting_runtime_err(src: &str) -> String {
 #[test]
 fn char_literal_single_letter() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [c \a
-             expected (:wat::core::Char/of "a")
-             ok (:wat::core::= c expected)]
-            (:wat::core::if ok -> :wat::core::nil
-              (:wat::kernel::println "CHAR-LITERAL-OK")
-              (:wat::kernel::println "CHAR-LITERAL-FAIL"))))
+                      [c \a
+                       expected (:wat::core::Char/of "a")
+                       ok (:wat::core::= c expected)]
+                      (:wat::core::if ok -> :wat::core::nil
+                        (:wat::kernel::println "CHAR-LITERAL-OK")
+                        (:wat::kernel::println "CHAR-LITERAL-FAIL"))))
     "#;
     let lines = run(src);
     assert_eq!(lines, vec!["\"CHAR-LITERAL-OK\""], "\\a literal must produce Char('a')");
@@ -113,33 +112,32 @@ fn char_literal_single_letter() {
 #[test]
 fn char_literal_named_chars() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [nl   \newline
-             sp   \space
-             tab  \tab
-             ret  \return
-             nl-exp  (:wat::core::Char/of "\n")
-             sp-exp  (:wat::core::Char/of " ")
-             tab-exp (:wat::core::Char/of "\t")
-             ret-exp (:wat::core::Char/of "\r")
-             ok (:wat::core::=
-                  (:wat::core::= nl nl-exp)
-                  true)]
-            (:wat::core::if ok -> :wat::core::nil
-              (:wat::core::let
-                [ok2 (:wat::core::= sp sp-exp)
-                 ok3 (:wat::core::= tab tab-exp)
-                 ok4 (:wat::core::= ret ret-exp)]
-                (:wat::core::if (:wat::core::= ok2 true) -> :wat::core::nil
-                  (:wat::core::if (:wat::core::= ok3 true) -> :wat::core::nil
-                    (:wat::core::if (:wat::core::= ok4 true) -> :wat::core::nil
-                      (:wat::kernel::println "NAMED-CHARS-OK")
-                      (:wat::kernel::println "NAMED-CHARS-RETURN-FAIL"))
-                    (:wat::kernel::println "NAMED-CHARS-TAB-FAIL"))
-                  (:wat::kernel::println "NAMED-CHARS-SPACE-FAIL")))
-              (:wat::kernel::println "NAMED-CHARS-NEWLINE-FAIL"))))
+                      [nl   \newline
+                       sp   \space
+                       tab  \tab
+                       ret  \return
+                       nl-exp  (:wat::core::Char/of "\n")
+                       sp-exp  (:wat::core::Char/of " ")
+                       tab-exp (:wat::core::Char/of "\t")
+                       ret-exp (:wat::core::Char/of "\r")
+                       ok (:wat::core::=
+                            (:wat::core::= nl nl-exp)
+                            true)]
+                      (:wat::core::if ok -> :wat::core::nil
+                        (:wat::core::let
+                          [ok2 (:wat::core::= sp sp-exp)
+                           ok3 (:wat::core::= tab tab-exp)
+                           ok4 (:wat::core::= ret ret-exp)]
+                          (:wat::core::if (:wat::core::= ok2 true) -> :wat::core::nil
+                            (:wat::core::if (:wat::core::= ok3 true) -> :wat::core::nil
+                              (:wat::core::if (:wat::core::= ok4 true) -> :wat::core::nil
+                                (:wat::kernel::println "NAMED-CHARS-OK")
+                                (:wat::kernel::println "NAMED-CHARS-RETURN-FAIL"))
+                              (:wat::kernel::println "NAMED-CHARS-TAB-FAIL"))
+                            (:wat::kernel::println "NAMED-CHARS-SPACE-FAIL")))
+                        (:wat::kernel::println "NAMED-CHARS-NEWLINE-FAIL"))))
     "#;
     let lines = run(src);
     assert_eq!(lines, vec!["\"NAMED-CHARS-OK\""], "named char literals must produce correct Char values");
@@ -154,15 +152,14 @@ fn char_literal_unicode_escape() {
     // parses it as the \uNNNN unicode escape for U+0041 = 'A'.
     let src = format!(
         r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [c {}u0041
-             expected (:wat::core::Char/of "A")
-             ok (:wat::core::= c expected)]
-            (:wat::core::if ok -> :wat::core::nil
-              (:wat::kernel::println "UNICODE-ESCAPE-OK")
-              (:wat::kernel::println "UNICODE-ESCAPE-FAIL"))))
+                      [c {}u0041
+                       expected (:wat::core::Char/of "A")
+                       ok (:wat::core::= c expected)]
+                      (:wat::core::if ok -> :wat::core::nil
+                        (:wat::kernel::println "UNICODE-ESCAPE-OK")
+                        (:wat::kernel::println "UNICODE-ESCAPE-FAIL"))))
         "#,
         '\\'
     );
@@ -179,9 +176,7 @@ fn char_literal_unicode_escape() {
 fn char_literal_supplementary_plane_rejected() {
     // `\😀` — emoji is U+1F600, supplementary plane.
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
-          \😀)
+        (:wat::core::defn :user::main [] -> :wat::core::nil \😀)
     "#;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     // Must fail at startup (lex/parse time).
@@ -203,15 +198,14 @@ fn char_literal_supplementary_plane_rejected() {
 #[test]
 fn char_of_valid_single_char() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [c1  (:wat::core::Char/of "x")
-             c2  (:wat::core::Char/of "x")
-             eq  (:wat::core::= c1 c2)]
-            (:wat::core::if eq -> :wat::core::nil
-              (:wat::kernel::println "CHAR-OF-OK")
-              (:wat::kernel::println "CHAR-NEQ-CHAR-WRONG"))))
+                      [c1  (:wat::core::Char/of "x")
+                       c2  (:wat::core::Char/of "x")
+                       eq  (:wat::core::= c1 c2)]
+                      (:wat::core::if eq -> :wat::core::nil
+                        (:wat::kernel::println "CHAR-OF-OK")
+                        (:wat::kernel::println "CHAR-NEQ-CHAR-WRONG"))))
     "#;
     let lines = run(src);
     assert_eq!(lines, vec!["\"CHAR-OF-OK\""], "Char/of must return typed Char equal to same Char");
@@ -227,11 +221,10 @@ fn char_of_valid_single_char() {
 #[test]
 fn char_of_empty_string_rejected() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_c (:wat::core::Char/of "")]
-            :wat::core::nil))
+                      [_c (:wat::core::Char/of "")]
+                      :wat::core::nil))
     "#;
     let err = run_expecting_runtime_err(src);
     assert!(
@@ -248,11 +241,10 @@ fn char_of_empty_string_rejected() {
 #[test]
 fn char_of_multi_char_rejected() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_c (:wat::core::Char/of "ab")]
-            :wat::core::nil))
+                      [_c (:wat::core::Char/of "ab")]
+                      :wat::core::nil))
     "#;
     let err = run_expecting_runtime_err(src);
     assert!(
@@ -286,16 +278,15 @@ fn char_of_supplementary_plane_rejected() {
 #[test]
 fn char_edn_round_trip() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [orig  (:wat::core::Char/of "x")
-             edn   (:wat::edn::write orig)
-             back  (:wat::edn::read edn)
-             ok    (:wat::core::= orig back)]
-            (:wat::core::if ok -> :wat::core::nil
-              (:wat::kernel::println "ROUND-TRIP-OK")
-              (:wat::kernel::println "ROUND-TRIP-FAIL"))))
+                      [orig  (:wat::core::Char/of "x")
+                       edn   (:wat::edn::write orig)
+                       back  (:wat::edn::read edn)
+                       ok    (:wat::core::= orig back)]
+                      (:wat::core::if ok -> :wat::core::nil
+                        (:wat::kernel::println "ROUND-TRIP-OK")
+                        (:wat::kernel::println "ROUND-TRIP-FAIL"))))
     "#;
     let lines = run(src);
     assert_eq!(lines, vec!["\"ROUND-TRIP-OK\""], "Char must round-trip through EDN write/read");
@@ -307,19 +298,18 @@ fn char_edn_round_trip() {
 #[test]
 fn char_equality() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a1  \a
-             a2  \a
-             b   \b
-             eq1 (:wat::core::= a1 a2)
-             eq2 (:wat::core::= a1 b)]
-            (:wat::core::if eq1 -> :wat::core::nil
-              (:wat::core::if (:wat::core::= eq2 false) -> :wat::core::nil
-                (:wat::kernel::println "EQUALITY-OK")
-                (:wat::kernel::println "DIFF-CHARS-EQ-WRONG"))
-              (:wat::kernel::println "SAME-CHARS-NEQ-WRONG"))))
+                      [a1  \a
+                       a2  \a
+                       b   \b
+                       eq1 (:wat::core::= a1 a2)
+                       eq2 (:wat::core::= a1 b)]
+                      (:wat::core::if eq1 -> :wat::core::nil
+                        (:wat::core::if (:wat::core::= eq2 false) -> :wat::core::nil
+                          (:wat::kernel::println "EQUALITY-OK")
+                          (:wat::kernel::println "DIFF-CHARS-EQ-WRONG"))
+                        (:wat::kernel::println "SAME-CHARS-NEQ-WRONG"))))
     "#;
     let lines = run(src);
     assert_eq!(lines, vec!["\"EQUALITY-OK\""], "Char equality must be correct for same and different chars");

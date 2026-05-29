@@ -125,20 +125,19 @@ fn probe_spawn_process_inherits_parent_struct() {
           [x <- :wat::core::i64
            y <- :wat::core::i64])
 
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::defstruct :test::proto::Point
-                [x <- :wat::core::i64
-                 y <- :wat::core::i64])
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::core::let
-                  [s "#test.proto/Point {:x 3 :y 4}"
-                   _ (:wat::edn::read s)]
-                  :wat::core::nil)))))
+                      (:wat::core::forms
+                        (:wat::core::defstruct :test::proto::Point
+                          [x <- :wat::core::i64
+                           y <- :wat::core::i64])
+                        (:wat::core::define (:user::main -> :wat::core::nil)
+                          (:wat::core::let
+                            [s "#test.proto/Point {:x 3 :y 4}"
+                             _ (:wat::edn::read s)]
+                            :wat::core::nil)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "##;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -175,21 +174,20 @@ fn probe_spawn_process_inherits_parent_enum() {
           :Green
           :Blue)
 
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::defenum :test::proto::Color
-                :Red
-                :Green
-                :Blue)
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::core::let
-                  [s "#test.proto.Color/Red nil"
-                   _ (:wat::edn::read s)]
-                  :wat::core::nil)))))
+                      (:wat::core::forms
+                        (:wat::core::defenum :test::proto::Color
+                          :Red
+                          :Green
+                          :Blue)
+                        (:wat::core::define (:user::main -> :wat::core::nil)
+                          (:wat::core::let
+                            [s "#test.proto.Color/Red nil"
+                             _ (:wat::edn::read s)]
+                            :wat::core::nil)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "##;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -238,20 +236,19 @@ fn probe_spawn_process_inherits_parametric_type() {
           [label <- :wat::core::String
            value <- :wat::core::i64])
 
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::defstruct :test::proto::Wrapper<E>
-                [label <- :wat::core::String
-                 value <- :wat::core::i64])
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::core::let
-                  [s "#test.proto/Wrapper {:label :empty :value 42}"
-                   _ (:wat::edn::read s)]
-                  :wat::core::nil)))))
+                      (:wat::core::forms
+                        (:wat::core::defstruct :test::proto::Wrapper<E>
+                          [label <- :wat::core::String
+                           value <- :wat::core::i64])
+                        (:wat::core::define (:user::main -> :wat::core::nil)
+                          (:wat::core::let
+                            [s "#test.proto/Wrapper {:label :empty :value 42}"
+                             _ (:wat::edn::read s)]
+                            :wat::core::nil)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "##;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);

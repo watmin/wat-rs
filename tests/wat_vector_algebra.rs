@@ -57,15 +57,14 @@ fn run(src: &str) -> Vec<String> {
 fn vector_bind_roundtrip() {
     // bind(a, b) == bind(a, b) — deterministic.
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::to-holon "a"))
-             vb (:wat::holon::encode (:wat::holon::to-holon "b"))
-             c1 (:wat::holon::vector-bind va vb)
-             c2 (:wat::holon::vector-bind va vb)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= c1 c2) -> :wat::core::String "yes" "no"))))
+                      [va (:wat::holon::encode (:wat::holon::to-holon "a"))
+                       vb (:wat::holon::encode (:wat::holon::to-holon "b"))
+                       c1 (:wat::holon::vector-bind va vb)
+                       c2 (:wat::holon::vector-bind va vb)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= c1 c2) -> :wat::core::String "yes" "no"))))
     "##;
     assert_eq!(run(src), vec!["\"yes\"".to_string()]);
 }
@@ -74,16 +73,15 @@ fn vector_bind_roundtrip() {
 fn vector_bundle_singleton_returns_input() {
     // Bundle of a single vector returns ~the input (sign of the only contributor).
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-             bundled
-              (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector va))
-             ;; Cosine should be ~1.0 (same sign pattern).
-             c (:wat::holon::cosine va bundled)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
+                      [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       bundled
+                        (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector va))
+                       ;; Cosine should be ~1.0 (same sign pattern).
+                       c (:wat::holon::cosine va bundled)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
     "##;
     assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
 }
@@ -92,16 +90,15 @@ fn vector_bundle_singleton_returns_input() {
 fn vector_blend_weighted() {
     // blend(a, a, 1.0, 0.0) should equal a.
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-             vb (:wat::holon::encode (:wat::holon::to-holon "y"))
-             blended (:wat::holon::vector-blend va vb 1.0 0.0)
-             c (:wat::holon::cosine va blended)]
-            ;; Pure a-weight should give very high cosine to a.
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::> c 0.95) -> :wat::core::String "near-1" "far"))))
+                      [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       vb (:wat::holon::encode (:wat::holon::to-holon "y"))
+                       blended (:wat::holon::vector-blend va vb 1.0 0.0)
+                       c (:wat::holon::cosine va blended)]
+                      ;; Pure a-weight should give very high cosine to a.
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::> c 0.95) -> :wat::core::String "near-1" "far"))))
     "##;
     assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
 }
@@ -110,13 +107,12 @@ fn vector_blend_weighted() {
 fn vector_permute_changes_vector() {
     // permute(v, k) for k != 0 should differ from v.
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-             shifted (:wat::holon::vector-permute va 5)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= va shifted) -> :wat::core::String "same" "differs"))))
+                      [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       shifted (:wat::holon::vector-permute va 5)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= va shifted) -> :wat::core::String "same" "differs"))))
     "##;
     assert_eq!(run(src), vec!["\"differs\"".to_string()]);
 }

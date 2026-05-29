@@ -772,11 +772,12 @@ mod tests {
     fn define_signature_shape() {
         // Just verifying the shape survives parsing as a uniform List.
         // Dispatch to a Define node happens in a later pass.
-        let src = "(:wat::core::define (:my::app::amplify (x :wat::holon::HolonAST) (y :wat::holon::HolonAST) (s :f64) -> :wat::holon::HolonAST) (:wat::holon::Blend x y 1 s))";
+        // Stone 241.11 — :wat::core::defn is the surviving function-binding form.
+        let src = "(:wat::core::defn :my::app::amplify [x <- :wat::holon::HolonAST y <- :wat::holon::HolonAST s <- :f64] -> :wat::holon::HolonAST (:wat::holon::Blend x y 1 s))";
         let parsed = crate::parse_one!(src).unwrap();
-        // First child must be the :wat::core::define keyword.
+        // First child must be the :wat::core::defn keyword.
         if let WatAST::List(items, _) = &parsed {
-            assert_eq!(items[0], kw(":wat::core::define"));
+            assert_eq!(items[0], kw(":wat::core::defn"));
         } else {
             panic!("expected top-level List");
         }

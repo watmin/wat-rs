@@ -27,7 +27,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -53,8 +53,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 fn arith_i64_same_type_works() {
     assert_eq!(
         eval_value(
-            r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                 (:wat::core::+ 1 2))"#
+            r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::+ 1 2))"#
         ),
         Value::i64(3),
         "i64 + i64 → i64 — preserved under THE DECISION",
@@ -65,8 +64,7 @@ fn arith_i64_same_type_works() {
 fn arith_f64_same_type_works() {
     assert_eq!(
         eval_value(
-            r#"(:wat::core::define (:user::compute -> :wat::core::f64)
-                 (:wat::core::+ 1.0 2.0))"#
+            r#"(:wat::core::defn :user::compute [] -> :wat::core::f64 (:wat::core::+ 1.0 2.0))"#
         ),
         Value::f64(3.0),
         "f64 + f64 → f64 — preserved under THE DECISION",
@@ -78,8 +76,7 @@ fn arith_variadic_same_type_three_args_works() {
     // The variadic ergonomic surface STAYS under same-type discipline.
     assert_eq!(
         eval_value(
-            r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                 (:wat::core::+ 1 2 3))"#
+            r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::+ 1 2 3))"#
         ),
         Value::i64(6),
         "variadic same-type fold preserved (3-arg + over i64)",
@@ -92,8 +89,7 @@ fn arith_variadic_same_type_three_args_works() {
 fn comparison_i64_same_type_works() {
     assert_eq!(
         eval_value(
-            r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                 (:wat::core::< 1 2))"#
+            r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< 1 2))"#
         ),
         Value::bool(true),
         "i64 < i64 → bool — preserved",
@@ -104,8 +100,7 @@ fn comparison_i64_same_type_works() {
 fn comparison_f64_same_type_works() {
     assert_eq!(
         eval_value(
-            r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                 (:wat::core::< 1.0 2.0))"#
+            r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< 1.0 2.0))"#
         ),
         Value::bool(true),
         "f64 < f64 → bool — preserved",
@@ -117,8 +112,7 @@ fn comparison_string_same_type_works() {
     // Non-numeric comparison — unaffected by THE DECISION (string=string).
     assert_eq!(
         eval_value(
-            r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                 (:wat::core::= "a" "a"))"#
+            r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::= "a" "a"))"#
         ),
         Value::bool(true),
         "string = string preserved — non-numeric path unaffected",
@@ -134,8 +128,7 @@ fn comparison_string_same_type_works() {
 #[test]
 fn arith_i64_f64_mixed_rejected_at_check() {
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::f64)
-             (:wat::core::+ 1 2.0))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::f64 (:wat::core::+ 1 2.0))"#,
     );
     assert!(
         result.is_err(),
@@ -147,8 +140,7 @@ fn arith_i64_f64_mixed_rejected_at_check() {
 #[test]
 fn arith_f64_i64_mixed_rejected_at_check() {
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::f64)
-             (:wat::core::+ 1.0 2))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::f64 (:wat::core::+ 1.0 2))"#,
     );
     assert!(
         result.is_err(),
@@ -160,8 +152,7 @@ fn arith_f64_i64_mixed_rejected_at_check() {
 #[test]
 fn comparison_i64_f64_mixed_rejected_at_check() {
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-             (:wat::core::< 1 2.0))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< 1 2.0))"#,
     );
     assert!(
         result.is_err(),

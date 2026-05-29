@@ -82,7 +82,7 @@ fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
 #[test]
 fn probe_parent_has_no_prelude_struct_accessors() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 
         (:wat::test::deftest-hermetic :test::g::my-hermetic-test
           ((:wat::core::defstruct :test::g::IsolatedType [field <- :wat::core::i64]))
@@ -131,7 +131,7 @@ fn probe_parent_has_no_prelude_struct_accessors() {
 #[test]
 fn probe_cross_test_prelude_isolation_same_fqdn_no_collision() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 
         (:wat::test::deftest-hermetic :test::g::first-hermetic-test
           ((:wat::core::defstruct :test::g::SharedName [value <- :wat::core::i64]))
@@ -183,15 +183,13 @@ fn probe_cross_test_prelude_isolation_same_fqdn_no_collision() {
 #[test]
 fn probe_test_fn_visible_prelude_content_invisible() {
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 
         (:wat::test::deftest-hermetic :test::g::visible-test
           ((:wat::core::defstruct :test::g::HiddenStruct
              [x <- :wat::core::i64
               y <- :wat::core::i64])
-           (:wat::core::define
-             (:test::g::hidden-helper -> :test::g::HiddenStruct)
-             (:test::g::HiddenStruct/new 0 0)))
+           (:wat::core::defn :test::g::hidden-helper [] -> :test::g::HiddenStruct (:test::g::HiddenStruct/new 0 0)))
           :wat::core::nil)
     "#;
     let world = freeze_ok(src);
@@ -244,14 +242,13 @@ fn probe_make_deftest_hermetic_define_prelude_parent_isolated() {
     // Mirrors ambient-stdio.wat's make-deftest-hermetic usage:
     // the default-prelude contains a define that calls run-hermetic-ast.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 
         (:wat::test::make-deftest-hermetic :deftest-g-isolated
           (
-           (:wat::core::define
-             (:test::g::run-inner -> :wat::kernel::RunResult)
+           (:wat::core::defn :test::g::run-inner [] -> :wat::kernel::RunResult
              (:wat::test::run-hermetic
-               (:wat::kernel::println "hello")))
+                            (:wat::kernel::println "hello")))
           ))
 
         (:deftest-g-isolated :test::g::using-make-deftest-hermetic

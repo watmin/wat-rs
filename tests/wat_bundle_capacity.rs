@@ -29,7 +29,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -63,8 +63,7 @@ fn bundle_under_budget_returns_ok_under_error_mode() {
     let src = format!(
         r#"
 
-        (:wat::core::define (:my::compute -> :wat::holon::BundleResult)
-          (:wat::holon::Bundle {}))
+        (:wat::core::defn :my::compute [] -> :wat::holon::BundleResult (:wat::holon::Bundle {}))
         "#,
         atoms_list(5)
     );
@@ -83,8 +82,7 @@ fn bundle_under_budget_returns_ok_under_panic_mode() {
         r#"
         (:wat::config::set-capacity-mode! :panic)
 
-        (:wat::core::define (:my::compute -> :wat::holon::BundleResult)
-          (:wat::holon::Bundle {}))
+        (:wat::core::defn :my::compute [] -> :wat::holon::BundleResult (:wat::holon::Bundle {}))
         "#,
         atoms_list(5)
     );
@@ -109,8 +107,7 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
     let src = format!(
         r#"
 
-        (:wat::core::define (:my::compute -> :wat::holon::BundleResult)
-          (:wat::holon::Bundle {}))
+        (:wat::core::defn :my::compute [] -> :wat::holon::BundleResult (:wat::holon::Bundle {}))
         "#,
         atoms_list(317)
     );
@@ -140,13 +137,13 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
     let src = format!(
         r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match (:wat::holon::Bundle {}) -> :wat::core::i64
-            ((:wat::core::Ok _) 0)
-            ((:wat::core::Err e)
-              (:wat::core::i64::-'2
-                (:wat::holon::CapacityExceeded/cost e)
-                (:wat::holon::CapacityExceeded/budget e)))))
+                      ((:wat::core::Ok _) 0)
+                      ((:wat::core::Err e)
+                        (:wat::core::i64::-'2
+                          (:wat::holon::CapacityExceeded/cost e)
+                          (:wat::holon::CapacityExceeded/budget e)))))
         "#,
         atoms_list(400)
     );
@@ -165,8 +162,7 @@ fn bundle_over_budget_under_panic_mode_panics() {
         r#"
         (:wat::config::set-capacity-mode! :panic)
 
-        (:wat::core::define (:my::compute -> :wat::holon::BundleResult)
-          (:wat::holon::Bundle {}))
+        (:wat::core::defn :my::compute [] -> :wat::holon::BundleResult (:wat::holon::Bundle {}))
         "#,
         atoms_list(500)
     );
@@ -195,15 +191,12 @@ fn try_propagates_bundle_err_across_function_boundary() {
     let src = format!(
         r#"
 
-        (:wat::core::define (:app::build-composite
-                            (items :wat::holon::Holons)
-                            -> :wat::holon::BundleResult)
-          (:wat::core::Ok (:wat::core::Result/try (:wat::holon::Bundle items))))
+        (:wat::core::defn :app::build-composite [items <- :wat::holon::Holons] -> :wat::holon::BundleResult (:wat::core::Ok (:wat::core::Result/try (:wat::holon::Bundle items))))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match (:app::build-composite {}) -> :wat::core::i64
-            ((:wat::core::Ok _) 0)
-            ((:wat::core::Err e) (:wat::holon::CapacityExceeded/cost e))))
+                      ((:wat::core::Ok _) 0)
+                      ((:wat::core::Err e) (:wat::holon::CapacityExceeded/cost e))))
         "#,
         atoms_list(400)
     );
@@ -222,12 +215,12 @@ fn bundle_return_type_mismatch_rejected_at_check() {
     // Arc 170 slice 1f-ζ: bad code in :my::probe + canonical nil main.
     let src = r#"
 
-        (:wat::core::define (:my::probe -> :wat::holon::HolonAST)
+        (:wat::core::defn :my::probe [] -> :wat::holon::HolonAST
           (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST
-            (:wat::holon::to-holon "a")
-            (:wat::holon::to-holon "b"))))
+                      (:wat::holon::to-holon "a")
+                      (:wat::holon::to-holon "b"))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Err(_) => {}

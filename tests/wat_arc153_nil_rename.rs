@@ -86,11 +86,9 @@ fn type_position_unit_post_retirement_is_unknown_fqdn() {
     // scaffolding (arc 113 precedent — variant stays for
     // testing/teaching; only the firing body retires).
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::unit)
-          ())
+        (:wat::core::defn :my::probe [] -> :wat::core::unit ())
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     // Arc 163 follow-up — walker re-armed; bare :wat::core::unit
     // now fires BareLegacyUnitName fatal at check time (replaces the
@@ -114,11 +112,9 @@ fn type_position_nil_canonical_works() {
     // empty-tuple types succeeds. Post-sweep-1b: full startup
     // success.
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::nil)
-          ())
+        (:wat::core::defn :my::probe [] -> :wat::core::nil ())
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          (:my::probe))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::probe))
     "#;
     startup_ok(src);
 }
@@ -133,11 +129,9 @@ fn value_position_nil_keyword_type_checks_and_evaluates() {
     // a `-> :wat::core::nil` declaration succeeds. Post-sweep-1b:
     // full startup success.
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::probe [] -> :wat::core::nil :wat::core::nil)
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          (:my::probe))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::probe))
     "#;
     startup_ok(src);
 }
@@ -153,11 +147,9 @@ fn value_position_nil_against_i64_recipient_fires_type_mismatch() {
     // special-case really ascribes the nil type (not
     // :wat::core::keyword).
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::i64)
-          :wat::core::nil)
+        (:wat::core::defn :my::probe [] -> :wat::core::i64 :wat::core::nil)
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let err = startup_err(src);
     // Expect a `<entry>`-spanned ReturnTypeMismatch (or
@@ -181,11 +173,9 @@ fn mixed_empty_list_body_with_nil_sig_unifies() {
     // internal representation (`TypeExpr::Tuple(vec![])`);
     // unification succeeds; full startup success.
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::nil)
-          ())
+        (:wat::core::defn :my::probe [] -> :wat::core::nil ())
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          (:my::probe))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::probe))
     "#;
     startup_ok(src);
 }
@@ -203,11 +193,9 @@ fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
     // body-side spelling is fine; the error attaches to the
     // signature mismatch as expected.
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::unit)
-          :wat::core::nil)
+        (:wat::core::defn :my::probe [] -> :wat::core::unit :wat::core::nil)
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     // Arc 163 follow-up — walker re-armed; the retired sig token
     // fires BareLegacyUnitName fatal before unification reaches
@@ -230,11 +218,9 @@ fn value_position_nil_evaluates_to_value_unit() {
     // unification with `-> :wat::core::nil` succeeds) and full
     // startup completes.
     let src = r#"
-        (:wat::core::define (:my::nil-form -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :my::nil-form [] -> :wat::core::nil :wat::core::nil)
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          (:my::nil-form))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::nil-form))
     "#;
     startup_ok(src);
 }
@@ -250,11 +236,9 @@ fn value_position_empty_list_still_evaluates_to_unit() {
     // didn't accidentally retire the legacy spelling at the
     // type-check level.
     let src = r#"
-        (:wat::core::define (:my::nil-form -> :wat::core::nil)
-          ())
+        (:wat::core::defn :my::nil-form [] -> :wat::core::nil ())
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          (:my::nil-form))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::nil-form))
     "#;
     startup_ok(src);
 }
@@ -276,14 +260,9 @@ fn other_keywords_still_type_as_keyword() {
     // site with a mismatch; if the special-case is correctly
     // narrow, type-check passes (no user-source errors).
     let src = r#"
-        (:wat::core::define
-          (:my::echo-keyword
-            (k :wat::core::keyword)
-            -> :wat::core::keyword)
-          k)
+        (:wat::core::defn :my::echo-keyword [k <- :wat::core::keyword] -> :wat::core::keyword k)
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     startup_ok(src);
 }
@@ -303,11 +282,9 @@ fn bare_legacy_unit_name_walker_retired() {
     // symbol-migration arcs reintroduce the firing path with new
     // variants.
     let src = r#"
-        (:wat::core::define (:my::probe -> :wat::core::unit)
-          ())
+        (:wat::core::defn :my::probe [] -> :wat::core::unit ())
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     // Arc 163 follow-up — walker RE-ARMED after arc 163 audit found
     // the silent-acceptance gap inconsistent with the FQDN-everywhere

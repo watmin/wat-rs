@@ -27,7 +27,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -71,8 +71,7 @@ fn defn_simple_compiles_and_runs() {
           [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::i64::+'2 x y))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:user::add 2 3))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::add 2 3))
     "#;
     let v = run(src);
     match v {
@@ -114,8 +113,7 @@ fn defn_recursive_factorial_works() {
             1
             (:wat::core::i64::*'2 n (:user::fact (:wat::core::i64::-'2 n 1)))))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:user::fact 5))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::fact 5))
     "#;
     let v = run(src);
     match v {
@@ -156,8 +154,7 @@ fn defn_inside_top_level_do_works() {
             [x <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::i64::-'2 x 1)))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:user::inc (:user::dec 10)))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::inc (:user::dec 10)))
     "#;
     let v = run(src);
     match v {
@@ -181,8 +178,7 @@ fn defn_inside_top_level_let_body_works() {
             [x <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::i64::+'2 x offset)))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:user::add-offset 5))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::add-offset 5))
     "#;
     let v = run(src);
     match v {
@@ -233,8 +229,7 @@ fn defn_zero_arg_function_works() {
           [] -> :wat::core::i64
           42)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:user::forty-two))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::forty-two))
     "#;
     let v = run(src);
     match v {
@@ -329,12 +324,12 @@ fn defn_reflection_lookup_define_resolves() {
           [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::i64::+'2 x y))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match
-            (:wat::runtime::lookup-define :user::add)
-            -> :wat::core::i64
-            ((:wat::core::Some _) 1)
-            (:wat::core::None    0)))
+                      (:wat::runtime::lookup-define :user::add)
+                      -> :wat::core::i64
+                      ((:wat::core::Some _) 1)
+                      (:wat::core::None    0)))
     "#;
     let v = run(src);
     match v {

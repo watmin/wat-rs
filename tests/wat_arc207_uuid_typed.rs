@@ -74,15 +74,14 @@ fn run(src: &str) -> Vec<String> {
 #[test]
 fn uuid_v4_returns_typed_uuid() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [u  (:wat::core::Uuid/v4)
-             s  (:wat::core::Uuid/to-string u)
-             ok (:wat::core::= (:wat::core::string::length s) 36)]
-            (:wat::core::if ok -> :wat::core::nil
-              (:wat::kernel::println "TYPED-UUID-OK")
-              (:wat::kernel::println "TYPED-UUID-FAIL"))))
+                      [u  (:wat::core::Uuid/v4)
+                       s  (:wat::core::Uuid/to-string u)
+                       ok (:wat::core::= (:wat::core::string::length s) 36)]
+                      (:wat::core::if ok -> :wat::core::nil
+                        (:wat::kernel::println "TYPED-UUID-OK")
+                        (:wat::kernel::println "TYPED-UUID-FAIL"))))
     "#;
     let lines = run(src);
     assert_eq!(lines, vec!["\"TYPED-UUID-OK\""], "Uuid/v4 must return a typed Uuid (not String)");
@@ -96,20 +95,19 @@ fn uuid_v4_returns_typed_uuid() {
 #[test]
 fn uuid_v5_with_typed_namespace() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [ns  (:wat::core::Uuid/nil)
-             u1  (:wat::core::Uuid/v5 ns "hello")
-             u2  (:wat::core::Uuid/v5 ns "hello")
-             s1  (:wat::core::Uuid/to-string u1)]
-            (:wat::core::do
-              (:wat::core::if (:wat::core::= (:wat::core::string::length s1) 36) -> :wat::core::nil
-                (:wat::kernel::println "V5-LEN-OK")
-                (:wat::kernel::println "V5-LEN-FAIL"))
-              (:wat::core::if (:wat::core::= u1 u2) -> :wat::core::nil
-                (:wat::kernel::println "V5-DETERMINISTIC-OK")
-                (:wat::kernel::println "V5-DETERMINISTIC-FAIL")))))
+                      [ns  (:wat::core::Uuid/nil)
+                       u1  (:wat::core::Uuid/v5 ns "hello")
+                       u2  (:wat::core::Uuid/v5 ns "hello")
+                       s1  (:wat::core::Uuid/to-string u1)]
+                      (:wat::core::do
+                        (:wat::core::if (:wat::core::= (:wat::core::string::length s1) 36) -> :wat::core::nil
+                          (:wat::kernel::println "V5-LEN-OK")
+                          (:wat::kernel::println "V5-LEN-FAIL"))
+                        (:wat::core::if (:wat::core::= u1 u2) -> :wat::core::nil
+                          (:wat::kernel::println "V5-DETERMINISTIC-OK")
+                          (:wat::kernel::println "V5-DETERMINISTIC-FAIL")))))
     "#;
     let lines = run(src);
     assert_eq!(
@@ -127,78 +125,72 @@ fn uuid_v5_with_typed_namespace() {
 fn uuid_from_string_canonical_and_invalid() {
     // Valid canonical form
     let src_valid = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [result (:wat::core::Uuid/from-string "550e8400-e29b-41d4-a716-446655440000")]
-            (:wat::core::match result -> :wat::core::nil
-              ((:wat::core::Some u) (:wat::kernel::println "VALID-SOME"))
-              (:wat::core::None     (:wat::kernel::println "VALID-NONE")))))
+                      [result (:wat::core::Uuid/from-string "550e8400-e29b-41d4-a716-446655440000")]
+                      (:wat::core::match result -> :wat::core::nil
+                        ((:wat::core::Some u) (:wat::kernel::println "VALID-SOME"))
+                        (:wat::core::None     (:wat::kernel::println "VALID-NONE")))))
     "#;
     let lines = run(src_valid);
     assert_eq!(lines, vec!["\"VALID-SOME\""], "canonical lowercase UUID must return Some");
 
     // Uppercase — rejected (not canonical)
     let src_upper = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [result (:wat::core::Uuid/from-string "550E8400-E29B-41D4-A716-446655440000")]
-            (:wat::core::match result -> :wat::core::nil
-              ((:wat::core::Some u) (:wat::kernel::println "UPPER-SOME"))
-              (:wat::core::None     (:wat::kernel::println "UPPER-NONE")))))
+                      [result (:wat::core::Uuid/from-string "550E8400-E29B-41D4-A716-446655440000")]
+                      (:wat::core::match result -> :wat::core::nil
+                        ((:wat::core::Some u) (:wat::kernel::println "UPPER-SOME"))
+                        (:wat::core::None     (:wat::kernel::println "UPPER-NONE")))))
     "#;
     let lines = run(src_upper);
     assert_eq!(lines, vec!["\"UPPER-NONE\""], "uppercase UUID must return None");
 
     // URN prefix — rejected
     let src_urn = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [result (:wat::core::Uuid/from-string "urn:uuid:550e8400-e29b-41d4-a716-446655440000")]
-            (:wat::core::match result -> :wat::core::nil
-              ((:wat::core::Some u) (:wat::kernel::println "URN-SOME"))
-              (:wat::core::None     (:wat::kernel::println "URN-NONE")))))
+                      [result (:wat::core::Uuid/from-string "urn:uuid:550e8400-e29b-41d4-a716-446655440000")]
+                      (:wat::core::match result -> :wat::core::nil
+                        ((:wat::core::Some u) (:wat::kernel::println "URN-SOME"))
+                        (:wat::core::None     (:wat::kernel::println "URN-NONE")))))
     "#;
     let lines = run(src_urn);
     assert_eq!(lines, vec!["\"URN-NONE\""], "URN-prefixed UUID must return None");
 
     // Braced form — rejected
     let src_braced = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [result (:wat::core::Uuid/from-string "{550e8400-e29b-41d4-a716-446655440000}")]
-            (:wat::core::match result -> :wat::core::nil
-              ((:wat::core::Some u) (:wat::kernel::println "BRACED-SOME"))
-              (:wat::core::None     (:wat::kernel::println "BRACED-NONE")))))
+                      [result (:wat::core::Uuid/from-string "{550e8400-e29b-41d4-a716-446655440000}")]
+                      (:wat::core::match result -> :wat::core::nil
+                        ((:wat::core::Some u) (:wat::kernel::println "BRACED-SOME"))
+                        (:wat::core::None     (:wat::kernel::println "BRACED-NONE")))))
     "#;
     let lines = run(src_braced);
     assert_eq!(lines, vec!["\"BRACED-NONE\""], "braced UUID must return None");
 
     // Garbage string — rejected
     let src_garbage = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [result (:wat::core::Uuid/from-string "not-a-uuid")]
-            (:wat::core::match result -> :wat::core::nil
-              ((:wat::core::Some u) (:wat::kernel::println "GARBAGE-SOME"))
-              (:wat::core::None     (:wat::kernel::println "GARBAGE-NONE")))))
+                      [result (:wat::core::Uuid/from-string "not-a-uuid")]
+                      (:wat::core::match result -> :wat::core::nil
+                        ((:wat::core::Some u) (:wat::kernel::println "GARBAGE-SOME"))
+                        (:wat::core::None     (:wat::kernel::println "GARBAGE-NONE")))))
     "#;
     let lines = run(src_garbage);
     assert_eq!(lines, vec!["\"GARBAGE-NONE\""], "garbage string must return None");
 
     // Nil UUID in canonical form — IS valid (all-lowercase zeros)
     let src_nil_str = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [result (:wat::core::Uuid/from-string "00000000-0000-0000-0000-000000000000")]
-            (:wat::core::match result -> :wat::core::nil
-              ((:wat::core::Some u) (:wat::kernel::println "NIL-STR-SOME"))
-              (:wat::core::None     (:wat::kernel::println "NIL-STR-NONE")))))
+                      [result (:wat::core::Uuid/from-string "00000000-0000-0000-0000-000000000000")]
+                      (:wat::core::match result -> :wat::core::nil
+                        ((:wat::core::Some u) (:wat::kernel::println "NIL-STR-SOME"))
+                        (:wat::core::None     (:wat::kernel::println "NIL-STR-NONE")))))
     "#;
     let lines = run(src_nil_str);
     assert_eq!(lines, vec!["\"NIL-STR-SOME\""], "nil UUID in canonical form must return Some");
@@ -212,22 +204,21 @@ fn uuid_from_string_canonical_and_invalid() {
 #[test]
 fn uuid_to_string_roundtrip() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [u        (:wat::core::Uuid/v4)
-             s        (:wat::core::Uuid/to-string u)
-             reparsed (:wat::core::Uuid/from-string s)]
-            (:wat::core::do
-              (:wat::core::if (:wat::core::= (:wat::core::string::length s) 36) -> :wat::core::nil
-                (:wat::kernel::println "LEN-36-OK")
-                (:wat::kernel::println "LEN-36-FAIL"))
-              (:wat::core::match reparsed -> :wat::core::nil
-                ((:wat::core::Some u2)
-                  (:wat::core::if (:wat::core::= (:wat::core::Uuid/to-string u2) s) -> :wat::core::nil
-                    (:wat::kernel::println "ROUNDTRIP-OK")
-                    (:wat::kernel::println "ROUNDTRIP-FAIL")))
-                (:wat::core::None (:wat::kernel::println "ROUNDTRIP-NONE"))))))
+                      [u        (:wat::core::Uuid/v4)
+                       s        (:wat::core::Uuid/to-string u)
+                       reparsed (:wat::core::Uuid/from-string s)]
+                      (:wat::core::do
+                        (:wat::core::if (:wat::core::= (:wat::core::string::length s) 36) -> :wat::core::nil
+                          (:wat::kernel::println "LEN-36-OK")
+                          (:wat::kernel::println "LEN-36-FAIL"))
+                        (:wat::core::match reparsed -> :wat::core::nil
+                          ((:wat::core::Some u2)
+                            (:wat::core::if (:wat::core::= (:wat::core::Uuid/to-string u2) s) -> :wat::core::nil
+                              (:wat::kernel::println "ROUNDTRIP-OK")
+                              (:wat::kernel::println "ROUNDTRIP-FAIL")))
+                          (:wat::core::None (:wat::kernel::println "ROUNDTRIP-NONE"))))))
     "#;
     let lines = run(src);
     assert_eq!(
@@ -244,14 +235,13 @@ fn uuid_to_string_roundtrip() {
 #[test]
 fn uuid_nil_is_zero() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [u (:wat::core::Uuid/nil)
-             s (:wat::core::Uuid/to-string u)]
-            (:wat::core::if (:wat::core::= s "00000000-0000-0000-0000-000000000000") -> :wat::core::nil
-              (:wat::kernel::println "NIL-OK")
-              (:wat::kernel::println "NIL-FAIL"))))
+                      [u (:wat::core::Uuid/nil)
+                       s (:wat::core::Uuid/to-string u)]
+                      (:wat::core::if (:wat::core::= s "00000000-0000-0000-0000-000000000000") -> :wat::core::nil
+                        (:wat::kernel::println "NIL-OK")
+                        (:wat::kernel::println "NIL-FAIL"))))
     "#;
     let lines = run(src);
     assert_eq!(lines, vec!["\"NIL-OK\""], "Uuid/nil must produce the all-zeros UUID string");
@@ -264,21 +254,20 @@ fn uuid_nil_is_zero() {
 #[test]
 fn uuid_equality_v4_differ_v5_equal() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a   (:wat::core::Uuid/v4)
-             b   (:wat::core::Uuid/v4)
-             ns  (:wat::core::Uuid/nil)
-             c   (:wat::core::Uuid/v5 ns "same-name")
-             d   (:wat::core::Uuid/v5 ns "same-name")]
-            (:wat::core::do
-              (:wat::core::if (:wat::core::= a b) -> :wat::core::nil
-                (:wat::kernel::println "V4-SAME")
-                (:wat::kernel::println "V4-DIFFER"))
-              (:wat::core::if (:wat::core::= c d) -> :wat::core::nil
-                (:wat::kernel::println "V5-EQUAL")
-                (:wat::kernel::println "V5-DIFFER")))))
+                      [a   (:wat::core::Uuid/v4)
+                       b   (:wat::core::Uuid/v4)
+                       ns  (:wat::core::Uuid/nil)
+                       c   (:wat::core::Uuid/v5 ns "same-name")
+                       d   (:wat::core::Uuid/v5 ns "same-name")]
+                      (:wat::core::do
+                        (:wat::core::if (:wat::core::= a b) -> :wat::core::nil
+                          (:wat::kernel::println "V4-SAME")
+                          (:wat::kernel::println "V4-DIFFER"))
+                        (:wat::core::if (:wat::core::= c d) -> :wat::core::nil
+                          (:wat::kernel::println "V5-EQUAL")
+                          (:wat::kernel::println "V5-DIFFER")))))
     "#;
     let lines = run(src);
     assert_eq!(
@@ -310,18 +299,17 @@ fn uuid_string_not_equal_to_typed_uuid() {
     // to verify through the to-string / from-string round-trip instead:
     // the parsed Uuid IS equal to the original Uuid (same content, same type).
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [u   (:wat::core::Uuid/v4)
-             s   (:wat::core::Uuid/to-string u)
-             opt (:wat::core::Uuid/from-string s)]
-            (:wat::core::match opt -> :wat::core::nil
-              ((:wat::core::Some u2)
-                (:wat::core::if (:wat::core::= u u2) -> :wat::core::nil
-                  (:wat::kernel::println "UUID-UUID-EQUAL")
-                  (:wat::kernel::println "UUID-UUID-DIFFER")))
-              (:wat::core::None (:wat::kernel::println "PARSE-NONE")))))
+                      [u   (:wat::core::Uuid/v4)
+                       s   (:wat::core::Uuid/to-string u)
+                       opt (:wat::core::Uuid/from-string s)]
+                      (:wat::core::match opt -> :wat::core::nil
+                        ((:wat::core::Some u2)
+                          (:wat::core::if (:wat::core::= u u2) -> :wat::core::nil
+                            (:wat::kernel::println "UUID-UUID-EQUAL")
+                            (:wat::kernel::println "UUID-UUID-DIFFER")))
+                        (:wat::core::None (:wat::kernel::println "PARSE-NONE")))))
     "#;
     let lines = run(src);
     // Two typed Uuid values with the same content ARE equal.
@@ -343,14 +331,13 @@ fn uuid_string_not_equal_to_typed_uuid() {
 #[test]
 fn uuid_eq_uses_values_equal_arm() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a (:wat::core::Uuid/nil)
-             b (:wat::core::Uuid/nil)]
-            (:wat::core::if (:wat::core::= a b) -> :wat::core::nil
-              (:wat::kernel::println "NIL-EQ-OK")
-              (:wat::kernel::println "NIL-EQ-FAIL"))))
+                      [a (:wat::core::Uuid/nil)
+                       b (:wat::core::Uuid/nil)]
+                      (:wat::core::if (:wat::core::= a b) -> :wat::core::nil
+                        (:wat::kernel::println "NIL-EQ-OK")
+                        (:wat::kernel::println "NIL-EQ-FAIL"))))
     "#;
     let lines = run(src);
     assert_eq!(
@@ -370,15 +357,14 @@ fn uuid_eq_uses_values_equal_arm() {
 #[test]
 fn uuid_edn_roundtrip_typed() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [u        (:wat::core::Uuid/v4)
-             edn-form (:wat::edn::write u)
-             back     (:wat::edn::read edn-form)]
-            (:wat::core::if (:wat::core::= back u) -> :wat::core::nil
-              (:wat::kernel::println "EDN-ROUNDTRIP-OK")
-              (:wat::kernel::println "EDN-ROUNDTRIP-FAIL"))))
+                      [u        (:wat::core::Uuid/v4)
+                       edn-form (:wat::edn::write u)
+                       back     (:wat::edn::read edn-form)]
+                      (:wat::core::if (:wat::core::= back u) -> :wat::core::nil
+                        (:wat::kernel::println "EDN-ROUNDTRIP-OK")
+                        (:wat::kernel::println "EDN-ROUNDTRIP-FAIL"))))
     "#;
     let lines = run(src);
     assert_eq!(
@@ -396,15 +382,14 @@ fn uuid_edn_roundtrip_typed() {
 #[test]
 fn uuid_edn_write_produces_reader_literal() {
     let src = r#"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [u        (:wat::core::Uuid/v4)
-             edn-form (:wat::edn::write u)
-             len      (:wat::core::string::length edn-form)]
-            (:wat::core::if (:wat::core::= len 44) -> :wat::core::nil
-              (:wat::kernel::println "EDN-LEN-OK")
-              (:wat::kernel::println "EDN-LEN-FAIL"))))
+                      [u        (:wat::core::Uuid/v4)
+                       edn-form (:wat::edn::write u)
+                       len      (:wat::core::string::length edn-form)]
+                      (:wat::core::if (:wat::core::= len 44) -> :wat::core::nil
+                        (:wat::kernel::println "EDN-LEN-OK")
+                        (:wat::kernel::println "EDN-LEN-FAIL"))))
     "#;
     let lines = run(src);
     assert_eq!(

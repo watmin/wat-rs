@@ -62,11 +62,11 @@ fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
 #[test]
 fn probe_run_hermetic_clean_exit_no_deadlock() {
     let src = r#"
-        (:wat::core::define (:probe::test::clean-exit -> :wat::kernel::RunResult)
+        (:wat::core::defn :probe::test::clean-exit [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            :wat::core::nil))
+                      :wat::core::nil))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -117,14 +117,14 @@ fn probe_run_hermetic_clean_exit_no_deadlock() {
 #[test]
 fn probe_run_hermetic_panic_body_no_deadlock() {
     let src = r#"
-        (:wat::core::define (:probe::test::intentional-panic -> :wat::kernel::RunResult)
+        (:wat::core::defn :probe::test::intentional-panic [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::kernel::assertion-failed!
-              "intentional panic from probe_run_hermetic_no_deadlock"
-              :wat::core::None
-              :wat::core::None)))
+                      (:wat::kernel::assertion-failed!
+                        "intentional panic from probe_run_hermetic_no_deadlock"
+                        :wat::core::None
+                        :wat::core::None)))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let func = world

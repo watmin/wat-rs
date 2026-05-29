@@ -20,7 +20,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -38,8 +38,7 @@ fn eval_value(src: &str) -> Value {
 #[test]
 fn empty_q_vector() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::empty? (:wat::core::Vector :wat::core::i64)))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::empty? (:wat::core::Vector :wat::core::i64)))"#),
         Value::bool(true),
     );
 }
@@ -47,8 +46,7 @@ fn empty_q_vector() {
 #[test]
 fn empty_q_hashset_false() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::empty? (:wat::core::HashSet :wat::core::i64 1 2)))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::empty? (:wat::core::HashSet :wat::core::i64 1 2)))"#),
         Value::bool(false),
     );
 }
@@ -58,8 +56,7 @@ fn empty_q_hashset_false() {
 #[test]
 fn contains_q_vector_hit() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) 2))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) 2))"#),
         Value::bool(true),
     );
 }
@@ -73,11 +70,11 @@ fn contains_q_vector_hit() {
 #[test]
 fn get_vector_precise_element_typing() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                        (:wat::core::match (:wat::core::get (:wat::core::Vector :wat::core::i64 10 20 30) 1)
-                          -> :wat::core::i64
-                          ((:wat::core::Some x) (:wat::core::i64::+'2 x 5))
-                          (:wat::core::None -1)))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
+          (:wat::core::match (:wat::core::get (:wat::core::Vector :wat::core::i64 10 20 30) 1)
+                                    -> :wat::core::i64
+                                    ((:wat::core::Some x) (:wat::core::i64::+'2 x 5))
+                                    (:wat::core::None -1)))"#),
         Value::i64(25),
         "get index 1 -> Some(20); 20 + 5 = 25 — proves element x is typed i64",
     );
@@ -90,8 +87,7 @@ fn get_vector_precise_element_typing() {
 #[test]
 fn conj_vector_preserves_collection_type() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                        (:wat::core::length (:wat::core::conj (:wat::core::Vector :wat::core::i64 1 2) 3)))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length (:wat::core::conj (:wat::core::Vector :wat::core::i64 1 2) 3)))"#),
         Value::i64(3),
         "conj appends -> Vector of length 3; result is still a collection",
     );
@@ -114,8 +110,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 #[test]
 fn contains_q_wrong_element_rejected_at_check() {
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-             (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) "x"))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) "x"))"#,
     );
     assert!(
         result.is_err(),
@@ -128,8 +123,7 @@ fn contains_q_wrong_element_rejected_at_check() {
 #[test]
 fn conj_wrong_element_rejected_at_check() {
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-             (:wat::core::length (:wat::core::conj (:wat::core::Vector :wat::core::i64 1 2) "x")))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length (:wat::core::conj (:wat::core::Vector :wat::core::i64 1 2) "x")))"#,
     );
     assert!(
         result.is_err(),

@@ -291,7 +291,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 fn probe_11_wat_source_typeunion_declaration_parses_and_registers() {
     let src = r#"
         (:wat::core::typeunion :my::IorF [:wat::core::i64 :wat::core::f64])
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     try_startup(src).expect("typeunion declaration should parse + register cleanly");
 }
@@ -302,11 +302,11 @@ fn probe_12_typeunion_arg_accepts_member_value() {
     let src = r#"
         (:wat::core::typeunion :my::IorF [:wat::core::i64 :wat::core::f64])
         (:wat::core::defn :my::identity [x <- :my::IorF] -> :my::IorF x)
-        (:wat::core::define (:user::main -> :wat::core::nil)
-            (:wat::core::do
-                (:my::identity 42)
-                (:my::identity 3.14)
-                :wat::core::nil))
+        (:wat::core::defn :user::main [] -> :wat::core::nil
+          (:wat::core::do
+                          (:my::identity 42)
+                          (:my::identity 3.14)
+                          :wat::core::nil))
     "#;
     try_startup(src).expect(
         "typeunion arg should accept i64 (member) and f64 (member) — bounded existential unify",
@@ -319,10 +319,10 @@ fn probe_13_typeunion_arg_rejects_non_member_value() {
     let src = r#"
         (:wat::core::typeunion :my::IorF [:wat::core::i64 :wat::core::f64])
         (:wat::core::defn :my::identity [x <- :my::IorF] -> :my::IorF x)
-        (:wat::core::define (:user::main -> :wat::core::nil)
-            (:wat::core::do
-                (:my::identity "hello")
-                :wat::core::nil))
+        (:wat::core::defn :user::main [] -> :wat::core::nil
+          (:wat::core::do
+                          (:my::identity "hello")
+                          :wat::core::nil))
     "#;
     let result = try_startup(src);
     assert!(
@@ -341,12 +341,12 @@ fn probe_14_fractal_typeunion_resolves_transitively() {
         (:wat::core::typeunion :my::Foo [:wat::core::i64 :wat::core::f64])
         (:wat::core::typeunion :my::Baz [:my::Foo :wat::core::bool])
         (:wat::core::defn :my::identity [x <- :my::Baz] -> :my::Baz x)
-        (:wat::core::define (:user::main -> :wat::core::nil)
-            (:wat::core::do
-                (:my::identity 42)
-                (:my::identity 3.14)
-                (:my::identity true)
-                :wat::core::nil))
+        (:wat::core::defn :user::main [] -> :wat::core::nil
+          (:wat::core::do
+                          (:my::identity 42)
+                          (:my::identity 3.14)
+                          (:my::identity true)
+                          :wat::core::nil))
     "#;
     try_startup(src).expect(
         "fractal typeunion should accept all transitively-resolved members (i64, f64, bool)",

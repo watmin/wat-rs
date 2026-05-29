@@ -45,7 +45,7 @@ fn inventory_submitted_restriction_entry_lands_in_symbol_table_after_startup() {
     // entry should be present in the frozen world's symbol table even
     // when the user source declares no restrictions of its own.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
 
     let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))

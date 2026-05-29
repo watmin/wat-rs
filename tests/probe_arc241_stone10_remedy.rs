@@ -32,7 +32,7 @@ use wat::load::InMemoryLoader;
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -66,7 +66,7 @@ fn contract_01_typo_remedy_on_variant_constructor() {
     // Uses :test::pick (non-main) — main signature retirement doesn't apply.
     let src = r#"
         (:wat::core::defenum :my::Status :Ok :Pending :Error)
-        (:wat::core::define (:test::pick -> :my::Status) :my::Status::Oks)
+        (:wat::core::defn :test::pick [] -> :my::Status :my::Status::Oks)
     "#;
     let msg = try_startup_display(src);
     assert!(
@@ -120,7 +120,7 @@ fn contract_03_ranked_multi_candidate_variant_typo() {
     // close to both. Post-stone: ranked output names multiple candidates.
     let src = r#"
         (:wat::core::defenum :my::Status :Ok :Oke :Err)
-        (:wat::core::define (:test::pick -> :my::Status) :my::Status::Ok2)
+        (:wat::core::defn :test::pick [] -> :my::Status :my::Status::Ok2)
     "#;
     let msg = try_startup_display(src);
     let typo_annotation_count = msg.matches("[typo, distance").count();
@@ -179,7 +179,7 @@ fn contract_06_multi_remedy_multi_line_format() {
     // each on their own subsequent line. Uses variant-constructor typo path.
     let src = r#"
         (:wat::core::defenum :my::Status :Ok :Oke :Err)
-        (:wat::core::define (:test::pick -> :my::Status) :my::Status::Ok2)
+        (:wat::core::defn :test::pick [] -> :my::Status :my::Status::Ok2)
     "#;
     let msg = try_startup_display(src);
     let lines: Vec<&str> = msg.lines().collect();

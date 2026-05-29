@@ -53,7 +53,7 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
 }
 
 const PARENT_TRIVIAL: &str = r#"
-    (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 "#;
 
 /// Unwrap `Value::Result(Ok(_))` and assert the Ok payload is unit
@@ -140,12 +140,12 @@ fn stone_a_process_drain_and_join_clean_exit_returns_ok() {
     // draining both pipes before joining. A clean exit yields Ok(()).
     let world = freeze_ok(PARENT_TRIVIAL);
     let child = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_ (:wat::kernel::println "line-one")
-             _ (:wat::kernel::println "line-two")
-             _ (:wat::kernel::eprintln "diag")]
-            :wat::core::nil))
+                      [_ (:wat::kernel::println "line-one")
+                       _ (:wat::kernel::println "line-two")
+                       _ (:wat::kernel::eprintln "diag")]
+                      :wat::core::nil))
     "#;
     let call = build_spawn_process_call(child);
     let env = Environment::new();
@@ -221,10 +221,10 @@ fn stone_a_process_drain_and_join_panic_returns_err() {
     // join surfaces the non-zero exit code as Err(chain).
     let world = freeze_ok(PARENT_TRIVIAL);
     let child = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::Option/expect -> :wat::core::nil
-            :wat::core::None
-            "intentional panic from stone-a process test"))
+                      :wat::core::None
+                      "intentional panic from stone-a process test"))
     "#;
     let call = build_spawn_process_call(child);
     let env = Environment::new();

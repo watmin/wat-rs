@@ -31,15 +31,13 @@ fn arc112_probe_spawn_program_parametric_return() {
           -> :wat::core::nil
           :wat::core::nil)
 
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::i64,wat::core::i64>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:my::worker)))))
+                      (:wat::core::forms
+                        (:wat::core::define (:user::main -> :wat::core::nil)
+                          (:my::worker)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "##;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     if let Err(e) = result {

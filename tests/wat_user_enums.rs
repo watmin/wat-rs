@@ -71,15 +71,13 @@ fn unit_variant_evaluates_via_bare_keyword() {
     let src = r##"
         (:wat::core::defenum :my::Color :Red :Green :Blue)
 
-        (:wat::core::define (:my::pick -> :my::Color)
-          :my::Color::Green)
+        (:wat::core::defn :my::pick [] -> :my::Color :my::Color::Green)
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match (:my::pick) -> :wat::core::nil
-            (:my::Color::Red   (:wat::kernel::println "red"))
-            (:my::Color::Green (:wat::kernel::println "green"))
-            (:my::Color::Blue  (:wat::kernel::println "blue"))))
+                      (:my::Color::Red   (:wat::kernel::println "red"))
+                      (:my::Color::Green (:wat::kernel::println "green"))
+                      (:my::Color::Blue  (:wat::kernel::println "blue"))))
     "##;
     assert_eq!(run(src), vec!["\"green\"".to_string()]);
 }
@@ -94,18 +92,15 @@ fn tagged_variant_constructs_and_match_binds_fields() {
           :Deposit [amount <- :wat::core::f64]
           :Nothing)
 
-        (:wat::core::define (:my::a-candle -> :my::Event)
-          (:my::Event::Candle 100.0 105.0))
+        (:wat::core::defn :my::a-candle [] -> :my::Event (:my::Event::Candle 100.0 105.0))
 
-        (:wat::core::define (:my::summary (e :my::Event) -> :wat::core::String)
+        (:wat::core::defn :my::summary [e <- :my::Event] -> :wat::core::String
           (:wat::core::match e -> :wat::core::String
-            ((:my::Event::Candle  o c) (:wat::core::f64::to-string c))
-            ((:my::Event::Deposit amt) (:wat::core::f64::to-string amt))
-            (:my::Event::Nothing       "nothing")))
+                      ((:my::Event::Candle  o c) (:wat::core::f64::to-string c))
+                      ((:my::Event::Deposit amt) (:wat::core::f64::to-string amt))
+                      (:my::Event::Nothing       "nothing")))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
-          (:wat::kernel::println (:my::summary (:my::a-candle))))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:my::summary (:my::a-candle))))
     "##;
     assert_eq!(run(src), vec!["\"105\"".to_string()]);
 }
@@ -117,11 +112,10 @@ fn wildcard_arm_satisfies_exhaustiveness() {
     let src = r##"
         (:wat::core::defenum :my::Color :Red :Green :Blue)
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match :my::Color::Blue -> :wat::core::nil
-            (:my::Color::Red (:wat::kernel::println "red"))
-            (_               (:wat::kernel::println "other"))))
+                      (:my::Color::Red (:wat::kernel::println "red"))
+                      (_               (:wat::kernel::println "other"))))
     "##;
     assert_eq!(run(src), vec!["\"other\"".to_string()]);
 }
@@ -135,19 +129,18 @@ fn match_mixes_unit_and_tagged_arms() {
           :Open [size <- :wat::core::f64]
           :Hold)
 
-        (:wat::core::define (:my::act (e :my::Event) -> :wat::core::String)
+        (:wat::core::defn :my::act [e <- :my::Event] -> :wat::core::String
           (:wat::core::match e -> :wat::core::String
-            ((:my::Event::Open size) (:wat::core::f64::to-string size))
-            (:my::Event::Hold        "hold")))
+                      ((:my::Event::Open size) (:wat::core::f64::to-string size))
+                      (:my::Event::Hold        "hold")))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [line1 (:my::act (:my::Event::Open 7.5))
-             line2 (:my::act :my::Event::Hold)]
-            (:wat::core::do
-              (:wat::kernel::println line1)
-              (:wat::kernel::println line2))))
+                      [line1 (:my::act (:my::Event::Open 7.5))
+                       line2 (:my::act :my::Event::Hold)]
+                      (:wat::core::do
+                        (:wat::kernel::println line1)
+                        (:wat::kernel::println line2))))
     "##;
     assert_eq!(run(src), vec!["\"7.5\"".to_string(), "\"hold\"".to_string()]);
 }
@@ -159,10 +152,10 @@ fn missing_variant_arm_reports_non_exhaustive() {
     let src = r##"
         (:wat::core::defenum :my::Color :Red :Green :Blue)
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match :my::Color::Red -> :wat::core::i64
-            (:my::Color::Red   1)
-            (:my::Color::Green 2)))
+                      (:my::Color::Red   1)
+                      (:my::Color::Green 2)))
     "##;
     let err = run_expecting_check_error(src);
     assert!(
@@ -178,11 +171,11 @@ fn cross_enum_variant_pattern_rejected() {
         (:wat::core::defenum :my::Color :Red :Green)
         (:wat::core::defenum :my::Side  :Buy :Sell)
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match :my::Color::Red -> :wat::core::i64
-            (:my::Side::Buy  1)
-            (:my::Color::Red 2)
-            (:my::Color::Green 3)))
+                      (:my::Side::Buy  1)
+                      (:my::Color::Red 2)
+                      (:my::Color::Green 3)))
     "##;
     let err = run_expecting_check_error(src);
     assert!(
@@ -198,9 +191,9 @@ fn tagged_variant_arity_mismatch_reported() {
         (:wat::core::defenum :my::Event
           :Pair [a <- :wat::core::i64 b <- :wat::core::i64])
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
-            ((:my::Event::Pair just-one) just-one)))
+                      ((:my::Event::Pair just-one) just-one)))
     "##;
     let err = run_expecting_check_error(src);
     assert!(
@@ -216,9 +209,9 @@ fn unit_variant_pattern_on_tagged_variant_rejected() {
         (:wat::core::defenum :my::Event
           :Pair [a <- :wat::core::i64 b <- :wat::core::i64])
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
-            (:my::Event::Pair 0)))
+                      (:my::Event::Pair 0)))
     "##;
     let err = run_expecting_check_error(src);
     assert!(

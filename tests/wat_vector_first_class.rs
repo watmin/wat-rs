@@ -71,13 +71,12 @@ fn run_expecting_check_error(src: &str) -> String {
 #[test]
 fn vector_construct_via_encode() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [v1 (:wat::holon::encode (:wat::holon::to-holon "x"))
-             v2 (:wat::holon::encode (:wat::holon::to-holon "x"))]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= v1 v2) -> :wat::core::String "equal" "diff"))))
+                      [v1 (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       v2 (:wat::holon::encode (:wat::holon::to-holon "x"))]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= v1 v2) -> :wat::core::String "equal" "diff"))))
     "##;
     assert_eq!(run(src), vec!["\"equal\"".to_string()]);
 }
@@ -85,13 +84,12 @@ fn vector_construct_via_encode() {
 #[test]
 fn vector_distinct_atoms_distinct_vectors() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::to-holon "alpha"))
-             vb (:wat::holon::encode (:wat::holon::to-holon "beta"))]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= va vb) -> :wat::core::String "same" "diff"))))
+                      [va (:wat::holon::encode (:wat::holon::to-holon "alpha"))
+                       vb (:wat::holon::encode (:wat::holon::to-holon "beta"))]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= va vb) -> :wat::core::String "same" "diff"))))
     "##;
     assert_eq!(run(src), vec!["\"diff\"".to_string()]);
 }
@@ -105,14 +103,13 @@ fn vector_as_struct_field_roundtrip() {
           [label <- :wat::core::String
            vec   <- :wat::holon::Vector])
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [v (:wat::holon::encode (:wat::holon::to-holon "x"))
-             e (:my::Engram/new "alpha" v)
-             retrieved (:my::Engram/vec e)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= v retrieved) -> :wat::core::String "yes" "no"))))
+                      [v (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       e (:my::Engram/new "alpha" v)
+                       retrieved (:my::Engram/vec e)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= v retrieved) -> :wat::core::String "yes" "no"))))
     "##;
     assert_eq!(run(src), vec!["\"yes\"".to_string()]);
 }
@@ -123,14 +120,13 @@ fn vector_as_struct_field_roundtrip() {
 fn polymorphic_cosine_ast_ast() {
     // Existing behavior preserved.
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a (:wat::holon::to-holon "x")
-             b (:wat::holon::to-holon "x")
-             c (:wat::holon::cosine a b)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
+                      [a (:wat::holon::to-holon "x")
+                       b (:wat::holon::to-holon "x")
+                       c (:wat::holon::cosine a b)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
     "##;
     assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
 }
@@ -138,14 +134,13 @@ fn polymorphic_cosine_ast_ast() {
 #[test]
 fn polymorphic_cosine_vector_vector() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-             vb (:wat::holon::encode (:wat::holon::to-holon "x"))
-             c (:wat::holon::cosine va vb)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
+                      [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       vb (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       c (:wat::holon::cosine va vb)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
     "##;
     assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
 }
@@ -153,14 +148,13 @@ fn polymorphic_cosine_vector_vector() {
 #[test]
 fn polymorphic_cosine_ast_vector_mixed() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a (:wat::holon::to-holon "x")
-             vb (:wat::holon::encode (:wat::holon::to-holon "x"))
-             c (:wat::holon::cosine a vb)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
+                      [a (:wat::holon::to-holon "x")
+                       vb (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       c (:wat::holon::cosine a vb)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
     "##;
     assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
 }
@@ -168,14 +162,13 @@ fn polymorphic_cosine_ast_vector_mixed() {
 #[test]
 fn polymorphic_cosine_vector_ast_mixed() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-             b (:wat::holon::to-holon "x")
-             c (:wat::holon::cosine va b)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
+                      [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       b (:wat::holon::to-holon "x")
+                       c (:wat::holon::cosine va b)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
     "##;
     assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
 }
@@ -185,15 +178,14 @@ fn polymorphic_cosine_vector_ast_mixed() {
 #[test]
 fn polymorphic_dot_vector_vector() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-             vb (:wat::holon::encode (:wat::holon::to-holon "x"))
-             d (:wat::holon::dot va vb)]
-            ;; dot on the SAME vector should be sizeable (positive, bounded).
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::> d 0.0) -> :wat::core::String "positive" "non-positive"))))
+                      [va (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       vb (:wat::holon::encode (:wat::holon::to-holon "x"))
+                       d (:wat::holon::dot va vb)]
+                      ;; dot on the SAME vector should be sizeable (positive, bounded).
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::> d 0.0) -> :wat::core::String "positive" "non-positive"))))
     "##;
     assert_eq!(run(src), vec!["\"positive\"".to_string()]);
 }
@@ -203,15 +195,14 @@ fn polymorphic_dot_vector_vector() {
 #[test]
 fn polymorphic_simhash_ast_and_vector_agree() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [ast (:wat::holon::to-holon "alpha")
-             vec (:wat::holon::encode ast)
-             k-ast (:wat::holon::simhash ast)
-             k-vec (:wat::holon::simhash vec)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= k-ast k-vec) -> :wat::core::String "same" "diff"))))
+                      [ast (:wat::holon::to-holon "alpha")
+                       vec (:wat::holon::encode ast)
+                       k-ast (:wat::holon::simhash ast)
+                       k-vec (:wat::holon::simhash vec)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= k-ast k-vec) -> :wat::core::String "same" "diff"))))
     "##;
     assert_eq!(run(src), vec!["\"same\"".to_string()]);
 }
@@ -221,10 +212,9 @@ fn polymorphic_simhash_ast_and_vector_agree() {
 #[test]
 fn polymorphic_cosine_rejects_string() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let [bad (:wat::holon::cosine "hello" "world")]
-            (:wat::kernel::println (:wat::core::f64::to-string bad))))
+                      (:wat::kernel::println (:wat::core::f64::to-string bad))))
     "##;
     let err = run_expecting_check_error(src);
     assert!(
@@ -242,21 +232,20 @@ fn polymorphic_cosine_rejects_string() {
 fn vector_encode_deterministic_across_calls() {
     // Two encodes of an identical compound AST → equal Vectors.
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [a
-              (:wat::holon::Bind
-                (:wat::holon::to-holon "role")
-                (:wat::holon::to-holon "filler"))
-             b
-              (:wat::holon::Bind
-                (:wat::holon::to-holon "role")
-                (:wat::holon::to-holon "filler"))
-             va (:wat::holon::encode a)
-             vb (:wat::holon::encode b)]
-            (:wat::kernel::println
-              (:wat::core::if (:wat::core::= va vb) -> :wat::core::String "deterministic" "drift"))))
+                      [a
+                        (:wat::holon::Bind
+                          (:wat::holon::to-holon "role")
+                          (:wat::holon::to-holon "filler"))
+                       b
+                        (:wat::holon::Bind
+                          (:wat::holon::to-holon "role")
+                          (:wat::holon::to-holon "filler"))
+                       va (:wat::holon::encode a)
+                       vb (:wat::holon::encode b)]
+                      (:wat::kernel::println
+                        (:wat::core::if (:wat::core::= va vb) -> :wat::core::String "deterministic" "drift"))))
     "##;
     assert_eq!(run(src), vec!["\"deterministic\"".to_string()]);
 }

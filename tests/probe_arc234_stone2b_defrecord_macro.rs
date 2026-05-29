@@ -35,7 +35,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -57,8 +57,7 @@ fn probe_1_single_field_construction() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::Record)
-  (:myapp::Voltage 5.0))
+(:wat::core::defn :user::compute [] -> :wat::Record (:myapp::Voltage 5.0))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -99,10 +98,10 @@ fn probe_2_per_field_accessor_returns_value() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [v (:myapp::Voltage 42.5)]
-    (:myapp::Voltage/magnitude v)))
+      [v (:myapp::Voltage 42.5)]
+      (:myapp::Voltage/magnitude v)))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -127,10 +126,10 @@ fn probe_3_predicate_true_on_matching_class() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::bool)
+(:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)]
-    (:myapp::is-Voltage? v)))
+      [v (:myapp::Voltage 5.0)]
+      (:myapp::is-Voltage? v)))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -159,10 +158,10 @@ fn probe_4_predicate_false_on_non_matching_class() {
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 (:wat::Record::def :myapp::Counter [count <- :wat::core::i64])
 
-(:wat::core::define (:user::compute -> :wat::core::bool)
+(:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [c (:myapp::Counter 42)]
-    (:myapp::is-Voltage? c)))
+      [c (:myapp::Counter 42)]
+      (:myapp::is-Voltage? c)))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -192,32 +191,32 @@ fn probe_5_multi_field_accessors_in_order() {
 (:wat::Record::def :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
-(:wat::core::define (:user::compute-a -> :wat::core::i64)
+(:wat::core::defn :user::compute-a [] -> :wat::core::i64
   (:wat::core::let
-    [t (:myapp::Triple 7 "hello" true)]
-    (:myapp::Triple/a t)))
+      [t (:myapp::Triple 7 "hello" true)]
+      (:myapp::Triple/a t)))
 
-(:wat::core::define (:user::compute-b -> :wat::core::String)
+(:wat::core::defn :user::compute-b [] -> :wat::core::String
   (:wat::core::let
-    [t (:myapp::Triple 7 "hello" true)]
-    (:myapp::Triple/b t)))
+      [t (:myapp::Triple 7 "hello" true)]
+      (:myapp::Triple/b t)))
 
-(:wat::core::define (:user::compute-c -> :wat::core::bool)
+(:wat::core::defn :user::compute-c [] -> :wat::core::bool
   (:wat::core::let
-    [t (:myapp::Triple 7 "hello" true)]
-    (:myapp::Triple/c t)))
+      [t (:myapp::Triple 7 "hello" true)]
+      (:myapp::Triple/c t)))
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [a (:user::compute-a)
-     b (:user::compute-b)
-     c (:user::compute-c)]
-    (:wat::core::string::concat
-      (:wat::core::i64::to-string a)
-      "|"
-      b
-      "|"
-      (:wat::core::bool::to-string c))))
+      [a (:user::compute-a)
+       b (:user::compute-b)
+       c (:user::compute-c)]
+      (:wat::core::string::concat
+        (:wat::core::i64::to-string a)
+        "|"
+        b
+        "|"
+        (:wat::core::bool::to-string c))))
 "#;
     match run_compute(src) {
         Ok(v) => match v {
@@ -246,10 +245,10 @@ fn probe_6_zero_field_defrecord() {
     let src = r#"
 (:wat::Record::def :myapp::Tag [])
 
-(:wat::core::define (:user::compute -> :wat::core::bool)
+(:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [t (:myapp::Tag)]
-    (:myapp::is-Tag? t)))
+      [t (:myapp::Tag)]
+      (:myapp::is-Tag? t)))
 "#;
     match run_compute(src) {
         Ok(v) => match v {

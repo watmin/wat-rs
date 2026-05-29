@@ -27,7 +27,7 @@ use wat::types::{expand_alias, parse_type_expr, TypeEnv, TypeExpr};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -123,10 +123,8 @@ fn probe_2_expand_alias_resolves_to_hashmap_parametric() {
 #[test]
 fn probe_3_function_signature_accepts_program_env() {
     let src = r#"
-        (:wat::core::define (:user::take-env (m :wat::program::Env) -> :wat::core::nil)
-          :wat::core::nil)
-        (:wat::core::define (:user::compute -> :wat::core::nil)
-          (:user::take-env {}))
+        (:wat::core::defn :user::take-env [m <- :wat::program::Env] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil (:user::take-env {}))
     "#;
     startup_ok(src);
 }
@@ -142,10 +140,8 @@ fn probe_3_function_signature_accepts_program_env() {
 #[test]
 fn probe_4_explicit_atom_literal_accepted() {
     let src = r#"
-        (:wat::core::define (:user::take-env (m :wat::program::Env) -> :wat::core::nil)
-          :wat::core::nil)
-        (:wat::core::define (:user::compute -> :wat::core::nil)
-          (:user::take-env {:foo (:wat::holon::to-holon 42)}))
+        (:wat::core::defn :user::take-env [m <- :wat::program::Env] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil (:user::take-env {:foo (:wat::holon::to-holon 42)}))
     "#;
     startup_ok(src);
 }
@@ -159,10 +155,8 @@ fn probe_4_explicit_atom_literal_accepted() {
 #[test]
 fn probe_5_empty_map_literal_accepted() {
     let src = r#"
-        (:wat::core::define (:user::take-env (m :wat::program::Env) -> :wat::core::nil)
-          :wat::core::nil)
-        (:wat::core::define (:user::compute -> :wat::core::nil)
-          (:user::take-env {}))
+        (:wat::core::defn :user::take-env [m <- :wat::program::Env] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil (:user::take-env {}))
     "#;
     startup_ok(src);
 }
@@ -177,10 +171,8 @@ fn probe_5_empty_map_literal_accepted() {
 #[test]
 fn probe_6_wrong_value_type_rejected_with_type_mismatch() {
     let src = r#"
-        (:wat::core::define (:user::take-env (m :wat::program::Env) -> :wat::core::nil)
-          :wat::core::nil)
-        (:wat::core::define (:user::compute -> :wat::core::nil)
-          (:user::take-env {:foo "string"}))
+        (:wat::core::defn :user::take-env [m <- :wat::program::Env] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil (:user::take-env {:foo "string"}))
     "#;
     let err = startup_err(src);
     assert!(

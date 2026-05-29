@@ -27,7 +27,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -56,10 +56,10 @@ fn assoc_hashmap_returns_hashmap_type_preserved() {
     // by the stone) — proves the return is still typed HashMap<String, i64>.
     assert_eq!(
         eval_value(
-            r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                 (:wat::core::length
-                   (:wat::core::HashMap/keys
-                     (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) "k" 1))))"#
+            r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
+              (:wat::core::length
+                                 (:wat::core::HashMap/keys
+                                   (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) "k" 1))))"#
         ),
         Value::i64(1),
         "assoc HashMap returns HashMap; keys returns Vec<String> of length 1",
@@ -72,10 +72,10 @@ fn assoc_hashmap_wrong_key_type_rejected_at_check() {
     // via the K-type discipline (today via the alias's HashMap/assoc scheme;
     // post via `infer_assoc` HashMap arm).
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-             (:wat::core::length
-               (:wat::core::HashMap/keys
-                 (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) 42 1))))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
+          (:wat::core::length
+                         (:wat::core::HashMap/keys
+                           (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) 42 1))))"#,
     );
     assert!(
         result.is_err(),
@@ -89,10 +89,10 @@ fn assoc_hashmap_wrong_value_type_rejected_at_check() {
     // HashMap<String, i64>; pass a String as the value — must reject via V-type
     // discipline.
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-             (:wat::core::length
-               (:wat::core::HashMap/keys
-                 (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) "k" "v"))))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
+          (:wat::core::length
+                         (:wat::core::HashMap/keys
+                           (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) "k" "v"))))"#,
     );
     assert!(
         result.is_err(),
@@ -107,10 +107,10 @@ fn assoc_non_collection_arg0_rejected() {
     // HashMap-only scheme rejects at check; post, `infer_assoc`'s else-arm
     // returns a teaching TypeMismatch. Either way: not green.
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-             (:wat::core::length
-               (:wat::core::HashMap/keys
-                 (:wat::core::assoc 42 "k" 1))))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
+          (:wat::core::length
+                         (:wat::core::HashMap/keys
+                           (:wat::core::assoc 42 "k" 1))))"#,
     );
     assert!(
         result.is_err(),
@@ -131,9 +131,9 @@ fn assoc_base_record_returns_base_record_struct_only() {
     assert_eq!(
         eval_value(
             r#"(:wat::Record::def :my::Voltage [value <- :wat::core::i64])
-               (:wat::core::define (:user::compute -> :wat::core::i64)
+               (:wat::core::defn :user::compute [] -> :wat::core::i64
                  (:my::Voltage/value
-                   (:wat::core::assoc (:my::Voltage 10) :value 42)))"#
+                                    (:wat::core::assoc (:my::Voltage 10) :value 42)))"#
         ),
         Value::i64(42),
         "assoc on base record updates the field; accessor reads the new value",
@@ -154,9 +154,9 @@ fn assoc_holonic_record_returns_holonic_record_parity_preserved() {
     assert_eq!(
         eval_value(
             r#"(:wat::holon::Record::def :my::HolonicVoltage [value <- :wat::core::i64])
-               (:wat::core::define (:user::compute -> :wat::core::i64)
+               (:wat::core::defn :user::compute [] -> :wat::core::i64
                  (:my::HolonicVoltage/value
-                   (:wat::core::assoc (:my::HolonicVoltage 10) :value 42)))"#
+                                    (:wat::core::assoc (:my::HolonicVoltage 10) :value 42)))"#
         ),
         Value::i64(42),
         "assoc on holonic record updates the field; accessor reads the new value (parity rebuilt)",

@@ -35,7 +35,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -80,14 +80,14 @@ fn probe_1_composite_hashmap_of_vector() {
     // Verify via round-trip: from-holon decodes back to HashMap; length proves
     // the encoding captured both entries.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [inner1  (:wat::core::Vector :wat::core::i64 10 20 30)
-             inner2  (:wat::core::Vector :wat::core::i64 40 50)
-             m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :a inner1 :b inner2)
-             h       (:wat::holon::to-holon m)
-             back    (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length back)))
+                      [inner1  (:wat::core::Vector :wat::core::i64 10 20 30)
+                       inner2  (:wat::core::Vector :wat::core::i64 40 50)
+                       m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :a inner1 :b inner2)
+                       h       (:wat::holon::to-holon m)
+                       back    (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length back)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -114,14 +114,14 @@ fn probe_2_composite_vector_of_hashset() {
     // Bind(Atom("Vector"), Bundle(positional Binds)). Round-trip via from-holon
     // back to Vector; length proves the 2 inner HashSets survived.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [set1    (:wat::core::HashSet :wat::core::i64 1 2 3)
-             set2    (:wat::core::HashSet :wat::core::i64 4 5)
-             outer   (:wat::core::Vector :wat::type::Infer set1 set2)
-             h       (:wat::holon::to-holon outer)
-             back    (:wat::holon::from-holon h)]
-            (:wat::core::Vector/length back)))
+                      [set1    (:wat::core::HashSet :wat::core::i64 1 2 3)
+                       set2    (:wat::core::HashSet :wat::core::i64 4 5)
+                       outer   (:wat::core::Vector :wat::type::Infer set1 set2)
+                       h       (:wat::holon::to-holon outer)
+                       back    (:wat::holon::from-holon h)]
+                      (:wat::core::Vector/length back)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -157,14 +157,14 @@ fn probe_3_composite_hashset_of_vector() {
     // to HashSet; length proves the 2 inner Vectors survived. Stone 216.5
     // fixed the hashmap_key gap so HashSet<Vector<i64>> is valid.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [v1     (:wat::core::Vector :wat::core::i64 1 2)
-             v2     (:wat::core::Vector :wat::core::i64 3 4)
-             outer  (:wat::core::HashSet :wat::type::Infer v1 v2)
-             h      (:wat::holon::to-holon outer)
-             back   (:wat::holon::from-holon h)]
-            (:wat::core::HashSet/length back)))
+                      [v1     (:wat::core::Vector :wat::core::i64 1 2)
+                       v2     (:wat::core::Vector :wat::core::i64 3 4)
+                       outer  (:wat::core::HashSet :wat::type::Infer v1 v2)
+                       h      (:wat::holon::to-holon outer)
+                       back   (:wat::holon::from-holon h)]
+                      (:wat::core::HashSet/length back)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -193,15 +193,15 @@ fn probe_4_triple_nested_hashmap_vector_hashset() {
     // Bind(Atom("Map"), Bundle(...)). Round-trip via from-holon back to
     // HashMap; length proves the 1 entry (with triple-nested value) survived.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [set1    (:wat::core::HashSet :wat::core::i64 1 2)
-             set2    (:wat::core::HashSet :wat::core::i64 3)
-             vec     (:wat::core::Vector :wat::type::Infer set1 set2)
-             m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data vec)
-             h       (:wat::holon::to-holon m)
-             back    (:wat::holon::from-holon h)]
-            (:wat::core::HashMap/length back)))
+                      [set1    (:wat::core::HashSet :wat::core::i64 1 2)
+                       set2    (:wat::core::HashSet :wat::core::i64 3)
+                       vec     (:wat::core::Vector :wat::type::Infer set1 set2)
+                       m       (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :data vec)
+                       h       (:wat::holon::to-holon m)
+                       back    (:wat::holon::from-holon h)]
+                      (:wat::core::HashMap/length back)))
     "#;
     assert_eq!(
         run_i64(src),
@@ -237,10 +237,10 @@ fn probe_5_negative_non_atomizable_element() {
     // A function value (Fn([i64])->i64) — TypeExpr::Fn — is not atomizable.
     // Check must reject with TypeMismatch naming :wat::holon::to-holon.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil
           (:wat::core::let
-            [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
-            (:wat::holon::to-holon f)))
+                      [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
+                      (:wat::holon::to-holon f)))
     "#;
     let err = startup_err(src);
     assert!(
@@ -285,11 +285,11 @@ fn probe_6_negative_non_atomizable_nested_fn() {
     // (same predicate arm; proves the arm fires for any non-atomizable T, not
     // just the first test case).
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::nil
           (:wat::core::let
-            [g (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::add n 1))]
-            (:wat::holon::to-holon g)))
+                      [g (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                            (:wat::core::add n 1))]
+                      (:wat::holon::to-holon g)))
     "#;
     let err = startup_err(src);
     assert!(

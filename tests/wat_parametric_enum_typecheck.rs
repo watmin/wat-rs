@@ -29,7 +29,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -52,14 +52,12 @@ fn run(src: &str) -> Value {
 #[test]
 fn walkstep_continue_parametric_inference_at_use_site() {
     let src = r#"
-        (:wat::core::define
-          (:my::test::wrap (n :wat::core::i64) -> :wat::eval::WalkStep<wat::core::i64>)
-          (:wat::eval::WalkStep::Continue n))
+        (:wat::core::defn :my::test::wrap [n <- :wat::core::i64] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue n))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [wrapped (:my::test::wrap 7)]
-            7))
+                      [wrapped (:my::test::wrap 7)]
+                      7))
     "#;
     assert!(matches!(run(src), Value::i64(7)), "expected i64(7)");
 }
@@ -70,18 +68,15 @@ fn walkstep_skip_parametric_inference_at_use_site() {
     // inference path but with a different field count.
     // Arc 170 slice 1f-ζ: :my::compute calls :my::test::halt and returns i64.
     let src = r#"
-        (:wat::core::define
-          (:my::test::halt
-            (n :wat::core::i64)
-            -> :wat::eval::WalkStep<wat::core::i64>)
+        (:wat::core::defn :my::test::halt [n <- :wat::core::i64] -> :wat::eval::WalkStep<wat::core::i64>
           (:wat::eval::WalkStep::Skip
-            (:wat::holon::leaf 999)
-            n))
+                      (:wat::holon::leaf 999)
+                      n))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [halted (:my::test::halt 3)]
-            3))
+                      [halted (:my::test::halt 3)]
+                      3))
     "#;
     assert!(matches!(run(src), Value::i64(3)), "expected i64(3)");
 }
@@ -95,26 +90,20 @@ fn walkstep_skip_parametric_inference_at_use_site() {
 #[test]
 fn walk_visitor_signature_matches_at_use_site() {
     let src = r#"
-        (:wat::core::define
-          (:my::test::count-visit
-            (acc :wat::core::i64)
-            (form :wat::WatAST)
-            (step :wat::eval::StepResult)
-            -> :wat::eval::WalkStep<wat::core::i64>)
-          (:wat::eval::WalkStep::Continue (:wat::core::i64::+'2 acc 1)))
+        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue (:wat::core::i64::+'2 acc 1)))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match
-            (:wat::eval::walk
-              (:wat::core::quote
-                (:wat::holon::Bind
-                  (:wat::holon::to-holon "k")
-                  (:wat::holon::to-holon "v")))
-              0
-              :my::test::count-visit) -> :wat::core::i64
-            ((:wat::core::Ok pair)
-              (:wat::core::second pair))
-            ((:wat::core::Err _e) -1)))
+                      (:wat::eval::walk
+                        (:wat::core::quote
+                          (:wat::holon::Bind
+                            (:wat::holon::to-holon "k")
+                            (:wat::holon::to-holon "v")))
+                        0
+                        :my::test::count-visit) -> :wat::core::i64
+                      ((:wat::core::Ok pair)
+                        (:wat::core::second pair))
+                      ((:wat::core::Err _e) -1)))
     "#;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 1, "expected count=1; got {}", n),

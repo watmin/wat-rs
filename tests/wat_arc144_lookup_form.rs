@@ -30,7 +30,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -78,13 +78,13 @@ fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
     let src = r##"
         (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :my::ident)
-             rendered
-              (:wat::edn::write def-opt)]
-            rendered))
+                      [def-opt
+                        (:wat::runtime::lookup-define :my::ident)
+                       rendered
+                        (:wat::edn::write def-opt)]
+                      rendered))
     "##;
     let line = run_string(src);
     assert!(
@@ -104,12 +104,12 @@ fn signature_of_defn_macro_returns_some() {
     let src = r##"
         (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::signature-of-defn :my::ident)
-            -> :wat::core::bool
-            ((:wat::core::Some _) true)
-            (:wat::core::None    false)))
+                      (:wat::runtime::signature-of-defn :my::ident)
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) true)
+                      (:wat::core::None    false)))
     "##;
     assert!(run_bool(src), "signature-of-defn :my::ident should return Some");
 }
@@ -122,12 +122,12 @@ fn body_of_macro_returns_some_with_template() {
     let src = r##"
         (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
 
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::body-of :my::ident)
-            -> :wat::core::bool
-            ((:wat::core::Some _) true)
-            (:wat::core::None    false)))
+                      (:wat::runtime::body-of :my::ident)
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) true)
+                      (:wat::core::None    false)))
     "##;
     assert!(run_bool(src), "body-of :my::ident should return Some");
 }
@@ -143,13 +143,13 @@ fn lookup_define_struct_returns_some_and_emits_struct_head() {
           [open <- :wat::core::f64
            close <- :wat::core::f64])
 
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :my::Bar)
-             rendered
-              (:wat::edn::write def-opt)]
-            rendered))
+                      [def-opt
+                        (:wat::runtime::lookup-define :my::Bar)
+                       rendered
+                        (:wat::edn::write def-opt)]
+                      rendered))
     "##;
     let line = run_string(src);
     assert!(
@@ -171,12 +171,12 @@ fn signature_of_defn_struct_returns_some() {
           [x <- :wat::core::f64
            y <- :wat::core::f64])
 
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::signature-of-defn :my::Point)
-            -> :wat::core::bool
-            ((:wat::core::Some _) true)
-            (:wat::core::None    false)))
+                      (:wat::runtime::signature-of-defn :my::Point)
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) true)
+                      (:wat::core::None    false)))
     "##;
     assert!(run_bool(src), "signature-of-defn :my::Point should return Some");
 }
@@ -190,12 +190,12 @@ fn body_of_struct_returns_none() {
         (:wat::core::defstruct :my::Tick
           [price <- :wat::core::f64])
 
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::body-of :my::Tick)
-            -> :wat::core::bool
-            ((:wat::core::Some _) false)
-            (:wat::core::None    true)))
+                      (:wat::runtime::body-of :my::Tick)
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) false)
+                      (:wat::core::None    true)))
     "##;
     assert!(run_bool(src), "body-of :my::Tick should return None (types have no body)");
 }
@@ -208,16 +208,14 @@ fn lookup_define_user_function_still_returns_some_post_refactor() {
     // (function_to_define_ast) must be unchanged after the Binding
     // refactor.
     let src = r##"
-        (:wat::core::define
-          (:user::my-add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::+ x y))
+        (:wat::core::defn :user::my-add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))
 
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::lookup-define :user::my-add)
-            -> :wat::core::bool
-            ((:wat::core::Some _) true)
-            (:wat::core::None    false)))
+                      (:wat::runtime::lookup-define :user::my-add)
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) true)
+                      (:wat::core::None    false)))
     "##;
     assert!(run_bool(src), "lookup-define :user::my-add should return Some");
 }
@@ -227,12 +225,12 @@ fn signature_of_defn_substrate_primitive_still_returns_some_post_refactor() {
     // Regression guard: arc 143's Primitive emission behavior
     // (type_scheme_to_signature_ast) must be unchanged after refactor.
     let src = r##"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::signature-of-defn :wat::core::foldl)
-            -> :wat::core::bool
-            ((:wat::core::Some _) true)
-            (:wat::core::None    false)))
+                      (:wat::runtime::signature-of-defn :wat::core::foldl)
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) true)
+                      (:wat::core::None    false)))
     "##;
     assert!(run_bool(src), "signature-of-defn :wat::core::foldl should return Some");
 }
@@ -246,26 +244,26 @@ fn all_three_primitives_return_none_on_unknown_name() {
     // currently a no-op (slice 2 territory); it does not produce
     // false-positive Some(...) for arbitrary names.
     let src = r##"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [d-opt
-              (:wat::runtime::lookup-define :no::such::thing)
-             s-opt
-              (:wat::runtime::signature-of-defn :no::such::thing)
-             b-opt
-              (:wat::runtime::body-of    :no::such::thing)]
-            (:wat::core::match d-opt
-              -> :wat::core::bool
-              ((:wat::core::Some _) false)
-              (:wat::core::None
-                (:wat::core::match s-opt
-                  -> :wat::core::bool
-                  ((:wat::core::Some _) false)
-                  (:wat::core::None
-                    (:wat::core::match b-opt
-                      -> :wat::core::bool
-                      ((:wat::core::Some _) false)
-                      (:wat::core::None    true))))))))
+                      [d-opt
+                        (:wat::runtime::lookup-define :no::such::thing)
+                       s-opt
+                        (:wat::runtime::signature-of-defn :no::such::thing)
+                       b-opt
+                        (:wat::runtime::body-of    :no::such::thing)]
+                      (:wat::core::match d-opt
+                        -> :wat::core::bool
+                        ((:wat::core::Some _) false)
+                        (:wat::core::None
+                          (:wat::core::match s-opt
+                            -> :wat::core::bool
+                            ((:wat::core::Some _) false)
+                            (:wat::core::None
+                              (:wat::core::match b-opt
+                                -> :wat::core::bool
+                                ((:wat::core::Some _) false)
+                                (:wat::core::None    true))))))))
     "##;
     assert!(run_bool(src), "all three primitives should return None for unknown name");
 }

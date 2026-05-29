@@ -74,8 +74,7 @@ fn probe_counter_subprocess_minimal() {
           :Value [v <- :wat::core::i64]
           :Ok    [v <- :wat::core::i64]
           :Final [v <- :wat::core::i64])
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok("");
     let spawn_call = build_spawn_process_call(server_program_src);
@@ -125,8 +124,7 @@ fn probe_counter_subprocess_with_defn() {
                  (:counter/dispatch 0)))
             (:counter::Request::Shutdown
                (:wat::kernel::println (:counter::Response::Final state)))))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok("");
     let spawn_call = build_spawn_process_call(server_program_src);
@@ -176,8 +174,7 @@ fn probe_counter_subprocess_full_process_peer() {
                  (:counter/dispatch 0)))
             (:counter::Request::Shutdown
                (:wat::kernel::println (:counter::Response::Final state)))))
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          (:counter/dispatch 10))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:counter/dispatch 10))
     "#;
 
     // Parent world needs to know the counter::Response enum type

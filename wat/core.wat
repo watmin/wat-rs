@@ -99,37 +99,33 @@
 
 ;; i64 same-type variadic — :+/:*/:- / :/  fold over per-Type binary leaf.
 
-(:wat::core::define
-  (:wat::core::i64::+ & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+(:wat::core::defn :wat::core::i64::+ [& xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
   (:wat::core::foldl xs 0
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::+'2 acc x))))
+      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::i64::+'2 acc x))))
 
-(:wat::core::define
-  (:wat::core::i64::* & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+(:wat::core::defn :wat::core::i64::* [& xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
   (:wat::core::foldl xs 1
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::*'2 acc x))))
+      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::i64::*'2 acc x))))
 
 ;; `:-` and `:/` require >= 1 arg. Express via fixed first param +
 ;; rest. 1-ary inserts identity-on-left; 2+-ary folds. The arity
 ;; checker rejects 0-ary via the fixed-param requirement.
 
-(:wat::core::define
-  (:wat::core::i64::- (first :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+(:wat::core::defn :wat::core::i64::- [first <- :wat::core::i64 & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
-    (:wat::core::i64::-'2 0 first)
-    (:wat::core::foldl xs first
-      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::-'2 acc x)))))
+      (:wat::core::i64::-'2 0 first)
+      (:wat::core::foldl xs first
+        (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+          (:wat::core::i64::-'2 acc x)))))
 
-(:wat::core::define
-  (:wat::core::i64::/ (first :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+(:wat::core::defn :wat::core::i64::/ [first <- :wat::core::i64 & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
-    (:wat::core::i64::/'2 1 first)
-    (:wat::core::foldl xs first
-      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::/'2 acc x)))))
+      (:wat::core::i64::/'2 1 first)
+      (:wat::core::foldl xs first
+        (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+          (:wat::core::i64::/'2 acc x)))))
 
 ;; ─── Named-function binding ───────────────────────────────────────
 ;;
@@ -214,30 +210,26 @@
 
 ;; f64 same-type variadic — :+/:*/:- / :/
 
-(:wat::core::define
-  (:wat::core::f64::+ & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
+(:wat::core::defn :wat::core::f64::+ [& xs <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
   (:wat::core::foldl xs 0.0
-    (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-      (:wat::core::f64::+'2 acc x))))
+      (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
+        (:wat::core::f64::+'2 acc x))))
 
-(:wat::core::define
-  (:wat::core::f64::* & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
+(:wat::core::defn :wat::core::f64::* [& xs <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
   (:wat::core::foldl xs 1.0
-    (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-      (:wat::core::f64::*'2 acc x))))
-
-(:wat::core::define
-  (:wat::core::f64::- (first :wat::core::f64) & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
-  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
-    (:wat::core::f64::-'2 0.0 first)
-    (:wat::core::foldl xs first
       (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::-'2 acc x)))))
+        (:wat::core::f64::*'2 acc x))))
 
-(:wat::core::define
-  (:wat::core::f64::/ (first :wat::core::f64) & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
+(:wat::core::defn :wat::core::f64::- [first <- :wat::core::f64 & xs <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
   (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
-    (:wat::core::f64::/'2 1.0 first)
-    (:wat::core::foldl xs first
-      (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::/'2 acc x)))))
+      (:wat::core::f64::-'2 0.0 first)
+      (:wat::core::foldl xs first
+        (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
+          (:wat::core::f64::-'2 acc x)))))
+
+(:wat::core::defn :wat::core::f64::/ [first <- :wat::core::f64 & xs <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
+  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
+      (:wat::core::f64::/'2 1.0 first)
+      (:wat::core::foldl xs first
+        (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
+          (:wat::core::f64::/'2 acc x)))))

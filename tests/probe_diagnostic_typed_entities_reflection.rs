@@ -59,7 +59,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -84,10 +84,10 @@ fn probe_1_extract_classifier_on_defrecord_instance() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::String)
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)]
-    (:wat::holon::extract-classifier v)))
+      [v (:myapp::Voltage 5.0)]
+      (:wat::holon::extract-classifier v)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -110,10 +110,10 @@ fn probe_1_extract_classifier_on_defrecord_instance() {
 #[test]
 fn probe_2_extract_classifier_on_bare_atom() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
+(:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String>
   (:wat::core::let
-    [bare (:wat::holon::Atom (:wat::holon::to-holon 42))]
-    (:wat::holon::extract-classifier bare)))
+      [bare (:wat::holon::Atom (:wat::holon::to-holon 42))]
+      (:wat::holon::extract-classifier bare)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -141,11 +141,11 @@ fn probe_3_bind_right_on_defrecord_instance() {
     let src = r#"
 (:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
+(:wat::core::defn :user::compute [] -> :wat::core::Option<wat::holon::HolonAST>
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)
-     h (:wat::holon::to-holon v)]
-    (:wat::holon::Bind/right h)))
+      [v (:myapp::Voltage 5.0)
+       h (:wat::holon::to-holon v)]
+      (:wat::holon::Bind/right h)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -168,10 +168,10 @@ fn probe_3_bind_right_on_defrecord_instance() {
 #[test]
 fn probe_4_bind_right_on_non_bind() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
+(:wat::core::defn :user::compute [] -> :wat::core::Option<wat::holon::HolonAST>
   (:wat::core::let
-    [bare (:wat::holon::Atom (:wat::holon::to-holon 42))]
-    (:wat::holon::Bind/right bare)))
+      [bare (:wat::holon::Atom (:wat::holon::to-holon 42))]
+      (:wat::holon::Bind/right bare)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -213,14 +213,14 @@ fn probe_5_composed_walk_to_field_binds() {
   [x <- :wat::core::i64
    y <- :wat::core::i64])
 
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [p          (:myapp::Point 3 4)
-     h          (:wat::holon::to-holon p)
-     right-opt  (:wat::holon::Bind/right h)
-     right      (:wat::core::Option/expect -> :wat::holon::HolonAST right-opt "right missing")
-     children   (:wat::holon::Bundle/children right)]
-    (:wat::core::Vector/length children)))
+      [p          (:myapp::Point 3 4)
+       h          (:wat::holon::to-holon p)
+       right-opt  (:wat::holon::Bind/right h)
+       right      (:wat::core::Option/expect -> :wat::holon::HolonAST right-opt "right missing")
+       children   (:wat::holon::Bundle/children right)]
+      (:wat::core::Vector/length children)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -247,11 +247,11 @@ fn probe_6_bind_left_on_defrecord_instance() {
     let src = r#"
 (:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
+(:wat::core::defn :user::compute [] -> :wat::core::Option<wat::holon::HolonAST>
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)
-     h (:wat::holon::to-holon v)]
-    (:wat::holon::Bind/left h)))
+      [v (:myapp::Voltage 5.0)
+       h (:wat::holon::to-holon v)]
+      (:wat::holon::Bind/left h)))
 "#;
     match run_compute(src) {
         Ok(v) => {
@@ -282,10 +282,10 @@ fn probe_6_bind_left_on_defrecord_instance() {
 #[test]
 fn probe_7_bind_left_on_non_bind() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::Option<wat::holon::HolonAST>)
+(:wat::core::defn :user::compute [] -> :wat::core::Option<wat::holon::HolonAST>
   (:wat::core::let
-    [bare (:wat::holon::Atom (:wat::holon::to-holon 42))]
-    (:wat::holon::Bind/left bare)))
+      [bare (:wat::holon::Atom (:wat::holon::to-holon 42))]
+      (:wat::holon::Bind/left bare)))
 "#;
     match run_compute(src) {
         Ok(v) => {

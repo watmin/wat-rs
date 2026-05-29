@@ -18,7 +18,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -60,12 +60,12 @@ fn run_string(src: &str) -> String {
 fn assert_signature_of_defn_some(name: &str) -> bool {
     let src = format!(
         r##"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::signature-of-defn {name})
-            -> :wat::core::bool
-            ((:wat::core::Some _) true)
-            (:wat::core::None    false)))
+                      (:wat::runtime::signature-of-defn {name})
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) true)
+                      (:wat::core::None    false)))
         "##,
         name = name
     );
@@ -218,12 +218,12 @@ fn body_of_length_returns_none() {
     // they are Rust-implemented). Confirm the new fingerprint
     // preserves this honest absence.
     let src = r##"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::match
-            (:wat::runtime::body-of :wat::core::length)
-            -> :wat::core::bool
-            ((:wat::core::Some _) false)
-            (:wat::core::None    true)))
+                      (:wat::runtime::body-of :wat::core::length)
+                      -> :wat::core::bool
+                      ((:wat::core::Some _) false)
+                      (:wat::core::None    true)))
     "##;
     assert!(run_bool(src), "body-of :wat::core::length should return :None");
 }
@@ -242,13 +242,13 @@ fn lookup_define_length_renders_primitive_sentinel() {
     // verifying that the per-Type primitive's scheme is queryable via
     // reflection. Per arc 146 slice 2 BRIEF Q2 (Option A).
     let src = r##"
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [def-opt
-              (:wat::runtime::lookup-define :wat::core::Vector/length)
-             rendered
-              (:wat::edn::write def-opt)]
-            rendered))
+                      [def-opt
+                        (:wat::runtime::lookup-define :wat::core::Vector/length)
+                       rendered
+                        (:wat::edn::write def-opt)]
+                      rendered))
     "##;
     let line = run_string(src);
     assert!(

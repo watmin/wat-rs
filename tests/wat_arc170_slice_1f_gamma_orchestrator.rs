@@ -129,8 +129,7 @@ fn row_a_single_thread_println() {
     fresh_thread();
     let mut rig = build_rig();
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          (:wat::kernel::println "hello slice 1f-gamma"))
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "hello slice 1f-gamma"))
     "#;
     let world = freeze(src);
     let stdout_capture = Arc::clone(&rig.stdout_capture);
@@ -162,36 +161,21 @@ fn row_b_multi_thread_println() {
     // Three named child fns; main spawns each via spawn-thread and
     // joins each via Thread/join-result.
     let src = r#"
-        (:wat::core::define
-          (:test::child-a
-            (_in :wat::kernel::Receiver<wat::core::nil>)
-            (_out :wat::kernel::Sender<wat::core::nil>)
-            -> :wat::core::nil)
-          (:wat::kernel::println "child-a"))
+        (:wat::core::defn :test::child-a [_in <- :wat::kernel::Receiver<wat::core::nil> _out <- :wat::kernel::Sender<wat::core::nil>] -> :wat::core::nil (:wat::kernel::println "child-a"))
 
-        (:wat::core::define
-          (:test::child-b
-            (_in :wat::kernel::Receiver<wat::core::nil>)
-            (_out :wat::kernel::Sender<wat::core::nil>)
-            -> :wat::core::nil)
-          (:wat::kernel::println "child-b"))
+        (:wat::core::defn :test::child-b [_in <- :wat::kernel::Receiver<wat::core::nil> _out <- :wat::kernel::Sender<wat::core::nil>] -> :wat::core::nil (:wat::kernel::println "child-b"))
 
-        (:wat::core::define
-          (:test::child-c
-            (_in :wat::kernel::Receiver<wat::core::nil>)
-            (_out :wat::kernel::Sender<wat::core::nil>)
-            -> :wat::core::nil)
-          (:wat::kernel::println "child-c"))
+        (:wat::core::defn :test::child-c [_in <- :wat::kernel::Receiver<wat::core::nil> _out <- :wat::kernel::Sender<wat::core::nil>] -> :wat::core::nil (:wat::kernel::println "child-c"))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [thr-a (:wat::kernel::spawn-thread :test::child-a)
-             thr-b (:wat::kernel::spawn-thread :test::child-b)
-             thr-c (:wat::kernel::spawn-thread :test::child-c)
-             _a (:wat::kernel::Thread/drain-and-join thr-a)
-             _b (:wat::kernel::Thread/drain-and-join thr-b)
-             _c (:wat::kernel::Thread/drain-and-join thr-c)]
-            :wat::core::nil))
+                      [thr-a (:wat::kernel::spawn-thread :test::child-a)
+                       thr-b (:wat::kernel::spawn-thread :test::child-b)
+                       thr-c (:wat::kernel::spawn-thread :test::child-c)
+                       _a (:wat::kernel::Thread/drain-and-join thr-a)
+                       _b (:wat::kernel::Thread/drain-and-join thr-b)
+                       _c (:wat::kernel::Thread/drain-and-join thr-c)]
+                      :wat::core::nil))
     "#;
     let world = freeze(src);
     let stdout_capture = Arc::clone(&rig.stdout_capture);
@@ -216,18 +200,13 @@ fn row_c_panic_recovery() {
     // cleanup still runs: the child's closure-epilogue Remove fires
     // inside catch_unwind. Validates the panic-resilient reap path.
     let src = r#"
-        (:wat::core::define
-          (:test::child-panic
-            (_in :wat::kernel::Receiver<wat::core::nil>)
-            (_out :wat::kernel::Sender<wat::core::nil>)
-            -> :wat::core::nil)
-          (:wat::runtime::panic! "child panicked intentionally"))
+        (:wat::core::defn :test::child-panic [_in <- :wat::kernel::Receiver<wat::core::nil> _out <- :wat::kernel::Sender<wat::core::nil>] -> :wat::core::nil (:wat::runtime::panic! "child panicked intentionally"))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [thr (:wat::kernel::spawn-thread :test::child-panic)
-             _join (:wat::kernel::Thread/drain-and-join thr)]
-            :wat::core::nil))
+                      [thr (:wat::kernel::spawn-thread :test::child-panic)
+                       _join (:wat::kernel::Thread/drain-and-join thr)]
+                      :wat::core::nil))
     "#;
     let world = freeze(src);
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
@@ -249,8 +228,7 @@ fn row_d_scope_drop_cascade() {
     // join_service in the orchestrator must return Ok for all three;
     // any failure surfaces as Err from invoke_user_main.
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze(src);
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
@@ -283,10 +261,10 @@ fn row_e_readln_roundtrip() {
         .expect("write to stdin pipe");
 
     let src = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [_s (:wat::kernel::readln -> :wat::core::String)]
-            :wat::core::nil))
+                      [_s (:wat::kernel::readln -> :wat::core::String)]
+                      :wat::core::nil))
     "#;
     let world = freeze(src);
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));

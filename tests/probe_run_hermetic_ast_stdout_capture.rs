@@ -69,11 +69,11 @@ fn probe_run_hermetic_ast_child_stdout_captured() {
     // run-hermetic-ast is a macro: it wraps the body in (:wat::test::program ...)
     // and calls (:wat::kernel::run-sandboxed-hermetic-ast forms stdin scope).
     let src = r#"
-        (:wat::core::define (:probe::ast::capture-stdout -> :wat::kernel::RunResult)
+        (:wat::core::defn :probe::ast::capture-stdout [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-            (:wat::kernel::println "hello-from-probe")))
+                      (:wat::kernel::println "hello-from-probe")))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
 

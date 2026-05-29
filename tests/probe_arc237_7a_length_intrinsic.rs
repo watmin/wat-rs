@@ -22,8 +22,8 @@ use wat::runtime::{Environment, Value};
 /// Eval `(:wat::core::length <coll>)` declared `-> :i64`; return the i64 or an error string.
 fn length_of(coll: &str) -> Result<i64, String> {
     let src = format!(
-        "(:wat::core::define (:user::compute -> :wat::core::i64) (:wat::core::length {coll}))\n\
-         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {coll}))\n\
+         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
     );
     let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .map_err(|e| format!("startup/check: {:?}", e))?;
@@ -41,8 +41,8 @@ fn length_of(coll: &str) -> Result<i64, String> {
 /// the non-collection case (phase-agnostic: it must be rejected, before and after the swap).
 fn length_errors(expr: &str) -> bool {
     let src = format!(
-        "(:wat::core::define (:user::compute -> :wat::core::i64) (:wat::core::length {expr}))\n\
-         (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {expr}))\n\
+         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
     );
     match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
         Err(_) => true, // check-time rejection

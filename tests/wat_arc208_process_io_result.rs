@@ -74,20 +74,20 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
 
 /// Echo server: reads one String line from stdin, writes it back to stdout.
 const ECHO_SERVER: &str = r#"
-    (:wat::core::define (:user::main -> :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil
       (:wat::core::let
-        [line (:wat::kernel::readln -> :wat::core::String)]
-        (:wat::kernel::println line)))
+              [line (:wat::kernel::readln -> :wat::core::String)]
+              (:wat::kernel::println line)))
 "#;
 
 /// Minimal server that exits immediately (nothing on stdout).
 const IMMEDIATE_EXIT_SERVER: &str = r#"
-    (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 "#;
 
 /// Trivial parent program (needed to freeze a parent-side world).
 const PARENT_SRC: &str = r#"
-    (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 "#;
 
 /// Unwrap `Value::Result(Ok(inner))` and return `inner`. Panics otherwise.

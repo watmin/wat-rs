@@ -42,7 +42,7 @@ fn install() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -62,8 +62,7 @@ fn sum2_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::TupleUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:rust::test::TupleUtils::sum2 (:wat::core::Tuple 20 22)))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:rust::test::TupleUtils::sum2 (:wat::core::Tuple 20 22)))
     "#;
     assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
 }
@@ -74,8 +73,7 @@ fn pair_of_returns_tuple() {
     let src = r#"
         (:wat::core::use! :rust::test::TupleUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          (:wat::core::first (:rust::test::TupleUtils::pair_of 7 13)))
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:wat::core::first (:rust::test::TupleUtils::pair_of 7 13)))
     "#;
     assert!(matches!(run(src), Value::i64(7)), "got {:?}", run(src));
 }
@@ -86,9 +84,9 @@ fn heterogeneous_triple_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::TupleUtils)
 
-        (:wat::core::define (:my::compute -> :wat::core::String)
+        (:wat::core::defn :my::compute [] -> :wat::core::String
           (:rust::test::TupleUtils::describe
-            (:wat::core::Tuple 1 "row" true)))
+                      (:wat::core::Tuple 1 "row" true)))
     "#;
     match run(src) {
         Value::String(s) => assert_eq!(&*s, "1/row/true"),

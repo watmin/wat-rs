@@ -29,7 +29,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -51,7 +51,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 
 fn try_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -91,8 +91,7 @@ fn gate_1_defclause_supports_rest_binder() {
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc n)))))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::sum-all 1 2 3 4))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 1 2 3 4))
     "#;
     let result = try_compute(src);
     assert!(
@@ -117,8 +116,7 @@ fn gate_2_defclause_dispatches_by_arg_type() {
         (:wat::core::defclause :my::label
           ([x <- :wat::core::i64] -> :wat::core::String "i64")
           ([x <- :wat::core::f64] -> :wat::core::String "f64"))
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:my::label 42))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:my::label 42))
     "#;
     let result = try_compute(src);
     assert!(
@@ -141,8 +139,7 @@ fn gate_2_cross_no_matching_clause() {
             (:wat::core::i64::+'2 x y))
           ([x <- :wat::core::f64 y <- :wat::core::f64] -> :wat::core::f64
             (:wat::core::f64::+'2 x y)))
-        (:wat::core::define (:user::compute -> :wat::core::f64)
-          (:my::add 1 2.0))
+        (:wat::core::defn :user::compute [] -> :wat::core::f64 (:my::add 1 2.0))
     "#;
     let result = try_startup(src);
     assert!(
@@ -162,8 +159,7 @@ fn gate_3_zero_ary_literal_infers_i64() {
     let src = r#"
         (:wat::core::defclause :my::default
           ([] -> :wat::core::i64 0))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::default))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::default))
     "#;
     let result = try_compute(src);
     assert!(
@@ -178,14 +174,12 @@ fn gate_3_zero_ary_literal_infers_i64() {
 #[test]
 fn gate_4a_i64_ordering_works() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::i64::< 1 2))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::i64::< 1 2))"#),
         Value::bool(true),
         "i64::< 1 2 → true"
     );
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::i64::> 5 3))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::i64::> 5 3))"#),
         Value::bool(true),
         "i64::> 5 3 → true"
     );
@@ -199,8 +193,7 @@ fn gate_4a_i64_ordering_works() {
 #[ignore = "Stone 237.8b: un-ignore after :wat::core::f64::< is minted"]
 fn gate_4b_f64_nan_ordering() {
     // 0.0 / 0.0 produces NaN
-    let src = r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                   (:wat::core::f64::< 1.0 (:wat::core::f64::/ 0.0 0.0)))"#;
+    let src = r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::f64::< 1.0 (:wat::core::f64::/ 0.0 0.0)))"#;
     let result = try_compute(src);
     assert!(result.is_ok(), "f64::< should accept NaN at runtime; got: {:?}", result);
     assert_eq!(
@@ -217,8 +210,7 @@ fn gate_4b_f64_nan_ordering() {
 #[test]
 fn regression_arith_i64_2ary_works() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                        (:wat::core::+ 1 2))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::+ 1 2))"#),
         Value::i64(3),
     );
 }
@@ -226,8 +218,7 @@ fn regression_arith_i64_2ary_works() {
 #[test]
 fn regression_arith_f64_2ary_works() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::f64)
-                        (:wat::core::+ 1.0 2.0))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::f64 (:wat::core::+ 1.0 2.0))"#),
         Value::f64(3.0),
     );
 }
@@ -235,8 +226,7 @@ fn regression_arith_f64_2ary_works() {
 #[test]
 fn regression_arith_variadic_3args_works() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                        (:wat::core::+ 1 2 3))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::+ 1 2 3))"#),
         Value::i64(6),
     );
 }
@@ -245,8 +235,7 @@ fn regression_arith_variadic_3args_works() {
 fn regression_arith_minus_1ary_negate_i64() {
     // 1-ary `-` is identity-on-left (negation: 0 - x)
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                        (:wat::core::- 5))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::- 5))"#),
         Value::i64(-5),
     );
 }
@@ -254,8 +243,7 @@ fn regression_arith_minus_1ary_negate_i64() {
 #[test]
 fn regression_ordering_i64_lt_works() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::< 1 2))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< 1 2))"#),
         Value::bool(true),
     );
 }
@@ -265,8 +253,7 @@ fn regression_cross_type_plus_rejected() {
     // Per 8a tightening: cross-type rejected at check.
     // Post-8b: rejection via defclause :NoMatchingClause (same outcome).
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::f64)
-             (:wat::core::+ 1 2.0))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::f64 (:wat::core::+ 1 2.0))"#,
     );
     assert!(result.is_err(), "cross-type i64+f64 MUST reject; got: {:?}", result);
 }
@@ -274,8 +261,7 @@ fn regression_cross_type_plus_rejected() {
 #[test]
 fn regression_cross_type_lt_rejected() {
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-             (:wat::core::< 1 2.0))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< 1 2.0))"#,
     );
     assert!(result.is_err(), "cross-type i64<f64 MUST reject; got: {:?}", result);
 }
@@ -289,14 +275,12 @@ fn regression_cross_type_lt_rejected() {
 #[ignore = "Stone 237.8b: un-ignore after :wat::core::i64::<= is minted (completing i64 ordering set)"]
 fn mint_i64_lte_works() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::i64::<= 5 5))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::i64::<= 5 5))"#),
         Value::bool(true),
         "i64::<= 5 5 → true (boundary)"
     );
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::i64::<= 5 3))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::i64::<= 5 3))"#),
         Value::bool(false),
     );
 }
@@ -306,13 +290,11 @@ fn mint_i64_lte_works() {
 #[ignore = "Stone 237.8b: un-ignore after f64 ordering primitives minted"]
 fn mint_f64_ordering_basic() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::f64::< 1.0 2.0))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::f64::< 1.0 2.0))"#),
         Value::bool(true),
     );
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::f64::>= 5.0 5.0))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::f64::>= 5.0 5.0))"#),
         Value::bool(true),
     );
 }
@@ -322,8 +304,7 @@ fn mint_f64_ordering_basic() {
 #[ignore = "Stone 237.8b: un-ignore after :i64::!= renamed to :i64::not="]
 fn mint_i64_not_eq_renamed() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::bool)
-                        (:wat::core::i64::not= 1 2))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::i64::not= 1 2))"#),
         Value::bool(true),
     );
 }
@@ -333,8 +314,7 @@ fn mint_i64_not_eq_renamed() {
 #[ignore = "Stone 237.8b: un-ignore after :wat::core::+ becomes a wat defclause"]
 fn mint_arith_zero_ary_plus_identity() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                        (:wat::core::+))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::+))"#),
         Value::i64(0),
         "0-ary + returns i64 0 (Lisp identity)"
     );
@@ -345,8 +325,7 @@ fn mint_arith_zero_ary_plus_identity() {
 #[ignore = "Stone 237.8b: un-ignore after :wat::core::* becomes a wat defclause"]
 fn mint_arith_zero_ary_star_identity() {
     assert_eq!(
-        eval_value(r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-                        (:wat::core::*))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::*))"#),
         Value::i64(1),
         "0-ary * returns i64 1 (Lisp identity)"
     );
@@ -357,8 +336,7 @@ fn mint_arith_zero_ary_star_identity() {
 #[ignore = "Stone 237.8b: un-ignore after :wat::core::- becomes a wat defclause with NO 0-ary clause"]
 fn mint_arith_zero_ary_minus_errors() {
     let result = try_startup(
-        r#"(:wat::core::define (:user::compute -> :wat::core::i64)
-             (:wat::core::-))"#,
+        r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::-))"#,
     );
     assert!(result.is_err(), "0-ary `-` MUST error (no clause for it); got: {:?}", result);
 }

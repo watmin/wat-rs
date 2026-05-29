@@ -16,7 +16,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -44,11 +44,11 @@ fn newtype_construct_and_accessor_roundtrip() {
     let src = r##"
         (:wat::core::newtype :my::trading::Price :wat::core::f64)
 
-        (:wat::core::define (:my::compute -> :wat::core::String)
+        (:wat::core::defn :my::compute [] -> :wat::core::String
           (:wat::core::let
-            [p (:my::trading::Price/new 100.0)
-             inner (:my::trading::Price/0 p)]
-            (:wat::core::f64::to-string inner)))
+                      [p (:my::trading::Price/new 100.0)
+                       inner (:my::trading::Price/0 p)]
+                      (:wat::core::f64::to-string inner)))
     "##;
     match run(src) {
         Value::String(s) => assert_eq!(&*s, "100", "expected '100'; got {}", s),
@@ -64,14 +64,11 @@ fn newtype_rejects_inner_type_at_arg_position() {
     let src = r##"
         (:wat::core::newtype :my::trading::Price :wat::core::f64)
 
-        (:wat::core::define (:my::trading::pretty (p :my::trading::Price) -> :wat::core::String)
-          (:wat::core::f64::to-string (:my::trading::Price/0 p)))
+        (:wat::core::defn :my::trading::pretty [p <- :my::trading::Price] -> :wat::core::String (:wat::core::f64::to-string (:my::trading::Price/0 p)))
 
-        (:wat::core::define (:my::probe -> :wat::core::String)
-          (:my::trading::pretty 100.0))
+        (:wat::core::defn :my::probe [] -> :wat::core::String (:my::trading::pretty 100.0))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "##;
     let err = run_expecting_check_error(src);
     assert!(
@@ -89,15 +86,14 @@ fn newtype_rejected_where_inner_expected() {
     let src = r##"
         (:wat::core::newtype :my::trading::Price :wat::core::f64)
 
-        (:wat::core::define (:my::probe -> :wat::core::String)
+        (:wat::core::defn :my::probe [] -> :wat::core::String
           ;; Pass a Price where an f64 is expected — type-checker should refuse.
-          (:wat::core::let
-            [p (:my::trading::Price/new 100.0)
-             bogus (:wat::core::f64::+'2 p 1.0)]
-            (:wat::core::f64::to-string bogus)))
+                    (:wat::core::let
+                      [p (:my::trading::Price/new 100.0)
+                       bogus (:wat::core::f64::+'2 p 1.0)]
+                      (:wat::core::f64::to-string bogus)))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "##;
     let err = run_expecting_check_error(src);
     assert!(
@@ -122,13 +118,13 @@ fn newtype_as_struct_field_roundtrip() {
            price <- :my::trading::Price
            qty   <- :wat::core::i64])
 
-        (:wat::core::define (:my::compute -> :wat::core::String)
+        (:wat::core::defn :my::compute [] -> :wat::core::String
           (:wat::core::let
-            [p (:my::trading::Price/new 99.5)
-             o          (:my::Order/new "BTC" p 7)
-             retrieved (:my::Order/price o)
-             inner (:my::trading::Price/0 retrieved)]
-            (:wat::core::f64::to-string inner)))
+                      [p (:my::trading::Price/new 99.5)
+                       o          (:my::Order/new "BTC" p 7)
+                       retrieved (:my::Order/price o)
+                       inner (:my::trading::Price/0 retrieved)]
+                      (:wat::core::f64::to-string inner)))
     "##;
     match run(src) {
         Value::String(s) => assert_eq!(&*s, "99.5", "expected '99.5'; got {}", s),
@@ -145,17 +141,15 @@ fn distinct_newtypes_over_same_inner_are_distinct_types() {
         (:wat::core::newtype :my::trading::Price :wat::core::f64)
         (:wat::core::newtype :my::trading::Amount :wat::core::f64)
 
-        (:wat::core::define (:my::trading::price-pretty (p :my::trading::Price) -> :wat::core::String)
-          (:wat::core::f64::to-string (:my::trading::Price/0 p)))
+        (:wat::core::defn :my::trading::price-pretty [p <- :my::trading::Price] -> :wat::core::String (:wat::core::f64::to-string (:my::trading::Price/0 p)))
 
-        (:wat::core::define (:my::probe -> :wat::core::String)
+        (:wat::core::defn :my::probe [] -> :wat::core::String
           ;; Pass an Amount where Price is expected — must fail.
-          (:wat::core::let
-            [a (:my::trading::Amount/new 50.0)]
-            (:my::trading::price-pretty a)))
+                    (:wat::core::let
+                      [a (:my::trading::Amount/new 50.0)]
+                      (:my::trading::price-pretty a)))
 
-        (:wat::core::define (:user::main -> :wat::core::nil)
-          :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "##;
     let err = run_expecting_check_error(src);
     assert!(

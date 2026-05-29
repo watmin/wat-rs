@@ -25,7 +25,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -57,9 +57,9 @@ fn probe_p1_empty_literal_constructs_empty_hashmap() {
     // `(:wat::core::HashMap :wat::core::keyword :wat::core::i64)` — two type-args, zero pairs.
     // Must produce an empty HashMap (length 0).
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::length
-            (:wat::core::HashMap :wat::core::keyword :wat::core::i64)))
+                      (:wat::core::HashMap :wat::core::keyword :wat::core::i64)))
     "#;
     assert_eq!(run_i64(src), 0, "empty HashMap must have length 0");
 }
@@ -71,12 +71,12 @@ fn probe_p2_single_pair_length_and_get() {
     // `(:wat::core::HashMap :wat::core::keyword :wat::core::i64 :foo 42)` —
     // one key/value pair; length 1; get :foo returns Some(42).
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :foo 42)]
-            (:wat::core::match (:wat::core::get m :foo) -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (:wat::core::None -1))))
+                      [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :foo 42)]
+                      (:wat::core::match (:wat::core::get m :foo) -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(run_i64(src), 42, "get :foo should return 42");
 }
@@ -88,24 +88,24 @@ fn probe_p3_multi_pair_length_and_get() {
     // Three key/value pairs — length 3 and get :b returns 20.
     // Length check first (uses length); then get from same map.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::length
-            (:wat::core::HashMap :wat::core::keyword :wat::core::i64
-              :a 1
-              :b 2
-              :c 3)))
+                      (:wat::core::HashMap :wat::core::keyword :wat::core::i64
+                        :a 1
+                        :b 2
+                        :c 3)))
     "#;
     assert_eq!(run_i64(src_len), 3, "three pairs → length 3");
     let src_get = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
-                  :a 10
-                  :b 20
-                  :c 30)]
-            (:wat::core::match (:wat::core::get m :b) -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (:wat::core::None -1))))
+                      [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
+                            :a 10
+                            :b 20
+                            :c 30)]
+                      (:wat::core::match (:wat::core::get m :b) -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(run_i64(src_get), 20, "get :b from three-pair map → 20");
 }
@@ -116,14 +116,14 @@ fn probe_p3_multi_pair_length_and_get() {
 fn probe_p4_string_keyed_constructs_correctly() {
     // K = :wat::core::String confirms K can be any hashable type, not just Keyword.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m (:wat::core::HashMap :wat::core::String :wat::core::i64
-                  "a" 1
-                  "b" 2)]
-            (:wat::core::match (:wat::core::get m "b") -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (:wat::core::None -1))))
+                      [m (:wat::core::HashMap :wat::core::String :wat::core::i64
+                            "a" 1
+                            "b" 2)]
+                      (:wat::core::match (:wat::core::get m "b") -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (:wat::core::None -1))))
     "#;
     assert_eq!(run_i64(src), 2, "String-keyed HashMap: get \"b\" → 2");
 }
@@ -135,10 +135,10 @@ fn probe_p5_holonast_keyed_length() {
     // K = :wat::holon::HolonAST — structural values as keys.
     // Uses length to avoid complex match on HolonAST values.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::length
-            (:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST
-              (:wat::holon::to-holon 42) (:wat::holon::to-holon "answer"))))
+                      (:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST
+                        (:wat::holon::to-holon 42) (:wat::holon::to-holon "answer"))))
     "#;
     assert_eq!(run_i64(src), 1, "HolonAST-keyed HashMap with one pair → length 1");
 }
@@ -150,13 +150,13 @@ fn probe_p6_wrong_value_type_rejected_at_type_check() {
     // `(:wat::core::HashMap :wat::core::keyword :wat::core::i64 :foo "not-an-i64")` —
     // "not-an-i64" is a String, not i64 — must fail type-check (startup_from_source fails).
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
-                  :foo "not-an-i64")]
-            (:wat::core::match (:wat::core::get m :foo) -> :wat::core::i64
-              ((:wat::core::Some v) v)
-              (:wat::core::None -1))))
+                      [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
+                            :foo "not-an-i64")]
+                      (:wat::core::match (:wat::core::get m :foo) -> :wat::core::i64
+                        ((:wat::core::Some v) v)
+                        (:wat::core::None -1))))
     "#;
     let err = startup_err(src);
     assert!(
@@ -173,10 +173,10 @@ fn probe_p7_odd_pair_count_rejected() {
     // `(:wat::core::HashMap :wat::core::keyword :wat::core::i64 :foo)` —
     // one value arg after the two type-args: length 1 is odd. Must fail type-check.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :foo)]
-            0))
+                      [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :foo)]
+                      0))
     "#;
     let err = startup_err(src);
     assert!(
@@ -192,10 +192,10 @@ fn probe_p7_odd_pair_count_rejected() {
 fn probe_p8_missing_both_type_args_rejected() {
     // `(:wat::core::HashMap)` — zero args, must fail arity check.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m (:wat::core::HashMap)]
-            0))
+                      [m (:wat::core::HashMap)]
+                      0))
     "#;
     let err = startup_err(src);
     assert!(
@@ -212,10 +212,10 @@ fn probe_p9_missing_v_type_arg_rejected() {
     // `(:wat::core::HashMap :wat::core::keyword)` — only K given, V missing.
     // Must fail arity check (args.len() == 1 < 2).
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [m (:wat::core::HashMap :wat::core::keyword)]
-            0))
+                      [m (:wat::core::HashMap :wat::core::keyword)]
+                      0))
     "#;
     let err = startup_err(src);
     assert!(

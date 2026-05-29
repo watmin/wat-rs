@@ -22,7 +22,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -69,13 +69,13 @@ fn pipe_returns_writer_reader_tuple() {
     // just proves the type shape lands through the checker + runtime.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [pair
-              (:wat::kernel::pipe)
-             _w (:wat::core::first pair)
-             _r (:wat::core::second pair)]
-            42))
+                      [pair
+                        (:wat::kernel::pipe)
+                       _w (:wat::core::first pair)
+                       _r (:wat::core::second pair)]
+                      42))
     "#;
     assert_eq!(unwrap_i64(run(src)), 42);
 }
@@ -86,14 +86,14 @@ fn pipe_returns_writer_reader_tuple() {
 fn pipe_writeln_then_read_line_round_trips() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Option<wat::core::String>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Option<wat::core::String>
           (:wat::core::let
-            [pair
-              (:wat::kernel::pipe)
-             w (:wat::core::first pair)
-             r (:wat::core::second pair)
-             _ (:wat::io::IOWriter/writeln w "hello")]
-            (:wat::io::IOReader/read-line r)))
+                      [pair
+                        (:wat::kernel::pipe)
+                       w (:wat::core::first pair)
+                       r (:wat::core::second pair)
+                       _ (:wat::io::IOWriter/writeln w "hello")]
+                      (:wat::io::IOReader/read-line r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "hello");
 }
@@ -102,22 +102,22 @@ fn pipe_writeln_then_read_line_round_trips() {
 fn pipe_multiple_writelns_read_line_by_line() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::String)
+        (:wat::core::defn :my::compute [] -> :wat::core::String
           (:wat::core::let
-            [pair
-              (:wat::kernel::pipe)
-             w (:wat::core::first pair)
-             r (:wat::core::second pair)
-             _ (:wat::io::IOWriter/writeln w "first")
-             _ (:wat::io::IOWriter/writeln w "second")
-             a (:wat::io::IOReader/read-line r)
-             b (:wat::io::IOReader/read-line r)]
-            (:wat::core::match a -> :wat::core::String
-              ((:wat::core::Some sa)
-               (:wat::core::match b -> :wat::core::String
-                 ((:wat::core::Some sb) (:wat::core::string::join "," (:wat::core::Vector :wat::core::String sa sb)))
-                 (:wat::core::None     "second-missing")))
-              (:wat::core::None "first-missing"))))
+                      [pair
+                        (:wat::kernel::pipe)
+                       w (:wat::core::first pair)
+                       r (:wat::core::second pair)
+                       _ (:wat::io::IOWriter/writeln w "first")
+                       _ (:wat::io::IOWriter/writeln w "second")
+                       a (:wat::io::IOReader/read-line r)
+                       b (:wat::io::IOReader/read-line r)]
+                      (:wat::core::match a -> :wat::core::String
+                        ((:wat::core::Some sa)
+                         (:wat::core::match b -> :wat::core::String
+                           ((:wat::core::Some sb) (:wat::core::string::join "," (:wat::core::Vector :wat::core::String sa sb)))
+                           (:wat::core::None     "second-missing")))
+                        (:wat::core::None "first-missing"))))
     "#;
     assert_eq!(unwrap_string(run(src)), "first,second");
 }
@@ -128,17 +128,17 @@ fn pipe_write_string_then_read_exact_bytes() {
     // no newline involvement — just byte-level round-trip.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [pair
-              (:wat::kernel::pipe)
-             w (:wat::core::first pair)
-             r (:wat::core::second pair)
-             n (:wat::io::IOWriter/write-string w "hello")
-             got (:wat::io::IOReader/read r 5)]
-            (:wat::core::match got -> :wat::core::i64
-              ((:wat::core::Some bytes) n)
-              (:wat::core::None        -1))))
+                      [pair
+                        (:wat::kernel::pipe)
+                       w (:wat::core::first pair)
+                       r (:wat::core::second pair)
+                       n (:wat::io::IOWriter/write-string w "hello")
+                       got (:wat::io::IOReader/read r 5)]
+                      (:wat::core::match got -> :wat::core::i64
+                        ((:wat::core::Some bytes) n)
+                        (:wat::core::None        -1))))
     "#;
     assert_eq!(unwrap_i64(run(src)), 5);
 }
@@ -149,14 +149,14 @@ fn pipe_write_string_then_read_exact_bytes() {
 fn pipe_preserves_utf8_lines() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::Option<wat::core::String>)
+        (:wat::core::defn :my::compute [] -> :wat::core::Option<wat::core::String>
           (:wat::core::let
-            [pair
-              (:wat::kernel::pipe)
-             w (:wat::core::first pair)
-             r (:wat::core::second pair)
-             _ (:wat::io::IOWriter/writeln w "héllo")]
-            (:wat::io::IOReader/read-line r)))
+                      [pair
+                        (:wat::kernel::pipe)
+                       w (:wat::core::first pair)
+                       r (:wat::core::second pair)
+                       _ (:wat::io::IOWriter/writeln w "héllo")]
+                      (:wat::io::IOReader/read-line r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "héllo");
 }

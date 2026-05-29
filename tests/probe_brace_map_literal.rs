@@ -39,7 +39,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -84,8 +84,7 @@ fn startup_err(src: &str) -> String {
 #[test]
 fn probe_1_empty_brace_is_empty_hashmap() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {}))
     "#;
     assert_eq!(run_i64(src), 0, "empty {{}} must produce a length-0 HashMap");
 }
@@ -99,15 +98,13 @@ fn probe_1_empty_brace_is_empty_hashmap() {
 fn probe_2_single_pair_length_and_contains() {
     // Length check.
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:foo 42}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:foo 42}))
     "#;
     assert_eq!(run_i64(src_len), 1, "single-pair map literal must have length 1");
 
     // Key presence check.
     let src_contains = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::HashMap/contains-key? {:foo 42} :foo))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::HashMap/contains-key? {:foo 42} :foo))
     "#;
     assert!(
         run_bool(src_contains),
@@ -121,14 +118,12 @@ fn probe_2_single_pair_length_and_contains() {
 #[test]
 fn probe_3_multi_pair_length_and_contains() {
     let src_len = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:a 1 :b 2 :c 3}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:a 1 :b 2 :c 3}))
     "#;
     assert_eq!(run_i64(src_len), 3, "three-pair map literal must have length 3");
 
     let src_contains = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::HashMap/contains-key? {:a 1 :b 2 :c 3} :b))
+        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::HashMap/contains-key? {:a 1 :b 2 :c 3} :b))
     "#;
     assert!(
         run_bool(src_contains),
@@ -143,8 +138,7 @@ fn probe_3_multi_pair_length_and_contains() {
 #[test]
 fn probe_4_nested_in_expression_position() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:a 1 :b 2}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:a 1 :b 2}))
     "#;
     assert_eq!(run_i64(src), 2, "map literal nested in expression must yield length 2");
 }
@@ -168,8 +162,7 @@ fn probe_5_map_of_map_resolved_by_arc215() {
     // Arc 215 stone 1 — P2 limitation resolved. Nested map now succeeds at
     // both type-check and runtime. Length of the outer map = 1.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {:outer {:inner 42}}))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {:outer {:inner 42}}))
     "#;
     assert_eq!(
         run_i64(src),
@@ -203,9 +196,8 @@ fn probe_6_non_keyword_key_accepted_with_inferred_k() {
 
     // Type-check + runtime: HashMap<i64, keyword>; length 1.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::core::length {42 :v}))
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {42 :v}))
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("int-keyed map must type-check successfully");
@@ -247,11 +239,11 @@ fn probe_8_struct_pattern_preserved() {
         (:wat::core::defstruct :test214::PaperResult
           [outcome       <- :wat::core::String
            grace-residue <- :wat::core::f64])
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [p (:test214::PaperResult/new "kept" 3.14)
-             {outcome grace-residue} p]
-            outcome))
+                      [p (:test214::PaperResult/new "kept" 3.14)
+                       {outcome grace-residue} p]
+                      outcome))
     "#;
     let src = with_nil_main(src);
     let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
@@ -277,10 +269,10 @@ fn probe_8_struct_pattern_preserved() {
 #[test]
 fn probe_9_keyword_in_binding_position_rejected() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::String)
+        (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
-            [{:foo bar} "val"]
-            "ok"))
+                      [{:foo bar} "val"]
+                      "ok"))
     "#;
     let err = startup_err(src);
     // LIMITATION: error is a CHECK-time MalformedForm (not a ParseError).

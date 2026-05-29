@@ -111,21 +111,20 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
     // We render via edn::write and check for "reduce" + "T,Acc".
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of-defn :wat::core::foldl)
-                "expected Some")
-             renamed
-              (:wat::runtime::rename-callable-name
-                sig
-                :wat::core::foldl
-                :wat::list::reduce)
-             rendered
-              (:wat::edn::write renamed)]
-            (:wat::kernel::println rendered)))
+                      [sig
+                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                          (:wat::runtime::signature-of-defn :wat::core::foldl)
+                          "expected Some")
+                       renamed
+                        (:wat::runtime::rename-callable-name
+                          sig
+                          :wat::core::foldl
+                          :wat::list::reduce)
+                       rendered
+                        (:wat::edn::write renamed)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -157,25 +156,22 @@ fn rename_callable_name_no_type_params() {
     // User-defined function with no type params — renamed symbol has no "<...>".
     let src = r##"
 
-        (:wat::core::define
-          (:user::my-double (x :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::* x 2))
+        (:wat::core::defn :user::my-double [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of-defn :user::my-double)
-                "expected Some")
-             renamed
-              (:wat::runtime::rename-callable-name
-                sig
-                :user::my-double
-                :user::my-triple)
-             rendered
-              (:wat::edn::write renamed)]
-            (:wat::kernel::println rendered)))
+                      [sig
+                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                          (:wat::runtime::signature-of-defn :user::my-double)
+                          "expected Some")
+                       renamed
+                        (:wat::runtime::rename-callable-name
+                          sig
+                          :user::my-double
+                          :user::my-triple)
+                       rendered
+                        (:wat::edn::write renamed)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -211,23 +207,20 @@ fn rename_callable_name_error_from_mismatch() {
     // should surface as a RuntimeError that bubbles through invoke_user_main.
     let src = r##"
 
-        (:wat::core::define
-          (:user::my-neg (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::- 0 n))
+        (:wat::core::defn :user::my-neg [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::- 0 n))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of-defn :user::my-neg)
-                "expected Some")
-             renamed
-              (:wat::runtime::rename-callable-name
-                sig
-                :user::wrong-name
-                :user::alias)]
-            (:wat::kernel::println "should not reach here")))
+                      [sig
+                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                          (:wat::runtime::signature-of-defn :user::my-neg)
+                          "expected Some")
+                       renamed
+                        (:wat::runtime::rename-callable-name
+                          sig
+                          :user::wrong-name
+                          :user::alias)]
+                      (:wat::kernel::println "should not reach here")))
     "##;
     // The program should error at runtime (from-mismatch).
     assert!(
@@ -245,18 +238,17 @@ fn extract_arg_names_foldl_returns_three_names() {
     // We verify via edn::write: the rendered Vec should contain all three.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of-defn :wat::core::foldl)
-                "expected Some")
-             names
-              (:wat::runtime::extract-arg-names sig)
-             rendered
-              (:wat::edn::write names)]
-            (:wat::kernel::println rendered)))
+                      [sig
+                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                          (:wat::runtime::signature-of-defn :wat::core::foldl)
+                          "expected Some")
+                       names
+                        (:wat::runtime::extract-arg-names sig)
+                       rendered
+                        (:wat::edn::write names)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -298,22 +290,19 @@ fn extract_arg_names_zero_args_returns_empty() {
     // A user-defined zero-arg function should return an empty Vec.
     let src = r##"
 
-        (:wat::core::define
-          (:user::constant -> :wat::core::i64)
-          42)
+        (:wat::core::defn :user::constant [] -> :wat::core::i64 42)
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of-defn :user::constant)
-                "expected Some")
-             names
-              (:wat::runtime::extract-arg-names sig)
-             len
-              (:wat::core::length names)]
-            (:wat::kernel::println (:wat::edn::write len))))
+                      [sig
+                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                          (:wat::runtime::signature-of-defn :user::constant)
+                          "expected Some")
+                       names
+                        (:wat::runtime::extract-arg-names sig)
+                       len
+                        (:wat::core::length names)]
+                      (:wat::kernel::println (:wat::edn::write len))))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -331,27 +320,24 @@ fn extract_arg_names_stops_before_return_type() {
     // not the return-type symbol after "->".
     let src = r##"
 
-        (:wat::core::define
-          (:user::my-add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::+ x y))
+        (:wat::core::defn :user::my-add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of-defn :user::my-add)
-                "expected Some")
-             names
-              (:wat::runtime::extract-arg-names sig)
-             len
-              (:wat::core::length names)
-             rendered
-              (:wat::edn::write names)]
-            (:wat::kernel::println (:wat::core::string::concat
-              (:wat::edn::write len)
-              " "
-              rendered))))
+                      [sig
+                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                          (:wat::runtime::signature-of-defn :user::my-add)
+                          "expected Some")
+                       names
+                        (:wat::runtime::extract-arg-names sig)
+                       len
+                        (:wat::core::length names)
+                       rendered
+                        (:wat::edn::write names)]
+                      (:wat::kernel::println (:wat::core::string::concat
+                        (:wat::edn::write len)
+                        " "
+                        rendered))))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
@@ -387,14 +373,13 @@ fn extract_arg_names_error_non_bundle() {
     // at runtime, which is what this test is meant to verify.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [leaf
-              (:wat::holon::to-holon :user::foo)
-             names
-              (:wat::runtime::extract-arg-names leaf)]
-            (:wat::kernel::println "should not reach")))
+                      [leaf
+                        (:wat::holon::to-holon :user::foo)
+                       names
+                        (:wat::runtime::extract-arg-names leaf)]
+                      (:wat::kernel::println "should not reach")))
     "##;
     assert!(
         run_expecting_runtime_err(src),
@@ -414,32 +399,29 @@ fn rename_then_extract_preserves_arg_names() {
     // This verifies rename preserves all non-first children (arg pairs).
     let src = r##"
 
-        (:wat::core::define
-          (:user::my-add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::+ x y))
+        (:wat::core::defn :user::my-add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig
-              (:wat::core::Option/expect -> :wat::holon::HolonAST
-                (:wat::runtime::signature-of-defn :user::my-add)
-                "expected Some")
-             renamed
-              (:wat::runtime::rename-callable-name
-                sig
-                :user::my-add
-                :user::my-sum)
-             names
-              (:wat::runtime::extract-arg-names renamed)
-             len
-              (:wat::core::length names)
-             rendered
-              (:wat::edn::write names)]
-            (:wat::kernel::println (:wat::core::string::concat
-              (:wat::edn::write len)
-              " "
-              rendered))))
+                      [sig
+                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                          (:wat::runtime::signature-of-defn :user::my-add)
+                          "expected Some")
+                       renamed
+                        (:wat::runtime::rename-callable-name
+                          sig
+                          :user::my-add
+                          :user::my-sum)
+                       names
+                        (:wat::runtime::extract-arg-names renamed)
+                       len
+                        (:wat::core::length names)
+                       rendered
+                        (:wat::edn::write names)]
+                      (:wat::kernel::println (:wat::core::string::concat
+                        (:wat::edn::write len)
+                        " "
+                        rendered))))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);

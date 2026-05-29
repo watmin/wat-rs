@@ -35,7 +35,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -76,8 +76,7 @@ fn probe_1_splice_from_let_vec_of_i64() {
                                (:wat::core::*'2 x 2)))]
                   doubled)))))
 
-        (:wat::core::define (:user::compute -> :wat::core::Vector<wat::core::i64>)
-          (:probe::splice-i64 [1 2 3]))
+        (:wat::core::defn :user::compute [] -> :wat::core::Vector<wat::core::i64> (:probe::splice-i64 [1 2 3]))
     "##;
     match run(src) {
         Value::Vec(v) => {
@@ -137,8 +136,7 @@ fn probe_2_splice_from_let_vec_of_watast_via_runtime_quasiquote() {
                                (:wat::core::unquote (:wat::core::*'2 x 10)))))]
                   forms)))))
 
-        (:wat::core::define (:user::compute -> :wat::core::Vector<wat::core::i64>)
-          (:probe::splice-watast [1 2 3]))
+        (:wat::core::defn :user::compute [] -> :wat::core::Vector<wat::core::i64> (:probe::splice-watast [1 2 3]))
     "##;
     match run(src) {
         Value::Vec(v) => {

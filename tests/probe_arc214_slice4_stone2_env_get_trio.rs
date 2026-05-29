@@ -40,7 +40,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -172,29 +172,25 @@ fn run_panics(src: &str) -> bool {
 
 fn env_with_string_foo() -> &'static str {
     r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:foo (:wat::holon::to-holon "bar")})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:foo (:wat::holon::to-holon "bar")})
     "#
 }
 
 fn env_with_i64_baz() -> &'static str {
     r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:baz (:wat::holon::to-holon 42)})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:baz (:wat::holon::to-holon 42)})
     "#
 }
 
 fn env_with_bool_flag() -> &'static str {
     r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:flag (:wat::holon::to-holon true)})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:flag (:wat::holon::to-holon true)})
     "#
 }
 
 fn env_with_keyword_tag() -> &'static str {
     r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:tag (:wat::holon::to-holon :hello)})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:tag (:wat::holon::to-holon :hello)})
     "#
 }
 
@@ -207,8 +203,7 @@ fn probe_1_get_found_string() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -229,8 +224,7 @@ fn probe_2_get_not_found() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/get (:user::make-env) :missing -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/get (:user::make-env) :missing -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -247,8 +241,7 @@ fn probe_3_get_wrong_type_returns_none() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
-          (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::i64))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::i64> (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::i64))
         "#,
         env_with_string_foo()
     );
@@ -265,8 +258,7 @@ fn probe_4_get_multi_type() {
     let src_i64 = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
-          (:wat::program::Env/get (:user::make-env) :baz -> :wat::core::i64))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::i64> (:wat::program::Env/get (:user::make-env) :baz -> :wat::core::i64))
         "#,
         env_with_i64_baz()
     );
@@ -277,8 +269,7 @@ fn probe_4_get_multi_type() {
     let src_string = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -293,8 +284,7 @@ fn probe_4_get_multi_type() {
     let src_bool = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::bool>)
-          (:wat::program::Env/get (:user::make-env) :flag -> :wat::core::bool))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::bool> (:wat::program::Env/get (:user::make-env) :flag -> :wat::core::bool))
         "#,
         env_with_bool_flag()
     );
@@ -302,8 +292,7 @@ fn probe_4_get_multi_type() {
     let src_bool = with_nil_main(&format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::bool>)
-          (:wat::program::Env/get (:user::make-env) :flag -> :wat::core::bool))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::bool> (:wat::program::Env/get (:user::make-env) :flag -> :wat::core::bool))
         "#,
         env_with_bool_flag()
     ));
@@ -325,8 +314,7 @@ fn probe_4_get_multi_type() {
     let src_kw = with_nil_main(&format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::keyword>)
-          (:wat::program::Env/get (:user::make-env) :tag -> :wat::core::keyword))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::keyword> (:wat::program::Env/get (:user::make-env) :tag -> :wat::core::keyword))
         "#,
         env_with_keyword_tag()
     ));
@@ -352,8 +340,7 @@ fn probe_5_expect_get_found() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/expect-get (:user::make-env) :foo -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/expect-get (:user::make-env) :foo -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -371,8 +358,7 @@ fn probe_6_expect_get_not_found_panics() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/expect-get (:user::make-env) :missing -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/expect-get (:user::make-env) :missing -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -391,8 +377,7 @@ fn probe_7_expect_get_wrong_type_panics() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::program::Env/expect-get (:user::make-env) :foo -> :wat::core::i64))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::program::Env/expect-get (:user::make-env) :foo -> :wat::core::i64))
         "#,
         env_with_string_foo()
     );
@@ -411,8 +396,7 @@ fn probe_8_get_default_found_ignores_default() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/get-default (:user::make-env) :foo "fallback" -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/get-default (:user::make-env) :foo "fallback" -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -432,8 +416,7 @@ fn probe_9_get_default_not_found_returns_default() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/get-default (:user::make-env) :missing "fallback" -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/get-default (:user::make-env) :missing "fallback" -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -453,8 +436,7 @@ fn probe_10_get_default_wrong_type_returns_default() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:wat::program::Env/get-default (:user::make-env) :foo 99 -> :wat::core::i64))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::program::Env/get-default (:user::make-env) :foo 99 -> :wat::core::i64))
         "#,
         env_with_string_foo()
     );
@@ -474,8 +456,7 @@ fn probe_11_get_default_type_mismatch_fails_at_check() {
     let src = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/get-default (:user::make-env) :foo 42 -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/get-default (:user::make-env) :foo 42 -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -501,8 +482,7 @@ fn probe_12_all_three_consistent() {
     let src_get = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -516,8 +496,7 @@ fn probe_12_all_three_consistent() {
     let src_expect = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/expect-get (:user::make-env) :foo -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/expect-get (:user::make-env) :foo -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -527,8 +506,7 @@ fn probe_12_all_three_consistent() {
     let src_default = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/get-default (:user::make-env) :foo "fallback" -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/get-default (:user::make-env) :foo "fallback" -> :wat::core::String))
         "#,
         env_with_string_foo()
     );
@@ -548,15 +526,14 @@ fn probe_12_all_three_consistent() {
 #[test]
 fn probe_13_empty_env() {
     let empty_env_defn = r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env) {})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {})
     "#;
 
     // get → None
     let src_get = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/get (:user::make-env) :foo -> :wat::core::String))
         "#,
         empty_env_defn
     );
@@ -566,8 +543,7 @@ fn probe_13_empty_env() {
     let src_expect = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/expect-get (:user::make-env) :foo -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/expect-get (:user::make-env) :foo -> :wat::core::String))
         "#,
         empty_env_defn
     );
@@ -580,8 +556,7 @@ fn probe_13_empty_env() {
     let src_default = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/get-default (:user::make-env) :foo "sentinel" -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/get-default (:user::make-env) :foo "sentinel" -> :wat::core::String))
         "#,
         empty_env_defn
     );
@@ -604,10 +579,8 @@ fn probe_13_empty_env() {
 #[test]
 fn probe_14_holon_ast_atom_unwrap() {
     let src = r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:num (:wat::holon::to-holon 42)})
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
-          (:wat::program::Env/get (:user::make-env) :num -> :wat::core::i64))
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:num (:wat::holon::to-holon 42)})
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::i64> (:wat::program::Env/get (:user::make-env) :num -> :wat::core::i64))
     "#;
     let result = run_option_i64(src);
     assert_eq!(
@@ -635,16 +608,14 @@ fn probe_15_nested_holon_as_wrong_type() {
     // (:wat::holon::Atom (:wat::holon::to-holon "x")) → HolonAST::Atom(HolonAST::String("x"))
     // which is NOT a primitive leaf for String extraction purposes.
     let env_with_nested = r#"
-        (:wat::core::define (:user::make-env -> :wat::program::Env)
-          {:data (:wat::holon::Atom (:wat::holon::to-holon "x"))})
+        (:wat::core::defn :user::make-env [] -> :wat::program::Env {:data (:wat::holon::Atom (:wat::holon::to-holon "x"))})
     "#;
 
     // get → None (nested Atom is not a primitive String)
     let src_get = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::String>)
-          (:wat::program::Env/get (:user::make-env) :data -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::String> (:wat::program::Env/get (:user::make-env) :data -> :wat::core::String))
         "#,
         env_with_nested
     );
@@ -654,8 +625,7 @@ fn probe_15_nested_holon_as_wrong_type() {
     let src_expect = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/expect-get (:user::make-env) :data -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/expect-get (:user::make-env) :data -> :wat::core::String))
         "#,
         env_with_nested
     );
@@ -668,8 +638,7 @@ fn probe_15_nested_holon_as_wrong_type() {
     let src_default = format!(
         r#"
         {}
-        (:wat::core::define (:user::compute -> :wat::core::String)
-          (:wat::program::Env/get-default (:user::make-env) :data "fallback" -> :wat::core::String))
+        (:wat::core::defn :user::compute [] -> :wat::core::String (:wat::program::Env/get-default (:user::make-env) :data "fallback" -> :wat::core::String))
         "#,
         env_with_nested
     );

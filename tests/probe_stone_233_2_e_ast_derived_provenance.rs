@@ -30,7 +30,7 @@ use wat::runtime::{Environment, Provenance, TrackedValue, Value, ValueSnapshot};
 #[test]
 fn probe_1_int_literal_carries_literal_provenance() {
     let world = startup_from_source(
-        "(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )
@@ -59,7 +59,7 @@ fn probe_1_int_literal_carries_literal_provenance() {
 #[test]
 fn probe_2_string_literal_carries_literal_provenance() {
     let world = startup_from_source(
-        "(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )
@@ -88,7 +88,7 @@ fn probe_2_string_literal_carries_literal_provenance() {
 #[test]
 fn probe_3_let_bound_symbol_lookup_yields_symbol_bound_provenance() {
     let world = startup_from_source(
-        "(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )
@@ -139,7 +139,7 @@ fn probe_3_let_bound_symbol_lookup_yields_symbol_bound_provenance() {
 #[test]
 fn probe_4_destructure_slot_lookup_yields_symbol_bound_provenance() {
     let world = startup_from_source(
-        "(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )

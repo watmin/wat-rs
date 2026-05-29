@@ -41,7 +41,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -78,8 +78,7 @@ fn contract_01_variadic_min_with_rest_succeeds() {
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc n)))))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::sum-all 1 2 3 4))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 1 2 3 4))
     "#;
     let result = try_compute(src);
     assert_eq!(
@@ -100,8 +99,7 @@ fn contract_02_empty_rest_succeeds() {
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc n)))))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::sum-all 42))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 42))
     "#;
     let result = try_compute(src);
     assert_eq!(
@@ -118,8 +116,7 @@ fn contract_03_rest_only_succeeds() {
         (:wat::core::defclause :my::count-args
           ([& rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
             (:wat::core::length rest)))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::count-args 10 20 30))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::count-args 10 20 30))
     "#;
     let result = try_compute(src);
     assert_eq!(
@@ -136,8 +133,7 @@ fn contract_04_rest_only_empty_call_succeeds() {
         (:wat::core::defclause :my::count-args
           ([& rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
             (:wat::core::length rest)))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::count-args))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::count-args))
     "#;
     let result = try_compute(src);
     assert_eq!(
@@ -161,8 +157,7 @@ fn contract_05_rest_element_type_mismatch_errors() {
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc n)))))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::sum-all 1 2 "three"))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 1 2 "three"))
     "#;
     // Either startup fails (type-check catches it) OR compute fails (dispatch
     // rejects the wrong-type rest value). Both are acceptable error paths.
@@ -183,8 +178,7 @@ fn contract_06_under_supply_below_fixed_errors() {
           ([a <- :wat::core::i64 b <- :wat::core::i64
             & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
             (:wat::core::i64::+'2 a b)))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::pair 1))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::pair 1))
     "#;
     // Either startup fails (type-check catches arity) OR compute fails (dispatch rejects).
     let startup_result = try_startup(src);
@@ -205,8 +199,7 @@ fn contract_07_fixed_only_strict_arity_preserved() {
     let src = r#"
         (:wat::core::defclause :my::strict
           ([x <- :wat::core::i64] -> :wat::core::i64 x))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::strict 1 2))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::strict 1 2))
     "#;
     let startup_result = try_startup(src);
     let compute_result = try_compute(src);
@@ -231,8 +224,7 @@ fn contract_08_mixed_clause_set_first_match_wins() {
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+'2 acc n)))))
-        (:wat::core::define (:user::compute -> :wat::core::i64)
-          (:my::flex 10 20 30))
+        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::flex 10 20 30))
     "#;
     let result = try_compute(src);
     assert_eq!(

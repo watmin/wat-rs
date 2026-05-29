@@ -177,15 +177,15 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — defmacro lives at program top-level via the
     // new spawn-process program shape; the "lift" mechanism is retired
     // because declarations sit at their natural position from the start.
+    // Stone 241.11 — define hard-cut; use defn in the child program forms.
     let src = r#"
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::defmacro (:h::id-macro (x :AST) -> :AST) `~x)
-              (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil))))
+                      (:wat::core::forms
+                        (:wat::core::defmacro (:h::id-macro (x :AST) -> :AST) `~x)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -209,20 +209,19 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
 fn probe_define_dispatch_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — declarations at program top-level; define-dispatch
     // resolves through the child's freeze pipeline naturally.
+    // Stone 241.11 — define hard-cut; use defn in the child program forms.
     let src = r#"
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::define
-                (:h::describe-i64 (x :wat::core::i64) -> :wat::core::nil)
-                :wat::core::nil)
-              (:wat::core::define-dispatch :h::describe
-                ((:wat::core::i64) :h::describe-i64))
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:h::describe 99)))))
+                      (:wat::core::forms
+                        (:wat::core::defn :h::describe-i64 [x <- :wat::core::i64] -> :wat::core::nil
+                          :wat::core::nil)
+                        (:wat::core::define-dispatch :h::describe
+                          ((:wat::core::i64) :h::describe-i64))
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
+                          (:h::describe 99)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -243,16 +242,16 @@ fn probe_define_dispatch_in_fn_body_do_prefix_lifts_to_prologue() {
 #[test]
 fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — newtype at program top-level.
+    // Stone 241.11 — define hard-cut; use defn in the child program forms.
     let src = r#"
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::newtype :h::LocalAmount :wat::core::i64)
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::core::let [a (:h::LocalAmount/new 100)] :wat::core::nil)))))
+                      (:wat::core::forms
+                        (:wat::core::newtype :h::LocalAmount :wat::core::i64)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
+                          (:wat::core::let [a (:h::LocalAmount/new 100)] :wat::core::nil)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -272,17 +271,17 @@ fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
 #[test]
 fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — typealias at program top-level.
+    // Stone 241.11 — define hard-cut; use defn in the child program forms.
     let src = r#"
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::typealias :h::LocalCount :wat::core::i64)
-              (:wat::core::define (:h::get-count -> :h::LocalCount) 7)
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::core::let [_c (:h::get-count)] :wat::core::nil)))))
+                      (:wat::core::forms
+                        (:wat::core::typealias :h::LocalCount :wat::core::i64)
+                        (:wat::core::defn :h::get-count [] -> :h::LocalCount 7)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
+                          (:wat::core::let [_c (:h::get-count)] :wat::core::nil)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -323,34 +322,33 @@ fn probe_mixed_declaration_prelude_all_lift() {
     // alongside :user::main. The new substrate makes the "lift" a no-op
     // (declarations were already at the position the lift would move
     // them to).
+    // Stone 241.11 — define hard-cut; use defn in the child program forms.
     let src = r#"
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::defstruct :h::MixPoint
-                [x <- :wat::core::i64
-                 y <- :wat::core::i64])
-              (:wat::core::defenum :h::MixDir
-                :Up
-                :Down)
-              (:wat::core::newtype :h::MixAmount :wat::core::i64)
-              (:wat::core::typealias :h::MixCount :wat::core::i64)
-              (:wat::core::define
-                (:h::mix-i64-arm (v :wat::core::i64) -> :h::MixCount)
-                v)
-              (:wat::core::define-dispatch :h::mix-count
-                ((:wat::core::i64) :h::mix-i64-arm))
-              (:wat::core::defmacro (:h::mix-id (z :AST) -> :AST) `~z)
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::core::let
-                  [_p  (:h::MixPoint/new 1 2)
-                   _d  :h::MixDir::Up
-                   _a  (:h::MixAmount/new 10)
-                   _n  (:h::mix-count 7)]
-                  :wat::core::nil)))))
+                      (:wat::core::forms
+                        (:wat::core::defstruct :h::MixPoint
+                          [x <- :wat::core::i64
+                           y <- :wat::core::i64])
+                        (:wat::core::defenum :h::MixDir
+                          :Up
+                          :Down)
+                        (:wat::core::newtype :h::MixAmount :wat::core::i64)
+                        (:wat::core::typealias :h::MixCount :wat::core::i64)
+                        (:wat::core::defn :h::mix-i64-arm [v <- :wat::core::i64] -> :h::MixCount
+                          v)
+                        (:wat::core::define-dispatch :h::mix-count
+                          ((:wat::core::i64) :h::mix-i64-arm))
+                        (:wat::core::defmacro (:h::mix-id (z :AST) -> :AST) `~z)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
+                          (:wat::core::let
+                            [_p  (:h::MixPoint/new 1 2)
+                             _d  :h::MixDir::Up
+                             _a  (:h::MixAmount/new 10)
+                             _n  (:h::mix-count 7)]
+                            :wat::core::nil)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);

@@ -42,7 +42,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -67,10 +67,10 @@ fn run_bool(src: &str) -> bool {
 #[test]
 fn probe_is_polymorphic_positive_map() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is?
-            (:wat::holon::to-holon {:a 1})
-            "Map"))
+                      (:wat::holon::to-holon {:a 1})
+                      "Map"))
     "#;
     assert!(run_bool(src), "is? with class-name 'Map' must return true for a Map-encoded HolonAST");
 }
@@ -81,10 +81,10 @@ fn probe_is_polymorphic_positive_map() {
 #[test]
 fn probe_is_polymorphic_negative_wrong_class() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is?
-            (:wat::holon::to-holon {:a 1})
-            "Set"))
+                      (:wat::holon::to-holon {:a 1})
+                      "Set"))
     "#;
     assert!(!run_bool(src), "is? with class-name 'Set' must return false for a Map-encoded HolonAST");
 }
@@ -95,10 +95,10 @@ fn probe_is_polymorphic_negative_wrong_class() {
 #[test]
 fn probe_is_polymorphic_positive_vector() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is?
-            (:wat::holon::to-holon [1 2 3])
-            "Vector"))
+                      (:wat::holon::to-holon [1 2 3])
+                      "Vector"))
     "#;
     assert!(run_bool(src), "is? with class-name 'Vector' must return true for a Vec-encoded HolonAST");
 }
@@ -111,9 +111,9 @@ fn probe_is_polymorphic_positive_vector() {
 #[test]
 fn probe_is_map_positive() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Map?
-            (:wat::holon::to-holon {:a 1 :b 2})))
+                      (:wat::holon::to-holon {:a 1 :b 2})))
     "#;
     assert!(run_bool(src), "is-Map? must return true for a HashMap-encoded HolonAST");
 }
@@ -124,9 +124,9 @@ fn probe_is_map_positive() {
 #[test]
 fn probe_is_map_negative() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Map?
-            (:wat::holon::to-holon #{1 2 3})))
+                      (:wat::holon::to-holon #{1 2 3})))
     "#;
     assert!(!run_bool(src), "is-Map? must return false for a Set-encoded HolonAST");
 }
@@ -139,9 +139,9 @@ fn probe_is_map_negative() {
 #[test]
 fn probe_is_set_positive() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Set?
-            (:wat::holon::to-holon #{1 2 3})))
+                      (:wat::holon::to-holon #{1 2 3})))
     "#;
     assert!(run_bool(src), "is-Set? must return true for a HashSet-encoded HolonAST");
 }
@@ -152,9 +152,9 @@ fn probe_is_set_positive() {
 #[test]
 fn probe_is_set_negative() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Set?
-            (:wat::holon::to-holon [1 2 3])))
+                      (:wat::holon::to-holon [1 2 3])))
     "#;
     assert!(!run_bool(src), "is-Set? must return false for a Vector-encoded HolonAST");
 }
@@ -167,9 +167,9 @@ fn probe_is_set_negative() {
 #[test]
 fn probe_is_vector_positive() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Vector?
-            (:wat::holon::to-holon [1 2 3])))
+                      (:wat::holon::to-holon [1 2 3])))
     "#;
     assert!(run_bool(src), "is-Vector? must return true for a Vec-encoded HolonAST");
 }
@@ -181,13 +181,13 @@ fn probe_is_vector_positive() {
 #[test]
 fn probe_is_vector_negative_tuple() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [items  (:wat::core::Vector :wat::holon::HolonAST
-                      (:wat::holon::to-holon 1)
-                      (:wat::holon::to-holon 2))
-             tup    (:wat::holon::Tuple items)]
-            (:wat::holon::is-Vector? tup)))
+                      [items  (:wat::core::Vector :wat::holon::HolonAST
+                                (:wat::holon::to-holon 1)
+                                (:wat::holon::to-holon 2))
+                       tup    (:wat::holon::Tuple items)]
+                      (:wat::holon::is-Vector? tup)))
     "#;
     assert!(!run_bool(src), "is-Vector? must return false for a Tuple-classified HolonAST");
 }
@@ -200,13 +200,13 @@ fn probe_is_vector_negative_tuple() {
 #[test]
 fn probe_is_list_positive() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [items  (:wat::core::Vector :wat::holon::HolonAST
-                      (:wat::holon::to-holon 1)
-                      (:wat::holon::to-holon 2))
-             lst    (:wat::holon::List items)]
-            (:wat::holon::is-List? lst)))
+                      [items  (:wat::core::Vector :wat::holon::HolonAST
+                                (:wat::holon::to-holon 1)
+                                (:wat::holon::to-holon 2))
+                       lst    (:wat::holon::List items)]
+                      (:wat::holon::is-List? lst)))
     "#;
     assert!(run_bool(src), "is-List? must return true for a List-classified HolonAST");
 }
@@ -217,9 +217,9 @@ fn probe_is_list_positive() {
 #[test]
 fn probe_is_list_negative() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-List?
-            (:wat::holon::to-holon #{1 2 3})))
+                      (:wat::holon::to-holon #{1 2 3})))
     "#;
     assert!(!run_bool(src), "is-List? must return false for a Set-encoded HolonAST");
 }
@@ -232,13 +232,13 @@ fn probe_is_list_negative() {
 #[test]
 fn probe_is_tuple_positive() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-            [items  (:wat::core::Vector :wat::holon::HolonAST
-                      (:wat::holon::to-holon 1)
-                      (:wat::holon::to-holon 2))
-             tup    (:wat::holon::Tuple items)]
-            (:wat::holon::is-Tuple? tup)))
+                      [items  (:wat::core::Vector :wat::holon::HolonAST
+                                (:wat::holon::to-holon 1)
+                                (:wat::holon::to-holon 2))
+                       tup    (:wat::holon::Tuple items)]
+                      (:wat::holon::is-Tuple? tup)))
     "#;
     assert!(run_bool(src), "is-Tuple? must return true for a Tuple-classified HolonAST");
 }
@@ -250,9 +250,9 @@ fn probe_is_tuple_positive() {
 #[test]
 fn probe_is_tuple_negative_vector() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Tuple?
-            (:wat::holon::to-holon [1 2 3])))
+                      (:wat::holon::to-holon [1 2 3])))
     "#;
     assert!(!run_bool(src), "is-Tuple? must return false for a Vector-classified HolonAST");
 }
@@ -269,11 +269,11 @@ fn probe_is_tuple_negative_vector() {
 fn probe_is_symbol_positive() {
     // Build Bind(Atom(String("Symbol")), Atom(String("foo"))) — the arc-230 Symbol composition.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Symbol?
-            (:wat::holon::Bind
-              (:wat::holon::Atom (:wat::holon::to-holon "Symbol"))
-              (:wat::holon::Atom (:wat::holon::to-holon "foo")))))
+                      (:wat::holon::Bind
+                        (:wat::holon::Atom (:wat::holon::to-holon "Symbol"))
+                        (:wat::holon::Atom (:wat::holon::to-holon "foo")))))
     "#;
     assert!(run_bool(src), "is-Symbol? must return true for a Symbol-classified HolonAST (Bind composition)");
 }
@@ -284,9 +284,9 @@ fn probe_is_symbol_positive() {
 #[test]
 fn probe_is_symbol_negative_keyword() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Symbol?
-            (:wat::holon::to-holon :foo)))
+                      (:wat::holon::to-holon :foo)))
     "#;
     assert!(!run_bool(src), "is-Symbol? must return false for a Keyword-classified HolonAST");
 }
@@ -300,9 +300,9 @@ fn probe_is_symbol_negative_keyword() {
 #[test]
 fn probe_is_keyword_positive() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Keyword?
-            (:wat::holon::to-holon :foo)))
+                      (:wat::holon::to-holon :foo)))
     "#;
     assert!(run_bool(src), "is-Keyword? must return true for a Keyword-classified HolonAST");
 }
@@ -313,9 +313,9 @@ fn probe_is_keyword_positive() {
 #[test]
 fn probe_is_keyword_negative_map() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Keyword?
-            (:wat::holon::to-holon {:a 1})))
+                      (:wat::holon::to-holon {:a 1})))
     "#;
     assert!(!run_bool(src), "is-Keyword? must return false for a Map-classified HolonAST");
 }
@@ -331,11 +331,11 @@ fn probe_is_keyword_negative_map() {
 fn probe_is_tag_positive() {
     // Build Bind(Atom(String("Tag")), Atom(String("foo"))) — the arc-230 Tag composition.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Tag?
-            (:wat::holon::Bind
-              (:wat::holon::Atom (:wat::holon::to-holon "Tag"))
-              (:wat::holon::Atom (:wat::holon::to-holon "foo")))))
+                      (:wat::holon::Bind
+                        (:wat::holon::Atom (:wat::holon::to-holon "Tag"))
+                        (:wat::holon::Atom (:wat::holon::to-holon "foo")))))
     "#;
     assert!(run_bool(src), "is-Tag? must return true for a Tag-classified HolonAST (Bind composition)");
 }
@@ -346,9 +346,9 @@ fn probe_is_tag_positive() {
 #[test]
 fn probe_is_tag_negative_keyword() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Tag?
-            (:wat::holon::to-holon :foo)))
+                      (:wat::holon::to-holon :foo)))
     "#;
     assert!(!run_bool(src), "is-Tag? must return false for a Keyword-classified HolonAST");
 }
@@ -363,9 +363,9 @@ fn probe_is_tag_negative_keyword() {
 #[test]
 fn probe_is_nil_positive() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Nil?
-            (:wat::holon::to-holon :wat::core::nil)))
+                      (:wat::holon::to-holon :wat::core::nil)))
     "#;
     assert!(run_bool(src), "is-Nil? must return true for the nil composition (symbol nil)");
 }
@@ -379,11 +379,11 @@ fn probe_is_nil_positive() {
 fn probe_is_nil_negative_non_nil_symbol() {
     // Build Bind(Atom(String("Symbol")), Atom(String("foo"))) — Symbol but NOT nil.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Nil?
-            (:wat::holon::Bind
-              (:wat::holon::Atom (:wat::holon::to-holon "Symbol"))
-              (:wat::holon::Atom (:wat::holon::to-holon "foo")))))
+                      (:wat::holon::Bind
+                        (:wat::holon::Atom (:wat::holon::to-holon "Symbol"))
+                        (:wat::holon::Atom (:wat::holon::to-holon "foo")))))
     "#;
     assert!(!run_bool(src), "is-Nil? must return false for Symbol with content 'foo' (not 'nil')");
 }
@@ -394,9 +394,9 @@ fn probe_is_nil_negative_non_nil_symbol() {
 #[test]
 fn probe_is_nil_negative_map() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Nil?
-            (:wat::holon::to-holon {:a 1})))
+                      (:wat::holon::to-holon {:a 1})))
     "#;
     assert!(!run_bool(src), "is-Nil? must return false for a Map-classified HolonAST");
 }
@@ -412,9 +412,9 @@ fn probe_is_nil_negative_map() {
 #[test]
 fn probe_is_symbol_true_for_nil() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Symbol?
-            (:wat::holon::to-holon :wat::core::nil)))
+                      (:wat::holon::to-holon :wat::core::nil)))
     "#;
     assert!(run_bool(src), "is-Symbol? must return true for nil (nil = symbol('nil'), classifier is 'Symbol')");
 }
@@ -433,9 +433,9 @@ fn probe_edge_holon_i64_leaf_not_map() {
     // `(:wat::holon::to-holon 42)` produces `HolonAST::I64(42)` — no classifier.
     // `is-Map?` on a bare I64 leaf returns false.
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Map?
-            (:wat::holon::to-holon 42)))
+                      (:wat::holon::to-holon 42)))
     "#;
     assert!(!run_bool(src), "is-Map? on a bare I64 HolonAST (no classifier) must return false");
 }
@@ -446,9 +446,9 @@ fn probe_edge_holon_i64_leaf_not_map() {
 #[test]
 fn probe_edge_holon_string_leaf_not_keyword() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Keyword?
-            (:wat::holon::to-holon "hello")))
+                      (:wat::holon::to-holon "hello")))
     "#;
     assert!(!run_bool(src), "is-Keyword? on a bare String HolonAST (no classifier) must return false");
 }
@@ -459,9 +459,9 @@ fn probe_edge_holon_string_leaf_not_keyword() {
 #[test]
 fn probe_edge_holon_bool_leaf_not_symbol() {
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Symbol?
-            (:wat::holon::to-holon true)))
+                      (:wat::holon::to-holon true)))
     "#;
     assert!(!run_bool(src), "is-Symbol? on a bare Bool HolonAST (no classifier) must return false");
 }
@@ -474,16 +474,16 @@ fn probe_edge_holon_bool_leaf_not_symbol() {
 #[test]
 fn probe_edge_cross_type_set_vs_vector() {
     let src_set_not_vector = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Vector?
-            (:wat::holon::to-holon #{1 2 3})))
+                      (:wat::holon::to-holon #{1 2 3})))
     "#;
     assert!(!run_bool(src_set_not_vector), "is-Vector? on Set must return false");
 
     let src_vector_not_set = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
+        (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Set?
-            (:wat::holon::to-holon [1 2 3])))
+                      (:wat::holon::to-holon [1 2 3])))
     "#;
     assert!(!run_bool(src_vector_not_set), "is-Set? on Vector must return false");
 }

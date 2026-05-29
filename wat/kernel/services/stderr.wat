@@ -101,45 +101,32 @@
 ;; Builds a Vector<EventRx> parallel to routing-vec (index i in
 ;; the result corresponds to entry i in routing-vec).  The result is
 ;; fed to (:wat::kernel::select ...) alongside [control-rx].
-(:wat::core::define
-  (:wat::kernel::services::StdErrService/routing-rxs
-    (routing-vec :wat::kernel::services::StdErrService::RoutingVec)
-    -> :wat::core::Vector<wat::kernel::services::StdErrService::EventRx>)
+(:wat::core::defn :wat::kernel::services::StdErrService/routing-rxs [routing-vec <- :wat::kernel::services::StdErrService::RoutingVec] -> :wat::core::Vector<wat::kernel::services::StdErrService::EventRx>
   (:wat::core::map routing-vec
-    (:wat::core::fn
-      [entry <- :wat::kernel::services::StdErrService::RoutingEntry]
-       -> :wat::kernel::services::StdErrService::EventRx
-      (:wat::core::second entry))))
+      (:wat::core::fn
+        [entry <- :wat::kernel::services::StdErrService::RoutingEntry]
+         -> :wat::kernel::services::StdErrService::EventRx
+        (:wat::core::second entry))))
 
 
 ;; ─── Helper: handle Event::Add ────────────────────────────────────────────
 ;;
 ;; Appends a new RoutingEntry to routing-vec.  Returns the new vec.
-(:wat::core::define
-  (:wat::kernel::services::StdErrService/handle-add
-    (routing-vec :wat::kernel::services::StdErrService::RoutingVec)
-    (thread-id :wat::kernel::ThreadId)
-    (data-rx :wat::kernel::services::StdErrService::EventRx)
-    (ack-tx :wat::kernel::Sender<wat::core::nil>)
-    -> :wat::kernel::services::StdErrService::RoutingVec)
+(:wat::core::defn :wat::kernel::services::StdErrService/handle-add [routing-vec <- :wat::kernel::services::StdErrService::RoutingVec thread-id <- :wat::kernel::ThreadId data-rx <- :wat::kernel::services::StdErrService::EventRx ack-tx <- :wat::kernel::Sender<wat::core::nil>] -> :wat::kernel::services::StdErrService::RoutingVec
   (:wat::core::conj routing-vec
-    (:wat::core::Tuple thread-id data-rx ack-tx)))
+      (:wat::core::Tuple thread-id data-rx ack-tx)))
 
 
 ;; ─── Helper: handle Event::Remove ─────────────────────────────────────────
 ;;
 ;; Filters out the entry whose thread-id matches.  Returns the new vec.
-(:wat::core::define
-  (:wat::kernel::services::StdErrService/handle-remove
-    (routing-vec :wat::kernel::services::StdErrService::RoutingVec)
-    (target-id :wat::kernel::ThreadId)
-    -> :wat::kernel::services::StdErrService::RoutingVec)
+(:wat::core::defn :wat::kernel::services::StdErrService/handle-remove [routing-vec <- :wat::kernel::services::StdErrService::RoutingVec target-id <- :wat::kernel::ThreadId] -> :wat::kernel::services::StdErrService::RoutingVec
   (:wat::core::filter routing-vec
-    (:wat::core::fn
-      [entry <- :wat::kernel::services::StdErrService::RoutingEntry]
-       -> :wat::core::bool
-      (:wat::core::not
-        (:wat::core::= (:wat::core::first entry) target-id)))))
+      (:wat::core::fn
+        [entry <- :wat::kernel::services::StdErrService::RoutingEntry]
+         -> :wat::core::bool
+        (:wat::core::not
+          (:wat::core::= (:wat::core::first entry) target-id)))))
 
 
 ;; ─── Helper: handle Event::Write at index idx ─────────────────────────────
@@ -152,26 +139,20 @@
 ;; Honest delta -- ack-tx zero-payload send:
 ;;   `(:wat::kernel::send ack-tx ())` is the correct shape for
 ;;   Sender<wat::core::nil>; unit literal `()` is the nil value.
-(:wat::core::define
-  (:wat::kernel::services::StdErrService/handle-write
-    (routing-vec :wat::kernel::services::StdErrService::RoutingVec)
-    (writer :wat::io::IOWriter)
-    (idx :wat::core::i64)
-    (line :wat::core::String)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::kernel::services::StdErrService/handle-write [routing-vec <- :wat::kernel::services::StdErrService::RoutingVec writer <- :wat::io::IOWriter idx <- :wat::core::i64 line <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:wat::core::get routing-vec idx) -> :wat::core::nil
-    ((:wat::core::Some entry)
-      (:wat::core::let
-        [ack-tx
-          (:wat::core::third entry)
-         _bytes
-          (:wat::io::IOWriter/writeln writer line)]
-        (:wat::core::Result/expect -> :wat::core::nil
-          (:wat::kernel::send ack-tx ())
-          "StdErrService/handle-write: ack-tx disconnected -- thread died?")))
-    (:wat::core::None
-      ;; idx out of range -- degenerate; cannot happen in practice.
-      ())))
+      ((:wat::core::Some entry)
+        (:wat::core::let
+          [ack-tx
+            (:wat::core::third entry)
+           _bytes
+            (:wat::io::IOWriter/writeln writer line)]
+          (:wat::core::Result/expect -> :wat::core::nil
+            (:wat::kernel::send ack-tx ())
+            "StdErrService/handle-write: ack-tx disconnected -- thread died?")))
+      (:wat::core::None
+        ;; idx out of range -- degenerate; cannot happen in practice.
+        ())))
 
 
 ;; ─── Dispatch helper ──────────────────────────────────────────────────────
@@ -184,77 +165,70 @@
 ;;   (Err _) at any idx             => prune / exit same as None
 ;;
 ;; Extracted from the loop body per one-let-per-function rule.
-(:wat::core::define
-  (:wat::kernel::services::StdErrService/dispatch
-    (routing-vec :wat::kernel::services::StdErrService::RoutingVec)
-    (writer :wat::io::IOWriter)
-    (control-rx :wat::kernel::services::StdErrService::EventRx)
-    (idx :wat::core::i64)
-    (maybe :wat::kernel::CommResult<wat::kernel::services::StdErrService::Event>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::kernel::services::StdErrService/dispatch [routing-vec <- :wat::kernel::services::StdErrService::RoutingVec writer <- :wat::io::IOWriter control-rx <- :wat::kernel::services::StdErrService::EventRx idx <- :wat::core::i64 maybe <- :wat::kernel::CommResult<wat::kernel::services::StdErrService::Event>] -> :wat::core::nil
   (:wat::core::let
-    [routing-len
-      (:wat::core::length routing-vec)
-     is-ctrl
-      (:wat::core::= idx routing-len)]
-    (:wat::core::match maybe -> :wat::core::nil
-      ;; ── Fire with a value ──────────────────────────────────────────
-      ((:wat::core::Ok (:wat::core::Some event))
-        (:wat::core::if is-ctrl -> :wat::core::nil
-          ;; Control channel fired -- Add or Remove.
-          (:wat::core::match event -> :wat::core::nil
-            ((:wat::kernel::services::StdErrService::Event::Add t-id d-rx a-tx)
-              (:wat::kernel::services::StdErrService/loop
-                (:wat::kernel::services::StdErrService/handle-add
-                  routing-vec t-id d-rx a-tx)
-                writer
-                control-rx))
-            ((:wat::kernel::services::StdErrService::Event::Remove t-id)
-              (:wat::kernel::services::StdErrService/loop
-                (:wat::kernel::services::StdErrService/handle-remove
-                  routing-vec t-id)
-                writer
-                control-rx))
-            ((:wat::kernel::services::StdErrService::Event::Write _line)
-              ;; Write on control channel is unexpected; ignore + recurse.
-              (:wat::kernel::services::StdErrService/loop
-                routing-vec writer control-rx)))
-          ;; Data channel fired -- Write expected.
-          (:wat::core::match event -> :wat::core::nil
-            ((:wat::kernel::services::StdErrService::Event::Write line)
-              (:wat::core::let
-                [_ (:wat::kernel::services::StdErrService/handle-write
-                      routing-vec writer idx line)]
+      [routing-len
+        (:wat::core::length routing-vec)
+       is-ctrl
+        (:wat::core::= idx routing-len)]
+      (:wat::core::match maybe -> :wat::core::nil
+        ;; ── Fire with a value ──────────────────────────────────────────
+        ((:wat::core::Ok (:wat::core::Some event))
+          (:wat::core::if is-ctrl -> :wat::core::nil
+            ;; Control channel fired -- Add or Remove.
+            (:wat::core::match event -> :wat::core::nil
+              ((:wat::kernel::services::StdErrService::Event::Add t-id d-rx a-tx)
+                (:wat::kernel::services::StdErrService/loop
+                  (:wat::kernel::services::StdErrService/handle-add
+                    routing-vec t-id d-rx a-tx)
+                  writer
+                  control-rx))
+              ((:wat::kernel::services::StdErrService::Event::Remove t-id)
+                (:wat::kernel::services::StdErrService/loop
+                  (:wat::kernel::services::StdErrService/handle-remove
+                    routing-vec t-id)
+                  writer
+                  control-rx))
+              ((:wat::kernel::services::StdErrService::Event::Write _line)
+                ;; Write on control channel is unexpected; ignore + recurse.
                 (:wat::kernel::services::StdErrService/loop
                   routing-vec writer control-rx)))
-            ((:wat::kernel::services::StdErrService::Event::Add _t _d _a)
-              ;; Add on data channel is unexpected; ignore + recurse.
-              (:wat::kernel::services::StdErrService/loop
-                routing-vec writer control-rx))
-            ((:wat::kernel::services::StdErrService::Event::Remove _t)
-              ;; Remove on data channel is unexpected; ignore + recurse.
-              (:wat::kernel::services::StdErrService/loop
-                routing-vec writer control-rx)))))
-      ;; ── Clean disconnect ────────────────────────────────────────────
-      ((:wat::core::Ok :wat::core::None)
-        (:wat::core::if is-ctrl -> :wat::core::nil
-          ;; Control channel disconnected => shutdown.
-          ()
-          ;; Data channel disconnected => prune entry + recurse.
-          (:wat::kernel::services::StdErrService/loop
-            (:wat::std::list::remove-at routing-vec idx)
-            writer
-            control-rx)))
-      ;; ── Peer panic / cascade ────────────────────────────────────────
-      ((:wat::core::Err _died)
-        (:wat::core::if is-ctrl -> :wat::core::nil
-          ;; Control channel panicked => shutdown.
-          ()
-          ;; Data channel panicked => prune entry + recurse.
-          (:wat::kernel::services::StdErrService/loop
-            (:wat::std::list::remove-at routing-vec idx)
-            writer
-            control-rx))))))
+            ;; Data channel fired -- Write expected.
+            (:wat::core::match event -> :wat::core::nil
+              ((:wat::kernel::services::StdErrService::Event::Write line)
+                (:wat::core::let
+                  [_ (:wat::kernel::services::StdErrService/handle-write
+                        routing-vec writer idx line)]
+                  (:wat::kernel::services::StdErrService/loop
+                    routing-vec writer control-rx)))
+              ((:wat::kernel::services::StdErrService::Event::Add _t _d _a)
+                ;; Add on data channel is unexpected; ignore + recurse.
+                (:wat::kernel::services::StdErrService/loop
+                  routing-vec writer control-rx))
+              ((:wat::kernel::services::StdErrService::Event::Remove _t)
+                ;; Remove on data channel is unexpected; ignore + recurse.
+                (:wat::kernel::services::StdErrService/loop
+                  routing-vec writer control-rx)))))
+        ;; ── Clean disconnect ────────────────────────────────────────────
+        ((:wat::core::Ok :wat::core::None)
+          (:wat::core::if is-ctrl -> :wat::core::nil
+            ;; Control channel disconnected => shutdown.
+            ()
+            ;; Data channel disconnected => prune entry + recurse.
+            (:wat::kernel::services::StdErrService/loop
+              (:wat::std::list::remove-at routing-vec idx)
+              writer
+              control-rx)))
+        ;; ── Peer panic / cascade ────────────────────────────────────────
+        ((:wat::core::Err _died)
+          (:wat::core::if is-ctrl -> :wat::core::nil
+            ;; Control channel panicked => shutdown.
+            ()
+            ;; Data channel panicked => prune entry + recurse.
+            (:wat::kernel::services::StdErrService/loop
+              (:wat::std::list::remove-at routing-vec idx)
+              writer
+              control-rx))))))
 
 
 ;; ─── Driver loop ──────────────────────────────────────────────────────────
@@ -271,28 +245,23 @@
 ;; delivers unit on its output Sender.
 ;;
 ;; One let per function per feedback_simple_forms_per_func.
-(:wat::core::define
-  (:wat::kernel::services::StdErrService/loop
-    (routing-vec :wat::kernel::services::StdErrService::RoutingVec)
-    (writer :wat::io::IOWriter)
-    (control-rx :wat::kernel::services::StdErrService::EventRx)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::kernel::services::StdErrService/loop [routing-vec <- :wat::kernel::services::StdErrService::RoutingVec writer <- :wat::io::IOWriter control-rx <- :wat::kernel::services::StdErrService::EventRx] -> :wat::core::nil
   (:wat::core::let
-    [data-rxs
-      (:wat::kernel::services::StdErrService/routing-rxs routing-vec)
-     select-set
-      (:wat::core::concat data-rxs
-        (:wat::core::Vector
-          :wat::kernel::services::StdErrService::EventRx
-          control-rx))
-     chosen
-      (:wat::kernel::select select-set)
-     idx
-      (:wat::core::first chosen)
-     maybe
-      (:wat::core::second chosen)]
-    (:wat::kernel::services::StdErrService/dispatch
-      routing-vec writer control-rx idx maybe)))
+      [data-rxs
+        (:wat::kernel::services::StdErrService/routing-rxs routing-vec)
+       select-set
+        (:wat::core::concat data-rxs
+          (:wat::core::Vector
+            :wat::kernel::services::StdErrService::EventRx
+            control-rx))
+       chosen
+        (:wat::kernel::select select-set)
+       idx
+        (:wat::core::first chosen)
+       maybe
+        (:wat::core::second chosen)]
+      (:wat::kernel::services::StdErrService/dispatch
+        routing-vec writer control-rx idx maybe)))
 
 
 ;; ─── spawn ────────────────────────────────────────────────────────────────
@@ -309,27 +278,24 @@
 ;;     ;; Send Add / Remove events on ctrl.
 ;;     ;; Drop ctrl => service shuts down.
 ;;     (Thread/join-result thr))
-(:wat::core::define
-  (:wat::kernel::services::StdErrService/spawn
-    (writer :wat::io::IOWriter)
-    -> :wat::kernel::services::StdErrService::Spawn)
+(:wat::core::defn :wat::kernel::services::StdErrService/spawn [writer <- :wat::io::IOWriter] -> :wat::kernel::services::StdErrService::Spawn
   (:wat::core::let
-    [ctrl-pair
-      (:wat::kernel::make-bounded-channel
-        :wat::kernel::services::StdErrService::Event 1)
-     ctrl-tx
-      (:wat::core::first ctrl-pair)
-     ctrl-rx
-      (:wat::core::second ctrl-pair)
-     thr
-      (:wat::kernel::spawn-thread
-        (:wat::core::fn
-          [_in <- :wat::kernel::Receiver<wat::core::nil>
-           _out <- :wat::kernel::Sender<wat::core::nil>]
-           -> :wat::core::nil
-          (:wat::kernel::services::StdErrService/loop
-            (:wat::core::Vector
-              :wat::kernel::services::StdErrService::RoutingEntry)
-            writer
-            ctrl-rx)))]
-    (:wat::core::Tuple thr ctrl-tx)))
+      [ctrl-pair
+        (:wat::kernel::make-bounded-channel
+          :wat::kernel::services::StdErrService::Event 1)
+       ctrl-tx
+        (:wat::core::first ctrl-pair)
+       ctrl-rx
+        (:wat::core::second ctrl-pair)
+       thr
+        (:wat::kernel::spawn-thread
+          (:wat::core::fn
+            [_in <- :wat::kernel::Receiver<wat::core::nil>
+             _out <- :wat::kernel::Sender<wat::core::nil>]
+             -> :wat::core::nil
+            (:wat::kernel::services::StdErrService/loop
+              (:wat::core::Vector
+                :wat::kernel::services::StdErrService::RoutingEntry)
+              writer
+              ctrl-rx)))]
+      (:wat::core::Tuple thr ctrl-tx)))

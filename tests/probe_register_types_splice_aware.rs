@@ -42,8 +42,7 @@ fn do_typealias_registers_in_type_env() {
     let src = r#"
         (:wat::core::do
           (:wat::core::typealias :diag::MyAlias :wat::core::i64)
-          (:wat::core::define (:diag::alias-probe -> :diag::MyAlias)
-            42))
+          (:wat::core::defn :diag::alias-probe [] -> :diag::MyAlias 42))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup failed");
@@ -69,8 +68,7 @@ fn do_struct_registers_in_type_env() {
           (:wat::core::defstruct :diag::Point
             [x <- :wat::core::i64
              y <- :wat::core::i64])
-          (:wat::core::define (:diag::origin -> :diag::Point)
-            (:diag::Point/new 0 0)))
+          (:wat::core::defn :diag::origin [] -> :diag::Point (:diag::Point/new 0 0)))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup failed");
@@ -100,8 +98,7 @@ fn do_newtype_registers_in_type_env() {
     let src = r#"
         (:wat::core::do
           (:wat::core::newtype :diag::UserId :wat::core::i64)
-          (:wat::core::define (:diag::uses-user-id -> :wat::core::nil)
-            :wat::core::nil))
+          (:wat::core::defn :diag::uses-user-id [] -> :wat::core::nil :wat::core::nil))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup failed");
@@ -125,8 +122,7 @@ fn do_enum_registers_in_type_env() {
             :Red
             :Green
             :Blue)
-          (:wat::core::define (:diag::something -> :wat::core::i64)
-            42))
+          (:wat::core::defn :diag::something [] -> :wat::core::i64 42))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup failed");
@@ -166,8 +162,7 @@ fn nested_do_typealias_registers() {
         (:wat::core::do
           (:wat::core::do
             (:wat::core::typealias :diag::NestedAlias :wat::core::i64)
-            (:wat::core::define (:diag::nested-probe -> :diag::NestedAlias)
-              99)))
+            (:wat::core::defn :diag::nested-probe [] -> :diag::NestedAlias 99)))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup failed");
@@ -191,8 +186,7 @@ fn do_typealias_usage_typechecks() {
     let src = r#"
         (:wat::core::do
           (:wat::core::typealias :diag::Score :wat::core::i64)
-          (:wat::core::define (:diag::make-score -> :diag::Score)
-            42))
+          (:wat::core::defn :diag::make-score [] -> :diag::Score 42))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("do_typealias_usage_typechecks: startup should succeed after Gap J");

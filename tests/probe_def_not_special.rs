@@ -109,17 +109,16 @@ fn probe_def_at_fn_body_do_prefix_lifts_to_prologue_end_to_end() {
     // probe still verifies the end-to-end binding flow: child registers
     // the def, body references the binding, child exits 0.
     let src = r#"
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::def :h::local-answer 42)
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::core::let
-                  [v :h::local-answer]
-                  :wat::core::nil)))))
+                      (:wat::core::forms
+                        (:wat::core::def :h::local-answer 42)
+                        (:wat::core::define (:user::main -> :wat::core::nil)
+                          (:wat::core::let
+                            [v :h::local-answer]
+                            :wat::core::nil)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -143,10 +142,9 @@ fn probe_def_at_fn_body_do_prefix_lifts_to_prologue_end_to_end() {
 #[test]
 fn probe_def_at_expression_position_emits_position_error_at_runtime() {
     let src = r#"
-        (:wat::core::define (:my::bad -> :wat::core::nil)
-          (:wat::core::def :x 1))
+        (:wat::core::defn :my::bad [] -> :wat::core::nil (:wat::core::def :x 1))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     // Startup must succeed after Gap I-B (check-time validator arm retired).
     let world = freeze_ok(src);
@@ -190,10 +188,9 @@ fn probe_def_at_top_level_still_works() {
     let src = r#"
         (:wat::core::def :my-answer 42)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
-          :my-answer)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 :my-answer)
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let call = wat::parse_one!("(:my::compute)").expect("parse");
@@ -218,10 +215,9 @@ fn probe_def_at_top_level_still_works() {
 #[test]
 fn probe_define_at_expression_position_still_emits_error() {
     let src = r#"
-        (:wat::core::define (:my::bad-define -> :wat::core::nil)
-          (:wat::core::define (:my::inner -> :wat::core::nil) :wat::core::nil))
+        (:wat::core::defn :my::bad-define [] -> :wat::core::nil (:wat::core::define (:my::inner -> :wat::core::nil) :wat::core::nil))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     // Startup succeeds (check-time validator silent for define-at-expression too;
     // define has always been caught at runtime, not check-time).
@@ -269,35 +265,34 @@ fn probe_mixed_declaration_prelude_now_includes_def() {
     // Arc 170 slice 6 — all 8 declaration kinds sit at program top-level
     // alongside :user::main via the new spawn-process program shape.
     let src = r#"
-        (:wat::core::define
-          (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
+        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
-            (:wat::core::forms
-              (:wat::core::def :h::def-answer 99)
-              (:wat::core::defstruct :h::MixPoint8
-                [x <- :wat::core::i64
-                 y <- :wat::core::i64])
-              (:wat::core::defenum :h::MixDir8
-                :Up
-                :Down)
-              (:wat::core::newtype :h::MixAmount8 :wat::core::i64)
-              (:wat::core::typealias :h::MixCount8 :wat::core::i64)
-              (:wat::core::define
-                (:h::mix-i64-arm8 (v :wat::core::i64) -> :h::MixCount8)
-                v)
-              (:wat::core::define-dispatch :h::mix-count8
-                ((:wat::core::i64) :h::mix-i64-arm8))
-              (:wat::core::defmacro (:h::mix-id8 (z :AST) -> :AST) `~z)
-              (:wat::core::define (:user::main -> :wat::core::nil)
-                (:wat::core::let
-                  [_ans :h::def-answer
-                   _p   (:h::MixPoint8/new 1 2)
-                   _d   :h::MixDir8::Up
-                   _a   (:h::MixAmount8/new 10)
-                   _n   (:h::mix-count8 7)]
-                  :wat::core::nil)))))
+                      (:wat::core::forms
+                        (:wat::core::def :h::def-answer 99)
+                        (:wat::core::defstruct :h::MixPoint8
+                          [x <- :wat::core::i64
+                           y <- :wat::core::i64])
+                        (:wat::core::defenum :h::MixDir8
+                          :Up
+                          :Down)
+                        (:wat::core::newtype :h::MixAmount8 :wat::core::i64)
+                        (:wat::core::typealias :h::MixCount8 :wat::core::i64)
+                        (:wat::core::define
+                          (:h::mix-i64-arm8 (v :wat::core::i64) -> :h::MixCount8)
+                          v)
+                        (:wat::core::define-dispatch :h::mix-count8
+                          ((:wat::core::i64) :h::mix-i64-arm8))
+                        (:wat::core::defmacro (:h::mix-id8 (z :AST) -> :AST) `~z)
+                        (:wat::core::define (:user::main -> :wat::core::nil)
+                          (:wat::core::let
+                            [_ans :h::def-answer
+                             _p   (:h::MixPoint8/new 1 2)
+                             _d   :h::MixDir8::Up
+                             _a   (:h::MixAmount8/new 10)
+                             _n   (:h::mix-count8 7)]
+                            :wat::core::nil)))))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);

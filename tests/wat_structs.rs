@@ -31,7 +31,7 @@ fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -64,12 +64,12 @@ fn user_struct_constructor_and_accessor_round_trip() {
           [open <- :wat::core::f64
            close <- :wat::core::f64])
 
-        (:wat::core::define (:my::compute -> :wat::core::f64)
+        (:wat::core::defn :my::compute [] -> :wat::core::f64
           (:wat::core::let
-            [b (:my::market::Bar/new 1.0 2.0)
-             o             (:my::market::Bar/open b)
-             c             (:my::market::Bar/close b)]
-            (:wat::core::f64::-'2 c o)))
+                      [b (:my::market::Bar/new 1.0 2.0)
+                       o             (:my::market::Bar/open b)
+                       c             (:my::market::Bar/close b)]
+                      (:wat::core::f64::-'2 c o)))
     "#;
     match run(src) {
         Value::f64(x) if (x - 1.0).abs() < 1e-12 => {}
@@ -88,13 +88,12 @@ fn user_method_can_use_auto_accessors_in_body() {
           [high <- :wat::core::f64
            low  <- :wat::core::f64])
 
-        (:wat::core::define (:my::market::spread-of (b :my::market::Bar) -> :wat::core::f64)
-          (:wat::core::f64::-'2 (:my::market::Bar/high b) (:my::market::Bar/low b)))
+        (:wat::core::defn :my::market::spread-of [b <- :my::market::Bar] -> :wat::core::f64 (:wat::core::f64::-'2 (:my::market::Bar/high b) (:my::market::Bar/low b)))
 
-        (:wat::core::define (:my::compute -> :wat::core::f64)
+        (:wat::core::defn :my::compute [] -> :wat::core::f64
           (:wat::core::let
-            [b (:my::market::Bar/new 10.0 3.0)]
-            (:my::market::spread-of b)))
+                      [b (:my::market::Bar/new 10.0 3.0)]
+                      (:my::market::spread-of b)))
     "#;
     match run(src) {
         Value::f64(x) if (x - 7.0).abs() < 1e-12 => {}
@@ -111,12 +110,12 @@ fn struct_can_hold_heterogeneous_fields() {
            price  <- :wat::core::f64
            volume <- :wat::core::i64])
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [t
-              (:my::market::Tick/new "BTC" 50000.0 1000)
-             v (:my::market::Tick/volume t)]
-            v))
+                      [t
+                        (:my::market::Tick/new "BTC" 50000.0 1000)
+                       v (:my::market::Tick/volume t)]
+                      v))
     "#;
     match run(src) {
         Value::i64(1000) => {}
@@ -134,14 +133,13 @@ fn structs_are_values_that_survive_rebinding() {
           [x <- :wat::core::i64
            y <- :wat::core::i64])
 
-        (:wat::core::define (:my::y-of (p :my::Point) -> :wat::core::i64)
-          (:my::Point/y p))
+        (:wat::core::defn :my::y-of [p <- :my::Point] -> :wat::core::i64 (:my::Point/y p))
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [p (:my::Point/new 3 7)
-             q p]
-            (:my::y-of q)))
+                      [p (:my::Point/new 3 7)
+                       q p]
+                      (:my::y-of q)))
     "#;
     match run(src) {
         Value::i64(7) => {}
@@ -161,10 +159,9 @@ fn constructor_arity_mismatch_rejected_at_check() {
           [open <- :wat::core::f64
            close <- :wat::core::f64])
 
-        (:wat::core::define (:my::probe -> :my::market::Bar)
-          (:my::market::Bar/new 1.0))
+        (:wat::core::defn :my::probe [] -> :my::market::Bar (:my::market::Bar/new 1.0))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
@@ -185,10 +182,9 @@ fn constructor_field_type_mismatch_rejected_at_check() {
           [open <- :wat::core::f64
            close <- :wat::core::f64])
 
-        (:wat::core::define (:my::probe -> :my::market::Bar)
-          (:my::market::Bar/new "not-a-float" 2.0))
+        (:wat::core::defn :my::probe [] -> :my::market::Bar (:my::market::Bar/new "not-a-float" 2.0))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let errs = check_errors(src);
     let saw_type = errs.iter().any(|e| matches!(
@@ -211,12 +207,12 @@ fn accessor_returns_correct_field_type() {
           [open <- :wat::core::f64
            volume <- :wat::core::i64])
 
-        (:wat::core::define (:my::probe -> :wat::core::f64)
+        (:wat::core::defn :my::probe [] -> :wat::core::f64
           (:wat::core::let
-            [b (:my::market::Bar/new 1.0 100)]
-            (:my::market::Bar/volume b)))
+                      [b (:my::market::Bar/new 1.0 100)]
+                      (:my::market::Bar/volume b)))
 
-        (:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
     "#;
     let errs = check_errors(src);
     let saw_ret = errs.iter().any(|e| matches!(
@@ -235,13 +231,13 @@ fn builtin_capacity_exceeded_struct_is_usable() {
     // available at startup without any user declaration.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-            [e
-              (:wat::holon::CapacityExceeded/new 200 100)
-             cost (:wat::holon::CapacityExceeded/cost   e)
-             budget (:wat::holon::CapacityExceeded/budget e)]
-            (:wat::core::i64::-'2 cost budget)))
+                      [e
+                        (:wat::holon::CapacityExceeded/new 200 100)
+                       cost (:wat::holon::CapacityExceeded/cost   e)
+                       budget (:wat::holon::CapacityExceeded/budget e)]
+                      (:wat::core::i64::-'2 cost budget)))
     "#;
     match run(src) {
         Value::i64(100) => {}
@@ -260,7 +256,7 @@ fn builtin_capacity_exceeded_cannot_be_redeclared() {
         (:wat::core::defstruct :wat::holon::CapacityExceeded
           [boom <- :wat::core::bool])
 
-        (:wat::core::define (:user::main -> :()) ())
+        (:wat::core::defn :user::main [] -> :() ())
     "#;
     match startup(src) {
         Err(_) => {}

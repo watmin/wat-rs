@@ -113,20 +113,17 @@ fn bundle_children_returns_vec_of_holonast_from_signature() {
     // (head + at least one arg pair) by EDN-rendering the Vec.
     let src = r##"
 
-        (:wat::core::define
-          (:user::add-two (a :wat::core::i64) (b :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::+'2 a b))
+        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 a b))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
-             sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
-                       ((:wat::core::Some s) s)
-                       (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
-             kids    (:wat::holon::Bundle/children sig)
-             rendered (:wat::edn::write kids)]
-            (:wat::kernel::println rendered)))
+                      [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
+                       sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
+                                 ((:wat::core::Some s) s)
+                                 (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
+                       kids    (:wat::holon::Bundle/children sig)
+                       rendered (:wat::edn::write kids)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -171,22 +168,20 @@ fn bundle_children_walks_parametric_type_slot() {
     // a Bundle, which round-trips through the EDN renderer).
     let src = r##"
 
-        (:wat::core::define
-          (:user::sum-list (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+        (:wat::core::defn :user::sum-list [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
-            (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+'2 acc x))))
+                      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                        (:wat::core::i64::+'2 acc x))))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig-opt (:wat::runtime::signature-of-defn :user::sum-list)
-             sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
-                       ((:wat::core::Some s) s)
-                       (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
-             kids    (:wat::holon::Bundle/children sig)
-             rendered (:wat::edn::write kids)]
-            (:wat::kernel::println rendered)))
+                      [sig-opt (:wat::runtime::signature-of-defn :user::sum-list)
+                       sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
+                                 ((:wat::core::Some s) s)
+                                 (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
+                       kids    (:wat::holon::Bundle/children sig)
+                       rendered (:wat::edn::write kids)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -219,12 +214,11 @@ fn bundle_children_errors_on_atom_input() {
     // TypeMismatch.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [leaf (:wat::holon::leaf 42)
-             _    (:wat::holon::Bundle/children leaf)]
-            (:wat::kernel::println "unreachable")))
+                      [leaf (:wat::holon::leaf 42)
+                       _    (:wat::holon::Bundle/children leaf)]
+                      (:wat::kernel::println "unreachable")))
     "##;
     let err = run_expecting_runtime_error(src)
         .expect("expected runtime error from Bundle/children on a leaf");
@@ -244,20 +238,17 @@ fn bundle_first_returns_head_keyword_of_signature() {
     // EDN-rendering it should produce the function name keyword.
     let src = r##"
 
-        (:wat::core::define
-          (:user::add-two (a :wat::core::i64) (b :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::+'2 a b))
+        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 a b))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
-             sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
-                       ((:wat::core::Some s) s)
-                       (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
-             head    (:wat::holon::Bundle/first sig)
-             rendered (:wat::edn::write head)]
-            (:wat::kernel::println rendered)))
+                      [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
+                       sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
+                                 ((:wat::core::Some s) s)
+                                 (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
+                       head    (:wat::holon::Bundle/first sig)
+                       rendered (:wat::edn::write head)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -280,21 +271,18 @@ fn bundle_first_composes_with_atom_value() {
     // This test proves the two surfaces interoperate.
     let src = r##"
 
-        (:wat::core::define
-          (:user::add-two (a :wat::core::i64) (b :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::+'2 a b))
+        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 a b))
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
-             sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
-                       ((:wat::core::Some s) s)
-                       (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
-             head    (:wat::holon::Bundle/first sig)
-             name-kw (:wat::holon::from-holon head)
-             rendered (:wat::edn::write name-kw)]
-            (:wat::kernel::println rendered)))
+                      [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
+                       sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
+                                 ((:wat::core::Some s) s)
+                                 (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
+                       head    (:wat::holon::Bundle/first sig)
+                       name-kw (:wat::holon::from-holon head)
+                       rendered (:wat::edn::write name-kw)]
+                      (:wat::kernel::println rendered)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -315,12 +303,11 @@ fn bundle_first_composes_with_atom_value() {
 fn bundle_first_errors_on_leaf_input() {
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [leaf (:wat::holon::leaf "hi")
-             _    (:wat::holon::Bundle/first leaf)]
-            (:wat::kernel::println "unreachable")))
+                      [leaf (:wat::holon::leaf "hi")
+                       _    (:wat::holon::Bundle/first leaf)]
+                      (:wat::kernel::println "unreachable")))
     "##;
     let err = run_expecting_runtime_error(src)
         .expect("expected runtime error from Bundle/first on a leaf");
@@ -341,15 +328,14 @@ fn bundle_first_errors_on_empty_bundle() {
     // empty Bundle must error.
     let src = r##"
 
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [empty-res (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST))
-             empty     (:wat::core::match empty-res -> :wat::holon::HolonAST
-                         ((:wat::core::Ok b)  b)
-                         ((:wat::core::Err _) (:wat::kernel::abort "empty Bundle construction failed")))
-             _         (:wat::holon::Bundle/first empty)]
-            (:wat::kernel::println "unreachable")))
+                      [empty-res (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST))
+                       empty     (:wat::core::match empty-res -> :wat::holon::HolonAST
+                                   ((:wat::core::Ok b)  b)
+                                   ((:wat::core::Err _) (:wat::kernel::abort "empty Bundle construction failed")))
+                       _         (:wat::holon::Bundle/first empty)]
+                      (:wat::kernel::println "unreachable")))
     "##;
     let err = run_expecting_runtime_error(src)
         .expect("expected runtime error from Bundle/first on empty Bundle");

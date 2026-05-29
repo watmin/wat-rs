@@ -24,7 +24,7 @@ use wat::load::InMemoryLoader;
 /// Try to load wat source; capture the error string (check or eval).
 fn try_load(src: &str) -> Result<(), String> {
     let full = format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     );
     startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -41,10 +41,10 @@ fn try_load(src: &str) -> Result<(), String> {
 #[test]
 fn probe_1_concrete_receiver_fails_at_check_time() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [x 42]
-    (:bogus x)))
+      [x 42]
+      (:bogus x)))
 "#;
     match try_load(src) {
         Ok(()) => panic!(
@@ -69,10 +69,10 @@ fn probe_2_record_receiver_keyword_accessor_works() {
     let src = r#"
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
+(:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [v (:myapp::Voltage 5.0)]
-    (:magnitude v)))
+      [v (:myapp::Voltage 5.0)]
+      (:magnitude v)))
 "#;
     match try_load(src) {
         Ok(()) => {} // check passes — the regression case we care about
@@ -89,12 +89,12 @@ fn probe_2_record_receiver_keyword_accessor_works() {
 #[test]
 fn probe_3_hashmap_receiver_keyword_accessor_works() {
     let src = r#"
-(:wat::core::define (:user::compute -> :wat::core::i64)
+(:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [p (:port {:port 8080})]
-    (:wat::core::Option/expect -> :wat::core::i64
-      p
-      "probe 3: :port key present")))
+      [p (:port {:port 8080})]
+      (:wat::core::Option/expect -> :wat::core::i64
+        p
+        "probe 3: :port key present")))
 "#;
     match try_load(src) {
         Ok(()) => {} // check passes
@@ -127,11 +127,9 @@ fn probe_4_polymorphic_receiver_accepted() {
 (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
 
 ;; Generic helper: take a record-typed arg and apply :magnitude
-(:wat::core::define (:user::pluck (v :wat::Record) -> :wat::core::f64)
-  (:magnitude v))
+(:wat::core::defn :user::pluck [v <- :wat::Record] -> :wat::core::f64 (:magnitude v))
 
-(:wat::core::define (:user::compute -> :wat::core::f64)
-  (:user::pluck (:myapp::Voltage 7.0)))
+(:wat::core::defn :user::compute [] -> :wat::core::f64 (:user::pluck (:myapp::Voltage 7.0)))
 "#;
     match try_load(src) {
         Ok(()) => {} // accepted; runtime dispatches

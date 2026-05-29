@@ -86,12 +86,11 @@ fn run(src: &str) -> Vec<String> {
 #[test]
 fn probe_1_watast_to_holon_keyword_arm_produces_keyword_leaf() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [h   (:wat::holon::from-wat (:wat::core::quote :foo))
-             edn (:wat::edn::write h)]
-            (:wat::kernel::println edn)))
+                      [h   (:wat::holon::from-wat (:wat::core::quote :foo))
+                       edn (:wat::edn::write h)]
+                      (:wat::kernel::println edn)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected 1 output line, got: {:?}", out);
@@ -124,12 +123,11 @@ fn probe_1_watast_to_holon_keyword_arm_produces_keyword_leaf() {
 #[test]
 fn probe_2_holon_leaf_keyword_produces_keyword_leaf() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [h   (:wat::holon::leaf :user::foo)
-             edn (:wat::edn::write h)]
-            (:wat::kernel::println edn)))
+                      [h   (:wat::holon::leaf :user::foo)
+                       edn (:wat::edn::write h)]
+                      (:wat::kernel::println edn)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected 1 output line, got: {:?}", out);
@@ -164,16 +162,15 @@ fn probe_2_holon_leaf_keyword_produces_keyword_leaf() {
 fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
     // Part A: eval-step! on a keyword produces AlreadyTerminal.
     let src_a = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [step-result
-              (:wat::eval-step! (:wat::core::quote :outcome))
-             rendered
-              (:wat::core::match step-result -> :wat::core::String
-                ((:wat::core::Ok r) (:wat::core::show r))
-                ((:wat::core::Err e) (:wat::core::show e)))]
-            (:wat::kernel::println rendered)))
+                      [step-result
+                        (:wat::eval-step! (:wat::core::quote :outcome))
+                       rendered
+                        (:wat::core::match step-result -> :wat::core::String
+                          ((:wat::core::Ok r) (:wat::core::show r))
+                          ((:wat::core::Err e) (:wat::core::show e)))]
+                      (:wat::kernel::println rendered)))
     "##;
     let out_a = run(src_a);
     assert_eq!(out_a.len(), 1, "expected 1 output line, got: {:?}", out_a);
@@ -187,13 +184,12 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
     // Part B: from-wat(quote :outcome) and from-wat(quote :outcome) are equal
     // (same Keyword identity — both go through Stone 221.4b watast_to_holon).
     let src_b = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [h1  (:wat::holon::from-wat (:wat::core::quote :outcome))
-             h2  (:wat::holon::from-wat (:wat::core::quote :outcome))
-             eq  (:wat::core::= h1 h2)]
-            (:wat::kernel::println (:wat::edn::write eq))))
+                      [h1  (:wat::holon::from-wat (:wat::core::quote :outcome))
+                       h2  (:wat::holon::from-wat (:wat::core::quote :outcome))
+                       eq  (:wat::core::= h1 h2)]
+                      (:wat::kernel::println (:wat::edn::write eq))))
     "##;
     let out_b = run(src_b);
     assert_eq!(out_b.len(), 1, "expected 1 output line, got: {:?}", out_b);
@@ -223,12 +219,11 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
 #[test]
 fn probe_4_edn_write_keyword_leaf_emits_keyword_tag() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [h   (:wat::holon::leaf :bar)
-             edn (:wat::edn::write h)]
-            (:wat::kernel::println edn)))
+                      [h   (:wat::holon::leaf :bar)
+                       edn (:wat::edn::write h)]
+                      (:wat::kernel::println edn)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected 1 output line, got: {:?}", out);
@@ -264,12 +259,11 @@ fn probe_4_edn_write_keyword_leaf_emits_keyword_tag() {
 #[test]
 fn probe_5_holon_leaf_unit_produces_nil_leaf() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [h   (:wat::holon::leaf :wat::core::nil)
-             edn (:wat::edn::write h)]
-            (:wat::kernel::println edn)))
+                      [h   (:wat::holon::leaf :wat::core::nil)
+                       edn (:wat::edn::write h)]
+                      (:wat::kernel::println edn)))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected 1 output line, got: {:?}", out);
@@ -290,13 +284,12 @@ fn probe_5_holon_leaf_unit_produces_nil_leaf() {
 #[test]
 fn probe_6_watast_to_holon_keyword_distinct_identities() {
     let src = r##"
-        (:wat::core::define
-          (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-            [h1  (:wat::holon::from-wat (:wat::core::quote :foo))
-             h2  (:wat::holon::from-wat (:wat::core::quote :bar))
-             eq  (:wat::core::= h1 h2)]
-            (:wat::kernel::println (:wat::edn::write (:wat::core::not eq)))))
+                      [h1  (:wat::holon::from-wat (:wat::core::quote :foo))
+                       h2  (:wat::holon::from-wat (:wat::core::quote :bar))
+                       eq  (:wat::core::= h1 h2)]
+                      (:wat::kernel::println (:wat::edn::write (:wat::core::not eq)))))
     "##;
     let out = run(src);
     assert_eq!(out.len(), 1, "expected 1 output line, got: {:?}", out);

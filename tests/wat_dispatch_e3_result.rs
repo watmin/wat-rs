@@ -41,7 +41,7 @@ fn install() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::define (:user::main -> :wat::core::nil) :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
         src
     )
 }
@@ -61,10 +61,10 @@ fn result_ok_matched() {
     let src = r#"
         (:wat::core::use! :rust::test::Fallible)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match (:rust::test::Fallible::non_negative 42) -> :wat::core::i64
-            ((:wat::core::Ok v) v)
-            ((:wat::core::Err _) -1)))
+                      ((:wat::core::Ok v) v)
+                      ((:wat::core::Err _) -1)))
     "#;
     assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
 }
@@ -75,10 +75,10 @@ fn result_err_matched() {
     let src = r#"
         (:wat::core::use! :rust::test::Fallible)
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match (:rust::test::Fallible::non_negative -1) -> :wat::core::i64
-            ((:wat::core::Ok _) 0)
-            ((:wat::core::Err _) 99)))
+                      ((:wat::core::Ok _) 0)
+                      ((:wat::core::Err _) 99)))
     "#;
     assert!(matches!(run(src), Value::i64(99)), "got {:?}", run(src));
 }
@@ -89,10 +89,10 @@ fn user_built_ok_value() {
     // of any Rust shim.
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match (:wat::core::Ok 7) -> :wat::core::i64
-            ((:wat::core::Ok v) v)
-            ((:wat::core::Err _) -1)))
+                      ((:wat::core::Ok v) v)
+                      ((:wat::core::Err _) -1)))
     "#;
     assert!(matches!(run(src), Value::i64(7)), "got {:?}", run(src));
 }
@@ -101,10 +101,10 @@ fn user_built_ok_value() {
 fn user_built_err_value() {
     let src = r#"
 
-        (:wat::core::define (:my::compute -> :wat::core::i64)
+        (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match (:wat::core::Err "x") -> :wat::core::i64
-            ((:wat::core::Ok _) 0)
-            ((:wat::core::Err _) 11)))
+                      ((:wat::core::Ok _) 0)
+                      ((:wat::core::Err _) 11)))
     "#;
     assert!(matches!(run(src), Value::i64(11)), "got {:?}", run(src));
 }
