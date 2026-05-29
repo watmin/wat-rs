@@ -1,66 +1,118 @@
-# BRIEF — Stone 241.1.fix — vigilia-convergence amends on `src/argspec/*`
+# BRIEF — Stone 241.1.fix — vigilia-convergence + scope correction on `src/argspec/*`
 
-You are sonnet (the Shadowdancer). You strike on a small-scope amend pass against the home Stone 241.1 just laid. The behavior is correct; the substrate's COMMUNICATION needs to converge on impeccable. The vigilia gate caught architectural issues sonnet's SCORE didn't surface; this stone closes them.
+You are sonnet (the Shadowdancer). You strike on a two-layer amend pass against the home Stone 241.1 just laid. Layer 1 (vigilia amends) is already on disk uncommitted from a prior strike — KEEP those changes. Layer 2 (scope correction) is NEW — strip ret-clause concerns out of argspec entirely.
+
+The deeper context: Stone 241.1 was scope-confused (carried ret-type semantics in argspec per a stale AUDIT.md framing). Vigilia surfaced a solvere L2 (`RetTypeNotKeyword` conflation); the user verdict locked Path Y — *"args have nothing to do with ret type."* Argspec parses ONLY the canonical `[name <- :T name <- :T ... [& rest <- :T]]` triple form. Ret-clause (`-> :Ret`) belongs to fn-form parsers (defn, fn, etc.); those callers (Stone 241.2 territory) compose argspec + ret-clause at form level.
 
 ## What to do
 
-Make EXACTLY these four substrate amends + six L2 cleanups. No others. No new files. No new types. No new ParseOption fields. No new error variants. No public API changes.
+### Layer 1 — Vigilia amends (already on disk; KEEP)
 
-### Amend A1 — `src/argspec/error.rs` — extract `classify()` (eliminates reason-string drift at source)
+The substrate at HEAD has uncommitted changes from a prior strike implementing:
+- `classify()` extraction on `ArgSpecError` (error.rs)
+- `parse_keyword_type<F>` extraction (parse.rs)
+- `// rune:purgare(future-fixture)` on `unreachable!` arm + `rest_param` field (parse.rs)
+- Probe helper renames (`argspec_inputs` → `parse_vector_items`; `invoke` → `parse_triples`)
+- Owned `(Vec<WatAST>, wat::span::Span)` return replacing opaque `impl Deref<Target=Span>`
+- Tautological guard removal at parse.rs (post-loop ret-arrow check)
+- `saturating_sub` rewrite at parse.rs:99
+- WHAT-comment deletion at parse.rs:98
 
-The three `From<ArgSpecError>` impls currently produce different reason strings for the same variant across sites (RuntimeError keeps "at slot 1"; CheckError drops it; TypeError says "field/arg" instead of "arg-vector"). The drift is two axes — within-domain (RuntimeError vs CheckError) and across-domains (arg-form vs field-form). The clean resolution: **make reasons domain-NEUTRAL**. The `head` field already carries the form name (`:wat::core::defn` vs `:wat::core::defstruct`); the reader gets domain context from `head`, not from the reason wording.
+Verify these exist via `git diff src/argspec/ tests/probe_arc241_stone1_argspec_canonical.rs`. KEEP them all.
 
-Strip "arg-vector" and "field/arg" prefixes. Say "name slot," "triple," "type slot," "return-type slot."
+### Layer 2 — Scope correction (NEW; strip ret-clause concerns)
 
-Add this method to `ArgSpecError`:
+#### S1 — Remove `ret_type` field from `ArgSpec`
+
+In `src/argspec/parse.rs`, delete the field from the struct definition:
+
+```rust
+// BEFORE
+pub struct ArgSpec {
+    pub fixed_params: Vec<(String, TypeExpr)>,
+    pub rest_param: Option<(String, TypeExpr)>,
+    pub ret_type: Option<TypeExpr>,        // ← DELETE this line
+}
+
+// AFTER
+pub struct ArgSpec {
+    pub fixed_params: Vec<(String, TypeExpr)>,
+    // rune:purgare(future-fixture) — Stone 241.4 populates rest_param via allow_rest_binder
+    //                                path; field exists in 241.1 for API stability.
+    pub rest_param: Option<(String, TypeExpr)>,
+}
+```
+
+#### S2 — Remove `include_ret_type` from `ParseOptions`
+
+```rust
+// BEFORE
+pub struct ParseOptions {
+    pub include_ret_type: bool,           // ← DELETE
+    pub allow_rest_binder: bool,
+}
+
+// AFTER
+pub struct ParseOptions {
+    /// Whether a `& name <- :T` rest-binder is permitted in the arg-vector.
+    /// Always `false` in Stone 241.1. Stone 241.4 adds rest-binder logic;
+    /// `defclause` callers set this `true` via 241.5.
+    pub allow_rest_binder: bool,
+}
+```
+
+#### S3 — Remove `MissingRetArrow` and `RetTypeNotKeyword` from `ArgSpecError`
+
+In `src/argspec/error.rs`, delete the two variants from the enum. The final enum:
+
+```rust
+pub enum ArgSpecError {
+    NameNotSymbol { span: Span, head: String },
+    MissingArrow { span: Span, head: String },
+    TypeNotKeyword { span: Span, head: String },
+    MalformedTypeKeyword { span: Span, head: String, inner: Box<TypeError> },
+    TrailingItems { span: Span, head: String, count: usize },
+    IncompleteTriple { span: Span, head: String },       // ← renamed from IncompleteSignature
+    RestBinderNotSupported { span: Span, head: String },
+}
+```
+
+Also: **RENAME `IncompleteSignature` → `IncompleteTriple`**. Per S3-rename rationale: "signature" implies fn-form (which we just stripped); "triple" is honest about what this parses.
+
+#### S4 — Update `classify()` arms
+
+Remove arms for `MissingRetArrow` and `RetTypeNotKeyword`. Rename `IncompleteSignature` arm to `IncompleteTriple`. Final 7 arms:
 
 ```rust
 impl ArgSpecError {
     fn classify(self) -> (Span, String, String) {
         match self {
             ArgSpecError::NameNotSymbol { span, head } => (
-                span,
-                head,
+                span, head,
                 "name slot must be a plain symbol (not a keyword, literal, or nested form)".into(),
             ),
             ArgSpecError::MissingArrow { span, head } => (
-                span,
-                head,
+                span, head,
                 "triple must be `name <- :T`; `<-` arrow not found at slot 1".into(),
             ),
             ArgSpecError::TypeNotKeyword { span, head } => (
-                span,
-                head,
+                span, head,
                 "type slot must be a keyword (e.g. `:wat::core::i64`); got a non-keyword".into(),
             ),
             ArgSpecError::MalformedTypeKeyword { span, head, inner } => (
-                span,
-                head,
+                span, head,
                 format!("type keyword is malformed: {inner}"),
             ),
-            ArgSpecError::MissingRetArrow { span, head } => (
-                span,
-                head,
-                "expected `->` return-type arrow after argspec triples; not found".into(),
-            ),
-            ArgSpecError::RetTypeNotKeyword { span, head } => (
-                span,
-                head,
-                "return-type slot after `->` must be a keyword; got a non-keyword".into(),
-            ),
             ArgSpecError::TrailingItems { span, head, count } => (
-                span,
-                head,
-                format!("{count} trailing item(s) beyond the expected signature shape"),
+                span, head,
+                format!("{count} trailing item(s) beyond the expected argspec shape"),
             ),
-            ArgSpecError::IncompleteSignature { span, head } => (
-                span,
-                head,
+            ArgSpecError::IncompleteTriple { span, head } => (
+                span, head,
                 "triple is incomplete; expected `name <- :T` but ran out of items".into(),
             ),
             ArgSpecError::RestBinderNotSupported { span, head } => (
-                span,
-                head,
+                span, head,
                 "`&` rest-binder is not supported at this binding site".into(),
             ),
         }
@@ -68,198 +120,172 @@ impl ArgSpecError {
 }
 ```
 
-Each From impl collapses to a 4-line wrapper:
+#### S5 — Strip ret-clause logic from `parse_argspec_triples` body
+
+In `src/argspec/parse.rs`, remove the entire `if options.include_ret_type {...}` post-loop block. The function body becomes:
 
 ```rust
-impl From<ArgSpecError> for crate::runtime::RuntimeError {
-    fn from(err: ArgSpecError) -> Self {
-        let (span, head, reason) = err.classify();
-        Self::MalformedForm { head, reason, span }
-    }
-}
-
-impl From<ArgSpecError> for crate::check::CheckError {
-    fn from(err: ArgSpecError) -> Self {
-        let (span, head, reason) = err.classify();
-        Self::MalformedForm { head, reason, span }
-    }
-}
-
-impl From<ArgSpecError> for TypeError {
-    fn from(err: ArgSpecError) -> Self {
-        let (span, head, reason) = err.classify();
-        Self::MalformedDecl { head, reason, span }
-    }
-}
-```
-
-`classify(self)` consumes the error; the `from(err)` impls already take `err` owned; no `.clone()` needed.
-
-### Amend A2 — `src/argspec/parse.rs` — extract `parse_keyword_type` helper
-
-Fixed-param type slot (current `parse.rs:126-142`) and ret-type slot (current `parse.rs:173-189`) have identical keyword-parse logic. Extract:
-
-```rust
-fn parse_keyword_type<F>(
-    ast: &WatAST,
+pub fn parse_argspec_triples(
+    args_vec: &[WatAST],
     head: &str,
-    non_keyword_err: F,
-) -> Result<TypeExpr, ArgSpecError>
-where
-    F: FnOnce(Span, String) -> ArgSpecError,
-{
-    match ast {
-        WatAST::Keyword(kw, kw_span) => parse_type_expr_with_span(kw, kw_span).map_err(|inner| {
-            ArgSpecError::MalformedTypeKeyword {
-                span: kw_span.clone(),
-                head: head.to_string(),
-                inner: Box::new(inner),
-            }
-        }),
-        other => Err(non_keyword_err(other.span().clone(), head.to_string())),
-    }
-}
-```
-
-Replace the fixed-param block with:
-```rust
-let ty = parse_keyword_type(&args_vec[idx + 2], head, |span, head| {
-    ArgSpecError::TypeNotKeyword { span, head }
-})?;
-```
-
-Replace the ret-type block with:
-```rust
-let ret = parse_keyword_type(&args_vec[idx], head, |span, head| {
-    ArgSpecError::RetTypeNotKeyword { span, head }
-})?;
-```
-
-### Amend A3 — Rune `unreachable!` arm + `rest_param` field (grimoire-prescribed)
-
-Format per `~/work/holon/datamancy/purgare/SKILL.md`: `// rune:purgare(<category>) — <reason>`.
-
-At the `unreachable!` arm (currently `parse.rs:87-90`):
-
-```rust
-// Stone 241.4 implements rest-binder parsing here.
-// rune:purgare(future-fixture) — Stone 241.4 ships allow_rest_binder=true logic;
-// 241.1 path unreachable by design; field exists so API surface is stable from 241.1.
-unreachable!("allow_rest_binder is always false in Stone 241.1");
-```
-
-At the `ArgSpec::rest_param` field (currently `parse.rs:14-17`):
-
-```rust
-/// Rest parameter `(name, type)`, populated by Stone 241.4.
-/// Always `None` in Stone 241.1.
-// rune:purgare(future-fixture) — Stone 241.4 populates rest_param via allow_rest_binder
-//                                 path; field exists in 241.1 for API stability.
-pub rest_param: Option<(String, TypeExpr)>,
-```
-
-NO other runes. The three `From<>` impls are NOT dead (used at compile-time by `?` operators in 241.2/241.3 callers); `RestBinderNotSupported` is reachable in 241.1 via probe contract 10.
-
-### Amend A4 — Probe: replace opaque trait return with owned shape
-
-Currently:
-```rust
-fn argspec_inputs(src: &str) -> (Vec<WatAST>, impl std::ops::Deref<Target = wat::span::Span>) {
-    let ast = wat::parse_one!(src).expect("parse_one! should succeed for argspec source");
-    match ast {
-        WatAST::Vector(items, span) => {
-            // Heap-pin the span so the &Span reference passed to parse_argspec_triples
-            // can outlive the match arm without naming wat::span::Span as a type annotation.
-            (items, Box::new(span))
-        }
-        other => panic!("expected Vector form, got {:?}", other),
-    }
-}
-```
-
-Replace with (combined with C4 rename):
-```rust
-fn parse_vector_items(src: &str) -> (Vec<WatAST>, wat::span::Span) {
-    let ast = wat::parse_one!(src).expect("parse_one! should succeed for argspec source");
-    match ast {
-        WatAST::Vector(items, span) => (items, span),
-        other => panic!("expected Vector form, got {:?}", other),
-    }
-}
-```
-
-The opaque `impl Deref<Target=Span>` was a workaround to avoid naming `wat::span::Span` as a type annotation. The annotation IS the honest shape; the trait return leaks heap-pin strategy. Vigilia's struere+sequi+complectens+vocare CONVERGED here (4-spell signal — strong AMEND).
-
-### Cleanup C1 — Remove tautological guard at `parse.rs:158-163`
-
-Currently:
-```rust
-if idx >= args_vec.len() {
-    return Err(ArgSpecError::MissingRetArrow { span: form_span.clone(), head: head.to_string() });
-}
-if !is_bare_symbol(&args_vec[idx], "->") {
-    return Err(ArgSpecError::MissingRetArrow { span: args_vec[idx].span().clone(), head: head.to_string() });
-}
-```
-
-The loop exits when EITHER `idx >= args_vec.len()` OR `is_bare_symbol(&args_vec[idx], "->")` is true. After the loop:
-- `idx >= args_vec.len()` → first guard fires.
-- `is_bare_symbol(args_vec[idx], "->") == true` → second guard's `!` makes it false; guard does NOT fire.
-
-The second guard is unreachable. Delete it (the `if !is_bare_symbol(...)` block + its error arm). Keep the first guard.
-
-### Cleanup C2 — Rewrite `parse.rs:99` as `saturating_sub`
-
-Currently:
-```rust
-if idx + 2 >= args_vec.len() {
-    return Err(ArgSpecError::IncompleteSignature { ... });
-}
-```
-
-Replace with:
-```rust
-if args_vec.len().saturating_sub(idx) < 3 {
-    return Err(ArgSpecError::IncompleteSignature { ... });
-}
-```
-
-Reads as "fewer than 3 items remaining to form a triple."
-
-### Cleanup C3 — Delete the WHAT-comment at `parse.rs:98`
-
-Currently: `// Need 3 items for a complete triple; check before indexing.`
-
-DELETE. The `saturating_sub` form self-explains.
-
-### Cleanup C4 — Rename probe helper `argspec_inputs` → `parse_vector_items`
-
-Already covered in Amend A4 (combined). The new name reads as a parser, not a factory.
-
-### Cleanup C5 — Rename probe helper `invoke` → `parse_triples`
-
-Currently:
-```rust
-fn invoke(
-    src: &str,
-    include_ret_type: bool,
-    allow_rest_binder: bool,
+    form_span: &Span,
+    options: ParseOptions,
 ) -> Result<ArgSpec, ArgSpecError> {
-    let (items, span) = argspec_inputs(src);
-    parse_argspec_triples(
-        &items,
-        ":wat::test::fn",
-        &span,
-        ParseOptions { include_ret_type, allow_rest_binder },
-    )
+    let mut idx = 0usize;
+    let mut fixed_params: Vec<(String, TypeExpr)> = Vec::new();
+
+    // Walk triples (name <- :T) until rest-marker `&` or end-of-slice.
+    while idx < args_vec.len() {
+        // Check for `&` rest-marker.
+        if is_bare_symbol(&args_vec[idx], "&") {
+            if !options.allow_rest_binder {
+                return Err(ArgSpecError::RestBinderNotSupported {
+                    span: args_vec[idx].span().clone(),
+                    head: head.to_string(),
+                });
+            }
+            // rune:purgare(future-fixture) — Stone 241.4 ships allow_rest_binder=true
+            //                                logic; 241.1 path unreachable by design.
+            unreachable!("allow_rest_binder is always false in Stone 241.1");
+        }
+
+        // Check remaining items can form a triple.
+        if args_vec.len().saturating_sub(idx) < 3 {
+            return Err(ArgSpecError::IncompleteTriple {
+                span: form_span.clone(),
+                head: head.to_string(),
+            });
+        }
+
+        // Slot 0: name — must be a Symbol.
+        let name = match &args_vec[idx] {
+            WatAST::Symbol(ident, _) => ident.name.clone(),
+            other => {
+                return Err(ArgSpecError::NameNotSymbol {
+                    span: other.span().clone(),
+                    head: head.to_string(),
+                })
+            }
+        };
+
+        // Slot 1: arrow — must be bare Symbol "<-".
+        if !is_bare_symbol(&args_vec[idx + 1], "<-") {
+            return Err(ArgSpecError::MissingArrow {
+                span: args_vec[idx + 1].span().clone(),
+                head: head.to_string(),
+            });
+        }
+
+        // Slot 2: type — route through parse_keyword_type with the fixed-param error ctor.
+        let ty = parse_keyword_type(&args_vec[idx + 2], head, |span, head| {
+            ArgSpecError::TypeNotKeyword { span, head }
+        })?;
+
+        fixed_params.push((name, ty));
+        idx += 3;
+    }
+
+    Ok(ArgSpec {
+        fixed_params,
+        // rune:purgare(future-fixture) — Stone 241.4 populates rest_param via
+        //                                allow_rest_binder path; 241.1 always None.
+        rest_param: None,
+    })
 }
 ```
 
-Rename to:
+**Key changes from current**:
+- The break on `is_bare_symbol(args_vec[idx], "->")` GOES AWAY (no ret-arrow recognition in argspec)
+- The entire post-loop `if options.include_ret_type {...}` block GOES AWAY
+- The final `if idx < args_vec.len() { TrailingItems }` check GOES AWAY (loop consumes full slice unless rest-marker fires; until Stone 241.4 ships rest-binder logic, the loop walks to end)
+- The `ArgSpec` construction drops `ret_type` field
+- `IncompleteSignature` → `IncompleteTriple`
+
+#### S6 — Update doc comments
+
+`src/argspec/parse.rs` doc on `ArgSpec`: remove ret_type mentions. Doc on `parse_argspec_triples`: remove ret-related algorithm steps; clarify scope.
+
+`src/argspec/mod.rs` module doc: strip ret-related framing. Add:
+
+```rust
+//! ## Scope
+//!
+//! Argspec parses ONLY the canonical `[name <- :T name <- :T ... [& rest <- :T]]`
+//! triple form. The ret-clause (`-> :Ret`) is NOT argspec's concern — fn-form parsers
+//! (defn, fn, fn type-signature) compose argspec + ret-clause at the form level.
+//! Per `FORM-COLLAPSE-NOTES.md` line 184:
+//!
+//! > Arc 241's `parse_argspec_triples` parses the canonical 3-slot triple uniformly
+//! > across all binding sites. Form-level parsers decode the per-binding metadata map
+//! > separately and associate by symbol.
+```
+
+#### S7 — Strip ret-related contracts from probe
+
+In `tests/probe_arc241_stone1_argspec_canonical.rs`, DELETE these contracts:
+- `contract_03_multiple_fixed_params_with_ret` (current 03 — used `include_ret_type=true`)
+- `contract_04_ret_only_signature` (current 04 — ret-only is no longer an argspec concept)
+- `contract_08_missing_ret_arrow_when_expected` (current 08 — MissingRetArrow gone)
+- `contract_09_trailing_items_after_ret` (current 09 — TrailingItems uses different semantics now)
+- `contract_12_ret_type_not_keyword` (current 12 — RetTypeNotKeyword gone)
+
+REPLACE current `contract_03` with a NEW contract testing multiple fixed params WITHOUT ret:
+
+```rust
+#[test]
+fn contract_03_multiple_fixed_params() {
+    // [x <- :wat::core::i64 y <- :wat::core::i64] — two fixed params, no ret.
+    let result = parse_triples("[x <- :wat::core::i64 y <- :wat::core::i64]", false);
+    let spec = result.expect("multi-param argspec parses cleanly");
+    assert_eq!(spec.fixed_params.len(), 2, "two fixed params");
+    assert_eq!(spec.fixed_params[0].0, "x", "first name is 'x'");
+    assert_eq!(spec.fixed_params[1].0, "y", "second name is 'y'");
+    assert!(spec.rest_param.is_none(), "rest_param should be None");
+}
+```
+
+REMAINING contracts after deletion + replacement (renumber to 01-08):
+| New # | Test | Source form |
+|---|---|---|
+| 01 | empty argspec | `[]` |
+| 02 | single fixed param | `[x <- :wat::core::i64]` |
+| 03 | multiple fixed params (replacement) | `[x <- :wat::core::i64 y <- :wat::core::i64]` |
+| 04 | non-Symbol at name slot | `[:keyword-not-symbol <- :wat::core::i64]` |
+| 05 | missing `<-` arrow | `[x = :wat::core::i64]` |
+| 06 | non-Keyword at type slot | `[x <- "string-not-keyword"]` |
+| 07 | `&` rest-marker rejected | `[x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]` |
+| 08 | malformed type keyword (`:Any`) | `[x <- :Any]` |
+
+Rename:
+- Current contract_05 → contract_04 (non-Symbol name)
+- Current contract_06 → contract_05 (missing arrow)
+- Current contract_07 → contract_06 (non-keyword type)
+- Current contract_10 → contract_07 (rest-binder rejected)
+- Current contract_11 → contract_08 (malformed type keyword)
+- Current contract_13 → DELETE? No — `IncompleteTriple` is a renamed variant; the contract should test the renamed variant.
+
+Wait — `contract_13_incomplete_signature` tests `[x <-]` which triggers `IncompleteSignature` (being renamed to `IncompleteTriple`). KEEP this contract; rename to `contract_NN_incomplete_triple`; update the match arm.
+
+Updated FINAL contract list (9 contracts):
+| # | Test name | Source form | Variant |
+|---|---|---|---|
+| 01 | contract_01_empty_argspec | `[]` | (success) |
+| 02 | contract_02_single_fixed_param | `[x <- :wat::core::i64]` | (success) |
+| 03 | contract_03_multiple_fixed_params | `[x <- :wat::core::i64 y <- :wat::core::i64]` | (success) |
+| 04 | contract_04_non_symbol_at_name_slot | `[:kw <- :wat::core::i64]` | NameNotSymbol |
+| 05 | contract_05_missing_arrow_token | `[x = :wat::core::i64]` | MissingArrow |
+| 06 | contract_06_non_keyword_at_type_slot | `[x <- "string"]` | TypeNotKeyword |
+| 07 | contract_07_rest_binder_rejected | `[x <- :i64 & rest <- :Vector<:i64>]` | RestBinderNotSupported |
+| 08 | contract_08_malformed_type_keyword | `[x <- :Any]` | MalformedTypeKeyword |
+| 09 | contract_09_incomplete_triple | `[x <-]` | IncompleteTriple |
+
+So 9 contracts, not 8. The probe shrinks 13 → 9. (My earlier count missed IncompleteTriple.)
+
+`parse_triples` helper signature simplifies (drop `include_ret_type` param):
+
 ```rust
 fn parse_triples(
     src: &str,
-    include_ret_type: bool,
     allow_rest_binder: bool,
 ) -> Result<ArgSpec, ArgSpecError> {
     let (items, span) = parse_vector_items(src);
@@ -267,135 +293,82 @@ fn parse_triples(
         &items,
         ":wat::test::fn",
         &span,
-        ParseOptions { include_ret_type, allow_rest_binder },
+        ParseOptions { allow_rest_binder },
     )
 }
 ```
 
-Update all call sites in contracts 1–10 from `invoke(...)` to `parse_triples(...)`.
-
-### Cleanup C6 — Add three new probe contracts (11/12/13)
-
-After contract_10, append:
-
-```rust
-#[test]
-fn contract_11_malformed_type_keyword() {
-    // A type-keyword shape that parse_type_expr_with_span rejects → MalformedTypeKeyword.
-    // Find a shape via grep of src/types.rs rejection paths.
-    let result = parse_triples(/* <malformed keyword source> */, false, false);
-    let err = result.expect_err("malformed type keyword must error");
-    assert!(
-        matches!(err, ArgSpecError::MalformedTypeKeyword { .. }),
-        "expected MalformedTypeKeyword, got {:?}",
-        err
-    );
-}
-
-#[test]
-fn contract_12_ret_type_not_keyword() {
-    // [x <- :wat::core::i64 -> "string-not-keyword"] with include_ret_type=true.
-    let result = parse_triples(
-        r#"[x <- :wat::core::i64 -> "string-not-keyword"]"#,
-        true,
-        false,
-    );
-    let err = result.expect_err("non-keyword ret type must error");
-    assert!(
-        matches!(err, ArgSpecError::RetTypeNotKeyword { .. }),
-        "expected RetTypeNotKeyword, got {:?}",
-        err
-    );
-}
-
-#[test]
-fn contract_13_incomplete_signature() {
-    // [x <-] — fewer than 3 items, runs out before triple completes.
-    let result = parse_triples("[x <-]", false, false);
-    let err = result.expect_err("incomplete triple must error");
-    assert!(
-        matches!(err, ArgSpecError::IncompleteSignature { .. }),
-        "expected IncompleteSignature, got {:?}",
-        err
-    );
-}
-```
-
-**Contract 11 — sonnet's discretion**: find a type-keyword shape that triggers `parse_type_expr_with_span` to return `Err`. Candidates to try: `[x <- :wat::core::]` (trailing colon), `[x <- :NonexistentNamespace::Type]`, `[x <- :1invalid]`. Grep `src/types.rs` for the rejection paths in `parse_type_expr_with_span`; use whichever shape clearly hits a parse-time rejection. If NO shape works (the rejection paths require runtime context not available at parse time): STOP-10. Surface to orchestrator. Do NOT skip the contract or rune-defer.
+All contract bodies that called `parse_triples(src, false, false)` become `parse_triples(src, false)`; contract 07 calls `parse_triples(src, false)` (allow_rest_binder=false to trigger rejection).
 
 ## Read in order
 
-1. `docs/COMPACTION-AMNESIA-RECOVERY.md` — the FM catalog; FM 2-bis evidence discipline; FM 16 (no tool preamble)
-2. `docs/arc/2026/05/241-function-signature-unification/DESIGN-STONE-241.1.fix.md` — the locked decisions for this stone
-3. `docs/arc/2026/05/241-function-signature-unification/SCORE-STONE-241.1.md` § Vigilia Convergence — the findings driving each amend
-4. `docs/arc/2026/05/241-function-signature-unification/DESIGN-STONE-241.1.md` — the parent stone's design (all decisions preserved)
-5. `src/argspec/error.rs` — the file you'll amend (extract `classify()`)
-6. `src/argspec/parse.rs` — the file you'll amend (extract `parse_keyword_type`; runes; tautology cleanup)
-7. `tests/probe_arc241_stone1_argspec_canonical.rs` — the probe you'll amend (rename helpers; owned span; +3 contracts)
-8. `~/work/holon/datamancy/purgare/SKILL.md` — rune format reference
-9. `docs/arc/2026/05/241-function-signature-unification/EXPECTATIONS-STONE-241.1.fix.md` — what completion looks like (14-row scorecard + Phase B vigilia)
+1. `/home/watmin/work/holon/wat-rs/docs/COMPACTION-AMNESIA-RECOVERY.md` — FM catalog
+2. `/home/watmin/work/holon/wat-rs/docs/arc/2026/05/241-function-signature-unification/DESIGN-STONE-241.1.fix.md` — locked decisions D1-D12 + trap-door T1-T8 + STOP triggers
+3. `/home/watmin/work/holon/wat-rs/docs/arc/2026/05/241-function-signature-unification/FORM-COLLAPSE-NOTES.md` — line 184 doctrine on argspec scope
+4. `/home/watmin/work/holon/wat-rs/docs/arc/2026/05/241-function-signature-unification/SCORE-STONE-241.1.md` § Vigilia Convergence — the findings driving Layer 1
+5. `/home/watmin/work/holon/wat-rs/docs/arc/2026/05/241-function-signature-unification/DESIGN-STONE-241.1.md` — parent stone's design (now historically wrong-scope; preserved)
+6. `/home/watmin/work/holon/wat-rs/src/argspec/parse.rs` — current uncommitted state (Layer 1 amends applied)
+7. `/home/watmin/work/holon/wat-rs/src/argspec/error.rs` — current uncommitted state (Layer 1 amends applied)
+8. `/home/watmin/work/holon/wat-rs/src/argspec/mod.rs` — module doc to update
+9. `/home/watmin/work/holon/wat-rs/tests/probe_arc241_stone1_argspec_canonical.rs` — current uncommitted state (Layer 1 amends applied; 13 contracts; needs Layer 2 cut to 9)
+10. `/home/watmin/work/holon/wat-rs/docs/arc/2026/05/241-function-signature-unification/EXPECTATIONS-STONE-241.1.fix.md` — what completion looks like (Phase A scorecard)
 
 ## Implementation sketch (order of operations)
 
-1. Read the 4 files in `src/argspec/*` and `tests/probe_arc241_stone1_argspec_canonical.rs` to know current state
-2. Verify baseline: `cargo test --release --lib -p wat` (expect 834 PASS) and `cargo test --release --test probe_arc241_stone1_argspec_canonical` (expect 10 PASS)
-3. **error.rs**: extract `classify()`; collapse three From impls to 4-line wrappers
-4. **parse.rs**: extract `parse_keyword_type` helper; replace fixed-param + ret-type blocks; rune the `unreachable!` arm; rune the `rest_param` field; remove tautology at the ret-arrow check; rewrite saturating_sub; delete WHAT-comment
-5. **probe**: rename `argspec_inputs` → `parse_vector_items` with owned `Span` return; rename `invoke` → `parse_triples`; update contracts 1–10 call sites; append contracts 11/12/13
-6. Verify: `cargo test --release --lib -p wat` (≥834 PASS) + `cargo test --release --test probe_arc241_stone1_argspec_canonical` (13 PASS) + `cargo build --release --tests --workspace` (clean) + `cargo clippy --release` (≤ baseline)
-7. Write `docs/arc/2026/05/241-function-signature-unification/SCORE-STONE-241.1.fix.md` per the spec in EXPECTATIONS
-8. **DO NOT COMMIT.** Orchestrator commits after vigilia re-cast (Phase B).
+1. Read all four substrate files + the probe; confirm Layer 1 amends are in place
+2. Baseline check: `cargo test --release --lib -p wat` (expect 834 PASS) + `cargo test --release --test probe_arc241_stone1_argspec_canonical` (expect 13 PASS — pre-scope-correction)
+3. **error.rs**: delete `MissingRetArrow` + `RetTypeNotKeyword` variants; rename `IncompleteSignature` → `IncompleteTriple`; update `classify()` arms (delete two; rename one)
+4. **parse.rs**: delete `ret_type` field from `ArgSpec`; delete `include_ret_type` field from `ParseOptions`; rename `IncompleteSignature` → `IncompleteTriple` at construction site; strip the loop's `is_bare_symbol("->")` break; strip the entire post-loop `if options.include_ret_type {...}` block; strip the final trailing-items check (loop consumes full slice in 241.1); update doc comments
+5. **mod.rs**: update module doc to clarify argspec parses ONLY canonical triples; cite FORM-COLLAPSE-NOTES:184
+6. **probe**: delete 5 contracts (current 03, 04, 08, 09, 12); add replacement contract_03 (multiple fixed params, no ret); rename `contract_13` → `contract_09_incomplete_triple` with updated match arm; renumber remaining contracts; update `parse_triples` helper (drop `include_ret_type` param); update all contract call sites from `parse_triples(src, X, Y)` to `parse_triples(src, Y)`
+7. Verify: `cargo test --release --lib -p wat` (≥834 PASS) + `cargo test --release --test probe_arc241_stone1_argspec_canonical` (9 PASS) + `cargo build --release --tests --workspace` (clean) + `cargo clippy --release` (≤ 905)
+8. Write `docs/arc/2026/05/241-function-signature-unification/SCORE-STONE-241.1.fix.md`
+9. **DO NOT COMMIT.** Orchestrator commits after vigilia re-cast (Phase B).
 
 ## Discipline
 
-- **`src/argspec/mod.rs` UNCHANGED.** Module doc + re-exports stay verbatim.
-- **`src/lib.rs` UNCHANGED.** The one-line `pub mod argspec;` from Stone 241.1 stays.
-- **No new files.** This is an amend, not an extension.
-- **No new public API.** `parse_keyword_type` and `classify()` are PRIVATE (no `pub`).
-- **Type signatures preserved.** `parse_argspec_triples` signature unchanged. `ArgSpec` / `ParseOptions` / `ArgSpecError` shapes unchanged.
-- **No `.clone()` on `err` in From impls.** `classify(self)` consumes; the move IS the conversion.
-- **Errors stay parser-internal in shape.** The helper returns `Result<TypeExpr, ArgSpecError>`; conversion to `RuntimeError`/`CheckError`/`TypeError` happens at the binding-site boundary (Stone 241.2/3 callers' `?` triggers `From<>`).
-- **No `cargo run`, no wrapper scripts, no shell pipelines beyond `cargo test/build/clippy`.**
+- **`src/lib.rs` UNCHANGED.** Stone 241.1's `pub mod argspec;` stays.
+- **No new files.** Strip existing ones.
+- **No new public API.** `classify()` + `parse_keyword_type` stay PRIVATE.
+- **`parse_argspec_triples` signature UNCHANGED.** Body shrinks; signature stays.
+- **`ParseOptions` struct STAYS** (one field; `allow_rest_binder`).
+- **`ArgSpec` struct STAYS** (two fields; `fixed_params` + `rest_param`).
+- **Type-system migration is mechanical**: the compiler tells you every site that touched the removed `ret_type` field / `include_ret_type` field / removed variants. Follow the diagnostics. NO callers outside argspec touch these (Stone 241.1 didn't migrate any A1-A4 callers per D5 of original DESIGN); the compile errors will be confined to argspec home + the probe.
+- **No `cargo run`; no wrapper scripts; just `cargo test/build/clippy`.**
 
-## STOP triggers — each is REJECTION criteria (ship NOTHING; surface as finding)
+## STOP triggers — each is REJECTION (ship NOTHING; surface as finding)
 
-1. **STOP-1** — Unexpected compile errors not traced to the amend-named sites
-2. **STOP-2** — Lib baseline regression (current: 834 PASS / 0 FAIL; must hold ≥834)
-3. **STOP-3** — 40 min elapsed (this is the upper bound)
-4. **STOP-4** — `holon-rs` touched (substrate is frozen)
-5. **STOP-5** — Rust files outside `src/argspec/error.rs`, `src/argspec/parse.rs`, `tests/probe_arc241_stone1_argspec_canonical.rs` touched. `src/argspec/mod.rs` and `src/lib.rs` MUST stay unchanged.
-6. **STOP-6** — Scope creep: migrating A1/A2/A3/A4 (241.2/3); implementing `&` rest-binder logic (241.4); adding NEW ParseOptions fields / ArgSpecError variants / ArgSpec fields; re-exporting `Span`; adding new files
-7. **STOP-7** — Probe doesn't reach 13/13 PASS
-8. **STOP-8** — Any prior arc 237 probe regresses (237.5/.5fix/.6/.8a tests stay green)
-9. **STOP-9** — Clippy warnings increase above baseline
-10. **STOP-10** — Contract 11 can't find a shape that triggers `MalformedTypeKeyword` — surface as finding; do NOT skip the contract or rune-defer
-
-## FM 2-bis evidence
-
-The existing probe IS the substrate sonnet mirrors. Pre-stone (HEAD `6621f2a2`): 10/10 PASS. Post-stone: 13/13 PASS (contracts 11/12/13 added). No new probe file; the amend extends the existing surface.
+1. **STOP-1** — Unexpected compile errors NOT traced to the removed types/fields/variants
+2. **STOP-2** — Lib baseline regression (<834)
+3. **STOP-3** — 40 min elapsed
+4. **STOP-4** — `holon-rs` touched
+5. **STOP-5** — Rust files outside `src/argspec/error.rs`, `src/argspec/parse.rs`, `src/argspec/mod.rs`, `tests/probe_arc241_stone1_argspec_canonical.rs` touched. `src/lib.rs` MUST stay unchanged.
+6. **STOP-6** — Scope creep: migrating A1/A2/A3/A4; minting `parse_ret_clause`; adding ANY new type/field/variant
+7. **STOP-7** — Probe doesn't reach 9/9 PASS
+8. **STOP-8** — Any prior arc 237 probe regresses
+9. **STOP-9** — Clippy warnings > 905
+10. **STOP-10** — Loop logic post-strip exhibits unexpected behavior (e.g., `->` at name slot doesn't surface as `MissingArrow`); surface as finding
 
 ## SCORE doc spec — write `SCORE-STONE-241.1.fix.md`
 
 Mirror `SCORE-STONE-241.1.md`'s structural shape:
 
-- **Header**: status (Mode A / B), runtime, summary one-liner
-- **Phase A scorecard (14 rows)** — see EXPECTATIONS-STONE-241.1.fix.md
-- **Final API signatures** — verbatim `classify()` + `parse_keyword_type` signatures
-- **Line counts per file** — actual deltas
-- **Clippy delta** — should be 0
-- **Lib baseline** — 834+ PASS / 0 FAIL
-- **Probe**: 13/13 PASS
+- **Header**: status (Mode A/B); runtime; summary one-liner covering BOTH layers (vigilia amends + scope correction)
+- **Phase A scorecard** ~15 rows covering both layers
+- **Final API signatures** verbatim post-scope shapes
+- **Line counts per file** with deltas vs Stone 241.1 baseline (significant net negative expected)
+- **Clippy delta** should be 0
+- **Lib baseline** 834+ PASS / 0 FAIL
+- **Probe**: 9/9 PASS
 - **Workspace test-build**: clean
-- **Honest deltas** — anything you noticed mid-strike that the BRIEF didn't anticipate
-- **Cascade depth** — 0 expected (pure substrate-internal amend)
-- **NO Vigilia Convergence section** — orchestrator inscribes that after Phase B re-cast
+- **Honest deltas** anything you noticed
+- **NO Vigilia Convergence section** — orchestrator inscribes after Phase B re-cast
 
 ## Post-strike
 
-When SCORE-STONE-241.1.fix.md is written, return. Orchestrator will:
-1. Independently verify the 14 scorecard rows
-2. Cast vigilia (Phase B) on the amended files
-3. If L1+L2=0 → atomic commit covering substrate + probe + SCORE doc
-4. If vigilia DIVERGES → re-brief Stone 241.1.fix.fix (rare; this amend is mechanical)
+Return with a one-paragraph status summary. Orchestrator will:
+1. Verify the scorecard rows independently
+2. Re-cast vigilia Phase B (the solvere L2 should vanish structurally)
+3. Commit when L1+L2=0
 
-The doctrine `feedback_namespaced_home_vigilia_gate` survived its first real test on Stone 241.1; Stone 241.1.fix is the second test. Strike clean.
+The gate doctrine `feedback_namespaced_home_vigilia_gate` survived its first real test (the vigilia caught Stone 241.1's scope confusion). Stone 241.1.fix CLOSES the gate by correcting the structural issue at its source.
