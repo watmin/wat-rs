@@ -1528,11 +1528,13 @@ fn encode_value_with_path(
             ],
             span,
         )),
-        // Arc 220 — Char is portable: encode as a `Char/of` call on a
+        // Arc 220 — Char is portable: encode as a `char/of` call on a
         // length-1 String. Round-trips cleanly (BMP guaranteed by construct).
+        // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
+        // (scalar types lowercase per Doctrine 2).
         Value::wat__core__Char(c) => Ok(WatAST::List(
             vec![
-                WatAST::Keyword(":wat::core::Char/of".into(), span.clone()),
+                WatAST::Keyword(":wat::core::char/of".into(), span.clone()),
                 WatAST::StringLit(c.to_string(), span.clone()),
             ],
             span,

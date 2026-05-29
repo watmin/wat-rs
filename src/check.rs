@@ -3366,6 +3366,23 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
             errors.push(CheckError::BareLegacyLowercaseFn { span: span.clone() });
             return;
         }
+        // Stone 242.1 — HARD CUT: `:wat::core::Char` (PascalCase) is retired per
+        // Doctrine 2 (scalar types lowercase). The live name is `:wat::core::char`.
+        // Walker fires in ANY keyword position (type annotation, argspec, return type,
+        // etc.) — no privileged paths per `feedback_hard_cut_admits_no_bypasses`.
+        if s == ":wat::core::Char" {
+            errors.push(CheckError::MalformedForm {
+                head: s.clone(),
+                reason: format!(
+                    "'{}' is retired (Stone 242.1); use ':wat::core::char' instead \
+                     (scalar types lowercase per arc 242 Doctrine 2)",
+                    s
+                ),
+                span: span.clone(),
+                remedies: crate::remedy::remedies_for(s, std::iter::empty()),
+            });
+            return;
+        }
         // Try parsing as a type expression. Most keywords aren't
         // types (callee paths, value keywords like `:None`); they
         // parse to a plain Path that doesn't match any bare
@@ -4113,7 +4130,9 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
                 // the Char arm added in Stone 221.2 (src/runtime.rs); is_atomizable gate
                 // is now consistent with the runtime Hash arm at src/runtime.rs:846
                 // (which shipped Stone 220.2).
-                | ":wat::core::Char"
+                // Stone 242.1 — renamed from :wat::core::Char (PascalCase) to
+                // :wat::core::char (lowercase per Doctrine 2; scalar types lowercase).
+                | ":wat::core::char"
                 // Arc 234 Stone 234.5 — wat::Record is atomizable via the hologram
                 // property: holon_form is pre-built at construction. to-holon on a record
                 // returns the holon_form directly; no recomputation. The atomizable gate
@@ -17045,16 +17064,18 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 220 slice 2 / Arc 221 Stone 221.2 — `:wat::core::Char` typed primitive.
-    // `Char/of` is the only constructor; it takes a length-1 BMP String and
-    // returns a `:wat::core::Char`. The `\c` literal reader macro desugars to
-    // `(:wat::core::Char/of "c")` at parse time (parser.rs). Without this
+    // Arc 220 slice 2 / Arc 221 Stone 221.2 — `:wat::core::char` typed primitive.
+    // `char/of` is the only constructor; it takes a length-1 BMP String and
+    // returns a `:wat::core::char`. The `\c` literal reader macro desugars to
+    // `(:wat::core::char/of "c")` at parse time (parser.rs). Without this
     // registration the type checker returns `<unresolved>` for char literals,
     // causing spurious TypeMismatch on dispatch sites (e.g. `contains?` on
-    // `HashSet<Char>` where the element arg must unify to Char).
-    let char_ty = || TypeExpr::Path(":wat::core::Char".into());
+    // `HashSet<char>` where the element arg must unify to char).
+    // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
+    // (scalar types lowercase per Doctrine 2).
+    let char_ty = || TypeExpr::Path(":wat::core::char".into());
     env.register(
-        ":wat::core::Char/of".to_string(),
+        ":wat::core::char/of".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],

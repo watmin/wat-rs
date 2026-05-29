@@ -615,13 +615,14 @@ pub enum Value {
     /// `Instant`/`Duration`/`keyword` precedent. `uuid::Uuid` is `Copy`.
     /// Constructed via `Uuid/v4`, `Uuid/v5`, `Uuid/from-string`, `Uuid/nil`.
     wat__core__Uuid(uuid::Uuid),
-    /// Arc 220 — `:wat::core::Char`. Typed character primitive (BMP-only).
-    /// Distinct runtime variant from `Value::String` — a Char is a single
+    /// Arc 220 — `:wat::core::char` (formerly `:wat::core::Char`; Stone 242.1 rename).
+    /// Typed character primitive (BMP-only).
+    /// Distinct runtime variant from `Value::String` — a char is a single
     /// Unicode scalar value in the BMP (U+0000–U+FFFF), not a string.
     /// Matches wat-edn's `Value::Char` and Clojure's character literal `\c`.
     /// BMP-only inherits Stone 218.6b discipline (supplementary-plane
     /// codepoints U+10000–U+10FFFF rejected at construction + lex time).
-    /// Constructed via `(:wat::core::Char/of "x")` or `\c` literal.
+    /// Constructed via `(:wat::core::char/of "x")` or `\c` literal.
     wat__core__Char(char),
     /// Arc 220 Stone 220.4 — `:wat::core::List<T>`. Typed linked-list primitive.
     /// Distinct from `Value::Vec` (`:wat::core::Vector`) — preserves the EDN
@@ -5769,9 +5770,11 @@ fn dispatch_keyword_head_value(
         ":wat::core::Uuid/to-string" => crate::string_ops::eval_uuid_typed_to_string(args, list_span, env, sym),
         ":wat::core::Uuid/nil" => crate::string_ops::eval_uuid_typed_nil(args, list_span, env, sym),
 
-        // Arc 220 slice 2 — typed `:wat::core::Char` constructor.
-        // One verb: `Char/of` (from length-1 BMP String).
-        ":wat::core::Char/of" => crate::string_ops::eval_char_of(args, list_span, env, sym),
+        // Arc 220 slice 2 — typed `:wat::core::char` constructor.
+        // One verb: `char/of` (from length-1 BMP String).
+        // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
+        // (scalar types lowercase per Doctrine 2).
+        ":wat::core::char/of" => crate::string_ops::eval_char_of(args, list_span, env, sym),
 
         // Arc 220 Stone 220.4 — typed `:wat::core::List` constructor.
         // Variadic: `List/of` takes 0 or more args and builds a LinkedList.
@@ -7714,7 +7717,9 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::Instant(_) => ":wat::time::Instant",
         Value::Duration(_) => ":wat::time::Duration",
         Value::wat__core__Uuid(_) => ":wat::core::Uuid",
-        Value::wat__core__Char(_) => ":wat::core::Char",
+        // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
+        // (scalar types lowercase per Doctrine 2).
+        Value::wat__core__Char(_) => ":wat::core::char",
         Value::wat__core__List(_) => ":wat::core::List",
         Value::wat__kernel__Sender(_) => ":wat::kernel::Sender",
         Value::wat__kernel__Receiver(_) => ":wat::kernel::Receiver",
@@ -19087,11 +19092,13 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
             Span::unknown(),
         ),
         // Arc 221 Stone 221.2 — Char primitive leaf. WatAST has no CharLit
-        // variant; render as (:wat::core::Char/of "c") so that
-        // `(eval-ast! (to-wat char-holon))` round-trips via Char/of.
+        // variant; render as (:wat::core::char/of "c") so that
+        // `(eval-ast! (to-wat char-holon))` round-trips via char/of.
+        // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
+        // (scalar types lowercase per Doctrine 2).
         HolonAST::Char(c) => WatAST::List(
             vec![
-                WatAST::Keyword(":wat::core::Char/of".into(), Span::unknown()),
+                WatAST::Keyword(":wat::core::char/of".into(), Span::unknown()),
                 WatAST::StringLit(c.to_string(), Span::unknown()),
             ],
             Span::unknown(),

@@ -32,6 +32,7 @@
 //! | `":wat::core::struct-restricted"` | 241.8 | struct-restricted  | defstruct |
 //! | `":wat::core::enum"`              | 241.9 | enum (original)    | defenum   |
 //! | `":wat::core::define"`            | 241.11 | define (function binding) | defn |
+//! | `":wat::core::Char"`              | 242.1  | Char (PascalCase scalar)  | char (lowercase per Doctrine 2) |
 
 use super::{Remedy, RemedyKind};
 
@@ -47,6 +48,8 @@ const RETIREMENT_TABLE: &[(&str, &str)] = &[
     (":wat::core::enum",              ":wat::core::defenum"),
     // Stone 241.11 — defn replaces define.
     (":wat::core::define",            ":wat::core::defn"),
+    // Stone 242.1 — char (lowercase) replaces Char (per Doctrine 2; scalar types lowercase).
+    (":wat::core::Char",              ":wat::core::char"),
 ];
 
 /// Look up `needle` in the retirement table.

@@ -435,12 +435,14 @@ pub fn eval_uuid_typed_nil(
 
 // ─── Char ────────────────────────────────────────────────────────────────
 
-/// `(:wat::core::Char/of s)` → `:wat::core::Char`.
+/// `(:wat::core::char/of s)` → `:wat::core::char`.
 ///
-/// Constructs a typed `:wat::core::Char` from a length-1 String.
+/// Constructs a typed `:wat::core::char` from a length-1 String.
 /// BMP-only: codepoints above U+FFFF (supplementary-plane) are rejected
 /// with a clear diagnostic, inheriting the Stone 218.6b discipline from
 /// wat-edn's BMP-only strictness.
+/// Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
+/// (scalar types lowercase per Doctrine 2).
 ///
 /// Errors:
 /// - ArityMismatch: not exactly 1 argument.
@@ -456,7 +458,8 @@ pub fn eval_char_of(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::Char/of";
+    // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of.
+    const OP: &str = ":wat::core::char/of";
     if args.len() != 1 {
         let span = args
             .first()
@@ -508,7 +511,7 @@ pub fn eval_char_of(
             head: OP.into(),
             reason: format!(
                 "supplementary-plane codepoint U+{:X} not supported; \
-                 wat::core::Char is BMP-only (U+0000–U+FFFF)",
+                 wat::core::char is BMP-only (U+0000–U+FFFF)",
                 c as u32
             ),
             span: args[0].span().clone(),

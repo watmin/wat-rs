@@ -367,9 +367,10 @@ pub fn edn_to_value(
         Edn::Integer(n) => Ok(Value::i64(*n)),
         Edn::Float(x) => Ok(Value::f64(*x)),
         Edn::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
-        // Arc 220 slice 2: EDN character literal `\c` → typed `:wat::core::Char`.
-        // Previously folded to String (lossy). Now preserved as a typed Char
+        // Arc 220 slice 2: EDN character literal `\c` → typed `:wat::core::char`.
+        // Previously folded to String (lossy). Now preserved as a typed char
         // so round-trips through EDN are lossless. BMP guaranteed by wat-edn parser.
+        // Stone 242.1: renamed from :wat::core::Char to :wat::core::char.
         Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
         Edn::Keyword(k) => {
             let s = match k.namespace() {
@@ -619,9 +620,11 @@ fn edn_to_typed_value_inner(
                 Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
                 other => Err(mismatch(target, other)),
             },
-            // Arc 220 slice 2: EDN character literal `\c` → typed `:Char`.
+            // Arc 220 slice 2: EDN character literal `\c` → typed `:char`.
             // Typed path mirrors `:wat::core::Uuid` above (latent gap pattern).
-            ":wat::core::Char" => match edn {
+            // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
+            // (scalar types lowercase per Doctrine 2).
+            ":wat::core::char" => match edn {
                 Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
                 other => Err(mismatch(target, other)),
             },

@@ -1,6 +1,6 @@
-//! Arc 220 slice 2 — `:wat::core::Char` typed primitive.
+//! Arc 220 slice 2 — `:wat::core::char` typed primitive (Stone 242.1: renamed from Char).
 //!
-//! Verifies the new `Value::wat__core__Char` variant and the `Char/of` constructor.
+//! Verifies the `Value::wat__core__Char` variant and the `char/of` constructor.
 //! Also verifies the lexer `\c` literal syntax and BMP-only enforcement.
 //!
 //! Test cases:
@@ -8,10 +8,10 @@
 //!   2 — Lexer accepts named chars: `\newline`, `\space`, `\tab`, `\return`
 //!   3 — Lexer accepts `\uNNNN` Unicode escape (BMP)
 //!   4 — Lexer rejects supplementary-plane literal (produces diagnostic)
-//!   5 — `(:wat::core::Char/of "x")` returns Value::wat__core__Char('x')
-//!   6 — `(:wat::core::Char/of "")` errors with "length-1 String" diagnostic
-//!   7 — `(:wat::core::Char/of "ab")` errors with "length-2" diagnostic
-//!   8 — `(:wat::core::Char/of "\u{1F600}")` errors with "supplementary-plane"
+//!   5 — `(:wat::core::char/of "x")` returns Value::wat__core__Char('x')
+//!   6 — `(:wat::core::char/of "")` errors with "length-1 String" diagnostic
+//!   7 — `(:wat::core::char/of "ab")` errors with "length-2" diagnostic
+//!   8 — `(:wat::core::char/of "\u{1F600}")` errors with "supplementary-plane"
 //!   9 — Round-trip: `\x` in wat source → Value → EDN write → reparse → identical
 //!  10 — `(= \a \a)` true; `(= \a \b)` false
 
@@ -86,8 +86,8 @@ fn run_expecting_runtime_err(src: &str) -> String {
 
 // ─── 1: Lexer accepts `\a` single-char literal ──────────────────────────────
 
-/// The `\a` literal produces a `:wat::core::Char` value.
-/// Verified by using `(= \a (:wat::core::Char/of "a"))` — if the lexer
+/// The `\a` literal produces a `:wat::core::char` value (Stone 242.1).
+/// Verified by using `(= \a (:wat::core::char/of "a"))` — if the lexer
 /// produces the correct typed Char, both sides are equal.
 #[test]
 fn char_literal_single_letter() {
@@ -95,7 +95,7 @@ fn char_literal_single_letter() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [c \a
-                       expected (:wat::core::Char/of "a")
+                       expected (:wat::core::char/of "a")
                        ok (:wat::core::= c expected)]
                       (:wat::core::if ok -> :wat::core::nil
                         (:wat::kernel::println "CHAR-LITERAL-OK")
@@ -118,10 +118,10 @@ fn char_literal_named_chars() {
                        sp   \space
                        tab  \tab
                        ret  \return
-                       nl-exp  (:wat::core::Char/of "\n")
-                       sp-exp  (:wat::core::Char/of " ")
-                       tab-exp (:wat::core::Char/of "\t")
-                       ret-exp (:wat::core::Char/of "\r")
+                       nl-exp  (:wat::core::char/of "\n")
+                       sp-exp  (:wat::core::char/of " ")
+                       tab-exp (:wat::core::char/of "\t")
+                       ret-exp (:wat::core::char/of "\r")
                        ok (:wat::core::=
                             (:wat::core::= nl nl-exp)
                             true)]
@@ -145,7 +145,7 @@ fn char_literal_named_chars() {
 
 // ─── 3: Lexer accepts `\uNNNN` Unicode BMP escape ────────────────────────────
 
-/// `A` (U+0041 = 'A') produces a Char equal to `(:wat::core::Char/of "A")`.
+/// `A` (U+0041 = 'A') produces a Char equal to `(:wat::core::char/of "A")`.
 #[test]
 fn char_literal_unicode_escape() {
     // Build the source with a literal backslash-u0041 so the wat lexer
@@ -155,7 +155,7 @@ fn char_literal_unicode_escape() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [c {}u0041
-                       expected (:wat::core::Char/of "A")
+                       expected (:wat::core::char/of "A")
                        ok (:wat::core::= c expected)]
                       (:wat::core::if ok -> :wat::core::nil
                         (:wat::kernel::println "UNICODE-ESCAPE-OK")
@@ -191,7 +191,7 @@ fn char_literal_supplementary_plane_rejected() {
     );
 }
 
-// ─── 5: `(:wat::core::Char/of "x")` returns typed Char ──────────────────────
+// ─── 5: `(:wat::core::char/of "x")` returns typed Char ──────────────────────
 
 /// `Char/of` with a valid single-char string constructs a typed Char.
 /// We verify by equality with another Char/of call (proving the type is correct).
@@ -200,8 +200,8 @@ fn char_of_valid_single_char() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-                      [c1  (:wat::core::Char/of "x")
-                       c2  (:wat::core::Char/of "x")
+                      [c1  (:wat::core::char/of "x")
+                       c2  (:wat::core::char/of "x")
                        eq  (:wat::core::= c1 c2)]
                       (:wat::core::if eq -> :wat::core::nil
                         (:wat::kernel::println "CHAR-OF-OK")
@@ -223,7 +223,7 @@ fn char_of_empty_string_rejected() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-                      [_c (:wat::core::Char/of "")]
+                      [_c (:wat::core::char/of "")]
                       :wat::core::nil))
     "#;
     let err = run_expecting_runtime_err(src);
@@ -243,7 +243,7 @@ fn char_of_multi_char_rejected() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-                      [_c (:wat::core::Char/of "ab")]
+                      [_c (:wat::core::char/of "ab")]
                       :wat::core::nil))
     "#;
     let err = run_expecting_runtime_err(src);
@@ -260,11 +260,14 @@ fn char_of_multi_char_rejected() {
 /// Wrapped in a let binding so user::main returns nil per arc 170 slice 1e.
 #[test]
 fn char_of_supplementary_plane_rejected() {
-    // U+1F600 GRINNING FACE — supplementary plane
-    let src = &format!(
-        "(:wat::core::define\n  (:user::main -> :wat::core::nil)\n  (:wat::core::let\n    [_c (:wat::core::Char/of \"\u{1F600}\")]\n    :wat::core::nil))"
+    // U+1F600 GRINNING FACE — supplementary plane.
+    // Use format! so Rust expands \u{1F600} to the actual emoji character
+    // before it's passed to the WAT parser (which would not handle \u{NNNNNN}).
+    // Stone 241.11: :wat::core::define retired; use :wat::core::defn.
+    let src = format!(
+        "(:wat::core::defn :user::main [] -> :wat::core::nil\n  (:wat::core::let\n    [_c (:wat::core::char/of \"\u{1F600}\")]\n    :wat::core::nil))"
     );
-    let err = run_expecting_runtime_err(src);
+    let err = run_expecting_runtime_err(&src);
     assert!(
         err.contains("supplementary") || err.contains("BMP") || err.contains("1F600"),
         "error must mention supplementary-plane: got {:?}", err
@@ -273,14 +276,14 @@ fn char_of_supplementary_plane_rejected() {
 
 // ─── 9: Round-trip: Char/of → EDN write → parse → identical ─────────────────
 
-/// `(:wat::core::Char/of "x")` → EDN write → `(:wat::edn::read ...)` → typed Char.
+/// `(:wat::core::char/of "x")` → EDN write → `(:wat::edn::read ...)` → typed Char.
 /// Proves the EDN bridge is bidirectional for Char values.
 #[test]
 fn char_edn_round_trip() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-                      [orig  (:wat::core::Char/of "x")
+                      [orig  (:wat::core::char/of "x")
                        edn   (:wat::edn::write orig)
                        back  (:wat::edn::read edn)
                        ok    (:wat::core::= orig back)]

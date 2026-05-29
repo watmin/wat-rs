@@ -1,9 +1,9 @@
-//! Arc 221 Stone 221.2 — `:wat::core::Char` atomization probes.
+//! Arc 221 Stone 221.2 — `:wat::core::char` atomization probes.
 //!
 //! Verifies that `Value::wat__core__Char` is fully atomizable end-to-end:
 //!   (a) `(:wat::holon::Atom \c)` dispatches via `value_to_atom` Char arm to
 //!       `HolonAST::char_(c)` (Stone 221.2 — holon-rs commit `243eded`).
-//!   (b) `is_atomizable(":wat::core::Char")` returns true (Stone 221.2 predicate
+//!   (b) `is_atomizable(":wat::core::char")` returns true (Stone 221.2 predicate
 //!       extension), so the check layer approves `HashMap<Char, V>` and `HashSet<Char>`.
 //!   (c) Char is usable as a HashMap key and HashSet element at the WAT runtime level.
 //!
@@ -116,7 +116,7 @@ fn probe_2_hashmap_char_key_insert_lookup() {
     let a_val = run_i64(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-                      [tally   (:wat::core::HashMap :wat::core::Char :wat::core::i64)
+                      [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
                        tally2  (:wat::core::HashMap/assoc tally \a 3)
                        tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
                       (:wat::core::match (:wat::core::HashMap/get tally3 \a) -> :wat::core::i64
@@ -129,7 +129,7 @@ fn probe_2_hashmap_char_key_insert_lookup() {
     let b_val = run_i64(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-                      [tally   (:wat::core::HashMap :wat::core::Char :wat::core::i64)
+                      [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
                        tally2  (:wat::core::HashMap/assoc tally \a 3)
                        tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
                       (:wat::core::match (:wat::core::HashMap/get tally3 \b) -> :wat::core::i64
@@ -142,7 +142,7 @@ fn probe_2_hashmap_char_key_insert_lookup() {
     let len = run_i64(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-                      [tally   (:wat::core::HashMap :wat::core::Char :wat::core::i64)
+                      [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
                        tally2  (:wat::core::HashMap/assoc tally \a 3)
                        tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
                       (:wat::core::HashMap/length tally3)))
@@ -167,7 +167,7 @@ fn probe_3_hashset_char_insert_contains() {
     let has_a = run_bool(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-                      [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)]
+                      [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)]
                       (:wat::core::contains? vowels \a)))
     "#);
     assert!(has_a, "HashSet<Char>: \\a must be found in vowels set");
@@ -176,7 +176,7 @@ fn probe_3_hashset_char_insert_contains() {
     let has_e = run_bool(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-                      [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)]
+                      [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)]
                       (:wat::core::contains? vowels \e)))
     "#);
     assert!(has_e, "HashSet<Char>: \\e must be found in vowels set");
@@ -185,7 +185,7 @@ fn probe_3_hashset_char_insert_contains() {
     let has_z = run_bool(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-                      [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)
+                      [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)
                        found  (:wat::core::contains? vowels \z)]
                       (:wat::core::not found)))
     "#);
@@ -195,7 +195,7 @@ fn probe_3_hashset_char_insert_contains() {
     let len = run_i64(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-                      [vowels (:wat::core::HashSet :wat::core::Char \a \e \i \o \u)]
+                      [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)]
                       (:wat::core::HashSet/length vowels)))
     "#);
     assert_eq!(len, 5, "HashSet<Char>: five distinct vowels → length 5");
