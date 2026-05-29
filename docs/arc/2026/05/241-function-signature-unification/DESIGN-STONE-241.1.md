@@ -64,7 +64,7 @@ Per intueri cast 2026-05-28 (recorded in `DESIGN.md` § Scope expansion + `FORM-
 - `src/argspec/parse.rs` — `parse_argspec_triples` fn + `ArgSpec` struct + `ParseOptions` struct
 - `src/argspec/error.rs` — `ArgSpecError` enum + `From<ArgSpecError>` impls for `RuntimeError`, `CheckError`, `TypeError`
 
-Mirrors `comms/` precedent: directory named for the substrate-internal concept; thin mod.rs; concern-named files inside. Per `feedback_ward_zone_comms_only`: the 9-ward parallel pass runs on `src/argspec/*` after sonnet ships, before commit.
+Mirrors `comms/` precedent: directory named for the substrate-internal concept; thin mod.rs; concern-named files inside. Per `feedback_namespaced_home_vigilia_gate` (2026-05-28): the namespaced home commits ONLY after a vigilia cast drives L1+L2 findings to zero on `src/argspec/*` + `tests/probe_arc241_stone1_argspec_canonical.rs`. Vigilia (`~/work/holon/datamancy/vigilia/SKILL.md`) is the aggregator; it spawns the applicable defensive subset in parallel — for this home: intueri + solvere + purgare + struere + sequi + temperare (6 always-apply) + complectens + vocare (test-substrate). SCORE-green is the floor; vigilia-convergence is the bar.
 
 ### D2 — Shape: per AUDIT.md (locked there 2026-05-27)
 
@@ -241,6 +241,7 @@ Beyond Phase 1: 241.4's `&` rest-binder extension lands cleanly on the settled A
 - `docs/arc/2026/05/237-polymorphism-consolidation/DESIGN-STONE-237.5.md` — the recursive-walker pattern (different shape; useful for parser fn discipline reference)
 - `feedback_sonnet_writes_substrate` — orchestrator briefs/scores; sonnet writes the Rust
 - `feedback_refuse_easy_solutions` — drove D4's REJECTION of `name_symbol_only` ParseOption
-- `feedback_ward_zone_comms_only` — the 9-ward parallel pass runs on `src/argspec/*` post-implementation, pre-commit
+- `feedback_namespaced_home_vigilia_gate` — vigilia-convergence (L1+L2=0) gates commit on `src/argspec/*`; the applicable defensive set for this home is intueri + solvere + purgare + struere + sequi + temperare + complectens + vocare (8 spells; vigilia aggregates)
+- `feedback_ward_zone_comms_only` — scoped to comms/; extended by the gate doctrine to argspec/ + future namespaced homes
 - `feedback_stone_briefs_cite_prior_score` — BRIEF cites prior comparable SCORE for shape
 - `COMPACTION-AMNESIA-RECOVERY.md` § FM 2-bis — the disconfirming-probe discipline this stone's probe follows

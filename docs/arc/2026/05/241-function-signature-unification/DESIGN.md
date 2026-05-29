@@ -223,7 +223,7 @@ Files inside (intueri-recommended decomposition):
 - `parse.rs` — `parse_argspec_triples` fn + `ArgSpec` + `ParseOptions`
 - `error.rs` — `ArgSpecError` + `From<>` conversions for `RuntimeError` / `CheckError` / `TypeError`
 
-Per `feedback_ward_zone_comms_only`: the 9-ward parallel pass runs on `src/argspec/*` post-implementation before commit (kernel-impeccability standard).
+Per `feedback_namespaced_home_vigilia_gate` (2026-05-28): the namespaced home commits ONLY after a **vigilia cast** drives L1+L2 findings to zero. Vigilia is the aggregator spell (`~/work/holon/datamancy/vigilia/SKILL.md`); it spawns the applicable defensive subset in parallel — for `src/argspec/*` the default 6 always-apply (intueri + solvere + purgare + struere + sequi + temperare) plus complectens + vocare (test-substrate is part of the home). Earlier "9-ward parallel pass" framing was a borrowed-taxonomy mumble; vigilia's actual defensive set is what governs. SCORE-green is the floor; vigilia-convergence is the bar. User direction: *"we raise the bar fucking high for namespaced wat-rs files."*
 
 ### Stone chain (9 stones, 4 phases)
 
@@ -259,7 +259,8 @@ Per `feedback_ward_zone_comms_only`: the 9-ward parallel pass runs on `src/argsp
 
 - `FORM-COLLAPSE-NOTES.md` — the dialogue capture; substrate vocabulary + verdict tables
 - `../../04/109-kill-std/NOTE-type-decl-def-prefix-renames.md` — the rest of the rename family queued
-- `feedback_ward_zone_comms_only` — kernel-impeccability protocol applies to `src/argspec/*`
+- `feedback_namespaced_home_vigilia_gate` — vigilia-convergence (L1+L2=0) gates commit on new namespaced homes; SCORE-green is the floor, not the bar
+- `feedback_ward_zone_comms_only` — scoped to `{src,tests}/comms/*`; the `feedback_namespaced_home_vigilia_gate` doctrine extends the standard to `src/argspec/*` + future namespaced homes
 - `feedback_spawn_block_winding` — arc 237 stays paused until 241 closes; defenum INSIDE 241 not deferred
 - `feedback_sonnet_writes_substrate` — orchestrator briefs/scores; sonnet writes Rust
 - `feedback_stone_briefs_cite_prior_score` — BRIEFs cite arc 236.0 mint-stone SCORE for shape parallel

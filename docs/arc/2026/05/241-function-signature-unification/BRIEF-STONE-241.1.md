@@ -317,6 +317,14 @@ Probe at `tests/probe_arc241_stone1_argspec_canonical.rs` committed `e0d1d054`. 
 
 Post-stone: 10/10 PASS.
 
+## Post-SCORE vigilia gate (commit-readiness, per `feedback_namespaced_home_vigilia_gate`)
+
+`src/argspec/` is a new namespaced wat-rs home. **SCORE-green is the floor; vigilia-convergence is the bar.** After sonnet returns Mode A and the 16-row SCORE scorecard verifies independently, the orchestrator casts vigilia on `src/argspec/*` + the probe file. Vigilia (`~/work/holon/datamancy/vigilia/SKILL.md`) is the aggregator spell; it spawns the applicable defensive subset in parallel — for this home: intueri + solvere + purgare + struere + sequi + temperare + complectens + vocare (8 spells).
+
+Findings driven to **L1 + L2 = 0** before commit. L3 taste is noted, not counted. L2 mumbles may be accepted via `rune:<spell>(<category>) — <reason>` inscribed at the line, REASON load-bearing.
+
+This bar applies to ALL namespaced wat-rs homes going forward (per user direction 2026-05-28: *"we raise the bar fucking high for namespaced wat-rs files"*). Sonnet's responsibility is test-as-you-go cadence (probe, cargo test --lib, cargo clippy) — the L0 floor. The L1+L2=0 bar is orchestrator-side post-SCORE work.
+
 ## SCORE doc spec
 
 `docs/arc/2026/05/241-function-signature-unification/SCORE-STONE-241.1.md` (NEW). Mirror `SCORE-STONE-236.0.md` structural shape verbatim:

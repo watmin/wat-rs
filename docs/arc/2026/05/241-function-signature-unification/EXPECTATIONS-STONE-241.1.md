@@ -61,14 +61,42 @@ These confirm HEAD is clean enough for the substrate-as-teacher cascade to produ
 3. **Workspace test-build at HEAD = 1 error** (the probe; expected). No OTHER errors in test-build.
 4. **Clippy at HEAD baseline.** Capture exact warning count immediately before spawn; row 14 compares against it.
 
-## What completion looks like
+## What completion looks like (TWO phases — SCORE-green is the floor; vigilia-convergence is the bar)
+
+### Phase A — SCORE scorecard verification (sonnet's behavioral correctness)
 
 After sonnet returns Mode A:
 - 16/16 rows of the scorecard verify locally (orchestrator's independent re-run)
 - `SCORE-STONE-241.1.md` written with verbatim row results + honest deltas
-- Atomic commit covers: `src/argspec/*` (3 files) + `src/lib.rs` (1 line) + `SCORE-STONE-241.1.md`
+- **DO NOT commit yet.** Phase A is the L0 floor — substrate works. The bar is Phase B.
+
+### Phase B — Vigilia convergence on the namespaced home (per `feedback_namespaced_home_vigilia_gate`)
+
+Once behavior is dialed in (Phase A green), orchestrator casts **vigilia** on `src/argspec/*` + `tests/probe_arc241_stone1_argspec_canonical.rs`. Vigilia (`~/work/holon/datamancy/vigilia/SKILL.md`) is the aggregator; it spawns the applicable defensive subset in parallel:
+
+| Spell | Concern | Expected for this home |
+|---|---|---|
+| intueri | Names + structure + communication | Module doc inscribes the doctrine; names speak; ArgSpec/ParseOptions/ArgSpecError say what they hold |
+| solvere | Braided concerns; misplaced logic | Parser walker stays in `parse.rs`; error variants in `error.rs`; re-exports only in `mod.rs` |
+| purgare | Dead code; unused state | Every variant of ArgSpecError reachable; no unused ParseOptions field; helpers reachable |
+| struere | Per-function craft | `parse_argspec_triples` is one function doing one thing; helper `is_bare_symbol` is atomic; values flowing through |
+| sequi | Per-chain state threading via types | `Result<ArgSpec, ArgSpecError>` carries everything; no `&mut` accumulation |
+| temperare | Redundant work | No re-parsing; no shadow allocations; helper reused, not duplicated |
+| complectens | Test composition | Probe's 10 contracts compose from one helper (`argspec_inputs`); each test is one layer |
+| vocare | Caller-vantage testing | Probe tests the parser as a caller would invoke it (slice + options); not implementation internals |
+
+**Bar:** L1 + L2 findings = 0. L3 taste noted, not counted. L2 mumbles MAY be accepted via `rune:<spell>(<category>) — <reason>` inscribed at the line if the rune's REASON is load-bearing (per intueri's rune discipline; per vigilia's "do not skip inconvenient findings" rule).
+
+If vigilia finds anything: orchestrator addresses OR directs sonnet to amend; re-cast vigilia; iterate until L1+L2=0.
+
+### Phase C — Commit + push (only after Phase A + Phase B both green)
+
+- SCORE doc amended with a **Vigilia Convergence** section listing each spell's verdict + any runes accepted
+- Atomic commit covers: `src/argspec/*` (3 files) + `src/lib.rs` (1 line) + `SCORE-STONE-241.1.md` (with Vigilia Convergence section)
 - Push to origin
-- **Phase 1 stepping stone laid.** Stone 241.2 (migrate A1/A2/A3) can begin against the proven foundation.
+- **Phase 1 stepping stone laid.** Stone 241.2 (migrate A1/A2/A3) can begin against the **proven AND impeccable** foundation.
+
+User direction governing this two-phase structure: *"we raise the bar fucking high for namespaced wat-rs files - we ensure {src,tests}/argspec/ are shockingly good, remarkably well written - the spells ensure this - we do not move from those until we are exceptional."*
 
 ## Calibration history reference
 
