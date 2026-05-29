@@ -1424,19 +1424,23 @@ pub enum TypeError {
     /// Arc 138 slice 2 — `span` names the offending field item (the
     /// `(name :Type)` form or whatever stand-in landed in its place).
     MalformedField { reason: String, span: Span },
-    /// Arc 130 follow-up — surface enum / variant / span / hint at
+    /// Arc 130 follow-up — surface enum / variant / span / remedies at
     /// type-registration time. The shape was previously a bare
     /// `reason: String`, which gave consumers no location data and no
-    /// migration hint when sonnet (or a human) wrote a unit variant as
-    /// a bare symbol (`PutAck`) instead of the canonical keyword
-    /// (`:PutAck`). The hint is self-describing per the substrate-as-
-    /// teacher discipline.
+    /// structured remedy when sonnet (or a human) wrote a unit variant
+    /// as a bare symbol (`PutAck`) instead of the canonical keyword
+    /// (`:PutAck`). Stone 241.10 upgrades from `hint: Option<String>`
+    /// to `remedies: Vec<Remedy>` — structured ranked candidates per
+    /// the substrate-errors-as-values doctrine (arc 233).
     MalformedVariant {
         enum_name: String,
         span: Span,
         offending: String,
         reason: String,
-        hint: Option<String>,
+        /// Ranked structured remediation candidates. Empty vec = no
+        /// remedy offered. Per `feedback_no_semantic_abuse_of_option`:
+        /// `Vec<Remedy>` not `Option<Vec<Remedy>>` — empty IS absence.
+        remedies: Vec<crate::remedy::Remedy>,
     },
     /// Arc 138 slice 2 — `span` names the bad type keyword (the
     /// outermost type expression that failed to parse).
@@ -1574,15 +1578,16 @@ impl fmt::Display for TypeError {
                 span,
                 offending,
                 reason,
-                hint,
+                remedies,
             } => {
                 write!(
                     f,
                     "{}: malformed enum variant in '{}': '{}' — {}",
                     span, enum_name, offending, reason
                 )?;
-                if let Some(h) = hint {
-                    write!(f, "\n  hint: {}", h)?;
+                let section = crate::remedy::render_remedies(remedies);
+                if !section.is_empty() {
+                    write!(f, "\n{}", section)?;
                 }
                 Ok(())
             }
@@ -2367,7 +2372,7 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                     span: item.span().clone(),
                     offending: format!("{:?}", k),
                     reason: "defenum variant must be a keyword starting with ':'".to_string(),
-                    hint: None,
+                    remedies: vec![],
                 })?.to_string();
 
                 // One-token look-ahead: peek at the NEXT item.
@@ -2394,15 +2399,17 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                 }
             }
             WatAST::Symbol(ident, _) => {
+                // Bare symbol where a keyword is expected: offer "write it as :<name>" remedy.
+                let needle = format!(":{}", ident.name);
                 return Err(TypeError::MalformedVariant {
                     enum_name: name.clone(),
                     span: item.span().clone(),
                     offending: ident.name.clone(),
-                    reason: "defenum variant must be a keyword; got bare symbol".to_string(),
-                    hint: Some(format!(
-                        "if '{}' is a unit variant, write it as the keyword ':{}'",
-                        ident.name, ident.name
-                    )),
+                    reason: format!(
+                        "defenum variant must be a keyword; got bare symbol '{}' — write it as the keyword '{}'",
+                        ident.name, needle,
+                    ),
+                    remedies: vec![],
                 });
             }
             other => {
@@ -2411,7 +2418,7 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                     span: other.span().clone(),
                     offending: format!("{:?}", other),
                     reason: "defenum variant must be a keyword (unit) or keyword followed by Vector (tagged)".to_string(),
-                    hint: None,
+                    remedies: vec![],
                 });
             }
         }

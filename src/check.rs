@@ -110,6 +110,10 @@ pub enum CheckError {
         got: String,
         /// Arc 138 slice 1 — see `ArityMismatch::span`.
         span: Span,
+        /// Stone 241.10 — ranked structured remediation candidates.
+        /// Empty vec = no remedy. Per `feedback_no_semantic_abuse_of_option`:
+        /// `Vec<Remedy>` not `Option<Vec<Remedy>>`.
+        remedies: Vec<crate::remedy::Remedy>,
     },
     UnknownCallee {
         callee: String,
@@ -125,6 +129,10 @@ pub enum CheckError {
         reason: String,
         /// Arc 138 slice 1 — see `ArityMismatch::span`.
         span: Span,
+        /// Stone 241.10 — ranked structured remediation candidates.
+        /// Empty vec = no remedy. Per `feedback_no_semantic_abuse_of_option`:
+        /// `Vec<Remedy>` not `Option<Vec<Remedy>>`.
+        remedies: Vec<crate::remedy::Remedy>,
     },
     /// Arc 110 — `:wat::kernel::send` / `:wat::kernel::recv` appeared
     /// somewhere other than the discriminant of `:wat::core::match`
@@ -754,6 +762,7 @@ impl fmt::Display for CheckError {
                 expected,
                 got,
                 span,
+                remedies,
             } => {
                 write!(
                     f,
@@ -763,13 +772,22 @@ impl fmt::Display for CheckError {
                 if let Some(hint) = collect_hints(function, expected, got) {
                     write!(f, "\n  hint: {}", hint)?;
                 }
+                let section = crate::remedy::render_remedies(remedies);
+                if !section.is_empty() {
+                    write!(f, "\n{}", section)?;
+                }
                 Ok(())
             }
             CheckError::UnknownCallee { callee, span } => {
                 write!(f, "{}unknown callee: {}", span_prefix(span), callee)
             }
-            CheckError::MalformedForm { head, reason, span } => {
-                write!(f, "{}malformed {} form: {}", span_prefix(span), head, reason)
+            CheckError::MalformedForm { head, reason, span, remedies } => {
+                write!(f, "{}malformed {} form: {}", span_prefix(span), head, reason)?;
+                let section = crate::remedy::render_remedies(remedies);
+                if !section.is_empty() {
+                    write!(f, "\n{}", section)?;
+                }
+                Ok(())
             }
             CheckError::CommCallOutOfPosition { callee, span } => write!(
                 f,
@@ -1380,7 +1398,7 @@ impl CheckError {
                 }
                 diag
             }
-            CheckError::ReturnTypeMismatch { function, expected, got, span } => {
+            CheckError::ReturnTypeMismatch { function, expected, got, span, remedies } => {
                 let mut diag = Diagnostic::new("ReturnTypeMismatch")
                     .field("function", function.as_str())
                     .field("expected", expected.as_str())
@@ -1391,6 +1409,10 @@ impl CheckError {
                 if let Some(hint) = collect_hints(function, expected, got) {
                     diag = diag.field("hint", hint);
                 }
+                let section = crate::remedy::render_remedies(remedies);
+                if !section.is_empty() {
+                    diag = diag.field("remedies", section);
+                }
                 diag
             }
             CheckError::UnknownCallee { callee, span } => {
@@ -1400,12 +1422,16 @@ impl CheckError {
                 }
                 diag
             }
-            CheckError::MalformedForm { head, reason, span } => {
+            CheckError::MalformedForm { head, reason, span, remedies } => {
                 let mut diag = Diagnostic::new("MalformedForm")
                     .field("head", head.as_str())
                     .field("reason", reason.as_str());
                 if !span.is_unknown() {
                     diag = diag.field("span", span.to_string());
+                }
+                let section = crate::remedy::render_remedies(remedies);
+                if !section.is_empty() {
+                    diag = diag.field("remedies", section);
                 }
                 diag
             }
@@ -5057,17 +5083,70 @@ fn check_function_body(
     let body_ty = infer(&func.body, env, &locals, fresh, &mut subst).drain_errors_into(errors);
     fresh.pop_enclosing_ret();
     // Unify body type with declared return type. If unification fails,
-    // produce a ReturnTypeMismatch.
+    // produce a ReturnTypeMismatch with ranked remedies when the body
+    // looks like a typo'd variant constructor (keyword literal vs enum type).
     if let Some(body_ty) = body_ty {
         if unify(&body_ty, &scheme.ret, &mut subst, env.types()).is_err() {
+            let resolved_ret = apply_subst(&scheme.ret, &subst);
+            let resolved_body = apply_subst(&body_ty, &subst);
+            let remedies = variant_typo_remedies(&func.body, &resolved_ret, env.types());
             errors.push(CheckError::ReturnTypeMismatch {
                 function: path.to_string(),
-                expected: format_type(&apply_subst(&scheme.ret, &subst)),
-                got: format_type(&apply_subst(&body_ty, &subst)),
+                expected: format_type(&resolved_ret),
+                got: format_type(&resolved_body),
                 span: func.body.span().clone(),
+                remedies,
             });
         }
     }
+}
+
+/// Stone 241.10 — variant-constructor typo remediation for ReturnTypeMismatch.
+///
+/// When a function body is a bare keyword literal (types as `:wat::core::keyword`)
+/// but the declared return type is a registered enum, the user likely typo'd a
+/// variant constructor path. Extract the needle from the body AST and rank it
+/// against the enum's known variant constructor names.
+///
+/// Returns `vec![]` when the pattern doesn't match (body not a keyword, expected
+/// type not a registered enum, or no candidates within threshold).
+fn variant_typo_remedies(
+    body: &WatAST,
+    expected: &crate::types::TypeExpr,
+    types: &crate::types::TypeEnv,
+) -> Vec<crate::remedy::Remedy> {
+    use crate::types::{TypeDef, TypeExpr, EnumVariant};
+    use crate::remedy::nearest_match;
+
+    // Only fires when the body is a bare keyword literal.
+    let needle = match body {
+        WatAST::Keyword(k, _) => k.as_str(),
+        _ => return vec![],
+    };
+
+    // Extract the expected enum's path name (must be a Path type).
+    let enum_path = match expected {
+        TypeExpr::Path(p) => p.as_str(),
+        _ => return vec![],
+    };
+
+    // Look up the enum in the type environment.
+    let enum_def = match types.get(enum_path) {
+        Some(TypeDef::Enum(e)) => e,
+        _ => return vec![],
+    };
+
+    // Build the candidate constructor paths: `:EnumPath::VariantName`.
+    // Unit variants use keyword form; tagged variants use constructor form.
+    // Both are referenced by the user as `:ns::EnumName::VariantName`.
+    let candidates: Vec<String> = enum_def.variants.iter().map(|v| {
+        let variant_name = match v {
+            EnumVariant::Unit(n) | EnumVariant::Tagged { name: n, .. } => n,
+        };
+        format!("{}::{}", enum_path, variant_name)
+    }).collect();
+
+    nearest_match(needle, candidates.iter().map(|s| s.as_str()))
 }
 
 fn check_form(
@@ -5260,6 +5339,7 @@ fn infer(
                          value position is not supported"
                     .into(),
                 span: span.clone(),
+                remedies: vec![],
             });
             // HARVEST (236.1): error path already had diagnostic (Classification 3).
             CheckResult::errs(local_errors)
@@ -5571,6 +5651,7 @@ fn infer_list(
                             args.len()
                         ),
                         span: head_span.clone(),
+                        remedies: vec![],
                     });
                     return CheckResult::errs(local_errors);
                 }
@@ -5580,6 +5661,7 @@ fn infer_list(
                         head: ":wat::core::subtype?".into(),
                         reason: "first arg must be a type keyword (e.g. :my::Child)".into(),
                         span: args[0].span().clone(),
+                        remedies: vec![],
                     });
                     return CheckResult::errs(local_errors);
                 }
@@ -5589,6 +5671,7 @@ fn infer_list(
                         head: ":wat::core::subtype?".into(),
                         reason: "second arg must be a type keyword (e.g. :my::Parent)".into(),
                         span: args[1].span().clone(),
+                        remedies: vec![],
                     });
                     return CheckResult::errs(local_errors);
                 }
@@ -5621,6 +5704,7 @@ fn infer_list(
                             args.len()
                         ),
                         span: head_span.clone(),
+                        remedies: vec![],
                     });
                     return CheckResult::errs(local_errors);
                 }
@@ -5636,6 +5720,7 @@ fn infer_list(
                         head: ":wat::core::conforms?".into(),
                         reason: "second arg must be a type keyword (e.g. :my::Type or :wat::core::Vector<my::T>)".into(),
                         span: args[1].span().clone(),
+                        remedies: vec![],
                     });
                     return CheckResult::errs(local_errors);
                 }
@@ -6937,11 +7022,10 @@ fn infer_list(
             ":wat::core::struct" | ":wat::core::struct-restricted" => {
                 return CheckResult::errs(vec![CheckError::MalformedForm {
                     head: k.to_string(),
-                    reason: format!(
-                        "'{}' is retired (Stone 241.8); use ':wat::core::defstruct' instead",
-                        k
-                    ),
+                    reason: format!("'{}' is retired (Stone 241.8)", k),
                     span: head_span.clone(),
+                    // Stone 241.10: retirement_lookup hits the table → structured remedy.
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
                 }]);
             }
             // Stone 241.9 — HARD CUT: legacy enum form is REJECTED at check time.
@@ -6949,11 +7033,10 @@ fn infer_list(
             ":wat::core::enum" => {
                 return CheckResult::errs(vec![CheckError::MalformedForm {
                     head: k.to_string(),
-                    reason: format!(
-                        "'{}' is retired (Stone 241.9); use ':wat::core::defenum' instead",
-                        k
-                    ),
+                    reason: format!("'{}' is retired (Stone 241.9)", k),
                     span: head_span.clone(),
+                    // Stone 241.10: retirement_lookup hits the table → structured remedy.
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
                 }]);
             }
             ":wat::core::define"
@@ -7471,6 +7554,7 @@ fn infer_match(
             head: ":wat::core::match".into(),
             reason: "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into(),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -7486,6 +7570,7 @@ fn infer_match(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -7502,6 +7587,7 @@ fn infer_match(
                     head: ":wat::core::match".into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[2].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -7512,6 +7598,7 @@ fn infer_match(
                 head: ":wat::core::match".into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[2].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -7578,6 +7665,7 @@ fn infer_match(
                     head: ":wat::core::match".into(),
                     reason: format!("arm #{} must be `(pattern body)`", idx + 1),
                     span: arm.span().clone(),
+                    remedies: vec![],
                 });
                 continue;
             }
@@ -7770,6 +7858,7 @@ fn infer_match(
                 MatchShape::Open(_) => "non-exhaustive: open-typed match needs at least one hash-destructure arm or a wildcard `_` arm.".into(),
             },
             span: head_span.clone(),
+            remedies: vec![],
         });
     }
 
@@ -8004,6 +8093,7 @@ fn pattern_coverage(
                         format_type(&shape.as_type())
                     ),
                     span: pattern.span().clone(),
+                    remedies: vec![],
                 });
                 None
             }
@@ -8028,6 +8118,7 @@ fn pattern_coverage(
                                 k
                             ),
                             span: pattern.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8040,6 +8131,7 @@ fn pattern_coverage(
                             k, enum_path
                         ),
                         span: pattern.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8059,6 +8151,7 @@ fn pattern_coverage(
                                 k, k
                             ),
                             span: pattern.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8070,6 +8163,7 @@ fn pattern_coverage(
                                 variant_name, enum_path
                             ),
                             span: pattern.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8083,6 +8177,7 @@ fn pattern_coverage(
                         head: ":wat::core::match".into(),
                         reason: format!("enum {} not declared", enum_path),
                         span: pattern.span().clone(),
+                        remedies: vec![],
                     });
                     None
                 }
@@ -8096,6 +8191,7 @@ fn pattern_coverage(
                         format_type(&shape.as_type())
                     ),
                     span: pattern.span().clone(),
+                    remedies: vec![],
                 });
                 None
             }
@@ -8114,6 +8210,7 @@ fn pattern_coverage(
                         head: ":wat::core::match".into(),
                         reason: "empty list pattern".into(),
                         span: pattern.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8142,6 +8239,7 @@ fn pattern_coverage(
                                 format_type(&shape.as_type())
                             ),
                             span: pattern.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8156,6 +8254,7 @@ fn pattern_coverage(
                                 variant_path
                             ),
                             span: pattern.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8168,6 +8267,7 @@ fn pattern_coverage(
                             variant_path, enum_path
                         ),
                         span: pattern.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8178,6 +8278,7 @@ fn pattern_coverage(
                             head: ":wat::core::match".into(),
                             reason: format!("enum {} not declared", enum_path),
                             span: pattern.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8200,6 +8301,7 @@ fn pattern_coverage(
                                 variant_path, enum_path
                             ),
                             span: pattern.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8214,6 +8316,7 @@ fn pattern_coverage(
                             rest.len()
                         ),
                         span: pattern.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8249,6 +8352,7 @@ fn pattern_coverage(
                             ast_variant_name_check(other)
                         ),
                         span: other.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8323,6 +8427,7 @@ fn pattern_coverage(
                         head: ":wat::core::match".into(),
                         reason,
                         span: pattern.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8336,6 +8441,7 @@ fn pattern_coverage(
                         rest.len()
                     ),
                     span: pattern.span().clone(),
+                    remedies: vec![],
                 });
                 return None;
             }
@@ -8350,6 +8456,7 @@ fn pattern_coverage(
                     ast_variant_name_check(other)
                 ),
                 span: other.span().clone(),
+                remedies: vec![],
             });
             None
         }
@@ -8404,6 +8511,7 @@ fn check_subpattern(
                         format_type(other)
                     ),
                     span: pat.span().clone(),
+                    remedies: vec![],
                 });
                 None
             }
@@ -8418,6 +8526,7 @@ fn check_subpattern(
                         format_type(other)
                     ),
                     span: pat.span().clone(),
+                    remedies: vec![],
                 });
                 None
             }
@@ -8432,6 +8541,7 @@ fn check_subpattern(
                         format_type(other)
                     ),
                     span: pat.span().clone(),
+                    remedies: vec![],
                 });
                 None
             }
@@ -8446,6 +8556,7 @@ fn check_subpattern(
                         format_type(other)
                     ),
                     span: pat.span().clone(),
+                    remedies: vec![],
                 });
                 None
             }
@@ -8464,6 +8575,7 @@ fn check_subpattern(
                         format_type(other)
                     ),
                     span: pat.span().clone(),
+                    remedies: vec![],
                 });
                 None
             }
@@ -8481,6 +8593,7 @@ fn check_subpattern(
                             k
                         ),
                         span: pat.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8496,6 +8609,7 @@ fn check_subpattern(
                             format_type(other)
                         ),
                         span: pat.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8508,6 +8622,7 @@ fn check_subpattern(
                         k, enum_path
                     ),
                     span: pat.span().clone(),
+                    remedies: vec![],
                 });
                 return None;
             }
@@ -8523,6 +8638,7 @@ fn check_subpattern(
                             k, enum_path, k
                         ),
                         span: pat.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8532,6 +8648,7 @@ fn check_subpattern(
                     head: ":wat::core::match".into(),
                     reason: format!("enum {} not declared", enum_path),
                     span: pat.span().clone(),
+                    remedies: vec![],
                 });
                 None
             }
@@ -8544,6 +8661,7 @@ fn check_subpattern(
                         head: ":wat::core::match".into(),
                         reason: "empty list sub-pattern".into(),
                         span: pat.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8572,6 +8690,7 @@ fn check_subpattern(
                                     items.len() - 1
                                 ),
                                 span: pat.span().clone(),
+                                remedies: vec![],
                             });
                             return None;
                         }
@@ -8590,6 +8709,7 @@ fn check_subpattern(
                                     items.len() - 1
                                 ),
                                 span: pat.span().clone(),
+                                remedies: vec![],
                             });
                             return None;
                         }
@@ -8608,6 +8728,7 @@ fn check_subpattern(
                                     items.len() - 1
                                 ),
                                 span: pat.span().clone(),
+                                remedies: vec![],
                             });
                             return None;
                         }
@@ -8644,6 +8765,7 @@ fn check_subpattern(
                             format_type(expected_ty)
                         ),
                         span: pat.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8658,6 +8780,7 @@ fn check_subpattern(
                                 format_type(other)
                             ),
                             span: pat.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8672,6 +8795,7 @@ fn check_subpattern(
                                 variant_path
                             ),
                             span: pat.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8684,6 +8808,7 @@ fn check_subpattern(
                             variant_path, enum_path
                         ),
                         span: pat.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8694,6 +8819,7 @@ fn check_subpattern(
                             head: ":wat::core::match".into(),
                             reason: format!("enum {} not declared", enum_path),
                             span: pat.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8716,6 +8842,7 @@ fn check_subpattern(
                                 variant_path, enum_path
                             ),
                             span: pat.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8731,6 +8858,7 @@ fn check_subpattern(
                             rest.len()
                         ),
                         span: pat.span().clone(),
+                        remedies: vec![],
                     });
                     return None;
                 }
@@ -8751,6 +8879,7 @@ fn check_subpattern(
                                 elem_tys.len()
                             ),
                             span: pat.span().clone(),
+                            remedies: vec![],
                         });
                         return None;
                     }
@@ -8771,6 +8900,7 @@ fn check_subpattern(
                             format_type(other)
                         ),
                         span: pat.span().clone(),
+                        remedies: vec![],
                     });
                     None
                 }
@@ -8785,6 +8915,7 @@ fn check_subpattern(
                 head: ":wat::core::match".into(),
                 reason: "vector sub-patterns are not supported in arc 167".into(),
                 span: pat.span().clone(),
+                remedies: vec![],
             });
             None
         }
@@ -8796,6 +8927,7 @@ fn check_subpattern(
                 head: ":wat::core::match".into(),
                 reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
                 span: pat.span().clone(),
+                remedies: vec![],
             });
             None
         }
@@ -8842,6 +8974,7 @@ fn infer_if(
             head: ":wat::core::if".into(),
             reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into(),
             span: head_span.clone(),
+            remedies: vec![],
         });
         // Still recurse into the body so inner errors surface too.
         let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -8858,6 +8991,7 @@ fn infer_if(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -8873,6 +9007,7 @@ fn infer_if(
                 head: ":wat::core::if".into(),
                 reason: "expected `->` between cond and type".into(),
                 span: args[1].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -8886,6 +9021,7 @@ fn infer_if(
                     head: ":wat::core::if".into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[2].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -8896,6 +9032,7 @@ fn infer_if(
                 head: ":wat::core::if".into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[2].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -8976,6 +9113,7 @@ fn infer_do(
             head: ":wat::core::do".into(),
             reason: "do form requires at least one form; got zero".into(),
             span: head_span.clone(),
+            remedies: vec![],
         });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
@@ -9023,6 +9161,7 @@ fn infer_cond(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -9037,6 +9176,7 @@ fn infer_cond(
                 head: ":wat::core::cond".into(),
                 reason: "expected `->` at position 1".into(),
                 span: args[0].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -9050,6 +9190,7 @@ fn infer_cond(
                     head: ":wat::core::cond".into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[1].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -9060,6 +9201,7 @@ fn infer_cond(
                 head: ":wat::core::cond".into(),
                 reason: "expected type keyword at position 2 (after `->`)".into(),
                 span: args[1].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -9080,6 +9222,7 @@ fn infer_cond(
                     xs.len()
                 ),
                 span: last.span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -9089,6 +9232,7 @@ fn infer_cond(
                 head: ":wat::core::cond".into(),
                 reason: "last arm must be a list (:else body)".into(),
                 span: last.span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -9100,6 +9244,7 @@ fn infer_cond(
             head: ":wat::core::cond".into(),
             reason: "last arm must be (:else body) — cond requires an explicit default".into(),
             span: last.span().clone(),
+            remedies: vec![],
         });
     }
 
@@ -9115,6 +9260,7 @@ fn infer_cond(
                         xs.len()
                     ),
                     span: arm.span().clone(),
+                    remedies: vec![],
                 });
                 continue;
             }
@@ -9127,6 +9273,7 @@ fn infer_cond(
                         other
                     ),
                     span: other.span().clone(),
+                    remedies: vec![],
                 });
                 continue;
             }
@@ -9214,6 +9361,7 @@ fn infer_let(
                         items.len()
                     ),
                     span: span.clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -9233,6 +9381,7 @@ fn infer_let(
                 head: ":wat::core::let".into(),
                 reason: "let bindings must be a flat vector `[name expr ...]`".into(),
                 span: other.span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -9371,6 +9520,7 @@ fn infer_def(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -9390,6 +9540,7 @@ fn infer_def(
                     other
                 ),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             // Still infer the expr so internal errors surface.
             let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -9415,6 +9566,7 @@ fn infer_def(
                 head: ":wat::core::def".into(),
                 reason: "second arg of 4-item def must be a metadata-map `{key val ...}`".into(),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
         }
@@ -9428,6 +9580,7 @@ fn infer_def(
                 head: ":wat::core::def".into(),
                 reason: "empty metadata-map `{}` is illegal; provide at least one key-value pair".into(),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
         }
@@ -9535,6 +9688,7 @@ fn infer_defclause(
                 head: ":wat::core::defclause".into(),
                 reason: format!("{}", e),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
         }
@@ -9611,6 +9765,7 @@ fn infer_defclause(
                                         expected: format_type(&apply_subst(&clause.return_type, &clause_subst)),
                                         got: format_type(&apply_subst(&body_ty, &clause_subst)),
                                         span: clause.body.span().clone(),
+                                        remedies: vec![],
                                     });
                                 }
                             }
@@ -9645,6 +9800,7 @@ fn infer_defclause(
                                 expected: format_type(&apply_subst(&clause.return_type, &clause_subst)),
                                 got: format_type(&apply_subst(&body_ty, &clause_subst)),
                                 span: clause.body.span().clone(),
+                                remedies: vec![],
                             });
                         }
                     }
@@ -9735,6 +9891,7 @@ fn infer_defclause(
                     expected: format_type(&apply_subst(&clause.return_type, &clause_subst)),
                     got: format_type(&apply_subst(&body_ty, &clause_subst)),
                     span: clause.body.span().clone(),
+                    remedies: vec![],
                 });
             }
         }
@@ -9788,6 +9945,7 @@ fn infer_def_restricted(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             // Don't recurse into Vector arg — it would fire the
@@ -9811,6 +9969,7 @@ fn infer_def_restricted(
                     other
                 ),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             let _ = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; declaration — return unit with errors.
@@ -9829,6 +9988,7 @@ fn infer_def_restricted(
                     other
                 ),
                 span: other.span().clone(),
+                remedies: vec![],
             });
         }
     }
@@ -9845,6 +10005,7 @@ fn infer_def_restricted(
                             item
                         ),
                         span: item.span().clone(),
+                        remedies: vec![],
                     });
                 }
             }
@@ -9857,6 +10018,7 @@ fn infer_def_restricted(
                     other
                 ),
                 span: other.span().clone(),
+                remedies: vec![],
             });
         }
     }
@@ -9934,6 +10096,7 @@ fn infer_config_set_bool(
                 head, head, args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         // HARVEST (236.2): existing diagnostic; declaration — return unit with errors.
         return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
@@ -10462,6 +10625,7 @@ fn infer_try(
                     callee
                 ),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; straight conversion.
@@ -10487,6 +10651,7 @@ fn infer_try(
                     callee
                 ),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; straight conversion.
@@ -10578,6 +10743,7 @@ fn infer_option_try(
                     callee
                 ),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; straight conversion.
@@ -10597,6 +10763,7 @@ fn infer_option_try(
                     callee
                 ),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; straight conversion.
@@ -10676,6 +10843,7 @@ fn infer_option_expect(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -10694,6 +10862,7 @@ fn infer_option_expect(
                     callee
                 ),
                 span: args[0].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -10708,6 +10877,7 @@ fn infer_option_expect(
                     head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[1].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -10718,6 +10888,7 @@ fn infer_option_expect(
                 head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[1].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -10787,6 +10958,7 @@ fn infer_result_expect(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -10804,6 +10976,7 @@ fn infer_result_expect(
                     callee
                 ),
                 span: args[0].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -10817,6 +10990,7 @@ fn infer_result_expect(
                     head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[1].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -10827,6 +11001,7 @@ fn infer_result_expect(
                 head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[1].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -10908,6 +11083,7 @@ fn infer_kernel_readln(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
@@ -10922,6 +11098,7 @@ fn infer_kernel_readln(
                     callee
                 ),
                 span: args[0].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -10935,6 +11112,7 @@ fn infer_kernel_readln(
                     head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[1].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -10945,6 +11123,7 @@ fn infer_kernel_readln(
                 head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[1].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -10991,6 +11170,7 @@ fn infer_apply(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
@@ -11004,6 +11184,7 @@ fn infer_apply(
                 head: ":wat::core::apply".into(),
                 reason: "position 1 must be the `->` symbol (inline return-type annotation)".into(),
                 span: other.span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11023,6 +11204,7 @@ fn infer_apply(
                         e
                     ),
                     span: args[1].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -11033,6 +11215,7 @@ fn infer_apply(
                 head: ":wat::core::apply".into(),
                 reason: "position 2 must be a type keyword `:T` (e.g. `:wat::core::i64`)".into(),
                 span: other.span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11088,6 +11271,7 @@ fn infer_program_env_get(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11138,6 +11322,7 @@ fn infer_program_env_get(
                     CALLEE
                 ),
                 span: args[2].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11152,6 +11337,7 @@ fn infer_program_env_get(
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[3].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -11162,6 +11348,7 @@ fn infer_program_env_get(
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[3].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11204,6 +11391,7 @@ fn infer_program_env_expect_get(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11254,6 +11442,7 @@ fn infer_program_env_expect_get(
                     CALLEE
                 ),
                 span: args[2].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11268,6 +11457,7 @@ fn infer_program_env_expect_get(
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[3].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -11278,6 +11468,7 @@ fn infer_program_env_expect_get(
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[3].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11317,6 +11508,7 @@ fn infer_program_env_get_default(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11367,6 +11559,7 @@ fn infer_program_env_get_default(
                     CALLEE
                 ),
                 span: args[3].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11381,6 +11574,7 @@ fn infer_program_env_get_default(
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[4].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -11391,6 +11585,7 @@ fn infer_program_env_get_default(
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[4].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11458,6 +11653,7 @@ fn infer_program_env_dig(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11516,6 +11712,7 @@ fn infer_program_env_dig(
                     CALLEE
                 ),
                 span: args[2].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11530,6 +11727,7 @@ fn infer_program_env_dig(
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[3].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -11540,6 +11738,7 @@ fn infer_program_env_dig(
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[3].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11582,6 +11781,7 @@ fn infer_program_env_expect_dig(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11636,6 +11836,7 @@ fn infer_program_env_expect_dig(
                     CALLEE
                 ),
                 span: args[2].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11650,6 +11851,7 @@ fn infer_program_env_expect_dig(
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[3].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -11660,6 +11862,7 @@ fn infer_program_env_expect_dig(
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[3].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11699,6 +11902,7 @@ fn infer_program_env_dig_default(
                 args.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11753,6 +11957,7 @@ fn infer_program_env_dig_default(
                     CALLEE
                 ),
                 span: args[3].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -11767,6 +11972,7 @@ fn infer_program_env_dig_default(
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     span: args[4].span().clone(),
+                    remedies: vec![],
                 });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
@@ -11777,6 +11983,7 @@ fn infer_program_env_dig_default(
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
                 span: args[4].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -12788,6 +12995,7 @@ fn infer_make_queue(
                     head: form.into(),
                     reason: format!("first argument {} is not a valid type keyword", k),
                     span: args[0].span().clone(),
+                    remedies: vec![],
                 });
                 fresh.fresh()
             }
@@ -12810,6 +13018,7 @@ fn infer_make_queue(
                     }
                 ),
                 span: other.span().clone(),
+                remedies: vec![],
             });
             fresh.fresh()
         }
@@ -13066,6 +13275,7 @@ fn process_let_binding(
                             fname, struct_def.name, declared
                         ),
                         span: span.clone(),
+                        remedies: vec![],
                     });
                 }
             }
@@ -13092,6 +13302,7 @@ fn process_let_binding(
             ast_variant_name_check(binder)
         ),
         span: binder.span().clone(),
+        remedies: vec![],
     });
 }
 
@@ -13137,6 +13348,7 @@ fn infer_hashset_constructor(
                             head: ":wat::core::HashSet".into(),
                             reason: format!("first argument {} is not a valid type keyword", k),
                             span: args[0].span().clone(),
+                            remedies: vec![],
                         });
                         fresh.fresh()
                     }
@@ -13148,6 +13360,7 @@ fn infer_hashset_constructor(
                 head: ":wat::core::HashSet".into(),
                 reason: "first argument must be a type keyword (e.g., :i64)".into(),
                 span: args[0].span().clone(),
+                remedies: vec![],
             });
             fresh.fresh()
         }
@@ -13487,6 +13700,7 @@ fn infer_record_of(
                          or a :wat::core::Vector expression"
                     .into(),
                 span: args[1].span().clone(),
+                remedies: vec![],
             });
         }
     }
@@ -13571,6 +13785,7 @@ fn infer_holon_record_of(
                          or a :wat::core::Vector expression"
                     .into(),
                 span: args[1].span().clone(),
+                remedies: vec![],
             });
         }
     }
@@ -13749,6 +13964,7 @@ fn infer_form_matches(
                 head: ":wat::form::matches?".into(),
                 reason: "pattern must be a list `(:TYPE-NAME clause ...)`".into(),
                 span: args[1].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; matches? always returns bool.
             return CheckResult::partial_with(bool_ty, local_errors);
@@ -13761,6 +13977,7 @@ fn infer_form_matches(
                 head: ":wat::form::matches?".into(),
                 reason: "pattern head must be a struct type keyword".into(),
                 span: pattern_items[0].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; matches? always returns bool.
             return CheckResult::partial_with(bool_ty, local_errors);
@@ -13778,6 +13995,7 @@ fn infer_form_matches(
                     type_name
                 ),
                 span: pattern_items[0].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; matches? always returns bool.
             return CheckResult::partial_with(bool_ty, local_errors);
@@ -13787,6 +14005,7 @@ fn infer_form_matches(
                 head: ":wat::form::matches?".into(),
                 reason: format!("unknown struct type {}", type_name),
                 span: pattern_items[0].span().clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; matches? always returns bool.
             return CheckResult::partial_with(bool_ty, local_errors);
@@ -13858,6 +14077,7 @@ fn check_clause(
                                     var
                                 ),
                                 span: right.span().clone(),
+                                remedies: vec![],
                             });
                             return;
                         }
@@ -13874,6 +14094,7 @@ fn check_clause(
                                     type_name, field_name
                                 ),
                                 span: right.span().clone(),
+                                remedies: vec![],
                             });
                             return;
                         }
@@ -13965,6 +14186,7 @@ fn grammar_error_to_check_error(e: crate::form_match::ClauseGrammarError, span: 
         head: ":wat::form::matches?".into(),
         reason,
         span,
+        remedies: vec![],
     }
 }
 
@@ -14586,6 +14808,7 @@ fn infer_hashmap_constructor(
                             head: ":wat::core::HashMap".into(),
                             reason: format!("first type argument {} is not a valid type keyword", k),
                             span: args[0].span().clone(),
+                            remedies: vec![],
                         });
                         fresh.fresh()
                     }
@@ -14597,6 +14820,7 @@ fn infer_hashmap_constructor(
                 head: ":wat::core::HashMap".into(),
                 reason: "first two arguments must be type keywords (K, V); first argument is not a keyword".into(),
                 span: args[0].span().clone(),
+                remedies: vec![],
             });
             fresh.fresh()
         }
@@ -14619,6 +14843,7 @@ fn infer_hashmap_constructor(
                             head: ":wat::core::HashMap".into(),
                             reason: format!("second type argument {} is not a valid type keyword", v),
                             span: args[1].span().clone(),
+                            remedies: vec![],
                         });
                         fresh.fresh()
                     }
@@ -14630,6 +14855,7 @@ fn infer_hashmap_constructor(
                 head: ":wat::core::HashMap".into(),
                 reason: "first two arguments must be type keywords (K, V); second argument is not a keyword".into(),
                 span: args[1].span().clone(),
+                remedies: vec![],
             });
             fresh.fresh()
         }
@@ -14643,6 +14869,7 @@ fn infer_hashmap_constructor(
                 pairs.len()
             ),
             span: head_span.clone(),
+            remedies: vec![],
         });
     }
     for (i, chunk) in pairs.chunks(2).enumerate() {
@@ -14697,6 +14924,7 @@ fn infer_tuple_constructor(
             head: ":wat::core::Tuple".into(),
             reason: "tuple must have at least one element".into(),
             span: head_span.clone(),
+            remedies: vec![],
         });
         // HARVEST (236.2): existing diagnostic; straight conversion — return placeholder Tuple type.
         return CheckResult::partial_with(TypeExpr::Tuple(vec![fresh.fresh()]), local_errors);
@@ -14891,6 +15119,7 @@ fn infer_dispatch_call(
                     impl_scheme.params.len()
                 ),
                 span: head_span.clone(),
+                remedies: vec![],
             });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::partial_with(fresh.fresh(), local_errors);
@@ -15093,6 +15322,7 @@ fn infer_list_constructor(
                             head: ":wat::core::vec".into(),
                             reason: format!("first argument {} is not a valid type keyword", k),
                             span: args[0].span().clone(),
+                            remedies: vec![],
                         });
                         fresh.fresh()
                     }
@@ -15104,6 +15334,7 @@ fn infer_list_constructor(
                 head: ":wat::core::vec".into(),
                 reason: "first argument must be a type keyword (e.g., :i64)".into(),
                 span: args[0].span().clone(),
+                remedies: vec![],
             });
             fresh.fresh()
         }
@@ -15270,6 +15501,7 @@ fn infer_fn(
                 expected: format_type(&apply_subst(&ret_type, subst)),
                 got: format_type(&apply_subst(&body_ty, subst)),
                 span: body_ast.span().clone(),
+                remedies: vec![],
             });
         }
     }
@@ -15350,6 +15582,7 @@ fn parse_fn_signature_for_check_diag(
                 head: ":wat::core::fn".into(),
                 reason: "fn signature missing `->` between args-vector and return type".into(),
                 span: other.span().clone(),
+                remedies: vec![],
             });
             return None;
         }
@@ -15365,6 +15598,7 @@ fn parse_fn_signature_for_check_diag(
                 head: ":wat::core::fn".into(),
                 reason: "fn signature missing return-type keyword after `->`".into(),
                 span: other.span().clone(),
+                remedies: vec![],
             });
             return None;
         }
@@ -15715,6 +15949,7 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
             head: head.into(),
             reason,
             span, // arc 138 F2: real span threaded through
+            remedies: vec![],
         });
     }
 

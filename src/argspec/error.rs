@@ -104,7 +104,7 @@ impl From<ArgSpecError> for crate::runtime::RuntimeError {
 impl From<ArgSpecError> for crate::check::CheckError {
     fn from(err: ArgSpecError) -> Self {
         let (span, head, reason) = err.classify();
-        Self::MalformedForm { head, reason, span }
+        Self::MalformedForm { head, reason, span, remedies: vec![] }
     }
 }
 
