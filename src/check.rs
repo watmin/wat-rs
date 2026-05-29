@@ -2043,7 +2043,8 @@ pub struct CheckEnv {
     /// Populated incrementally by `collect_splice_defs_ctx` when it
     /// encounters a `:wat::core::defclause` top-level form. Consumed
     /// in `infer_list` for call-site dispatch type-checking.
-    pub defclause_registrations: HashMap<String, Vec<(Vec<TypeExpr>, TypeExpr)>>,
+    /// Stone 241.5 — tuple is (fixed_arg_types, return_type, has_rest_binder).
+    pub defclause_registrations: HashMap<String, Vec<(Vec<TypeExpr>, TypeExpr, bool)>>,
 }
 
 impl CheckEnv {
@@ -2200,7 +2201,7 @@ impl CheckEnv {
     pub fn register_defclause(
         &mut self,
         name: String,
-        clauses: Vec<(Vec<TypeExpr>, TypeExpr)>,
+        clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)>,
         span: Span,
     ) {
         // Also register in defined_values so keyword references to the
@@ -2222,7 +2223,7 @@ impl CheckEnv {
     pub fn get_defclause_clauses(
         &self,
         name: &str,
-    ) -> Option<&Vec<(Vec<TypeExpr>, TypeExpr)>> {
+    ) -> Option<&Vec<(Vec<TypeExpr>, TypeExpr, bool)>> {
         self.defclause_registrations.get(name)
     }
 }
@@ -7038,13 +7039,15 @@ fn infer_list(
             // First-match-wins: arity match, then per-position unify.
             let mut matched_ret: Option<TypeExpr> = None;
             let mut attempted: Vec<(usize, Vec<String>)> = Vec::new();
-            'outer: for (clause_arg_types, clause_ret) in &clauses {
+            'outer: for (clause_arg_types, clause_ret, clause_has_rest) in &clauses {
                 let clause_arity = clause_arg_types.len();
                 attempted.push((
                     clause_arity,
                     clause_arg_types.iter().map(format_type).collect(),
                 ));
-                if clause_arity != called_arity {
+                // Stone 241.5 — variadic-min when clause has rest_param.
+                let arity_ok = if *clause_has_rest { called_arity >= clause_arity } else { called_arity == clause_arity };
+                if !arity_ok {
                     continue;
                 }
                 let mut clause_subst = subst.clone();
@@ -10001,13 +10004,13 @@ fn collect_splice_defs_ctx(
             let span = form.span().clone();
             match crate::runtime::parse_defclause_form(form) {
                 Ok((name, cs)) => {
-                    let clauses: Vec<(Vec<TypeExpr>, TypeExpr)> = cs
+                    let clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)> = cs
                         .clauses
                         .iter()
                         .map(|cl| {
                             let arg_types: Vec<TypeExpr> =
                                 cl.args.iter().map(|(_, ty)| ty.clone()).collect();
-                            (arg_types, cl.return_type.clone())
+                            (arg_types, cl.return_type.clone(), cl.rest_param.is_some())
                         })
                         .collect();
                     env.register_defclause(name, clauses, span);
@@ -10058,13 +10061,13 @@ fn preregister_defclause_in_env(form: &WatAST, env: &mut CheckEnv) {
     if let Ok((name, cs)) = crate::runtime::parse_defclause_form(form) {
         // Only pre-register if not already registered (first-registration wins).
         if env.get_defclause_clauses(&name).is_none() {
-            let clauses: Vec<(Vec<TypeExpr>, TypeExpr)> = cs
+            let clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)> = cs
                 .clauses
                 .iter()
                 .map(|cl| {
                     let arg_types: Vec<TypeExpr> =
                         cl.args.iter().map(|(_, ty)| ty.clone()).collect();
-                    (arg_types, cl.return_type.clone())
+                    (arg_types, cl.return_type.clone(), cl.rest_param.is_some())
                 })
                 .collect();
             env.register_defclause(name, clauses, span);

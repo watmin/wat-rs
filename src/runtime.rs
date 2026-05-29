@@ -7213,13 +7213,22 @@ fn eval_call_to_defclause_with_vals(
         let declared_arity = clause.args.len();
 
         // 1. Arity match.
-        if declared_arity != called_arity {
+        // Stone 241.5 — variadic-min: when rest_param is present, caller must
+        // supply AT LEAST the fixed args; strict equality preserved otherwise.
+        let fixed_arity = declared_arity;
+        let has_rest = clause.rest_param.is_some();
+        let arity_ok = if has_rest {
+            called_arity >= fixed_arity
+        } else {
+            called_arity == fixed_arity
+        };
+        if !arity_ok {
             attempted.push(ClauseAttempt {
                 clause_index: clause_idx,
                 declared_arity,
                 declared_arg_types,
                 failure_reason: ClauseFailureReason::ArityMismatch {
-                    expected: declared_arity,
+                    expected: fixed_arity,
                     got: called_arity,
                 },
             });
@@ -7257,6 +7266,56 @@ fn eval_call_to_defclause_with_vals(
             continue;
         }
 
+        // 2.5 (S3 Stone 241.5) — Rest-binder element type check.
+        // When rest_param is present, extract T from Vector<T> and check
+        // each trailing value against T.
+        if let Some((_rest_name, rest_ty)) = &clause.rest_param {
+            let elem_ty = match rest_ty {
+                crate::types::TypeExpr::Parametric { head, args }
+                    if head == "wat::core::Vector" && args.len() == 1
+                    => &args[0],
+                _ => {
+                    // Defensive: parser should enforce Vector<T>; if not, fail clause.
+                    attempted.push(ClauseAttempt {
+                        clause_index: clause_idx,
+                        declared_arity,
+                        declared_arg_types,
+                        failure_reason: ClauseFailureReason::ArgTypeMismatch {
+                            position: fixed_arity,
+                            expected: "Vector<T>".to_string(),
+                            got: crate::check::format_type(rest_ty),
+                        },
+                    });
+                    continue;
+                }
+            };
+            let rest_type_mismatch = vals[fixed_arity..].iter().enumerate()
+                .find_map(|(rest_pos, val)| {
+                    if value_matches_type_by_name(val, elem_ty) {
+                        None
+                    } else {
+                        Some((
+                            fixed_arity + rest_pos,
+                            crate::check::format_type(elem_ty),
+                            val_type_path(val).to_string(),
+                        ))
+                    }
+                });
+            if let Some((pos, expected, got)) = rest_type_mismatch {
+                attempted.push(ClauseAttempt {
+                    clause_index: clause_idx,
+                    declared_arity,
+                    declared_arg_types,
+                    failure_reason: ClauseFailureReason::ArgTypeMismatch {
+                        position: pos,
+                        expected,
+                        got,
+                    },
+                });
+                continue;
+            }
+        }
+
         // 3. Bind clause args into a child scope (needed for :guard eval).
         let mut scope = Environment::new();
         for ((param_name, _), val) in clause.args.iter().zip(vals.iter()) {
@@ -7265,6 +7324,18 @@ fn eval_call_to_defclause_with_vals(
                 param_name.clone(),
                 span,
                 TrackedValue::from(val.clone()),
+            ).build();
+        }
+
+        // 3.5 (S4 Stone 241.5) — Bind rest values as Value::Vec in scope.
+        // Collect trailing vals into a wat::core::Vector and bind to rest_param.name.
+        if let Some((rest_name, _rest_ty)) = &clause.rest_param {
+            let rest_vals: Vec<Value> = vals[fixed_arity..].to_vec();
+            let rest_vec = Value::Vec(Arc::new(rest_vals));
+            scope = scope.child().bind(
+                rest_name.clone(),
+                list_span.clone(),
+                TrackedValue::from(rest_vec),
             ).build();
         }
 
