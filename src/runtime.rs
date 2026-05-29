@@ -6821,77 +6821,22 @@ fn parse_fn_signature(
 
 /// Parse the args-vector `[name <- :T ...]` from a defclause clause.
 ///
-/// Reuses the same `name <- :T` triple shape as `parse_fn_signature` but
-/// enforces the defclause binding contract (arc 159/169/234): the name slot
-/// MUST be a Symbol (not a literal integer, keyword, etc.).
+/// Routes through the canonical `parse_argspec_triples`; `?` converts
+/// `ArgSpecError → RuntimeError` via `From<ArgSpecError> for RuntimeError`
+/// (Stone 241.1.fix). Returns `spec.fixed_params` directly — defclause's
+/// `Vec<(String, TypeExpr)>` return shape IS the canonical `fixed_params` shape.
 fn parse_defclause_args(
     args_vec: &[WatAST],
     head: &str,
     form_span: &Span,
 ) -> Result<Vec<(String, crate::types::TypeExpr)>, RuntimeError> {
-    let mut result = Vec::new();
-    let mut i = 0;
-    while i < args_vec.len() {
-        let triple_pos = result.len();
-        if i + 2 >= args_vec.len() {
-            return Err(RuntimeError::MalformedForm {
-                head: head.into(),
-                reason: format!(
-                    "arg-vector triple at position {} must be `name <- :T`; got incomplete trailing tokens",
-                    triple_pos
-                ),
-                span: form_span.clone(),
-            });
-        }
-        // Name slot: must be a Symbol (binding contract per arc 159/169/234).
-        let pname = match &args_vec[i] {
-            WatAST::Symbol(s, _) => s.name.clone(),
-            other => {
-                return Err(RuntimeError::MalformedForm {
-                    head: head.into(),
-                    reason: format!(
-                        "defclause arg-vector triple at position {} must be `name <- :T`; got {} at name slot — literal patterns are not permitted (arc 159/169/234 binding contract requires a plain symbol name)",
-                        triple_pos,
-                        ast_variant_name(other)
-                    ),
-                    span: other.span().clone(),
-                });
-            }
-        };
-        // Arrow slot.
-        match &args_vec[i + 1] {
-            WatAST::Symbol(s, _) if s.as_str() == "<-" => {}
-            other => {
-                return Err(RuntimeError::MalformedForm {
-                    head: head.into(),
-                    reason: format!(
-                        "defclause arg-vector triple at position {} must be `name <- :T`; got {} where `<-` was expected",
-                        triple_pos,
-                        ast_variant_name(other)
-                    ),
-                    span: other.span().clone(),
-                });
-            }
-        }
-        // Type slot: must be a Keyword.
-        let ptype = match &args_vec[i + 2] {
-            WatAST::Keyword(k, _) => parse_type_keyword(k)?,
-            other => {
-                return Err(RuntimeError::MalformedForm {
-                    head: head.into(),
-                    reason: format!(
-                        "defclause arg-vector triple at position {} must be `name <- :T`; got {} at type slot",
-                        triple_pos,
-                        ast_variant_name(other)
-                    ),
-                    span: other.span().clone(),
-                });
-            }
-        };
-        result.push((pname, ptype));
-        i += 3;
-    }
-    Ok(result)
+    let spec = crate::argspec::parse_argspec_triples(
+        args_vec,
+        head,
+        form_span,
+        crate::argspec::ParseOptions { allow_rest_binder: false },
+    )?;
+    Ok(spec.fixed_params)
 }
 
 /// Parse a single clause from a defclause.
