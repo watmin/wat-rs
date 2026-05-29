@@ -157,3 +157,96 @@ fn contract_09_incomplete_triple() {
         err
     );
 }
+
+// ─── Contracts 10–15: Stone 241.4 rest-binder behavior (allow_rest_binder: true) ──
+//
+// Pre-Stone 241.4: contracts 10–14 FAIL (current code rejects `&` regardless of
+// `allow_rest_binder`). Contract 15 PASSES (regression on existing behavior).
+// Post-Stone 241.4: 15/15 PASS — the canonical parser supports rest-binder when opted in.
+
+#[test]
+fn contract_10_rest_only_succeeds() {
+    // [& rest <- :Vector<:i64>] with allow_rest_binder=true → fixed_params empty;
+    // rest_param = Some(("rest", Vector<i64>)).
+    let result = parse_triples(
+        "[& rest <- :wat::core::Vector<:wat::core::i64>]",
+        true,
+    );
+    let spec = result.expect("rest-only argspec parses cleanly when opted in");
+    assert!(spec.fixed_params.is_empty(), "no fixed params");
+    let (name, _ty) = spec.rest_param.expect("rest_param populated");
+    assert_eq!(name, "rest", "rest-binder name is 'rest'");
+}
+
+#[test]
+fn contract_11_fixed_plus_rest_succeeds() {
+    // [x <- :i64 & rest <- :Vector<:i64>] → fixed_params: [(x, i64)]; rest_param: Some.
+    let result = parse_triples(
+        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]",
+        true,
+    );
+    let spec = result.expect("fixed+rest argspec parses cleanly when opted in");
+    assert_eq!(spec.fixed_params.len(), 1, "exactly one fixed param");
+    assert_eq!(spec.fixed_params[0].0, "x", "fixed name is 'x'");
+    let (rest_name, _ty) = spec.rest_param.expect("rest_param populated");
+    assert_eq!(rest_name, "rest", "rest-binder name is 'rest'");
+}
+
+#[test]
+fn contract_12_trailing_items_after_rest_errors() {
+    // [& rest <- :Vector<:i64> extra] → TrailingItems { count: 1 }
+    // VERIFIES Stone 241.1.fix DESIGN T2 verdict β (TrailingItems becomes reachable here).
+    let result = parse_triples(
+        "[& rest <- :wat::core::Vector<:wat::core::i64> extra]",
+        true,
+    );
+    let err = result.expect_err("trailing items after rest-binder must error");
+    assert!(
+        matches!(err, ArgSpecError::TrailingItems { count: 1, .. }),
+        "expected TrailingItems {{ count: 1 }}, got {:?}",
+        err
+    );
+}
+
+#[test]
+fn contract_13_incomplete_rest_only_errors() {
+    // [&] — only the rest-marker, no triple after it.
+    let result = parse_triples("[&]", true);
+    let err = result.expect_err("rest-marker without triple must error");
+    assert!(
+        matches!(err, ArgSpecError::IncompleteTriple { .. }),
+        "expected IncompleteTriple, got {:?}",
+        err
+    );
+}
+
+#[test]
+fn contract_14_rest_name_not_symbol_errors() {
+    // [& :kw <- :wat::core::i64] — name slot of rest-binder triple is a Keyword.
+    let result = parse_triples(
+        "[& :kw <- :wat::core::i64]",
+        true,
+    );
+    let err = result.expect_err("non-Symbol at rest-binder name slot must error");
+    assert!(
+        matches!(err, ArgSpecError::NameNotSymbol { .. }),
+        "expected NameNotSymbol, got {:?}",
+        err
+    );
+}
+
+#[test]
+fn contract_15_rest_binder_rejected_when_disallowed_preserved() {
+    // Regression: contract_07's behavior must still hold for allow_rest_binder=false.
+    // Distinct test name preserves contract_07 semantics with the post-Stone-241.4 framing.
+    let result = parse_triples(
+        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]",
+        false,
+    );
+    let err = result.expect_err("& rest-binder must STILL error when disallowed");
+    assert!(
+        matches!(err, ArgSpecError::RestBinderNotSupported { .. }),
+        "expected RestBinderNotSupported (regression), got {:?}",
+        err
+    );
+}
