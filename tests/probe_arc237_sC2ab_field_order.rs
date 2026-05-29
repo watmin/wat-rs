@@ -21,7 +21,7 @@ fn eval_f64(compute_expr: &str) -> f64 {
     let full = format!(
         "{prelude}\
          (:wat::core::defn :user::compute [] -> :wat::core::f64 {expr})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         prelude = PRELUDE,
         expr = compute_expr
     );

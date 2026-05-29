@@ -66,7 +66,7 @@ fn probe_spawn_process_stdin() {
     // is freeze-only; it doesn't need the worker fn at all because the
     // child's program is self-contained.
     let parent_src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(parent_src);
     // Build the child program as a single :user::main define whose body

@@ -46,7 +46,7 @@ fn harness_injects_stdin_lines() {
     // Test verifies the program compiles and runs cleanly.
     let src = format!(
         r##"{}
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
         "##,
         DIMS_AND_MODE
     );

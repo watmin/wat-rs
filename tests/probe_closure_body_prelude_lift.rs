@@ -130,7 +130,7 @@ fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
                         (:wat::core::define (:user::main -> :wat::core::nil)
                           (:wat::core::let [v (:h::helper)] :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -161,7 +161,7 @@ fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
                         (:wat::core::define (:user::main -> :wat::core::nil)
                           (:wat::core::let [p (:h::LocalPoint/new 3 4)] :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -191,7 +191,7 @@ fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
                         (:wat::core::define (:user::main -> :wat::core::nil)
                           (:wat::core::let [d :h::LocalDir::North] :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -229,7 +229,7 @@ fn probe_mixed_prelude_lift() {
                              kind :h::LocalKind::A]
                             :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -278,7 +278,7 @@ fn probe_prelude_prefix_terminates_at_first_expression() {
                         (:wat::core::define (:user::main -> :wat::core::nil)
                           (:wat::core::let [_v (:h::counted-helper)] :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);

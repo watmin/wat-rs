@@ -88,7 +88,7 @@ fn type_position_unit_post_retirement_is_unknown_fqdn() {
     let src = r#"
         (:wat::core::defn :my::probe [] -> :wat::core::unit ())
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     // Arc 163 follow-up — walker re-armed; bare :wat::core::unit
     // now fires BareLegacyUnitName fatal at check time (replaces the
@@ -129,7 +129,7 @@ fn value_position_nil_keyword_type_checks_and_evaluates() {
     // a `-> :wat::core::nil` declaration succeeds. Post-sweep-1b:
     // full startup success.
     let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :my::probe [] -> :wat::core::nil nil)
 
         (:wat::core::defn :user::main [] -> :wat::core::nil (:my::probe))
     "#;
@@ -149,7 +149,7 @@ fn value_position_nil_against_i64_recipient_fires_type_mismatch() {
     let src = r#"
         (:wat::core::defn :my::probe [] -> :wat::core::i64 :wat::core::nil)
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
     // Expect a `<entry>`-spanned ReturnTypeMismatch (or
@@ -195,7 +195,7 @@ fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
     let src = r#"
         (:wat::core::defn :my::probe [] -> :wat::core::unit :wat::core::nil)
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     // Arc 163 follow-up — walker re-armed; the retired sig token
     // fires BareLegacyUnitName fatal before unification reaches
@@ -218,7 +218,7 @@ fn value_position_nil_evaluates_to_value_unit() {
     // unification with `-> :wat::core::nil` succeeds) and full
     // startup completes.
     let src = r#"
-        (:wat::core::defn :my::nil-form [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :my::nil-form [] -> :wat::core::nil nil)
 
         (:wat::core::defn :user::main [] -> :wat::core::nil (:my::nil-form))
     "#;
@@ -262,7 +262,7 @@ fn other_keywords_still_type_as_keyword() {
     let src = r#"
         (:wat::core::defn :my::echo-keyword [k <- :wat::core::keyword] -> :wat::core::keyword k)
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -284,7 +284,7 @@ fn bare_legacy_unit_name_walker_retired() {
     let src = r#"
         (:wat::core::defn :my::probe [] -> :wat::core::unit ())
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     // Arc 163 follow-up — walker RE-ARMED after arc 163 audit found
     // the silent-acceptance gap inconsistent with the FQDN-everywhere

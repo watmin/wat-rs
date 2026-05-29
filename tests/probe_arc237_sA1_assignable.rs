@@ -48,7 +48,7 @@ const PRELUDE: &str = "\
 (:wat::Record::def :my::Circle [radius <- :wat::core::f64])\n\
 (:wat::Record::def :my::Square [side <- :wat::core::f64])\n";
 
-const MAIN: &str = "\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)";
+const MAIN: &str = "\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // ─── Probe 1: subtype accepted at a single-arg boundary (site 6386) ───────────
 #[test]

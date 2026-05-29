@@ -107,7 +107,7 @@ fn fn_keyword_operator_position_works() {
                        x)
                      5))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -161,7 +161,7 @@ fn fqdn_fn_type_position_works() {
                         x)
                       42))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -181,7 +181,7 @@ fn fn_operator_keyword_does_not_fire_lowercase_fn_walker() {
                        x)
                      7))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err_str = match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Ok(_) => String::new(),
@@ -211,7 +211,7 @@ fn fqdn_fn_type_does_not_fire_lowercase_fn_walker() {
                         (:wat::core::i64::+'2 x 1))
                       10))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err_str = match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Ok(_) => String::new(),
@@ -265,7 +265,7 @@ fn fn_body_in_tail_position_type_checks() {
                        (:user::double n))
                      5))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -287,7 +287,7 @@ fn mixed_canonical_fn_operator_and_fn_type_work_together() {
                         (:wat::core::i64::+'2 x 1))
                       5))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -309,7 +309,7 @@ fn fn_body_with_let_type_checks() {
                          b))
                      3))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -329,7 +329,7 @@ fn reflection_fn_registry_entry_exists() {
                        (:wat::core::i64::+'2 a b))
                      10 20))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }

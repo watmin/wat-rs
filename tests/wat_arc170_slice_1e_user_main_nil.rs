@@ -51,7 +51,7 @@ fn freeze_err(src: &str) -> String {
 fn t1_canonical_main_freezes_and_invokes() {
     // Canonical post-arc-170-slice-1e shape: empty params + nil return.
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
 
@@ -104,7 +104,7 @@ fn t2_legacy_3arg_main_fires_walker() {
     // The pre-arc-170 shape — 3-arg with stdio, nil return. Still
     // not canonical post-slice-1e because params are non-empty.
     let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil nil)
     "#;
     let err = freeze_err(src);
     assert!(
@@ -178,7 +178,7 @@ fn t3_runtime_argv_ambient_eval_arm_produces_vector() {
     use wat::runtime::Environment;
 
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let ast = wat::parse_one!("(:wat::runtime::argv)").expect("parse argv expr");
@@ -200,7 +200,7 @@ fn t3_runtime_current_thread_eval_arm_produces_string() {
     use wat::runtime::Environment;
 
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let ast = wat::parse_one!("(:wat::runtime::current-thread)")

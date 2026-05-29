@@ -67,7 +67,7 @@ fn tuple_pascal_canonical_works() {
     let src = r#"
         (:wat::core::defn :my::compute [] -> :(wat::core::i64,wat::core::i64,wat::core::i64) (:wat::core::Tuple 1 2 3))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -86,7 +86,7 @@ fn legacy_tuple_lowercase_redirects_via_pattern2_poison() {
     let src = r#"
         (:wat::core::defn :my::probe [] -> :(wat::core::i64,wat::core::i64,wat::core::i64) (:wat::core::tuple 1 2 3))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -116,7 +116,7 @@ fn tuple_in_function_return_position() {
 
         (:wat::core::defn :my::invoke [] -> :(wat::core::i64,wat::core::String) (:user::make-pair))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -147,7 +147,7 @@ fn type_name_returns_fqdn_pascal() {
                       [t (:wat::core::Tuple 10 20)]
                       t))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }

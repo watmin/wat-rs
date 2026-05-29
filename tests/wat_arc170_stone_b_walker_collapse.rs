@@ -54,7 +54,7 @@ fn stone_b_user_namespace_thread_join_result_is_rejected() {
     let src = r#"
         (:wat::core::defn :my::test::call-thread-join [thr <- :wat::kernel::Thread<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>> (:wat::kernel::Thread/join-result thr))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -77,7 +77,7 @@ fn stone_b_user_namespace_process_join_result_is_rejected() {
     let src = r#"
         (:wat::core::defn :my::test::call-process-join [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>> (:wat::kernel::Process/join-result proc))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -118,7 +118,7 @@ fn stone_b_substrate_namespace_thread_join_result_is_allowed() {
     // `Thread/join-result`. If the substrate exemption fails, freeze
     // fails. Trivial user source + clean startup = exemption proven.
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -130,7 +130,7 @@ fn stone_b_substrate_namespace_process_join_result_is_allowed() {
     // freeze pipeline walks them; the new walker must not fire on those
     // substrate-namespace bodies.
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }

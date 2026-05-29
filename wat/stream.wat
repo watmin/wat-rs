@@ -126,9 +126,9 @@
           [u (f v)]
           (:wat::core::match (:wat::kernel::send out u) -> :wat::core::nil
             ((:wat::core::Ok _) (:wat::stream::map-worker in out f))
-            ((:wat::core::Err _) :wat::core::nil))))
-      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-      ((:wat::core::Err _died) :wat::core::nil)))
+            ((:wat::core::Err _) nil))))
+      ((:wat::core::Ok :wat::core::None) nil)
+      ((:wat::core::Err _died) nil)))
 
 (:wat::core::defn :wat::stream::map<T,U> [upstream <- :wat::stream::Stream<T> f <- :wat::core::Fn(T)->U] -> :wat::stream::Stream<U>
   (:wat::core::let
@@ -159,8 +159,8 @@
         (:wat::core::do
           (handler v)
           (:wat::stream::for-each-drain rx handler)))
-      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-      ((:wat::core::Err _died) :wat::core::nil)))
+      ((:wat::core::Ok :wat::core::None) nil)
+      ((:wat::core::Err _died) nil)))
 
 (:wat::core::defn :wat::stream::for-each<T> [stream <- :wat::stream::Stream<T> handler <- :wat::core::Fn(T)->wat::core::nil] -> :wat::core::nil
   (:wat::core::let
@@ -169,7 +169,7 @@
        _ (:wat::stream::for-each-drain rx handler)
        _
         (:wat::kernel::Thread/join-result handle)]
-      :wat::core::nil))
+      nil))
 
 ;; --- collect ---
 ;;
@@ -206,10 +206,10 @@
         (:wat::core::if (pred v) -> :wat::core::nil
           (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
             ((:wat::core::Ok _) (:wat::stream::filter-worker in out pred))
-            ((:wat::core::Err _) :wat::core::nil))
+            ((:wat::core::Err _) nil))
           (:wat::stream::filter-worker in out pred)))
-      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-      ((:wat::core::Err _died) :wat::core::nil)))
+      ((:wat::core::Ok :wat::core::None) nil)
+      ((:wat::core::Err _died) nil)))
 
 (:wat::core::defn :wat::stream::filter<T> [upstream <- :wat::stream::Stream<T> pred <- :wat::core::Fn(T)->wat::core::bool] -> :wat::stream::Stream<T>
   (:wat::core::let
@@ -242,9 +242,9 @@
           (f v)
           (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
             ((:wat::core::Ok _) (:wat::stream::inspect-worker in out f))
-            ((:wat::core::Err _) :wat::core::nil))))
-      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-      ((:wat::core::Err _died) :wat::core::nil)))
+            ((:wat::core::Err _) nil))))
+      ((:wat::core::Ok :wat::core::None) nil)
+      ((:wat::core::Err _died) nil)))
 
 (:wat::core::defn :wat::stream::inspect<T> [upstream <- :wat::stream::Stream<T> f <- :wat::core::Fn(T)->wat::core::nil] -> :wat::stream::Stream<T>
   (:wat::core::let
@@ -319,7 +319,7 @@
     ;; full drain; returns :None if any send failed, signaling the
     ;; caller to exit.
     (:wat::core::if (:wat::core::empty? items) -> :wat::core::Option<wat::core::nil>
-      (:wat::core::Some :wat::core::nil)
+      (:wat::core::Some nil)
       ;; Vec is non-empty (just checked); first returns Some<U> via
       ;; arc 047. The :None arm is unreachable but the type checker
       ;; demands totality.
@@ -345,7 +345,7 @@
           (:wat::core::match drain-result -> :wat::core::nil
             ((:wat::core::Some _)
               (:wat::stream::with-state-worker in out step flush new-acc))
-            (:wat::core::None :wat::core::nil))))
+            (:wat::core::None nil))))
       ((:wat::core::Ok :wat::core::None)
         ;; Upstream disconnected. Flush final state; drain whatever it
         ;; produced. Consumer-dropped during flush is swallowed silently
@@ -354,8 +354,8 @@
           [final-emits (flush acc)
            _
             (:wat::stream::drain-items out final-emits)]
-          :wat::core::nil))
-      ((:wat::core::Err _died) :wat::core::nil)))
+          nil))
+      ((:wat::core::Err _died) nil)))
 
 (:wat::core::defn :wat::stream::with-state<T,U,Acc> [upstream <- :wat::stream::Stream<T> init <- :Acc step <- :wat::core::Fn(Acc,T)->(Acc,wat::core::Vector<U>) flush <- :wat::core::Fn(Acc)->wat::core::Vector<U>] -> :wat::stream::Stream<U>
   (:wat::core::let
@@ -534,16 +534,16 @@
 ;; exits, downstream gets :None naturally.
 (:wat::core::defn :wat::stream::take-worker<T> [in <- :wat::kernel::Receiver<T> out <- :wat::kernel::Sender<T> remaining <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::if (:wat::core::<= remaining 0) -> :wat::core::nil
-      :wat::core::nil
+      nil
       (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
         ((:wat::core::Ok (:wat::core::Some v))
           (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
             ((:wat::core::Ok _)
               (:wat::stream::take-worker in out
                 (:wat::core::i64::-'2 remaining 1)))
-            ((:wat::core::Err _) :wat::core::nil)))
-        ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-        ((:wat::core::Err _died) :wat::core::nil))))
+            ((:wat::core::Err _) nil)))
+        ((:wat::core::Ok :wat::core::None) nil)
+        ((:wat::core::Err _died) nil))))
 
 (:wat::core::defn :wat::stream::take<T> [upstream <- :wat::stream::Stream<T> n <- :wat::core::i64] -> :wat::stream::Stream<T>
   (:wat::core::let
@@ -578,8 +578,8 @@
       (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
         ((:wat::core::Ok (:wat::core::Some v))
           (:wat::stream::flat-map-worker in out f (f v)))
-        ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-        ((:wat::core::Err _died) :wat::core::nil))
+        ((:wat::core::Ok :wat::core::None) nil)
+        ((:wat::core::Err _died) nil))
       ;; pending is non-empty; first returns Some<U> via arc 047.
       ;; :None arm is unreachable but type-required.
       (:wat::core::match (:wat::core::first pending) -> :wat::core::nil
@@ -589,8 +589,8 @@
             (:wat::core::match (:wat::kernel::send out item) -> :wat::core::nil
               ((:wat::core::Ok _)
                 (:wat::stream::flat-map-worker in out f rest-items))
-              ((:wat::core::Err _) :wat::core::nil))))
-        (:wat::core::None :wat::core::nil))))
+              ((:wat::core::Err _) nil))))
+        (:wat::core::None nil))))
 
 (:wat::core::defn :wat::stream::flat-map<T,U> [upstream <- :wat::stream::Stream<T> f <- :wat::core::Fn(T)->wat::core::Vector<U>] -> :wat::stream::Stream<U>
   (:wat::core::let

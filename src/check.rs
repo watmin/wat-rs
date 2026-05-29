@@ -5183,6 +5183,27 @@ fn check_form(
 /// Infer the type of an expression.
 ///
 /// Returns `CheckResult::ok(type)` when a type can be assigned cleanly,
+/// Stone 242.2 — Doctrine 1 guard: returns true when `k` is a primitive scalar
+/// type keyword that is ILLEGAL in value position.
+///
+/// Scope: only the six primitive scalar types plus `:wat::core::nil`. These are
+/// the forms that a programmer could plausibly mistake for a value (e.g., writing
+/// `:wat::core::nil` as the body of a nil-returning function). Struct types, enum
+/// types, and other registered types are excluded — they may legitimately appear
+/// as keyword arguments to substrate forms like `(:wat::core::struct-new :MyType ...)`.
+fn is_primitive_type_keyword_in_value_position(k: &str) -> bool {
+    matches!(
+        k,
+        ":wat::core::nil"
+            | ":wat::core::i64"
+            | ":wat::core::f64"
+            | ":wat::core::bool"
+            | ":wat::core::String"
+            | ":wat::core::u8"
+            | ":wat::core::char"
+    )
+}
+
 /// `CheckResult::partial_with(type, errors)` when a type is assigned but
 /// diagnostics were accumulated, or `CheckResult::errs(errors)` when the
 /// expression's type cannot be determined. Errors are collected internally;
@@ -5233,21 +5254,15 @@ fn infer(
                 CheckResult::partial_with(ty, local_errors)
             }
         }
-        // Arc 153 slice 1a — `:wat::core::nil` at value position
-        // is the nil-value literal. Types as `:wat::core::nil` (the
-        // singleton type, internally `TypeExpr::Tuple(vec![])`);
-        // evaluates to `Value::Unit` (see runtime.rs). This is
-        // ADDITIVE — other keywords (including `:wat::core::None`,
-        // user-enum unit variants, registered functions, and bare
-        // keywords as `:wat::core::keyword` values) keep their
-        // existing typing paths. Special-case is narrow: only the
-        // exact FQDN string `:wat::core::nil`.
-        WatAST::Keyword(k, _) if k == ":wat::core::nil" => {
-            CheckResult::ok(TypeExpr::Tuple(vec![]))
-        }
         // Arc 048 — user-enum unit variant. The bare keyword resolves
         // to the enum's type (e.g. `:trading::types::PhaseLabel::Valley`
         // → `:trading::types::PhaseLabel`).
+        //
+        // Arc 153 slice 1a note (retired by Stone 242.2): `:wat::core::nil`
+        // was previously accepted here as a nil-value literal. Doctrine 1
+        // (arc 242) makes type keywords in VALUE position ILLEGAL — bare
+        // `nil` (WatAST::Symbol) is the correct value form. The nil arm is
+        // REMOVED; nil now falls through to the Doctrine 1 rejection below.
         WatAST::Keyword(k, _) if env.unit_variant_type(k).is_some() => {
             CheckResult::ok(env.unit_variant_type(k).expect("guard").clone())
         }
@@ -5272,6 +5287,49 @@ fn infer(
                 args: params,
                 ret: Box::new(ret),
             })
+        }
+        // Stone 242.2 — Doctrine 1: primitive type keywords in VALUE position are ILLEGAL.
+        //
+        // Primitive type keywords (`:wat::core::nil`, `:wat::core::i64`, etc.) are TYPE
+        // descriptors; they have no runtime value meaning. Using them in value position
+        // is a programmer error — the correct forms are bare value literals:
+        //   - `:wat::core::nil` → bare `nil` (WatAST::Symbol)
+        //   - `:wat::core::i64` → integer literal (42)
+        //   - `:wat::core::bool` → boolean literal (true/false)
+        //   - etc.
+        //
+        // Scope: ONLY the six primitive scalar types + nil. Struct types, enum types,
+        // and other registered types may legitimately appear as keyword arguments to
+        // substrate forms like `struct-new` (type-name argument). Those are NOT value
+        // expressions in the WAT programmer sense; they pass through the catch-all arm.
+        //
+        // Per `feedback_hard_cut_admits_no_bypasses`: `:wat::core::nil` (previously
+        // accepted as a nil-value literal by arc 153 slice 1a) migrates to bare `nil`
+        // at every value-position site. No privileged paths.
+        //
+        // Remedy:
+        //   - `:wat::core::nil` → "use bare `nil` in value position"
+        //   - Other primitive types → "use a value of this type in value position"
+        WatAST::Keyword(k, kw_span) if is_primitive_type_keyword_in_value_position(k) => {
+            let reason = if k == ":wat::core::nil" {
+                format!(
+                    "Doctrine 1 (arc 242): '{}' is a TYPE keyword, not a value; \
+                     use bare `nil` in value position",
+                    k
+                )
+            } else {
+                format!(
+                    "Doctrine 1 (arc 242): '{}' is a TYPE keyword, not a value; \
+                     use a value of this type in value position",
+                    k
+                )
+            };
+            CheckResult::errs(vec![CheckError::MalformedForm {
+                head: k.clone(),
+                reason,
+                span: kw_span.clone(),
+                remedies: vec![],
+            }])
         }
         WatAST::Keyword(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::keyword".into())),
         WatAST::Symbol(ident, _) => {

@@ -52,7 +52,7 @@ fn install_fixture_shim() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -115,7 +115,7 @@ fn type_check_rejects_wrong_arg_types() {
     let src = r#"
         (:wat::core::use! :rust::test::MathUtils)
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 
         (:wat::core::defn :my::probe [] -> :wat::core::i64 (:rust::test::MathUtils::add "not-an-int" 2))
     "#;

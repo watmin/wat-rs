@@ -137,7 +137,7 @@ fn probe_spawn_process_inherits_parent_struct() {
                              _ (:wat::edn::read s)]
                             :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -187,7 +187,7 @@ fn probe_spawn_process_inherits_parent_enum() {
                              _ (:wat::edn::read s)]
                             :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -248,7 +248,7 @@ fn probe_spawn_process_inherits_parametric_type() {
                              _ (:wat::edn::read s)]
                             :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);

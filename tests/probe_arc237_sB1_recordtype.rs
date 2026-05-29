@@ -50,7 +50,7 @@ fn run_bool(compute_expr: &str) -> Result<Value, String> {
     let full = format!(
         "{prelude}\n\
          (:wat::core::defn :user::compute [] -> :wat::core::bool {expr})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         prelude = PRELUDE,
         expr = compute_expr
     );
@@ -116,7 +116,7 @@ fn probe_05_holon_flavor_transitive() {
 fn probe_06_unknown_parent_rejected() {
     let src = r#"
         (:wat::core::recordtype :my::Bad :my::DoesNotExist [])
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let r = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     assert!(

@@ -43,7 +43,7 @@ fn install() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }

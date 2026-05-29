@@ -20,7 +20,7 @@ fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -120,7 +120,7 @@ fn alias_preserves_type_mismatches() {
 
         (:wat::core::defn :my::probe [] -> :my::Amount (:app::double "not a number"))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let errs = check_errors(src);
     let hit = errs.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. }));

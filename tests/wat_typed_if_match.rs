@@ -33,7 +33,7 @@ use wat::runtime::{Environment, Value};
 /// `:user::compute -> :T` for the expression under test.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }

@@ -31,7 +31,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -107,7 +107,7 @@ fn def_type_mismatch_via_registered_type() {
     let src = r#"
         (:wat::core::def :pi 3.14159)
         (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::i64::+'2 :pi 1))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
     assert!(

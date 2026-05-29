@@ -17,7 +17,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -155,7 +155,7 @@ fn u8_type_mismatch_rejected_at_check_time() {
 
         (:wat::core::defn :my::probe [] -> :wat::core::u8 (:my::app::byte-taker 42))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     assert!(

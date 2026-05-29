@@ -291,7 +291,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 fn probe_11_wat_source_typeunion_declaration_parses_and_registers() {
     let src = r#"
         (:wat::core::typeunion :my::IorF [:wat::core::i64 :wat::core::f64])
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     try_startup(src).expect("typeunion declaration should parse + register cleanly");
 }

@@ -50,7 +50,7 @@ fn install() {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -117,7 +117,7 @@ fn shared_handle_survives_thread_crossing() {
         (:wat::core::defn :my::compute [] -> :rust::test::Greeting (:rust::test::Greeting::new "crossed" 1999))
     "#;
     let src_make_with_nil = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src_make
     );
     let world = startup_from_source(&src_make_with_nil, None, Arc::new(InMemoryLoader::new()))

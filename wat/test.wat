@@ -45,7 +45,7 @@
 ;; assertion fired"); arc 064 closed the diagnostic gap.
 (:wat::core::defn :wat::test::assert-eq<T> [actual <- :T expected <- :T] -> :wat::core::nil
   (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
-      :wat::core::nil
+      nil
       (:wat::kernel::assertion-failed!
         "assert-eq failed"
         (:wat::core::Some (:wat::core::show actual))
@@ -58,7 +58,7 @@
 ;; in a RunResult shows the user which haystack/needle fired.
 (:wat::core::defn :wat::test::assert-contains [haystack <- :wat::core::String needle <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if (:wat::core::string::contains? haystack needle) -> :wat::core::nil
-      :wat::core::nil
+      nil
       (:wat::kernel::assertion-failed!
         "assert-contains failed"
         (:wat::core::Some haystack)
@@ -93,7 +93,7 @@
        ok
         (:wat::holon::CoincidentExplanation/coincident expl)]
       (:wat::core::if ok -> :wat::core::nil
-        :wat::core::nil
+        nil
         (:wat::kernel::assertion-failed!
           "assert-coincident failed — holons not at the same point"
           (:wat::core::Some (:wat::test::render-coincident-explanation expl))
@@ -132,7 +132,7 @@
   (:wat::core::let
       [actual (:wat::kernel::RunResult/stdout result)]
       (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
-        :wat::core::nil
+        nil
         (:wat::kernel::assertion-failed!
           "assert-stdout-is failed"
           (:wat::core::Some (:wat::core::string::join "\n" actual))
@@ -152,7 +152,7 @@
   (:wat::core::let
       [stderr-lines (:wat::kernel::RunResult/stderr result)]
       (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::nil
-        :wat::core::nil
+        nil
         (:wat::kernel::assertion-failed!
           "assert-stderr-matches failed — no stderr line matched pattern"
           (:wat::core::Some (:wat::core::string::join "\n" stderr-lines))
@@ -376,9 +376,9 @@
 ;; presence is irrelevant; their meaning is purely proc-macro-side.
 ;; An annotation attaches to the IMMEDIATELY NEXT deftest; intervening
 ;; non-annotation forms clear the pending annotation.
-(:wat::core::defn :wat::test::ignore [_reason <- :wat::core::String] -> :wat::core::nil :wat::core::nil)
+(:wat::core::defn :wat::test::ignore [_reason <- :wat::core::String] -> :wat::core::nil nil)
 
-(:wat::core::defn :wat::test::should-panic [_expected <- :wat::core::String] -> :wat::core::nil :wat::core::nil)
+(:wat::core::defn :wat::test::should-panic [_expected <- :wat::core::String] -> :wat::core::nil nil)
 
 ;; Arc 123 — :time-limit annotation. Sibling-form preceding a
 ;; deftest: when present, the proc macro wraps the generated
@@ -397,7 +397,7 @@
 ;;   (:wat::test::time-limit "30s")        ;; supported
 ;;   (:wat::test::time-limit "5m")         ;; supported
 ;;   (:wat::test::deftest :my::test () body)
-(:wat::core::defn :wat::test::time-limit [_dur <- :wat::core::String] -> :wat::core::nil :wat::core::nil)
+(:wat::core::defn :wat::test::time-limit [_dur <- :wat::core::String] -> :wat::core::nil nil)
 
 ;; ─── Layer 1 testing-lib API (arc 170 slice 3 phase C) ─────────────────
 ;;
@@ -783,7 +783,7 @@
 (:wat::core::defn :wat::test::run-hermetic-send-inputs<I> [tx <- :wat::kernel::Sender<I> inputs <- :wat::core::Vector<I>] -> :wat::core::nil
   (:wat::core::if (:wat::core::Vector/empty? inputs)
       -> :wat::core::nil
-      :wat::core::nil
+      nil
       (:wat::core::let
         [item
           (:wat::core::Option/expect -> :I

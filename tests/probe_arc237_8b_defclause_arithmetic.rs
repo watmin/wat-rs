@@ -29,7 +29,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -51,7 +51,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 
 fn try_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))

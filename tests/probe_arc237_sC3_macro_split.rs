@@ -32,7 +32,7 @@ fn eval_typed(expr: &str, ret_ty: &str) -> Result<Value, String> {
     let full = format!(
         "{PRELUDE}\
          (:wat::core::defn :user::compute [] -> {ret_ty} {expr})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
         .map_err(|e| format!("startup/check: {:?}", e))?;
@@ -52,7 +52,7 @@ fn i64_field(expr: &str) -> i64 {
 /// Type-check ONLY a program (no compute harness); Ok iff it startups clean.
 fn check(decls: &str) -> Result<(), String> {
     let src = format!(
-        "{PRELUDE}{decls}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)"
+        "{PRELUDE}{decls}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)"
     );
     startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .map(|_| ())

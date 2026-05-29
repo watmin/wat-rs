@@ -61,7 +61,7 @@ fn struct_restricted_form_parses_and_accessors_callable_from_whitelist() {
           [tok <- :my::Token] -> :wat::core::i64
           (:my::Token/id tok))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -81,7 +81,7 @@ fn struct_restricted_ctor_restriction_fires_on_illegal_caller() {
         (:wat::core::defn :user::bad-mint [] -> :my::Token
           (:my::Token/new 7))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -119,7 +119,7 @@ fn struct_restricted_per_field_restriction_fires_on_illegal_caller() {
           [v <- :my::Vault] -> :wat::core::i64
           (:my::Vault/secret v))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(denied_src);
     assert!(
@@ -149,7 +149,7 @@ fn struct_restricted_per_field_restriction_fires_on_illegal_caller() {
           [v <- :my::Vault] -> :wat::core::i64
           (:my::Vault/secret v))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(allowed_src);
 }
@@ -175,7 +175,7 @@ fn struct_restricted_public_accessors_unrestricted() {
           [tok <- :my::Token] -> :wat::core::i64
           (:my::Token/public-field tok))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -198,7 +198,7 @@ fn struct_restricted_empty_sections_honored() {
           [tok <- :my::PublicToken] -> :wat::core::i64
           (:my::PublicToken/payload tok))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(ctor_only_src);
 
@@ -217,7 +217,7 @@ fn struct_restricted_empty_sections_honored() {
           [s <- :my::Secret] -> :wat::core::i64
           (:my::Secret/data s))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(all_restricted_src);
 
@@ -232,7 +232,7 @@ fn struct_restricted_empty_sections_honored() {
           [s <- :my::Secret] -> :wat::core::i64
           (:my::Secret/data s))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(field_denied_src);
     assert!(
@@ -252,7 +252,7 @@ fn struct_restricted_malformed_shapes_rejected() {
           {}
           [field <- :wat::core::i64])
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(empty_metadata_src);
     assert!(
@@ -266,7 +266,7 @@ fn struct_restricted_malformed_shapes_rejected() {
         (:wat::core::struct-restricted :my::Bad
           [:my::ns::])
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(legacy_src);
     assert!(

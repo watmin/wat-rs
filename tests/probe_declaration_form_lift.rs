@@ -183,9 +183,9 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
           (:wat::kernel::spawn-process
                       (:wat::core::forms
                         (:wat::core::defmacro (:h::id-macro (x :AST) -> :AST) `~x)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil))))
+                        (:wat::core::defn :user::main [] -> :wat::core::nil nil))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -221,7 +221,7 @@ fn probe_define_dispatch_in_fn_body_do_prefix_lifts_to_prologue() {
                         (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:h::describe 99)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -251,7 +251,7 @@ fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
                         (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let [a (:h::LocalAmount/new 100)] :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -281,7 +281,7 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
                         (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let [_c (:h::get-count)] :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);
@@ -348,7 +348,7 @@ fn probe_mixed_declaration_prelude_all_lift() {
                              _n  (:h::mix-count 7)]
                             :wat::core::nil)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let (exit_code, stderr) = run_launch(&world);

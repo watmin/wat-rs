@@ -60,7 +60,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 /// calling `:user::compute`. User source must define `:user::compute`.
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -139,7 +139,7 @@ fn probe_05_guard_non_boolean_errors_at_check() {
     let src = r#"
         (:wat::core::defclause :my::bad
           ([x <- :wat::core::i64] :guard (:wat::core::i64::+ x 1) -> :wat::core::i64 x))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -192,7 +192,7 @@ fn probe_08_ensure_fn_wrong_arity_errors_at_check() {
             :ensure (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
                       (:wat::core::i64::> a b))
             x))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -211,7 +211,7 @@ fn probe_09_ensure_fn_arg_type_mismatch_errors_at_check() {
             :ensure (:wat::core::fn [result <- :wat::core::String] -> :wat::core::bool
                       (:wat::core::String/empty? result))
             x))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -229,7 +229,7 @@ fn probe_10_ensure_fn_return_not_bool_errors_at_check() {
             :ensure (:wat::core::fn [result <- :wat::core::i64] -> :wat::core::i64
                       (:wat::core::i64::+ result 1))
             x))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -265,7 +265,7 @@ fn probe_12_multiple_guards_rejected() {
             :guard (:wat::core::i64::> x 0)
             :guard (:wat::core::i64::< x 100)
             -> :wat::core::i64 x))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -285,7 +285,7 @@ fn probe_13_keyword_order_violation_rejected() {
                       (:wat::core::i64::> result 0))
             :guard (:wat::core::i64::> x 0)
             -> :wat::core::i64 x))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = try_startup(src);
     assert!(

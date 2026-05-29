@@ -1553,7 +1553,9 @@ fn encode_value_with_path(
             }
             Ok(WatAST::List(out, span))
         }
-        Value::Unit => Ok(WatAST::Keyword(":wat::core::nil".into(), span)),
+        // Stone 242.2 — Doctrine 1: bare `nil` is the value form; `:wat::core::nil` is the
+        // TYPE keyword. Reflection emitters must produce the value form here.
+        Value::Unit => Ok(WatAST::Symbol(Identifier::bare("nil".to_string()), span)),
 
         // ─── containers ────────────────────────────────────────────────
         Value::Vec(items) => {

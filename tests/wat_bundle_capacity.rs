@@ -29,7 +29,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -220,7 +220,7 @@ fn bundle_return_type_mismatch_rejected_at_check() {
                       (:wat::holon::to-holon "a")
                       (:wat::holon::to-holon "b"))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Err(_) => {}

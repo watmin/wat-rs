@@ -73,7 +73,7 @@ fn probe_run_hermetic_ast_child_stdout_captured() {
           (:wat::test::run-hermetic
                       (:wat::kernel::println "hello-from-probe")))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
 

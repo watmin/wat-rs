@@ -1609,7 +1609,7 @@ mod tests {
         // substrate maps to libc::exit(0).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil nil)
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
@@ -1622,7 +1622,7 @@ mod tests {
         // side-effects (or in this minimal case, just produces nil).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::app::do-work [] -> :wat::core::nil :wat::core::nil)
+            (:wat::core::defn :my::app::do-work [] -> :wat::core::nil nil)
             (:wat::core::defn :user::main [] -> :wat::core::nil (:my::app::do-work))
         "#;
         let world = startup(src).expect("startup");

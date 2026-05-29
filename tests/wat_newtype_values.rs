@@ -16,7 +16,7 @@ use wat::runtime::{Environment, Value};
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -68,7 +68,7 @@ fn newtype_rejects_inner_type_at_arg_position() {
 
         (:wat::core::defn :my::probe [] -> :wat::core::String (:my::trading::pretty 100.0))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
     let err = run_expecting_check_error(src);
     assert!(
@@ -93,7 +93,7 @@ fn newtype_rejected_where_inner_expected() {
                        bogus (:wat::core::f64::+'2 p 1.0)]
                       (:wat::core::f64::to-string bogus)))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
     let err = run_expecting_check_error(src);
     assert!(
@@ -149,7 +149,7 @@ fn distinct_newtypes_over_same_inner_are_distinct_types() {
                       [a (:my::trading::Amount/new 50.0)]
                       (:my::trading::price-pretty a)))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
     let err = run_expecting_check_error(src);
     assert!(

@@ -76,7 +76,7 @@ use wat::span::Span;
 /// Arc 170 slice 6 — child program for spawn-process is a top-level
 /// (:user::main -> :nil) define.
 const PARENT_SRC: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
 const CHILD_PROGRAM_SRC: &str = r#"

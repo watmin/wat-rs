@@ -55,7 +55,7 @@ fn try_startup(src: &str) -> Result<(), String> {
 /// calling `:user::compute`. User source must define `:user::compute`.
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
@@ -75,7 +75,7 @@ fn probe_01_single_clause_defclause_basic() {
     let src = r#"
         (:wat::core::defclause :my::identity
           ([x <- :wat::core::i64] -> :wat::core::i64 x))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     try_startup(src).expect("single-clause defclause should parse + type-check");
 }
@@ -175,7 +175,7 @@ fn probe_07_body_return_type_mismatch_errors() {
     let src = r#"
         (:wat::core::defclause :my::bad
           ([x <- :wat::core::i64] -> :wat::core::i64 3.14))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -237,7 +237,7 @@ fn probe_11_empty_defclause_rejected() {
     // defclause with ZERO clauses should be rejected at parse/registration.
     let src = r#"
         (:wat::core::defclause :my::empty)
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = try_startup(src);
     assert!(
@@ -255,7 +255,7 @@ fn probe_12_binding_contract_preserved_no_literal_patterns() {
     let src = r#"
         (:wat::core::defclause :my::bad-pattern
           ([0 <- :wat::core::i64] -> :wat::core::i64 1))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = try_startup(src);
     assert!(

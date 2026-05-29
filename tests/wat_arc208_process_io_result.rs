@@ -82,12 +82,12 @@ const ECHO_SERVER: &str = r#"
 
 /// Minimal server that exits immediately (nothing on stdout).
 const IMMEDIATE_EXIT_SERVER: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
 /// Trivial parent program (needed to freeze a parent-side world).
 const PARENT_SRC: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
 /// Unwrap `Value::Result(Ok(inner))` and return `inner`. Panics otherwise.

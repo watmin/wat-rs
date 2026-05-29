@@ -67,7 +67,7 @@ fn probe_no_default_rust_panic_noise_on_stderr() {
           (:wat::test::run-hermetic
                       (:wat::test::assert-eq "expected-value" "actual-value")))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let func = world.symbols().get(":probe::hook-test").expect("defined");

@@ -39,7 +39,7 @@ use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -197,7 +197,7 @@ fn probe_6_non_keyword_key_accepted_with_inferred_k() {
     // Type-check + runtime: HashMap<i64, keyword>; length 1.
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {42 :v}))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("int-keyed map must type-check successfully");

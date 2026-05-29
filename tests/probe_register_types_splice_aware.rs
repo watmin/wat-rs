@@ -98,7 +98,7 @@ fn do_newtype_registers_in_type_env() {
     let src = r#"
         (:wat::core::do
           (:wat::core::newtype :diag::UserId :wat::core::i64)
-          (:wat::core::defn :diag::uses-user-id [] -> :wat::core::nil :wat::core::nil))
+          (:wat::core::defn :diag::uses-user-id [] -> :wat::core::nil nil))
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup failed");

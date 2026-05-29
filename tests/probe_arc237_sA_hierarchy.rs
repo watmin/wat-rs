@@ -123,7 +123,7 @@ fn subtype_q(a: &str, b: &str) -> Result<Value, String> {
         "(:wat::core::defn :user::compute [] -> :wat::core::bool
           \
                      (:wat::core::subtype? {a} {b}))\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         a = a,
         b = b
     );

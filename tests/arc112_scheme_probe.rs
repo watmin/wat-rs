@@ -37,7 +37,7 @@ fn arc112_probe_spawn_program_parametric_return() {
                         (:wat::core::define (:user::main -> :wat::core::nil)
                           (:my::worker)))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     if let Err(e) = result {

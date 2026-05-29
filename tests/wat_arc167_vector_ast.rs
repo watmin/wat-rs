@@ -123,7 +123,7 @@ fn vector_at_value_position_works_after_arc215() {
     let src = r#"
         (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::length [1 2 3]))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("arc 215 stone 2: [1 2 3] at value position must type-check");
@@ -152,7 +152,7 @@ fn vector_at_value_position_in_define_body_works_after_arc215() {
     let src = r#"
         (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::length [1 2 3]))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("arc 215 stone 2: [1 2 3] in define body must type-check");

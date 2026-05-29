@@ -127,7 +127,7 @@ fn probe_2_value_enum_has_no_tracked_variant() {
 #[test]
 fn probe_3_producer_provenance_survives_let_binding() {
     let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )

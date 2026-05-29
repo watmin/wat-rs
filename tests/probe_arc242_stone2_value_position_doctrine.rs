@@ -42,10 +42,13 @@ fn try_startup_display(src: &str) -> String {
 fn contract_01_keyword_nil_in_body_rejected() {
     // (:wat::core::defn :f [] -> :wat::core::nil :wat::core::nil)
     // Per user direction: ILLEGAL — keyword form in value position.
-    let src = r#"
+    // (Note: the body's :wat::core::nil is the keyword-in-value-position
+    // doctrine violation under test; do NOT migrate to bare nil — that
+    // would defeat the test.)
+    let src = "
         (:wat::core::defn :test::f [] -> :wat::core::nil :wat::core::nil)
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
+    ";
     let result = try_startup(src);
     assert!(
         result.is_err(),

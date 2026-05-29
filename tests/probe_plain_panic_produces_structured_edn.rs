@@ -87,7 +87,7 @@ fn probe_plain_panic_produces_structured_edn() {
                 (:wat::holon::to-holon "key2")))]
           :wat::core::nil))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
     let world = freeze_ok(outer_src);

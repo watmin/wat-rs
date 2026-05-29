@@ -228,7 +228,7 @@ fn row_d_scope_drop_cascade() {
     // join_service in the orchestrator must return Ok for all three;
     // any failure surfaces as Err from invoke_user_main.
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze(src);
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));

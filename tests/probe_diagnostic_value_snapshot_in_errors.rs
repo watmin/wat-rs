@@ -37,7 +37,7 @@ use wat::runtime::{Environment, Value};
 
 fn run_compute(src: &str) -> Result<Value, String> {
     let full = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     );
     let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))

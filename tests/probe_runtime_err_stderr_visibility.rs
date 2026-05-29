@@ -46,7 +46,7 @@ fn probe_runtime_err_stderr_visibility() {
           (:wat::test::run-hermetic
                       (:wat::test::assert-eq "intentional" "different")))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src_structured);
     let func = world.symbols().get(":probe::structured").expect("defined");

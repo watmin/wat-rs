@@ -53,7 +53,7 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
 }
 
 const PARENT_TRIVIAL: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
 /// Unwrap `Value::Result(Ok(_))` and assert the Ok payload is unit

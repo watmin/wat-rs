@@ -37,7 +37,7 @@ const PROLOGUE: &str = r#"
 (:wat::core::defstruct :test::PaperResolved
   [outcome       <- :wat::core::String
    grace-residue <- :wat::core::f64])
-(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
 fn program(body: &str) -> String {

@@ -74,7 +74,7 @@ fn probe_counter_subprocess_minimal() {
           :Value [v <- :wat::core::i64]
           :Ok    [v <- :wat::core::i64]
           :Final [v <- :wat::core::i64])
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok("");
     let spawn_call = build_spawn_process_call(server_program_src);
@@ -124,7 +124,7 @@ fn probe_counter_subprocess_with_defn() {
                  (:counter/dispatch 0)))
             (:counter::Request::Shutdown
                (:wat::kernel::println (:counter::Response::Final state)))))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok("");
     let spawn_call = build_spawn_process_call(server_program_src);

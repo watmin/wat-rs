@@ -43,7 +43,7 @@ fn run_bool(compute_expr: &str) -> Result<Value, String> {
     let full = format!(
         "{prelude}\n\
          (:wat::core::defn :user::compute [] -> :wat::core::bool {expr})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         prelude = PRELUDE,
         expr = compute_expr
     );

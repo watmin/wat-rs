@@ -41,7 +41,7 @@ use wat::load::InMemoryLoader;
 #[test]
 fn thread_join_result_restriction_lands_in_symbol_table() {
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
 
     let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
@@ -72,7 +72,7 @@ fn thread_join_result_restriction_lands_in_symbol_table() {
 #[test]
 fn process_join_result_restriction_lands_in_symbol_table() {
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
 
     let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))

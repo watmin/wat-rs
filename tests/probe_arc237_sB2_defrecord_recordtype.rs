@@ -41,7 +41,7 @@ fn run(compute_expr: &str, ret_ty: &str) -> Result<Value, String> {
     let full = format!(
         "{prelude}\n\
          (:wat::core::defn :user::compute [] -> {ret} {expr})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         prelude = PRELUDE,
         ret = ret_ty,
         expr = compute_expr

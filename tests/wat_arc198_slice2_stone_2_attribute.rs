@@ -43,7 +43,7 @@ fn probe_single() -> i64 {
 #[test]
 fn single_prefix_attribute_lands_in_symbol_table() {
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
 
     let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
@@ -86,7 +86,7 @@ fn probe_multi() -> i64 {
 #[test]
 fn multi_prefix_attribute_preserves_all_prefixes_in_order() {
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
 
     let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
@@ -128,7 +128,7 @@ fn probe_exact_fqdn() -> i64 {
 #[test]
 fn exact_fqdn_prefix_preserves_no_trailing_colons() {
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
 
     let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))

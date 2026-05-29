@@ -66,7 +66,7 @@ fn process_join_without_stdin_extraction_fails_check() {
                       [joined (:wat::kernel::Process/join-result proc)]
                       joined))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -96,7 +96,7 @@ fn process_join_with_stdin_extraction_passes_check() {
     // fail with `ProcessJoinHoldsStdinSender` on that substrate function.
     // Startup succeeding = the canonical legal shape passes cleanly.
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -120,7 +120,7 @@ fn process_join_with_stdin_present_does_not_fire_stdin_rule() {
                        joined  (:wat::kernel::Process/join-result proc)]
                       joined))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
     // Arc 202 rule must NOT fire — stdin is present.

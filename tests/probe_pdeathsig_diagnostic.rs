@@ -109,7 +109,7 @@ use wat::span::Span;
 /// (:user::main -> :nil) define; the parent world only needs a trivial
 /// :user::main to freeze.
 const PARENT_SRC: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
 const CHILD_PROGRAM_SRC: &str = r#"

@@ -71,7 +71,7 @@ fn let_accepts_sequential_bindings() {
                        b (:wat::core::i64::+'2 a 1)]
                       b))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -102,7 +102,7 @@ fn let_star_post_retirement_silently_aliases_to_let() {
                       (((a :wat::core::i64) 5))
                       a))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
     assert!(
@@ -155,7 +155,7 @@ fn let_in_tail_position_threads_through_eval_let_tail() {
                         [m (:wat::core::i64::-'2 n 1)]
                         (:user::countdown m))))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -176,7 +176,7 @@ fn nested_lets_compose_with_outer_visible_to_inner() {
                         [b (:wat::core::i64::+'2 a 5)]
                         b)))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -196,7 +196,7 @@ fn fn_body_with_let_preserves_sequential() {
                          b))
                      x))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -215,7 +215,7 @@ fn empty_bindings_evaluates_body_directly() {
                       []
                       42))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -239,7 +239,7 @@ fn walker_narrowness_other_keywords_unaffected() {
                         [y 2]
                         y)))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }
@@ -263,7 +263,7 @@ fn multiple_let_star_sites_post_retirement_silently_alias() {
                       (((y :wat::core::i64) 2))
                       y))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     // Arc 163 follow-up — walker re-armed; both let* forms fire
     // BareLegacyLetStar fatal (one error per site).
@@ -300,7 +300,7 @@ fn reflection_lookup_form_finds_canonical_let() {
                        b (:wat::core::i64::+'2 a 2)]
                       b))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_ok(src);
 }

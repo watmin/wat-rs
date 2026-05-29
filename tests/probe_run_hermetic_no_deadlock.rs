@@ -66,7 +66,7 @@ fn probe_run_hermetic_clean_exit_no_deadlock() {
           (:wat::test::run-hermetic
                       :wat::core::nil))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -124,7 +124,7 @@ fn probe_run_hermetic_panic_body_no_deadlock() {
                         :wat::core::None
                         :wat::core::None)))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let func = world

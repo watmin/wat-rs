@@ -23,7 +23,7 @@ use wat::runtime::{Environment, Value};
 fn length_of(coll: &str) -> Result<i64, String> {
     let src = format!(
         "(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {coll}))\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
     );
     let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .map_err(|e| format!("startup/check: {:?}", e))?;
@@ -42,7 +42,7 @@ fn length_of(coll: &str) -> Result<i64, String> {
 fn length_errors(expr: &str) -> bool {
     let src = format!(
         "(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {expr}))\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
     );
     match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
         Err(_) => true, // check-time rejection

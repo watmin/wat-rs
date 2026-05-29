@@ -31,7 +31,7 @@ fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
 /// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -161,7 +161,7 @@ fn constructor_arity_mismatch_rejected_at_check() {
 
         (:wat::core::defn :my::probe [] -> :my::market::Bar (:my::market::Bar/new 1.0))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
@@ -184,7 +184,7 @@ fn constructor_field_type_mismatch_rejected_at_check() {
 
         (:wat::core::defn :my::probe [] -> :my::market::Bar (:my::market::Bar/new "not-a-float" 2.0))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let errs = check_errors(src);
     let saw_type = errs.iter().any(|e| matches!(
@@ -212,7 +212,7 @@ fn accessor_returns_correct_field_type() {
                       [b (:my::market::Bar/new 1.0 100)]
                       (:my::market::Bar/volume b)))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let errs = check_errors(src);
     let saw_ret = errs.iter().any(|e| matches!(

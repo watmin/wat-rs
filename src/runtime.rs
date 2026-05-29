@@ -5365,6 +5365,13 @@ pub(crate) fn eval_inner(
             }
             Ok(TrackedValue::from(Value::wat__core__keyword(Arc::new(k.clone()))))
         }
+        // Stone 242.2 — Doctrine 1: bare `nil` is the value form for the nil singleton.
+        // The type-check arm (check.rs `is_primitive_type_keyword_in_value_position`)
+        // now rejects `:wat::core::nil` as a keyword in value position; bare `nil`
+        // (WatAST::Symbol) is the canonical value form. Evaluate to Value::Unit.
+        WatAST::Symbol(ident, span) if ident.as_str() == "nil" => {
+            Ok(TrackedValue::new(Value::Unit, Provenance::Literal { span: span.clone() }))
+        }
         WatAST::Symbol(ident, span) => env
             .lookup(ident.as_str(), span)
             .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone())),

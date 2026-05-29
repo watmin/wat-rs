@@ -55,7 +55,7 @@ use wat::typed_channel::{bounded, Sender, Receiver};
 /// arms + dispatch) without needing a meaningful main body.
 fn freeze_skeleton() -> wat::freeze::FrozenWorld {
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("skeleton freeze succeeds")
@@ -342,7 +342,7 @@ fn row_h_type_check_println_accepts_any_t() {
     // success means the type-check arm registered correctly.
     let src = r#"
         (:wat::core::defn :test::p [v <- :wat::core::i64] -> :wat::core::nil (:wat::kernel::println v))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     assert!(
@@ -358,7 +358,7 @@ fn row_h_type_check_println_accepts_any_t() {
 fn row_i_type_check_eprintln_accepts_any_t() {
     let src = r#"
         (:wat::core::defn :test::p [v <- :wat::core::String] -> :wat::core::nil (:wat::kernel::eprintln v))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     assert!(
@@ -379,7 +379,7 @@ fn row_j_type_check_readln_returns_holonast() {
     // `() -> :wat::holon::HolonAST`.
     let src = r#"
         (:wat::core::defn :test::r [] -> :wat::holon::HolonAST (:wat::kernel::readln))
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     assert!(

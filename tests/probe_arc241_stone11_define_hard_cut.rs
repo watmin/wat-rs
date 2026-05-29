@@ -25,7 +25,7 @@ use wat::load::InMemoryLoader;
 
 fn with_nil_main(src: &str) -> String {
     format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
 }
@@ -49,7 +49,7 @@ fn contract_01_defn_success_baseline() {
         (:wat::core::defn :app::greet [] -> :wat::core::String "hello")
     "#;
     let full = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     );
     let result = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()));
@@ -71,7 +71,7 @@ fn contract_02_legacy_define_hard_cut_rejected() {
         (:wat::core::define (:app::greet -> :wat::core::String) "hello")
     "#;
     let full = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     );
     let result = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()));

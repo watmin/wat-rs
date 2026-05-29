@@ -28,7 +28,7 @@ use wat::runtime::{Environment, TrackedValue, Value};
 #[test]
 fn probe_1_eval_in_frozen_returns_tracked_value_for_i64() {
     let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )
@@ -52,7 +52,7 @@ fn probe_1_eval_in_frozen_returns_tracked_value_for_i64() {
 #[test]
 fn probe_2_eval_result_yields_tracked_value_with_api() {
     let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )
@@ -78,7 +78,7 @@ fn probe_2_eval_result_yields_tracked_value_with_api() {
 #[test]
 fn probe_3_runtime_built_producer_provenance_survives_eval_boundary() {
     let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )

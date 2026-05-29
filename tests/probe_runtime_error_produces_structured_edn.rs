@@ -65,7 +65,7 @@ fn probe_runtime_error_produces_structured_edn() {
                       ;; Hits Ok(Err(runtime_err)) arm in spawn_process_child_branch.
                       (:wat::core::let [_ (:wat::core::i64::/'2 1 0)] :wat::core::nil)))
 
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let func = world.symbols().get(":probe::runtime-err").expect("defined");

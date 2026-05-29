@@ -74,7 +74,7 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
 /// any helper defines at parent freeze time (the child program is
 /// self-contained per the new substrate contract).
 const PARENT_TRIVIAL: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
 // ─── T1. :user::main [] -> :wat::core::nil signature freezes; 3-arg fires walker ──
@@ -83,7 +83,7 @@ const PARENT_TRIVIAL: &str = r#"
 fn t1_canonical_nil_main_freezes() {
     // Arc 170 slice 1e canonical shape: no params, nil return. Should freeze cleanly.
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     // Validator agrees — the canonical signature passes.
@@ -102,7 +102,7 @@ fn t1_canonical_nil_main_freezes() {
 fn t1_legacy_3arg_main_fires_walker() {
     // The well-known pre-arc-170 shape: 3-arg with IOReader/Writer/Writer.
     let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil nil)
     "#;
     let err = freeze_err(src);
     assert!(
@@ -121,7 +121,7 @@ fn t2_canonical_main_returns_nil_value() {
     // nil IS the success exit code (arc 170 REALIZATIONS pass 10).
     // invoke_user_main on a canonical [] -> nil main returns nil.
     let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let world = freeze_ok(src);
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main should run");
@@ -693,7 +693,7 @@ fn t10_spawn_thread_unchanged_positive_control() {
 #[test]
 fn t11_legacy_main_signature_fires_walker_diagnostic() {
     let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil nil)
     "#;
     let err = freeze_err(src);
     // The walker's Display output should mention the canonical 4-arg
@@ -751,7 +751,7 @@ fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
     let world = freeze_ok(PARENT_TRIVIAL);
     let call = build_spawn_process_call(
         r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#,
     );
     let env = Environment::new();
@@ -776,7 +776,7 @@ fn t14_spawn_process_wait_handle_is_idempotent() {
     let world = freeze_ok(PARENT_TRIVIAL);
     let call = build_spawn_process_call(
         r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#,
     );
     let env = Environment::new();
@@ -1167,7 +1167,7 @@ fn t16_spawn_process_sequential_spawns_no_fd_zombie_leak() {
     for _ in 0..3 {
         let call = build_spawn_process_call(
             r#"
-            (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil nil)
         "#,
         );
         let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();

@@ -33,7 +33,7 @@ use wat::runtime::{Environment, Provenance, TrackedValue, Value};
 #[test]
 fn probe_1_keyword_from_string_yields_tracked_value() {
     let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )
@@ -58,7 +58,7 @@ fn probe_1_keyword_from_string_yields_tracked_value() {
 #[test]
 fn probe_2_keyword_from_string_provenance_attached() {
     let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)",
+        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         None,
         Arc::new(InMemoryLoader::new()),
     )
