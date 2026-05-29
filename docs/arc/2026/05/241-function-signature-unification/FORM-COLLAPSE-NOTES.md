@@ -154,11 +154,20 @@ The earlier-considered candidates were each rejected by the four questions:
 
 ```scheme
 (:wat::runtime::metadata-of :my::ns::my-fn)
-;; → {:restricted-to [:my::ns::] :doc "..."}      ; the metadata HashMap (HolonAST-encoded)
-;; → :nil                                          ; if no metadata attached
+;; → #wat.core/Some {:restricted-to [:my::ns::] :doc "..."}    ; Option/Some wrapping the metadata HashMap
+;; → #wat.core/None nil                                         ; Option/None — binding carries no metadata
 ```
 
 Sits in the `<aspect>-of-<thing>` family next to `body-of`. Single sibling, not split.
+
+**Return type — `Option<HashMap<Keyword, HolonAST>>` (the honest encoding; correction inscribed 2026-05-28).** An earlier draft of this section returned bare `:nil` for "no metadata." User caught it as semantic abuse of nil/Unit. Per `feedback_no_semantic_abuse_of_option` ("Option = presence/absence, NEVER flavor/kind"), the doctrine cascade:
+
+1. Empty `{}` at declaration is ILLEGAL (settled rule — divide-by-zero)
+2. Therefore absence-of-metadata MUST be distinct from "empty metadata" — they can't share a representation
+3. That distinction IS literally presence/absence — legitimate `Option<T>` semantics, not flavor abuse
+4. Returning bare `:nil` (Unit) would conflate Wat's `Value::Unit` (a primitive value in its own right) with "no metadata attached" — that IS the abuse pattern the doctrine catches
+
+Wire encoding follows arc 216.7 + arc 218.2 FQDN tagged-literal doctrine: `#wat.core/Some <payload>` / `#wat.core/None nil`. The bare `nil` inside `#wat.core/None nil` is structural EDN-compliance (tagged literals require a syntactic payload); the reader's `#wat.core/None` handler discards it. Tag carries semantic; nil is required EDN syntax, not Wat's Unit value.
 
 ---
 
