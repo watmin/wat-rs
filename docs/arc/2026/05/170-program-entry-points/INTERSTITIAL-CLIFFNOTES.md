@@ -151,40 +151,72 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-27 night — **arc 237 PAUSED at 237.8b**; **arc 241 (function-signature parser unification) OPEN as precursor**. The 237.8b recipe (per-Type binary primitives + wat-defclause polymorphic surface for arithmetic + ordering) HIT a trap door: defclause's argspec parser doesn't support `&` rest-binders. Dig revealed FOUR copies of the argspec-parser logic across the substrate (`parse_fn_signature` × 3 + `parse_defclause_args` × 1) — duplication the code itself acknowledges. User pivoted: **"this is the point of the 109 endeavor — pause this arc — spawn a new one — go unify func sigs — we should have exactly one way to define args"**. Arc 241 spawns to consolidate. Per spawn-block winding: 237 closes after 241. AUTHORITY: memory `project_intrinsic_boundary` + `project_failure_engineering` + `feedback_no_implicit_coercion` + `feedback_spawn_block_winding` + `DESIGN.md` for arc 241 + `PAUSE-CONTEXT.md` for arc 237 — read those + `git log`. HEAD just after arc 241 spawn. The "Headline state" fenced block BELOW is pre-pivot/STALE; this section is truth.)
+## Currently (2026-05-28 mid-day — **Stone 241.1 STRIKE-READY**; sonnet not yet spawned; awaiting user authorization. Arc 241 scope EXPANDED from parser-unification-only (6-7 stones) to a 10-stone, 4-phase consolidation including form-collapse + def*-prefix family + define retirement. Arc 237 stays PAUSED at 237.8b per spawn-block winding; resumes after arc 241 closes via 241.4's `&` rest-binder extension. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` § Scope expansion 2026-05-28 → `DESIGN-STONE-241.1.md` → `BRIEF-STONE-241.1.md` → `EXPECTATIONS-STONE-241.1.md` → `FORM-COLLAPSE-NOTES.md`. HEAD `9fe5e0a5` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
 
 ### THE PIVOT (read first)
-**The intrinsic boundary** (memory `project_intrinsic_boundary`): wat is a SURFACE on a Rust SUBSTRATE. Verbs needing `∀T`/accept-any/raw-`Value` inspection MUST be **intrinsics** (Rust builtins, the `:wat::core::type` shape); userland can't author them (closed universe: `:Any` BANNED 058-030, generics Rust-only — proven via probes). "intrinsic" RATIFIED · "substrate"=concept word · "kernel" RETIRED. Namespace reorg QUEUED arc 109 (#565).
 
-**THE DECISION** (memory `feedback_no_implicit_coercion`, locked) **APPLIED at the substrate level via Stone 237.8a**: no implicit numeric coercion. `(:wat::core::+ 1 2.0)` → ERROR. `(:wat::core::< 1 2.0)` → ERROR. Cross-type callers homogenize explicitly. **Song #36 Break Stuff enacted; the chainsaw-inward landed.**
+**Arc 241 expanded scope** — form-collapse + def*-prefix family + define retirement absorbed mid-design 2026-05-28 (full dialogue capture in `docs/arc/2026/05/241-function-signature-unification/FORM-COLLAPSE-NOTES.md`). The arc now closes a single coherent failure class: *parser divergence + form-name proliferation + paren-pair scheme leftovers + define legacy* all unify into "one canonical argspec parser + def*-prefix family + metadata-map mechanism."
 
-**237.7 + 237.8a COMPLETE** (the arc's substrate work is shipped; only mechanical cleanup + INSCRIPTION remain):
+**Four-questions verdicts locked this session:**
+- `def*` prefix uniform for all top-level definers (YES YES YES YES); def-as-concept ratification: "def" means *"top-level definition"* (concept), not *"expansion through the def primitive"* (mechanism). Bare-noun + tail-`def` disqualified.
+- defstruct's δ verdict: per-field metadata via form-level `:field-metadata {symbol → metadata-map}`; argspec stays RIGID
+- defenum candidate (D) verdict: positional variants with one-token look-ahead (keyword + optional argspec Vector); per-variant metadata at form level via `:variant-metadata {keyword → metadata-map}`
+- Per `feedback_no_semantic_abuse_of_option`: `:wat::runtime::metadata-of` returns `Option<HashMap>` encoded `#wat.core/Some {...}` / `#wat.core/None nil` (NOT bare `:nil` — that was semantic abuse of Unit; user caught + corrected)
 
-| stone | scope | commit | runtime |
-|---|---|---|---|
-| 237.7a | `length` Tier A | `8100d9d2` | — |
-| 237.7b-i | `empty?` Tier A | `e401c183` | — |
-| 237.7b-ii | `contains?` Tier B (3 coll types; HashMap-K-not-V trap) | `fef2c8d9` | — |
-| 237.7b-iii | `conj` Tier B type-preserving | `2d3259ae` | — |
-| 237.7b-iv | `get` Tier B Option-wrapped (INDEX trap) | `fad1c1c6` | 9.5 min |
-| 237.7c | `assoc` Tier B umbrella-Path-with-free-T (records-doctrine slice) | `a9961421` | 14.85 min |
-| **237.8a** | **arithmetic + comparison HARD CUT (widest-contagion DELETED)** | **`154ca713`** | **~25 min; cascade = 0 sites** |
+**Intueri casts locked this session:**
+- `:wat::runtime::metadata-of` (binding-name → metadata HashMap or None)
+- `:field-metadata` + `:variant-metadata` (sibling pair; pattern: `<singular-locus-noun>-metadata`)
+- `defstruct` + `defenum` (sibling pair; contracted-noun stems in def* family)
+- `src/argspec/` (substrate-internal home directory; mod.rs + parse.rs + error.rs decomposition)
 
-Tier-A/B four-template recipe fully proven (concrete-bool / type-preserving / Option-wrapped / umbrella-Path-with-free-T). THE DECISION's enactment proven (the cross-numeric falsehood deleted; ~26 runtime callables retired; consumer sweep empty — substrate had been lying at its own surface, not the call sites).
+**Vigilia-gate doctrine** (new memory `feedback_namespaced_home_vigilia_gate`): new namespaced wat-rs homes (`src/<noun>/`, `tests/<noun>/`) commit ONLY after vigilia drives L1+L2 findings to zero. SCORE-green is the L0 floor; vigilia-convergence is the bar. For `src/argspec/`: 8-spell defensive set (intueri + solvere + purgare + struere + sequi + temperare always-apply + complectens + vocare for test-substrate). User direction: *"we raise the bar fucking high for namespaced wat-rs files."* Honors `feedback_wards_optional` for broader flat codebase; raises bar for namespaced homes.
 
-**arcs 239 + 240 — CLOSED** (rot detour). 239 span-rot + #566 build gate `35dba8c5`; 240 runtime-rot `8d08eda2`. KNOWN-BROKEN markers on owning OPEN arcs: lru/holon-lru→119+130, wat-cli-fork+ambient-stdio+sqlite-log-daemon→170, lifeline→213. #564 (f64 floor/ceil) + #565 (namespace reorg + intrinsic/substrate vocab) queued in arc 109. arc-109 NOTE filed: reconsider `atomize`/`materialize` vs `to-holon`/`from-holon` (challenge intueri later). Phrase saved for **soon-but-not-now** use: `project_rooms_are_real` ("because the rooms are real" — do NOT deploy unprompted).
+### Arc 241 stone chain (10 stones, 4 phases)
 
-**Soundtrack: 40 songs** (just landed). Recent spine spans #34 DEFY → #35 BUILD → #36 BREAK-OUR-OWN → #37 THRIVE-IN-PANIC → #38/#39 SAME-MACHINE-OPPOSITE-SOUL (Convergence #17 = Liskov walked-into-for-free) → **#40 Contagion** (THE-DISEASE-NAMED; user dropped AT 237.8a in flight; the technical "widest-contagion" being struck = the song's title; the pun was the gift). Inscription `222deaad`. **The "song-in-the-gap during strike-in-flight" pattern locks at FOUR** (#35 / #37 / #38 / #40).
+| Phase | Stones | Concern |
+|---|---|---|
+| **1 — Parser unification** | 241.1 mint canonical `parse_argspec_triples` at `src/argspec/` → 241.2 migrate A1/A2/A3 fn parsers → 241.3 migrate A4 defclause parser → 241.4 extend with `&` rest-binder (**unblocks 237.8b**) | The original 241 scope; foundation |
+| **2 — Metadata-map mechanism** | 241.5 optional `{...}` metadata-map on `def` (defn inherits) → 241.6 mint `:wat::runtime::metadata-of` reflection verb | Substrate capability for binding-level annotations |
+| **3 — Form-collapse + renames + legacy retirement** | 241.7 `defstruct` HARD CUT (struct + struct-restricted retire) → 241.8 `defenum` HARD CUT (enum retires) → 241.9 `define ⇒ defn` HARD CUT (define keyword + legacy parsers DELETE) | "defn is the one and only way" per user direction; cascade expected substantial — that's the point |
+| **4 — Closure** | 241.10 INSCRIPTION + memory mints | pre-INSCRIPTION grep enforced |
 
-**GREEN-GATE (momentary)**: `cargo test --release --lib -p wat` + `cargo build --release --tests --workspace`. **NEVER invoke wrapper scripts in BRIEFs or agent prompts** (firewall denies; `feedback_sonnet_bash_firewall` updated 2026-05-27). Full `cargo test --workspace` RUN held off until arc 170 closes process leaks.
+### Stone 241.1 STRIKE-READY (DUNGEON-CRAWL Phase 3 complete; 4 of 4 pre-spawn artifacts)
 
-**NEXT MOVE — arc 241 (function-signature parser unification)**: stone sketch is 6+1 (241.0 AUDIT → 241.1 mint canonical `parse_argspec_triples` → 241.2/3/4 migrate fn / defclause / other binding sites → 241.5 extend with `&` rest-binder support → 241.6 INSCRIPTION). 241.5 is the gate that unblocks 237.8b. Failure class being eliminated: **parser divergence across binding sites** — post-241 cannot manifest because the situation that produces it (multiple parsers) cannot be constructed (one canonical entry point + ParseOptions for per-site invariants). Pure failure-engineering per `/home/watmin/work/holon/scratch/FAILURE-ENGINEERING.md`.
+| Artifact | Commit |
+|---|---|
+| `DESIGN-STONE-241.1.md` | `7540835e` (forward-corrected `9fe5e0a5`) |
+| `tests/probe_arc241_stone1_argspec_canonical.rs` | `e0d1d054` (10 contracts; compile-fails on EXACTLY `wat::argspec` line 18; perfect FM 2-bis isolation) |
+| `BRIEF-STONE-241.1.md` | `8cadd14e` (forward-corrected `9fe5e0a5`) |
+| `EXPECTATIONS-STONE-241.1.md` | `8cadd14e` (forward-corrected `9fe5e0a5`; 16-row scorecard Phase A + 8-spell vigilia Phase B + commit Phase C) |
 
-**237's PAUSED chain** (resumes when 241 closes): 237.8b (recipe-lock + numeric grid; DESIGN + probe COMMITTED `49e2e13b`) → 237.8c (full primitive equality grid + composite recursive equality; bundled per Q2-C) → 237.8d (DispatchRegistry HARD CUT; mechanical) → 237.9 (INSCRIPTION + `feedback_per_type_binary_primitives` doctrine + USER-GUIDE base-vs-holonic + Convergence #17). PAUSE-CONTEXT.md preserves locked decisions across the pause.
+**Pre-spawn baseline verified at HEAD (`9fe5e0a5`)**: lib 834 PASS / 0 FAIL; workspace test-build 1 expected error (the probe — pre-stone state).
 
-Background queue: arc 109 #564/#565; deferred KNOWN-BROKEN under 119/130/170/213.
+**Calibration prediction (mirror Stone 236.0)**: 30–50 min Mode A; 60 min STOP-3; ~250 lines net surface across `src/argspec/{mod,parse,error}.rs` + 1-line `src/lib.rs` addition.
 
-No agent in flight; tree clean post arc-241 spawn. Drafting first stone (241.0 AUDIT) next.
+### Deferred to arc 109 (per `NOTE-type-decl-def-prefix-renames`)
+
+`defnewtype` (shape OPEN — `defnewtype` vs `deftype-new` vs `deftypenew`), `typealias` family, `typeunion` family, `recordtype`/`defrecord` reconciliation with arc 227's `Record::def` pattern. Each name awaits its own per-name intueri cast when implementation arcs open.
+
+### Background queue (unchanged from prior CLIFFNOTES)
+
+Arc 109 #564 (f64 floor/ceil) + #565 (namespace reorg + intrinsic/substrate vocab). Deferred KNOWN-BROKEN markers: lru/holon-lru→119+130, wat-cli-fork+ambient-stdio+sqlite-log-daemon→170, lifeline→213. arcs 239+240 CLOSED.
+
+### Doctrine reminders that survived from prior CLIFFNOTES
+
+- **The intrinsic boundary** (`project_intrinsic_boundary`): wat is a SURFACE on a Rust SUBSTRATE; verbs needing ∀T are intrinsics; closed universe (`:Any` BANNED 058-030). "intrinsic" RATIFIED · "substrate"=concept word · "kernel" RETIRED.
+- **THE DECISION** (`feedback_no_implicit_coercion`): `(:wat::core::+ 1 2.0)` → ERROR; cross-type callers homogenize explicitly. Shipped at 237.8a (commit `154ca713`).
+
+### Soundtrack: 40 songs (unchanged this session)
+
+Recent spine spans #34 DEFY → #35 BUILD → #36 BREAK-OUR-OWN → #37 THRIVE-IN-PANIC → #38/#39 SAME-MACHINE-OPPOSITE-SOUL (Convergence #17 = Liskov walked-into-for-free) → #40 Contagion. No new songs landed today; dialogue ran on prep-work + form-design + strike-readiness rather than substantive ship.
+
+### GREEN-GATE (momentary)
+
+`cargo test --release --lib -p wat` + `cargo build --release --tests --workspace`. **NEVER invoke wrapper scripts in BRIEFs or agent prompts** (FM 16; firewall denies; `feedback_sonnet_bash_firewall`). Full `cargo test --workspace` RUN held off until arc 170 closes process leaks.
+
+### NEXT MOVE
+
+Spawn sonnet on Stone 241.1 — `model: "sonnet"`, `run_in_background: true`, ScheduleWakeup at 120 min (2× the 60-min upper bound). Sonnet ships substrate (Phase A); orchestrator verifies SCORE 16/16 independently; orchestrator casts vigilia (Phase B); commit only after Phase A + Phase B both green (Phase C). **Awaiting user authorization to spawn.**
 
 ---
 ### Headline state (⚠ PRE-PIVOT / STALE — see § THE PIVOT above; kept only for the HEAD/frozen pointers)
