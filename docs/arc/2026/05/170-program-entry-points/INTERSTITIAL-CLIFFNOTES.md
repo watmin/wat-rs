@@ -151,7 +151,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-28 mid-day — **Stone 241.1 STRIKE-READY**; sonnet not yet spawned; awaiting user authorization. Arc 241 scope EXPANDED from parser-unification-only (6-7 stones) to a 10-stone, 4-phase consolidation including form-collapse + def*-prefix family + define retirement. Arc 237 stays PAUSED at 237.8b per spawn-block winding; resumes after arc 241 closes via 241.4's `&` rest-binder extension. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` § Scope expansion 2026-05-28 → `DESIGN-STONE-241.1.md` → `BRIEF-STONE-241.1.md` → `EXPECTATIONS-STONE-241.1.md` → `FORM-COLLAPSE-NOTES.md`. HEAD `9fe5e0a5` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
+## Currently (2026-05-28 late-mid-day — **Stone 241.1.fix SHIPPED**; vigilia CONVERGED 8/8 spells; gate doctrine validated through real practice. Stone 241.2 (A1/A2/A3 fn-parser migration) NEXT. Arc 237 stays PAUSED at 237.8b per spawn-block winding; resumes after arc 241 closes via 241.4's `&` rest-binder extension. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` § Scope expansion 2026-05-28 → `SCORE-STONE-241.1.fix.md` § Vigilia Convergence → `FORM-COLLAPSE-NOTES.md` line 184 (scope boundary). HEAD `b6b290b0` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
 
 ### THE PIVOT (read first)
 
@@ -180,18 +180,38 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 | **3 — Form-collapse + renames + legacy retirement** | 241.7 `defstruct` HARD CUT (struct + struct-restricted retire) → 241.8 `defenum` HARD CUT (enum retires) → 241.9 `define ⇒ defn` HARD CUT (define keyword + legacy parsers DELETE) | "defn is the one and only way" per user direction; cascade expected substantial — that's the point |
 | **4 — Closure** | 241.10 INSCRIPTION + memory mints | pre-INSCRIPTION grep enforced |
 
-### Stone 241.1 STRIKE-READY (DUNGEON-CRAWL Phase 3 complete; 4 of 4 pre-spawn artifacts)
+### Phase 1 progress (Stone 241.1 + 241.1.fix SHIPPED; 241.2 NEXT)
 
-| Artifact | Commit |
-|---|---|
-| `DESIGN-STONE-241.1.md` | `7540835e` (forward-corrected `9fe5e0a5`) |
-| `tests/probe_arc241_stone1_argspec_canonical.rs` | `e0d1d054` (10 contracts; compile-fails on EXACTLY `wat::argspec` line 18; perfect FM 2-bis isolation) |
-| `BRIEF-STONE-241.1.md` | `8cadd14e` (forward-corrected `9fe5e0a5`) |
-| `EXPECTATIONS-STONE-241.1.md` | `8cadd14e` (forward-corrected `9fe5e0a5`; 16-row scorecard Phase A + 8-spell vigilia Phase B + commit Phase C) |
+| Stone | Status | Commit | Notes |
+|---|---|---|---|
+| 241.1 | SHIPPED | `1f674194` | Mint canonical parser; ~50 min Mode A; 519 lines net |
+| 241.1.fix | SHIPPED | `b6b290b0` | Vigilia amends + scope correction; vigilia 8/8 CONVERGED; ~-215 lines from 241.1 baseline |
+| 241.2 | NEXT | — | Migrate A1/A2/A3 fn parsers (runtime.rs:6750, check.rs:15205+15258) through canonical |
+| 241.3 | queued | — | Migrate A4 defclause parser (runtime.rs:6880) |
+| 241.4 | queued | — | Extend with `&` rest-binder; unblocks 237.8b |
 
-**Pre-spawn baseline verified at HEAD (`9fe5e0a5`)**: lib 834 PASS / 0 FAIL; workspace test-build 1 expected error (the probe — pre-stone state).
+### Gate doctrine validated through real practice (2026-05-28)
 
-**Calibration prediction (mirror Stone 236.0)**: 30–50 min Mode A; 60 min STOP-3; ~250 lines net surface across `src/argspec/{mod,parse,error}.rs` + 1-line `src/lib.rs` addition.
+The vigilia-convergence gate caught THREE issues SCORE-green would have shipped silently:
+1. **solvere L2 (Phase B-1)**: reason-string drift across 3 From<> impls in error.rs — closed via classify() extraction
+2. **solvere L2 (Phase B-1)**: `RetTypeNotKeyword` conflates slot-absent + slot-wrong — surfaced to user; verdict locked Path Y ("args have nothing to do with ret type"); STRUCTURALLY resolved by Layer 2 scope correction (variant gone)
+3. **struere L2 (Phase B-2)**: `unreachable!` arm exposed panic-instead-of-Err surprise; closed via 3-line always-Err amend
+
+Each finding's resolution was at the highest possible ladder rung:
+- Drift → ✅✅✅ single source of truth (classify())
+- Conflation → ✅✅✅ structural elimination (variant gone; concept has no representation)
+- Panic → ✅✅✅ branching collapse (function honestly returns Result<> with no panic paths)
+
+**Phase 1 lessons inscribed in SCORE-STONE-241.1.fix.md § Phase 1 lessons.** The user direction *"we raise the bar fucking high for namespaced wat-rs files"* met its test; the gate held; the home is shockingly good.
+
+### Calibration history (Phase 1 to date)
+
+| Stone | Class | Surface delta | Predicted | Actual | Status |
+|---|---|---|---|---|---|
+| 241.1 | Mint parser + types + tests | +519 net | 30-50 min | ~50 min | within band |
+| 241.1.fix Layer 1 | Vigilia amends | -88 net | 20-30 min | ~8 min | UNDER band (mechanical) |
+| 241.1.fix Layer 2 | Scope correction | -127 net | 20-35 min | ~8 min | UNDER band (mechanical) |
+| 241.1.fix struere closure | 3-line amend | -3 net | 5-10 min | ~5 min | within band |
 
 ### Deferred to arc 109 (per `NOTE-type-decl-def-prefix-renames`)
 
@@ -214,35 +234,32 @@ Recent spine spans #34 DEFY → #35 BUILD → #36 BREAK-OUR-OWN → #37 THRIVE-I
 
 `cargo test --release --lib -p wat` + `cargo build --release --tests --workspace`. **NEVER invoke wrapper scripts in BRIEFs or agent prompts** (FM 16; firewall denies; `feedback_sonnet_bash_firewall`). Full `cargo test --workspace` RUN held off until arc 170 closes process leaks.
 
-### NEXT MOVE — **Phase B (vigilia) OWED**
+### NEXT MOVE — **Stone 241.2 (A1/A2/A3 fn-parser migration)**
 
-Stone 241.1 **Phase A SHIPPED 2026-05-28 mid-day** (verified independently before commit):
-- Probe 10/10 PASS · Lib 834/0 · Clippy delta 0 · Files match discipline
-- Surface 519 lines net (mod.rs 47 + parse.rs 219 + error.rs 253)
-- error.rs over-predicted (~250 vs ~80) — substantive From<> impls for RuntimeError/CheckError/TypeError + Display impl; honest, not bloat
-- Honest delta noted in SCORE: ArgSpecError does NOT derive Clone (TypeError only derives Debug); no 241.1 contract requires it
+The canonical `parse_argspec_triples` exists and is shockingly good. Now compose it with ret-clause parsing at the fn-form parsers.
 
-**Phase B (vigilia cast) SHIPPED 2026-05-28 mid-day; verdict: DIVERGED — Stone 241.1.fix QUEUED.** Eight spells cast in parallel; aggregate 4 L1 + ~12 L2 with significant cross-spell overlap. Vigilia Convergence section appended to SCORE-STONE-241.1.md (uncommitted at time of this CLIFFNOTES write; commits in the same atomic push).
+**The migration shape** (each of A1/A2/A3):
 
-**Next move — Stone 241.1.fix** (amend pass; blocks Stone 241.2 per spawn-block winding):
+1. Find the `->` arrow position in the args_vec (e.g., `find_arrow_position` helper or inline)
+2. Call `parse_argspec_triples(&args_vec[..arrow_pos], head, form_span, options)` for the args
+3. Parse ret-clause on `&args_vec[arrow_pos+1..]` (either inline OR via a small `parse_ret_clause` helper minted in 241.2)
+4. Convert via `From<ArgSpecError>` at the binding-site boundary (already shipped in Stone 241.1.fix)
 
-*Substrate amends (L1)*:
-1. `error.rs` — extract `fn classify(&self) -> (Span, String, String)` on `ArgSpecError`; three `From<>` impls collapse to mechanical wrappers (reason-string drift ALREADY biting: NameNotSymbol produces 3 distinct messages today)
-2. `parse.rs` — extract `parse_keyword_type(ast, head, err_ctor)` helper; fixed-param + ret-type slots both use it
-3. `parse.rs:80-90` — `rune:purgare(future-fixture)` for the `unreachable!` arm (grimoire-prescribed; future-fixture for 241.4); same rune covers `ArgSpec::rest_param` field and three `From<>` impls
-4. `probe:25` — replace `impl Deref<Target=Span>` return with owned `(Vec<WatAST>, Span)` (4 spells converge on this site: struere L1 + sequi L2 + complectens L2 + vocare L2 — strong signal AMEND not rune)
+**Three sites to migrate** (per AUDIT.md verified-inventory):
+- **A1** `src/runtime.rs:6750` `parse_fn_signature` → returns `Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), RuntimeError>`; consumed by `eval_fn` + `try_parse_fn_shape_def`
+- **A2** `src/check.rs:15205` `parse_fn_signature_for_check` → returns `Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ()>`; silent-path infer_fn
+- **A3** `src/check.rs:15258` `parse_fn_signature_for_check_diag` → `Option<(Vec<String>, Vec<TypeExpr>, TypeExpr)>` (errors pushed by-ref); diagnostic-path infer_fn
 
-*Substrate cleanups (selected L2)*:
-- `parse.rs:158` — remove tautological `is_bare_symbol(..., "->")` after loop break (temperare)
-- `parse.rs:99` — rewrite condition as `args_vec.len().saturating_sub(idx) < 3` (solvere + struere)
-- `parse.rs:98` — remove WHAT comment or rewrite as WHY (intueri)
-- `probe:25` — rename `argspec_inputs` → `parse_vector_items` (intueri)
-- `probe:38` — rename `invoke` → `parse_triples` (intueri)
-- `probe` — add 3 contracts for unprobed variants: MalformedTypeKeyword, RetTypeNotKeyword, IncompleteSignature (vocare)
+**Per `feedback_stone_briefs_cite_prior_score`**: Stone 241.2 BRIEF cites `SCORE-STONE-241.1.fix.md` § Vigilia Convergence as the structural shape — argspec home is exceptional; migration callers route through it; conversion at site boundary via the From<> impls.
 
-*Acceptable deferrals*: TypeExpr-content checks in contracts 03/04 (vocare); per-helper `#[test]` for argspec_inputs + invoke (complectens) — extend later if surface widens.
+**Per spawn-block winding**: Stone 241.2 closes before Stone 241.3 opens; 241.3 closes before 241.4 opens; 241.4 closes before 237.8b resumes.
 
-After Stone 241.1.fix re-casts vigilia clean (L1+L2=0 or runes accepted), Phase B converges; Stone 241.2 (migrate A1/A2/A3 fn parsers through canonical) opens. The doctrine `feedback_namespaced_home_vigilia_gate` survived its first real test: vigilia caught architectural issues sonnet's SCORE didn't surface (reason-string drift was actively biting; sonnet shipped it green).
+**Pre-stone artifacts to draft**:
+- `DESIGN-STONE-241.2.md` (sub-DESIGN; locked decisions; trap-door audit)
+- `tests/probe_arc241_stone2_fn_parser_migration.rs` (FM 2-bis probe; minimal contracts proving migration shape — likely 8-10 contracts)
+- `BRIEF-STONE-241.2.md` + `EXPECTATIONS-STONE-241.2.md`
+
+The probe should hit at compile-time the assumption "A1/A2/A3 still return their tuples / Option" after migration — i.e., the public APIs of A1/A2/A3 stay backwards-compatible until 241.10 retirement. Migration is INTERNAL — the binding-site callers don't know the parser was unified.
 
 ---
 ### Headline state (⚠ PRE-PIVOT / STALE — see § THE PIVOT above; kept only for the HEAD/frozen pointers)
