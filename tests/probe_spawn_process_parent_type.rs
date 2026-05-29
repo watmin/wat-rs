@@ -170,7 +170,7 @@ fn probe_spawn_process_inherits_parent_enum() {
     // declaration lives at the program prelude inside the spawn-process
     // call, NOT inherited from parent.
     let src = r##"
-        (:wat::core::enum :test::proto::Color
+        (:wat::core::defenum :test::proto::Color
           :Red
           :Green
           :Blue)
@@ -179,7 +179,7 @@ fn probe_spawn_process_inherits_parent_enum() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::forms
-              (:wat::core::enum :test::proto::Color
+              (:wat::core::defenum :test::proto::Color
                 :Red
                 :Green
                 :Blue)

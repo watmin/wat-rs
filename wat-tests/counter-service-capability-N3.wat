@@ -65,36 +65,37 @@
 
 (:wat::test::deftest :counter-service::capability-N3
   (;; ─── Admin protocol ──────────────────────────────────────────────────────
-   (:wat::core::enum :counter::AdminReq
-     (Provision (initial :wat::core::i64))
-     (Deprovision (id :wat::core::Uuid))
-     (Stop))
+   ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+   (:wat::core::defenum :counter::AdminReq
+     :Provision   [initial <- :wat::core::i64]
+     :Deprovision [id      <- :wat::core::Uuid]
+     :Stop)
 
-   (:wat::core::enum :counter::AdminResp
-     (Provisioned (id :wat::core::Uuid) (tx :wat::kernel::Sender<counter::Wire>) (rx :wat::kernel::Receiver<counter::UserResp>))
-     (Deprovisioned (id :wat::core::Uuid))
-     (Stopped)
-     (AccessDenied))                          ;; server refused — server-id mismatch
+   (:wat::core::defenum :counter::AdminResp
+     :Provisioned   [id <- :wat::core::Uuid tx <- :wat::kernel::Sender<counter::Wire> rx <- :wat::kernel::Receiver<counter::UserResp>]
+     :Deprovisioned [id <- :wat::core::Uuid]
+     :Stopped
+     :AccessDenied)                           ;; server refused — server-id mismatch
 
    ;; ─── User protocol ───────────────────────────────────────────────────────
-   (:wat::core::enum :counter::UserReq
-     (Get)
-     (Increment (n :wat::core::i64))
-     (Reset))
+   (:wat::core::defenum :counter::UserReq
+     :Get
+     :Increment [n <- :wat::core::i64]
+     :Reset)
 
-   (:wat::core::enum :counter::UserResp
-     (Value (v :wat::core::i64))
-     (Ok    (v :wat::core::i64))
-     (AccessDenied))                          ;; server refused — server-id mismatch
+   (:wat::core::defenum :counter::UserResp
+     :Value [v <- :wat::core::i64]
+     :Ok    [v <- :wat::core::i64]
+     :AccessDenied)                           ;; server refused — server-id mismatch
 
    ;; ─── Wire enum ────────────────────────────────────────────────────────────
    ;; server-id is the FIRST field on both variants — the secret witness.
    ;; Every wrapper embeds the capability's server-id when constructing Wire.
    ;; The server validates server-id against its own before processing.
    ;; Arc 207: server-id and user-id are typed :wat::core::Uuid.
-   (:wat::core::enum :counter::Wire
-     (Admin (server-id :wat::core::Uuid) (req :counter::AdminReq))
-     (User  (server-id :wat::core::Uuid) (user-id :wat::core::Uuid) (req :counter::UserReq)))
+   (:wat::core::defenum :counter::Wire
+     :Admin [server-id <- :wat::core::Uuid req <- :counter::AdminReq]
+     :User  [server-id <- :wat::core::Uuid user-id <- :wat::core::Uuid req <- :counter::UserReq])
 
    ;; ─── ServiceError enum ────────────────────────────────────────────────────
    ;;
@@ -113,10 +114,10 @@
    ;;   - recv Ok(None) → Disconnected
    ;;   - recv Err → PeerDied (Shutdown chain — rare, process-wide shutdown)
    ;;   - drain-and-join Err → PeerDied (chain)
-   (:wat::core::enum :counter::ServiceError
-     (AccessDenied)
-     (PeerDied   (chain :wat::core::Vector<wat::kernel::ThreadDiedError>))
-     (Disconnected))
+   (:wat::core::defenum :counter::ServiceError
+     :AccessDenied
+     :PeerDied   [chain <- :wat::core::Vector<wat::kernel::ThreadDiedError>]
+     :Disconnected)
 
    ;; ─── Registry types ───────────────────────────────────────────────────────
    (:wat::core::typealias :counter::TxStatePair
@@ -324,7 +325,7 @@
                    admin-wire-rx admin-resp-tx
                    new-registry
                    next-id self-server-id)))
-             ((:counter::AdminReq::Stop)
+             (:counter::AdminReq::Stop
                (:wat::core::Result/expect -> :wat::core::nil
                  (:wat::kernel::send admin-resp-tx
                    (:counter::AdminResp::Stopped))
@@ -368,7 +369,7 @@
                  (:wat::core::if (:wat::core::= wire-sid self-server-id)
                    -> :wat::core::nil
                    (:wat::core::match req -> :wat::core::nil
-                     ((:counter::UserReq::Get)
+                     (:counter::UserReq::Get
                        (:wat::core::do
                          (:wat::core::Result/expect -> :wat::core::nil
                            (:wat::kernel::send server-tx
@@ -390,7 +391,7 @@
                          (:counter::dispatch3
                            admin-wire-rx admin-resp-tx
                            new-registry next-id self-server-id)))
-                     ((:counter::UserReq::Reset)
+                     (:counter::UserReq::Reset
                        (:wat::core::do
                          (:wat::core::Result/expect -> :wat::core::nil
                            (:wat::kernel::send server-tx
@@ -483,11 +484,11 @@
                      -> :wat::core::Result<counter::User,counter::ServiceError>
                      ((:counter::AdminResp::Provisioned id user-tx user-rx)
                        (:wat::core::Ok (:counter::User/new sid id user-tx user-rx)))
-                     ((:counter::AdminResp::AccessDenied)
+                     (:counter::AdminResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))
                      ((:counter::AdminResp::Deprovisioned _id)
                        (:wat::kernel::assertion-failed! "provision: expected Provisioned, got Deprovisioned" :wat::core::None :wat::core::None))
-                     ((:counter::AdminResp::Stopped)
+                     (:counter::AdminResp::Stopped
                        (:wat::kernel::assertion-failed! "provision: expected Provisioned, got Stopped" :wat::core::None :wat::core::None))))
                  (:wat::core::None
                    (:wat::core::Err (:counter::ServiceError::Disconnected)))))
@@ -525,11 +526,11 @@
                      -> :wat::core::Result<wat::core::nil,counter::ServiceError>
                      ((:counter::AdminResp::Deprovisioned _id)
                        (:wat::core::Ok ()))
-                     ((:counter::AdminResp::AccessDenied)
+                     (:counter::AdminResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))
                      ((:counter::AdminResp::Provisioned _id _tx _rx)
                        (:wat::kernel::assertion-failed! "deprovision: expected Deprovisioned, got Provisioned" :wat::core::None :wat::core::None))
-                     ((:counter::AdminResp::Stopped)
+                     (:counter::AdminResp::Stopped
                        (:wat::kernel::assertion-failed! "deprovision: expected Deprovisioned, got Stopped" :wat::core::None :wat::core::None))))
                  (:wat::core::None
                    (:wat::core::Err (:counter::ServiceError::Disconnected)))))
@@ -631,7 +632,7 @@
                      -> :wat::core::Result<wat::core::i64,counter::ServiceError>
                      ((:counter::UserResp::Value v) (:wat::core::Ok v))
                      ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
-                     ((:counter::UserResp::AccessDenied)
+                     (:counter::UserResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
                  (:wat::core::None
                    (:wat::core::Err (:counter::ServiceError::Disconnected)))))
@@ -663,7 +664,7 @@
                      -> :wat::core::Result<wat::core::i64,counter::ServiceError>
                      ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
                      ((:counter::UserResp::Value v) (:wat::core::Ok v))
-                     ((:counter::UserResp::AccessDenied)
+                     (:counter::UserResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
                  (:wat::core::None
                    (:wat::core::Err (:counter::ServiceError::Disconnected)))))
@@ -694,7 +695,7 @@
                      -> :wat::core::Result<wat::core::i64,counter::ServiceError>
                      ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
                      ((:counter::UserResp::Value v) (:wat::core::Ok v))
-                     ((:counter::UserResp::AccessDenied)
+                     (:counter::UserResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
                  (:wat::core::None
                    (:wat::core::Err (:counter::ServiceError::Disconnected)))))
@@ -740,13 +741,13 @@
                  ((:wat::core::Some resp)
                    (:wat::core::match resp
                      -> :wat::core::Result<wat::core::nil,counter::ServiceError>
-                     ((:counter::AdminResp::AccessDenied)
+                     (:counter::AdminResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))
                      ((:counter::AdminResp::Provisioned _id _tx _rx)
                        (:wat::kernel::assertion-failed! "forge-test: server should have rejected Uuid/nil server-id, got Provisioned" :wat::core::None :wat::core::None))
                      ((:counter::AdminResp::Deprovisioned _id)
                        (:wat::kernel::assertion-failed! "forge-test: server should have rejected Uuid/nil server-id, got Deprovisioned" :wat::core::None :wat::core::None))
-                     ((:counter::AdminResp::Stopped)
+                     (:counter::AdminResp::Stopped
                        (:wat::kernel::assertion-failed! "forge-test: server should have rejected Uuid/nil server-id, got Stopped" :wat::core::None :wat::core::None))))
                  (:wat::core::None
                    (:wat::core::Err (:counter::ServiceError::Disconnected)))))
@@ -872,10 +873,10 @@
        (:wat::core::match forge-res -> :wat::core::nil
          ((:wat::core::Err err)
            (:wat::core::match err -> :wat::core::nil
-             ((:counter::ServiceError::AccessDenied) ())   ;; expected — forge correctly rejected
+             (:counter::ServiceError::AccessDenied ())   ;; expected — forge correctly rejected
              ((:counter::ServiceError::PeerDied _chain)
                (:wat::kernel::assertion-failed! "forge: expected AccessDenied, got PeerDied" :wat::core::None :wat::core::None))
-             ((:counter::ServiceError::Disconnected)
+             (:counter::ServiceError::Disconnected
                (:wat::kernel::assertion-failed! "forge: expected AccessDenied, got Disconnected" :wat::core::None :wat::core::None))))
          ((:wat::core::Ok _)
            (:wat::kernel::assertion-failed! "forge: expected Err(AccessDenied), got Ok" :wat::core::None :wat::core::None)))
@@ -900,8 +901,8 @@
            ;; Both are legitimate — demonstrates that wrappers surface errors as Result.
            (:wat::core::match err -> :wat::core::nil
              ((:counter::ServiceError::PeerDied _chain) ())     ;; send failed — ChannelDisconnected
-             ((:counter::ServiceError::Disconnected) ())        ;; recv saw None — sender dropped
-             ((:counter::ServiceError::AccessDenied)
+             (:counter::ServiceError::Disconnected ())        ;; recv saw None — sender dropped
+             (:counter::ServiceError::AccessDenied
                (:wat::kernel::assertion-failed! "after-stop get: unexpected AccessDenied" :wat::core::None :wat::core::None))))
          ((:wat::core::Ok _)
            (:wat::kernel::assertion-failed! "after-stop get: expected Err (server stopped), got Ok" :wat::core::None :wat::core::None)))]

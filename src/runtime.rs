@@ -3585,12 +3585,13 @@ fn is_struct_form(form: &WatAST) -> bool {
     )
 }
 
-/// Arc 170 slice 3 Gap F-1 — detect `(:wat::core::enum :Name ...)` shape.
+/// Arc 170 slice 3 Gap F-1 — detect `(:wat::core::defenum :Name ...)` shape.
+/// Stone 241.9 — updated from :wat::core::enum to :wat::core::defenum (HARD CUT).
 fn is_enum_form(form: &WatAST) -> bool {
     matches!(
         form,
         WatAST::List(items, _)
-            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::enum")
+            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::defenum")
     )
 }
 
@@ -3723,10 +3724,11 @@ fn preregister_struct_accessors_from_form(
     Ok(())
 }
 
-/// Arc 170 slice 3 Gap F-1 — pre-register tagged-variant constructor stubs for an enum form.
+/// Arc 170 slice 3 Gap F-1 — pre-register tagged-variant constructor stubs for a defenum form.
+/// Stone 241.9 — updated from :wat::core::enum to :wat::core::defenum (HARD CUT).
 ///
 /// Called by `preregister_fn_defs_in_do` / `_in_let` when a
-/// `(:wat::core::enum :Name Variant1 (Variant2 (f :T)) ...)` form is found in
+/// `(:wat::core::defenum :Name :V1 :V2 [f <- :T] ...)` form is found in
 /// a `do`/`let` body. Extracts the type name and variant names and inserts
 /// minimal stub `Function` entries into `sym.functions` for every variant
 /// (both unit AND tagged) at path `{name}::{VariantName}`.
@@ -3739,12 +3741,13 @@ fn preregister_struct_accessors_from_form(
 /// registration (unit → `unit_variants`; tagged → `functions`) happens at
 /// step 6.5 and overwrites/complements these stubs.
 ///
-/// Shape of enum form:
-///   items[0] = `:wat::core::enum` keyword
+/// Shape of defenum form (positional + one-token look-ahead per FORM-COLLAPSE verdict D):
+///   items[0] = `:wat::core::defenum` keyword
 ///   items[1] = `:TypeName` keyword
-///   items[2..] = variant declarations:
-///     - bare keyword: `NoOp`  → unit variant
-///     - list: `(Push (value :T))` → tagged variant
+///   items[2] = OPTIONAL metadata-map (WatAST::List with :wat::core::HashMap head)
+///   items[2..] or items[3..] = positional variant specs:
+///     - bare keyword: `:NoOp` → unit variant (no following Vector)
+///     - bare keyword + Vector: `:Push [value <- :T]` → tagged variant
 ///
 /// Malformed forms are silently skipped — the type checker will catch them.
 fn preregister_enum_constructors_from_form(
@@ -3768,33 +3771,40 @@ fn preregister_enum_constructors_from_form(
         Some(lt) => &type_name[..lt],
     };
 
+    // Determine start index for variant items: skip optional metadata-map at items[2].
+    let variant_start = match items.get(2) {
+        Some(WatAST::List(meta_items, _))
+            if matches!(meta_items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap") =>
+        {
+            3 // metadata-map present; variants start at items[3]
+        }
+        _ => 2, // no metadata-map; variants start at items[2]
+    };
+
     let stub_body = Arc::new(WatAST::List(vec![], Span::unknown()));
     let unit_type = crate::types::TypeExpr::Path(":()".into());
 
-    for variant_item in items.get(2..).unwrap_or(&[]) {
-        // Unit variant: `WatAST::Keyword(":NoOp", _)` — keyword with leading colon.
-        // Tagged variant: `WatAST::List` where first item is `WatAST::Symbol("Push", _)`
-        // (bare symbol, no colon) or `WatAST::Keyword(":Push", _)`.
-        // The constructor path is `{type_base}::{VariantName}` where VariantName
-        // has NO leading colon — mirrors `register_enum_methods`'s format!.
-        let variant_name: &str = match variant_item {
-            WatAST::Keyword(k, _) => {
-                // Unit variant keyword: strip the leading ':'.
-                match k.strip_prefix(':') {
-                    Some(name) => name,
-                    None => k.as_str(), // malformed; type checker will catch it
+    let variant_items = items.get(variant_start..).unwrap_or(&[]);
+    let mut vi = 0;
+    while vi < variant_items.len() {
+        // defenum grammar: positional keyword with one-token look-ahead.
+        // Keyword `:VariantName` → variant name; peek next for unit vs tagged.
+        let variant_name: &str = match &variant_items[vi] {
+            WatAST::Keyword(k, _) => match k.strip_prefix(':') {
+                Some(name) => name,
+                None => {
+                    vi += 1;
+                    continue; // malformed; skip
                 }
-            }
-            WatAST::List(v_items, _) => match v_items.first() {
-                Some(WatAST::Symbol(ident, _)) => ident.name.as_str(),
-                Some(WatAST::Keyword(k, _)) => match k.strip_prefix(':') {
-                    Some(name) => name,
-                    None => k.as_str(),
-                },
-                _ => continue, // malformed variant; type checker will catch it
             },
-            _ => continue, // unexpected shape; type checker will catch it
+            _ => {
+                vi += 1;
+                continue; // unexpected item; skip
+            }
         };
+        // Look-ahead: is the next item a Vector (tagged variant)?
+        let is_tagged = matches!(variant_items.get(vi + 1), Some(WatAST::Vector(_, _)));
+
         let constructor_path = format!("{}::{}", type_base, variant_name);
         if check_reserved_prefix && crate::resolve::is_reserved_prefix(&constructor_path) {
             let span = form.span().clone();
@@ -3816,6 +3826,9 @@ fn preregister_enum_constructors_from_form(
                 }),
             );
         }
+
+        // Advance: consume keyword + optional Vector.
+        vi += if is_tagged { 2 } else { 1 };
     }
     Ok(())
 }
@@ -13016,7 +13029,8 @@ fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
     let head_kw = match def {
         // Stone 241.8 — defstruct replaces struct.
         crate::types::TypeDef::Struct(_) => ":wat::core::defstruct",
-        crate::types::TypeDef::Enum(_) => ":wat::core::enum",
+        // Stone 241.9 — defenum replaces enum (HARD CUT).
+        crate::types::TypeDef::Enum(_) => ":wat::core::defenum",
         crate::types::TypeDef::Newtype(_) => ":wat::core::newtype",
         crate::types::TypeDef::Alias(_) => ":wat::core::typealias",
         // Stone 237.1 — typeunion is type-only; no runtime artifact.
@@ -27599,7 +27613,8 @@ fn is_mutation_head(head: &str) -> bool {
             | ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
-            | ":wat::core::enum"
+            // Stone 241.9 — defenum replaces enum (HARD CUT).
+            | ":wat::core::defenum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
             | ":wat::load-file!"

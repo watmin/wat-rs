@@ -601,7 +601,7 @@ fn hashset_ord_raises_type_mismatch() {
 fn enum_ord_raises_type_mismatch() {
     // User enum — variants have no inherent order in this slice.
     let src = r#"
-        (:wat::core::enum :my::Color :Red :Green :Blue)
+        (:wat::core::defenum :my::Color :Red :Green :Blue)
 
         (:wat::core::define (:user::compute -> :wat::core::bool)
           (:wat::core::< :my::Color::Red :my::Color::Blue))

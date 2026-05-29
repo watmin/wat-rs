@@ -48,20 +48,21 @@
    ;;   Reset     — mutate to 0; reply is 0
    ;;   Shutdown  — convention (INTERSTITIAL § control-channels): terminal;
    ;;               reply is Final carrying the last state; thread exits.
-   (:wat::core::enum :counter::Request
-     (Get)
-     (Increment (n :wat::core::i64))
-     (Reset)
-     (Shutdown))
+   ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+   (:wat::core::defenum :counter::Request
+     :Get
+     :Increment [n <- :wat::core::i64]
+     :Reset
+     :Shutdown)
 
    ;; counter::Response — the actor's output enum. Three variants:
    ;;   Value — reply to Get; carries the current (unchanged) state
    ;;   Ok    — reply to Increment and Reset; carries the new state
    ;;   Final — convention: reply to Shutdown; carries the terminal state
-   (:wat::core::enum :counter::Response
-     (Value (v :wat::core::i64))
-     (Ok    (v :wat::core::i64))
-     (Final (v :wat::core::i64)))
+   (:wat::core::defenum :counter::Response
+     :Value [v <- :wat::core::i64]
+     :Ok    [v <- :wat::core::i64]
+     :Final [v <- :wat::core::i64])
 
    ;; ─── Dispatch loop ───────────────────────────────────────────────────
    ;;
@@ -84,7 +85,7 @@
        -> :wat::core::nil
 
        ;; Read — no state change; reply current value; recur same state
-       ((:counter::Request::Get)
+       (:counter::Request::Get
           (:wat::core::do
             (:wat::kernel::Thread/println peer! (:counter::Response::Value state))
             (:counter/dispatch peer! state)))
@@ -96,13 +97,13 @@
             (:counter/dispatch peer! new-n)))
 
        ;; Mutate-literal — reply 0; recur with literal 0
-       ((:counter::Request::Reset)
+       (:counter::Request::Reset
           (:wat::core::do
             (:wat::kernel::Thread/println peer! (:counter::Response::Ok 0))
             (:counter/dispatch peer! 0)))
 
        ;; Terminal — send Final with last state; do NOT recur; thread exits
-       ((:counter::Request::Shutdown)
+       (:counter::Request::Shutdown
           (:wat::kernel::Thread/println peer! (:counter::Response::Final state)))))
 
    ;; ─── Constructor ─────────────────────────────────────────────────────

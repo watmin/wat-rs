@@ -1,6 +1,6 @@
 //! Arc 170 slice 3 Gap F-1 — regression probes for top-level `let` splicing of `enum` forms.
 //!
-//! Two probes confirm that `(:wat::core::enum ...)` forms in the body of a
+//! Two probes confirm that `(:wat::core::defenum ...)` forms in the body of a
 //! top-level `(:wat::core::let ...)` pre-register their tagged-variant
 //! constructor stubs in `sym.functions` (via `preregister_fn_defs_in_let`)
 //! before `resolve_references` runs.
@@ -30,8 +30,8 @@ use wat::load::InMemoryLoader;
 fn probe_let_enum_constructor_visible() {
     let src = r#"
         (:wat::core::let []
-          (:wat::core::enum :my::Request
-            (Push (value :wat::core::i64))
+          (:wat::core::defenum :my::Request
+            :Push [value <- :wat::core::i64]
             :NoOp)
           (:wat::core::define (:my::make-push -> :my::Request)
             (:my::Request::Push 99)))
@@ -52,9 +52,9 @@ fn probe_let_enum_via_macro_emission() {
         (:wat::core::defmacro
           (:my::probe (body :AST<wat::core::nil>) -> :AST<wat::core::nil>)
           `(:wat::core::let []
-             (:wat::core::enum :my::probe::Event
-               (Created (id :wat::core::i64))
-               (Deleted (id :wat::core::i64))
+             (:wat::core::defenum :my::probe::Event
+               :Created [id <- :wat::core::i64]
+               :Deleted [id <- :wat::core::i64]
                :NoOp)
              ~body))
 

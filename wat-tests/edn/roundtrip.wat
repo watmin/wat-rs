@@ -11,14 +11,13 @@
 
 (:wat::test::make-deftest :deftest
   (;; Test enum + struct used across the deftests below.
-   (:wat::core::enum :test::Event
-     (Buy
-       (price :wat::core::f64)
-       (qty :wat::core::i64))
-     (Sell
-       (price :wat::core::f64)
-       (qty :wat::core::i64)
-       (reason :wat::core::String)))
+   ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+   (:wat::core::defenum :test::Event
+     :Buy  [price <- :wat::core::f64
+            qty   <- :wat::core::i64]
+     :Sell [price  <- :wat::core::f64
+            qty    <- :wat::core::i64
+            reason <- :wat::core::String])
    (:wat::core::struct :test::Wrapper<E>
      (label :wat::core::String)
      (value :E))))

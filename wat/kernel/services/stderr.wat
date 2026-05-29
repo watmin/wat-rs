@@ -54,14 +54,13 @@
 ;; ack-tx carries unit (nil) back to the requesting thread confirming
 ;; the write completed.
 
-(:wat::core::enum :wat::kernel::services::StdErrService::Event
-  (Write (line :wat::core::String))
-  (Add
-    (thread-id :wat::kernel::ThreadId)
-    (data-rx :wat::kernel::Receiver<wat::kernel::services::StdErrService::Event>)
-    (ack-tx :wat::kernel::Sender<wat::core::nil>))
-  (Remove
-    (thread-id :wat::kernel::ThreadId)))
+;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+(:wat::core::defenum :wat::kernel::services::StdErrService::Event
+  :Write [line <- :wat::core::String]
+  :Add   [thread-id <- :wat::kernel::ThreadId
+          data-rx   <- :wat::kernel::Receiver<wat::kernel::services::StdErrService::Event>
+          ack-tx    <- :wat::kernel::Sender<wat::core::nil>]
+  :Remove [thread-id <- :wat::kernel::ThreadId])
 
 ;; ─── Channel typealiases ───────────────────────────────────────────────────
 ;;

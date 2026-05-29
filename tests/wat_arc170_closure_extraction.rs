@@ -319,7 +319,7 @@ fn t3_toplevel_defn_uses_user_types() {
         (:wat::core::defstruct :my::Point
           [x <- :wat::core::i64
            y <- :wat::core::i64])
-        (:wat::core::enum :my::Side
+        (:wat::core::defenum :my::Side
           :Left
           :Right)
         (:wat::core::newtype :my::PriceUsd :wat::core::f64)
@@ -1005,12 +1005,10 @@ fn t20_match_user_enum_variant_records_type_dep() {
     // unit-variants resolution stays); the bindings must NOT surface
     // as free symbols.
     let src = r#"
-        (:wat::core::enum :my::Shape
-          (Rect
-            (w :wat::core::i64)
-            (h :wat::core::i64))
-          (Circle
-            (r :wat::core::i64)))
+        (:wat::core::defenum :my::Shape
+          :Rect [w <- :wat::core::i64
+                 h <- :wat::core::i64]
+          :Circle [r <- :wat::core::i64])
         (:wat::core::define
           (:my::shape-area (s :my::Shape) -> :wat::core::i64)
           (:wat::core::match s -> :wat::core::i64
@@ -1149,7 +1147,7 @@ fn collect_type_decl_names(forms: &[WatAST]) -> Vec<String> {
                         let is_type_decl = matches!(
                             head.as_str(),
                             ":wat::core::defstruct"
-                                | ":wat::core::enum"
+                                | ":wat::core::defenum"
                                 | ":wat::core::newtype"
                                 | ":wat::core::typealias"
                         );

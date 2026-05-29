@@ -201,7 +201,8 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // mutation forms).
     // Stone 241.8 — defstruct replaces struct (HARD CUT).
     insert(&mut m, ":wat::core::defstruct", &["<name>", "[<field> <- <type>]+"]);
-    insert(&mut m, ":wat::core::enum", &["<name>", "<variant>+"]);
+    // Stone 241.9 — defenum replaces enum (HARD CUT).
+    insert(&mut m, ":wat::core::defenum", &["<name>", "<variant>+"]);
     insert(&mut m, ":wat::core::newtype", &["<name>", "<target>"]);
     insert(&mut m, ":wat::core::typealias", &["<name>", "<target>"]);
 

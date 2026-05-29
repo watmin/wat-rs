@@ -46,16 +46,17 @@
    ;; (#counter/Request/Get nil, #counter/Request/Increment {:n 5}, etc.)
    ;; so values round-trip across the process boundary without any shared
    ;; type registry.
-   (:wat::core::enum :counter::Request
-     (Get)
-     (Increment (n :wat::core::i64))
-     (Reset)
-     (Shutdown))
+   ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+   (:wat::core::defenum :counter::Request
+     :Get
+     :Increment [n <- :wat::core::i64]
+     :Reset
+     :Shutdown)
 
-   (:wat::core::enum :counter::Response
-     (Value (v :wat::core::i64))
-     (Ok    (v :wat::core::i64))
-     (Final (v :wat::core::i64)))
+   (:wat::core::defenum :counter::Response
+     :Value [v <- :wat::core::i64]
+     :Ok    [v <- :wat::core::i64]
+     :Final [v <- :wat::core::i64])
 
    ;; ─── Client-side wrappers (ProcessPeer tier) ─────────────────────────
    ;;
@@ -166,15 +167,16 @@
          (:wat::core::forms
            ;; Subprocess type declarations — independent from parent's types.
            ;; Same names → same EDN tags → interoperable across process boundary.
-           (:wat::core::enum :counter::Request
-             (Get)
-             (Increment (n :wat::core::i64))
-             (Reset)
-             (Shutdown))
-           (:wat::core::enum :counter::Response
-             (Value (v :wat::core::i64))
-             (Ok    (v :wat::core::i64))
-             (Final (v :wat::core::i64)))
+           ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+           (:wat::core::defenum :counter::Request
+             :Get
+             :Increment [n <- :wat::core::i64]
+             :Reset
+             :Shutdown)
+           (:wat::core::defenum :counter::Response
+             :Value [v <- :wat::core::i64]
+             :Ok    [v <- :wat::core::i64]
+             :Final [v <- :wat::core::i64])
            ;; Server-side dispatch — uses ambient readln/println (tier-honest).
            ;; Reads one counter::Request from stdin, dispatches, sends
            ;; counter::Response to stdout. Recurs on all non-terminal arms.
@@ -185,7 +187,7 @@
              (:wat::core::match (:wat::kernel::readln -> :counter::Request)
                -> :wat::core::nil
                ;; Read — no state change; reply current value; recur
-               ((:counter::Request::Get)
+               (:counter::Request::Get
                   (:wat::core::do
                     (:wat::kernel::println (:counter::Response::Value state))
                     (:counter/dispatch state)))
@@ -195,12 +197,12 @@
                     (:wat::kernel::println (:counter::Response::Ok new-n))
                     (:counter/dispatch new-n)))
                ;; Mutate-literal — reply 0; recur with literal
-               ((:counter::Request::Reset)
+               (:counter::Request::Reset
                   (:wat::core::do
                     (:wat::kernel::println (:counter::Response::Ok 0))
                     (:counter/dispatch 0)))
                ;; Terminal — send Final; return nil; process exits
-               ((:counter::Request::Shutdown)
+               (:counter::Request::Shutdown
                   (:wat::kernel::println (:counter::Response::Final state)))))
            ;; Entry point — the substrate calls :user::main when the subprocess
            ;; starts. Per user 2026-05-16: "processes must always define

@@ -6944,10 +6944,23 @@ fn infer_list(
                     span: head_span.clone(),
                 }]);
             }
+            // Stone 241.9 — HARD CUT: legacy enum form is REJECTED at check time.
+            // It is no longer a recognized type-declaration form; use :wat::core::defenum.
+            ":wat::core::enum" => {
+                return CheckResult::errs(vec![CheckError::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!(
+                        "'{}' is retired (Stone 241.9); use ':wat::core::defenum' instead",
+                        k
+                    ),
+                    span: head_span.clone(),
+                }]);
+            }
             ":wat::core::define"
             // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
             | ":wat::core::defstruct"
-            | ":wat::core::enum"
+            // Stone 241.9 — defenum replaces enum (HARD CUT).
+            | ":wat::core::defenum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
             | ":wat::core::defmacro"
@@ -20794,18 +20807,19 @@ mod tests {
     #[test]
     fn parametric_user_enum_tagged_variant_match() {
         // Single type param, tagged variants. Mirrors the minimal
+        // Stone 241.9 — migrated to defenum. (Empty) zero-field tagged → :Empty unit variant.
         // bug repro: enum decl carries `<T>`, function param carries
         // `:my::Box<T>`, match patterns reference variants under the
         // bare `:my::Box::*` prefix.
         let src = r#"
-            (:wat::core::enum :my::Box<T>
-              (Empty)
-              (Filled (value :T)))
+            (:wat::core::defenum :my::Box<T>
+              :Empty
+              :Filled [value <- :T])
 
             (:wat::core::define
               (:my::is-empty<T> (b :my::Box<T>) -> :wat::core::bool)
               (:wat::core::match b -> :wat::core::bool
-                ((:my::Box::Empty) true)
+                (:my::Box::Empty true)
                 ((:my::Box::Filled _v) false)))
         "#;
         let result = check(src);
@@ -20818,12 +20832,13 @@ mod tests {
 
     #[test]
     fn parametric_user_enum_two_type_args_match() {
+        // Stone 241.9 — migrated to defenum form.
         // Two type params, tagged variants. Mirrors arc 119's
         // `:wat::lru::Request<K,V>` shape directly.
         let src = r#"
-            (:wat::core::enum :my::Either<L,R>
-              (Left (value :L))
-              (Right (value :R)))
+            (:wat::core::defenum :my::Either<L,R>
+              :Left  [value <- :L]
+              :Right [value <- :R])
 
             (:wat::core::define
               (:my::is-left<L,R> (e :my::Either<L,R>) -> :wat::core::bool)
@@ -20841,18 +20856,19 @@ mod tests {
 
     #[test]
     fn parametric_user_enum_extracts_typed_field() {
+        // Stone 241.9 — migrated to defenum form.
         // Tagged variant binder must inherit the parametric type's
         // instantiation. If the scrutinee is :my::Box<i64>, then
         // (Filled v) must bind v as :i64.
         let src = r#"
-            (:wat::core::enum :my::Box<T>
-              (Empty)
-              (Filled (value :T)))
+            (:wat::core::defenum :my::Box<T>
+              :Empty
+              :Filled [value <- :T])
 
             (:wat::core::define
               (:my::default-or<T> (b :my::Box<T>) (d :T) -> :T)
               (:wat::core::match b -> :T
-                ((:my::Box::Empty) d)
+                (:my::Box::Empty d)
                 ((:my::Box::Filled v) v)))
         "#;
         let result = check(src);

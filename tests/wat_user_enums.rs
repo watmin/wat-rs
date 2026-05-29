@@ -69,7 +69,7 @@ fn run_expecting_check_error(src: &str) -> String {
 #[test]
 fn unit_variant_evaluates_via_bare_keyword() {
     let src = r##"
-        (:wat::core::enum :my::Color :Red :Green :Blue)
+        (:wat::core::defenum :my::Color :Red :Green :Blue)
 
         (:wat::core::define (:my::pick -> :my::Color)
           :my::Color::Green)
@@ -89,9 +89,9 @@ fn unit_variant_evaluates_via_bare_keyword() {
 #[test]
 fn tagged_variant_constructs_and_match_binds_fields() {
     let src = r##"
-        (:wat::core::enum :my::Event
-          (Candle  (open :wat::core::f64) (close :wat::core::f64))
-          (Deposit (amount :wat::core::f64))
+        (:wat::core::defenum :my::Event
+          :Candle  [open <- :wat::core::f64 close <- :wat::core::f64]
+          :Deposit [amount <- :wat::core::f64]
           :Nothing)
 
         (:wat::core::define (:my::a-candle -> :my::Event)
@@ -115,7 +115,7 @@ fn tagged_variant_constructs_and_match_binds_fields() {
 #[test]
 fn wildcard_arm_satisfies_exhaustiveness() {
     let src = r##"
-        (:wat::core::enum :my::Color :Red :Green :Blue)
+        (:wat::core::defenum :my::Color :Red :Green :Blue)
 
         (:wat::core::define
           (:user::main -> :wat::core::nil)
@@ -131,8 +131,8 @@ fn wildcard_arm_satisfies_exhaustiveness() {
 #[test]
 fn match_mixes_unit_and_tagged_arms() {
     let src = r##"
-        (:wat::core::enum :my::Event
-          (Open  (size :wat::core::f64))
+        (:wat::core::defenum :my::Event
+          :Open [size <- :wat::core::f64]
           :Hold)
 
         (:wat::core::define (:my::act (e :my::Event) -> :wat::core::String)
@@ -157,7 +157,7 @@ fn match_mixes_unit_and_tagged_arms() {
 #[test]
 fn missing_variant_arm_reports_non_exhaustive() {
     let src = r##"
-        (:wat::core::enum :my::Color :Red :Green :Blue)
+        (:wat::core::defenum :my::Color :Red :Green :Blue)
 
         (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::match :my::Color::Red -> :wat::core::i64
@@ -175,8 +175,8 @@ fn missing_variant_arm_reports_non_exhaustive() {
 #[test]
 fn cross_enum_variant_pattern_rejected() {
     let src = r##"
-        (:wat::core::enum :my::Color :Red :Green)
-        (:wat::core::enum :my::Side  :Buy :Sell)
+        (:wat::core::defenum :my::Color :Red :Green)
+        (:wat::core::defenum :my::Side  :Buy :Sell)
 
         (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::match :my::Color::Red -> :wat::core::i64
@@ -195,8 +195,8 @@ fn cross_enum_variant_pattern_rejected() {
 #[test]
 fn tagged_variant_arity_mismatch_reported() {
     let src = r##"
-        (:wat::core::enum :my::Event
-          (Pair (a :wat::core::i64) (b :wat::core::i64)))
+        (:wat::core::defenum :my::Event
+          :Pair [a <- :wat::core::i64 b <- :wat::core::i64])
 
         (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
@@ -213,8 +213,8 @@ fn tagged_variant_arity_mismatch_reported() {
 #[test]
 fn unit_variant_pattern_on_tagged_variant_rejected() {
     let src = r##"
-        (:wat::core::enum :my::Event
-          (Pair (a :wat::core::i64) (b :wat::core::i64)))
+        (:wat::core::defenum :my::Event
+          :Pair [a <- :wat::core::i64 b <- :wat::core::i64])
 
         (:wat::core::define (:user::main -> :wat::core::nil)
           (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64

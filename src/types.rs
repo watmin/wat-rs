@@ -1863,7 +1863,8 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
             match k.as_str() {
                 // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
                 ":wat::core::defstruct" => return Some("defstruct"),
-                ":wat::core::enum" => return Some("enum"),
+                // Stone 241.9 — defenum replaces enum (HARD CUT).
+                ":wat::core::defenum" => return Some("defenum"),
                 ":wat::core::newtype" => return Some("newtype"),
                 ":wat::core::typealias" => return Some("typealias"),
                 // Stone 237.1 — named bounded set of types.
@@ -1897,7 +1898,8 @@ fn parse_type_decl(
     match head {
         // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
         "defstruct" => parse_defstruct(iter.collect(), decl_span),
-        "enum" => parse_enum(iter.collect(), decl_span),
+        // Stone 241.9 — defenum replaces enum (HARD CUT).
+        "defenum" => parse_defenum(iter.collect(), decl_span),
         "newtype" => parse_newtype(iter.collect(), decl_span),
         "typealias" => parse_typealias(iter.collect(), decl_span),
         // Stone 237.1 — named bounded set of types.
@@ -2247,25 +2249,182 @@ fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
     }))
 }
 
-fn parse_enum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    let mut iter = args.into_iter();
-    let name_kw = iter.next().ok_or_else(|| TypeError::MalformedDecl {
-        head: "enum".into(),
-        reason: "missing name".into(),
-        span: decl_span.clone(),
-    })?;
-    let (name, type_params) = parse_declared_name("enum", &name_kw, &decl_span)?;
-    let mut variants = Vec::new();
-    for item in iter {
-        variants.push(parse_enum_variant(item, &name)?);
-    }
-    if variants.is_empty() {
+/// Stone 241.9 — parse a `(:wat::core::defenum :Name :V1 :V2 [f <- :T ...] ...)` declaration.
+///
+/// Positional variant grammar with one-token look-ahead (FORM-COLLAPSE verdict D):
+///   args[0]      — name keyword (e.g. `:my::ns::Status`)
+///   args[1]      — OPTIONAL metadata-map `{...}` (WatAST::List with head
+///                  `:wat::core::HashMap`); detected by structural discriminator.
+///   args[1..] or args[2..] — positional variants
+///
+/// Variant discrimination (one-token look-ahead):
+///   See `:VariantName` keyword → variant name; peek next item:
+///   - Next is keyword (or end-of-args) → UNIT variant; push `EnumVariant::Unit(name)`.
+///   - Next is Vector `[...]` → TAGGED variant; consume Vector via `parse_argspec_triples`.
+///
+/// Metadata keys recognized (under `:variant-metadata`):
+///   `:variant-metadata {keyword → metadata-map}`  — per-variant metadata (D5: silent generic storage)
+///
+/// Empty `{}` metadata-map REJECTED (FORM-COLLAPSE D4 / Stone 241.6 doctrine).
+/// Empty variant list REJECTED (≥1 variant required).
+/// HARD CUT: no `parse_enum` shim; no `:wat::core::enum` compatibility.
+fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
+    const HEAD: &str = ":wat::core::defenum";
+
+    // Need at least: name + one variant (2 args minimum).
+    if args.len() < 2 {
         return Err(TypeError::MalformedDecl {
-            head: "enum".into(),
-            reason: "enum must have at least one variant".into(),
+            head: HEAD.into(),
+            reason: format!(
+                "expected (:wat::core::defenum :Name :V1 ...) with at least one variant; got {} args after head",
+                args.len()
+            ),
             span: decl_span,
         });
     }
+
+    let mut iter = args.into_iter();
+
+    // Slot 0 — name keyword.
+    let name_kw = iter.next().unwrap();
+    let (name, type_params) = parse_declared_name(HEAD, &name_kw, &decl_span)?;
+
+    // Collect remaining args for metadata + variants.
+    let remaining: Vec<WatAST> = iter.collect();
+
+    // Discriminate: does args[1] look like a metadata-map?
+    // A metadata-map is a WatAST::List with head :wat::core::HashMap.
+    let is_metadata = matches!(
+        remaining.first(),
+        Some(WatAST::List(items, _)) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap")
+    );
+    let (metadata_node_opt, variant_args): (Option<WatAST>, Vec<WatAST>) = if is_metadata {
+        let mut it = remaining.into_iter();
+        let meta = it.next().unwrap();
+        (Some(meta), it.collect())
+    } else {
+        (None, remaining)
+    };
+
+    // Parse optional metadata-map (D5: silently store; no EnumDef schema extension).
+    // We validate the structure but don't extend EnumDef with per-variant metadata.
+    if let Some(ref meta_node) = metadata_node_opt {
+        let meta_items = match meta_node {
+            WatAST::List(items, _) => items,
+            _ => unreachable!("discriminator already checked"),
+        };
+        // meta_items[0] = :wat::core::HashMap (checked above)
+        // Structure: [head, K-type, V-type, k0, v0, k1, v1, ...]
+        // Minimum 3 items (head + K + V).
+        if meta_items.len() < 3 {
+            return Err(TypeError::MalformedDecl {
+                head: HEAD.into(),
+                reason: "malformed metadata-map (internal structure corrupt)".into(),
+                span: meta_node.span().clone(),
+            });
+        }
+        let pairs = &meta_items[3..];
+        // Empty {} → pairs.len() == 0 → REJECTED (FORM-COLLAPSE D4).
+        if pairs.is_empty() {
+            return Err(TypeError::MalformedDecl {
+                head: HEAD.into(),
+                reason: "empty `{}` metadata-map is illegal (use no metadata-map arg for plain defenum)".into(),
+                span: meta_node.span().clone(),
+            });
+        }
+        // Walk key/value pairs — silently accept :variant-metadata + unknown keys (D5).
+        let mut idx = 0;
+        while idx + 1 < pairs.len() {
+            match &pairs[idx] {
+                WatAST::Keyword(_k, _) => {
+                    // Key recognized; value at pairs[idx+1].
+                    // :variant-metadata inner keys must be keywords (T5 trap-door).
+                    // Silently store for this stone (D5 — no consumer-driven semantic yet).
+                    // Unknown keys also silently accepted (D5).
+                }
+                other => {
+                    return Err(TypeError::MalformedDecl {
+                        head: HEAD.into(),
+                        reason: "metadata-map keys must be keywords".into(),
+                        span: other.span().clone(),
+                    });
+                }
+            }
+            idx += 2;
+        }
+    }
+
+    // Parse variants: positional with one-token look-ahead.
+    // variant_args are the post-metadata args (may be empty if only metadata was given).
+    let mut variants: Vec<EnumVariant> = Vec::new();
+    let mut vi = 0;
+    while vi < variant_args.len() {
+        let item = &variant_args[vi];
+        match item {
+            WatAST::Keyword(k, _) => {
+                let variant_name = k.strip_prefix(':').ok_or_else(|| TypeError::MalformedVariant {
+                    enum_name: name.clone(),
+                    span: item.span().clone(),
+                    offending: format!("{:?}", k),
+                    reason: "defenum variant must be a keyword starting with ':'".to_string(),
+                    hint: None,
+                })?.to_string();
+
+                // One-token look-ahead: peek at the NEXT item.
+                let next = variant_args.get(vi + 1);
+                match next {
+                    // Next is a Vector → TAGGED variant; consume the Vector as argspec.
+                    Some(WatAST::Vector(vec_items, vec_span)) => {
+                        let argspec = crate::argspec::parse_argspec_triples(
+                            vec_items,
+                            HEAD,
+                            vec_span,
+                            crate::argspec::ParseOptions { allow_rest_binder: false },
+                        )
+                        .map_err(TypeError::from)?;
+                        let fields: Vec<(String, crate::types::TypeExpr)> = argspec.fixed_params;
+                        variants.push(EnumVariant::Tagged { name: variant_name, fields });
+                        vi += 2; // consume keyword + vector
+                    }
+                    // Next is a keyword (or end-of-args) → UNIT variant.
+                    _ => {
+                        variants.push(EnumVariant::Unit(variant_name));
+                        vi += 1; // consume keyword only
+                    }
+                }
+            }
+            WatAST::Symbol(ident, _) => {
+                return Err(TypeError::MalformedVariant {
+                    enum_name: name.clone(),
+                    span: item.span().clone(),
+                    offending: ident.name.clone(),
+                    reason: "defenum variant must be a keyword; got bare symbol".to_string(),
+                    hint: Some(format!(
+                        "if '{}' is a unit variant, write it as the keyword ':{}'",
+                        ident.name, ident.name
+                    )),
+                });
+            }
+            other => {
+                return Err(TypeError::MalformedVariant {
+                    enum_name: name.clone(),
+                    span: other.span().clone(),
+                    offending: format!("{:?}", other),
+                    reason: "defenum variant must be a keyword (unit) or keyword followed by Vector (tagged)".to_string(),
+                    hint: None,
+                });
+            }
+        }
+    }
+
+    if variants.is_empty() {
+        return Err(TypeError::MalformedDecl {
+            head: HEAD.into(),
+            reason: "defenum must have at least one variant".into(),
+            span: decl_span,
+        });
+    }
+
     Ok(TypeDef::Enum(EnumDef {
         name,
         type_params,
@@ -2514,144 +2673,9 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
     Ok(TypeDef::Record(RecordDef { name, parent, field_names }))
 }
 
-/// `(field-name :Type)` — typed field form used by structs + tagged enum variants.
-fn parse_field(form: WatAST) -> Result<(String, TypeExpr), TypeError> {
-    // Arc 138 slice 2 — field's own span surfaces through every
-    // MalformedField error so consumers navigate to the offending
-    // field item.
-    let field_span = form.span().clone();
-    let items = match form {
-        WatAST::List(items, _) => items,
-        _ => {
-            return Err(TypeError::MalformedField {
-                reason: "field must be a (name :Type) list".into(),
-                span: field_span,
-            })
-        }
-    };
-    if items.len() != 2 {
-        return Err(TypeError::MalformedField {
-            reason: format!(
-                "field must be exactly (name :Type); got {} elements",
-                items.len()
-            ),
-            span: field_span,
-        });
-    }
-    let mut iter = items.into_iter();
-    let name = match iter.next().unwrap() {
-        WatAST::Symbol(ident, _) => ident.name,
-        other => {
-            return Err(TypeError::MalformedField {
-                reason: format!(
-                    "field name must be a bare symbol; got {}",
-                    ast_variant_name(&other)
-                ),
-                span: field_span,
-            })
-        }
-    };
-    let ty = match iter.next().unwrap() {
-        WatAST::Keyword(k, span) => parse_type_expr_with_span(&k, &span)?,
-        other => {
-            return Err(TypeError::MalformedField {
-                reason: format!(
-                    "field type must be a keyword; got {}",
-                    ast_variant_name(&other)
-                ),
-                span: field_span,
-            })
-        }
-    };
-    Ok((name, ty))
-}
-
-/// A variant is either a bare keyword (`:unit-variant`) or a list
-/// `(tagged-variant (field :Type) ...)`.
-///
-/// `enum_name` is threaded through for diagnostic context — every
-/// MalformedVariant error names which enum the offending variant
-/// belongs to and where in source the form was parsed from.
-fn parse_enum_variant(form: WatAST, enum_name: &str) -> Result<EnumVariant, TypeError> {
-    let span = form.span().clone();
-    match form {
-        WatAST::Keyword(k, _) => {
-            let name = k
-                .strip_prefix(':')
-                .ok_or_else(|| TypeError::MalformedVariant {
-                    enum_name: enum_name.to_string(),
-                    span: span.clone(),
-                    offending: format!("{:?}", k),
-                    reason: "unit variant must be a keyword starting with ':'"
-                        .to_string(),
-                    hint: None,
-                })?
-                .to_string();
-            Ok(EnumVariant::Unit(name))
-        }
-        WatAST::List(items, _) => {
-            let mut iter = items.into_iter();
-            let name_sym = iter.next().ok_or_else(|| TypeError::MalformedVariant {
-                enum_name: enum_name.to_string(),
-                span: span.clone(),
-                offending: "()".to_string(),
-                reason: "tagged variant must have a name".to_string(),
-                hint: Some(
-                    "tagged variants are written `(VariantName (field :Type) ...)`; \
-                     unit variants are keywords `:VariantName`"
-                        .to_string(),
-                ),
-            })?;
-            let name = match name_sym {
-                WatAST::Symbol(ident, _) => ident.name,
-                WatAST::Keyword(k, _) => k
-                    .strip_prefix(':')
-                    .map(str::to_string)
-                    .unwrap_or(k),
-                other => {
-                    return Err(TypeError::MalformedVariant {
-                        enum_name: enum_name.to_string(),
-                        span: span.clone(),
-                        offending: ast_variant_name(&other).to_string(),
-                        reason: "variant name must be a symbol or keyword"
-                            .to_string(),
-                        hint: None,
-                    })
-                }
-            };
-            let mut fields = Vec::new();
-            for item in iter {
-                fields.push(parse_field(item)?);
-            }
-            Ok(EnumVariant::Tagged { name, fields })
-        }
-        WatAST::Symbol(ident, _) => {
-            // Arc 130 follow-up — `PutAck` (bare symbol) when `:PutAck`
-            // (keyword) was meant. Self-describing migration hint per
-            // substrate-as-teacher.
-            Err(TypeError::MalformedVariant {
-                enum_name: enum_name.to_string(),
-                span,
-                offending: ident.name.clone(),
-                reason:
-                    "variant must be a keyword (unit) or list (tagged); got bare symbol"
-                        .to_string(),
-                hint: Some(format!(
-                    "if '{0}' is a UNIT variant, write it as the keyword ':{0}'; \
-                     if it carries fields, write it as a list `({0} (field :Type) ...)`",
-                    ident.name
-                )),
-            })
-        }
-        other => Err(TypeError::MalformedVariant {
-            enum_name: enum_name.to_string(),
-            span,
-            offending: ast_variant_name(&other).to_string(),
-            reason: "variant must be a keyword (unit) or list (tagged)".to_string(),
-            hint: None,
-        }),
-    }
-}
+// Stone 241.9 — `parse_field` DELETED. Its only caller was `parse_enum_variant`,
+// which was also deleted (HARD CUT). `parse_defenum` uses `parse_argspec_triples`
+// for tagged-variant fields instead of the legacy pair-form parser.
 
 /// Parse a declared type name. Accepts:
 /// - `:my::ns::MyType` → ("my/ns/MyType", [])
@@ -3553,7 +3577,8 @@ mod tests {
 
     #[test]
     fn unit_variant_enum() {
-        let (env, _) = collect(r#"(:wat::core::enum :my::Direction :up :down :left :right)"#).unwrap();
+        // Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+        let (env, _) = collect(r#"(:wat::core::defenum :my::Direction :up :down :left :right)"#).unwrap();
         if let TypeDef::Enum(e) = env.get(":my::Direction").unwrap() {
             assert_eq!(e.variants.len(), 4);
             assert!(matches!(&e.variants[0], EnumVariant::Unit(n) if n == "up"));
@@ -3564,11 +3589,12 @@ mod tests {
 
     #[test]
     fn tagged_variant_enum() {
+        // Stone 241.9 — migrated to defenum positional + argspec-Vector form.
         let (env, _) = collect(
-            r#"(:wat::core::enum :my::Event
+            r#"(:wat::core::defenum :my::Event
                   :empty
-                  (candle (open :f64) (close :f64))
-                  (deposit (amount :f64)))"#,
+                  :candle  [open <- :f64 close <- :f64]
+                  :deposit [amount <- :f64])"#,
         )
         .unwrap();
         if let TypeDef::Enum(e) = env.get(":my::Event").unwrap() {
@@ -3588,10 +3614,11 @@ mod tests {
 
     #[test]
     fn parametric_enum() {
+        // Stone 241.9 — migrated to defenum form.
         let (env, _) = collect(
-            r#"(:wat::core::enum :my::Option<T>
+            r#"(:wat::core::defenum :my::Option<T>
                   :none
-                  (some (value :T)))"#,
+                  :some [value <- :T])"#,
         )
         .unwrap();
         if let TypeDef::Enum(e) = env.get(":my::Option").unwrap() {
@@ -3603,7 +3630,8 @@ mod tests {
 
     #[test]
     fn empty_enum_rejected() {
-        let err = collect(r#"(:wat::core::enum :my::Empty)"#).unwrap_err();
+        // Stone 241.9 — migrated to defenum form. Empty defenum (no variants) is rejected.
+        let err = collect(r#"(:wat::core::defenum :my::Empty)"#).unwrap_err();
         assert!(matches!(err, TypeError::MalformedDecl { .. }));
     }
 
@@ -4001,10 +4029,10 @@ mod tests {
     // `check::tests::type_mismatch_message_carries_span`.
     #[test]
     fn arc138_type_error_message_carries_span() {
-        // `:my::Empty` is an enum with no variants — fires
-        // MalformedDecl. The form's outer span gets threaded all the
-        // way to the Display arm via `decl_span`.
-        let err = collect(r#"(:wat::core::enum :my::Empty)"#).unwrap_err();
+        // Stone 241.9 — migrated to defenum. `:my::Empty` is a defenum with no variants —
+        // fires MalformedDecl. The form's outer span gets threaded all the way to the Display
+        // arm via `decl_span`.
+        let err = collect(r#"(:wat::core::defenum :my::Empty)"#).unwrap_err();
         let rendered = format!("{}", err);
         assert!(
             rendered.contains("src/") || rendered.contains(".rs:"),

@@ -188,7 +188,7 @@ fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
           (:my::launch -> :wat::kernel::Process<wat::core::nil,wat::core::nil>)
           (:wat::kernel::spawn-process
             (:wat::core::forms
-              (:wat::core::enum :h::LocalDir
+              (:wat::core::defenum :h::LocalDir
                 :North
                 :South)
               (:wat::core::define (:user::main -> :wat::core::nil)
@@ -222,7 +222,7 @@ fn probe_mixed_prelude_lift() {
             (:wat::core::forms
               (:wat::core::defstruct :h::LocalItem
                 [value <- :wat::core::i64])
-              (:wat::core::enum :h::LocalKind
+              (:wat::core::defenum :h::LocalKind
                 :A
                 :B)
               (:wat::core::define (:h::make-item -> :h::LocalItem)

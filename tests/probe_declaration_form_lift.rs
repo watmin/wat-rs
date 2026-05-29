@@ -128,7 +128,7 @@ fn probe_is_declaration_form_covers_all_8_keywords() {
         ":wat::core::defmacro",
         ":wat::core::define-dispatch",
         ":wat::core::defstruct",
-        ":wat::core::enum",
+        ":wat::core::defenum",
         ":wat::core::newtype",
         ":wat::core::typealias",
     ];
@@ -331,7 +331,7 @@ fn probe_mixed_declaration_prelude_all_lift() {
               (:wat::core::defstruct :h::MixPoint
                 [x <- :wat::core::i64
                  y <- :wat::core::i64])
-              (:wat::core::enum :h::MixDir
+              (:wat::core::defenum :h::MixDir
                 :Up
                 :Down)
               (:wat::core::newtype :h::MixAmount :wat::core::i64)

@@ -94,7 +94,7 @@ fn not_eq_f64_cross_numeric_coerce() {
 #[test]
 fn eq_on_enum_unit_variants() {
     let src = r##"
-        (:wat::core::enum :my::Color :Red :Blue :Green)
+        (:wat::core::defenum :my::Color :Red :Blue :Green)
         (:wat::core::define
           (:user::main -> :wat::core::nil)
           (:wat::core::let

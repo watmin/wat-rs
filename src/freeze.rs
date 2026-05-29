@@ -1382,7 +1382,8 @@ fn is_mutation_form(head: &str) -> bool {
             | ":wat::core::define-dispatch"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
-            | ":wat::core::enum"
+            // Stone 241.9 — defenum replaces enum (HARD CUT).
+            | ":wat::core::defenum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
             | ":wat::load-file!"
@@ -1421,7 +1422,8 @@ pub fn is_declaration_form(head: &str) -> bool {
             | ":wat::core::define-dispatch"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
-            | ":wat::core::enum"
+            // Stone 241.9 — defenum replaces enum (HARD CUT).
+            | ":wat::core::defenum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
     )
@@ -1745,13 +1747,14 @@ mod tests {
 
     #[test]
     fn eval_refuses_enum() {
+        // Stone 241.9 — migrated to :wat::core::defenum (HARD CUT).
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
         let ast =
-            crate::parse_one!(r#"(:wat::core::enum :evil::E :A :B)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::defenum :evil::E :A :B)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
         assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
     }

@@ -48,28 +48,29 @@
    ;;
    ;; :counter::AdminReq — privileged operations.
    ;; 3a: only Stop. 3b adds Provision/Deprovision.
-   (:wat::core::enum :counter::AdminReq
-     (Stop))
+   ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+   (:wat::core::defenum :counter::AdminReq
+     :Stop)
 
    ;; :counter::AdminResp — server's reply to admin.
    ;; Stopped carries the server's final state (for auditing/handoff).
-   (:wat::core::enum :counter::AdminResp
-     (Stopped (final :wat::core::i64)))
+   (:wat::core::defenum :counter::AdminResp
+     :Stopped [final <- :wat::core::i64])
 
    ;; ─── User protocol ───────────────────────────────────────────────────
    ;;
    ;; :counter::UserReq — RPC operations.
-   (:wat::core::enum :counter::UserReq
-     (Get)
-     (Increment (n :wat::core::i64))
-     (Reset))
+   (:wat::core::defenum :counter::UserReq
+     :Get
+     :Increment [n <- :wat::core::i64]
+     :Reset)
 
    ;; :counter::UserResp — server's reply to user.
    ;;   Value — reply to Get (current, unchanged state)
    ;;   Ok    — reply to Increment + Reset (new state)
-   (:wat::core::enum :counter::UserResp
-     (Value (v :wat::core::i64))
-     (Ok    (v :wat::core::i64)))
+   (:wat::core::defenum :counter::UserResp
+     :Value [v <- :wat::core::i64]
+     :Ok    [v <- :wat::core::i64])
 
    ;; ─── Wire enum (STOP 1 pivot) ─────────────────────────────────────────
    ;;
@@ -77,9 +78,9 @@
    ;; select is ∀T — all receivers must share the same T.
    ;; Wire wraps both admin and user requests so the select Vec is homogeneous.
    ;; Server dispatches by matching the Wire variant.
-   (:wat::core::enum :counter::Wire
-     (Admin (req :counter::AdminReq))
-     (User  (req :counter::UserReq)))
+   (:wat::core::defenum :counter::Wire
+     :Admin [req <- :counter::AdminReq]
+     :User  [req <- :counter::UserReq])
 
    ;; ─── Server dispatch loop ─────────────────────────────────────────────
    ;;
@@ -122,7 +123,7 @@
              ;; Admin message — only Stop in 3a
              ((:counter::Wire::Admin req)
                (:wat::core::match req -> :wat::core::nil
-                 ((:counter::AdminReq::Stop)
+                 (:counter::AdminReq::Stop
                    ;; Terminal: send Stopped + return nil (thread exits)
                    (:wat::core::Result/expect -> :wat::core::nil
                      (:wat::kernel::send admin-resp-tx
@@ -132,7 +133,7 @@
              ((:counter::Wire::User req)
                (:wat::core::match req -> :wat::core::nil
                  ;; Get — no state change; reply Value(state); recur
-                 ((:counter::UserReq::Get)
+                 (:counter::UserReq::Get
                    (:wat::core::do
                      (:wat::core::Result/expect -> :wat::core::nil
                        (:wat::kernel::send user-resp-tx
@@ -154,7 +155,7 @@
                        user-wire-rx  user-resp-tx
                        new-n)))
                  ;; Reset — reply Ok(0); recur with 0
-                 ((:counter::UserReq::Reset)
+                 (:counter::UserReq::Reset
                    (:wat::core::do
                      (:wat::core::Result/expect -> :wat::core::nil
                        (:wat::kernel::send user-resp-tx

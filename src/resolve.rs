@@ -300,6 +300,17 @@ fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry
     if sym.get(canonical).is_some() {
         return true;
     }
+    // Stone 241.9 — unit enum variants are stored in `sym.unit_variants`
+    // (not `sym.functions`) after `register_enum_methods` (step 6.5).
+    // In defenum's positional grammar, unit variant arms in `match` appear
+    // as `(:Ns::E::V body)` — a list whose head is the variant keyword.
+    // The resolver must accept these as valid call heads; without this check,
+    // `defn` bodies that use unit variant match arms fail resolve (the `defn`
+    // form stays in `residue` and is walked by step 7, unlike `define` bodies
+    // which are consumed by `register_defines`).
+    if sym.unit_variants.contains_key(canonical) {
+        return true;
+    }
     // A macro call — shouldn't survive expansion, but accept for
     // completeness. The checker notes it as suspicious in the
     // context string when a macro is the reason.

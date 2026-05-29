@@ -609,8 +609,9 @@ fn walk_free_symbols(
                         ":wat::core::defstruct" => {
                             return walk_struct_form(rest, state);
                         }
-                        ":wat::core::enum" => {
-                            return walk_enum_form(rest, state);
+                        // Stone 241.9 — defenum replaces enum (HARD CUT).
+                        ":wat::core::defenum" => {
+                            return walk_defenum_form(rest, state);
                         }
                         ":wat::core::defmacro" => {
                             return walk_defmacro_form(rest);
@@ -829,44 +830,61 @@ fn walk_struct_form(
     Ok(())
 }
 
-/// Walk a `(:wat::core::enum :TypeName :UnitVariant ... (TagName (f :T) ...) ...)` form.
+/// Stone 241.9 — Walk a `(:wat::core::defenum :TypeName [:V1_kw :V2_kw [field <- :T] ...])` form.
 ///
 /// Arc 170 slice 3 Gap H. Enum forms in fn body do-prefixes require the
 /// same protection as struct forms (see `walk_struct_form`). Variant names
 /// and field names are binding positions, not free-symbol references.
 ///
-/// Correct walk:
-///   - Skip `args[0]` (the enum name keyword — new declaration).
-///   - For each variant:
-///     - Unit variant (Keyword `:VariantName`) — skip (binding position).
-///     - Tagged variant (List `(:VariantName (field :Type) ...)`) — skip
-///       variant name, walk field type keywords for type deps.
-fn walk_enum_form(
+/// defenum grammar (positional + one-token look-ahead per FORM-COLLAPSE verdict D):
+///   args[0] = name keyword (skip — new declaration)
+///   args[1] = OPTIONAL metadata-map List (skip — no free-variable refs in type metadata)
+///   args[1..] or args[2..] = positional variants:
+///     - Keyword `:VariantName` — unit variant (binding position, skip)
+///     - Keyword `:VariantName` followed by Vector `[name <- :T ...]` — tagged variant;
+///       keyword = binding position (skip); Vector's type keywords walked for type deps.
+///       Vector items: triples `Symbol("<-") Keyword(:T)` — Symbol names = bindings (skip);
+///       type keywords walked for deps.
+fn walk_defenum_form(
     args: &[WatAST],
     state: &mut ExtractState<'_>,
 ) -> Result<(), ExtractionError> {
     // args[0] is the enum name keyword (skip — new declaration).
-    // args[1..] are variant specs.
-    for variant in args.iter().skip(1) {
-        match variant {
-            // Unit variant keyword `:VariantName` — binding position, skip.
-            WatAST::Keyword(_, _) => {}
-            // Tagged variant list `(:VariantName (field :Type) ...)`.
-            WatAST::List(v_items, _) => {
-                // v_items[0] = variant name keyword (binding, skip)
-                // v_items[1..] = field pairs (fieldName :TypeKeyword)
-                for field_pair in v_items.iter().skip(1) {
-                    if let WatAST::List(pair_items, _) = field_pair {
-                        // pair_items[0] = field name Symbol (binding, skip)
-                        // pair_items[1] = field type keyword (walk for deps)
-                        for type_kw in pair_items.iter().skip(1) {
+    // args[1] may be a metadata-map (WatAST::List with :wat::core::HashMap head) — skip.
+    // Remaining args: positional variants with one-token look-ahead grammar.
+    let start = match args.get(1) {
+        Some(WatAST::List(items, _)) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap") => 2,
+        _ => 1,
+    };
+    let mut vi = start;
+    while vi < args.len() {
+        match &args[vi] {
+            // Variant name keyword — check look-ahead.
+            WatAST::Keyword(_, _) => {
+                // Peek ahead: is next item a Vector (tagged variant)?
+                if let Some(WatAST::Vector(vec_items, _)) = args.get(vi + 1) {
+                    // Tagged variant: walk type keywords inside the argspec Vector.
+                    // Argspec structure: [Symbol(name), Symbol("<-"), Keyword(:T), ...]
+                    // Type keywords are at indices 2, 5, 8, ... (every triple's 3rd slot).
+                    let mut ti = 0;
+                    while ti + 2 < vec_items.len() {
+                        // vec_items[ti+2] should be the type keyword.
+                        if let WatAST::Keyword(_, _) = &vec_items[ti + 2] {
                             let empty_locals = std::collections::BTreeSet::new();
-                            walk_free_symbols(type_kw, &empty_locals, state)?;
+                            walk_free_symbols(&vec_items[ti + 2], &empty_locals, state)?;
                         }
+                        ti += 3; // advance one triple
                     }
+                    vi += 2; // consume keyword + vector
+                } else {
+                    // Unit variant — binding position, skip.
+                    vi += 1;
                 }
             }
-            _ => {}
+            // Metadata-map List or other non-variant item — skip.
+            _ => {
+                vi += 1;
+            }
         }
     }
     Ok(())
@@ -2199,8 +2217,10 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
             )
         }
         TypeDef::Enum(e) => {
+            // Stone 241.9 — emit defenum positional grammar:
+            //   :V1_unit_kw  :V2_tagged_kw [f1 <- :T1 ...]  :V3_unit_kw ...
             let mut items = vec![
-                WatAST::Keyword(":wat::core::enum".into(), span.clone()),
+                WatAST::Keyword(":wat::core::defenum".into(), span.clone()),
                 WatAST::Keyword(format_type_decl_name(&e.name, &e.type_params), span.clone()),
             ];
             for variant in &e.variants {
@@ -2209,24 +2229,25 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                         items.push(WatAST::Keyword(format!(":{}", name), span.clone()));
                     }
                     crate::types::EnumVariant::Tagged { name, fields } => {
-                        let mut v_items = Vec::with_capacity(fields.len() + 1);
-                        v_items.push(WatAST::Keyword(format!(":{}", name), span.clone()));
+                        // Variant name keyword.
+                        items.push(WatAST::Keyword(format!(":{}", name), span.clone()));
+                        // Argspec Vector: [f1, <-, :T1, f2, <-, :T2, ...]
+                        let mut vec_items = Vec::with_capacity(fields.len() * 3);
                         for (fname, fty) in fields {
-                            v_items.push(WatAST::List(
-                                vec![
-                                    WatAST::Symbol(
-                                        Identifier::bare(fname.clone()),
-                                        span.clone(),
-                                    ),
-                                    WatAST::Keyword(
-                                        crate::check::format_type(fty),
-                                        span.clone(),
-                                    ),
-                                ],
+                            vec_items.push(WatAST::Symbol(
+                                Identifier::bare(fname.clone()),
+                                span.clone(),
+                            ));
+                            vec_items.push(WatAST::Symbol(
+                                Identifier::bare("<-".to_string()),
+                                span.clone(),
+                            ));
+                            vec_items.push(WatAST::Keyword(
+                                crate::check::format_type(fty),
                                 span.clone(),
                             ));
                         }
-                        items.push(WatAST::List(v_items, span.clone()));
+                        items.push(WatAST::Vector(vec_items, span.clone()));
                     }
                 }
             }

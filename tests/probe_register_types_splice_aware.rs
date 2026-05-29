@@ -121,7 +121,7 @@ fn do_newtype_registers_in_type_env() {
 fn do_enum_registers_in_type_env() {
     let src = r#"
         (:wat::core::do
-          (:wat::core::enum :diag::Color
+          (:wat::core::defenum :diag::Color
             :Red
             :Green
             :Blue)

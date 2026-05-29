@@ -65,15 +65,15 @@ fn drain_stderr(process: &Value) -> String {
 #[test]
 fn probe_counter_subprocess_minimal() {
     let server_program_src = r#"
-        (:wat::core::enum :counter::Request
-          (Get)
-          (Increment (n :wat::core::i64))
-          (Reset)
-          (Shutdown))
-        (:wat::core::enum :counter::Response
-          (Value (v :wat::core::i64))
-          (Ok    (v :wat::core::i64))
-          (Final (v :wat::core::i64)))
+        (:wat::core::defenum :counter::Request
+          :Get
+          :Increment [n <- :wat::core::i64]
+          :Reset
+          :Shutdown)
+        (:wat::core::defenum :counter::Response
+          :Value [v <- :wat::core::i64]
+          :Ok    [v <- :wat::core::i64]
+          :Final [v <- :wat::core::i64])
         (:wat::core::define (:user::main -> :wat::core::nil)
           :wat::core::nil)
     "#;
@@ -97,21 +97,21 @@ fn probe_counter_subprocess_minimal() {
 #[test]
 fn probe_counter_subprocess_with_defn() {
     let server_program_src = r#"
-        (:wat::core::enum :counter::Request
-          (Get)
-          (Increment (n :wat::core::i64))
-          (Reset)
-          (Shutdown))
-        (:wat::core::enum :counter::Response
-          (Value (v :wat::core::i64))
-          (Ok    (v :wat::core::i64))
-          (Final (v :wat::core::i64)))
+        (:wat::core::defenum :counter::Request
+          :Get
+          :Increment [n <- :wat::core::i64]
+          :Reset
+          :Shutdown)
+        (:wat::core::defenum :counter::Response
+          :Value [v <- :wat::core::i64]
+          :Ok    [v <- :wat::core::i64]
+          :Final [v <- :wat::core::i64])
         (:wat::core::defn :counter/dispatch
           [state <- :wat::core::i64]
           -> :wat::core::nil
           (:wat::core::match (:wat::kernel::readln -> :counter::Request)
             -> :wat::core::nil
-            ((:counter::Request::Get)
+            (:counter::Request::Get
                (:wat::core::do
                  (:wat::kernel::println (:counter::Response::Value state))
                  (:counter/dispatch state)))
@@ -119,11 +119,11 @@ fn probe_counter_subprocess_with_defn() {
                (:wat::core::let [new-n (:wat::core::i64::+'2 state n)]
                  (:wat::kernel::println (:counter::Response::Ok new-n))
                  (:counter/dispatch new-n)))
-            ((:counter::Request::Reset)
+            (:counter::Request::Reset
                (:wat::core::do
                  (:wat::kernel::println (:counter::Response::Ok 0))
                  (:counter/dispatch 0)))
-            ((:counter::Request::Shutdown)
+            (:counter::Request::Shutdown
                (:wat::kernel::println (:counter::Response::Final state)))))
         (:wat::core::define (:user::main -> :wat::core::nil)
           :wat::core::nil)
@@ -148,21 +148,21 @@ fn probe_counter_subprocess_with_defn() {
 #[test]
 fn probe_counter_subprocess_full_process_peer() {
     let server_program_src = r#"
-        (:wat::core::enum :counter::Request
-          (Get)
-          (Increment (n :wat::core::i64))
-          (Reset)
-          (Shutdown))
-        (:wat::core::enum :counter::Response
-          (Value (v :wat::core::i64))
-          (Ok    (v :wat::core::i64))
-          (Final (v :wat::core::i64)))
+        (:wat::core::defenum :counter::Request
+          :Get
+          :Increment [n <- :wat::core::i64]
+          :Reset
+          :Shutdown)
+        (:wat::core::defenum :counter::Response
+          :Value [v <- :wat::core::i64]
+          :Ok    [v <- :wat::core::i64]
+          :Final [v <- :wat::core::i64])
         (:wat::core::defn :counter/dispatch
           [state <- :wat::core::i64]
           -> :wat::core::nil
           (:wat::core::match (:wat::kernel::readln -> :counter::Request)
             -> :wat::core::nil
-            ((:counter::Request::Get)
+            (:counter::Request::Get
                (:wat::core::do
                  (:wat::kernel::println (:counter::Response::Value state))
                  (:counter/dispatch state)))
@@ -170,11 +170,11 @@ fn probe_counter_subprocess_full_process_peer() {
                (:wat::core::let [new-n (:wat::core::i64::+'2 state n)]
                  (:wat::kernel::println (:counter::Response::Ok new-n))
                  (:counter/dispatch new-n)))
-            ((:counter::Request::Reset)
+            (:counter::Request::Reset
                (:wat::core::do
                  (:wat::kernel::println (:counter::Response::Ok 0))
                  (:counter/dispatch 0)))
-            ((:counter::Request::Shutdown)
+            (:counter::Request::Shutdown
                (:wat::kernel::println (:counter::Response::Final state)))))
         (:wat::core::define (:user::main -> :wat::core::nil)
           (:counter/dispatch 10))
@@ -184,15 +184,15 @@ fn probe_counter_subprocess_full_process_peer() {
     // so Process/readln can deserialize the responses.
     // Also needs counter::Request to construct the request variants.
     let parent_src = r#"
-        (:wat::core::enum :counter::Request
-          (Get)
-          (Increment (n :wat::core::i64))
-          (Reset)
-          (Shutdown))
-        (:wat::core::enum :counter::Response
-          (Value (v :wat::core::i64))
-          (Ok    (v :wat::core::i64))
-          (Final (v :wat::core::i64)))
+        (:wat::core::defenum :counter::Request
+          :Get
+          :Increment [n <- :wat::core::i64]
+          :Reset
+          :Shutdown)
+        (:wat::core::defenum :counter::Response
+          :Value [v <- :wat::core::i64]
+          :Ok    [v <- :wat::core::i64]
+          :Final [v <- :wat::core::i64])
     "#;
     let world = freeze_ok(parent_src);
     let spawn_call = build_spawn_process_call(server_program_src);

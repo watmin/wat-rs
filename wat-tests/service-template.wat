@@ -99,10 +99,11 @@
 
    ;; Request — three reply shapes side by side. Every in-memory
    ;; request/reply service is some combination of these.
-   (:wat::core::enum :svc::Request
-     (Push (value :wat::core::i64))
-     (Ack  (reply-tx :svc::AckReplyTx))
-     (Get  (reply-tx :wat::kernel::Sender<svc::State>)))
+   ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+   (:wat::core::defenum :svc::Request
+     :Push [value    <- :wat::core::i64]
+     :Ack  [reply-tx <- :svc::AckReplyTx]
+     :Get  [reply-tx <- :wat::kernel::Sender<svc::State>])
 
    ;; Per-broker request channel typealiases. Idiomatic: every service
    ;; has these four (Tx / Rx / TxPool / Spawn) — they describe the

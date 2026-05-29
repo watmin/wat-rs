@@ -55,37 +55,38 @@
    ;; Provision: admin requests new user with given initial state.
    ;; Deprovision: admin requests removal of a specific client by id.
    ;; Stop: admin requests server shutdown.
-   (:wat::core::enum :counter::AdminReq
-     (Provision (initial :wat::core::i64))
-     (Deprovision (id :wat::core::String))
-     (Stop))
+   ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+   (:wat::core::defenum :counter::AdminReq
+     :Provision   [initial <- :wat::core::i64]
+     :Deprovision [id      <- :wat::core::String]
+     :Stop)
 
    ;; AdminResp grows: Provisioned carries user-side channel ends + client-id.
    ;; Server mints the id; creates channel pair; hands user-side ends to admin.
    ;; Admin is the broker — it hands tx+rx to the user client.
    ;; NOTE: rx is Receiver<UserResp> (not Receiver<Wire>) — user receives responses.
-   (:wat::core::enum :counter::AdminResp
-     (Provisioned (id :wat::core::String) (tx :wat::kernel::Sender<counter::Wire>) (rx :wat::kernel::Receiver<counter::UserResp>))
-     (Deprovisioned (id :wat::core::String))
-     (Stopped))
+   (:wat::core::defenum :counter::AdminResp
+     :Provisioned   [id <- :wat::core::String tx <- :wat::kernel::Sender<counter::Wire> rx <- :wat::kernel::Receiver<counter::UserResp>]
+     :Deprovisioned [id <- :wat::core::String]
+     :Stopped)
 
    ;; ─── User protocol (unchanged from 3a) ───────────────────────────────
-   (:wat::core::enum :counter::UserReq
-     (Get)
-     (Increment (n :wat::core::i64))
-     (Reset))
+   (:wat::core::defenum :counter::UserReq
+     :Get
+     :Increment [n <- :wat::core::i64]
+     :Reset)
 
-   (:wat::core::enum :counter::UserResp
-     (Value (v :wat::core::i64))
-     (Ok    (v :wat::core::i64)))
+   (:wat::core::defenum :counter::UserResp
+     :Value [v <- :wat::core::i64]
+     :Ok    [v <- :wat::core::i64])
 
    ;; ─── Wire enum (unchanged from 3a) ───────────────────────────────────
    ;;
    ;; Unified request type — select is ∀T, all receivers must share T.
    ;; Wire wraps both admin and user requests.
-   (:wat::core::enum :counter::Wire
-     (Admin (req :counter::AdminReq))
-     (User  (req :counter::UserReq)))
+   (:wat::core::defenum :counter::Wire
+     :Admin [req <- :counter::AdminReq]
+     :User  [req <- :counter::UserReq])
 
    ;; ─── Registry types ───────────────────────────────────────────────────
    ;;
@@ -379,7 +380,7 @@
                  new-registry
                  next-id)))
            ;; Stop: send Stopped; return nil (server exits)
-           ((:counter::AdminReq::Stop)
+           (:counter::AdminReq::Stop
              (:wat::core::Result/expect -> :wat::core::nil
                (:wat::kernel::send admin-resp-tx
                  (:counter::AdminResp::Stopped))
@@ -418,7 +419,7 @@
                ((:counter::Wire::User req)
                  (:wat::core::match req -> :wat::core::nil
                    ;; Get: reply Value(state); state unchanged; recur
-                   ((:counter::UserReq::Get)
+                   (:counter::UserReq::Get
                      (:wat::core::do
                        (:wat::core::Result/expect -> :wat::core::nil
                          (:wat::kernel::send server-tx
@@ -442,7 +443,7 @@
                          admin-wire-rx admin-resp-tx
                          new-registry next-id)))
                    ;; Reset: reply Ok(0); update state to 0; recur
-                   ((:counter::UserReq::Reset)
+                   (:counter::UserReq::Reset
                      (:wat::core::do
                        (:wat::core::Result/expect -> :wat::core::nil
                          (:wat::kernel::send server-tx
@@ -513,7 +514,7 @@
            (:wat::core::Tuple id tx rx))
          ((:counter::AdminResp::Deprovisioned _id)
            (:wat::kernel::assertion-failed! "admin-provision3: expected Provisioned, got Deprovisioned" :wat::core::None :wat::core::None))
-         ((:counter::AdminResp::Stopped)
+         (:counter::AdminResp::Stopped
            (:wat::kernel::assertion-failed! "admin-provision3: expected Provisioned, got Stopped" :wat::core::None :wat::core::None)))))
 
    ;; admin-deprovision3: send Deprovision(id), recv Deprovisioned(id). Returns id.
@@ -538,7 +539,7 @@
          ((:counter::AdminResp::Deprovisioned dep-id) dep-id)
          ((:counter::AdminResp::Provisioned _id _tx _rx)
            (:wat::kernel::assertion-failed! "admin-deprovision3: expected Deprovisioned, got Provisioned" :wat::core::None :wat::core::None))
-         ((:counter::AdminResp::Stopped)
+         (:counter::AdminResp::Stopped
            (:wat::kernel::assertion-failed! "admin-deprovision3: expected Deprovisioned, got Stopped" :wat::core::None :wat::core::None)))))
 
    ;; admin-stop3: send Stop, recv Stopped. Returns nil.
@@ -559,7 +560,7 @@
              "admin-stop3: recv peer died")
            "admin-stop3: clean disconnect")]
        (:wat::core::match resp -> :wat::core::nil
-         ((:counter::AdminResp::Stopped) ())
+         (:counter::AdminResp::Stopped ())
          ((:counter::AdminResp::Provisioned _id _tx _rx)
            (:wat::kernel::assertion-failed! "admin-stop3: expected Stopped, got Provisioned" :wat::core::None :wat::core::None))
          ((:counter::AdminResp::Deprovisioned _id)

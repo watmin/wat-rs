@@ -55,14 +55,13 @@
 ;; the caller's declared T (see src/edn_shim.rs::edn_to_typed_value).
 ;; The wat-side StdInService now ships the raw line as String.
 
-(:wat::core::enum :wat::kernel::services::StdInService::Event
-  (Read)
-  (Add
-    (thread-id :wat::kernel::ThreadId)
-    (data-rx :wat::kernel::Receiver<wat::kernel::services::StdInService::Event>)
-    (reply-tx :wat::kernel::Sender<wat::core::String>))
-  (Remove
-    (thread-id :wat::kernel::ThreadId)))
+;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+(:wat::core::defenum :wat::kernel::services::StdInService::Event
+  :Read
+  :Add [thread-id <- :wat::kernel::ThreadId
+        data-rx   <- :wat::kernel::Receiver<wat::kernel::services::StdInService::Event>
+        reply-tx  <- :wat::kernel::Sender<wat::core::String>]
+  :Remove [thread-id <- :wat::kernel::ThreadId])
 
 ;; ─── Channel typealiases ───────────────────────────────────────────────────
 ;;
@@ -236,7 +235,8 @@
                   routing-vec t-id)
                 reader
                 control-rx))
-            ((:wat::kernel::services::StdInService::Event::Read)
+            ;; Stone 241.9 — :Read is now a UNIT variant; arm uses keyword pattern directly.
+            (:wat::kernel::services::StdInService::Event::Read
               ;; Read on control channel is unexpected; ignore + recurse.
               (:wat::kernel::services::StdInService/loop
                 routing-vec reader control-rx)))

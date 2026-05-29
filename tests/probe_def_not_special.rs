@@ -277,7 +277,7 @@ fn probe_mixed_declaration_prelude_now_includes_def() {
               (:wat::core::defstruct :h::MixPoint8
                 [x <- :wat::core::i64
                  y <- :wat::core::i64])
-              (:wat::core::enum :h::MixDir8
+              (:wat::core::defenum :h::MixDir8
                 :Up
                 :Down)
               (:wat::core::newtype :h::MixAmount8 :wat::core::i64)
