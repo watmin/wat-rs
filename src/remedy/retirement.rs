@@ -8,7 +8,8 @@
 //!
 //! ## Scope
 //!
-//! One public function (re-exported from `mod.rs`): [`retirement_lookup`].
+//! One crate-internal function: [`retirement_lookup`]. Called internally by
+//! `remedies_for` in `mod.rs`; not re-exported on the module's public surface.
 //! One private constant: [`RETIREMENT_TABLE`].
 //!
 //! The table is an EXPLICIT static mapping. No heuristic matching; no fuzzy
@@ -53,7 +54,7 @@ const RETIREMENT_TABLE: &[(&str, &str)] = &[
 ///
 /// The score for a retirement remedy is always 0 — a direct table hit has no
 /// distance; it is an exact match on the retired form.
-pub fn retirement_lookup(needle: &str) -> Option<Remedy> {
+pub(super) fn retirement_lookup(needle: &str) -> Option<Remedy> {
     RETIREMENT_TABLE
         .iter()
         .find(|(retired, _)| *retired == needle)
@@ -68,37 +69,79 @@ pub fn retirement_lookup(needle: &str) -> Option<Remedy> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn struct_retires_to_defstruct() {
-        let r = retirement_lookup(":wat::core::struct").unwrap();
-        assert_eq!(r.form, ":wat::core::defstruct");
-        assert_eq!(r.score, 0);
-        assert!(matches!(r.kind, RemedyKind::Retirement));
+    fn struct_retirement() -> Remedy {
+        retirement_lookup(":wat::core::struct").unwrap()
+    }
+
+    fn struct_restricted_retirement() -> Remedy {
+        retirement_lookup(":wat::core::struct-restricted").unwrap()
+    }
+
+    fn enum_retirement() -> Remedy {
+        retirement_lookup(":wat::core::enum").unwrap()
     }
 
     #[test]
-    fn struct_restricted_retires_to_defstruct() {
-        let r = retirement_lookup(":wat::core::struct-restricted").unwrap();
-        assert_eq!(r.form, ":wat::core::defstruct");
-        assert_eq!(r.score, 0);
-        assert!(matches!(r.kind, RemedyKind::Retirement));
+    fn struct_retires_to_defstruct_form() {
+        assert_eq!(struct_retirement().form, ":wat::core::defstruct");
     }
 
     #[test]
-    fn enum_retires_to_defenum() {
-        let r = retirement_lookup(":wat::core::enum").unwrap();
-        assert_eq!(r.form, ":wat::core::defenum");
-        assert_eq!(r.score, 0);
-        assert!(matches!(r.kind, RemedyKind::Retirement));
+    fn struct_retires_with_score_zero() {
+        assert_eq!(struct_retirement().score, 0);
     }
 
     #[test]
-    fn unknown_form_returns_none() {
+    fn struct_retires_with_retirement_kind() {
+        assert!(matches!(struct_retirement().kind, RemedyKind::Retirement));
+    }
+
+    #[test]
+    fn struct_restricted_retires_to_defstruct_form() {
+        assert_eq!(struct_restricted_retirement().form, ":wat::core::defstruct");
+    }
+
+    #[test]
+    fn struct_restricted_retires_with_score_zero() {
+        assert_eq!(struct_restricted_retirement().score, 0);
+    }
+
+    #[test]
+    fn struct_restricted_retires_with_retirement_kind() {
+        assert!(matches!(struct_restricted_retirement().kind, RemedyKind::Retirement));
+    }
+
+    #[test]
+    fn enum_retires_to_defenum_form() {
+        assert_eq!(enum_retirement().form, ":wat::core::defenum");
+    }
+
+    #[test]
+    fn enum_retires_with_score_zero() {
+        assert_eq!(enum_retirement().score, 0);
+    }
+
+    #[test]
+    fn enum_retires_with_retirement_kind() {
+        assert!(matches!(enum_retirement().kind, RemedyKind::Retirement));
+    }
+
+    #[test]
+    fn known_replacement_defstruct_is_not_retired() {
         assert!(retirement_lookup(":wat::core::defstruct").is_none());
+    }
+
+    #[test]
+    fn known_replacement_defenum_is_not_retired() {
         assert!(retirement_lookup(":wat::core::defenum").is_none());
+    }
+
+    #[test]
+    fn arbitrary_unknown_form_returns_none() {
         assert!(retirement_lookup(":wat::core::completely-unknown").is_none());
     }
 
+    // rune:complectens(property-over-table) — single contract enforced across all entries; loop is the structure, not multiple claims
     #[test]
     fn retirement_score_is_always_zero() {
         for (retired, _) in RETIREMENT_TABLE {

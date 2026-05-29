@@ -55,6 +55,7 @@ fn try_startup_display(src: &str) -> String {
 // paths that ALREADY error today: type-unknown errors (typo on a referenced
 // type) and HARD-CUT retirement arms (struct, struct-restricted, enum).
 
+// rune:complectens(assertion-sequence) — three properties of one rendered error msg; "did you mean"/form/annotation are the structured-remedy contract
 #[test]
 fn contract_01_typo_remedy_on_variant_constructor() {
     // User declares :my::Status with variants; then typos the constructor
@@ -69,8 +70,13 @@ fn contract_01_typo_remedy_on_variant_constructor() {
     "#;
     let msg = try_startup_display(src);
     assert!(
-        msg.contains("did you mean") && msg.contains(":my::Status::Ok"),
-        "variant-typo case should produce 'did you mean :my::Status::Ok'; got:\n{}",
+        msg.contains("did you mean"),
+        "variant-typo case should produce 'did you mean' prefix; got:\n{}",
+        msg
+    );
+    assert!(
+        msg.contains(":my::Status::Ok"),
+        "variant-typo case should name ':my::Status::Ok' as candidate; got:\n{}",
         msg
     );
     assert!(
@@ -80,6 +86,7 @@ fn contract_01_typo_remedy_on_variant_constructor() {
     );
 }
 
+// rune:complectens(assertion-sequence) — three properties of one rendered error msg; "did you mean"/form/annotation are the structured-remedy contract
 #[test]
 fn contract_02_retirement_remedy_for_hard_cut_form() {
     // Legacy `:wat::core::struct` retired at Stone 241.8. The 241.8 hand-written
@@ -91,8 +98,13 @@ fn contract_02_retirement_remedy_for_hard_cut_form() {
     "#;
     let msg = try_startup_display(src);
     assert!(
-        msg.contains("did you mean") && msg.contains(":wat::core::defstruct"),
-        "retirement case should produce 'did you mean :wat::core::defstruct'; got:\n{}",
+        msg.contains("did you mean"),
+        "retirement case should produce 'did you mean' prefix; got:\n{}",
+        msg
+    );
+    assert!(
+        msg.contains(":wat::core::defstruct"),
+        "retirement case should name ':wat::core::defstruct' as candidate; got:\n{}",
         msg
     );
     assert!(
@@ -138,6 +150,7 @@ fn contract_04_no_remedy_for_distant_unknown() {
 
 // ─── Contracts 5-7: Display formatting ────────────────────────────────────────
 
+// rune:complectens(assertion-sequence) — two properties of one extracted line; probe startup cost-of-split exceeds value
 #[test]
 fn contract_05_single_remedy_single_line_format() {
     // Single remedy → inline single-line "did you mean: <form> [annotation]".
@@ -146,16 +159,16 @@ fn contract_05_single_remedy_single_line_format() {
         (:wat::core::struct :my::Point (x :wat::core::i64))
     "#;
     let msg = try_startup_display(src);
-    let dym_line = msg.lines().find(|l| l.contains("did you mean"));
+    let line = msg.lines().find(|l| l.contains("did you mean"))
+        .unwrap_or_else(|| panic!("expected 'did you mean' line; got:\n{}", msg));
     assert!(
-        dym_line.is_some(),
-        "expected 'did you mean' line; got:\n{}",
-        msg
+        line.contains(":wat::core::defstruct"),
+        "single-remedy line should contain ':wat::core::defstruct'; got line: {}\nfull:\n{}",
+        line, msg
     );
-    let line = dym_line.unwrap();
     assert!(
-        line.contains(":wat::core::defstruct") && line.contains("[retirement"),
-        "single-remedy should render form + annotation on one line; got line: {}\nfull:\n{}",
+        line.contains("[retirement"),
+        "single-remedy line should contain '[retirement' annotation; got line: {}\nfull:\n{}",
         line, msg
     );
 }

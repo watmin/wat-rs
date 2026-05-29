@@ -31,18 +31,15 @@
 /// For the substrate's use case (identifier keyword strings, ≤200 candidates),
 /// the cost is negligible. Profile before optimizing.
 pub(crate) fn levenshtein(a: &str, b: &str) -> u32 {
+    // Cheap size check without allocation — degenerate cases short-circuit
+    let m = a.chars().count();
+    if m == 0 { return b.chars().count() as u32; }
+    let n = b.chars().count();
+    if n == 0 { return m as u32; }
+
+    // Both non-empty; now allocate Vec<char> for indexed table access
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();
-    let m = a.len();
-    let n = b.len();
-
-    // Degenerate cases — avoid allocating a table.
-    if m == 0 {
-        return n as u32;
-    }
-    if n == 0 {
-        return m as u32;
-    }
 
     // Two-row rolling Wagner-Fischer table.
     // `prev[j]` = cost to transform a[0..0] into b[0..j] (baseline: j deletions).
@@ -88,12 +85,12 @@ mod tests {
     }
 
     #[test]
-    fn single_insertion() {
+    fn transposition_counts_as_two_edits() {
         assert_eq!(levenshtein("defenum", "defenmu"), 2); // transpose = 2 edits
     }
 
     #[test]
-    fn keyword_path_typo() {
+    fn transposition_in_keyword_path_is_still_two_edits() {
         // `:wat::core::defenum` vs `:wat::core::defenmu` — transposition at end
         assert_eq!(levenshtein(":wat::core::defenum", ":wat::core::defenmu"), 2);
     }

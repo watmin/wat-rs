@@ -16,7 +16,6 @@
 //! - [`Remedy`] — a single ranked candidate (form + score + kind)
 //! - [`RemedyKind`] — discriminates typo remedies from retirement-table hits
 //! - [`nearest_match`] — Levenshtein-ranked candidates from a candidate set
-//! - [`retirement_lookup`] — explicit retirement-table hit for a needle
 //! - [`remedies_for`] — convenience combinator: retirement (priority) + typo merged
 //!
 //! ## What this module does NOT own
@@ -43,14 +42,14 @@ mod distance;
 mod retirement;
 mod rank;
 
-pub use retirement::retirement_lookup;
+use retirement::retirement_lookup;
 pub use rank::nearest_match;
 
 /// A single ranked remedy offered to the user when their input is rejected.
 ///
 /// Remedies are sorted ascending by `score` (closest first); ties broken
-/// lexicographically on `form`. Display rendering produces human-readable
-/// "did you mean" output with kind annotation.
+/// lexicographically on `form`. Use [`render_remedies`] to render a slice of
+/// remedies as a human-readable "did you mean" section.
 ///
 /// ## Kind semantics
 ///
@@ -70,12 +69,12 @@ pub struct Remedy {
     /// Always 0 for [`RemedyKind::Retirement`]; ≥ 1 for [`RemedyKind::Typo`].
     pub score: u32,
     /// Discriminates the remedy source: typo vs retirement-table hit.
-    pub kind: RemedyKind,
+    pub(crate) kind: RemedyKind,
 }
 
 /// Discriminates the source of a [`Remedy`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RemedyKind {
+pub(crate) enum RemedyKind {
     /// Levenshtein-derived from a candidate set — the user likely mistyped.
     Typo,
     /// Explicit retirement-table lookup — the form was valid in a prior arc
@@ -170,8 +169,10 @@ pub fn remedies_for<'a>(
             typos.retain(|r| r.form != ret.form);
             let mut combined = vec![ret];
             combined.extend(typos);
-            // Re-sort so retirement (score=0) leads naturally; typos follow.
-            combined.sort();
+            // No re-sort needed: retirement score=0 leads by construction (vec![ret]
+            // prepended); typos from `nearest_match` are already sorted ascending by
+            // score; exact matches filtered by `nearest_match` so no typo can have
+            // score=0. The invariant is structural, not enforced by sort.
             combined
         }
     }
@@ -206,18 +207,23 @@ mod tests {
         // Retirement score is 0 so it always sorts before typos.
         let candidates = [":wat::core::defstruct"]; // close to ":wat::core::struct"
         let remedies = remedies_for(":wat::core::struct", candidates.iter().copied());
-        assert!(!remedies.is_empty());
         assert!(matches!(remedies[0].kind, RemedyKind::Retirement));
     }
 
-    #[test]
-    fn remedies_for_unknown_needle_returns_typos() {
+    fn remedies_for_unknown_setup() -> Vec<Remedy> {
         // ":my::Status::Oks" is close to ":my::Status::Ok" (distance 1).
         let candidates = [":my::Status::Ok", ":my::Status::Pending"];
-        let remedies = remedies_for(":my::Status::Oks", candidates.iter().copied());
-        assert!(!remedies.is_empty());
-        assert_eq!(remedies[0].form, ":my::Status::Ok");
-        assert!(matches!(remedies[0].kind, RemedyKind::Typo));
+        remedies_for(":my::Status::Oks", candidates.iter().copied())
+    }
+
+    #[test]
+    fn remedies_for_unknown_needle_first_typo_has_correct_form() {
+        assert_eq!(remedies_for_unknown_setup()[0].form, ":my::Status::Ok");
+    }
+
+    #[test]
+    fn remedies_for_unknown_needle_first_typo_has_typo_kind() {
+        assert!(matches!(remedies_for_unknown_setup()[0].kind, RemedyKind::Typo));
     }
 
     #[test]
@@ -230,6 +236,59 @@ mod tests {
         assert_eq!(defstruct_count, 1, "retirement form should appear exactly once");
     }
 
+    // ─── combined_remedy_setup: retirement + two typos at different distances ────
+    //
+    // needle = ":wat::core::struct" (len=18), threshold = max(1, 18/3) = 6.
+    // ":wat::core::struXt" = dist 1 (1 substitution: c→X)
+    // ":wat::core::strXXt" = dist 2 (2 substitutions: uc→XX)
+    // ":wat::core::defstruct" deduped (= retirement form); not in candidates.
+    fn combined_remedy_setup() -> Vec<Remedy> {
+        let candidates = [":wat::core::struXt", ":wat::core::strXXt"];
+        remedies_for(":wat::core::struct", candidates.iter().copied())
+    }
+
+    #[test]
+    fn combined_retirement_leads() {
+        let remedies = combined_remedy_setup();
+        assert!(matches!(remedies[0].kind, RemedyKind::Retirement));
+    }
+
+    #[test]
+    fn combined_retirement_has_score_zero() {
+        let remedies = combined_remedy_setup();
+        assert_eq!(remedies[0].score, 0);
+    }
+
+    #[test]
+    fn combined_has_exactly_two_typos() {
+        let remedies = combined_remedy_setup();
+        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo)).collect();
+        assert_eq!(typos.len(), 2);
+    }
+
+    #[test]
+    fn combined_typos_sorted_ascending_by_score() {
+        let remedies = combined_remedy_setup();
+        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo)).collect();
+        for w in typos.windows(2) {
+            assert!(w[0].score <= w[1].score);
+        }
+    }
+
+    #[test]
+    fn combined_first_typo_has_score_one() {
+        let remedies = combined_remedy_setup();
+        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo)).collect();
+        assert_eq!(typos[0].score, 1);
+    }
+
+    #[test]
+    fn combined_second_typo_has_score_two() {
+        let remedies = combined_remedy_setup();
+        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo)).collect();
+        assert_eq!(typos[1].score, 2);
+    }
+
     // ─── render_remedies ─────────────────────────────────────────────────
 
     #[test]
@@ -237,25 +296,64 @@ mod tests {
         assert_eq!(render_remedies(&[]), "");
     }
 
+    // ─── render_single retirement — 4 focused tests ──────────────────────
+
     #[test]
-    fn render_single_retirement_single_line() {
+    fn render_single_remedy_has_did_you_mean_prefix() {
         let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement };
         let rendered = render_remedies(&[r]);
-        assert!(rendered.contains("did you mean:"), "missing 'did you mean:'");
-        assert!(rendered.contains(":wat::core::defstruct"), "missing form");
-        assert!(rendered.contains("[retirement replacement]"), "missing annotation");
-        // Single remedy: everything on one line.
-        assert_eq!(rendered.lines().count(), 1, "single remedy should be one line");
+        assert!(rendered.contains("did you mean:"), "missing 'did you mean:' prefix");
     }
 
     #[test]
-    fn render_single_typo_single_line() {
+    fn render_single_remedy_contains_form() {
+        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement };
+        let rendered = render_remedies(&[r]);
+        assert!(rendered.contains(":wat::core::defstruct"), "missing form in rendered output");
+    }
+
+    #[test]
+    fn render_single_retirement_annotation_is_canonical() {
+        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement };
+        let rendered = render_remedies(&[r]);
+        assert!(rendered.contains("[retirement replacement]"), "missing retirement annotation");
+    }
+
+    #[test]
+    fn render_single_remedy_is_one_line() {
+        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement };
+        let rendered = render_remedies(&[r]);
+        assert_eq!(rendered.lines().count(), 1, "single remedy should be one line");
+    }
+
+    // ─── render_single typo — 4 focused tests ────────────────────────────
+
+    #[test]
+    fn render_single_typo_has_did_you_mean_prefix() {
         let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo };
         let rendered = render_remedies(&[r]);
-        assert!(rendered.contains("did you mean:"));
-        assert!(rendered.contains(":my::Status::Ok"));
-        assert!(rendered.contains("[typo, distance 1]"));
-        assert_eq!(rendered.lines().count(), 1);
+        assert!(rendered.contains("did you mean:"), "missing 'did you mean:' prefix");
+    }
+
+    #[test]
+    fn render_single_typo_contains_form() {
+        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo };
+        let rendered = render_remedies(&[r]);
+        assert!(rendered.contains(":my::Status::Ok"), "missing form in rendered output");
+    }
+
+    #[test]
+    fn render_single_typo_annotation_includes_distance() {
+        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo };
+        let rendered = render_remedies(&[r]);
+        assert!(rendered.contains("[typo, distance 1]"), "missing typo annotation with distance");
+    }
+
+    #[test]
+    fn render_single_typo_is_one_line() {
+        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo };
+        let rendered = render_remedies(&[r]);
+        assert_eq!(rendered.lines().count(), 1, "single typo remedy should be one line");
     }
 
     #[test]
@@ -266,22 +364,18 @@ mod tests {
         ];
         let rendered = render_remedies(&remedies);
         // Header "  did you mean:" on its own line; candidates on subsequent lines.
-        assert!(rendered.contains("did you mean:"));
         let line_count = rendered.lines().count();
         assert!(line_count >= 3, "multi-remedy should have ≥3 lines; got {}", line_count);
     }
 
     #[test]
-    fn kind_annotation_typo_includes_distance() {
-        let r = Remedy { form: "x".into(), score: 3, kind: RemedyKind::Typo };
-        let ann = kind_annotation(&r);
-        assert_eq!(ann, "typo, distance 3");
+    fn render_remedies_typo_annotation_includes_exact_distance() {
+        let r = Remedy { form: ":my::Status::Ok".into(), score: 3, kind: RemedyKind::Typo };
+        let rendered = render_remedies(&[r]);
+        assert!(
+            rendered.contains("[typo, distance 3]"),
+            "annotation should read '[typo, distance 3]'; got: {rendered:?}"
+        );
     }
 
-    #[test]
-    fn kind_annotation_retirement_canonical() {
-        let r = Remedy { form: "x".into(), score: 0, kind: RemedyKind::Retirement };
-        let ann = kind_annotation(&r);
-        assert_eq!(ann, "retirement replacement");
-    }
 }

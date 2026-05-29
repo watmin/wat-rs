@@ -60,7 +60,7 @@ pub mod ast;
 pub mod check;
 pub mod closure_extract;
 pub mod argspec;
-pub mod remedy;
+pub(crate) mod remedy;
 pub mod comms;
 pub mod compose;
 pub mod config;
