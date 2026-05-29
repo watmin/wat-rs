@@ -128,3 +128,61 @@ impl From<ArgSpecError> for TypeError   { ... }
 ```
 
 No other Rust files modified. STOP-4 (holon-rs) not touched. STOP-5 (Rust outside `src/argspec/*` + `src/lib.rs`) not violated. A1/A2/A3/A4 untouched (STOP-6 clean).
+
+---
+
+## Vigilia Convergence (Phase B, 2026-05-28 mid-day; orchestrator-inscribed)
+
+Per `feedback_namespaced_home_vigilia_gate`: vigilia cast post-SCORE on `src/argspec/*` + `tests/probe_arc241_stone1_argspec_canonical.rs`. Eight spells in parallel — intueri, solvere, purgare, struere, sequi, temperare, complectens, vocare.
+
+**Aggregate: DIVERGED — 4 L1 findings + ~12 L2 findings (significant cross-spell overlap on 3-4 sites).**
+
+### L1 findings (require amend OR rune-accept per grimoire)
+
+| # | Site | Spell(s) | Finding | Direction |
+|---|---|---|---|---|
+| 1 | `error.rs:56-253` | solvere | Reason-string already DRIFTING across 3 From impls (NameNotSymbol: 2× "arg-vector name slot must be a plain symbol" + 1× "field/arg name slot must be a plain symbol") | Extract `fn classify(&self) -> (Span, String, String)` on ArgSpecError; From impls become mechanical wrappers |
+| 2 | `parse.rs:126-142 + 173-189` | solvere + struere | Keyword-parse pattern duplicated for fixed-param type-slot + ret-type slot | Extract `parse_keyword_type(ast, head, err_ctor) -> Result<TypeExpr, ArgSpecError>` |
+| 3 | `parse.rs:80-90` | struere (L1) + purgare (L2-rune-acceptable) | `unreachable!` behind a runtime-valid path; `allow_rest_binder=true` panics | RUNE: `// rune:purgare(future-fixture) — Stone 241.4 implements allow_rest_binder=true; 241.1 unreachable by design` (grimoire-prescribed) |
+| 4 | `probe:25-35` | struere (L1) + sequi (L2) + complectens (L2) — 3 spells converge | `impl Deref<Target=Span>` return type leaks heap-pin strategy through opaque trait | AMEND: return `(Vec<WatAST>, Span)` owned (clone span at helper boundary; cheap in test code) |
+
+### L2 findings (amend OR rune; lower-priority)
+
+- **`parse.rs:158`** (temperare): redundant `is_bare_symbol(..., "->")` after loop break — tautology. REMOVE.
+- **`parse.rs:99`** (solvere + struere): `idx + 2 >= len` opaque. REWRITE as `args_vec.len().saturating_sub(idx) < 3`.
+- **`parse.rs:98`** (intueri): WHAT comment ("Need 3 items for a complete triple"). Either remove comment or rewrite as WHY.
+- **`probe:25`** (intueri): `argspec_inputs` reads as factory but parses. RENAME `parse_vector_items`.
+- **`probe:38`** (intueri): `invoke` too generic. RENAME `parse_triples`.
+- **`error.rs:16`** (struere): ArgSpecError doesn't derive Clone (TypeError only derives Debug — verified by sonnet's honest delta). Acceptable; keep as-is.
+- **`probe`** (complectens): no per-helper `#[test]` for `argspec_inputs` or `invoke`. Add `#[test]` for each.
+- **`probe`** (vocare): contracts 03/04 don't verify TypeExpr content of ret_type. Extend assertions.
+- **`probe`** (vocare): 3 ArgSpecError variants UNPROBED (MalformedTypeKeyword, RetTypeNotKeyword, IncompleteSignature). Add contracts 11/12/13.
+- **`probe:25`** (vocare): Span not re-exported from `wat::argspec`. Either re-export Span OR document the reach.
+
+### Verdict: DIVERGED on the home; Stone 241.1.fix queued
+
+Per `feedback_namespaced_home_vigilia_gate`: commit-readiness requires L1+L2=0. Compaction-pressure forced Phase A commit ahead of Phase B convergence; the doctrine's compaction-pressure exception (inscribed in CLIFFNOTES Currently) acknowledged this. Phase B now declares the home DIVERGED with 4 L1 + ~12 L2 findings; **Stone 241.1.fix is owed** before Phase 1 advances to Stone 241.2.
+
+### Spells that CONVERGED individually
+
+- **purgare** — CONVERGED with 3 rune-acceptable future-fixture sites (`unreachable!`, `rest_param`, three From impls). No genuine dead code; runes close the gap.
+- **sequi** — CONVERGED with 1 L2 (opaque Deref; same site as struere's L1).
+- **temperare** — CONVERGED with 1 L2 (redundant check at parse.rs:158).
+- **vocare** — CONVERGED with 4 L2 (coverage gaps; no vantage violation).
+
+### Spells that DIVERGED
+
+- **intueri** — 3 L2 (probe helper names + WHAT comment)
+- **solvere** — 2 L1 (reason-string drift + keyword-parse duplication) + 3 L2
+- **struere** — 2 L1 (unreachable! + Deref leak) + 3 L2
+- **complectens** — 3 L2 (missing per-helper tests + Deref leak)
+
+### Cross-spell convergence on key sites
+
+- `probe:25` opaque `impl Deref<Span>`: flagged by struere (L1), sequi (L2), complectens (L2), vocare (L2). Strong signal — AMEND, not rune.
+- `parse.rs` keyword-parse duplication: flagged by solvere (L1) + struere (L2). AMEND via extracted helper.
+- `error.rs` From impl structure: flagged by solvere (L1 message drift) + struere (L2 wrong-level). AMEND via `classify()` extraction.
+
+### Next move: Stone 241.1.fix BRIEF queued for next-session sonnet spawn
+
+The amend pass has a clear scope (4 L1 amends + 5-6 high-priority L2 amends + 3 runes accepted), an obvious shape (mirror this stone's pattern), and a clean verification (re-cast vigilia; converge L1+L2=0). Per spawn-block winding: Stone 241.2 (migrate A1/A2/A3) blocks on Stone 241.1.fix closure.

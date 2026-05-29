@@ -222,9 +222,27 @@ Stone 241.1 **Phase A SHIPPED 2026-05-28 mid-day** (verified independently befor
 - error.rs over-predicted (~250 vs ~80) — substantive From<> impls for RuntimeError/CheckError/TypeError + Display impl; honest, not bloat
 - Honest delta noted in SCORE: ArgSpecError does NOT derive Clone (TypeError only derives Debug); no 241.1 contract requires it
 
-**Phase B (vigilia-gate convergence) OWED — fresh-context session first move.** Compaction-pressure at 91% context forced clean-tree commit before Phase B per the lesser-of-two-evils between {vigilia-cast-mid-compaction-risk, dirty-tree-across-compaction-risk}. The doctrine `feedback_namespaced_home_vigilia_gate` (inscribed earlier this session) didn't anticipate this constraint; forward-correct in next session if appropriate. **Cast vigilia on `src/argspec/*` + `tests/probe_arc241_stone1_argspec_canonical.rs`** as first orchestrator move post-compaction; 8-spell defensive set (intueri + solvere + purgare + struere + sequi + temperare always; complectens + vocare for test-substrate); drive L1+L2=0; address findings or rune-accept; SCORE doc amended with Vigilia Convergence section.
+**Phase B (vigilia cast) SHIPPED 2026-05-28 mid-day; verdict: DIVERGED — Stone 241.1.fix QUEUED.** Eight spells cast in parallel; aggregate 4 L1 + ~12 L2 with significant cross-spell overlap. Vigilia Convergence section appended to SCORE-STONE-241.1.md (uncommitted at time of this CLIFFNOTES write; commits in the same atomic push).
 
-After Phase B converges: spawn sonnet on **Stone 241.2** (migrate A1/A2/A3 fn parsers through the canonical) per spawn-block winding; arc 241 Phase 1 advances.
+**Next move — Stone 241.1.fix** (amend pass; blocks Stone 241.2 per spawn-block winding):
+
+*Substrate amends (L1)*:
+1. `error.rs` — extract `fn classify(&self) -> (Span, String, String)` on `ArgSpecError`; three `From<>` impls collapse to mechanical wrappers (reason-string drift ALREADY biting: NameNotSymbol produces 3 distinct messages today)
+2. `parse.rs` — extract `parse_keyword_type(ast, head, err_ctor)` helper; fixed-param + ret-type slots both use it
+3. `parse.rs:80-90` — `rune:purgare(future-fixture)` for the `unreachable!` arm (grimoire-prescribed; future-fixture for 241.4); same rune covers `ArgSpec::rest_param` field and three `From<>` impls
+4. `probe:25` — replace `impl Deref<Target=Span>` return with owned `(Vec<WatAST>, Span)` (4 spells converge on this site: struere L1 + sequi L2 + complectens L2 + vocare L2 — strong signal AMEND not rune)
+
+*Substrate cleanups (selected L2)*:
+- `parse.rs:158` — remove tautological `is_bare_symbol(..., "->")` after loop break (temperare)
+- `parse.rs:99` — rewrite condition as `args_vec.len().saturating_sub(idx) < 3` (solvere + struere)
+- `parse.rs:98` — remove WHAT comment or rewrite as WHY (intueri)
+- `probe:25` — rename `argspec_inputs` → `parse_vector_items` (intueri)
+- `probe:38` — rename `invoke` → `parse_triples` (intueri)
+- `probe` — add 3 contracts for unprobed variants: MalformedTypeKeyword, RetTypeNotKeyword, IncompleteSignature (vocare)
+
+*Acceptable deferrals*: TypeExpr-content checks in contracts 03/04 (vocare); per-helper `#[test]` for argspec_inputs + invoke (complectens) — extend later if surface widens.
+
+After Stone 241.1.fix re-casts vigilia clean (L1+L2=0 or runes accepted), Phase B converges; Stone 241.2 (migrate A1/A2/A3 fn parsers through canonical) opens. The doctrine `feedback_namespaced_home_vigilia_gate` survived its first real test: vigilia caught architectural issues sonnet's SCORE didn't surface (reason-string drift was actively biting; sonnet shipped it green).
 
 ---
 ### Headline state (⚠ PRE-PIVOT / STALE — see § THE PIVOT above; kept only for the HEAD/frozen pointers)
