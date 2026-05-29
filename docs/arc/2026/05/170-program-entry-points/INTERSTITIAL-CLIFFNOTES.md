@@ -151,7 +151,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-28 late-mid-day — **Stone 241.2 SHIPPED**; A1/A2/A3 fn-parsers route through canonical; zero test-assertion cascade. Stone 241.3 (A4 defclause migration) NEXT — single substrate site; even simpler than 241.2. Arc 237 stays PAUSED at 237.8b per spawn-block winding; resumes after arc 241 closes via 241.4's `&` rest-binder extension. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` § Scope expansion 2026-05-28 → `SCORE-STONE-241.2.md` → `SCORE-STONE-241.1.fix.md` § Vigilia Convergence → `FORM-COLLAPSE-NOTES.md` line 184 (scope boundary). HEAD `21877135` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
+## Currently (2026-05-28 evening — **Stone 241.4 SHIPPED**; argspec parser's first-release shape COMPLETE; 3 future-fixture runes RETIRED (the future is the present); canonical home rune-free + vigilia 8/8 CONVERGED. Stone 241.5 (runtime dispatch in eval_clause_set; ~40-60 lines per STOP-6 surface; unblocks 237.8b Gate 1) NEXT. Arc 237 stays PAUSED at 237.8b per spawn-block winding; resumes after 241.5 ships. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` § Scope expansion 2026-05-28 → `SCORE-STONE-241.4.md` § Vigilia Convergence → `FORM-COLLAPSE-NOTES.md` line 184. HEAD `843a83d0` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
 
 ### THE PIVOT (read first)
 
@@ -186,9 +186,10 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 |---|---|---|---|
 | 241.1 | SHIPPED | `1f674194` | Mint canonical parser; ~50 min Mode A; 519 lines net |
 | 241.1.fix | SHIPPED | `b6b290b0` | Vigilia amends + scope correction; vigilia 8/8 CONVERGED; ~-215 lines from 241.1 baseline |
-| 241.2 | SHIPPED | `21877135` | A1/A2/A3 migration; ~7 min Mode A; -100 lines; **ZERO test-assertion cascade** |
-| 241.3 | NEXT | — | Migrate A4 defclause parser (runtime.rs:6827); single site; defclause has no ret-clause |
-| 241.4 | queued | — | Extend with `&` rest-binder; unblocks 237.8b |
+| 241.2 | SHIPPED | `21877135` | A1+A2+A3 fn-parsers migrated; ~7 min Mode A; -100 lines; zero test cascade |
+| 241.3 | SHIPPED | `b0b5d11d` | A4 defclause migrated; ~5.6 min Mode A; Phase 1 closure inscribed |
+| 241.4 | SHIPPED | `843a83d0` | Phase 1 capstone: rest-binder + parse_triple struere extract + A4 wrapper inlined; 3 runes RETIRED; vigilia 8/8 CONVERGED (4 L2 → 0 via amend); +125 net; clippy -1 |
+| 241.5 | NEXT | — | Runtime dispatch in eval_clause_set (~40-60 lines per Stone 241.4 STOP-6 surface); unblocks 237.8b Gate 1 |
 
 ### Gate doctrine validated through real practice (2026-05-28)
 
@@ -212,7 +213,9 @@ Each finding's resolution was at the highest possible ladder rung:
 | 241.1.fix Layer 1 | Vigilia amends | -88 net | 20-30 min | ~8 min | UNDER band (mechanical) |
 | 241.1.fix Layer 2 | Scope correction | -127 net | 20-35 min | ~8 min | UNDER band (mechanical) |
 | 241.1.fix struere closure | 3-line amend | -3 net | 5-10 min | ~5 min | within band |
-| 241.2 | A1/A2/A3 migration | -100 net + 0 test updates | 40-60 min | ~7 min | UNDER band (zero cascade) |
+| 241.2 | A1+A2+A3 migration | -100 net + 0 test updates | 40-60 min | ~7 min | UNDER band (zero cascade) |
+| 241.3 | A4 migration | -57 net + 0 test updates | 15-30 min | ~5.6 min | UNDER band (zero cascade) |
+| 241.4 | Rest-binder ext + helper + opt-in + L2 closures | +125 net + zero cascade + 4 L2 amend cycle | 30-50 min | ~10.6 min initial + cycle | UNDER band initial; full vigilia cycle ~30 min total |
 
 **Calibration learning — 241.2 zero-cascade:** Test-assertion cascade predicted as the main runtime variable; actual depth was ZERO. No lib test asserted against the old inline message strings. Two implications: (a) the substrate's test suite uses structural assertions (variants, spans, exit codes), not message-string matching; (b) error-quality improvements ship without consumer pain when the consumer base is the substrate itself. Stone 241.3 cascade is expected to be similarly small or zero.
 
@@ -237,9 +240,13 @@ Recent spine spans #34 DEFY → #35 BUILD → #36 BREAK-OUR-OWN → #37 THRIVE-I
 
 `cargo test --release --lib -p wat` + `cargo build --release --tests --workspace`. **NEVER invoke wrapper scripts in BRIEFs or agent prompts** (FM 16; firewall denies; `feedback_sonnet_bash_firewall`). Full `cargo test --workspace` RUN held off until arc 170 closes process leaks.
 
-### NEXT MOVE — **Stone 241.3 (A4 defclause migration)**
+### NEXT MOVE — **Stone 241.5 (runtime dispatch wiring in `eval_clause_set`)**
 
-The simplest stone in Phase 1. Single substrate site; no ret-clause concerns; `spec.fixed_params` returns directly (already `Vec<(String, TypeExpr)>` shape).
+Stone 241.4 settled the storage foundation (Clause gains `rest_param: Option<(String, TypeExpr)>`; parser threads it through). Stone 241.5 wires the dispatch — `eval_clause_set` consumes `rest_param` for variadic-arity matching + argument collection into Vector + type-check at the rest-binder slot.
+
+Per Stone 241.4 SCORE STOP-6 surface: ~40-60 lines of mechanical wiring across `eval_clause_set` + possibly check-layer entry. Single substrate site (legacy flat `src/runtime.rs`); vigilia gate does NOT apply (per `feedback_namespaced_home_vigilia_gate` D9 — gate is for namespaced homes; runtime.rs is pre-existing flat substrate).
+
+**The integration test** is probe 237.8b's `gate_1_defclause_supports_rest_binder` — currently `#[ignore]`'d with named-Stone-241.5-follow-up reason. Stone 241.5 un-ignores; test passes; arc 237.8b's Gates 2-4 + mint-confirmers open.
 
 **The migration shape** (A4 only):
 
