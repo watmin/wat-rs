@@ -9339,11 +9339,13 @@ fn infer_def(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 2 {
+    // Stone 241.6 — accept 2 args (no metadata: :name expr) OR 3 args
+    // (with metadata: :name {meta} expr).
+    if args.len() != 2 && args.len() != 3 {
         local_errors.push(CheckError::MalformedForm {
             head: ":wat::core::def".into(),
             reason: format!(
-                "expected (:wat::core::def :name expr); got {} args",
+                "expected (:wat::core::def :name expr) or (:wat::core::def :name {{meta}} expr); got {} args",
                 args.len()
             ),
             span: head_span.clone(),
@@ -9374,8 +9376,46 @@ fn infer_def(
         }
     };
 
+    // Stone 241.6 — if 3 args, args[1] is the metadata-map; validate it.
+    // Discrimination: head keyword must be :wat::core::HashMap (map literal).
+    // Empty {} (no pairs — list length 3: head + K-type + V-type) is ILLEGAL.
+    let expr_idx = if args.len() == 3 {
+        let meta_node = &args[1];
+        // Verify it is a HashMap list.
+        let is_hashmap = match meta_node {
+            WatAST::List(meta_items, _) => {
+                matches!(meta_items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap")
+            }
+            _ => false,
+        };
+        if !is_hashmap {
+            local_errors.push(CheckError::MalformedForm {
+                head: ":wat::core::def".into(),
+                reason: "second arg of 4-item def must be a metadata-map `{key val ...}`".into(),
+                span: head_span.clone(),
+            });
+            return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
+        }
+        // Empty {} check: list with only [head, K-type, V-type] = 3 items, 0 pairs.
+        let is_empty = match meta_node {
+            WatAST::List(meta_items, _) => meta_items.len() <= 3,
+            _ => false,
+        };
+        if is_empty {
+            local_errors.push(CheckError::MalformedForm {
+                head: ":wat::core::def".into(),
+                reason: "empty metadata-map `{}` is illegal; provide at least one key-value pair".into(),
+                span: head_span.clone(),
+            });
+            return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
+        }
+        2usize // expr is at args[2]
+    } else {
+        1usize // expr is at args[1]
+    };
+
     // Infer the type of the expression.
-    let expr_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let expr_ty = infer(&args[expr_idx], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
     // Arc 157 slice 1a-ii — redef gating.
     //
@@ -10095,7 +10135,8 @@ fn extract_def_binding(
         WatAST::List(items, _) => items,
         _ => return None,
     };
-    if items.len() != 3 {
+    // Stone 241.6 — accept 3-item (no metadata) or 4-item (with metadata) forms.
+    if items.len() != 3 && items.len() != 4 {
         return None;
     }
     match &items[0] {
@@ -10107,8 +10148,10 @@ fn extract_def_binding(
         _ => return None,
     };
     let span = items[0].span().clone();
+    // Stone 241.6 — expr is at items[3] (4-item) or items[2] (3-item).
+    let expr_idx = if items.len() == 4 { 3 } else { 2 };
     let mut subst = Subst::new();
-    let ty = infer(&items[2], env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors)?;
+    let ty = infer(&items[expr_idx], env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors)?;
     let ty = apply_subst(&ty, &subst);
     Some((name, ty, span))
 }
@@ -15127,6 +15170,29 @@ fn infer_fn(
     //   ARGS-VECTOR `->` :RET-TYPE  body1 body2 ... bodyN
     // Empty body is legal — the form's type is `:wat::core::nil`
     // (constrains the declared return type to `:wat::core::nil`).
+    //
+    // Stone 241.6 — fn-embedded metadata: defn macro expands
+    // `(defn :name {meta} [args] -> :ret body)` to
+    // `(def :name (fn {meta} [args] -> :ret body))`. The metadata
+    // at args[0] is binding-level; peel it off so the type-checker
+    // sees the real signature at args[1..]. The metadata was already
+    // stored in binding_metadata by try_parse_fn_shape_def at
+    // register_defines time.
+    let sig_offset = if !args.is_empty() {
+        match &args[0] {
+            WatAST::List(meta_items, _) => {
+                let is_hashmap = meta_items
+                    .first()
+                    .map(|h| matches!(h, WatAST::Keyword(k, _) if k == ":wat::core::HashMap"))
+                    .unwrap_or(false);
+                if is_hashmap { 1 } else { 0 }
+            }
+            _ => 0,
+        }
+    } else {
+        0
+    };
+    let args = &args[sig_offset..];
     if args.len() < 3 {
         // HARVEST (236.2): silent-by-intent — malformed fn form with < 3 args;
         // parse won't even call check for badly-formed fn. Return fresh placeholder.

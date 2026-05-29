@@ -1766,6 +1766,16 @@ pub struct SymbolTable {
     /// `encoding_ctx`, `source_loader`, `macro_registry`. Memory
     /// `feedback_capability_carrier.md`.
     pub runtime_services: Option<Arc<crate::thread_io::RuntimeServices>>,
+    /// Stone 241.6 — binding-level metadata attached via the optional
+    /// `{...}` metadata-map clause on `def` / `defn`. Maps binding name
+    /// (full FQDN keyword string, e.g. `:my::ns::my-fn`) to the inner
+    /// metadata map (key keyword string → raw WatAST value). Generic
+    /// storage: the substrate does NOT enforce or validate specific keys;
+    /// downstream consumers (Stone 241.7 reflection verb; Stone 241.10
+    /// HARD CUT of def-restricted) project to their typed needs.
+    /// Populated by `register_defines` / `register_runtime_defs_form`
+    /// when a `def` form carries a metadata-map at items[2].
+    pub binding_metadata: HashMap<String, HashMap<String, WatAST>>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -1788,6 +1798,7 @@ impl std::fmt::Debug for SymbolTable {
             .field("runtime_def_values", &self.runtime_def_values.len())
             .field("redef_allowed", &self.redef_allowed)
             .field("eval_redef_allowed", &self.eval_redef_allowed)
+            .field("binding_metadata", &self.binding_metadata.len())
             .finish()
     }
 }
@@ -2639,7 +2650,7 @@ pub fn register_defines(
                 return Err(RuntimeError::DuplicateDefine(path, form_span));
             }
             sym.functions.insert(path, func);
-        } else if let Some((path, func)) = try_parse_fn_shape_def(&form) {
+        } else if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(&form) {
             // Arc 166 — `(:wat::core::def :name (:wat::core::fn sig body))`
             // pre-registers into `sym.functions` so the type checker resolves
             // recursive self-references inside the fn body. Form stays in
@@ -2657,12 +2668,19 @@ pub fn register_defines(
             // `DuplicateDefine` from the runtime side, masking the
             // type-check-side `DefRedefForbidden` the user expects from
             // `def`. Silent skip keeps the def-redef path authoritative.
+            //
+            // Stone 241.6 — if a metadata-map was present, store it now.
+            // Storage is pre-registration: binding_metadata is populated
+            // at `register_defines` time alongside the fn pre-registration.
             let form_span = form.span().clone();
             if crate::resolve::is_reserved_prefix(&path) {
                 return Err(RuntimeError::ReservedPrefix(path, form_span));
             }
             if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path, func);
+                sym.functions.insert(path.clone(), func);
+            }
+            if let Some(meta) = metadata_opt {
+                sym.binding_metadata.insert(path, meta);
             }
             rest.push(form);
         } else if let Some((path, func, prefixes)) = try_parse_fn_shape_def_restricted(&form) {
@@ -3404,18 +3422,22 @@ fn register_runtime_defs_form(
             sym.runtime_def_values.insert(name, value);
         }
         ":wat::core::def" => {
-            // Shape: (:wat::core::def :name expr)
+            // Shape: (:wat::core::def :name expr)               — 3 items, no metadata
+            //        (:wat::core::def :name {metadata} expr)    — 4 items, Stone 241.6
             // The type checker already validated shape + position; here we
             // trust the form is well-formed (same guarantee as the runtime
             // eval arm).
-            if items.len() != 3 {
+            if items.len() != 3 && items.len() != 4 {
                 return Ok(()); // malformed; type checker already caught it
             }
             let name = match &items[1] {
                 WatAST::Keyword(k, _) => k.clone(),
                 _ => return Ok(()), // malformed; type checker already caught it
             };
-            let expr = &items[2];
+            // Stone 241.6 — discriminate: if 4 items, items[2] is the
+            // metadata-map and items[3] is the expr. If 3 items, items[2] is
+            // the expr directly.
+            let expr = if items.len() == 4 { &items[3] } else { &items[2] };
             // Arc 157 slice 1a-ii — redef gating at freeze time.
             // If the name is already in runtime_def_values and redef_allowed
             // is false, this is a redef violation. The type checker already
@@ -3865,12 +3887,56 @@ fn preregister_enum_constructors_from_form(
 /// benign: call dispatch checks `sym.functions` first (per
 /// `lookup_form`'s precedence ladder), so the pre-registered Function
 /// wins; the `runtime_def_values` entry is vestigial-but-correct.
-fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
+/// Stone 241.6 — detect if a WatAST is a metadata-map (the `{...}` clause
+/// between binding name and value-expr on `def` / `defn`). The parser renders
+/// `{k v ...}` as `(:wat::core::HashMap :wat::type::Infer :wat::type::Infer k v ...)`.
+/// An empty `{}` renders as `(:wat::core::HashMap :wat::type::Infer :wat::type::Infer)`
+/// (3 items, 0 pairs) and is ILLEGAL per FORM-COLLAPSE-NOTES (divide-by-zero).
+///
+/// Returns `Some(inner_map)` where inner_map maps keyword-string → WatAST value.
+/// Returns `None` if the node is not a metadata-map at all.
+/// Caller is responsible for emitting an error on empty `{}` when `Some(empty)` is
+/// returned — this fn returns `Some(empty_map)` in that case so the caller can
+/// distinguish "not a map" from "empty map".
+fn try_parse_metadata_map(node: &WatAST) -> Option<HashMap<String, WatAST>> {
+    let list_items = match node {
+        WatAST::List(items, _) => items,
+        _ => return None,
+    };
+    // Must have head keyword :wat::core::HashMap.
+    match list_items.first() {
+        Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
+        _ => return None,
+    }
+    // Structure: [head, K-type, V-type, k0, v0, k1, v1, ...]
+    // Minimum: 3 items (head + K + V) = empty map.
+    if list_items.len() < 3 {
+        return None; // malformed — not a properly-synthesized map
+    }
+    // Extract alternating key/value pairs from index 3 onward.
+    let pairs = &list_items[3..];
+    let mut meta: HashMap<String, WatAST> = HashMap::new();
+    let mut i = 0;
+    while i + 1 < pairs.len() {
+        let key_str = match &pairs[i] {
+            WatAST::Keyword(k, _) => k.clone(),
+            _ => return None, // non-keyword key — malformed
+        };
+        meta.insert(key_str, pairs[i + 1].clone());
+        i += 2;
+    }
+    Some(meta)
+}
+
+/// Returns `(name, function, metadata_opt)` where `metadata_opt` is `Some(map)` if
+/// a `{...}` metadata-map clause was present, `None` if the 3-item form was used.
+fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Option<HashMap<String, WatAST>>)> {
     let items = match form {
         WatAST::List(items, _) => items,
         _ => return None,
     };
-    if items.len() != 3 {
+    // Accept 3-item (no metadata) or 4-item (metadata at items[2]) forms.
+    if items.len() != 3 && items.len() != 4 {
         return None;
     }
     // Head must be :wat::core::def.
@@ -3883,13 +3949,33 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
         WatAST::Keyword(k, _) => k.clone(),
         _ => return None,
     };
+    // Stone 241.6 — if 4 items, items[2] must be a non-empty metadata-map;
+    // items[3] is the fn-form. If 3 items, items[2] is the fn-form directly.
+    let (fn_slot_idx, metadata_opt) = if items.len() == 4 {
+        // items[2] must be a metadata-map (head :wat::core::HashMap).
+        // If it's not a HashMap list, this is not the fn-shape-def path.
+        match try_parse_metadata_map(&items[2]) {
+            Some(meta) => (3usize, Some(meta)), // metadata present; fn-form is at index 3
+            None => return None, // items[2] is not a metadata-map; let other parsers handle
+        }
+    } else {
+        (2usize, None) // 3-item form; fn-form is at index 2; no metadata
+    };
     // Second arg must be `(:wat::core::fn ARGS-VECTOR -> :RET body...)`
     // — the canonical flat shape per arc 167. Arc 168 — body slot
     // accepts 1+ trailing forms (implicit-do); the structural arity
     // grows from "exactly 5 elements" to "5+ elements". An empty
     // body (4-element form: head + sig-trio) is also legal —
     // synthesizes `:wat::core::nil`.
-    let fn_items = match &items[2] {
+    //
+    // Stone 241.6 — the fn-form may also carry a leading metadata-map
+    // from defn macro expansion: `(fn {meta} [args] -> :ret body)`.
+    // When fn_items[1] is a HashMap list, peel it as binding-level metadata
+    // and treat fn_items[2..] as the actual signature. This allows the
+    // defn macro to remain unchanged while `defn :name {meta} [args] -> ...`
+    // expands to `def :name (fn {meta} [args] -> ...)` with the metadata
+    // stored at the binding level (not at the fn level).
+    let fn_items = match &items[fn_slot_idx] {
         WatAST::List(fn_items, _) => fn_items,
         _ => return None,
     };
@@ -3900,17 +3986,37 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
     if fn_items.len() < 4 {
         return None;
     }
-    // Synthesize body via implicit-do over fn_items[4..]. Empty
+    // Stone 241.6 — detect fn-embedded metadata: fn_items[1] is a HashMap list
+    // produced by defn macro expansion threading `{meta}` into the fn-form.
+    // Peel it off: fn signature starts at fn_items[2..].
+    let (sig_start, metadata_opt) = if fn_slot_idx == 2 {
+        // Only peel from fn-embedded metadata when the 3-item def path was taken
+        // (fn_slot_idx == 2 means no explicit metadata-map on def itself).
+        match try_parse_metadata_map(&fn_items[1]) {
+            Some(meta) if !meta.is_empty() => {
+                // fn has embedded metadata; sig starts at fn_items[2]
+                if fn_items.len() < 5 {
+                    return None; // not enough items after peeling
+                }
+                (2usize, Some(meta))
+            }
+            _ => (1usize, metadata_opt), // no fn-embedded metadata; sig starts at fn_items[1]
+        }
+    } else {
+        // 4-item def: explicit metadata-map already captured; fn has no embedded metadata.
+        (1usize, metadata_opt)
+    };
+    // Synthesize body via implicit-do over fn_items[(sig_start+3)..]. Empty
     // trailing slice → :wat::core::nil keyword; single → pass-through;
     // multiple → (:wat::core::do f1 f2 ... fN).
-    let body = synthesize_fn_body(&fn_items[4..]);
+    let body = synthesize_fn_body(&fn_items[(sig_start + 3)..]);
     // parse_fn_signature consumes the first 4 elements after the
     // head: ARGS-VECTOR / `->` / :RET-TYPE / BODY-PLACEHOLDER. We pass
     // the synthesized body so the existing arity-check (==4) holds.
     let sig_args = [
-        fn_items[1].clone(),
-        fn_items[2].clone(),
-        fn_items[3].clone(),
+        fn_items[sig_start].clone(),
+        fn_items[sig_start + 1].clone(),
+        fn_items[sig_start + 2].clone(),
         body.clone(),
     ];
     let (params, param_types, ret_type) = parse_fn_signature(&sig_args).ok()?;
@@ -3927,6 +4033,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>)> {
             body: Arc::new(body),
             closed_env: None,
         }),
+        metadata_opt,
     ))
 }
 
@@ -4042,13 +4149,16 @@ fn preregister_fn_defs_in_do(
     // items is the children of a do form — i.e. items[0] is the :wat::core::do
     // keyword; items[1..] are the body children.
     for child in &items[1..] {
-        if let Some((path, func)) = try_parse_fn_shape_def(child) {
+        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
             if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
                 let span = child.span().clone();
                 return Err(RuntimeError::ReservedPrefix(path, span));
             }
             if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path, func);
+                sym.functions.insert(path.clone(), func);
+            }
+            if let Some(meta) = metadata_opt {
+                sym.binding_metadata.insert(path, meta);
             }
         } else if let Some((path, func, prefixes)) = try_parse_fn_shape_def_restricted(child) {
             // Arc 198 — fn-shape `def-restricted` inside a top-level `do`.
@@ -4125,13 +4235,16 @@ fn preregister_fn_defs_in_let(
     // items[1] = bindings vector
     // items[2..] = body forms (arc 168 multi-form body)
     for child in items.get(2..).unwrap_or(&[]) {
-        if let Some((path, func)) = try_parse_fn_shape_def(child) {
+        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
             if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
                 let span = child.span().clone();
                 return Err(RuntimeError::ReservedPrefix(path, span));
             }
             if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path, func);
+                sym.functions.insert(path.clone(), func);
+            }
+            if let Some(meta) = metadata_opt {
+                sym.binding_metadata.insert(path, meta);
             }
         } else if let Some((path, func, prefixes)) = try_parse_fn_shape_def_restricted(child) {
             // Arc 198 — sibling to the `def` fn-shape arm; same pattern.
@@ -6680,6 +6793,27 @@ fn eval_fn(args: &[WatAST], list_span: &Span, env: &Environment) -> Result<Value
     //   args[2] = :RET-TYPE (WatAST::Keyword)
     //   args[3..] = BODY forms (1+ implicit-do; empty body legal — value
     //              is :wat::core::nil at call time)
+    //
+    // Stone 241.6 — fn-embedded metadata peel. The defn macro expands
+    // `(defn :name {meta} [args] -> :ret body)` to
+    // `(def :name (fn {meta} [args] -> :ret body))`. The metadata at
+    // args[0] is binding-level; peel it off so eval_fn sees the real sig.
+    // The metadata was already stored in binding_metadata at register_defines
+    // time via try_parse_fn_shape_def's fn-embedded metadata path.
+    let args = if !args.is_empty() {
+        match &args[0] {
+            WatAST::List(meta_items, _) => {
+                let is_hashmap = meta_items
+                    .first()
+                    .map(|h| matches!(h, WatAST::Keyword(k, _) if k == ":wat::core::HashMap"))
+                    .unwrap_or(false);
+                if is_hashmap { &args[1..] } else { args }
+            }
+            _ => args,
+        }
+    } else {
+        args
+    };
     if args.len() < 3 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::fn".into(),

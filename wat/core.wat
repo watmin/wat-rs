@@ -166,6 +166,19 @@
 ;;     ↓ macro-expansion
 ;;   (:wat::core::def :name (:wat::core::fn [p <- :T q <- :T] -> :Ret body))
 ;;
+;; Stone 241.6 — optional metadata-map between name and argspec threads
+;; through rest-binder unchanged:
+;;
+;;   (:wat::core::defn :name {:doc "..."} [p <- :T] -> :Ret body)
+;;     ↓ macro-expansion (rest-binder unchanged)
+;;   (:wat::core::def :name (:wat::core::fn {:doc "..."} [p <- :T] -> :Ret body))
+;;     ↓ substrate fn-embedded-metadata peel (try_parse_fn_shape_def + eval_fn)
+;;   binding_metadata[":name"] = {:doc "..."}; fn sees [p <- :T] -> :Ret body
+;;
+;; The quasiquote-only defmacro body cannot branch on metadata presence;
+;; the substrate's fn-peel extracts binding-level metadata from the fn-form
+;; transparently. The macro template is UNCHANGED.
+;;
 ;; The rest-binder uses the variadic-defmacro shape per arc 150 / per
 ;; `wat/test.wat` § :wat::test::program (`:AST<wat::core::Vector<wat::WatAST>>`).
 (:wat::core::defmacro
