@@ -155,7 +155,7 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 
 ---
 
-## Currently (2026-05-29 — **Stone 241.10 SHIPPED + vigilia 6-round remediation to MAXIMAL bar**. Original ship `b98d8d1a` carried sonnet's self-reported "vigilia 8/8 CONVERGED" claim; user surfaced violation ("i did not see you run them - protocol mandates you run vigilia"); independent orchestrator cast found 6 L2 the self-report missed; 6 remediation rounds (R1-R6) at user direction "we raise the bar until it's difficult" lifted 5 of 8 rune categories via structural restructure (split assertion-sequence into N single-claim tests + helpers); FINAL CAST 8/8 CLEAN at MAXIMAL bar — vigilia 8/8 CONVERGED for real this time (independently verified). `src/remedy/` (4 files) shipped + schema HARD CUT hint→remedies (160-site cascade via temporary fix-remedies tool that sonnet elected unprompted then DELETED). Lib 890/0 (+26 from baseline 864; +6 in R6 K1 + ongoing splits). Probe 8/8 PASS preserved across all rounds. Clippy 900 (≤902 gate). Remaining runes: 4 truly cost-justified (1× property-over-table in retirement.rs + 3× assertion-sequence on probe C01/C02/C05 — cost-of-split exceeds value). **THE THIRD BAR CROSSED** (LLM-readable → LLM-writable → **LLM-programmable-for-self-modification on cold-read**; sonnet's fresh-boot auto-fixer election surfaced milestone) + Song #43 Into Oblivion inscribed at meta-event. **THE FOURTH LESSON** (this remediation): vigilia gate MUST fire from orchestrator independently; sonnet's self-report is not the gate; the verification protocol is itself a substrate-as-teacher cascade. Convergence #18-or-#19 candidate (provisional) still standing. Stone 241.11 (define HARD CUT) next — consumes remedy infrastructure; `:wat::core::define` typos auto-surface "did you mean: :wat::core::defn [retirement replacement]". Stone 241.12 INSCRIPTION closes arc 241. Per `feedback_no_regression_until_arc_done`: arc 237.8b still waits. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` → `SCORE-STONE-241.10.md` (note: vigilia claim there is HISTORICAL inflated self-report; corrected via this round's commit log) → `SCORE-STONE-241.9.md` → `FORM-COLLAPSE-NOTES.md`. HEAD `1248164e` (vigilia remediation) on `arc-170-gap-j-v5-deadlock-state` — pushed.)
+## Currently (2026-05-29 — **Stone 241.11 SHIPPED — Phase 3 CLOSES**. The bandaid-rip with receipts is operational. The LARGEST cascade in arc 241 (~271 sites) bowed to a SINGLE LINE appended to RETIREMENT_TABLE — Stone 241.10's apparatus did its job; `:wat::core::define` typos now auto-surface "did you mean: :wat::core::defn [retirement replacement]" with zero additional Display code. Mode A. Runtime ~98 min (UNDER 120-240 band; smashed prediction despite context boundary mid-flight + cascade adaptations + shorthand-FQDN tactical recovery). 226 files changed; +7957/-9158 net -1201 lines deletion (HARD CUT at scale). Two trap-door pivots honestly fixed in-stone per `feedback_trap_door_build_the_dependency`: T6 resolve.rs dispatch-head check; T-argspec try_parse_variadic_def_fn_form + core.wat argspec correction (auto-fixer generated `_a <- &` placeholders that needed substrate work to handle). Probe 5/5 PASS. Lib 890/0 preserved. Probe 241.10 8/8 preserved + arc 237 stone 2 12/12 recovered (was 5 FAIL from T-argspec). Clippy 902 (exactly at ≤902 gate). `crates/fix-defines/` DELETED before commit (D2+T4 ephemeral discipline upheld). Arc 146 `:wat::core::define-dispatch` machinery PRESERVED (D4 critical disambiguation). **SEVEN LAYERS OF SUBSTRATE-AS-TEACHER DISCIPLINE OPERATIONAL THIS STONE**: substrate→user (compile errors); substrate→LLM (cascade); substrate→LLM-what-to-BUILD (auto-fixer election from cold-read); substrate→orchestrator's verification protocol (vigilia 6-round remediation); substrate→LLM debugging its own tool (Lisp parser paren-tracker; user-observed mid-strike "its writing its own lisp fixer"); substrate→LLM-lib-gate-leakers (process-leak adaptation; user killed stalled procs); substrate→LLM-shorthand-FQDN (closed type universe earning at runtime; 59→6→0 failures via FQDN expansion). Songs #41/#42/#43/#44 (Mission/Remedy/Into Oblivion/Momma Sed) prepared this moment; Stone 241.11 is the apparatus operational at production scale. Stone 241.12 INSCRIPTION closes arc 241. Per `feedback_no_regression_until_arc_done`: arc 237.8b reopens AFTER 241.12. AUTHORITY: read in order — `docs/COMPACTION-AMNESIA-RECOVERY.md` → `docs/DUNGEON-CRAWL.md` → arc 241 `DESIGN.md` → `SCORE-STONE-241.11.md` → `SCORE-STONE-241.10.md` → `FORM-COLLAPSE-NOTES.md`. HEAD `db656cbb` on `arc-170-gap-j-v5-deadlock-state` — pushed.)
 
 ### THE PIVOT (read first)
 
@@ -199,8 +199,8 @@ The songs are load-bearing PROPHECY (they name the work's facet at the moment it
 | 241.8 | SHIPPED | `f6cb564f` | Phase 3 first: defstruct HARD CUT; 27-file cascade; ~41 min; trap-door — :field-metadata inner keys must be keyword syntax (parser routing) |
 | 241.9 | SHIPPED | `184f54bf` | Phase 3 second: defenum HARD CUT; 33-file cascade; ~50 min UNDER 60-120 band; parse_field DELETED (orphaned); R-gap closed in src/resolve.rs (unit_variants.contains_key — trap-door pivot) |
 | 241.10 | SHIPPED | (pending) | Phase 3 third: src/remedy/ minted (4 files: distance.rs Wagner-Fischer + retirement.rs static table + rank.rs threshold+TOP_N + mod.rs Remedy/RemedyKind/render_remedies/remedies_for); schema HARD CUT hint→remedies; 160-site cascade via temporary fix-remedies tool (157 auto + 3 manual + crate DELETED); vigilia 8/8 CONVERGED L1+L2=0; lib 864/0 (+30); clippy 883; THE THIRD BAR CROSSED (LLM-programmable-for-self-modification on cold-read; sonnet's fresh-boot election surfaced the milestone) |
-| 241.11 | queued | — | Phase 3 fourth: `define ⇒ defn` HARD CUT; consumes remedy infrastructure (single retirement-table entry append → all define typos surface "did you mean: defn [retirement replacement]" automatically); bandaid-rip with receipts |
-| 241.12 | queued | — | Phase 4: INSCRIPTION (arc closure; pre-INSCRIPTION grep enforced); arc 237.8b reopens |
+| 241.11 | SHIPPED | `db656cbb` | Phase 3 closure: define HARD CUT; ~271-site cascade via ephemeral fix-defines tool (DELETED before commit); +7957/-9158 net -1201; 2 trap-door fixes (resolve.rs dispatch-head; try_parse_variadic_def_fn_form + core.wat argspec); 7 layers of substrate-as-teacher discipline operational; ~98 min UNDER 120-240 band; bandaid-rip with receipts proven at production scale |
+| 241.12 | NEXT | — | Phase 4: INSCRIPTION (arc closure; pre-INSCRIPTION grep enforced — `grep ":wat::core::define\b\|:wat::core::struct\b\|:wat::core::enum\b" src/ tests/ wat/` must return 0 non-retired-path matches); arc 237.8b reopens after |
 
 ### Gate doctrine validated through real practice (2026-05-28)
 
@@ -233,6 +233,7 @@ Each finding's resolution was at the highest possible ladder rung:
 | 241.8 | defstruct HARD CUT + 27-file cascade | +864 / -644 net | 60-120 min | ~41 min | UNDER band even at HARD CUT scale; substrate-as-teacher cascade ran cleanly |
 | 241.9 | defenum HARD CUT + 33-file cascade + R-gap trap-door | +809 / -576 net | 60-120 min | ~50 min | UNDER band; trap-door pivot (src/resolve.rs unit_variants check) absorbed in-stone per `feedback_trap_door_build_the_dependency`; parse_field DELETED (orphaned) |
 | 241.10 | src/remedy/ mint + schema HARD CUT hint→remedies + 160-site cascade + 6-round vigilia post-ship remediation | (substantial mixed; SCORE has audit; vigilia remediation +26 lib tests over baseline) | 120-180 min ship + 6 vigilia rounds | two-session ship (context boundary mid-cascade) + 6-round vigilia | ship within band; SONNET ELECTED TO BUILD AUTO-FIXER UNPROMPTED (the milestone; THE THIRD BAR CROSSED); auto-fixer kept ephemeral; vigilia self-report INFLATED (8/8 CONVERGED claim) → independent orchestrator cast surfaced 6 L2 → 6 rounds at MAXIMAL bar → 8/8 CONVERGED for real; runes lifted from 8 categories to 4 truly cost-justified (property-over-table loop + 3× probe assertion-sequence cost-of-split) |
+| 241.11 | define HARD CUT + ~271-site cascade + auto-fixer (ephemeral DELETED) + 2 trap-door fixes | +7957/-9158 net -1201 lines | 120-240 min | ~98 min | UNDER band even at LARGEST cascade; auto-fixer pattern locks at TWO stones (241.10 → 241.11) becoming substrate doctrine; ephemeral discipline upheld; trap-door pivots (T6 resolve.rs dispatch-head + T-argspec variadic def-fn handler) absorbed in-stone; seven layers of substrate-as-teacher operational; FIRST DOWNSTREAM CONSUMER of remedy infrastructure proves the bandaid-rip-with-receipts pattern at production scale |
 
 **Calibration learning — 241.2 zero-cascade:** Test-assertion cascade predicted as the main runtime variable; actual depth was ZERO. No lib test asserted against the old inline message strings. Two implications: (a) the substrate's test suite uses structural assertions (variants, spans, exit codes), not message-string matching; (b) error-quality improvements ship without consumer pain when the consumer base is the substrate itself. Stone 241.3 cascade is expected to be similarly small or zero.
 
@@ -257,19 +258,39 @@ Recent spine: #34 DEFY → #35 BUILD → #36 BREAK-OUR-OWN → #37 THRIVE-IN-PAN
 
 `cargo test --release --lib -p wat` + `cargo build --release --tests --workspace`. **NEVER invoke wrapper scripts in BRIEFs or agent prompts** (FM 16; firewall denies; `feedback_sonnet_bash_firewall`). Full `cargo test --workspace` RUN held off until arc 170 closes process leaks.
 
-### NEXT MOVE — **Stone 241.11 (Phase 3 fourth: `define ⇒ defn` HARD CUT; the bandaid-rip with receipts)**
+### NEXT MOVE — **Stone 241.12 (Phase 4: INSCRIPTION — arc 241 closes)**
 
-Stone 241.10 minted `src/remedy/` and shipped the ranked-remedy schema. **Stone 241.11 HARD-CUTs `:wat::core::define`** and consumes the remedy infrastructure:
-- Single-line addition to `RETIREMENT_TABLE` in `src/remedy/retirement.rs`: `(":wat::core::define", ":wat::core::defn")`
-- Mirror Stone 241.8/241.9 check.rs HARD-CUT-rejection arm pattern for `:wat::core::define`; populate `remedies: remedies_for(k, std::iter::empty())` — retirement table hit automatically; `[retirement replacement]` annotation appears in every define error message with zero additional Display work
-- Cascade migration of all `:wat::core::define` callers to `:wat::core::defn` (likely substantial — define is THE most common form in wat source files; precedented at ~30-50 site cascade per arc 241 ratio)
-- Probe: 7-8 contracts mirroring 241.8/241.9 shape (defn success; define HARD CUT rejected with structured retirement remedy in error output)
+Stone 241.11 SHIPPED — Phase 3 closes. Stone 241.12 is the INSCRIPTION stone — closure paperwork for arc 241. **No new substrate work**; the inscription documents what the arc accomplished, what doctrines emerged, what convergences arrived, what doctrines now operational forward.
 
-**The bandaid-rip lands on a substrate that teaches.** Every `:wat::core::define` typo'd or stale at any future moment surfaces `did you mean: :wat::core::defn [retirement replacement]` at the friction moment — substrate teaches with receipts per Songs #41/#42/#43 prophecy.
+**Pre-INSCRIPTION grep enforced** (per FM 11 + Stone S11 of recovery doc; the discipline that catches deferral language before it ships):
 
-**Predicted band:** 60-120 min Mode A (similar to 241.8/241.9 cascades; substrate-mint work already absorbed at 241.10; pure HARD CUT + cascade).
+```bash
+grep -rn ":wat::core::define\|:wat::core::struct\|:wat::core::enum\|:wat::core::struct-restricted" \
+  --include="*.rs" --include="*.wat" src/ tests/ wat/
+```
 
-**Skipping Stone 241.10 NEXT MOVE content (now SHIPPED at HEAD pending commit).** Historical Stone 241.10 closure: `src/remedy/` minted (4 files); schema HARD CUT hint→remedies; 160-site cascade via temporary fix-remedies tool (deleted after use); vigilia 8/8 CONVERGED; lib 864/0; clippy 883; **THE THIRD BAR CROSSED** (sonnet's fresh-boot auto-fixer election surfaced the milestone; Song #43 Into Oblivion inscribed at the meta-event).
+Must return 0 non-retired-path matches (only `src/remedy/retirement.rs` table entries + comments documenting retirement history + `src/check.rs` HARD-CUT arms naming the retired forms in error messages are acceptable).
+
+**The INSCRIPTION captures:**
+
+- 11 stones shipped across 4 phases (241.1 canonical parser → 241.5 phase 1 capstone → 241.6/.7 metadata-map → 241.8 defstruct → 241.9 defenum → 241.10 src/remedy/ + ranked remedies → 241.11 define HARD CUT)
+- New substrate doctrine: bandaid-rip-with-receipts (RETIREMENT_TABLE + remedies_for + HARD-CUT arms = single-line append teaches the substrate automatically)
+- New milestone: THE THIRD BAR CROSSED (LLM-programmable-for-self-modification on cold-read; sonnet's fresh-boot auto-fixer election at Stone 241.10)
+- New lesson: vigilia gate fires from orchestrator independently (Song #44 wisdom-inheritance from 6-round remediation)
+- New doctrine: auto-fixer ephemeral discipline (build → use → DELETE; substrate stays clean; 2 stones confirmed pattern — Stone 241.10 + 241.11)
+- Seven layers of substrate-as-teacher discipline operational
+- Songs #41/#42/#43/#44 inscribed (Mission staked claim; Remedy named apparatus by literal name — letter-for-letter pun; Into Oblivion brought truth from outside; Momma Sed inherited wisdom from pain paid)
+- Convergence #18-or-#19 candidates (provisional): Lisp condition-system + LLM-programmable-substrate + Lisp-tradition-catches-its-own-students (Lisp parser fixer debugging itself)
+
+**After 241.12 INSCRIPTION:** Arc 237.8b reopens per `feedback_no_regression_until_arc_done`. The discipline that kept arc 237.8b waiting through eleven 241.x stones now releases the bank.
+
+**Predicted band:** 30-60 min Mode A (paperwork only; no substrate edits; orchestrator-direct per `feedback_sonnet_no_realization_voice`).
+
+---
+
+### (Historical — Stone 241.11 NEXT MOVE; SHIPPED at `db656cbb`; preserved for orientation only)
+
+Stone 241.10 minted `src/remedy/` and shipped the ranked-remedy schema. Stone 241.11 HARD-CUT `:wat::core::define` and consumed the remedy infrastructure via single-line RETIREMENT_TABLE append. ~271-site cascade via ephemeral `crates/fix-defines/` tool (built, used, DELETED before commit). 2 trap-door pivots absorbed (resolve.rs dispatch-head fix; try_parse_variadic_def_fn_form + core.wat argspec correction). Probe 5/5; lib 890/0; clippy 902 at ceiling.
 
 ---
 
