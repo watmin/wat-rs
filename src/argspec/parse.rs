@@ -3,21 +3,21 @@ use crate::span::Span;
 use crate::types::{parse_type_expr_with_span, TypeExpr};
 use super::error::ArgSpecError;
 
-/// Result of parsing a canonical `[name <- :T name <- :T ... [-> :Ret]]` argspec.
+/// Result of parsing a canonical `[name <- :T name <- :T ... [& rest <- :T]]` argspec.
 ///
 /// `fixed_params` is ordered (left-to-right from the source form).
 /// `rest_param` is `None` in 241.1 (rest-binder support is Stone 241.4).
-/// `ret_type` is `None` when `ParseOptions.include_ret_type = false`.
+/// Ret-clause (`-> :Ret`) is NOT represented here — fn-form parsers (defn, fn, etc.)
+/// compose argspec + ret-clause at the form level.
 #[derive(Debug, Clone)]
 pub struct ArgSpec {
     /// Ordered list of `(name, type)` pairs for the fixed positional parameters.
     pub fixed_params: Vec<(String, TypeExpr)>,
     /// Rest parameter `(name, type)`, populated by Stone 241.4.
     /// Always `None` in Stone 241.1.
+    // rune:purgare(future-fixture) — Stone 241.4 populates rest_param via allow_rest_binder
+    //                                path; field exists in 241.1 for API stability.
     pub rest_param: Option<(String, TypeExpr)>,
-    /// Return type, populated when `ParseOptions.include_ret_type = true`.
-    /// `None` for binding sites that have no return type (e.g. defclause).
-    pub ret_type: Option<TypeExpr>,
 }
 
 /// Per-site invariants for `parse_argspec_triples`.
@@ -27,30 +27,32 @@ pub struct ArgSpec {
 /// duplicating the parser walker itself.
 #[derive(Debug, Clone, Copy)]
 pub struct ParseOptions {
-    /// Whether a `-> :RetType` slot is expected after the fixed-param triples.
-    ///
-    /// `true` for fn / defn forms (A1/A2/A3 sites); `false` for defclause
-    /// forms (A4 site) where no return type appears in the arg-vector.
-    pub include_ret_type: bool,
     /// Whether a `& name <- :T` rest-binder is permitted in the arg-vector.
     ///
-    /// Always `false` in Stone 241.1. Stone 241.4 adds rest-binder logic;
-    /// `defclause` callers set this `true` via 241.5. Reject with
-    /// `ArgSpecError::RestBinderNotSupported` when `false` and `&` is seen.
+    /// Stone 241.4 wires this field: when `true`, the rest-binder is parsed;
+    /// when `false`, `ArgSpecError::RestBinderNotSupported` is returned.
+    /// In Stone 241.1 the field is not consulted — `&` is always rejected
+    /// unconditionally, keeping the panic-free `Result` contract honest.
+    /// `defclause` callers set this `true` via Stone 241.5.
     pub allow_rest_binder: bool,
 }
 
-/// Parse the canonical `[name <- :T name <- :T ... [-> :Ret]]` argspec form.
+/// Parse the canonical `[name <- :T name <- :T ... [& rest <- :T]]` argspec form.
+///
+/// Scope: argspec parses ONLY the canonical triple region. Ret-clause (`-> :Ret`)
+/// is NOT argspec's concern — fn-form parsers (defn, fn, etc.) split the form-level
+/// Vector at `->` and compose argspec + ret-clause parsing at the form level.
 ///
 /// # Parameters
 ///
 /// - `args_vec` — the inner items of a `WatAST::Vector` at the binding site.
 ///   Callers extract the items by matching `WatAST::Vector(items, _)` before
 ///   calling this parser; this function receives the already-extracted slice.
+///   For fn-form callers: pass only the argspec prefix (items BEFORE `->` split).
 /// - `head` — the surface form name for error context (e.g. `":wat::core::defn"`).
 /// - `form_span` — the `Vector`'s own span; used as fallback in error variants
 ///   where no more-specific offending-element span is available.
-/// - `options` — per-site invariants (include_ret_type, allow_rest_binder).
+/// - `options` — per-site invariants (allow_rest_binder).
 ///
 /// # Returns
 ///
@@ -61,43 +63,32 @@ pub struct ParseOptions {
 /// # Algorithm
 ///
 /// 1. Walk `args_vec` in triple chunks of 3 (`name <- :T`), stopping when
-///    `->` (ret-arrow) or `&` (rest-marker) is encountered.
-/// 2. After fixed-param triples, if `options.include_ret_type`: consume `->` +
-///    the ret-type keyword.
-/// 3. Reject trailing items beyond the expected shape.
+///    `&` (rest-marker) is encountered or the slice is exhausted.
+/// 2. Always reject `&` in Stone 241.1. Stone 241.4 wires `options.allow_rest_binder` to
+///    permit rest-binder parsing; 241.1 unconditionally returns `RestBinderNotSupported`.
 pub fn parse_argspec_triples(
     args_vec: &[WatAST],
     head: &str,
     form_span: &Span,
-    options: ParseOptions,
+    _options: ParseOptions,
 ) -> Result<ArgSpec, ArgSpecError> {
     let mut idx = 0usize;
     let mut fixed_params: Vec<(String, TypeExpr)> = Vec::new();
 
-    // Walk triples (name <- :T) until we hit -> (if include_ret_type), & (rest), or end.
+    // Walk triples (name <- :T) until `&` rest-marker or end-of-slice.
     while idx < args_vec.len() {
         // Check for `&` rest-marker at this position.
         if is_bare_symbol(&args_vec[idx], "&") {
-            if !options.allow_rest_binder {
-                return Err(ArgSpecError::RestBinderNotSupported {
-                    span: args_vec[idx].span().clone(),
-                    head: head.to_string(),
-                });
-            }
-            // Stone 241.4 implements rest-binder parsing here.
-            // allow_rest_binder is always false in 241.1, so this branch is
-            // unreachable at this stone. The field exists so the API is stable.
-            unreachable!("allow_rest_binder is always false in Stone 241.1");
+            // 241.1: always reject. Stone 241.4 wires options.allow_rest_binder to permit
+            // rest-binder parsing; until then `&` is always an error regardless of the option.
+            return Err(ArgSpecError::RestBinderNotSupported {
+                span: args_vec[idx].span().clone(),
+                head: head.to_string(),
+            });
         }
 
-        // Check for `->` ret-arrow — if so, stop fixed-param parsing.
-        if is_bare_symbol(&args_vec[idx], "->") {
-            break;
-        }
-
-        // Need 3 items for a complete triple; check before indexing.
-        if idx + 2 >= args_vec.len() {
-            return Err(ArgSpecError::IncompleteSignature {
+        if args_vec.len().saturating_sub(idx) < 3 {
+            return Err(ArgSpecError::IncompleteTriple {
                 span: form_span.clone(),
                 head: head.to_string(),
             });
@@ -122,92 +113,48 @@ pub fn parse_argspec_triples(
             });
         }
 
-        // Slot 2: type — must be a Keyword parsed by the canonical type parser.
-        let ty = match &args_vec[idx + 2] {
-            WatAST::Keyword(kw, kw_span) => {
-                parse_type_expr_with_span(kw, kw_span).map_err(|inner| {
-                    ArgSpecError::MalformedTypeKeyword {
-                        span: kw_span.clone(),
-                        head: head.to_string(),
-                        inner: Box::new(inner),
-                    }
-                })?
-            }
-            other => {
-                return Err(ArgSpecError::TypeNotKeyword {
-                    span: other.span().clone(),
-                    head: head.to_string(),
-                })
-            }
-        };
+        // Slot 2: type — route through parse_keyword_type with the fixed-param error ctor.
+        let ty = parse_keyword_type(&args_vec[idx + 2], head, |span, head| {
+            ArgSpecError::TypeNotKeyword { span, head }
+        })?;
 
         fixed_params.push((name, ty));
         idx += 3;
     }
 
-    // Handle the ret-type slot when the binding site requires it.
-    let ret_type = if options.include_ret_type {
-        // Expect `->` now — either we hit it in the loop above (idx points at it)
-        // or we've consumed all items without finding it.
-        if idx >= args_vec.len() {
-            return Err(ArgSpecError::MissingRetArrow {
-                span: form_span.clone(),
-                head: head.to_string(),
-            });
-        }
-        if !is_bare_symbol(&args_vec[idx], "->") {
-            return Err(ArgSpecError::MissingRetArrow {
-                span: args_vec[idx].span().clone(),
-                head: head.to_string(),
-            });
-        }
-        idx += 1; // consume `->`
-
-        // Ret-type keyword.
-        if idx >= args_vec.len() {
-            return Err(ArgSpecError::RetTypeNotKeyword {
-                span: form_span.clone(),
-                head: head.to_string(),
-            });
-        }
-        let ret = match &args_vec[idx] {
-            WatAST::Keyword(kw, kw_span) => {
-                parse_type_expr_with_span(kw, kw_span).map_err(|inner| {
-                    ArgSpecError::MalformedTypeKeyword {
-                        span: kw_span.clone(),
-                        head: head.to_string(),
-                        inner: Box::new(inner),
-                    }
-                })?
-            }
-            other => {
-                return Err(ArgSpecError::RetTypeNotKeyword {
-                    span: other.span().clone(),
-                    head: head.to_string(),
-                })
-            }
-        };
-        idx += 1;
-        Some(ret)
-    } else {
-        None
-    };
-
-    // Reject trailing items beyond the expected shape.
-    if idx < args_vec.len() {
-        return Err(ArgSpecError::TrailingItems {
-            span: form_span.clone(),
-            head: head.to_string(),
-            count: args_vec.len() - idx,
-        });
-    }
-
     Ok(ArgSpec {
         fixed_params,
-        // rest_param is always None in 241.1; Stone 241.4 extends this.
+        // rune:purgare(future-fixture) — Stone 241.4 populates rest_param via
+        //                                allow_rest_binder path; 241.1 always None.
         rest_param: None,
-        ret_type,
     })
+}
+
+/// Parse a type-keyword slot — the shared logic for fixed-param slot 2 (and, when
+/// Stone 241.4 ships, the rest-binder type slot). If `ast` is a `Keyword`, delegates
+/// to `parse_type_expr_with_span` and wraps parse failures as `MalformedTypeKeyword`.
+/// If `ast` is any other form, calls `non_keyword_err` to produce the caller's
+/// non-keyword variant.
+fn parse_keyword_type<F>(
+    ast: &WatAST,
+    head: &str,
+    non_keyword_err: F,
+) -> Result<TypeExpr, ArgSpecError>
+where
+    F: FnOnce(Span, String) -> ArgSpecError,
+{
+    match ast {
+        WatAST::Keyword(kw, kw_span) => {
+            parse_type_expr_with_span(kw, kw_span).map_err(|inner| {
+                ArgSpecError::MalformedTypeKeyword {
+                    span: kw_span.clone(),
+                    head: head.to_string(),
+                    inner: Box::new(inner),
+                }
+            })
+        }
+        other => Err(non_keyword_err(other.span().clone(), head.to_string())),
+    }
 }
 
 /// Returns `true` if `ast` is a bare `Symbol` whose name equals `name`.

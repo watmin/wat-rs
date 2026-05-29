@@ -1,4 +1,4 @@
-//! # Argspec — canonical parser for the `[name <- :T name <- :T ... [-> :Ret]]` triple form.
+//! # Argspec — canonical parser for the `[name <- :T name <- :T ... [& rest <- :T]]` triple form.
 //!
 //! ## Why this module exists — the failure class being eliminated
 //!
@@ -18,18 +18,30 @@
 //! module mints the ONE canonical parser; subsequent stones (241.2/241.3) migrate
 //! callers; the class is closed when the four old parsers retire.
 //!
+//! ## Scope
+//!
+//! Argspec parses ONLY the canonical `[name <- :T name <- :T ... [& rest <- :T]]`
+//! triple form. The ret-clause (`-> :Ret`) is NOT argspec's concern — fn-form parsers
+//! (defn, fn, fn type-signature) compose argspec + ret-clause at the form level.
+//! Per `FORM-COLLAPSE-NOTES.md` line 184:
+//!
+//! > Arc 241's `parse_argspec_triples` parses the canonical 3-slot triple uniformly
+//! > across all binding sites. Form-level parsers decode the per-binding metadata map
+//! > separately and associate by symbol.
+//!
 //! ## What this module owns
 //!
-//! The canonical parsing of the flat `name <- :T name <- :T ... [-> :Ret]` triple
-//! form when it appears inside a `WatAST::Vector` at any binding site. Per-site
-//! invariants (include_ret_type, allow_rest_binder) live in `ParseOptions`.
+//! The canonical parsing of the flat `name <- :T name <- :T` triple form when it
+//! appears inside a `WatAST::Vector` at any binding site. Per-site invariants
+//! (`allow_rest_binder`) live in `ParseOptions`.
 //!
 //! ## What this module does NOT own
 //!
 //! Form-shape parsing (def / defn / defstruct / defenum each parse their own
 //! form-level shape including arity checks, name keyword, body expression, etc.).
 //! Only the **argspec-triples region** — the Vector whose items are the flat
-//! `name <- :T` triples — routes through this parser.
+//! `name <- :T` triples — routes through this parser. Ret-clause (`-> :Ret`) is
+//! fn-form-parser concern; those callers split at `->` before calling this parser.
 //!
 //! ## Migration plan
 //!
