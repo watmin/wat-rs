@@ -3437,7 +3437,16 @@ fn register_runtime_defs_form(
             // Stone 241.6 — discriminate: if 4 items, items[2] is the
             // metadata-map and items[3] is the expr. If 3 items, items[2] is
             // the expr directly.
-            let expr = if items.len() == 4 { &items[3] } else { &items[2] };
+            let (expr, metadata_opt) = if items.len() == 4 {
+                // Stone 241.7 — for non-fn defs, try_parse_fn_shape_def returns None
+                // (value is not a fn-form), so register_defines never stores the
+                // metadata for these bindings. Store it here, at runtime-def time,
+                // so metadata-of can read it regardless of whether the value is a fn.
+                let meta = try_parse_metadata_map(&items[2]);
+                (&items[3], meta)
+            } else {
+                (&items[2], None)
+            };
             // Arc 157 slice 1a-ii — redef gating at freeze time.
             // If the name is already in runtime_def_values and redef_allowed
             // is false, this is a redef violation. The type checker already
@@ -3464,6 +3473,15 @@ fn register_runtime_defs_form(
             // go through `register_runtime_defs_form`'s def arm; no collision).
             if let Value::wat__core__fn(ref func) = value {
                 sym.functions.insert(name.clone(), func.clone());
+            }
+            // Stone 241.7 — store metadata for non-fn defs. fn-shape defs are
+            // handled earlier by try_parse_fn_shape_def → register_defines. Non-fn
+            // defs (value is a literal, struct, etc.) reach only this arm; store
+            // their metadata here so metadata-of can read binding_metadata uniformly.
+            if let Some(meta) = metadata_opt {
+                if !meta.is_empty() {
+                    sym.binding_metadata.insert(name.clone(), meta);
+                }
             }
             sym.runtime_def_values.insert(name, value);
         }
@@ -5563,6 +5581,8 @@ fn dispatch_keyword_head_value(
         ":wat::runtime::signature-of-defn" => eval_signature_of_defn(args, list_span, env, sym),
         ":wat::runtime::signature-of-fn" => eval_signature_of_fn(args, list_span, env, sym),
         ":wat::runtime::body-of" => eval_body_of(args, list_span, env, sym),
+        // Stone 241.7 — metadata-map reflection verb.
+        ":wat::runtime::metadata-of" => eval_metadata_of(args, list_span, env, sym),
         // Arc 143 slice 3 — HolonAST manipulation primitives.
         ":wat::runtime::rename-callable-name" => eval_rename_callable_name(args, list_span, env, sym),
         ":wat::runtime::extract-arg-names" => eval_extract_arg_names(args, list_span, env, sym),
@@ -13711,6 +13731,73 @@ fn eval_body_of(
         Some(Binding::Dispatch { .. }) => Ok(Value::Option(Arc::new(None))),
         Some(Binding::SpecialForm { .. }) => Ok(Value::Option(Arc::new(None))),
         None => Ok(Value::Option(Arc::new(None))),
+    }
+}
+
+/// `(:wat::runtime::metadata-of <name :keyword>) -> :Option<HashMap<Keyword, HolonAST>>`
+///
+/// Stone 241.7. Returns the binding's metadata-map as Option:
+/// - Some({:k1 v1 ...}) when metadata was attached at def time (Stone 241.6 storage)
+/// - None when binding exists but no metadata
+/// - None when binding doesn't exist
+///
+/// Accepts any binding name (def + defn alike). The argument is read as a
+/// binding-name keyword: if the WatAST arg is a Keyword literal, its string
+/// is used directly (without evaluating through runtime_def_values — which
+/// would resolve a `def :my::x 42` to `42`, losing the name). If the arg
+/// evaluates to a named fn value, `name_from_keyword_or_fn` recovers the
+/// name from the fn (supporting `(metadata-of my-fn-var)` call style).
+#[allow(clippy::mutable_key_type)]
+#[allow(clippy::result_large_err)]
+fn eval_metadata_of(
+    args: &[WatAST],
+    _list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::runtime::metadata-of";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    // Extract the binding name. Prefer the keyword string directly from
+    // the WatAST (avoids runtime_def_values resolution that would lose the
+    // name for non-fn defs). Fall back to eval + name_from_keyword_or_fn
+    // for the fn-value case (e.g. a fn passed via a symbol binding).
+    let name: String = match &args[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => {
+            let v = eval_inner(&args[0], env, sym)?.value_owned();
+            match name_from_keyword_or_fn(&v) {
+                Some(n) => n,
+                None => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: OP.into(),
+                        expected: ":wat::core::keyword or named function",
+                        got: ValueSnapshot::of(&v),
+                        span: args[0].span().clone(),
+                    });
+                }
+            }
+        }
+    };
+    match sym.binding_metadata.get(&name) {
+        Some(meta) if !meta.is_empty() => {
+            let mut map: std::collections::HashMap<Value, Value> =
+                std::collections::HashMap::with_capacity(meta.len());
+            for (k, v) in meta {
+                map.insert(
+                    Value::wat__core__keyword(Arc::new(k.clone())),
+                    Value::holon__HolonAST(Arc::new(watast_to_holon(v))),
+                );
+            }
+            Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(Arc::new(map))))))
+        }
+        _ => Ok(Value::Option(Arc::new(None))),
     }
 }
 

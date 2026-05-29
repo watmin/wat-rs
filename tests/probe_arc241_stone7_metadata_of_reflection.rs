@@ -32,6 +32,14 @@ fn try_compute(src: &str) -> Result<Value, String> {
         .map_err(|e| format!("eval: {:?}", e))
 }
 
+fn is_some(v: &Value) -> bool {
+    matches!(v, Value::Option(opt) if opt.as_ref().is_some())
+}
+
+fn is_none(v: &Value) -> bool {
+    matches!(v, Value::Option(opt) if opt.as_ref().is_none())
+}
+
 // ─── Contracts 1–3: presence path (Some) ─────────────────────────────────────
 
 #[test]
@@ -41,14 +49,14 @@ fn contract_01_def_with_metadata_returns_some() {
         (:wat::core::def :my::x
           {:doc "the x value"}
           42)
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::Option/is-some? (:wat::runtime::metadata-of :my::x)))
+        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
+          (:wat::runtime::metadata-of :my::x))
     "#;
-    let result = try_compute(src);
-    assert_eq!(
-        result.expect("def-with-metadata metadata-of must return Some"),
-        Value::bool(true),
-        "def-with-metadata metadata-of returns Some"
+    let result = try_compute(src).expect("def-with-metadata metadata-of must not error");
+    assert!(
+        is_some(&result),
+        "def-with-metadata metadata-of returns Some; got: {:?}",
+        result
     );
 }
 
@@ -61,14 +69,14 @@ fn contract_02_defn_with_metadata_returns_some() {
           {:doc "doubles x"}
           [x <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::i64::+'2 x x))
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::Option/is-some? (:wat::runtime::metadata-of :my::f)))
+        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
+          (:wat::runtime::metadata-of :my::f))
     "#;
-    let result = try_compute(src);
-    assert_eq!(
-        result.expect("defn-with-metadata metadata-of must return Some"),
-        Value::bool(true),
-        "defn-with-metadata metadata-of returns Some via fn-peel round-trip"
+    let result = try_compute(src).expect("defn-with-metadata metadata-of must not error");
+    assert!(
+        is_some(&result),
+        "defn-with-metadata metadata-of returns Some via fn-peel round-trip; got: {:?}",
+        result
     );
 }
 
@@ -80,14 +88,14 @@ fn contract_03_multi_entry_metadata_returns_some() {
           {:doc "documented"
            :deprecated true}
           100)
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::Option/is-some? (:wat::runtime::metadata-of :my::y)))
+        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
+          (:wat::runtime::metadata-of :my::y))
     "#;
-    let result = try_compute(src);
-    assert_eq!(
-        result.expect("multi-entry metadata metadata-of returns Some"),
-        Value::bool(true),
-        "multi-entry metadata round-trips via Some"
+    let result = try_compute(src).expect("multi-entry metadata metadata-of must not error");
+    assert!(
+        is_some(&result),
+        "multi-entry metadata round-trips via Some; got: {:?}",
+        result
     );
 }
 
@@ -98,14 +106,14 @@ fn contract_04_def_without_metadata_returns_none() {
     // def with NO metadata; metadata-of returns None.
     let src = r#"
         (:wat::core::def :my::no-meta 42)
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::Option/is-none? (:wat::runtime::metadata-of :my::no-meta)))
+        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
+          (:wat::runtime::metadata-of :my::no-meta))
     "#;
-    let result = try_compute(src);
-    assert_eq!(
-        result.expect("def-without-metadata metadata-of returns None"),
-        Value::bool(true),
-        "def-without-metadata metadata-of returns None"
+    let result = try_compute(src).expect("def-without-metadata metadata-of must not error");
+    assert!(
+        is_none(&result),
+        "def-without-metadata metadata-of returns None; got: {:?}",
+        result
     );
 }
 
@@ -113,13 +121,13 @@ fn contract_04_def_without_metadata_returns_none() {
 fn contract_05_unknown_binding_returns_none() {
     // Unknown name → None (not an error).
     let src = r#"
-        (:wat::core::define (:user::compute -> :wat::core::bool)
-          (:wat::core::Option/is-none? (:wat::runtime::metadata-of :my::nonexistent)))
+        (:wat::core::define (:user::compute -> :wat::core::Option<wat::core::i64>)
+          (:wat::runtime::metadata-of :my::nonexistent))
     "#;
-    let result = try_compute(src);
-    assert_eq!(
-        result.expect("unknown binding metadata-of returns None"),
-        Value::bool(true),
-        "unknown binding metadata-of returns None"
+    let result = try_compute(src).expect("unknown binding metadata-of must not error");
+    assert!(
+        is_none(&result),
+        "unknown binding metadata-of returns None; got: {:?}",
+        result
     );
 }
