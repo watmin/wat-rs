@@ -196,3 +196,70 @@ Post-241: one way to parse arg-vector triples. The philosophy is materialized in
 - `feedback_spawn_block_winding` — arc 237 PAUSES until 241 closes
 - `feedback_sonnet_writes_substrate` — orchestrator briefs; sonnet executes per stone
 - arc 109 (kill-std) — the LARGER substrate-consolidation work this arc is a focused piece of
+
+---
+
+## Scope expansion 2026-05-28 — form-collapse + def*-prefix family
+
+Dialogue 2026-05-28 (captured in `FORM-COLLAPSE-NOTES.md`) settled substantial additional substrate work that lands inside this arc rather than waiting on a separate arc. Per spawn-block winding, arc 241 absorbs:
+
+**Form-collapse** (`def-restricted` / `defn-restricted` / `struct-restricted` retire as separate form names; absorbed into plain `def` / `defn` / `defstruct` via optional `{...}` metadata maps):
+- def / defn metadata-map slot between `:name` and value-expr/argspec — settled rules: empty `{}` illegal; unknown keys parse-error; position-fixed; same `{...}` mechanism at form-level AND per-binding
+- defstruct (renamed from struct via four-questions verdict + intueri pair-cast): form-level `:restricted-to` + `:field-metadata {symbol → metadata-map}`; argspec stays RIGID
+- defenum (renamed from enum via four-questions verdict + intueri pair-cast; was 109-queued, now in 241 scope per user direction): positional variants with one-token look-ahead (keyword + optional argspec Vector); `:variant-metadata {keyword → metadata-map}`
+
+**`def*` prefix family ratification** (four-questions: YES YES YES YES; bare-noun and tail-`def` disqualified). Ratification: `def` means *"top-level definition"* (concept), not *"expansion through the def primitive"* (mechanism). Only `defstruct` + `defenum` land in arc 241; the rest of the family (`defnewtype`, `deftype-alias`, `deftype-union`, `defrecord`/arc 227 reconciliation) remain queued under arc 109's NOTE per spawn-block winding.
+
+**Reflection** — `:wat::runtime::metadata-of` (binding-name → metadata HashMap or `:nil`) — intueri-locked; slots into the `<aspect>-of-<thing>` family next to `body-of`.
+
+**Docstring scoping** — `:doc` at any metadata locus (form-level OR per-binding); uniform-composition byproduct of the metadata-map mechanism; no separate design needed.
+
+### Substrate-internal home for canonical argspec parser
+
+Per intueri cast 2026-05-28: the canonical parser lives at **`src/argspec/`** (new directory home per the kernel-impeccability protocol; flat `src/argspec.rs` was REJECTED — new Rust files mandate new directories with correctly-named homes that pass the naming spell).
+
+Files inside (intueri-recommended decomposition):
+- `mod.rs` — thin: re-exports of `ArgSpec`, `ParseOptions`, `ArgSpecError`
+- `parse.rs` — `parse_argspec_triples` fn + `ArgSpec` + `ParseOptions`
+- `error.rs` — `ArgSpecError` + `From<>` conversions for `RuntimeError` / `CheckError` / `TypeError`
+
+Per `feedback_ward_zone_comms_only`: the 9-ward parallel pass runs on `src/argspec/*` post-implementation before commit (kernel-impeccability standard).
+
+### Stone chain (9 stones, 4 phases)
+
+**Phase 1 — Parser unification foundation** (the original 241 scope, now grounded in `src/argspec/` home):
+- **241.1** Mint `parse_argspec_triples` in `src/argspec/` + ArgSpec / ParseOptions / ArgSpecError + integration probe. NO migration; new parser stands alongside A1–A4.
+- **241.2** Migrate fn parsers A1 (runtime) + A2 (check) + A3 (check-diag) to route through canonical.
+- **241.3** Migrate A4 defclause parser to canonical with `include_ret_type: false`.
+- **241.4** Extend canonical with `&` rest-binder support. **Arc 237.8b's probe Gate 1 flips green automatically.**
+
+**Phase 2 — Metadata-map mechanism:**
+- **241.5** Optional `{...}` metadata-map slot on `def`: parser accepts; substrate storage in env + symbol table; defn inherits via macro expansion. Empty/unknown-keys = parse error.
+- **241.6** Mint `:wat::runtime::metadata-of` reflection verb.
+
+**Phase 3 — Form-collapse + renames + legacy retirement** (each stone is HARD-CUT migrate + retire):
+- **241.7** `defstruct`: mint with form-level `:restricted-to` + `:field-metadata`; HARD-CUT migrate all `struct` + `struct-restricted` callers; retire old forms. `parse_field` retires its struct caller (enum caller retires at 241.8).
+- **241.8** `defenum`: mint with positional variants + look-ahead parser + `:variant-metadata`; HARD-CUT migrate all `enum` callers; retire old form. `parse_field` becomes deletion candidate.
+- **241.9** `define ⇒ defn` retirement (NEW IN SCOPE per user direction 2026-05-28; previously parked): HARD-CUT migrate ALL `(:wat::core::define (name :T) ... -> :Ret body)` legacy paren-pair callers to `(:wat::core::defn :name [name <- :T ...] -> :Ret body)`; retire `:wat::core::define` keyword + `parse_define_signature` + `parse_define_form` + `parse_param_pair` Rust paths (`src/runtime.rs:4196-4454`); simplify `check_legacy_user_main_signature` (E1) to defn-only. **`defn` becomes the one and only function-definition form.** Cascade depth expected: substantial — ALL wat-code using `define` breaks until migrated. That breakage IS the substrate-as-teacher signal; per `feedback_refuse_easy_solutions` + the user direction: the bandaid rip-off is the point.
+
+**Phase 4 — Closure:**
+- **241.10** INSCRIPTION + memory mints (`feedback_argspec_parser_canonical`, `feedback_metadata_map_uniform`, `feedback_def_prefix_family`, `feedback_define_retired`); pre-INSCRIPTION grep enforced per FM 11.
+
+### What unblocks at which stone
+
+- **241.4** unblocks arc 237.8b (Gate 1 probe flips green; 237 chain can resume after arc 241 closes per spawn-block winding)
+- **241.5** unblocks per-binding metadata adoption across the def* family
+- **241.6** unblocks substrate-side metadata reflection (consumers can query `:doc`, `:restricted-to`, etc.)
+- **241.7** unblocks struct/struct-restricted retirement (the original arc 203 capability surface migrates to defstruct)
+- **241.8** unblocks enum retirement (`parse_field` becomes pure deletion candidate)
+- **241.9** retires `define` (HARD CUT); `defn` becomes the one and only function-definition form; legacy `parse_define_*` Rust paths delete; E1 walker simplifies
+- **241.10** closes the arc + unblocks the queued arc 109 NOTE renames (defnewtype/typealias/typeunion/recordtype + arc 227 reconciliation)
+
+### Cross-references (added)
+
+- `FORM-COLLAPSE-NOTES.md` — the dialogue capture; substrate vocabulary + verdict tables
+- `../../04/109-kill-std/NOTE-type-decl-def-prefix-renames.md` — the rest of the rename family queued
+- `feedback_ward_zone_comms_only` — kernel-impeccability protocol applies to `src/argspec/*`
+- `feedback_spawn_block_winding` — arc 237 stays paused until 241 closes; defenum INSIDE 241 not deferred
+- `feedback_sonnet_writes_substrate` — orchestrator briefs/scores; sonnet writes Rust
+- `feedback_stone_briefs_cite_prior_score` — BRIEFs cite arc 236.0 mint-stone SCORE for shape parallel

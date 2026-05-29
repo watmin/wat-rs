@@ -257,7 +257,7 @@ No scope collision. All contracted-noun-stem siblings; reads as one family at an
 ## What's parked
 
 - **`enum` tagged-variant fields** — share `parse_field` with the legacy plain-struct pair-Lists; migration follows arc 241's canonical argspec triple. The form-name rename to `defenum` queues in arc 109.
-- **Legacy `define`** retirement (`define ⇒ defn`) — orthogonal; user has authorized but sequencing TBD.
+- ~~**Legacy `define`** retirement (`define ⇒ defn`) — orthogonal; user has authorized but sequencing TBD.~~ **MOVED INTO ARC 241 SCOPE 2026-05-28** per user direction: *"this arc we're on is going to kill define - defn is the one and only way - it'll be a frustrating bandaid to rip off - it'll break a ton of shit - that's the point."* Lands as Stone 241.9 (HARD-CUT migrate + retire); cascade depth expected substantial; per `feedback_refuse_easy_solutions` the breakage IS the substrate-as-teacher signal. See `DESIGN.md` § Stone chain Phase 3 for the full stone.
 - **defclause** — `:guard` / `:ensure` stay positional per the taxonomy distinction; not affected by this work.
 - **`recordtype` + arc 227's `Record::def` reconciliation** — queues in arc 109 with its own intueri reconciliation work.
 
