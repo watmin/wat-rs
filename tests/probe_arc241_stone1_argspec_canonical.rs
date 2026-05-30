@@ -20,6 +20,7 @@
 //! Run: `cargo test --release --test probe_arc241_stone1_argspec_canonical`
 
 use wat::argspec::{parse_argspec_triples, ArgSpec, ArgSpecError, ParseOptions};
+use wat::argspec::ArgSpecErrorKind;
 use wat::ast::WatAST;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ fn contract_04_non_symbol_at_name_slot() {
     let result = parse_triples("[:keyword-not-symbol <- :wat::core::i64]", false);
     let err = result.expect_err("non-Symbol at name slot must error");
     assert!(
-        matches!(err, ArgSpecError::NameNotSymbol { .. }),
+        matches!(err.kind, ArgSpecErrorKind::NameNotSymbol),
         "expected NameNotSymbol, got {:?}",
         err
     );
@@ -100,7 +101,7 @@ fn contract_05_missing_arrow_token() {
     let result = parse_triples("[x = :wat::core::i64]", false);
     let err = result.expect_err("missing <- arrow must error");
     assert!(
-        matches!(err, ArgSpecError::MissingArrow { .. }),
+        matches!(err.kind, ArgSpecErrorKind::MissingArrow),
         "expected MissingArrow, got {:?}",
         err
     );
@@ -112,7 +113,7 @@ fn contract_06_non_keyword_at_type_slot() {
     let result = parse_triples(r#"[x <- "string-not-keyword"]"#, false);
     let err = result.expect_err("non-Keyword at type slot must error");
     assert!(
-        matches!(err, ArgSpecError::TypeNotKeyword { .. }),
+        matches!(err.kind, ArgSpecErrorKind::TypeNotKeyword),
         "expected TypeNotKeyword, got {:?}",
         err
     );
@@ -128,7 +129,7 @@ fn contract_07_rest_binder_rejected() {
     );
     let err = result.expect_err("& rest-binder must error when disallowed");
     assert!(
-        matches!(err, ArgSpecError::RestBinderNotSupported { .. }),
+        matches!(err.kind, ArgSpecErrorKind::RestBinderNotSupported),
         "expected RestBinderNotSupported, got {:?}",
         err
     );
@@ -141,7 +142,7 @@ fn contract_08_malformed_type_keyword() {
     let result = parse_triples("[x <- :Any]", false);
     let err = result.expect_err("banned :Any type keyword must error");
     assert!(
-        matches!(err, ArgSpecError::MalformedTypeKeyword { .. }),
+        matches!(err.kind, ArgSpecErrorKind::MalformedTypeKeyword { .. }),
         "expected MalformedTypeKeyword, got {:?}",
         err
     );
@@ -153,7 +154,7 @@ fn contract_09_incomplete_triple() {
     let result = parse_triples("[x <-]", false);
     let err = result.expect_err("incomplete triple must error");
     assert!(
-        matches!(err, ArgSpecError::IncompleteTriple { .. }),
+        matches!(err.kind, ArgSpecErrorKind::IncompleteTriple),
         "expected IncompleteTriple, got {:?}",
         err
     );
@@ -206,7 +207,7 @@ fn contract_12_trailing_items_after_rest_errors() {
     );
     let err = result.expect_err("trailing items after rest-binder must error");
     assert!(
-        matches!(err, ArgSpecError::TrailingItems { count: 1, .. }),
+        matches!(err.kind, ArgSpecErrorKind::TrailingItems { count: 1 }),
         "expected TrailingItems {{ count: 1 }}, got {:?}",
         err
     );
@@ -218,7 +219,7 @@ fn contract_13_incomplete_rest_only_errors() {
     let result = parse_triples("[&]", true);
     let err = result.expect_err("rest-marker without triple must error");
     assert!(
-        matches!(err, ArgSpecError::IncompleteTriple { .. }),
+        matches!(err.kind, ArgSpecErrorKind::IncompleteTriple),
         "expected IncompleteTriple, got {:?}",
         err
     );
@@ -233,7 +234,7 @@ fn contract_14_rest_name_not_symbol_errors() {
     );
     let err = result.expect_err("non-Symbol at rest-binder name slot must error");
     assert!(
-        matches!(err, ArgSpecError::NameNotSymbol { .. }),
+        matches!(err.kind, ArgSpecErrorKind::NameNotSymbol),
         "expected NameNotSymbol, got {:?}",
         err
     );
@@ -250,7 +251,7 @@ fn contract_15_rest_binder_rejected_when_disallowed_preserved() {
     );
     let err = result.expect_err("& rest-binder must STILL error when disallowed");
     assert!(
-        matches!(err, ArgSpecError::RestBinderNotSupported { .. }),
+        matches!(err.kind, ArgSpecErrorKind::RestBinderNotSupported),
         "expected RestBinderNotSupported (regression), got {:?}",
         err
     );

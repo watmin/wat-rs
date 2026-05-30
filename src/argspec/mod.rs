@@ -56,10 +56,11 @@
 //! - **Stone 241.4** — added `&` rest-binder parsing (`allow_rest_binder = true` path);
 //!   A4 inlined at `parse_defclause_clause` (wrapper deleted as thin braid). DONE.
 //! - **Stone 241.5** — runtime dispatch wiring in `eval_clause_set` (unblocks probe
-//!   237.8b Gate 1). PENDING.
+//!   237.8b Gate 1). DONE.
 
 mod error;
 mod parse;
 
-pub use error::ArgSpecError;
+pub use error::{ArgSpecError, ArgSpecErrorKind};
 pub use parse::{parse_argspec_triples, ArgSpec, ParseOptions};
+pub(crate) use parse::is_bare_symbol;

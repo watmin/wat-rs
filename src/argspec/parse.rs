@@ -1,7 +1,7 @@
 use crate::ast::WatAST;
 use crate::span::Span;
 use crate::types::{parse_type_expr_with_span, TypeExpr};
-use super::error::ArgSpecError;
+use super::error::{ArgSpecError, ArgSpecErrorKind};
 
 /// Result of parsing a canonical `[name <- :T name <- :T ... [& rest <- :T]]` argspec.
 ///
@@ -72,37 +72,39 @@ pub fn parse_argspec_triples(
     form_span: &Span,
     options: ParseOptions,
 ) -> Result<ArgSpec, ArgSpecError> {
-    let mut idx = 0usize;
+    let mut cursor = 0usize;
     let mut fixed_params: Vec<(String, TypeExpr)> = Vec::new();
 
     // Walk triples (name <- :T) until `&` rest-marker or end-of-slice.
-    while idx < args_vec.len() {
+    while cursor < args_vec.len() {
         // Check for `&` rest-marker at this position.
-        if is_bare_symbol(&args_vec[idx], "&") {
+        if is_bare_symbol(&args_vec[cursor], "&") {
             if !options.allow_rest_binder {
-                return Err(ArgSpecError::RestBinderNotSupported {
-                    span: args_vec[idx].span().clone(),
+                return Err(ArgSpecError {
+                    span: args_vec[cursor].span().clone(),
                     head: head.to_string(),
+                    kind: ArgSpecErrorKind::RestBinderNotSupported,
                 });
             }
-            idx += 1; // consume `&`
-            let rest_start = idx;
+            cursor += 1; // consume `&`
+            let rest_start = cursor;
             if args_vec.len().saturating_sub(rest_start) < 3 {
-                return Err(ArgSpecError::IncompleteTriple {
+                return Err(ArgSpecError {
                     span: form_span.clone(),
                     head: head.to_string(),
+                    kind: ArgSpecErrorKind::IncompleteTriple,
                 });
             }
             let triple: &[WatAST; 3] = args_vec[rest_start..rest_start + 3]
                 .try_into()
                 .expect("len gated by upstream `< 3` check");
             let (name, ty) = parse_triple(triple, head)?;
-            let post_rest = rest_start + 3;
-            if post_rest < args_vec.len() {
-                return Err(ArgSpecError::TrailingItems {
+            let trailing_start = rest_start + 3;
+            if trailing_start < args_vec.len() {
+                return Err(ArgSpecError {
                     span: form_span.clone(),
                     head: head.to_string(),
-                    count: args_vec.len() - post_rest,
+                    kind: ArgSpecErrorKind::TrailingItems { count: args_vec.len() - trailing_start },
                 });
             }
             return Ok(ArgSpec {
@@ -111,19 +113,20 @@ pub fn parse_argspec_triples(
             });
         }
 
-        if args_vec.len().saturating_sub(idx) < 3 {
-            return Err(ArgSpecError::IncompleteTriple {
+        if args_vec.len().saturating_sub(cursor) < 3 {
+            return Err(ArgSpecError {
                 span: form_span.clone(),
                 head: head.to_string(),
+                kind: ArgSpecErrorKind::IncompleteTriple,
             });
         }
 
-        let triple: &[WatAST; 3] = args_vec[idx..idx + 3]
+        let triple: &[WatAST; 3] = args_vec[cursor..cursor + 3]
             .try_into()
             .expect("len gated by upstream `< 3` check");
         let (name, ty) = parse_triple(triple, head)?;
         fixed_params.push((name, ty));
-        idx += 3;
+        cursor += 3;
     }
 
     Ok(ArgSpec {
@@ -143,19 +146,21 @@ fn parse_triple(
 ) -> Result<(String, TypeExpr), ArgSpecError> {
     let name = match &triple[0] {
         WatAST::Symbol(ident, _) => ident.name.clone(),
-        other => return Err(ArgSpecError::NameNotSymbol {
+        other => return Err(ArgSpecError {
             span: other.span().clone(),
             head: head.to_string(),
+            kind: ArgSpecErrorKind::NameNotSymbol,
         }),
     };
     if !is_bare_symbol(&triple[1], "<-") {
-        return Err(ArgSpecError::MissingArrow {
+        return Err(ArgSpecError {
             span: triple[1].span().clone(),
             head: head.to_string(),
+            kind: ArgSpecErrorKind::MissingArrow,
         });
     }
     let ty = parse_keyword_type(&triple[2], head, |span, head| {
-        ArgSpecError::TypeNotKeyword { span, head }
+        ArgSpecError { span, head, kind: ArgSpecErrorKind::TypeNotKeyword }
     })?;
     Ok((name, ty))
 }
@@ -176,10 +181,10 @@ where
     match ast {
         WatAST::Keyword(kw, kw_span) => {
             parse_type_expr_with_span(kw, kw_span).map_err(|inner| {
-                ArgSpecError::MalformedTypeKeyword {
+                ArgSpecError {
                     span: kw_span.clone(),
                     head: head.to_string(),
-                    inner: Box::new(inner),
+                    kind: ArgSpecErrorKind::MalformedTypeKeyword { inner: Box::new(inner) },
                 }
             })
         }
@@ -191,6 +196,6 @@ where
 ///
 /// Used to detect the structural tokens `"<-"`, `"->"`, and `"&"` without
 /// allocating or cloning.
-fn is_bare_symbol(ast: &WatAST, name: &str) -> bool {
+pub(crate) fn is_bare_symbol(ast: &WatAST, name: &str) -> bool {
     matches!(ast, WatAST::Symbol(ident, _) if ident.name == name)
 }

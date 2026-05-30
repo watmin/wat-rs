@@ -1,89 +1,71 @@
 use crate::span::Span;
 use crate::types::{TypeError, TypeErrorKind};
 
-/// Sum of failure modes for canonical argspec parsing.
+/// Canonical argspec parse error — Pattern A (Stone 243.3 / CONFORMARE.md).
 ///
-/// Every variant carries `span: Span` (per AUDIT.md line 161) so error
-/// reporting always points at the user's source, even when no specific
-/// offending element provides a finer span.
+/// The outer struct carries the universal `span` and `head` fields; span is
+/// STRUCTURALLY imposed — a spanless argspec error is uncompilable. The kind
+/// enum carries only variant-specific data. This home was Pattern A's founding
+/// precedent (arc 241 enforced span discipline by convention); Stone 243.3
+/// elevates the convention to structure.
 ///
-/// Callers convert at their site boundary via `From<ArgSpecError>` into
-/// their native error class (`RuntimeError`, `CheckError`, `TypeError`).
-/// The canonical error type stays the single source of truth for
-/// argspec malformedness; the three `From<>` impls are forward-compatible
-/// substrate for 241.2/241.3/241.7 migrations.
+/// Callers convert at their site boundary via `From<ArgSpecError>` into their
+/// native error class (`RuntimeError`, `CheckError`, `TypeError`, `MacroError`).
+/// The canonical error type stays the single source of truth for argspec
+/// malformedness; the four `From<>` impls are forward-compatible substrate.
 #[derive(Debug)]
-pub enum ArgSpecError {
+pub struct ArgSpecError {
+    pub span: Span,
+    pub head: String,
+    pub kind: ArgSpecErrorKind,
+}
+
+/// Variant-specific data for `ArgSpecError` (Pattern A kind enum).
+///
+/// Universal fields (`span`, `head`) live on the outer struct; every variant
+/// here carries ONLY what differs between failure modes.
+#[derive(Debug)]
+pub enum ArgSpecErrorKind {
     /// Slot 0 of a name-arrow-type triple was not a Symbol.
-    NameNotSymbol { span: Span, head: String },
+    NameNotSymbol,
     /// Slot 1 of a triple was not the bare Symbol `"<-"`.
-    MissingArrow { span: Span, head: String },
+    MissingArrow,
     /// Slot 2 of a triple was not a Keyword.
-    TypeNotKeyword { span: Span, head: String },
+    TypeNotKeyword,
     /// A type keyword in slot 2 failed `parse_type_expr_with_span`.
     /// The inner error carries the specific parse failure.
-    MalformedTypeKeyword {
-        span: Span,
-        head: String,
-        inner: Box<TypeError>,
-    },
+    MalformedTypeKeyword { inner: Box<TypeError> },
     /// Items remain after the expected end of the argspec
     /// (after the rest-binder triple).
-    TrailingItems { span: Span, head: String, count: usize },
+    TrailingItems { count: usize },
     /// The triple at some position is incomplete — fewer than 3
     /// items remain before end-of-slice or a rest-marker.
-    IncompleteTriple { span: Span, head: String },
+    IncompleteTriple,
     /// A `&` rest-binder marker is present in the args-vector but
     /// `allow_rest_binder = false`. Rest-binder support is Stone 241.4;
     /// 241.1 rejects this case explicitly so the error is surfaced
     /// rather than silently misinterpreted as a malformed name slot.
-    RestBinderNotSupported { span: Span, head: String },
+    RestBinderNotSupported,
 }
 
-impl ArgSpecError {
-    /// Decompose into `(span, head, reason)` with domain-neutral reason strings.
-    ///
-    /// The `head` field carries form context (`:wat::core::defn` vs
-    /// `:wat::core::defstruct`); reasons stay neutral — no "arg-vector"
-    /// or "field/arg" prefix. Each `From<>` impl collapses to a 4-line
-    /// wrapper around this method.
-    fn into_parts(self) -> (Span, String, String) {
+impl ArgSpecErrorKind {
+    /// The human-readable reason for this failure shape.
+    pub(crate) fn reason(&self) -> String {
         match self {
-            ArgSpecError::NameNotSymbol { span, head } => (
-                span,
-                head,
+            ArgSpecErrorKind::NameNotSymbol =>
                 "name slot must be a plain symbol (not a keyword, literal, or nested form)".into(),
-            ),
-            ArgSpecError::MissingArrow { span, head } => (
-                span,
-                head,
+            ArgSpecErrorKind::MissingArrow =>
                 "triple must be `name <- :T`; `<-` arrow not found at slot 1".into(),
-            ),
-            ArgSpecError::TypeNotKeyword { span, head } => (
-                span,
-                head,
+            ArgSpecErrorKind::TypeNotKeyword =>
                 "type slot must be a keyword (e.g. `:wat::core::i64`); got a non-keyword".into(),
-            ),
-            ArgSpecError::MalformedTypeKeyword { span, head, inner } => (
-                span,
-                head,
+            ArgSpecErrorKind::MalformedTypeKeyword { inner } =>
                 format!("type keyword is malformed: {inner}"),
-            ),
-            ArgSpecError::TrailingItems { span, head, count } => (
-                span,
-                head,
+            ArgSpecErrorKind::TrailingItems { count } =>
                 format!("{count} trailing item(s) beyond the expected argspec shape"),
-            ),
-            ArgSpecError::IncompleteTriple { span, head } => (
-                span,
-                head,
+            ArgSpecErrorKind::IncompleteTriple =>
                 "triple is incomplete; expected `name <- :T` but ran out of items".into(),
-            ),
-            ArgSpecError::RestBinderNotSupported { span, head } => (
-                span,
-                head,
+            ArgSpecErrorKind::RestBinderNotSupported =>
                 "`&` rest-binder is not supported at this binding site".into(),
-            ),
         }
     }
 }
@@ -95,22 +77,29 @@ impl ArgSpecError {
 // boundary; the parser itself emits only ArgSpecError.
 
 impl From<ArgSpecError> for crate::runtime::RuntimeError {
-    fn from(err: ArgSpecError) -> Self {
-        let (span, head, reason) = err.into_parts();
-        Self::MalformedForm { head, reason, span }
+    fn from(e: ArgSpecError) -> Self {
+        let reason = e.kind.reason();
+        Self::MalformedForm { head: e.head, reason, span: e.span }
     }
 }
 
 impl From<ArgSpecError> for crate::check::CheckError {
-    fn from(err: ArgSpecError) -> Self {
-        let (span, head, reason) = err.into_parts();
-        Self::MalformedForm { head, reason, span, remedies: vec![] }
+    fn from(e: ArgSpecError) -> Self {
+        let reason = e.kind.reason();
+        Self::MalformedForm { head: e.head, reason, span: e.span, remedies: vec![] }
     }
 }
 
 impl From<ArgSpecError> for TypeError {
-    fn from(err: ArgSpecError) -> Self {
-        let (span, head, reason) = err.into_parts();
-        TypeError { span, kind: TypeErrorKind::MalformedDecl { head, reason } }
+    fn from(e: ArgSpecError) -> Self {
+        let reason = e.kind.reason();
+        TypeError { span: e.span, kind: TypeErrorKind::MalformedDecl { head: e.head, reason } }
+    }
+}
+
+impl From<ArgSpecError> for crate::macros::MacroError {
+    fn from(e: ArgSpecError) -> Self {
+        let reason = e.kind.reason();
+        crate::macros::MacroError::MalformedDefmacro { reason, span: e.span }
     }
 }

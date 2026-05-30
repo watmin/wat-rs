@@ -427,14 +427,11 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     };
 
     // Arrow symbol `->` must follow argspec.
-    match &arrow_item {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            return Err(MacroError::MalformedDefmacro {
-                reason: "expected `->` symbol after argspec Vector".into(),
-                span: other.span().clone(),
-            });
-        }
+    if !crate::argspec::is_bare_symbol(&arrow_item, "->") {
+        return Err(MacroError::MalformedDefmacro {
+            reason: "expected `->` symbol after argspec Vector".into(),
+            span: arrow_item.span().clone(),
+        });
     }
 
     // Return-type keyword.
@@ -455,36 +452,7 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
         ":wat::core::defmacro",
         &argvec_span,
         crate::argspec::ParseOptions { allow_rest_binder: true },
-    ).map_err(|e| {
-        // Convert ArgSpecError → MacroError::MalformedDefmacro.
-        // ArgSpecError carries (span, head, reason) via classify(); replicate here.
-        let reason = match &e {
-            crate::argspec::ArgSpecError::NameNotSymbol { .. } =>
-                "name slot must be a plain symbol (not a keyword, literal, or nested form)".to_string(),
-            crate::argspec::ArgSpecError::MissingArrow { .. } =>
-                "triple must be `name <- :T`; `<-` arrow not found at slot 1".to_string(),
-            crate::argspec::ArgSpecError::TypeNotKeyword { .. } =>
-                "type slot must be a keyword (e.g. `:wat::core::i64`); got a non-keyword".to_string(),
-            crate::argspec::ArgSpecError::MalformedTypeKeyword { inner, .. } =>
-                format!("type keyword is malformed: {inner}"),
-            crate::argspec::ArgSpecError::TrailingItems { count, .. } =>
-                format!("{count} trailing item(s) beyond the expected argspec shape"),
-            crate::argspec::ArgSpecError::IncompleteTriple { .. } =>
-                "triple is incomplete; expected `name <- :T` but ran out of items".to_string(),
-            crate::argspec::ArgSpecError::RestBinderNotSupported { .. } =>
-                "`&` rest-binder is not supported at this binding site".to_string(),
-        };
-        let span = match e {
-            crate::argspec::ArgSpecError::NameNotSymbol { span, .. } => span,
-            crate::argspec::ArgSpecError::MissingArrow { span, .. } => span,
-            crate::argspec::ArgSpecError::TypeNotKeyword { span, .. } => span,
-            crate::argspec::ArgSpecError::MalformedTypeKeyword { span, .. } => span,
-            crate::argspec::ArgSpecError::TrailingItems { span, .. } => span,
-            crate::argspec::ArgSpecError::IncompleteTriple { span, .. } => span,
-            crate::argspec::ArgSpecError::RestBinderNotSupported { span, .. } => span,
-        };
-        MacroError::MalformedDefmacro { reason, span }
-    })?;
+    ).map_err(MacroError::from)?;
 
     // Extract param names only — MacroDef carries names, not types.
     let params: Vec<String> = spec.fixed_params.into_iter().map(|(name, _ty)| name).collect();

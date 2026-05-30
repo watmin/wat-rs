@@ -78,13 +78,10 @@ pub(in crate::function) fn parse_fn_signature_prefix(
             });
         }
     };
-    match &sig[1] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            return Err(ParseStep::ArrowMissing {
-                span: other.span().clone(),
-            });
-        }
+    if !crate::argspec::is_bare_symbol(&sig[1], "->") {
+        return Err(ParseStep::ArrowMissing {
+            span: sig[1].span().clone(),
+        });
     }
     let ret_type: TypeExpr = match &sig[2] {
         WatAST::Keyword(k, span) => parse_type_expr_with_span(k, span).map_err(ParseStep::BadRetType)?,
