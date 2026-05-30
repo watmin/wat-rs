@@ -88,3 +88,7 @@ ctor = "1"
 [[test]]
 name = "comms"
 path = "tests/comms/mod.rs"
+
+[[test]]
+name = "function"
+path = "tests/function/mod.rs"
