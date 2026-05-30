@@ -1,0 +1,54 @@
+//! # Function — namespaced home for fn-form parsing, evaluation, and inference.
+//!
+//! ## Why this module exists
+//!
+//! Stone 241.18a — first stepping stone of the bar-raise chain (241.18a-g).
+//! Mints `src/function/` as the dedicated namespaced home for the fn-form
+//! machinery, per `feedback_namespaced_home_vigilia_gate` REMARKABLE bar.
+//!
+//! The substrate previously spread fn-form concerns across two large files:
+//! - `src/runtime.rs` — `eval_fn` + `parse_fn_signature`
+//! - `src/check.rs` — `infer_fn` + `parse_fn_signature_for_check` + `_diag`
+//!
+//! This home collects all three concerns (parse, eval, infer) for the
+//! `:wat::core::fn` form under one roof. The design mirrors the established
+//! namespaced-home convention (argspec/, comms/, remedy/) — one domain per home;
+//! sub-files by concern within the domain.
+//!
+//! ## Depends on
+//!
+//! - `src/argspec/` — canonical triple parsing routed through `parse_argspec_triples`
+//! - `src/runtime.rs` — `Function`, `Value`, `Environment`, `RuntimeError`,
+//!   `synthesize_fn_body`, `ast_variant_name`
+//! - `src/types.rs` — `parse_type_expr_with_span`, `TypeError`, `TypeExpr`
+//! - `src/check.rs` — `CheckEnv`, `CheckError`, `CheckResult`, `InferCtx`,
+//!   `Subst`, `infer`, `unify`, `apply_subst`, `format_type`
+//!
+//! ## Test home scope
+//!
+//! `tests/function/stone18a.rs` covers fn-form check-pass preservation (C01, C02).
+//! `tests/function/stone18a_errors.rs` covers check-tier error paths (E01-E06).
+//!
+//! `eval_fn` runtime-eval path is exercised by integration tests using
+//! `invoke_user_main` (~20 sites including `wat_arc201_signature_of_fn.rs`,
+//! `wat_dispatch_e1_vec.rs`, `wat_recursive_patterns.rs`, etc.).
+//!
+//! `peel_metadata_preamble` metadata-present branch is exercised by
+//! `tests/probe_arc241_stone6_def_metadata_map.rs` and
+//! `tests/probe_arc241_stone7_metadata_of_reflection.rs` via `defn` macro
+//! expansion to `(fn {meta} [args] -> :ret body)`.
+//!
+//! `parse_fn_signature_for_check`'s primary call site at
+//! `src/check.rs` (~9810, `:ensure :fn defclause validation`) is exercised by
+//! `tests/probe_arc237_stone3_guard_ensure.rs`; `tests/function/` focuses on
+//! fn-form preservation + error contracts; cross-arc coverage stays in its
+//! arc's probe.
+
+mod eval;
+mod infer;
+mod metadata;
+mod parse;
+
+pub(crate) use eval::eval_fn;
+pub(crate) use infer::infer_fn;
+pub(crate) use parse::{parse_fn_signature, parse_fn_signature_for_check};

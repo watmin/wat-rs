@@ -22,7 +22,7 @@
 - `wat-rs/` — the active project (substrate `src/*.rs`, `wat/*.wat`, the arc record under `docs/arc/`, USER-GUIDE, CONVENTIONS, ZERO-MUTEX, SUBSTRATE-AS-TEACHER, WAT-CHEATSHEET).
 - `holon-rs/` — the holon algebra substrate wat compiles onto. Read it for HolonAST, encoding, VSA internals. **(read-only: frozen, STOP-5)**
 - `holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/` — the wat **language spec** (058-xxx) + FOUNDATION-CHANGELOG.
-- `datamancy/` — the spell library; each `<spell>/SKILL.md` (intueri = naming; vigilia; the wards).
+- `datamancy.dev/` — the spell library; each `<spell>/SKILL.md` (intueri = naming; vigilia; the wards). Note: `datamancy/` is now the MCP server (npm package serving spells from datamancy.dev); the grimoire content lives at `datamancy.dev/`.
 - `scratch/` — design ASKs, `FAILURE-ENGINEERING.md`, cross-arc notes.
 - sibling labs (`holon-lab-ddos/`, `holon-lab-baseline/`, `algebraic-intelligence.dev/`) as needed.
 

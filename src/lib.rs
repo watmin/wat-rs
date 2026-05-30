@@ -71,6 +71,7 @@ pub mod fork;
 pub mod form_match;
 pub mod harness;
 pub mod freeze;
+pub(crate) mod function;
 pub mod hash;
 pub mod hologram;
 pub mod identifier;

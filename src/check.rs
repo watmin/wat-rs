@@ -1912,13 +1912,13 @@ impl CheckErrors {
 /// New concerns added here (scoped flags, effect rows, whatever) land
 /// as additional fields without further renames.
 #[derive(Debug, Default)]
-struct InferCtx {
+pub(crate) struct InferCtx {
     next: u64,
     enclosing_rets: Vec<TypeExpr>,
 }
 
 impl InferCtx {
-    fn fresh(&mut self) -> TypeExpr {
+    pub(crate) fn fresh(&mut self) -> TypeExpr {
         let v = TypeExpr::Var(self.next);
         self.next += 1;
         v
@@ -1926,19 +1926,19 @@ impl InferCtx {
 
     /// Push the declared return type of a function we are about
     /// to check. Paired with [`pop_enclosing_ret`].
-    fn push_enclosing_ret(&mut self, ret: TypeExpr) {
+    pub(crate) fn push_enclosing_ret(&mut self, ret: TypeExpr) {
         self.enclosing_rets.push(ret);
     }
 
     /// Pop the most recently pushed return type. Caller is responsible
     /// for pairing pushes and pops at scope boundaries.
-    fn pop_enclosing_ret(&mut self) {
+    pub(crate) fn pop_enclosing_ret(&mut self) {
         self.enclosing_rets.pop();
     }
 
     /// Innermost enclosing return type, if any. `None` outside any
     /// function body (top-level `check_form` invocations).
-    fn enclosing_ret(&self) -> Option<&TypeExpr> {
+    pub(crate) fn enclosing_ret(&self) -> Option<&TypeExpr> {
         self.enclosing_rets.last()
     }
 }
@@ -1946,7 +1946,7 @@ impl InferCtx {
 /// Substitution map: unification variable id → its concrete type.
 /// Updated as unification succeeds; applied via [`apply_subst`] to
 /// resolve a type to its canonical form.
-type Subst = HashMap<u64, TypeExpr>;
+pub(crate) type Subst = HashMap<u64, TypeExpr>;
 
 /// The type-check environment: built-in + user function schemes plus
 /// a shared handle to the [`TypeEnv`] (user type declarations).
@@ -5119,7 +5119,7 @@ fn is_primitive_type_keyword_in_value_position(k: &str) -> bool {
 ///
 /// Arc 236.1: primary fn infer() migrated from Option<TypeExpr> +
 /// &mut Vec<CheckError> dual-channel to CheckResult<TypeExpr> single-channel.
-fn infer(
+pub(crate) fn infer(
     ast: &WatAST,
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
@@ -6935,7 +6935,7 @@ fn infer_list(
             // arc 154's let retirement recipe). Routes to `infer_fn`
             // (formerly `infer_lambda`).
             ":wat::core::fn" => {
-                let (val, mut errs) = infer_fn(args, head_span, env, locals, fresh, subst).into_parts();
+                let (val, mut errs) = crate::function::infer_fn(args, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -9806,8 +9806,11 @@ fn infer_defclause(
             };
 
             // Parse the fn signature: (fn [params] -> :ret body).
-            // fn_items = items[1..] = [[params] -> :ret body].
-            match parse_fn_signature_for_check(fn_items) {
+            // fn_items = items[1..] = [[params] -> :ret body ...]; pass only
+            // the 3-element signature prefix (body is not a parser concern).
+            match crate::function::parse_fn_signature_for_check(
+                fn_items.get(..3).unwrap_or(fn_items),
+            ) {
                 Ok((param_names, param_types, ret_type)) => {
                     // Rule 1: arity must be 1.
                     if param_names.len() != 1 {
@@ -14853,229 +14856,12 @@ fn infer_linked_list_constructor(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Arc 155 retired `:wat::core::lambda`; arc 162 renamed this function
-/// from `infer_lambda` to `infer_fn` to mirror the user-facing rename.
-/// `:wat::core::lambda` has NO check arm — walker `BareLegacyLambda`
-/// (src/check.rs) fires a fatal diagnostic at check time on any
-/// user-source `:wat::core::lambda` form. Nothing routes lambda here.
-/// This function is reached only via the `:wat::core::fn` check arm
-/// (src/check.rs — the only active entry point).
-///
-/// A fn expression's type is `:wat::core::Fn(<param types>) -> <return type>`.
-/// The signature is mandatory per 058-029 — every param and the
-/// return are annotated. The body is checked against the declared
-/// return type (same discipline as `check_function_body`).
-fn infer_fn(
-    args: &[WatAST],
-    _head_span: &Span,
-    env: &CheckEnv,
-    outer_locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    // Arc 167 — flat-shape fn signature consumer; arc 168 —
-    // implicit-do body. Canonical form (3+ args):
-    //   ARGS-VECTOR `->` :RET-TYPE  body1 body2 ... bodyN
-    // Empty body is legal — the form's type is `:wat::core::nil`
-    // (constrains the declared return type to `:wat::core::nil`).
-    //
-    // Stone 241.6 — fn-embedded metadata: defn macro expands
-    // `(defn :name {meta} [args] -> :ret body)` to
-    // `(def :name (fn {meta} [args] -> :ret body))`. The metadata
-    // at args[0] is binding-level; peel it off so the type-checker
-    // sees the real signature at args[1..]. The metadata was already
-    // stored in binding_metadata by try_parse_fn_shape_def at
-    // register_defines time.
-    let sig_offset = if !args.is_empty() {
-        match &args[0] {
-            WatAST::List(meta_items, _) => {
-                let is_hashmap = meta_items
-                    .first()
-                    .map(|h| matches!(h, WatAST::Keyword(k, _) if k == ":wat::core::HashMap"))
-                    .unwrap_or(false);
-                if is_hashmap { 1 } else { 0 }
-            }
-            _ => 0,
-        }
-    } else {
-        0
-    };
-    let args = &args[sig_offset..];
-    if args.len() < 3 {
-        // HARVEST (236.2): silent-by-intent — malformed fn form with < 3 args;
-        // parse won't even call check for badly-formed fn. Return fresh placeholder.
-        return CheckResult::ok(fresh.fresh());
-    }
-    // Synthesize a single body AST per the same implicit-do rule the
-    // runtime uses (see `synthesize_fn_body` in src/runtime.rs).
-    let body_forms = &args[3..];
-    let body_ast: WatAST = if body_forms.is_empty() {
-        WatAST::Keyword(":wat::core::nil".into(), Span::unknown())
-    } else if body_forms.len() == 1 {
-        body_forms[0].clone()
-    } else {
-        let mut do_items: Vec<WatAST> = Vec::with_capacity(body_forms.len() + 1);
-        do_items.push(WatAST::Keyword(":wat::core::do".into(), Span::unknown()));
-        do_items.extend(body_forms.iter().cloned());
-        WatAST::List(do_items, Span::unknown())
-    };
-    // The diag parser still wants a 4-element slice (sig trio + body).
-    // Build a synthetic 4-element slice with the synthesized body.
-    let sig_args = [
-        args[0].clone(),
-        args[1].clone(),
-        args[2].clone(),
-        body_ast.clone(),
-    ];
-    let (param_names, param_types, ret_type) =
-        match parse_fn_signature_for_check_diag(&sig_args, &mut local_errors) {
-            Some(parsed) => parsed,
-            None => {
-                // HARVEST (236.2): silent-by-intent — fn signature malformed; diag parser
-                // already pushed errors into local_errors if it could; return fresh placeholder.
-                return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::errs(local_errors) };
-            }
-        };
-
-    // Check body against declared return type under extended locals.
-    let mut body_locals = outer_locals.clone();
-    for (name, ty) in param_names.iter().zip(param_types.iter()) {
-        body_locals.insert(name.clone(), ty.clone());
-    }
-    // Push this fn's declared return type onto the enclosing-ret
-    // stack so `try` inside the body propagates to the fn's
-    // boundary (matches Rust's `?`-operator scoping — short-circuits
-    // the innermost fn or closure, not the outer function).
-    fresh.push_enclosing_ret(ret_type.clone());
-    let body_ty = infer(&body_ast, env, &body_locals, fresh, subst).drain_errors_into(&mut local_errors);
-    fresh.pop_enclosing_ret();
-    if let Some(body_ty) = body_ty {
-        if unify(&body_ty, &ret_type, subst, env.types()).is_err() {
-            local_errors.push(CheckError::ReturnTypeMismatch {
-                function: format!("<fn@{}>", body_ast.span()),
-                expected: format_type(&apply_subst(&ret_type, subst)),
-                got: format_type(&apply_subst(&body_ty, subst)),
-                span: body_ast.span().clone(),
-                remedies: vec![],
-            });
-        }
-    }
-
-    let ty = TypeExpr::Fn {
-        args: param_types,
-        ret: Box::new(ret_type),
-    };
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
-}
-
-/// Arc 167 — mirror of [`crate::runtime::parse_fn_signature`]
-/// for the check pass. Consumes the flat-shape fn-form layout:
-///
-///   (:wat::core::fn  ARGS-VECTOR  ->  :RET-TYPE  BODY)
-///                      args[0]   args[1] args[2] args[3]
-///
-/// `ARGS-VECTOR` is a `WatAST::Vector` of flat triples
-/// `name <- :T name <- :T ...` (empty vector → zero-arity fn).
-///
-/// Returns (names, types, ret). Errors are silenced; if the fn is
-/// malformed, runtime parsing catches it and the checker simply
-/// returns None.
-fn parse_fn_signature_for_check(
-    args: &[WatAST],
-) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ()> {
-    if args.len() != 4 {
-        return Err(());
-    }
-    let (args_vec, args_vec_span) = match &args[0] {
-        WatAST::Vector(items, span) => (items, span),
-        _ => return Err(()),
-    };
-    // args[1] must be the symbol `->`.
-    match &args[1] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        _ => return Err(()),
-    }
-    // args[2] must be the return-type keyword.
-    let ret_type = match &args[2] {
-        WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|_| ())?,
-        _ => return Err(()),
-    };
-    // Route through canonical argspec parser; silence any error as `()`.
-    let spec = crate::argspec::parse_argspec_triples(
-        args_vec,
-        ":wat::core::fn",
-        args_vec_span,
-        crate::argspec::ParseOptions { allow_rest_binder: false },
-    ).map_err(|_| ())?;
-    let (names, types): (Vec<String>, Vec<TypeExpr>) =
-        spec.fixed_params.into_iter().unzip();
-    Ok((names, types, ret_type))
-}
-
-/// Diagnostic variant of [`parse_fn_signature_for_check`]: when the
-/// args[0] slot is a Vector (canonical new shape) but the inner
-/// triples are malformed, push a `MalformedForm` per offending site
-/// so the user sees a clear error rather than silent type-inference
-/// failure. Returns `None` only when the shape doesn't match the new
-/// layout at all (caller falls through to legacy / None).
-fn parse_fn_signature_for_check_diag(
-    args: &[WatAST],
-    errors: &mut Vec<CheckError>,
-) -> Option<(Vec<String>, Vec<TypeExpr>, TypeExpr)> {
-    if args.len() != 4 {
-        return None;
-    }
-    let (args_vec, args_vec_span) = match &args[0] {
-        WatAST::Vector(items, span) => (items, span),
-        _ => return None,
-    };
-    // args[1] must be `->`.
-    match &args[1] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            errors.push(CheckError::MalformedForm {
-                head: ":wat::core::fn".into(),
-                reason: "fn signature missing `->` between args-vector and return type".into(),
-                span: other.span().clone(),
-                remedies: vec![],
-            });
-            return None;
-        }
-    }
-    // args[2] must be the return-type keyword.
-    let ret_type = match &args[2] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(_) => return None,
-        },
-        other => {
-            errors.push(CheckError::MalformedForm {
-                head: ":wat::core::fn".into(),
-                reason: "fn signature missing return-type keyword after `->`".into(),
-                span: other.span().clone(),
-                remedies: vec![],
-            });
-            return None;
-        }
-    };
-    // Route through canonical argspec parser; push CheckError and return None on failure.
-    let spec = match crate::argspec::parse_argspec_triples(
-        args_vec,
-        ":wat::core::fn",
-        args_vec_span,
-        crate::argspec::ParseOptions { allow_rest_binder: false },
-    ) {
-        Ok(s) => s,
-        Err(e) => {
-            errors.push(e.into());
-            return None;
-        }
-    };
-    let (names, types): (Vec<String>, Vec<TypeExpr>) =
-        spec.fixed_params.into_iter().unzip();
-    Some((names, types, ret_type))
-}
+// Stone 241.18a — DELETED: infer_fn, parse_fn_signature_for_check,
+// parse_fn_signature_for_check_diag ALL DELETED.
+// fn-form check-tier logic MIGRATED to `src/function/infer.rs` + `src/function/parse.rs`.
+// Callers in check.rs dispatch arm (line ~6938) and :ensure validation (line ~9810)
+// updated to `crate::function::infer_fn` and `crate::function::parse_fn_signature_for_check`.
+// HARD CUT: no backward-compat re-exports.
 
 fn infer_boolean_shortcircuit(
     args: &[WatAST],
@@ -15108,11 +14894,11 @@ fn infer_boolean_shortcircuit(
 // ─── Unification ────────────────────────────────────────────────────────
 
 #[derive(Debug)]
-struct UnifyError;
+pub(crate) struct UnifyError;
 
 /// Attempt to unify two type expressions under the given substitution.
 /// Extends `subst` on success; leaves it untouched on failure.
-fn unify(
+pub(crate) fn unify(
     a: &TypeExpr,
     b: &TypeExpr,
     subst: &mut Subst,
@@ -15424,7 +15210,7 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
 ///
 /// For **structural matching** against the canonical form of a type,
 /// call [`reduce`] instead.
-fn apply_subst(ty: &TypeExpr, subst: &Subst) -> TypeExpr {
+pub(crate) fn apply_subst(ty: &TypeExpr, subst: &Subst) -> TypeExpr {
     match ty {
         TypeExpr::Var(id) => match subst.get(id) {
             Some(inner) => apply_subst(inner, subst),

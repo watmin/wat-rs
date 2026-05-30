@@ -4117,16 +4117,14 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
     // trailing slice → :wat::core::nil keyword; single → pass-through;
     // multiple → (:wat::core::do f1 f2 ... fN).
     let body = synthesize_fn_body(&fn_items[(sig_start + 3)..]);
-    // parse_fn_signature consumes the first 4 elements after the
-    // head: ARGS-VECTOR / `->` / :RET-TYPE / BODY-PLACEHOLDER. We pass
-    // the synthesized body so the existing arity-check (==4) holds.
+    // parse_fn_signature consumes the 3-element signature prefix:
+    // ARGS-VECTOR / `->` / :RET-TYPE. Body is synthesized independently.
     let sig_args = [
         fn_items[sig_start].clone(),
         fn_items[sig_start + 1].clone(),
         fn_items[sig_start + 2].clone(),
-        body.clone(),
     ];
-    let (params, param_types, ret_type) = parse_fn_signature(&sig_args).ok()?;
+    let (params, param_types, ret_type) = crate::function::parse_fn_signature(&sig_args).ok()?;
     Some((
         name.clone(),
         Arc::new(Function {
@@ -4384,7 +4382,7 @@ fn preregister_fn_defs_in_let(
 // The canonical replacement is `:wat::core::defn` (Clojure-aligned). HARD CUT is TOTAL.
 // See: Stone 241.11 (startup-check HARD CUT); Stone 241.16 (eval-time residue completion).
 
-fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> {
+pub(crate) fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> {
     // arc 138: no span — kw is a `&str` lifted from the keyword's payload;
     // the keyword's own span isn't carried through the parse helper.
     // Stone 241.16 — error head updated from `:wat::core::define` to `:wat::core::defn`.
@@ -5308,7 +5306,7 @@ fn dispatch_keyword_head_value(
         // function values (Clojure-faithful lowercase verb; mirrors
         // arc 154's let retirement recipe). Routes to `eval_fn`
         // (formerly `eval_lambda`).
-        ":wat::core::fn" => eval_fn(args, list_span, env),
+        ":wat::core::fn" => crate::function::eval_fn(args, list_span, env),
         // Arc 155 slice 2 — `:wat::core::lambda` dispatch arm retired.
         // Single-letform vocabulary; lambda is dead (Clojure-faithful;
         // `fn` replaces `lambda` per user direction 2026-05-07).
@@ -6469,71 +6467,10 @@ fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bo
 
 // ─── Language forms ─────────────────────────────────────────────────────
 
-/// Arc 155 retired `:wat::core::lambda`; arc 162 renamed this function
-/// from `eval_lambda` to `eval_fn` to mirror the user-facing rename.
-/// `:wat::core::lambda` has NO dispatch arm — walker `BareLegacyLambda`
-/// (src/check.rs) fires a fatal diagnostic at check time on any
-/// user-source `:wat::core::lambda` form. Nothing routes lambda here at
-/// runtime. This function is reached only via the `:wat::core::fn`
-/// dispatch arm (src/runtime.rs — the only active entry point).
-fn eval_fn(args: &[WatAST], list_span: &Span, env: &Environment) -> Result<Value, RuntimeError> {
-    // Arc 167 — flat-shape fn-form consumer; arc 168 — implicit-do body.
-    // Canonical form: (:wat::core::fn ARGS-VECTOR -> :RET-TYPE body...)
-    //   args[0] = ARGS-VECTOR (WatAST::Vector with name <- :T triples)
-    //   args[1] = `->` (WatAST::Symbol)
-    //   args[2] = :RET-TYPE (WatAST::Keyword)
-    //   args[3..] = BODY forms (1+ implicit-do; empty body legal — value
-    //              is :wat::core::nil at call time)
-    //
-    // Stone 241.6 — fn-embedded metadata peel. The defn macro expands
-    // `(defn :name {meta} [args] -> :ret body)` to
-    // `(def :name (fn {meta} [args] -> :ret body))`. The metadata at
-    // args[0] is binding-level; peel it off so eval_fn sees the real sig.
-    // The metadata was already stored in binding_metadata at register_defines
-    // time via try_parse_fn_shape_def's fn-embedded metadata path.
-    let args = if !args.is_empty() {
-        match &args[0] {
-            WatAST::List(meta_items, _) => {
-                let is_hashmap = meta_items
-                    .first()
-                    .map(|h| matches!(h, WatAST::Keyword(k, _) if k == ":wat::core::HashMap"))
-                    .unwrap_or(false);
-                if is_hashmap { &args[1..] } else { args }
-            }
-            _ => args,
-        }
-    } else {
-        args
-    };
-    if args.len() < 3 {
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::fn".into(),
-            reason: format!(
-                "expected (:wat::core::fn [name <- :T ...] -> :Ret body ...); got {} args",
-                args.len()
-            ),
-            span: Span::unknown(),
-        });
-    }
-    let body = synthesize_fn_body(&args[3..]);
-    // parse_fn_signature consumes args[..3] (ARGS-VECTOR / `->` /
-    // :RET-TYPE). It accepts a 4-element prefix of args today; for
-    // arc 168 we pass a virtual 4-element slice carrying the
-    // synthesized body so signature-validation runs unchanged.
-    let sig_args = [args[0].clone(), args[1].clone(), args[2].clone(), body.clone()];
-    let (params, param_types, ret_type) = parse_fn_signature(&sig_args)?;
-    Ok(Value::wat__core__fn(Arc::new(Function {
-        name: None,
-        params,
-        type_params: Vec::new(),
-        param_types,
-        ret_type,
-        rest_param: None,
-        rest_param_type: None,
-        body: Arc::new(body),
-        closed_env: Some(env.clone()),
-    })))
-}
+// Stone 241.18a — DELETED: eval_fn DELETED.
+// `:wat::core::fn` evaluator MIGRATED to `src/function/eval.rs`.
+// Caller at runtime dispatch arm (line ~5311) updated to `crate::function::eval_fn`.
+// `synthesize_fn_body` stays here (also used by try_parse_fn_shape_def + defclause).
 
 /// Arc 168 — collapse fn body forms (implicit-do) into a single
 /// `WatAST` for `Function::body`. Mirrors `synthesize_let_body` but
@@ -6547,7 +6484,7 @@ fn eval_fn(args: &[WatAST], list_span: &Span, env: &Environment) -> Result<Value
 /// - Single form → the form itself (zero-overhead pass-through;
 ///   pre-arc-168 code shape preserved exactly).
 /// - Multi-form → wrap in `(:wat::core::do f1 f2 ... fN)`.
-fn synthesize_fn_body(forms: &[WatAST]) -> WatAST {
+pub(crate) fn synthesize_fn_body(forms: &[WatAST]) -> WatAST {
     if forms.is_empty() {
         return WatAST::Keyword(":wat::core::nil".into(), Span::unknown());
     }
@@ -6560,90 +6497,10 @@ fn synthesize_fn_body(forms: &[WatAST]) -> WatAST {
     WatAST::List(do_items, Span::unknown())
 }
 
-/// Arc 167 — flat-shape fn signature parser.
-///
-/// Consumes the canonical fn-form layout:
-///
-///   (:wat::core::fn  ARGS-VECTOR  ->  :RET-TYPE  BODY)
-///                      args[0]   args[1] args[2] args[3]
-///
-/// `ARGS-VECTOR` is a `WatAST::Vector` whose body is flat triples
-/// `name <- :T name <- :T ...` (empty vector → zero-arity fn). The
-/// `<-` token reads as "consumes" — input direction; the sibling
-/// `->` reads as "produces" — output direction. Arrows-as-duals.
-///
-/// Per 058-029, every parameter is typed and the return type is
-/// required. No "untyped fn" exists in wat. This parser rejects
-/// malformed flat-shape signatures with location-bearing errors.
-fn parse_fn_signature(
-    args: &[WatAST],
-) -> Result<(Vec<String>, Vec<crate::types::TypeExpr>, crate::types::TypeExpr), RuntimeError> {
-    // Arity check (eval_fn already gates this; defensive double-check).
-    if args.len() != 4 {
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::fn".into(),
-            reason: format!(
-                "expected (:wat::core::fn [name <- :T ...] -> :Ret body); got {} args after head",
-                args.len()
-            ),
-            span: Span::unknown(),
-        });
-    }
-    let args_vec_node = &args[0];
-    let arrow_node = &args[1];
-    let ret_type_node = &args[2];
-
-    // args[0] must be a Vector (the args-vector); capture span for canonical parser.
-    let (args_vec, args_vec_span) = match args_vec_node {
-        WatAST::Vector(items, span) => (items, span),
-        other => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::fn".into(),
-                reason: format!(
-                    "fn signature must be a vector `[name <- :T ...]`; got {}",
-                    ast_variant_name(other)
-                ),
-                span: other.span().clone(),
-            });
-        }
-    };
-
-    // args[1] must be the symbol `->`.
-    match arrow_node {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::fn".into(),
-                reason: "fn signature missing `->` between args-vector and return type".into(),
-                span: other.span().clone(),
-            });
-        }
-    }
-
-    // args[2] must be the return-type keyword.
-    let ret_type = match ret_type_node {
-        WatAST::Keyword(k, _) => parse_type_keyword(k)?,
-        other => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::fn".into(),
-                reason: "fn signature missing return-type keyword after `->`".into(),
-                span: other.span().clone(),
-            });
-        }
-    };
-
-    // Route through the canonical argspec parser; `?` converts ArgSpecError → RuntimeError.
-    let spec = crate::argspec::parse_argspec_triples(
-        args_vec,
-        ":wat::core::fn",
-        args_vec_span,
-        crate::argspec::ParseOptions { allow_rest_binder: false },
-    )?;
-    let (params, param_types): (Vec<String>, Vec<crate::types::TypeExpr>) =
-        spec.fixed_params.into_iter().unzip();
-
-    Ok((params, param_types, ret_type))
-}
+// Stone 241.18a — DELETED: parse_fn_signature DELETED.
+// fn-form signature parser MIGRATED to `src/function/parse.rs`.
+// Caller in try_parse_fn_shape_def (line ~4129) updated to `crate::function::parse_fn_signature`.
+// HARD CUT: no backward-compat re-export.
 
 // ─── Stone 237.2 — defclause parse + eval ────────────────────────────────────
 

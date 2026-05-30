@@ -29,10 +29,12 @@ use std::sync::Arc;
 use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
 
-fn try_startup(src: &str) -> Result<(), String> {
+/// Thin wrapper: format fragment + delegate to startup_from_source + map error to String.
+/// Body is trivially provable by inspection; all 8 caller tests exercise it.
+pub(super) fn try_startup(src_fragment: &str) -> Result<(), String> {
     let full = format!(
         "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
+        src_fragment
     );
     startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
         .map(|_| ())

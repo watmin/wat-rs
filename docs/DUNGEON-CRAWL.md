@@ -175,7 +175,7 @@ rule; iterate until green."*
   where a "great" already stood (Clojure, Erlang, Kay, …), that's the
   arrived-where-we-should-be signal. Take the *idea*, not the shackle.
 
-## The spells (datamancy — `~/work/holon/datamancy/`)
+## The spells (datamancy — `~/work/holon/datamancy.dev/`)
 
 Cast a spell when its concern surfaces — always via subagent, with the SKILL.md
 embedded (`feedback_spells_cast_via_subagent`):
