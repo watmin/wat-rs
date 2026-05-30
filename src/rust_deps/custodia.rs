@@ -1,3 +1,5 @@
+//! vigilatum: 2026-05-30 @ 7b89053e — vigilia 7-spell L1+L2=0
+//!
 //! `custodia` — ownership-scope custody primitives for the `:rust::` bridge.
 //!
 //! `ThreadOwnedCell<T>` and `OwnedMoveCell<T>` enforce the substrate's

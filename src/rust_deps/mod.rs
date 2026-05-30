@@ -1,3 +1,5 @@
+//! vigilatum: 2026-05-30 @ 7b89053e — vigilia 7-spell L1+L2=0
+//!
 //! Rust-symbol bindings surfaced to wat source via the `:rust::` namespace.
 //!
 //! A Rust SHIM is the bridge between a Rust crate's types/methods and
