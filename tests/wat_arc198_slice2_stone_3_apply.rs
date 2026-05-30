@@ -2,10 +2,10 @@
 //! `eval_kernel_*_join_result` fns.
 //!
 //! Stones 1 + 2 built the channel: Stone 1 wired `inventory` +
-//! `RestrictionEntry` + setup-time drain into
-//! `symbols.defined_value_restrictions`; Stone 2 added the
-//! `#[restricted_to(...)]` proc-macro attribute that auto-emits the
-//! `inventory::submit!` block.
+//! `RestrictionEntry` + setup-time drain into `binding_metadata`
+//! (post-Stone 241.14; was `defined_value_restrictions` until migration);
+//! Stone 2 added the `#[restricted_to(...)]` proc-macro attribute that
+//! auto-emits the `inventory::submit!` block.
 //!
 //! Stone 3 applies the attribute to the two real substrate fns that
 //! arc 170 Stone B currently protects via an ad-hoc walker rule:
@@ -20,9 +20,9 @@
 //! ## What this test verifies
 //!
 //! After `startup_from_source` against a minimal valid wat program,
-//! `frozen.symbols.defined_value_restrictions` must contain entries
-//! for both `Thread/join-result` and `Process/join-result`, each
-//! mapping to a one-element vec containing `":wat::"`.
+//! `frozen.symbols.binding_metadata` must contain entries for both
+//! `Thread/join-result` and `Process/join-result`, each mapping to a
+//! `:restricted-to` value encoding `[":wat::"]`.
 //!
 //! That assertion proves the substrate's `#[restricted_to(...)]`
 //! annotations on the real eval fns reached the unified registry by
@@ -30,13 +30,32 @@
 //! validated independently.
 //!
 //! Stone 4 deletes Stone B's redundant ad-hoc walker once arc 198's
-//! generic `walk_for_def_restricted_call` is observably providing
+//! generic `walk_for_restricted_call` is observably providing
 //! the same coverage — Stone 3 leaves Stone B's rule in place
 //! (BOTH walkers fire on user-namespace calls until Stone 4).
 
 use std::sync::Arc;
+use wat::ast::WatAST;
 use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
+
+/// Extract prefix strings from the internal-path `binding_metadata` encoding.
+/// Post-Stone 241.14: value is `WatAST::List([Keyword(":wat::core::Vector"), Keyword(p1), ...])`.
+fn extract_prefixes_from_binding_metadata_entry(entry: &WatAST) -> Vec<String> {
+    match entry {
+        WatAST::List(items, _) => items[1..]
+            .iter()
+            .filter_map(|n| {
+                if let WatAST::Keyword(k, _) = n {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
+            .collect(),
+        _ => vec![],
+    }
+}
 
 #[test]
 fn thread_join_result_restriction_lands_in_symbol_table() {
@@ -47,23 +66,32 @@ fn thread_join_result_restriction_lands_in_symbol_table() {
     let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("minimal wat source should freeze cleanly");
 
-    let entry = frozen
+    let meta = frozen
         .symbols
-        .defined_value_restrictions
+        .binding_metadata
         .get(":wat::kernel::Thread/join-result");
 
     assert!(
-        entry.is_some(),
+        meta.is_some(),
         "Stone 3: #[restricted_to(...)] on eval_kernel_thread_join_result \
-         should land in defined_value_restrictions after startup. Map has \
+         should land in binding_metadata after startup. Map has \
          {} entries; :wat::kernel::Thread/join-result key missing.",
-        frozen.symbols.defined_value_restrictions.len()
+        frozen.symbols.binding_metadata.len()
     );
 
-    let prefixes = entry.expect("entry presence asserted above");
+    let meta_map = meta.expect("meta presence asserted above");
+    let restricted_to_ast = meta_map.get(":restricted-to");
+    assert!(
+        restricted_to_ast.is_some(),
+        "binding_metadata for Thread/join-result should have :restricted-to key"
+    );
+
+    let prefixes = extract_prefixes_from_binding_metadata_entry(
+        restricted_to_ast.expect("restricted-to presence asserted above"),
+    );
     assert_eq!(
         prefixes,
-        &vec![":wat::".to_string()],
+        vec![":wat::".to_string()],
         "Thread/join-result restriction should whitelist exactly the \
          :wat:: namespace prefix (any caller under :wat::* permitted)"
     );
@@ -78,23 +106,32 @@ fn process_join_result_restriction_lands_in_symbol_table() {
     let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("minimal wat source should freeze cleanly");
 
-    let entry = frozen
+    let meta = frozen
         .symbols
-        .defined_value_restrictions
+        .binding_metadata
         .get(":wat::kernel::Process/join-result");
 
     assert!(
-        entry.is_some(),
+        meta.is_some(),
         "Stone 3: #[restricted_to(...)] on eval_kernel_process_join_result \
-         should land in defined_value_restrictions after startup. Map has \
+         should land in binding_metadata after startup. Map has \
          {} entries; :wat::kernel::Process/join-result key missing.",
-        frozen.symbols.defined_value_restrictions.len()
+        frozen.symbols.binding_metadata.len()
     );
 
-    let prefixes = entry.expect("entry presence asserted above");
+    let meta_map = meta.expect("meta presence asserted above");
+    let restricted_to_ast = meta_map.get(":restricted-to");
+    assert!(
+        restricted_to_ast.is_some(),
+        "binding_metadata for Process/join-result should have :restricted-to key"
+    );
+
+    let prefixes = extract_prefixes_from_binding_metadata_entry(
+        restricted_to_ast.expect("restricted-to presence asserted above"),
+    );
     assert_eq!(
         prefixes,
-        &vec![":wat::".to_string()],
+        vec![":wat::".to_string()],
         "Process/join-result restriction should whitelist exactly the \
          :wat:: namespace prefix (any caller under :wat::* permitted)"
     );

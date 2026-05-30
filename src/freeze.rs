@@ -66,6 +66,7 @@ use crate::runtime::{
 use crate::span::Span;
 use crate::thread_io::ThreadId;
 use crate::types::{register_stdlib_types, register_types, TypeEnv, TypeError, TypeExpr};
+use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -817,26 +818,43 @@ fn startup_from_forms_post_config(
 
     // 6.8. Arc 198 slice 2 Stone 1 — drain the `inventory` registry of
     //      Rust-side `RestrictionEntry` declarations into
-    //      `symbols.defined_value_restrictions`. The wat-side `def-restricted`
-    //      form (slice 1) populates the same map during `register_defines`
-    //      above; this iteration is the Rust-side analog. Both feeds land
-    //      in one HashMap so the walker
-    //      (`validate_def_restricted_caller_namespace`) sees a unified
-    //      whitelist regardless of where the declaration originated.
+    //      Stone 241.14 — migrated from `defined_value_restrictions` to
+    //      `binding_metadata`. The Rust-side RestrictionEntry inventory
+    //      channel (arc 198 slice 2) populates `binding_metadata` here;
+    //      the wat-side `def`/`defn` metadata-map path populates it during
+    //      `register_defines`. Both feeds land in one `binding_metadata`
+    //      map so the walker (`walk_for_restricted_call`) sees a unified
+    //      `:restricted-to` whitelist regardless of origin.
     //
     //      Positioned AFTER all `register_*` calls (so the map isn't
     //      stomped) and BEFORE step 7.5 (which propagates other config to
-    //      `symbols` for check_program). Insertion is idempotent across
-    //      multiple freeze passes — `inventory::iter` returns the same
-    //      static entries every time; re-inserting overwrites with the
-    //      same value. Subsequent stones (Stone 2's proc-macro, Stone 3's
-    //      annotation on `*_join-result`, Stone 4's Stone B retirement)
-    //      plug into this channel without changing the iteration shape.
+    //      `symbols` for check_program). Subsequent stones that annotate
+    //      substrate fns with `#[restricted_to(...)]` plug into this
+    //      channel without changing the iteration shape.
+    // Stone 241.14 (migrated from arc 198 def-restricted path) — populate
+    // `binding_metadata` with `:restricted-to` entries from the Rust-side
+    // `RestrictionEntry` inventory channel. Arc 170 Stone B's restrictions
+    // on `Thread/join-result` + `Process/join-result` land here unchanged;
+    // only the populate-target changes (binding_metadata instead of the
+    // deleted defined_value_restrictions).
+    //
+    // The `:restricted-to` value is a WatAST::List whose first item is the
+    // `:wat::core::Vector` head (matching the brace-form parser's encoding
+    // of `[p1 p2 ...]`) and whose remaining items are prefix keywords. The
+    // walker `walk_for_restricted_call` calls `extract_prefix_list_from_metadata`
+    // to unpack this structure at check time.
     for entry in inventory::iter::<crate::restriction_entry::RestrictionEntry> {
-        symbols.defined_value_restrictions.insert(
-            entry.wat_name.to_string(),
-            entry.prefixes.iter().map(|s| s.to_string()).collect(),
-        );
+        let name = entry.wat_name.to_string();
+        // Build WatAST::List([Keyword(":wat::core::Vector"), Keyword(p1), ...], Span)
+        // matching the brace-form encoding that `extract_prefix_list_from_metadata` expects.
+        let mut prefix_items = vec![WatAST::Keyword(":wat::core::Vector".into(), Span::unknown())];
+        for p in entry.prefixes {
+            prefix_items.push(WatAST::Keyword(p.to_string(), Span::unknown()));
+        }
+        let restricted_to_ast = WatAST::List(prefix_items, Span::unknown());
+        let mut meta: HashMap<String, WatAST> = HashMap::new();
+        meta.insert(":restricted-to".to_string(), restricted_to_ast);
+        symbols.binding_metadata.entry(name).or_insert_with(HashMap::new).extend(meta);
     }
 
     // 7. Name resolution.
@@ -1301,9 +1319,8 @@ fn is_mutation_form(head: &str) -> bool {
         // only at startup (the startup pipeline's `check_program` +
         // `run_program` path; not the frozen `eval_in_frozen` path).
         ":wat::core::def"
-            // Arc 198 — `:wat::core::def-restricted` is `def` plus a
-            // caller-prefix whitelist; same mutation discipline as `def`.
-            | ":wat::core::def-restricted"
+            // Stone 241.14 — `:wat::core::def-restricted` HARD CUT (retired;
+            // restrictions now live as {:restricted-to [...]} metadata on def/defn).
             | ":wat::core::define"
             | ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
@@ -1339,10 +1356,8 @@ pub fn is_declaration_form(head: &str) -> bool {
     matches!(
         head,
         ":wat::core::def"
-            // Arc 198 — `:wat::core::def-restricted` is a declaration form
-            // (mirrors `:wat::core::def` in declaration discipline; the
-            // walker-enforced caller whitelist is additional metadata).
-            | ":wat::core::def-restricted"
+            // Stone 241.14 — `:wat::core::def-restricted` HARD CUT (retired;
+            // restrictions now live as {:restricted-to [...]} metadata on def/defn).
             | ":wat::core::define"
             | ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).

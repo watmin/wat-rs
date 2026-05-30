@@ -184,29 +184,14 @@
     -> :AST<wat::core::nil>)
   `(:wat::core::def ~name (:wat::core::fn ~@rest)))
 
-;; Arc 198 — `:wat::core::defn-restricted` is the named-fn counterpart of
-;; `:wat::core::def-restricted`. Same shape as `defn` plus a `:restricted-to`
-;; keyword tag + prefix-vec between the name and the fn signature:
+;; Arc 198 defined `:wat::core::defn-restricted` as mechanical sugar over
+;; `:wat::core::def-restricted` — both forms retired by Stone 241.14.
+;; Restrictions now live as `:restricted-to` key in metadata-map on def/defn:
 ;;
-;;   (:wat::core::defn-restricted :name :restricted-to [<prefix-kw>...]
+;;   (:wat::core::defn :name {:restricted-to [<prefix-kw>...]}
 ;;     [p <- :T q <- :T] -> :Ret body)
-;;     ↓ macro-expansion
-;;   (:wat::core::def-restricted :name :restricted-to [<prefix-kw>...]
-;;     (:wat::core::fn [p <- :T q <- :T] -> :Ret body))
 ;;
-;; Mechanical sugar. The whitelist is a property of the BINDING (not the
-;; fn shape); restriction lives on `def-restricted`, the substrate primitive.
-;; The `restricted-to-keyword` binder is spliced through as-is; the substrate
-;; primitive's parser validates that it is the literal `:restricted-to` keyword.
-;; Same rest-binder shape as `defn` per arc 150 variadic-defmacro form.
-(:wat::core::defmacro
-  (:wat::core::defn-restricted
-    (name :AST<wat::core::nil>)
-    (restricted-to-keyword :AST<wat::core::nil>)
-    (prefixes :AST<wat::core::nil>)
-    & (rest :AST<wat::core::Vector<wat::WatAST>>)
-    -> :AST<wat::core::nil>)
-  `(:wat::core::def-restricted ~name ~restricted-to-keyword ~prefixes (:wat::core::fn ~@rest)))
+;; The HARD-CUT arm at check.rs fires for any residual caller of either retired form.
 
 ;; f64 same-type variadic — :+/:*/:- / :/
 

@@ -1710,18 +1710,11 @@ pub struct SymbolTable {
     /// registered locations. Slice 1a-ii will add `redef_allowed` /
     /// `eval_redef_allowed` bools + type-stability gating.
     pub defined_values: HashMap<String, (crate::types::TypeExpr, Span)>,
-    /// Arc 198 — per-binding allowed-caller-prefix whitelists, populated
-    /// by `:wat::core::def-restricted` declarations. Maps binding name →
-    /// Vec of allowed-prefix entries. Each entry is matched against caller
-    /// FQDNs at type-check time using prefix-or-exact rules: an entry
-    /// ending in `::` is a namespace prefix (caller FQDN must start with
-    /// it); an entry NOT ending in `::` is an exact FQDN match.
-    ///
-    /// Mirrored into [`crate::check::CheckEnv::defined_value_restrictions`]
-    /// at `from_symbols` time; consulted by the
-    /// `validate_def_restricted_caller_namespace` walker in
-    /// [`crate::check::check_program`].
-    pub defined_value_restrictions: HashMap<String, Vec<String>>,
+    // Stone 241.14 — `defined_value_restrictions` field DELETED.
+    // Restriction whitelists now live in `binding_metadata` under the
+    // `:restricted-to` key. The `walk_for_restricted_call` walker in
+    // `check.rs` reads from `CheckEnv.binding_metadata` (mirrored from
+    // `SymbolTable.binding_metadata`) instead of the old parallel map.
     /// Arc 157 slice 1a-ii — runtime values bound via `:wat::core::def`.
     /// Maps name → `Value` produced when the top-level `def` form's
     /// expression was evaluated during `FrozenWorld::freeze` (step 9.5).
@@ -1784,10 +1777,6 @@ impl std::fmt::Debug for SymbolTable {
             .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
             .field("types", &self.types.is_some())
             .field("defined_values", &self.defined_values.len())
-            .field(
-                "defined_value_restrictions",
-                &self.defined_value_restrictions.len(),
-            )
             .field("runtime_def_values", &self.runtime_def_values.len())
             .field("redef_allowed", &self.redef_allowed)
             .field("eval_redef_allowed", &self.eval_redef_allowed)
@@ -2654,27 +2643,9 @@ pub fn register_defines(
                 sym.binding_metadata.insert(path, meta);
             }
             rest.push(form);
-        } else if let Some((path, func, prefixes)) = try_parse_fn_shape_def_restricted(&form) {
-            // Arc 198 — `(:wat::core::def-restricted :name [prefixes]
-            // (:wat::core::fn sig body))` sister-path to arc 166's
-            // fn-shape def pre-registration. Pre-registers the fn into
-            // `sym.functions` (so the resolver sees the bound name) AND
-            // records the prefix whitelist into
-            // `sym.defined_value_restrictions` (so the walker sees it
-            // at check time). Same collision policy as `def`; same
-            // reserved-prefix gate.
-            let form_span = form.span().clone();
-            if crate::resolve::is_reserved_prefix(&path) {
-                return Err(RuntimeError::ReservedPrefix(path, form_span));
-            }
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path.clone(), func);
-            }
-            // Restriction registration is idempotent — multiple def-restricted
-            // forms for the same name re-register; redef-discipline gates
-            // collisions at check time, not here.
-            sym.defined_value_restrictions.insert(path, prefixes);
-            rest.push(form);
+        // Stone 241.14 — def-restricted fn-shape pre-registration arm DELETED.
+        // def-restricted is HARD CUT; forms reaching this path are rejected
+        // at check.rs before register_defines runs for them.
         } else if let WatAST::List(ref do_items, _) = form {
             // Arc 170 Gap C — top-level `(:wat::core::do ...)` splice.
             // Peek into the do body and pre-register any fn-shape defs so
@@ -2893,6 +2864,21 @@ fn parametric_decl_type(name: &str, type_params: &[String]) -> crate::types::Typ
     }
 }
 
+/// Stone 241.14 — build a `WatAST::List` representing a `:restricted-to`
+/// Encodes a restriction whitelist as a `WatAST::List` whose first item is
+/// the `:wat::core::Vector` head keyword and whose remaining items are the
+/// prefix keyword strings. This is the "internal path" encoding (distinct
+/// from user-written `{:restricted-to [...]}` brace-forms which parse to
+/// `WatAST::Vector`). `extract_prefix_list_from_metadata` in `check.rs`
+/// handles both encodings.
+fn restrictions_to_binding_metadata_ast(prefixes: &[String]) -> WatAST {
+    let mut items = vec![WatAST::Keyword(":wat::core::Vector".into(), Span::unknown())];
+    for p in prefixes {
+        items.push(WatAST::Keyword(p.clone(), Span::unknown()));
+    }
+    WatAST::List(items, Span::unknown())
+}
+
 pub fn register_struct_methods(
     types: &crate::types::TypeEnv,
     sym: &mut SymbolTable,
@@ -2982,19 +2968,29 @@ pub fn register_struct_methods(
             sym.functions.insert(accessor_path, Arc::new(accessor_func));
         }
 
-        // Arc 203 — if the struct carries restriction metadata (minted by
-        // `struct-restricted`), write the ctor + per-field whitelists into
-        // `sym.defined_value_restrictions` so the arc 198 walker enforces them
-        // at type-check time. Public fields (absent from `field_restrictions`)
-        // get no entry — no entry = no restriction = any caller allowed.
+        // Arc 203 / Stone 241.14 — if the struct carries restriction metadata
+        // (from `struct-restricted`, now HARD CUT per Stone 241.8), write the
+        // ctor + per-field whitelists into `binding_metadata` so the arc 198
+        // walker (`walk_for_restricted_call`) enforces them at type-check time.
+        // Public fields (absent from `field_restrictions`) get no entry —
+        // no `:restricted-to` entry = no restriction = any caller allowed.
+        //
+        // Stone 241.14 — populate-target changed from the deleted
+        // `defined_value_restrictions` to `binding_metadata`.
         if let Some(restrictions) = &struct_def.restrictions {
             let ctor_path = format!("{}/new", struct_def.name);
-            sym.defined_value_restrictions
-                .insert(ctor_path, restrictions.ctor_whitelist.clone());
+            let ctor_ast = restrictions_to_binding_metadata_ast(&restrictions.ctor_whitelist);
+            sym.binding_metadata
+                .entry(ctor_path)
+                .or_default()
+                .insert(":restricted-to".to_string(), ctor_ast);
             for (field_name, field_wlist) in &restrictions.field_restrictions {
                 let accessor_path = format!("{}/{}", struct_def.name, field_name);
-                sym.defined_value_restrictions
-                    .insert(accessor_path, field_wlist.clone());
+                let field_ast = restrictions_to_binding_metadata_ast(field_wlist);
+                sym.binding_metadata
+                    .entry(accessor_path)
+                    .or_default()
+                    .insert(":restricted-to".to_string(), field_ast);
             }
         }
     }
@@ -3386,49 +3382,8 @@ fn register_runtime_defs_form(
                 }
             }
         }
-        ":wat::core::def-restricted" => {
-            // Arc 198 — runtime evaluation mirror of the `def` arm. The
-            // shape is `(:wat::core::def-restricted :name :restricted-to [prefixes] expr)`
-            // — 5 elements; the :restricted-to tag at items[2] and prefix
-            // vector at items[3] are purely a check-time concern (already
-            // recorded into `sym.defined_value_restrictions` by
-            // `register_defines` / `preregister_fn_defs_in_*`). Here we
-            // evaluate the expr and bind the runtime value the same way
-            // `def` does.
-            if items.len() != 5 {
-                return Ok(()); // malformed; type checker already caught it
-            }
-            let name = match &items[1] {
-                WatAST::Keyword(k, _) => k.clone(),
-                _ => return Ok(()),
-            };
-            let expr = &items[4];
-            if sym.runtime_def_values.contains_key(&name) && !sym.redef_allowed {
-                return Ok(());
-            }
-            let sym_ref: &SymbolTable = sym;
-            let value = eval_inner(expr, env, sym_ref)?.value_owned();
-            // Stone 241.11 — preserve the `name` field from the def-restricted name keyword.
-            if let Value::wat__core__fn(ref func) = value {
-                let named_func = if func.name.is_none() {
-                    Arc::new(Function {
-                        name: Some(name.clone()),
-                        params: func.params.clone(),
-                        type_params: func.type_params.clone(),
-                        param_types: func.param_types.clone(),
-                        ret_type: func.ret_type.clone(),
-                        rest_param: func.rest_param.clone(),
-                        rest_param_type: func.rest_param_type.clone(),
-                        body: func.body.clone(),
-                        closed_env: func.closed_env.clone(),
-                    })
-                } else {
-                    func.clone()
-                };
-                sym.functions.insert(name.clone(), named_func);
-            }
-            sym.runtime_def_values.insert(name, value);
-        }
+        // Stone 241.14 — `:wat::core::def-restricted` runtime arm DELETED.
+        // def-restricted is HARD CUT at check.rs; no form reaches runtime eval.
         ":wat::core::def" => {
             // Shape: (:wat::core::def :name expr)               — 3 items, no metadata
             //        (:wat::core::def :name {metadata} expr)    — 4 items, Stone 241.6
@@ -4293,93 +4248,10 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
     ))
 }
 
-/// Arc 198 — detect `(:wat::core::def-restricted :name [<prefix-kw>...]
-/// (:wat::core::fn sig body))` shape. Returns the parsed
-/// `(name, Function, prefixes)` triple when the form is a
-/// `def-restricted` whose RHS is a fn-form; else `None`.
-///
-/// Sister to [`try_parse_fn_shape_def`]: same fn-shape detection +
-/// pre-registration into `sym.functions` (so `resolve_references` sees
-/// the bound name as a callable head) PLUS the prefix-list extraction
-/// for the per-binding caller whitelist.
-///
-/// The `defn-restricted` defmacro expands to this exact shape; the
-/// underlying `def-restricted` primitive is also accepted directly.
-/// Non-fn-shape `def-restricted` forms (binding a plain value) do not
-/// match here — only fn-shape defs participate in
-/// `sym.functions` pre-registration, mirroring `def` discipline.
-fn try_parse_fn_shape_def_restricted(
-    form: &WatAST,
-) -> Option<(String, Arc<Function>, Vec<String>)> {
-    let items = match form {
-        WatAST::List(items, _) => items,
-        _ => return None,
-    };
-    // items: [head, name, :restricted-to, prefix-vec, fn-expr] — 5 total.
-    if items.len() != 5 {
-        return None;
-    }
-    match &items[0] {
-        WatAST::Keyword(k, _) if k == ":wat::core::def-restricted" => {}
-        _ => return None,
-    }
-    let name = match &items[1] {
-        WatAST::Keyword(k, _) => k.clone(),
-        _ => return None,
-    };
-    // items[2] — must be literal :restricted-to keyword tag.
-    match &items[2] {
-        WatAST::Keyword(k, _) if k == ":restricted-to" => {}
-        _ => return None,
-    }
-    // items[3] — prefix Vector of keywords.
-    let prefix_items = match &items[3] {
-        WatAST::Vector(items, _) => items,
-        _ => return None,
-    };
-    let mut prefixes = Vec::with_capacity(prefix_items.len());
-    for pi in prefix_items {
-        match pi {
-            WatAST::Keyword(k, _) => prefixes.push(k.clone()),
-            _ => return None,
-        }
-    }
-    // items[4] — must be `(:wat::core::fn ARGS-VECTOR -> :RET body...)`.
-    let fn_items = match &items[4] {
-        WatAST::List(fn_items, _) => fn_items,
-        _ => return None,
-    };
-    match &fn_items.first()? {
-        WatAST::Keyword(k, _) if k == ":wat::core::fn" => {}
-        _ => return None,
-    }
-    if fn_items.len() < 4 {
-        return None;
-    }
-    let body = synthesize_fn_body(&fn_items[4..]);
-    let sig_args = [
-        fn_items[1].clone(),
-        fn_items[2].clone(),
-        fn_items[3].clone(),
-        body.clone(),
-    ];
-    let (params, param_types, ret_type) = parse_fn_signature(&sig_args).ok()?;
-    Some((
-        name.clone(),
-        Arc::new(Function {
-            name: Some(name),
-            params,
-            type_params: Vec::new(),
-            param_types,
-            ret_type,
-            rest_param: None,
-            rest_param_type: None,
-            body: Arc::new(body),
-            closed_env: None,
-        }),
-        prefixes,
-    ))
-}
+// Stone 241.14 — `try_parse_fn_shape_def_restricted` DELETED.
+// All callers (register_defines, preregister_fn_defs_in_do,
+// preregister_fn_defs_in_let) had their def-restricted arms deleted.
+// def-restricted is HARD CUT at check.rs.
 
 /// Arc 170 Gap C — pre-register fn-shape defs found inside a top-level
 /// `(:wat::core::do ...)` into `sym.functions`.
@@ -4416,18 +4288,9 @@ fn preregister_fn_defs_in_do(
             if let Some(meta) = metadata_opt {
                 sym.binding_metadata.insert(path, meta);
             }
-        } else if let Some((path, func, prefixes)) = try_parse_fn_shape_def_restricted(child) {
-            // Arc 198 — fn-shape `def-restricted` inside a top-level `do`.
-            // Pre-register the fn into `sym.functions` AND record the
-            // prefix whitelist. Sibling to the fn-shape `def` arm above.
-            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
-                let span = child.span().clone();
-                return Err(RuntimeError::ReservedPrefix(path, span));
-            }
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path.clone(), func);
-            }
-            sym.defined_value_restrictions.insert(path, prefixes);
+        // Stone 241.14 — def-restricted fn-shape arm DELETED from do-preregister.
+        // def-restricted is HARD CUT; forms reaching this path are rejected
+        // at check.rs before this pre-registration runs.
         // Stone 241.11 — is_define_form branch DELETED (define HARD CUT).
         } else if is_struct_form(child) {
             // Arc 170 slice 3 Gap F-1 — pre-register struct accessor stubs.
@@ -4492,16 +4355,9 @@ fn preregister_fn_defs_in_let(
             if let Some(meta) = metadata_opt {
                 sym.binding_metadata.insert(path, meta);
             }
-        } else if let Some((path, func, prefixes)) = try_parse_fn_shape_def_restricted(child) {
-            // Arc 198 — sibling to the `def` fn-shape arm; same pattern.
-            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
-                let span = child.span().clone();
-                return Err(RuntimeError::ReservedPrefix(path, span));
-            }
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path.clone(), func);
-            }
-            sym.defined_value_restrictions.insert(path, prefixes);
+        // Stone 241.14 — def-restricted fn-shape arm DELETED from let-preregister.
+        // def-restricted is HARD CUT; forms reaching this path are rejected
+        // at check.rs before this pre-registration runs.
         // Stone 241.11 — is_define_form branch DELETED (define HARD CUT).
         } else if is_struct_form(child) {
             // Arc 170 slice 3 Gap F-1 — pre-register struct accessor stubs.
@@ -5751,14 +5607,8 @@ fn dispatch_keyword_head_value(
             ":wat::core::def".into(),
             list_span.clone(),
         )),
-        // Arc 198 — `:wat::core::def-restricted` at expression position is
-        // a position violation, same as `def`. Top-level forms are processed
-        // by `register_runtime_defs_form` (freeze-time); any eval-time
-        // encounter is definitionally expression-position.
-        ":wat::core::def-restricted" => Err(RuntimeError::DeclarationInExpressionPosition(
-            ":wat::core::def-restricted".into(),
-            list_span.clone(),
-        )),
+        // Stone 241.14 — `:wat::core::def-restricted` eval arm DELETED.
+        // HARD CUT at check.rs fires before eval; no form reaches here.
         // Stone 237.2 — `:wat::core::defclause` at expression position is
         // a position violation. Top-level defclauses are processed by
         // `register_runtime_defs_form` (freeze-time).
@@ -9375,7 +9225,7 @@ fn eval_apply(
     // apply them would silently misfire; reject with a clean diagnostic.
     const SPECIAL_FORMS: &[&str] = &[
         ":wat::core::def",
-        ":wat::core::def-restricted",
+        // Stone 241.14 — ":wat::core::def-restricted" removed (HARD CUT; can't reach eval).
         ":wat::core::define",
         ":wat::core::defn",
         ":wat::core::fn",
@@ -27686,11 +27536,12 @@ mod tests {
             // `run()` helper we evaluate forms directly (no freeze path), so skip
             // declaration forms that are already pre-registered — evaluating them
             // again would hit `DeclarationInExpressionPosition`.
+            // Stone 241.14 — def-restricted removed from this guard (HARD CUT).
             if let WatAST::List(items, _) = form {
                 if let Some(WatAST::Keyword(head, _)) = items.first() {
                     if matches!(
                         head.as_str(),
-                        ":wat::core::def" | ":wat::core::def-restricted"
+                        ":wat::core::def"
                     ) {
                         continue;
                     }
@@ -32764,11 +32615,12 @@ mod tests {
         for form in &rest {
             // Stone 241.11 — skip declaration forms (already pre-registered);
             // mirrors the same guard in `run()`.
+            // Stone 241.14 — def-restricted removed from this guard (HARD CUT).
             if let WatAST::List(items, _) = form {
                 if let Some(WatAST::Keyword(head, _)) = items.first() {
                     if matches!(
                         head.as_str(),
-                        ":wat::core::def" | ":wat::core::def-restricted"
+                        ":wat::core::def"
                     ) {
                         continue;
                     }

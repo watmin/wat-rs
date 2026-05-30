@@ -35,6 +35,8 @@
 //! | `":wat::core::Char"`              | 242.1  | Char (PascalCase scalar)  | char (lowercase per Doctrine 2) |
 //! | `":wat::runtime::define-alias"`   | 241.12 | runtime macro define-alias | defalias (native substrate form) |
 //! | `":wat::core::define-dispatch"`   | 241.13 | dispatch entity kind       | defclause (Stone 237.2)          |
+//! | `":wat::core::def-restricted"`    | 241.14 | def-restricted caller whitelist | def + metadata-map `:restricted-to` |
+//! | `":wat::core::defn-restricted"`   | 241.14 | defn-restricted (wat macro)     | defn + metadata-map `:restricted-to` |
 
 use super::{Remedy, RemedyKind};
 
@@ -56,6 +58,9 @@ const RETIREMENT_TABLE: &[(&str, &str)] = &[
     (":wat::runtime::define-alias",   ":wat::core::defalias"),
     // Stone 241.13 — defclause replaces define-dispatch.
     (":wat::core::define-dispatch",   ":wat::core::defclause"),
+    // Stone 241.14 — def + metadata-map replaces def-restricted; defn + metadata-map replaces defn-restricted.
+    (":wat::core::def-restricted",    ":wat::core::def"),
+    (":wat::core::defn-restricted",   ":wat::core::defn"),
 ];
 
 /// Look up `needle` in the retirement table.

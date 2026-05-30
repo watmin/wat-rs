@@ -5,12 +5,15 @@
 //! namespace` walker; that ad-hoc rule was deleted in arc 198 slice 2
 //! Stone 4 once arc 198's generic `walk_for_def_restricted_call` walker
 //! covered the same callees (via Stone 3's `#[restricted_to(...)]`
-//! attribute on `eval_kernel_*_join_result`). The enforcement contract is
-//! UNCHANGED:
+//! attribute on `eval_kernel_*_join_result`). Stone 241.14 renamed the
+//! walker to `walk_for_restricted_call` and migrated restriction storage
+//! from `defined_value_restrictions` to `binding_metadata`. The enforcement
+//! contract is UNCHANGED:
 //!
 //! - Caller's enclosing wat `define` FQDN starts with `:wat::` → ALLOWED
 //! - Otherwise → compile error naming the offending callee verb plus
-//!   the `:wat::core::def-restricted` "allowed-caller whitelist" diagnostic.
+//!   the `DefRestrictedCallerNotAllowed` variant (name preserved per
+//!   `feedback_inscription_immutable`).
 //!
 //! ## Tests
 //!
@@ -48,8 +51,9 @@ fn startup_ok(src: &str) {
 fn stone_b_user_namespace_thread_join_result_is_rejected() {
     // A user-namespace fn (`:my::test::call-thread-join`) reaches for
     // `:wat::kernel::Thread/join-result` directly. Post-arc-198, arc 198's
-    // generic `walk_for_def_restricted_call` walker refuses (the callee
-    // carries `#[restricted_to(":wat::")]` per arc 198 slice 2 Stone 3);
+    // generic `walk_for_restricted_call` walker refuses (the callee
+    // carries `#[restricted_to(":wat::")]` per arc 198 slice 2 Stone 3;
+    // Stone 241.14 migrated restriction storage to binding_metadata);
     // the diagnostic names the callee + the allowed-caller whitelist.
     let src = r#"
         (:wat::core::defn :my::test::call-thread-join [thr <- :wat::kernel::Thread<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>> (:wat::kernel::Thread/join-result thr))

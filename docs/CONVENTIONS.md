@@ -16,22 +16,23 @@ or through `#[wat_dispatch]` for `:rust::*`.
 
 Every other prefix is user territory.
 
-## Declared restriction — `def-restricted` / `#[restricted_to(...)]` (arc 198)
+## Declared restriction — `{:restricted-to [...]}` metadata-map / `#[restricted_to(...)]` (arc 198 → Stone 241.14)
 
 A finer-grained access control complementing namespace privilege:
 any binding can declare an allowed-caller-prefix whitelist at its
-definition site. The walker rejects call sites whose enclosing
-definition does not match. Storage is a single `defined_value_restrictions`
-HashMap on `CheckEnv` (mirrored from `SymbolTable`); one walker
-(`walk_for_def_restricted_call`) enforces, regardless of which
-declaration surface populated the entry.
+definition site via a `{:restricted-to [...]}` metadata-map clause.
+The walker rejects call sites whose enclosing definition does not
+match. Storage is `binding_metadata` on `CheckEnv` (sole restriction
+store post-Stone 241.14; mirrored from `SymbolTable`); one walker
+(`walk_for_restricted_call`) enforces, regardless of which declaration
+surface populated the entry.
 
 **Two surfaces, same mechanism:**
 
 | Surface | Site | Form |
 |---------|------|------|
-| Wat | binding declaration | `(:wat::core::def-restricted :name [prefixes] value)` |
-| Wat (sugar) | fn binding | `(:wat::core::defn-restricted :name [prefixes] sig body)` |
+| Wat | fn binding | `(:wat::core::defn :name {:restricted-to [:p1:: :p2::]} sig body)` |
+| Wat | non-fn binding | `(:wat::core::def :name {:restricted-to [:p1::]} value)` |
 | Rust | substrate primitive | `#[restricted_to("wat-name", "prefix1", "prefix2")]` on the fn |
 
 **Prefix matching** (uniform across surfaces):
@@ -47,17 +48,21 @@ declaration surface populated the entry.
 - The restriction is a property of the SYMBOL, not of caller hygiene —
   declare it once at the fn site; the substrate enforces everywhere
 
-**When wat authors reach for `def-restricted`:**
+**When wat authors reach for `{:restricted-to [...]}`:**
 - A module's internal helper shouldn't be called from outside the
   module namespace
 - A test-fixture helper should only be reachable from `:my::tests::*`
 - The binding's access policy belongs at the binding site, not in
   README convention or post-hoc walker rules
 
-Wat-side primitive: `wat/core.wat` (arc 198 slice 1).
 Rust-side proc-macro: `crates/wat-macros/src/lib.rs` (arc 198 slice 2).
-Walker: `walk_for_def_restricted_call` in `src/check.rs`.
+Walker: `walk_for_restricted_call` in `src/check.rs`.
 Arc INSCRIPTION: `docs/arc/2026/05/198-defn-restricted/INSCRIPTION.md`.
+
+**History:** Arc 198 originally used `:wat::core::def-restricted` (substrate
+primitive) and `:wat::core::defn-restricted` (defmacro sugar over
+`def-restricted` + `fn`). Both forms retired by Stone 241.14 — use
+`def`/`defn` with `{:restricted-to [...]}` metadata-map instead.
 
 ## Namespaces
 
