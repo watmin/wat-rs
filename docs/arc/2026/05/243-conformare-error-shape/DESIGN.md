@@ -86,6 +86,23 @@ These carry attested-stone runes in the code citing their owner stone. DISTINCT 
 
 ⑬ `check_program`'s `Arc::new(types.clone())` (temperare T-L1-3) was initially triaged LEAVE-DISPUTED, but the CheckEnv-mirror investigation (above) gave it a real owner: it is the same shared-by-handle ownership defect, and Stone 243.6's CheckEnv redesign closes it. Reclassified from LEAVE-DISPUTED to DEFER → 243.6.
 
+## Vigilatum — the homes-walk ledger (substrate maturation)
+
+The namespaced-home vision (above) is executed via **selective lift-and-ward**, tracked by the `vigilatum` ward-provenance marker (`docs/VIGILATUM.md`, intueri-named 2026-05-30).
+
+**Lift triggers** (`feedback_warded_means_annihilated`): (a) many-impls — one concept defined N times, or N definitions missing a structural invariant (the failure-domain signature; e.g. argspec's ~4 definitions, the span-less error class); (b) near-perfect / "done done". Otherwise a functional single tool stays flat (untrusted-by-design) until arc 109 wraps.
+
+**The iron rule:** "warded" = failure domains FOUND AND ANNIHILATED (not "compiles," not "converged-checkbox"). The vigilatum stamp is EARNED by a live cast at L1+L2=0, never asserted from reputation (rust_deps proved it: "oldest code, surely clean" — the cast found 4 deferral-lies incl. a dead-arc citation + perf flaws). The stamp lives on the warded unit's module-doc; placement follows the ward (mod.rs for mod-rooted homes; the resident file for a lone warded resident under a flat root). NOT a central ledger (that would mirror file-truth).
+
+**Warded ledger:**
+
+| Home / resident | Anchor | Cast | Notes |
+|---|---|---|---|
+| `src/check/env.rs` | `22c89e04` | vigilia 8-spell | CheckEnv borrow redesign (Stone 243.3.1) |
+| `src/rust_deps/` (mod.rs + custodia.rs) | `7b89053e` | vigilia 7-spell | lifted custodia; annihilated 13 findings; oldest wat-rs code |
+
+**Remaining homes to walk** (each: live cast → annihilate-or-confirm → kill-confirm re-cast → stamp): argspec, function, remedy, comms. Drift-check any warded home via `git diff <anchor>..HEAD -- <path>`.
+
 ## Trap-doors
 
 | # | Risk | Detection | Resolution |
