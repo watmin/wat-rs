@@ -104,8 +104,9 @@ pub enum TypeExpr {
 ///
 /// `ctor_whitelist` governs `Name/new`; `field_restrictions` maps each
 /// restricted field name to its allowed-caller-prefix whitelist. Fields
-/// absent from `field_restrictions` are public (no restriction entry
-/// in `defined_value_restrictions`).
+/// absent from `field_restrictions` are public (no `:restricted-to` entry
+/// in `SymbolTable.binding_metadata` — no restriction means any caller
+/// allowed).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructRestrictions {
     /// Allowed-caller prefixes for the auto-synthesized `Name/new` constructor.
@@ -124,8 +125,9 @@ pub struct StructDef {
     /// Arc 203 — `None` for plain `:wat::core::struct` declarations;
     /// `Some(_)` for `:wat::core::struct-restricted` declarations.
     /// When present, `register_struct_methods` writes the ctor + per-field
-    /// whitelists into `SymbolTable.defined_value_restrictions` alongside
-    /// the synthesized Function entries.
+    /// whitelists into `SymbolTable.binding_metadata` (under `:restricted-to`)
+    /// alongside the synthesized Function entries (Stone 241.14 — migrated
+    /// from the deleted `defined_value_restrictions` field).
     pub restrictions: Option<StructRestrictions>,
 }
 
