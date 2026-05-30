@@ -174,10 +174,19 @@ pub(crate) fn parse_fn_signature(
 ///
 ///   `[ARGS-VECTOR, ->, :RET-TYPE]`
 ///
-/// Returns (names, types, ret). Errors are silenced. The `:ensure :fn`
-/// call site doesn't produce user-facing diagnostics for malformed fn signatures;
-/// if the fn is malformed, runtime parsing catches it and the checker simply
-/// returns None.
+/// Returns (names, types, ret). This is the A2 CLASSIFIER-PROBE: it answers
+/// "is this a well-formed fn-shape?" for the `:ensure :fn` validator, NOT the
+/// A3 diagnostic parser (`parse_fn_signature_for_check_diag` in `infer.rs`,
+/// which threads full `ArgSpecError` detail into the inference error stream
+/// via `From<ArgSpecError> for CheckError`).
+///
+/// rune:sequi(reclassified-by-caller) — the `ArgSpecError` detail is
+/// intentionally discarded to `()`. The sole caller (`:ensure :fn` validation
+/// in `check.rs`) re-surfaces a coarser `CheckError::EnsureFnInvalid`
+/// ("malformed :fn signature …") on the `Err(())` arm — that message IS the
+/// intended UX for this path. Threading the sub-step detail through would
+/// impair the deliberately-coarse `:ensure` diagnostic, so the discard is the
+/// fix, not a defect. (The fine-grained path is A3, which keeps the detail.)
 ///
 /// Moved from `src/check.rs` at Stone 241.18a.
 pub(crate) fn parse_fn_signature_for_check(
