@@ -52,7 +52,7 @@ fn freeze_err(src: &str) -> String {
 /// (:wat::core::forms <child-program-forms>...))` call AST from a
 /// child-program source string. The child program is parsed via
 /// `parser::parse_all_with_file` and must include a top-level
-/// `(:wat::core::define (:user::main -> :wat::core::nil) ...)`.
+/// `(:wat::core::defn :user::main [] -> :wat::core::nil ...)` (Stone 241.12: migrated from define).
 fn build_spawn_process_call(child_program_src: &str) -> WatAST {
     let child_forms =
         wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
@@ -336,18 +336,19 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
 fn t5_spawn_process_inline_lambda_round_trips() {
     // Arc 170 slice 6 — spawn-process accepts a wat PROGRAM
     // (`Vec<WatAST>`); the launcher constructs the program via
-    // (:wat::core::forms (:wat::core::define ...)). The inline-lambda
+    // (:wat::core::forms (:wat::core::defn ...)). The inline-lambda
     // entry_form path of slice 1b retires under the new substrate; the
     // analogous shape is now an inline program. Child is self-contained.
+    // Stone 241.12 — migrated from :wat::core::define to :wat::core::defn.
     let src = r#"
         (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
           (:wat::kernel::spawn-process
                       (:wat::core::forms
-                        (:wat::core::define (:user::main -> :wat::core::nil)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [n    (:wat::kernel::readln -> :wat::core::i64)
                              _out (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
-                            :wat::core::nil)))))
+                            nil)))))
     "#;
     let world = freeze_ok(src);
     // Invoke the launcher to get the Process Value.
@@ -413,12 +414,12 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     let src = r#"
         (:wat::core::defn :my::launch [offset <- :wat::core::i64] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
           (:wat::core::let
-                      [main-form `(:wat::core::define (:user::main -> :wat::core::nil)
+                      [main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                                     (:wat::core::let
                                       [n    (:wat::kernel::readln -> :wat::core::i64)
                                        _out (:wat::kernel::println
                                               (:wat::core::i64::+'2 n ~offset))]
-                                      :wat::core::nil))]
+                                      nil))]
                       (:wat::kernel::spawn-process
                         (:wat::core::Vector :wat::WatAST main-form))))
     "#;

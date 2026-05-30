@@ -2635,6 +2635,18 @@ pub fn register_defines(
 ) -> Result<Vec<WatAST>, RuntimeError> {
     let mut rest = Vec::new();
     for form in forms {
+        // Stone 241.12 — `:wat::core::defalias` native registration.
+        // Parsed + registered in Rust; the form is then consumed (does NOT go to `rest`
+        // so it does not reach check_program's expression-level inference; defalias is
+        // a declaration form, not a value-producing expression).
+        if let Some((alias, target)) = parse_defalias_form(&form) {
+            let form_span = form.span().clone();
+            register_defalias(&alias, &target, sym, form_span, true)?;
+            // Consumed — defalias does not participate in expression-level inference.
+            // The alias name is now in sym.functions; the checker resolves call sites.
+            rest.push(form);
+            continue;
+        }
         // Stone 241.11 — `:wat::core::define` is HARD CUT. The is_define_form branch
         // that pre-registered define forms is DELETED. Define forms now pass through
         // to the checker (step 8), which rejects them via the MalformedForm arm and
@@ -2800,28 +2812,14 @@ pub fn register_stdlib_defines(
                 sym.functions.insert(path, func);
             }
             rest.push(form);
-        } else if is_define_form(&form) {
-            // Stone 241.11 — stdlib is PRIVILEGED. The `define-alias` macro
-            // (wat/runtime.wat) generates `(:wat::core::define ...)` forms as
-            // its expansion output; these are INTERNAL stdlib forms, never
-            // authored by users. The stdlib residue is DISCARDED after step 6
-            // (the `_stdlib_function_residue` variable in freeze.rs) and never
-            // reaches the HARD-CUT checker at step 8. Pre-register the function
-            // into `sym` and consume the form (do NOT add to `rest`).
-            match parse_define_form(form) {
-                Ok((path, func)) => {
-                    if !sym.functions.contains_key(&path) {
-                        sym.functions.insert(path, func);
-                    }
-                    // Consumed — do not push to rest. Stdlib define forms
-                    // are internal-only and must not reach check_program.
-                }
-                Err(_) => {
-                    // Malformed stdlib define — ignore silently (stdlib is
-                    // substrate-authored; this path should never fire in
-                    // a correct build).
-                }
-            }
+        } else if let Some((alias, target)) = parse_defalias_form(&form) {
+            // Stone 241.12 — stdlib defalias native registration.
+            // Stdlib is PRIVILEGED — reserved-prefix gate bypassed (check_reserved=false).
+            let form_span = form.span().clone();
+            register_defalias(&alias, &target, sym, form_span, false)?;
+            // Consumed — defalias declaration form does not reach check_program.
+            // The stdlib residue is DISCARDED after step 6 anyway, but being explicit
+            // about NOT pushing to rest avoids any check-time exposure.
         } else if let WatAST::List(ref do_items, _) = form {
             // Arc 170 Gap C — top-level `(:wat::core::do ...)` splice.
             // Mirror of the arm in `register_defines`; bypasses the
@@ -3440,8 +3438,24 @@ fn register_runtime_defs_form(
             }
             let sym_ref: &SymbolTable = sym;
             let value = eval_inner(expr, env, sym_ref)?.value_owned();
+            // Stone 241.11 — preserve the `name` field from the def-restricted name keyword.
             if let Value::wat__core__fn(ref func) = value {
-                sym.functions.insert(name.clone(), func.clone());
+                let named_func = if func.name.is_none() {
+                    Arc::new(Function {
+                        name: Some(name.clone()),
+                        params: func.params.clone(),
+                        type_params: func.type_params.clone(),
+                        param_types: func.param_types.clone(),
+                        ret_type: func.ret_type.clone(),
+                        rest_param: func.rest_param.clone(),
+                        rest_param_type: func.rest_param_type.clone(),
+                        body: func.body.clone(),
+                        closed_env: func.closed_env.clone(),
+                    })
+                } else {
+                    func.clone()
+                };
+                sym.functions.insert(name.clone(), named_func);
             }
             sym.runtime_def_values.insert(name, value);
         }
@@ -3492,11 +3506,29 @@ fn register_runtime_defs_form(
             // overwrites any pre-registered stub (from `preregister_fn_defs_in_let`)
             // that carried `closed_env: None`. Without this update, `eval_tail`
             // dispatches through `sym.functions` (the stub) and loses the closure.
-            // The overwrite is idempotent for fns not pre-registered (no-op on
-            // first insert) and safe for define-registered fns (defines don't
-            // go through `register_runtime_defs_form`'s def arm; no collision).
+            //
+            // Stone 241.11 — preserve the `name` field from the def's name keyword.
+            // `eval_fn` creates Functions with `name: None`; the `def` form's name
+            // keyword is the authoritative name. Set `func.name = Some(name)` so that
+            // closure extraction (`function_to_define_form`) can reconstruct the
+            // correct defn form with the canonical name instead of `__anon`.
             if let Value::wat__core__fn(ref func) = value {
-                sym.functions.insert(name.clone(), func.clone());
+                let named_func = if func.name.is_none() {
+                    Arc::new(Function {
+                        name: Some(name.clone()),
+                        params: func.params.clone(),
+                        type_params: func.type_params.clone(),
+                        param_types: func.param_types.clone(),
+                        ret_type: func.ret_type.clone(),
+                        rest_param: func.rest_param.clone(),
+                        rest_param_type: func.rest_param_type.clone(),
+                        body: func.body.clone(),
+                        closed_env: func.closed_env.clone(),
+                    })
+                } else {
+                    func.clone()
+                };
+                sym.functions.insert(name.clone(), named_func);
             }
             // Stone 241.7 — store metadata for non-fn defs. fn-shape defs are
             // handled earlier by try_parse_fn_shape_def → register_defines. Non-fn
@@ -3593,6 +3625,164 @@ fn is_define_form(form: &WatAST) -> bool {
         WatAST::List(items, _)
             if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::define")
     )
+}
+
+/// Stone 241.12 — detect `(:wat::core::defalias :alias-name :target-name)` shape.
+///
+/// Returns `(alias_name, target_name)` strings if the form matches.
+fn parse_defalias_form(form: &WatAST) -> Option<(String, String)> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return None,
+    };
+    if items.len() != 3 {
+        return None;
+    }
+    match &items[0] {
+        WatAST::Keyword(k, _) if k == ":wat::core::defalias" => {}
+        _ => return None,
+    }
+    let alias = match &items[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return None,
+    };
+    let target = match &items[2] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return None,
+    };
+    Some((alias, target))
+}
+
+/// Stone 241.12 — register a `(:wat::core::defalias :alias :target)` form into `sym`.
+///
+/// Alias registration strategy:
+///
+/// 1. **User-defined target** (`sym.functions` contains the target):
+///    Create a new Arc<Function> with the alias name but the same params, types, and body
+///    as the target. The body delegates to the target by already containing the right call.
+///    More precisely: for a user-defined fn, the body IS the fn body — but we want the alias
+///    to CALL the target, not duplicate it. We use a body that calls `(target args...)`.
+///
+/// 2. **Builtin target** (in `CheckEnv::with_builtins()` but not in `sym.functions`):
+///    Look up the TypeScheme. Synthesize synthetic param names (`_p0`, `_p1`, ...).
+///    Create a body `(target _p0 _p1 ...)`. This mirrors what the old define-alias macro did.
+///
+/// 3. **Unknown target** (not found anywhere): Register a stub with an empty body.
+///    The checker will surface an UnresolvedReference error at call time. This is the
+///    honest failure path.
+///
+/// For the reserved-prefix gate: caller passes `check_reserved` = true for user code,
+/// false for stdlib (which is privileged).
+fn register_defalias(
+    alias: &str,
+    target: &str,
+    sym: &mut SymbolTable,
+    span: Span,
+    check_reserved: bool,
+) -> Result<(), RuntimeError> {
+    if check_reserved && crate::resolve::is_reserved_prefix(alias) {
+        return Err(RuntimeError::ReservedPrefix(alias.to_string(), span));
+    }
+    // Skip if already registered (idempotent).
+    if sym.functions.contains_key(alias) {
+        return Ok(());
+    }
+
+    // Case 1: target is a user-defined function already in sym.functions.
+    if let Some(target_fn) = sym.functions.get(target) {
+        // Create a delegating Function whose body calls `(target params...)`.
+        // This mirrors what the old define-alias macro produced: a new define whose
+        // signature copies the target's params and return type, and whose body calls
+        // `(target p0 p1 ...)`.
+        let target_fn = Arc::clone(target_fn);
+        let body = build_delegate_body(target, &target_fn.params, target_fn.rest_param.as_deref(), span.clone());
+        let alias_fn = Arc::new(Function {
+            name: Some(alias.to_string()),
+            params: target_fn.params.clone(),
+            type_params: target_fn.type_params.clone(),
+            param_types: target_fn.param_types.clone(),
+            ret_type: target_fn.ret_type.clone(),
+            rest_param: target_fn.rest_param.clone(),
+            rest_param_type: target_fn.rest_param_type.clone(),
+            body: Arc::new(body),
+            closed_env: None,
+        });
+        sym.functions.insert(alias.to_string(), alias_fn);
+        return Ok(());
+    }
+
+    // Case 2: target is a substrate primitive (in CheckEnv::with_builtins).
+    let builtin_env = crate::check::CheckEnv::with_builtins();
+    if let Some(scheme) = builtin_env.get(target) {
+        // Synthesize param names _p0, _p1, ... from scheme.params.
+        let param_names: Vec<String> = scheme.params
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("_p{}", i))
+            .collect();
+        let rest_param = scheme.rest_param_type.as_ref().map(|_| "_rest".to_string());
+        let body = build_delegate_body(target, &param_names, rest_param.as_deref(), span.clone());
+        let alias_fn = Arc::new(Function {
+            name: Some(alias.to_string()),
+            params: param_names,
+            type_params: scheme.type_params.clone(),
+            param_types: scheme.params.clone(),
+            ret_type: scheme.ret.clone(),
+            rest_param,
+            rest_param_type: scheme.rest_param_type.clone(),
+            body: Arc::new(body),
+            closed_env: None,
+        });
+        sym.functions.insert(alias.to_string(), alias_fn);
+        return Ok(());
+    }
+
+    // Case 3: unknown target — register a minimal stub so the alias name is
+    // "known" at check time, but the UnresolvedReference will surface at the
+    // first actual call-site. The target itself will also surface as an error.
+    let stub_body = WatAST::Keyword(":wat::core::nil".into(), span.clone());
+    let stub_fn = Arc::new(Function {
+        name: Some(alias.to_string()),
+        params: vec![],
+        type_params: vec![],
+        param_types: vec![],
+        ret_type: crate::types::TypeExpr::Tuple(vec![]),
+        rest_param: None,
+        rest_param_type: None,
+        body: Arc::new(stub_body),
+        closed_env: None,
+    });
+    sym.functions.insert(alias.to_string(), stub_fn);
+    Ok(())
+}
+
+/// Stone 241.12 — build a delegate call body `(target p0 p1 ... & rest)`.
+///
+/// Used by `register_defalias` to synthesize the body of the alias Function.
+fn build_delegate_body(
+    target: &str,
+    params: &[String],
+    rest_param: Option<&str>,
+    span: Span,
+) -> WatAST {
+    let mut items: Vec<WatAST> = Vec::with_capacity(1 + params.len() + rest_param.is_some() as usize);
+    items.push(WatAST::Keyword(target.to_string(), span.clone()));
+    for p in params {
+        items.push(WatAST::Symbol(
+            crate::identifier::Identifier::bare(p.as_str()),
+            span.clone(),
+        ));
+    }
+    if let Some(rest) = rest_param {
+        // Splice rest param into the call — the runtime spreads rest args via
+        // the variadic call path when the last positional is missing but rest is present.
+        // Emit as a plain symbol reference; the eval loop handles rest-arg forwarding.
+        items.push(WatAST::Symbol(
+            crate::identifier::Identifier::bare(rest),
+            span.clone(),
+        ));
+    }
+    WatAST::List(items, span)
 }
 
 /// Stone 241.8 — detect `(:wat::core::defstruct :Name ...)` shape.

@@ -1426,6 +1426,8 @@ pub fn is_declaration_form(head: &str) -> bool {
             | ":wat::core::defenum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
+            // Stone 241.12 — defalias is a declaration form (alias binding).
+            | ":wat::core::defalias"
     )
 }
 

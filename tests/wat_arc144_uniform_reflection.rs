@@ -360,7 +360,7 @@ fn dispatch_length_signature_and_body_shape() {
 #[test]
 fn length_canary_hashmap_via_define_alias() {
     let src = r##"
-        (:wat::runtime::define-alias :user::size :wat::core::length)
+        (:wat::core::defalias :user::size :wat::core::length)
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:user::size

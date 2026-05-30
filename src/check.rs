@@ -7127,6 +7127,18 @@ fn infer_list(
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),
                 }]);
             }
+            // Stone 241.12 — HARD CUT: :wat::runtime::define-alias is retired.
+            // The native :wat::core::defalias is the sole alias mechanism.
+            // No privileged paths per `feedback_hard_cut_admits_no_bypasses`.
+            ":wat::runtime::define-alias" => {
+                return CheckResult::errs(vec![CheckError::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!("'{}' is retired (Stone 241.12); use ':wat::core::defalias' instead", k),
+                    span: head_span.clone(),
+                    // Stone 241.10: retirement_lookup hits the table → structured remedy.
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
+                }]);
+            }
             // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
             ":wat::core::defstruct"
             // Stone 241.9 — defenum replaces enum (HARD CUT).
@@ -7134,6 +7146,8 @@ fn infer_list(
             | ":wat::core::newtype"
             | ":wat::core::typealias"
             | ":wat::core::defmacro"
+            // Stone 241.12 — defalias: declaration form, not value-producing expression.
+            | ":wat::core::defalias"
             | ":wat::load-file!"
             | ":wat::digest-load!"
             | ":wat::signed-load!"

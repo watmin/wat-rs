@@ -57,7 +57,7 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
           (:wat::core::let
                       [proc (:wat::kernel::spawn-process
                               (:wat::core::forms
-                                (:wat::core::define (:user::main -> :wat::core::nil)
+                                (:wat::core::defn :user::main [] -> :wat::core::nil
                                   (:my::echo-worker))))
                        tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
                        rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))

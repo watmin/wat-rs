@@ -281,22 +281,19 @@ fn signature_of_defn_emits_structured_tuple_return_type() {
     );
 }
 
-// ─── Consumer regression: define-alias still works on parametric fn ────────
+// ─── Consumer regression: defalias works on parametric fn (Stone 241.12) ───
 
 #[test]
 fn define_alias_round_trips_on_parametric_signature() {
-    // `:wat::runtime::define-alias` walks signature-of-defn's HolonAST and
-    // splices the renamed signature head back into a fresh `define`.
-    // After arc 201, that spliced head carries STRUCTURED type slots
-    // (Bundles for Parametric / Tuple / Fn shapes) where the original
-    // source used flat keyword strings. This test pins the slice 1
-    // round-trip: aliasing `:wat::core::foldl` (which has both a
-    // `:Vector<T>` Parametric param and a `:Fn(Acc,T)->Acc` Fn param)
-    // must succeed end-to-end, including the eventual `:wat::core::define`
-    // re-parse of the spliced structured signature.
+    // Stone 241.12 — migrated from :wat::runtime::define-alias to :wat::core::defalias.
+    // The native form handles parametric targets by copying the target's
+    // TypeScheme params/ret into the alias Function directly.
+    // This test pins the round-trip: aliasing `:wat::core::foldl` (which has
+    // both a `:Vector<T>` Parametric param and a `:Fn(Acc,T)->Acc` Fn param)
+    // must succeed end-to-end.
     let src = r##"
 
-        (:wat::runtime::define-alias :user::my-fold :wat::core::foldl)
+        (:wat::core::defalias :user::my-fold :wat::core::foldl)
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:user::my-fold

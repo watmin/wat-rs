@@ -42,17 +42,17 @@
 ;; ops. Each alias maps a short ergonomic name to its explicit per-Type
 ;; impl. Per arc 146 DESIGN: single-impl ops are aliases (not
 ;; dispatches; dispatch is for genuine polymorphism). Both short + long
-;; names work; both are honest. The alias machinery (arc 143's
-;; :wat::runtime::define-alias) expands at registration time into a
-;; delegating user-define whose head copies the target's signature
-;; with the alias name substituted.
+;; names work; both are honest.
+;;
+;; Stone 241.12 — migrated from :wat::runtime::define-alias to :wat::core::defalias
+;; (native substrate form; one layer, not two).
 
 ;; arc 237 Stone 237.7c — `:wat::core::assoc` is now a Rust ∀T intrinsic with custom inference
 ;; arm spanning HashMap + Record; see `src/check.rs::infer_assoc` + `src/runtime.rs::eval_assoc`.
-(:wat::runtime::define-alias :wat::core::dissoc  :wat::core::HashMap/dissoc)
-(:wat::runtime::define-alias :wat::core::keys    :wat::core::HashMap/keys)
-(:wat::runtime::define-alias :wat::core::values  :wat::core::HashMap/values)
-(:wat::runtime::define-alias :wat::core::concat  :wat::core::Vector/concat)
+(:wat::core::defalias :wat::core::dissoc  :wat::core::HashMap/dissoc)
+(:wat::core::defalias :wat::core::keys    :wat::core::HashMap/keys)
+(:wat::core::defalias :wat::core::values  :wat::core::HashMap/values)
+(:wat::core::defalias :wat::core::concat  :wat::core::Vector/concat)
 
 ;; ─── Arc 148 slice 4 — Numeric arithmetic ────────────────────────────
 ;;

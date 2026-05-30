@@ -1,33 +1,22 @@
-//! Integration coverage for arc 143 slice 6 — the
-//! `:wat::runtime::define-alias` defmacro.
+//! Integration coverage for arc 143 slice 6 — alias binding.
 //!
-//! The macro lives in `wat/runtime.wat` (pure wat) and composes
-//! the substrate primitives shipped in slices 1+2+3:
-//!   - `:wat::runtime::signature-of-defn`     (slice 1)
-//!   - `:wat::runtime::rename-callable-name`  (slice 3)
-//!   - `:wat::runtime::extract-arg-names`     (slice 3)
-//!   - computed unquote `,(expr)`             (slice 2)
+//! Stone 241.12 — migrated from `:wat::runtime::define-alias` defmacro to
+//! `:wat::core::defalias` native substrate form.
 //!
-//! Sequencing constraint discovered in slice 6:
-//!   Computed unquote runs during macro expansion (step 4 in
-//!   startup_from_forms_post_config) with &SymbolTable::default()
-//!   (empty). Only substrate primitives visible via
-//!   CheckEnv::with_builtins() are reachable at expand-time.
-//!   User-defined functions in the same source file are NOT visible
-//!   until step 6 (register_defines). Therefore define-alias can
-//!   only alias substrate primitives at expand-time.
+//! The native form is parsed + registered in Rust at `src/runtime.rs::register_defalias`.
+//! No macro expansion required; the alias is available immediately after step 6
+//! (register_defines), not deferred to macro expansion at step 4.
 //!
 //! Tests:
-//!   1. Alias a substrate primitive (:wat::core::foldl) — expand-time
-//!      signature-of-defn succeeds; alias delegates to the primitive correctly.
+//!   1. Alias a substrate primitive (:wat::core::foldl) — native registration resolves
+//!      the builtin via CheckEnv::with_builtins(); alias delegates correctly.
 //!   2. Alias another substrate primitive (:wat::core::length) — verifies
-//!      the macro works for multiple targets.
-//!   3. Error case — alias to a name that doesn't exist (not a substrate
-//!      primitive, not a user define) — Option/expect panics at expand-time.
-//!      Verifies the macro expands eagerly and the error message propagates.
+//!      the native form works for multiple targets.
+//!   3. Alias an unknown target — the native form registers a stub; the HARD CUT
+//!      for :wat::runtime::define-alias fires with a retirement remedy.
 //!
 //! Arc 170 slice 1f-ζ: tests 1+2 use eval_in_frozen with :my::compute;
-//! test 3 unchanged (catch_unwind, panic-at-startup path).
+//! test 3 unchanged (catch_unwind, startup-error path).
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
@@ -55,18 +44,17 @@ fn run(src: &str) -> Value {
     eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
-// ─── Test 1: alias :wat::core::foldl — expand-time substrate lookup works ────
+// ─── Test 1: alias :wat::core::foldl — native registration resolves builtin ──
 
 #[test]
 fn define_alias_foldl_to_user_fold_delegates_correctly() {
-    // Alias :wat::core::foldl as :user::my-fold.
-    // At expand-time, signature-of-defn :wat::core::foldl resolves via
-    // CheckEnv::with_builtins() — the substrate primitive IS visible.
+    // Alias :wat::core::foldl as :user::my-fold via native :wat::core::defalias.
+    // The builtin is resolved at registration time via CheckEnv::with_builtins().
     // Call (:user::my-fold (Vector :wat::core::i64 1 2 3 4) 0 +fn) → 10.
     // Arc 170 slice 1f-ζ: result returned as i64 via :my::compute.
     let src = r##"
 
-        (:wat::runtime::define-alias :user::my-fold :wat::core::foldl)
+        (:wat::core::defalias :user::my-fold :wat::core::foldl)
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:user::my-fold
@@ -86,13 +74,12 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
 
 #[test]
 fn define_alias_length_to_user_size_delegates_correctly() {
-    // Alias :wat::core::length as :user::my-size.
-    // At expand-time, signature-of-defn :wat::core::length resolves via substrate.
+    // Alias :wat::core::length as :user::my-size via native :wat::core::defalias.
     // Call (:user::my-size (Vector :wat::core::i64 10 20 30)) → 3.
     // Arc 170 slice 1f-ζ: result returned as i64 via :my::compute.
     let src = r##"
 
-        (:wat::runtime::define-alias :user::my-size :wat::core::length)
+        (:wat::core::defalias :user::my-size :wat::core::length)
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:user::my-size
@@ -104,37 +91,34 @@ fn define_alias_length_to_user_size_delegates_correctly() {
     }
 }
 
-// ─── Test 3: unknown target panics at expand-time ────────────────────────────
+// ─── Test 3: retired form :wat::runtime::define-alias is HARD-CUT-rejected ───
 
 #[test]
-fn define_alias_unknown_target_panics_at_expand_time() {
-    // :user::name-that-does-not-exist is not a substrate primitive or user define.
-    // The macro calls (Option/expect (signature-of-defn :user::name-that-does-not-exist) ...)
-    // at expand-time; expect panics via std::panic::panic_any —
-    // this propagates as a Rust panic out of startup_from_source.
-    //
-    // NOTE: expect_panic uses std::panic::panic_any (not a Result::Err),
-    // so startup_from_source propagates the panic rather than returning
-    // Err(StartupError). We use catch_unwind to detect it.
+fn define_alias_retired_form_rejected_at_startup() {
+    // Stone 241.12 — :wat::runtime::define-alias is HARD-CUT-rejected.
+    // The HARD CUT arm in check.rs fires; startup returns Err with a retirement remedy.
+    // Prior behavior: macro panicked at expand-time for unknown targets.
+    // New behavior: HARD CUT rejects the retired form regardless of target.
     let src = r##"
 
         (:wat::runtime::define-alias :user::alias :user::name-that-does-not-exist)
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
-    let result = std::panic::catch_unwind(|| {
-        startup_from_source(
-            src,
-            Some(concat!(file!(), ":", line!())),
-            Arc::new(InMemoryLoader::new()),
-        )
-    });
+    let result = startup_from_source(
+        src,
+        Some(concat!(file!(), ":", line!())),
+        Arc::new(InMemoryLoader::new()),
+    );
     assert!(
         result.is_err(),
-        "expected startup to panic for unknown target name, but it returned Ok"
+        "expected startup to fail for retired :wat::runtime::define-alias form; got Ok"
     );
-    // The panic payload is an AssertionPayload; its message field carries
-    // "define-alias: target name not found in environment".
-    // We don't inspect the payload here — the panic-at-startup is the
-    // observable signal. The message is in the macro body verbatim.
+    // Verify the error message names the retired form and the remedy.
+    let err_msg = format!("{}", result.unwrap_err());
+    assert!(
+        err_msg.contains(":wat::runtime::define-alias") || err_msg.contains(":wat::core::defalias"),
+        "error message should reference the retired form or the replacement; got:\n{}",
+        err_msg
+    );
 }

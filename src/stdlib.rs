@@ -226,9 +226,9 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/runtime.wat"),
     },
     // Arc 143 slice 7 — :wat::list::* list-operation aliases.
-    // Applies :wat::runtime::define-alias to create :wat::list::reduce
-    // as an alias for :wat::core::foldl. Must load AFTER wat/runtime.wat
-    // so the define-alias macro is registered before this application form.
+    // Stone 241.12 — uses :wat::core::defalias (native substrate form) to create
+    // :wat::list::reduce and :wat::list::fold as aliases for :wat::core::foldl.
+    // No longer depends on wat/runtime.wat macro registration order.
     WatSource {
         path: "wat/list.wat",
         source: include_str!("../wat/list.wat"),

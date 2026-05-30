@@ -2,31 +2,8 @@
 ;;
 ;; Runtime-discovery + reflection-driven macros built atop the
 ;; substrate primitives shipped in arcs 143 slices 1+2+3.
-
-;; ─── :wat::runtime::define-alias ─────────────────────────────────────────────
 ;;
-;; (define-alias alias-name target-name) emits a fresh
-;; :wat::core::define whose head copies the target's signature with
-;; the alias name substituted, and whose body delegates to the target.
-;;
-;; Depends on:
-;;   - slice 1: :wat::runtime::signature-of-defn
-;;   - slice 2: computed unquote ,(expr) at expand-time
-;;   - slice 3: :wat::runtime::rename-callable-name
-;;              :wat::runtime::extract-arg-names
-(:wat::core::defmacro
-  (:wat::runtime::define-alias
-    (alias-name :AST<wat::core::keyword>)
-    (target-name :AST<wat::core::keyword>)
-    -> :AST<wat::core::nil>)
-  `(:wat::core::define
-     ~(:wat::runtime::rename-callable-name
-        (:wat::core::Option/expect -> :wat::holon::HolonAST
-          (:wat::runtime::signature-of-defn target-name)
-          "define-alias: target name not found in environment")
-        target-name
-        alias-name)
-     (~target-name ~@(:wat::runtime::extract-arg-names
-                       (:wat::core::Option/expect -> :wat::holon::HolonAST
-                         (:wat::runtime::signature-of-defn target-name)
-                         "define-alias: target name not found in environment")))))
+;; Stone 241.12 — :wat::runtime::define-alias HARD CUT.
+;; The macro implementation is DELETED. The native :wat::core::defalias
+;; form (parsed + registered in Rust at src/runtime.rs) is the sole
+;; alias mechanism. :wat::runtime::define-alias is retired.

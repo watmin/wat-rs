@@ -33,6 +33,7 @@
 //! | `":wat::core::enum"`              | 241.9 | enum (original)    | defenum   |
 //! | `":wat::core::define"`            | 241.11 | define (function binding) | defn |
 //! | `":wat::core::Char"`              | 242.1  | Char (PascalCase scalar)  | char (lowercase per Doctrine 2) |
+//! | `":wat::runtime::define-alias"`   | 241.12 | runtime macro define-alias | defalias (native substrate form) |
 
 use super::{Remedy, RemedyKind};
 
@@ -50,6 +51,8 @@ const RETIREMENT_TABLE: &[(&str, &str)] = &[
     (":wat::core::define",            ":wat::core::defn"),
     // Stone 242.1 — char (lowercase) replaces Char (per Doctrine 2; scalar types lowercase).
     (":wat::core::Char",              ":wat::core::char"),
+    // Stone 241.12 — defalias replaces runtime define-alias (native substrate form).
+    (":wat::runtime::define-alias",   ":wat::core::defalias"),
 ];
 
 /// Look up `needle` in the retirement table.

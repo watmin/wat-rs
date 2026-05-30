@@ -29,12 +29,12 @@ fn arc112_probe_spawn_program_parametric_return() {
         (:wat::core::defn :my::worker
           []
           -> :wat::core::nil
-          :wat::core::nil)
+          nil)
 
         (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
           (:wat::kernel::spawn-process
                       (:wat::core::forms
-                        (:wat::core::define (:user::main -> :wat::core::nil)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:my::worker)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)

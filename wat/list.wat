@@ -13,5 +13,6 @@
 ;; follow-on arc; the aliases' TARGET updates without touching
 ;; their NAMES.
 
-(:wat::runtime::define-alias :wat::list::reduce :wat::core::foldl)
-(:wat::runtime::define-alias :wat::list::fold   :wat::core::foldl)
+;; Stone 241.12 — migrated from :wat::runtime::define-alias to :wat::core::defalias.
+(:wat::core::defalias :wat::list::reduce :wat::core::foldl)
+(:wat::core::defalias :wat::list::fold   :wat::core::foldl)

@@ -2322,50 +2322,45 @@ fn function_to_define_form(func: &Function) -> WatAST {
 
 /// Same as `function_to_define_form` but lets the caller pass in a
 /// rewritten body (used for the entry fn after capture-rewriting).
+///
+/// Stone 241.11 — emits `:wat::core::defn` (not the retired `:wat::core::define`).
+/// defn shape: `(:wat::core::defn :name<T,U> [p1 <- :T1  p2 <- :T2  & rest <- :Trest] -> :Ret body)`.
 fn function_to_define_form_with_body(
     func: &Function,
     name: &str,
     body: WatAST,
 ) -> WatAST {
     let span = Span::unknown();
+    // defn uses a Keyword for the function name (with optional type params).
     let head_kw = if func.type_params.is_empty() {
         name.to_string()
     } else {
         format!("{}<{}>", name, func.type_params.join(","))
     };
-    let mut sig_items: Vec<WatAST> = Vec::with_capacity(3 + func.params.len() * 2 + 4);
-    sig_items.push(WatAST::Keyword(head_kw, span.clone()));
+    // Build binder vector: [p1 <- :T1  p2 <- :T2  & rest <- :Trest]
+    let mut binder_items: Vec<WatAST> = Vec::with_capacity(func.params.len() * 3 + 3);
     for (param, ty) in func.params.iter().zip(func.param_types.iter()) {
-        sig_items.push(WatAST::List(
-            vec![
-                WatAST::Symbol(Identifier::bare(param.clone()), span.clone()),
-                WatAST::Keyword(format_type_for_emit(ty), span.clone()),
-            ],
-            span.clone(),
-        ));
+        binder_items.push(WatAST::Symbol(Identifier::bare(param.clone()), span.clone()));
+        binder_items.push(WatAST::Symbol(Identifier::bare("<-"), span.clone()));
+        binder_items.push(WatAST::Keyword(format_type_for_emit(ty), span.clone()));
     }
     if let (Some(rname), Some(rty)) =
         (func.rest_param.as_ref(), func.rest_param_type.as_ref())
     {
-        sig_items.push(WatAST::Symbol(Identifier::bare("&"), span.clone()));
-        sig_items.push(WatAST::List(
-            vec![
-                WatAST::Symbol(Identifier::bare(rname.clone()), span.clone()),
-                WatAST::Keyword(format_type_for_emit(rty), span.clone()),
-            ],
-            span.clone(),
-        ));
+        binder_items.push(WatAST::Symbol(Identifier::bare("&"), span.clone()));
+        binder_items.push(WatAST::Symbol(Identifier::bare(rname.clone()), span.clone()));
+        binder_items.push(WatAST::Symbol(Identifier::bare("<-"), span.clone()));
+        binder_items.push(WatAST::Keyword(format_type_for_emit(rty), span.clone()));
     }
-    sig_items.push(WatAST::Symbol(Identifier::bare("->"), span.clone()));
-    sig_items.push(WatAST::Keyword(
-        format_type_for_emit(&func.ret_type),
-        span.clone(),
-    ));
-    let signature = WatAST::List(sig_items, span.clone());
+    let binders = WatAST::Vector(binder_items, span.clone());
+    // Build: (:wat::core::defn :name [binders] -> :Ret body)
     WatAST::List(
         vec![
-            WatAST::Keyword(":wat::core::define".into(), span.clone()),
-            signature,
+            WatAST::Keyword(":wat::core::defn".into(), span.clone()),
+            WatAST::Keyword(head_kw, span.clone()),
+            binders,
+            WatAST::Symbol(Identifier::bare("->"), span.clone()),
+            WatAST::Keyword(format_type_for_emit(&func.ret_type), span.clone()),
             body,
         ],
         span,

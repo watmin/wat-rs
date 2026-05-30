@@ -17,7 +17,7 @@ diagram.
 No computation in main. No I/O in main. No state in main. Just wiring.
 
 ```scheme
-(:wat::core::define (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     ;; 1. Construct the consumers — each spawn returns a HandlePool
     ;;    of senders + the driver's Thread.

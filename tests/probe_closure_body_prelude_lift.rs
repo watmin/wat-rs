@@ -102,18 +102,11 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 
 // ─── Probe 1 — define in fn body do-prefix lifts to prologue ─────────────────
 
-/// A `define` form at the head of a fn body's `do` must lift into the
-/// closure's prologue so the child's `startup_from_forms` registers it at
-/// step 6 (before the body runs). Without the lift the child exits non-zero
-/// (`DefineInExpressionPosition`). After Gap H the child exits 0.
+/// A `defn` form at the head of a fn body's `do` (via spawn-process forms)
+/// lives at program top-level; the child's `startup_from_forms` registers it at
+/// step 6. The body then calls the declared helper via let-binding.
 ///
-/// The child fn's body is:
-///   `(:wat::core::do
-///      (:wat::core::define (:h::helper -> :wat::core::i64) 42)
-///      (:wat::core::let [v (:h::helper)] :wat::core::nil))`
-///
-/// `:h::helper` is declared inside the fn body; the lift makes it available
-/// in the child's SymbolTable so the `let`-bound call succeeds.
+/// Stone 241.12 — migrated from `:wat::core::define` to `:wat::core::defn`.
 #[test]
 fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — under the new spawn-process program shape, the
@@ -126,9 +119,9 @@ fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
         (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
                       (:wat::core::forms
-                        (:wat::core::define (:h::helper -> :wat::core::i64) 42)
-                        (:wat::core::define (:user::main -> :wat::core::nil)
-                          (:wat::core::let [v (:h::helper)] :wat::core::nil)))))
+                        (:wat::core::defn :h::helper [] -> :wat::core::i64 42)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
+                          (:wat::core::let [v (:h::helper)] nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -158,8 +151,8 @@ fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
                         (:wat::core::defstruct :h::LocalPoint
                           [x <- :wat::core::i64
                            y <- :wat::core::i64])
-                        (:wat::core::define (:user::main -> :wat::core::nil)
-                          (:wat::core::let [p (:h::LocalPoint/new 3 4)] :wat::core::nil)))))
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
+                          (:wat::core::let [p (:h::LocalPoint/new 3 4)] nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -188,8 +181,8 @@ fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
                         (:wat::core::defenum :h::LocalDir
                           :North
                           :South)
-                        (:wat::core::define (:user::main -> :wat::core::nil)
-                          (:wat::core::let [d :h::LocalDir::North] :wat::core::nil)))))
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
+                          (:wat::core::let [d :h::LocalDir::North] nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -221,13 +214,13 @@ fn probe_mixed_prelude_lift() {
                         (:wat::core::defenum :h::LocalKind
                           :A
                           :B)
-                        (:wat::core::define (:h::make-item -> :h::LocalItem)
+                        (:wat::core::defn :h::make-item [] -> :h::LocalItem
                           (:h::LocalItem/new 99))
-                        (:wat::core::define (:user::main -> :wat::core::nil)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [item (:h::make-item)
                              kind :h::LocalKind::A]
-                            :wat::core::nil)))))
+                            nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -274,9 +267,9 @@ fn probe_prelude_prefix_terminates_at_first_expression() {
         (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
                       (:wat::core::forms
-                        (:wat::core::define (:h::counted-helper -> :wat::core::i64) 7)
-                        (:wat::core::define (:user::main -> :wat::core::nil)
-                          (:wat::core::let [_v (:h::counted-helper)] :wat::core::nil)))))
+                        (:wat::core::defn :h::counted-helper [] -> :wat::core::i64 7)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
+                          (:wat::core::let [_v (:h::counted-helper)] nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;

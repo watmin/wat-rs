@@ -19,8 +19,8 @@
 //!   2. `rename-callable-name` rejects Symbol first child: a Bundle with
 //!      Symbol("foo") as first child now fails (post-arc-221 doctrine: function
 //!      names are Keyword-shaped). Verify runtime error.
-//!   3. `define-alias` end-to-end: define :user::my-neg, alias as :user::my-neg-alias,
-//!      verify calling the alias produces the same result.
+//!   3. `defalias` end-to-end (Stone 241.12): alias a substrate primitive (:wat::core::length),
+//!      verify calling the alias produces the same result as the original.
 
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
@@ -180,30 +180,28 @@ fn probe_2_rename_callable_name_from_mismatch_errors() {
     );
 }
 
-// ─── Probe 3 — define-alias end-to-end (substrate target) ───────────────────
+// ─── Probe 3 — defalias end-to-end (substrate target, Stone 241.12) ─────────
 
-/// `(:wat::runtime::define-alias :user::my-length :wat::core::length)` creates
+/// `(:wat::core::defalias :user::my-length :wat::core::length)` creates
 /// an alias of a substrate primitive. Calling the alias must produce the same
 /// result as calling the original.
 ///
-/// Uses a substrate primitive as target (`:wat::core::length`) because
-/// substrate primitives are always in the symbol table at macro expansion time.
-/// User-defined functions are not available until after all defines are processed
-/// — the define-alias macro expands at startup time before the user's own defines
-/// in the same program are registered.
+/// Stone 241.12 — migrated from :wat::runtime::define-alias to native :wat::core::defalias.
+/// The native form resolves the builtin via CheckEnv::with_builtins() at
+/// registration time; no macro expansion required.
 ///
-/// This exercises the full define-alias macro pipeline:
-///   1. signature-of-defn :wat::core::length → Bundle with Keyword head
-///   2. rename-callable-name <sig> :wat::core::length :user::my-length → renamed Bundle
-///   3. extract-arg-names <sig> → [Symbol("_a0")] (synthesised bare ident)
-///   4. The alias body delegates: (my-length _a0) → (length _a0)
+/// This exercises the native defalias pipeline:
+///   1. parse_defalias_form extracts (alias=:user::my-length, target=:wat::core::length)
+///   2. register_defalias looks up :wat::core::length in CheckEnv::with_builtins()
+///   3. Synthesises param names _p0, creates delegate body (:wat::core::length _p0)
+///   4. Inserts alias Function into sym.functions under :user::my-length
 ///
-/// This is the end-to-end proof that the Phase 2 macro-support family works
-/// correctly after Stone 221.4b's Keyword-shape fix.
+/// This is the end-to-end proof that the native defalias works for substrate
+/// primitive targets.
 #[test]
 fn probe_3_define_alias_end_to_end() {
     let src = r##"
-        (:wat::runtime::define-alias :user::my-length :wat::core::length)
+        (:wat::core::defalias :user::my-length :wat::core::length)
 
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let

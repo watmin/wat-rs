@@ -131,11 +131,11 @@ fn probe_spawn_process_inherits_parent_struct() {
                         (:wat::core::defstruct :test::proto::Point
                           [x <- :wat::core::i64
                            y <- :wat::core::i64])
-                        (:wat::core::define (:user::main -> :wat::core::nil)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [s "#test.proto/Point {:x 3 :y 4}"
                              _ (:wat::edn::read s)]
-                            :wat::core::nil)))))
+                            nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
@@ -181,11 +181,11 @@ fn probe_spawn_process_inherits_parent_enum() {
                           :Red
                           :Green
                           :Blue)
-                        (:wat::core::define (:user::main -> :wat::core::nil)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [s "#test.proto.Color/Red nil"
                              _ (:wat::edn::read s)]
-                            :wat::core::nil)))))
+                            nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;
@@ -242,11 +242,11 @@ fn probe_spawn_process_inherits_parametric_type() {
                         (:wat::core::defstruct :test::proto::Wrapper<E>
                           [label <- :wat::core::String
                            value <- :wat::core::i64])
-                        (:wat::core::define (:user::main -> :wat::core::nil)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [s "#test.proto/Wrapper {:label :empty :value 42}"
                              _ (:wat::edn::read s)]
-                            :wat::core::nil)))))
+                            nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "##;

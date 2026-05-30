@@ -1055,23 +1055,25 @@ fn t21_match_arm_binding_shadows_outer_let() {
 
 // ─── helpers for form inspection ────────────────────────────────────────
 
-/// Pull the canonical name out of a `(:wat::core::define <sig> body)`
-/// form. Returns None for non-define forms.
+/// Pull the canonical name out of a `(:wat::core::defn :name [binders] -> :ret body)`
+/// form. Returns None for non-defn forms.
+///
+/// Stone 241.11 — updated from `:wat::core::define` (old 3-item form) to
+/// `:wat::core::defn` (6-item form); closure_extract.rs now emits defn.
 fn extract_define_name(form: &WatAST) -> Option<String> {
     if let WatAST::List(items, _) = form {
-        if items.len() == 3 {
+        // defn shape: [head, :name, [binders], ->, :ret, body] = 6 items
+        if items.len() == 6 {
             if let Some(WatAST::Keyword(head, _)) = items.first() {
-                if head == ":wat::core::define" {
-                    if let WatAST::List(sig_items, _) = &items[1] {
-                        if let Some(WatAST::Keyword(name, _)) = sig_items.first() {
-                            // Strip any `<T,U>` suffix; canonical name is
-                            // the keyword path without type-params.
-                            let canonical = match name.find('<') {
-                                Some(idx) => name[..idx].to_string(),
-                                None => name.clone(),
-                            };
-                            return Some(canonical);
-                        }
+                if head == ":wat::core::defn" {
+                    if let Some(WatAST::Keyword(name, _)) = items.get(1) {
+                        // Strip any `<T,U>` suffix; canonical name is
+                        // the keyword path without type-params.
+                        let canonical = match name.find('<') {
+                            Some(idx) => name[..idx].to_string(),
+                            None => name.clone(),
+                        };
+                        return Some(canonical);
                     }
                 }
             }
