@@ -125,7 +125,7 @@ fn install_signal_handlers() {
 /// is a process-global OnceLock. `compose_and_run` attempts to
 /// install the built registry; if another caller already
 /// installed one (e.g., a test running multiple `compose_and_run`
-/// calls or a prior `rust_deps::get()` lazy-initialized the
+/// calls or a prior `rust_deps::registry()` lazy-initialized the
 /// defaults), the installation is best-effort and silently
 /// accepts whichever registry was installed first. User binaries
 /// call this once from `fn main()`, so the install succeeds. Test
@@ -174,7 +174,7 @@ pub fn compose_and_run_with_loader(
     // wins for both. After this, every freeze in the process
     // (main, test, sandbox, fork) transparently sees:
     // - dep wat sources via `wat::source::installed_dep_sources()` (+ baked via stdlib_forms)
-    // - dep Rust shims via `wat::rust_deps::get()`
+    // - dep Rust shims via `wat::rust_deps::registry()`
     let mut builder = RustDepsBuilder::with_wat_rs_defaults();
     for registrar in dep_registrars {
         registrar(&mut builder);

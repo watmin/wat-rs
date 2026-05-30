@@ -14669,10 +14669,10 @@ fn dispatch_rust_scheme(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     // rune:sequi(ambient-context) — rust-deps registry is a write-once dispatch
-    // table installed at startup; threading it through every infer/dispatch
-    // signature would bloat every call site for a read-only config surface, not
-    // domain state.
-    let registry = crate::rust_deps::get();
+    // table installed at startup; threading it through every resolver/eval
+    // signature would bloat every call site for a read-only config surface,
+    // not domain state.
+    let registry = crate::rust_deps::registry();
     let sym_entry = match registry.get_symbol(keyword) {
         Some(s) => s,
         None => {

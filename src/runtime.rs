@@ -6201,7 +6201,11 @@ fn dispatch_keyword_head_value(
         // :rust::* — dispatch through the rust-deps registry. Each
         // symbol's shim handles its own arg evaluation and marshaling.
         other if other.starts_with(":rust::") => {
-            let registry = crate::rust_deps::get();
+            // rune:sequi(ambient-context) — rust-deps registry is a write-once dispatch
+            // table installed at startup; threading it through every resolver/eval
+            // signature would bloat every call site for a read-only config surface,
+            // not domain state.
+            let registry = crate::rust_deps::registry();
             match registry.get_symbol(other) {
                 Some(sym_entry) => (sym_entry.dispatch)(args, env, sym),
                 None => Err(RuntimeError::UnknownFunction(

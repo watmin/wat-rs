@@ -90,9 +90,12 @@ pub fn resolve_references(
 
     // Pass 1: collect `(:wat::core::use! :rust::...)` top-level
     // declarations. Validates against the rust-deps registry. Program-
-    // global scope for now (see docs/arc/2026/04/001-caching-stack/DESIGN.md —
-    // per-file enforcement is a planned upgrade).
-    let registry = crate::rust_deps::get();
+    // global scope (one use! anywhere enables the symbol everywhere).
+    // rune:sequi(ambient-context) — rust-deps registry is a write-once dispatch
+    // table installed at startup; threading it through every resolver/eval
+    // signature would bloat every call site for a read-only config surface,
+    // not domain state.
+    let registry = crate::rust_deps::registry();
     let mut use_decls = crate::rust_deps::UseDeclarations::new();
     for form in forms {
         collect_use_declarations(form, registry, &mut use_decls, &mut unresolved);

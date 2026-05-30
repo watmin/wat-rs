@@ -153,7 +153,7 @@ impl Harness {
         // process wins for each. After install, every subsequent
         // freeze (main, test, sandbox, fork) transparently sees
         // dep wat sources (via `stdlib::stdlib_forms()`) and dep
-        // Rust shims (via `rust_deps::get()`).
+        // Rust shims (via `rust_deps::registry()`).
         let mut builder = RustDepsBuilder::with_wat_rs_defaults();
         for registrar in dep_registrars {
             registrar(&mut builder);

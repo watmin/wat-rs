@@ -36,10 +36,7 @@
 //!
 //! wat programs declare their intended Rust dependencies via
 //! `(:wat::core::use! :rust::<crate>::<Type>)`. Current implementation:
-//! program-global set-insert (one declaration anywhere in the program
-//! enables it everywhere). Per-file enforcement is a planned upgrade
-//! (tracked in docs/arc/2026/04/001-caching-stack/DESIGN.md) pending a caller
-//! that has multiple files with distinct rust deps.
+//! program-global set-insert (one declaration anywhere enables it everywhere).
 //!
 //! # Zero Mutex
 //!
@@ -55,11 +52,12 @@ use crate::ast::WatAST;
 use crate::runtime::{Environment, RuntimeError, SymbolTable, Value};
 use crate::span::Span;
 
+pub mod custodia;
 pub mod marshal;
 
+pub use custodia::{OwnedMoveCell, ThreadOwnedCell};
 pub use marshal::{
-    downcast_ref_opaque, make_rust_opaque, rust_opaque_arc, FromWat, OwnedMoveCell,
-    RustOpaqueInner, ThreadOwnedCell, ToWat,
+    downcast_ref_opaque, make_rust_opaque, rust_opaque_arc, FromWat, RustOpaqueInner, ToWat,
 };
 
 /// A Rust shim's dispatch function. Called when a wat program invokes
@@ -162,12 +160,10 @@ impl RustDepsBuilder {
 
     /// Start a builder pre-loaded with wat-rs's default shims.
     ///
-    /// As of arc 013 slice 4b, wat-rs ships **zero** default
-    /// shims — LRU moved to the sibling crate `wat-lru`. This
-    /// method remains for API continuity (`compose_and_run` /
-    /// `Harness` call it before layering dep registrars on top);
-    /// it's a no-op alias for `new()` today. Future wat-rs
-    /// defaults, if any, would register here.
+    /// Currently a no-op alias for `new()` — wat-rs ships zero default
+    /// shims (LRU moved to the sibling `wat-lru` crate). This method
+    /// remains for API continuity: `compose_and_run` and `Harness` call
+    /// it before layering dep registrars on top.
     pub fn with_wat_rs_defaults() -> Self {
         Self::new()
     }
@@ -227,7 +223,7 @@ impl RustDepsRegistry {
 }
 
 /// Global registry slot. Set once at wat startup; read by every
-/// subsequent phase. [`get`] lazily initializes with wat-rs defaults
+/// subsequent phase. [`registry`] lazily initializes with wat-rs defaults
 /// if nothing was installed — lets unit tests run without explicit
 /// setup.
 static REGISTRY: OnceLock<RustDepsRegistry> = OnceLock::new();
@@ -245,7 +241,7 @@ pub fn install(registry: RustDepsRegistry) -> Result<(), &'static str> {
 /// Access the registry, lazily initializing with wat-rs defaults on
 /// first access. Production binaries should call [`install`] before
 /// wat code runs; tests rely on this lazy init.
-pub fn get() -> &'static RustDepsRegistry {
+pub fn registry() -> &'static RustDepsRegistry {
     REGISTRY.get_or_init(|| RustDepsBuilder::with_wat_rs_defaults().build())
 }
 
@@ -254,8 +250,7 @@ pub fn get() -> &'static RustDepsRegistry {
 /// top-level use! forms; subsequent passes consult it to decide whether
 /// a `:rust::X` reference is legal.
 ///
-/// Current scope: program-global (one use! anywhere enables the symbol
-/// everywhere). Per-file enforcement is a planned upgrade.
+/// Scope: program-global (one use! anywhere enables the symbol everywhere).
 #[derive(Default, Debug, Clone)]
 pub struct UseDeclarations {
     declared: HashSet<String>,

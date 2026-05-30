@@ -9,9 +9,9 @@
 //! # What this module provides
 //!
 //! - [`ToWat`] / [`FromWat`] — the conversion traits.
-//! - Blanket impls for primitives (`i64`, `f64`, `bool`, `String`).
-//! - An impl pair for `Option<T>` (the only compound type lru needs;
-//!   `Vec`/tuple impls land when a caller demands them).
+//! - Blanket impls for primitives (`i64`, `f64`, `bool`, `String`, `()`,
+//!   `Option<T>`, `Vec<T>`, `Result<T,E>`, tuples up to arity 6, and
+//!   `Value` pass-through).
 //! - [`RustOpaqueInner`] + [`Value::RustOpaque`] — the generic
 //!   opaque-handle variant. Shim types (e.g. `LruCacheCell`) become
 //!   opaque payloads; wat sees them as opaque values identified by
@@ -25,7 +25,8 @@
 //! (thread-owned cells, plain `Arc`, consumed cells). The marshaling
 //! layer only sees `Box<dyn Any + Send + Sync>` — the wrapper's own
 //! semantics kick in when the shim's dispatch code handles the
-//! downcasted payload.
+//! downcasted payload. Ownership-scope custody primitives live in
+//! the sibling `custodia` module.
 
 use std::any::Any;
 use std::sync::Arc;
@@ -47,7 +48,7 @@ pub trait ToWat {
 /// carries the source location of the original call-site AST node so
 /// that type-mismatch errors surface with file:line:col coordinates.
 pub trait FromWat: Sized {
-    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError>;
+    fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError>;
 }
 
 // ─── Primitive impls ─────────────────────────────────────────────────
@@ -59,14 +60,14 @@ impl ToWat for i64 {
 }
 
 impl FromWat for i64 {
-    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::i64(n) => Ok(*n),
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "i64",
                 got: crate::runtime::ValueSnapshot::of(&other),
-                span, // arc 138 F4b: real span threaded through
+                span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -79,14 +80,14 @@ impl ToWat for f64 {
 }
 
 impl FromWat for f64 {
-    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::f64(x) => Ok(*x),
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
                 got: crate::runtime::ValueSnapshot::of(&other),
-                span, // arc 138 F4b: real span threaded through
+                span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -99,14 +100,14 @@ impl ToWat for bool {
 }
 
 impl FromWat for bool {
-    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::bool(b) => Ok(*b),
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "bool",
                 got: crate::runtime::ValueSnapshot::of(&other),
-                span, // arc 138 F4b: real span threaded through
+                span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -119,14 +120,14 @@ impl ToWat for String {
 }
 
 impl FromWat for String {
-    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::String(s) => Ok((**s).clone()),
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: crate::runtime::ValueSnapshot::of(&other),
-                span, // arc 138 F4b: real span threaded through
+                span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -141,14 +142,14 @@ impl ToWat for () {
 }
 
 impl FromWat for () {
-    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::Unit => Ok(()),
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "()",
                 got: crate::runtime::ValueSnapshot::of(&other),
-                span, // arc 138 F4b: real span threaded through
+                span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -163,17 +164,17 @@ impl<T: ToWat> ToWat for Option<T> {
 }
 
 impl<T: FromWat> FromWat for Option<T> {
-    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::Option(inner) => match inner.as_ref() {
-                Some(x) => Ok(Some(T::from_wat(x, op, span.clone())?)),
+                Some(x) => Ok(Some(T::from_wat(x, op, span)?)),
                 None => Ok(None),
             },
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Option",
                 got: crate::runtime::ValueSnapshot::of(&other),
-                span, // arc 138 F4b: real span threaded through
+                span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -199,7 +200,7 @@ macro_rules! impl_tuple_marshaling {
         }
 
         impl<$( $name: FromWat ),+> FromWat for ( $( $name, )+ ) {
-            fn from_wat(v: &Value, op: &'static str, span: $crate::span::Span) -> Result<Self, RuntimeError> {
+            fn from_wat(v: &Value, op: &'static str, span: &$crate::span::Span) -> Result<Self, RuntimeError> {
                 match v {
                     Value::Tuple(items) => {
                         if items.len() != $arity {
@@ -214,14 +215,14 @@ macro_rules! impl_tuple_marshaling {
                             });
                         }
                         Ok((
-                            $( $name::from_wat(&items[$idx], op, span.clone())?, )+
+                            $( $name::from_wat(&items[$idx], op, span)?, )+
                         ))
                     }
                     other => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
                         expected: "Tuple",
                         got: crate::runtime::ValueSnapshot::of(&other),
-                        span, // arc 138 F4b: real span threaded through
+                        span: span.clone(), // arc 138 F4b: real span threaded through
                     }),
                 }
             }
@@ -249,17 +250,17 @@ impl<T: ToWat, E: ToWat> ToWat for std::result::Result<T, E> {
 }
 
 impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
-    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::Result(r) => match r.as_ref() {
-                Ok(inner) => Ok(Ok(T::from_wat(inner, op, span.clone())?)),
-                Err(inner) => Ok(Err(E::from_wat(inner, op, span.clone())?)),
+                Ok(inner) => Ok(Ok(T::from_wat(inner, op, span)?)),
+                Err(inner) => Ok(Err(E::from_wat(inner, op, span)?)),
             },
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Result",
                 got: crate::runtime::ValueSnapshot::of(&other),
-                span, // arc 138 F4b: real span threaded through
+                span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -274,17 +275,17 @@ impl<T: ToWat> ToWat for Vec<T> {
 }
 
 impl<T: FromWat> FromWat for Vec<T> {
-    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
             Value::Vec(items) => items
                 .iter()
-                .map(|x| T::from_wat(x, op, span.clone()))
+                .map(|x| T::from_wat(x, op, span))
                 .collect::<Result<Vec<_>, _>>(),
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Vector",
                 got: crate::runtime::ValueSnapshot::of(&other),
-                span, // arc 138 F4b: real span threaded through
+                span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -304,7 +305,9 @@ impl ToWat for Value {
 }
 
 impl FromWat for Value {
-    fn from_wat(v: &Value, _op: &'static str, _span: Span) -> Result<Self, RuntimeError> {
+    /// This impl is infallible — it accepts any `Value` without error
+    /// (the only infallible `FromWat` member).
+    fn from_wat(v: &Value, _op: &'static str, _span: &Span) -> Result<Self, RuntimeError> {
         Ok(v.clone())
     }
 }
@@ -348,10 +351,9 @@ pub fn make_rust_opaque<T: Any + Send + Sync>(type_path: &'static str, payload: 
     }))
 }
 
-/// Extract a reference to the payload inside an opaque Value,
-/// checking that the type path matches. Returns the inner `Arc` so
-/// callers can downcast via `Arc::<RustOpaqueInner>::downcast` …
-/// actually no — callers use `downcast_ref_opaque` below.
+/// Validate `v` is a `RustOpaque` with the expected type path and return the
+/// inner `Arc`. Callers pass this to `downcast_ref_opaque` for a typed
+/// reference to the payload.
 pub fn rust_opaque_arc(
     v: &Value,
     expected_path: &'static str,
@@ -376,153 +378,6 @@ pub fn rust_opaque_arc(
             got: crate::runtime::ValueSnapshot::of(&other),
             span,
         }),
-    }
-}
-
-/// Wrapper for single-thread-owned mutable state. Generic version of
-/// the hand-written `LruCacheCell` pattern. The `#[wat_dispatch]`
-/// macro uses this to wrap `Self` returns when the annotated impl
-/// block declares `scope = "thread_owned"`.
-///
-/// Ownership invariant: every `.with_mut` / `.with_ref` call asserts
-/// `thread::current().id() == self.owner` before dereferencing the
-/// `UnsafeCell`. Cross-thread access errors with a clear
-/// `MalformedForm`. Zero Mutex.
-///
-/// # Safety
-///
-/// The `unsafe impl Send + Sync` is upheld by the thread-id guard.
-/// Only one thread can reach the `UnsafeCell`; the interpreter is
-/// single-threaded within that thread and the `with_*` closures do
-/// not re-enter Value evaluation against the same cell.
-pub struct ThreadOwnedCell<T: Send> {
-    owner: std::thread::ThreadId,
-    cell: std::cell::UnsafeCell<T>,
-}
-
-impl<T: Send> std::fmt::Debug for ThreadOwnedCell<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ThreadOwnedCell {{ owner: {:?} }}", self.owner)
-    }
-}
-
-// Safety: see type-level docs.
-unsafe impl<T: Send> Send for ThreadOwnedCell<T> {}
-unsafe impl<T: Send> Sync for ThreadOwnedCell<T> {}
-
-impl<T: Send> ThreadOwnedCell<T> {
-    /// Create a new cell bound to the current thread.
-    pub fn new(inner: T) -> Self {
-        Self {
-            owner: std::thread::current().id(),
-            cell: std::cell::UnsafeCell::new(inner),
-        }
-    }
-
-    fn ensure_owner(&self, op: &'static str, span: crate::span::Span) -> Result<(), RuntimeError> {
-        if std::thread::current().id() != self.owner {
-            return Err(RuntimeError::MalformedForm {
-                head: op.into(),
-                reason: format!(
-                    "thread-owned value crossed thread boundary \
-                     (owner: {:?}, current: {:?})",
-                    self.owner,
-                    std::thread::current().id()
-                ),
-                span,
-            });
-        }
-        Ok(())
-    }
-
-    /// Borrow the inner value mutably after asserting ownership.
-    pub fn with_mut<R>(
-        &self,
-        op: &'static str,
-        span: crate::span::Span,
-        f: impl FnOnce(&mut T) -> R,
-    ) -> Result<R, RuntimeError> {
-        self.ensure_owner(op, span.clone())?;
-        // Safety: thread-owner invariant checked above.
-        Ok(unsafe { f(&mut *self.cell.get()) })
-    }
-
-    /// Borrow the inner value immutably after asserting ownership.
-    /// (Kept for `&self` methods under `scope = "thread_owned"`.)
-    pub fn with_ref<R>(
-        &self,
-        op: &'static str,
-        f: impl FnOnce(&T) -> R,
-    ) -> Result<R, RuntimeError> {
-        self.ensure_owner(op, crate::span::Span::unknown())?;
-        // Safety: thread-owner invariant checked above.
-        Ok(unsafe { f(&*self.cell.get()) })
-    }
-}
-
-/// Single-use ownership-transfer cell. Generic backing for
-/// `scope = "owned_move"` — payloads that get consumed on first use
-/// (prepared-statement bindings, one-shot tokens, capabilities).
-///
-/// A `std::sync::atomic::AtomicBool` gate ensures exclusive consumption:
-/// only one caller's `take()` succeeds; subsequent callers get a clear
-/// "already consumed" error. Zero Mutex — the atomic gate is the
-/// synchronization.
-///
-/// # Safety
-///
-/// `take()` uses an atomic compare-and-swap (`swap(true, SeqCst)`) to
-/// gate access. The thread that observes `false → true` has exclusive
-/// permission to read the `UnsafeCell<Option<T>>`. After that, the
-/// cell is drained (`Option` becomes `None`) and no other thread or
-/// subsequent call can reach the `T`.
-pub struct OwnedMoveCell<T: Send> {
-    taken: std::sync::atomic::AtomicBool,
-    cell: std::cell::UnsafeCell<Option<T>>,
-}
-
-impl<T: Send> std::fmt::Debug for OwnedMoveCell<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "OwnedMoveCell {{ taken: {} }}",
-            self.taken.load(std::sync::atomic::Ordering::Acquire)
-        )
-    }
-}
-
-// Safety: the AtomicBool gate serializes access to the UnsafeCell.
-// Only one thread can observe the false→true transition; that thread
-// is the sole accessor. Subsequent accessors get an error without
-// touching the payload.
-unsafe impl<T: Send> Send for OwnedMoveCell<T> {}
-unsafe impl<T: Send> Sync for OwnedMoveCell<T> {}
-
-impl<T: Send> OwnedMoveCell<T> {
-    pub fn new(value: T) -> Self {
-        Self {
-            taken: std::sync::atomic::AtomicBool::new(false),
-            cell: std::cell::UnsafeCell::new(Some(value)),
-        }
-    }
-
-    /// Consume the payload. The first caller wins; every subsequent
-    /// caller receives `RuntimeError::MalformedForm`.
-    pub fn take(&self, op: &'static str, span: crate::span::Span) -> Result<T, RuntimeError> {
-        if self.taken.swap(true, std::sync::atomic::Ordering::SeqCst) {
-            return Err(RuntimeError::MalformedForm {
-                head: op.into(),
-                reason: "owned-move handle already consumed".into(),
-                span: span.clone(),
-            });
-        }
-        // Safety: the swap succeeded, so this thread holds exclusive
-        // access until the function returns.
-        unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError::MalformedForm {
-            head: op.into(),
-            reason: "owned-move handle payload was unexpectedly None".into(),
-            span,
-        })
     }
 }
 
@@ -561,114 +416,131 @@ mod tests {
     #[test]
     fn i64_roundtrip() {
         let v = 42i64.to_wat();
-        assert_eq!(i64::from_wat(&v, "test", crate::span::Span::unknown()).unwrap(), 42);
+        let s = crate::span::Span::unknown();
+        assert_eq!(i64::from_wat(&v, "test", &s).unwrap(), 42);
     }
 
     #[test]
     fn f64_roundtrip() {
         let v = 2.5f64.to_wat();
-        assert_eq!(f64::from_wat(&v, "test", crate::span::Span::unknown()).unwrap(), 2.5);
+        let s = crate::span::Span::unknown();
+        assert_eq!(f64::from_wat(&v, "test", &s).unwrap(), 2.5);
     }
 
     #[test]
     fn bool_roundtrip() {
-        assert!(bool::from_wat(&true.to_wat(), "t", crate::span::Span::unknown()).unwrap());
-        assert!(!bool::from_wat(&false.to_wat(), "t", crate::span::Span::unknown()).unwrap());
+        let s = crate::span::Span::unknown();
+        assert!(bool::from_wat(&true.to_wat(), "t", &s).unwrap());
+        assert!(!bool::from_wat(&false.to_wat(), "t", &s).unwrap());
     }
 
     #[test]
     fn string_roundtrip() {
         let v = "hello".to_string().to_wat();
-        assert_eq!(String::from_wat(&v, "test", crate::span::Span::unknown()).unwrap(), "hello");
+        let s = crate::span::Span::unknown();
+        assert_eq!(String::from_wat(&v, "test", &s).unwrap(), "hello");
     }
 
     #[test]
     fn unit_roundtrip() {
         let v = ().to_wat();
-        assert!(matches!(<()>::from_wat(&v, "test", crate::span::Span::unknown()), Ok(())));
+        let s = crate::span::Span::unknown();
+        assert!(matches!(<()>::from_wat(&v, "test", &s), Ok(())));
     }
 
     #[test]
     fn option_some_roundtrip() {
         let v: Value = Some(7i64).to_wat();
-        let back: Option<i64> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: Option<i64> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, Some(7));
     }
 
     #[test]
     fn option_none_roundtrip() {
         let v: Value = Option::<i64>::None.to_wat();
-        let back: Option<i64> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: Option<i64> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, None);
     }
 
     #[test]
     fn vec_of_i64_roundtrip() {
         let v: Value = vec![1i64, 2, 3].to_wat();
-        let back: Vec<i64> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: Vec<i64> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, vec![1, 2, 3]);
     }
 
     #[test]
     fn vec_of_strings_roundtrip() {
         let v: Value = vec!["a".to_string(), "b".to_string()].to_wat();
-        let back: Vec<String> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: Vec<String> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, vec!["a".to_string(), "b".to_string()]);
     }
 
     #[test]
     fn empty_vec_roundtrip() {
         let v: Value = Vec::<i64>::new().to_wat();
-        let back: Vec<i64> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: Vec<i64> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert!(back.is_empty());
     }
 
     #[test]
     fn vec_of_options_roundtrip() {
         let v: Value = vec![Some(1i64), None, Some(3)].to_wat();
-        let back: Vec<Option<i64>> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: Vec<Option<i64>> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, vec![Some(1), None, Some(3)]);
     }
 
     #[test]
     fn vec_from_wrong_value_type_fails() {
         let v = Value::i64(5);
-        let err = <Vec<i64> as FromWat>::from_wat(&v, "test", crate::span::Span::unknown()).unwrap_err();
+        let s = crate::span::Span::unknown();
+        let err = <Vec<i64> as FromWat>::from_wat(&v, "test", &s).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]
     fn tuple_2_roundtrip() {
         let v: Value = (42i64, "hello".to_string()).to_wat();
-        let back: (i64, String) = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: (i64, String) = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, (42, "hello".to_string()));
     }
 
     #[test]
     fn tuple_3_roundtrip() {
         let v: Value = (1i64, true, 2.5f64).to_wat();
-        let back: (i64, bool, f64) = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: (i64, bool, f64) = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, (1, true, 2.5));
     }
 
     #[test]
     fn tuple_4_roundtrip() {
         let v: Value = (1i64, 2i64, 3i64, 4i64).to_wat();
-        let back: (i64, i64, i64, i64) = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: (i64, i64, i64, i64) = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, (1, 2, 3, 4));
     }
 
     #[test]
     fn tuple_nested_with_option_vec() {
         let v: Value = (Some(7i64), vec![1i64, 2, 3]).to_wat();
-        let back: (Option<i64>, Vec<i64>) = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: (Option<i64>, Vec<i64>) = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, (Some(7), vec![1, 2, 3]));
     }
 
     #[test]
     fn tuple_arity_mismatch_rejected() {
         let v: Value = (1i64, 2i64, 3i64).to_wat();
-        let err = <(i64, i64) as FromWat>::from_wat(&v, "test", crate::span::Span::unknown()).unwrap_err();
+        let s = crate::span::Span::unknown();
+        let err = <(i64, i64) as FromWat>::from_wat(&v, "test", &s).unwrap_err();
         match err {
             RuntimeError::MalformedForm { reason, .. } => {
                 assert!(reason.contains("arity 2"));
@@ -681,21 +553,24 @@ mod tests {
     #[test]
     fn tuple_from_non_tuple_value_fails() {
         let v = Value::i64(1);
-        let err = <(i64, i64) as FromWat>::from_wat(&v, "test", crate::span::Span::unknown()).unwrap_err();
+        let s = crate::span::Span::unknown();
+        let err = <(i64, i64) as FromWat>::from_wat(&v, "test", &s).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]
     fn result_ok_roundtrip() {
         let v: Value = std::result::Result::<i64, String>::Ok(7).to_wat();
-        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, Ok(7));
     }
 
     #[test]
     fn result_err_roundtrip() {
         let v: Value = std::result::Result::<i64, String>::Err("boom".into()).to_wat();
-        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, Err("boom".to_string()));
     }
 
@@ -703,30 +578,34 @@ mod tests {
     fn result_nested_option_and_vec() {
         let v: Value =
             std::result::Result::<Option<i64>, Vec<String>>::Ok(Some(5)).to_wat();
+        let s = crate::span::Span::unknown();
         let back: std::result::Result<Option<i64>, Vec<String>> =
-            FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+            FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, Ok(Some(5)));
     }
 
     #[test]
     fn result_from_non_result_fails() {
         let v = Value::i64(1);
+        let s = crate::span::Span::unknown();
         let err =
-            <std::result::Result<i64, String> as FromWat>::from_wat(&v, "test", crate::span::Span::unknown()).unwrap_err();
+            <std::result::Result<i64, String> as FromWat>::from_wat(&v, "test", &s).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]
     fn value_passthrough() {
         let v = Value::i64(99);
-        let back = Value::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
+        let s = crate::span::Span::unknown();
+        let back = Value::from_wat(&v, "test", &s).unwrap();
         assert!(matches!(back, Value::i64(99)));
     }
 
     #[test]
     fn type_mismatch_surfaces_op_name() {
         let v = Value::String(Arc::new("not an i64".into()));
-        let err = i64::from_wat(&v, ":rust::test::method", crate::span::Span::unknown()).unwrap_err();
+        let s = crate::span::Span::unknown();
+        let err = i64::from_wat(&v, ":rust::test::method", &s).unwrap_err();
         match err {
             RuntimeError::TypeMismatch { op, expected, got, .. } => {
                 assert_eq!(op, ":rust::test::method");
@@ -742,17 +621,19 @@ mod tests {
         struct Widget {
             tag: i64,
         }
+        let s = crate::span::Span::unknown();
         let v = make_rust_opaque(":rust::test::Widget", Widget { tag: 7 });
-        let inner = rust_opaque_arc(&v, ":rust::test::Widget", ":test", crate::span::Span::unknown()).unwrap();
-        let w: &Widget = downcast_ref_opaque(&inner, ":rust::test::Widget", ":test", crate::span::Span::unknown()).unwrap();
+        let inner = rust_opaque_arc(&v, ":rust::test::Widget", ":test", s.clone()).unwrap();
+        let w: &Widget = downcast_ref_opaque(&inner, ":rust::test::Widget", ":test", s).unwrap();
         assert_eq!(w.tag, 7);
     }
 
     #[test]
     fn opaque_wrong_type_path_rejected() {
         struct A;
+        let s = crate::span::Span::unknown();
         let v = make_rust_opaque(":rust::test::A", A);
-        let err = rust_opaque_arc(&v, ":rust::test::B", ":test", crate::span::Span::unknown()).unwrap_err();
+        let err = rust_opaque_arc(&v, ":rust::test::B", ":test", s).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -763,9 +644,10 @@ mod tests {
         }
         #[derive(Debug)]
         struct ExpectedWrong;
+        let s = crate::span::Span::unknown();
         let v = make_rust_opaque(":rust::test::Mixed", Actual { _t: 1 });
-        let inner = rust_opaque_arc(&v, ":rust::test::Mixed", ":test", crate::span::Span::unknown()).unwrap();
-        let result = downcast_ref_opaque::<ExpectedWrong>(&inner, ":rust::test::Mixed", ":test", crate::span::Span::unknown());
+        let inner = rust_opaque_arc(&v, ":rust::test::Mixed", ":test", s.clone()).unwrap();
+        let result = downcast_ref_opaque::<ExpectedWrong>(&inner, ":rust::test::Mixed", ":test", s);
         assert!(result.is_err());
         assert!(matches!(
             result.err().unwrap(),
