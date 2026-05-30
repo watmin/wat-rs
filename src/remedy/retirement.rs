@@ -37,6 +37,9 @@
 //! | `":wat::core::define-dispatch"`   | 241.13 | dispatch entity kind       | defclause (Stone 237.2)          |
 //! | `":wat::core::def-restricted"`    | 241.14 | def-restricted caller whitelist | def + metadata-map `:restricted-to` |
 //! | `":wat::core::defn-restricted"`   | 241.14 | defn-restricted (wat macro)     | defn + metadata-map `:restricted-to` |
+//! | `":wat::core::try"`               | 241.15 | lowercase try (arc 109 zombie)  | Result/try (PascalCase Type/method) |
+//! | `":wat::core::option::expect"`    | 241.15 | lowercase option::expect zombie | Option/expect (PascalCase canonical) |
+//! | `":wat::core::result::expect"`    | 241.15 | lowercase result::expect zombie | Result/expect (PascalCase canonical) |
 
 use super::{Remedy, RemedyKind};
 
@@ -61,6 +64,10 @@ const RETIREMENT_TABLE: &[(&str, &str)] = &[
     // Stone 241.14 — def + metadata-map replaces def-restricted; defn + metadata-map replaces defn-restricted.
     (":wat::core::def-restricted",    ":wat::core::def"),
     (":wat::core::defn-restricted",   ":wat::core::defn"),
+    // Stone 241.15 — zombie purge: arc-109-slice-1j retirements now HARD CUT.
+    (":wat::core::try",               ":wat::core::Result/try"),
+    (":wat::core::option::expect",    ":wat::core::Option/expect"),
+    (":wat::core::result::expect",    ":wat::core::Result/expect"),
 ];
 
 /// Look up `needle` in the retirement table.

@@ -32,7 +32,7 @@ The form/operator names AND their semantics:
 | `(:wat::core::HashMap ...)` | `{...}` | Same data structure |
 | `(:wat::core::Option<T>)` with `:Some` / `:wat::core::None` | `Optional`/`Maybe` (Java interop) | Wat ships its own enum |
 | `(:wat::core::Result<T,E>)` with `:Ok` / `:Err` | `(try ...)` exception model in Clojure | Wat is Result-typed throughout |
-| `(:wat::core::try expr -> :T :catch err handler)` | `(try ...)` | Result-shaped; not exception-shaped |
+| `(:wat::core::Result/try expr -> :T :catch err handler)` | `(try ...)` | Result-shaped; not exception-shaped |
 | `(:wat::core::concat ...)` | `(concat ...)` | Same |
 | `(:wat::core::length xs)` | `(count xs)` | Different name; same idea |
 | `(:wat::core::empty? xs)` | `(empty? xs)` | Same |

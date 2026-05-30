@@ -5687,17 +5687,9 @@ fn dispatch_keyword_head_value(
         // ":wat::holon::from-holon" is routed by dispatch_keyword_head directly (producer).
         ":wat::core::match" => eval_match(args, list_span, env, sym),
         // Arc 109 slice 1j — § D' Option/Result method forms.
-        // Three retiring verbs (Pattern 2): pre-slice spellings still
-        // dispatch (so the program runs through type-check + execution
-        // even with old call sites) but the type checker poisons them
-        // with a redirect to the canonical `Type/verb` shape.
-        ":wat::core::try" => eval_try(":wat::core::try", args, list_span, env, sym),
-        ":wat::core::option::expect" => {
-            eval_option_expect(":wat::core::option::expect", args, list_span, env, sym)
-        }
-        ":wat::core::result::expect" => {
-            eval_result_expect(":wat::core::result::expect", args, list_span, env, sym)
-        }
+        // Stone 241.15: the three retiring verbs (:wat::core::try,
+        // :wat::core::option::expect, :wat::core::result::expect) are now
+        // HARD CUT (MalformedForm rejection at check time); dispatch arms deleted.
         // Canonical post-slice forms.
         ":wat::core::Result/try" => eval_try(":wat::core::Result/try", args, list_span, env, sym),
         ":wat::core::Result/expect" => {

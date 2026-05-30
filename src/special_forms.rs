@@ -201,24 +201,10 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
         &["->", "<T>", "<res>", "<msg>"],
     );
 
-    // ─── Error handling — RETIRED (arc 109 § D' Pattern 2 poison) ──────
-    // Dispatch sites: `src/check.rs:2964-2998` + `src/runtime.rs:2431-2436`.
-    // These still dispatch to keep the program type-checking through
-    // the migration window; the type checker pushes a synthetic
-    // TypeMismatch redirecting to the canonical head. Registering them
-    // here keeps reflection uniform: `(help :wat::core::try)` /just
-    // works/ — even when the form itself prints a poison hint.
-    insert(&mut m, ":wat::core::try", &["<retired-use-Result/try>"]);
-    insert(
-        &mut m,
-        ":wat::core::option::expect",
-        &["<retired-use-Option/expect>"],
-    );
-    insert(
-        &mut m,
-        ":wat::core::result::expect",
-        &["<retired-use-Result/expect>"],
-    );
+    // ─── Error handling — RETIRED forms deleted by Stone 241.15 ──────────
+    // :wat::core::try, :wat::core::option::expect, :wat::core::result::expect
+    // are HARD CUT (MalformedForm rejection; RETIREMENT_TABLE entries provide
+    // remedy). Reflection entries removed — HARD CUT forms are not reflected.
 
     // ─── Quote / quasiquote / AST ──────────────────────────────────────
     // Dispatch sites: `src/check.rs:3083-3107, 3401-3413` + `src/runtime.rs:2406-2407, 2421`.
@@ -346,7 +332,7 @@ mod tests {
             // Stone 241.8 — defstruct replaces struct.
             ":wat::core::defstruct",
             ":wat::core::Result/try",
-            ":wat::core::try",
+            // Stone 241.15 — :wat::core::try is HARD CUT; removed from registry.
             ":wat::core::quote",
             ":wat::core::quasiquote",
             ":wat::core::and",

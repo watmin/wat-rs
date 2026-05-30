@@ -130,9 +130,9 @@ returns its count.
        ((rx :wat::kernel::Receiver<i64>) (:wat::core::second pair))
        ((h :wat::kernel::ProgramHandle<i64>)
         (:wat::kernel::spawn :my::app::run-counter rx))
-       ((_s1 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 10) "_s1: peer disconnected"))
-       ((_s2 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 20) "_s2: peer disconnected"))
-       ((_s3 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 30) "_s3: peer disconnected")))
+       ((_s1 :()) (:wat::core::Option/expect -> :() (:wat::kernel::send tx 10) "_s1: peer disconnected"))
+       ((_s2 :()) (:wat::core::Option/expect -> :() (:wat::kernel::send tx 20) "_s2: peer disconnected"))
+       ((_s3 :()) (:wat::core::Option/expect -> :() (:wat::kernel::send tx 30) "_s3: peer disconnected")))
       h)))                                     ;; ← pair, tx, rx all drop here
   (:wat::core::match (:wat::kernel::join-result handle) -> :()
     ((Ok 3) ())
@@ -191,7 +191,7 @@ Client sends a request, recvs the response, exits.
     ((Some n)
       (:wat::core::let
         (((_ack :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send resp-tx (:wat::core::* n 2)) "_ack: peer disconnected")))
+          (:wat::core::Option/expect -> :() (:wat::kernel::send resp-tx (:wat::core::* n 2)) "_ack: peer disconnected")))
         (:my::app::doubler-loop req-rx resp-tx)))
     (:None ())))
 
@@ -208,9 +208,9 @@ Client sends a request, recvs the response, exits.
        ((resp-rx :wat::kernel::Receiver<i64>) (:wat::core::second resp-pair))
        ((h :wat::kernel::ProgramHandle<()>)
         (:wat::kernel::spawn :my::app::doubler-loop req-rx resp-tx))
-       ((_s :()) (:wat::core::option::expect -> :() (:wat::kernel::send req-tx 21) "_s: peer disconnected"))
+       ((_s :()) (:wat::core::Option/expect -> :() (:wat::kernel::send req-tx 21) "_s: peer disconnected"))
        ((got :i64)
-        (:wat::core::option::expect -> :i64
+        (:wat::core::Option/expect -> :i64
           (:wat::kernel::recv resp-rx)
           "recv resp: doubler-loop disconnected mid-reply")))
       h)))
@@ -300,9 +300,9 @@ handler.
     ((Some n)
       (:wat::core::let
         (((_r :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send resp-tx (:wat::core::* n 2)) "_r: peer disconnected"))
+          (:wat::core::Option/expect -> :() (:wat::kernel::send resp-tx (:wat::core::* n 2)) "_r: peer disconnected"))
          ((_t :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send telem-tx n) "_t: peer disconnected")))
+          (:wat::core::Option/expect -> :() (:wat::kernel::send telem-tx n) "_t: peer disconnected")))
         (:my::app::telemetry-loop req-rx resp-tx telem-tx)))
     (:None ())))
 ```
@@ -347,9 +347,9 @@ construction than deadlock at shutdown.
        ((tx-c :wat::kernel::Sender<i64>) (:wat::kernel::HandlePool::pop pool))
        ((_finish :()) (:wat::kernel::HandlePool::finish pool))
 
-       ((_a :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx-a 100) "_a: peer disconnected"))
-       ((_b :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx-b 200) "_b: peer disconnected"))
-       ((_c :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx-c 300) "_c: peer disconnected")))
+       ((_a :()) (:wat::core::Option/expect -> :() (:wat::kernel::send tx-a 100) "_a: peer disconnected"))
+       ((_b :()) (:wat::core::Option/expect -> :() (:wat::kernel::send tx-b 200) "_b: peer disconnected"))
+       ((_c :()) (:wat::core::Option/expect -> :() (:wat::kernel::send tx-c 300) "_c: peer disconnected")))
       h)))
   (:wat::core::match (:wat::kernel::join-result handle) -> :() ...))
 ```

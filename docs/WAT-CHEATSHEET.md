@@ -214,8 +214,8 @@ recipient unification verifies.
 `process-send` / `process-recv` MUST appear ONLY as:
 
 - the scrutinee of `:wat::core::match`, OR
-- the value-position of `:wat::core::result::expect`, OR
-- the value-position of `:wat::core::option::expect`.
+- the value-position of `:wat::core::Result/expect`, OR
+- the value-position of `:wat::core::Option/expect`.
 
 Bare let RHS, function-call argument positions, etc. are
 illegal. Arc 110 enforces this — silent disconnect must be

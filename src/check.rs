@@ -1828,70 +1828,9 @@ fn arc_109_err_variant_migration_hint(callee: &str, _expected: &str, _got: &str)
     )
 }
 
-/// Arc 109 slice 1j — fires when the dispatcher has poisoned the
-/// retired `:wat::core::try` head. Canonical form is
-/// `:wat::core::Result/try` (per the `Type/verb` shape minted in
-/// slice 1j; see `INVENTORY.md` § D').
-fn arc_109_try_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
-    if callee != ":wat::core::try" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1j — `:wat::core::try` is retired. Canonical \
-         form is `:wat::core::Result/try` (the Result-side method-form \
-         per § D' — sibling to the brand-new `:wat::core::Option/try` \
-         minted in the same slice). Rename `:wat::core::try` → \
-         `:wat::core::Result/try` at the offending site. The substrate \
-         produces the same value; only the spelling changes."
-            .into(),
-    )
-}
-
-/// Arc 109 slice 1j — fires when the dispatcher has poisoned the
-/// retired `:wat::core::option::expect` head. Canonical form is
-/// `:wat::core::Option/expect` (PascalCase Type + slash-verb).
-fn arc_109_option_expect_migration_hint(
-    callee: &str,
-    _expected: &str,
-    _got: &str,
-) -> Option<String> {
-    if callee != ":wat::core::option::expect" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1j — `:wat::core::option::expect` is retired. \
-         Canonical form is `:wat::core::Option/expect` (PascalCase \
-         Type + slash-verb per § D' — matches the `Stats/new` / \
-         `HandlePool/pop` family). Rename \
-         `:wat::core::option::expect` → `:wat::core::Option/expect` \
-         at the offending site. The shape (-> :T <opt> <msg>) and \
-         semantics (panic on :None with msg) are unchanged."
-            .into(),
-    )
-}
-
-/// Arc 109 slice 1j — fires when the dispatcher has poisoned the
-/// retired `:wat::core::result::expect` head. Canonical form is
-/// `:wat::core::Result/expect`.
-fn arc_109_result_expect_migration_hint(
-    callee: &str,
-    _expected: &str,
-    _got: &str,
-) -> Option<String> {
-    if callee != ":wat::core::result::expect" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1j — `:wat::core::result::expect` is retired. \
-         Canonical form is `:wat::core::Result/expect` (PascalCase \
-         Type + slash-verb per § D'). Rename \
-         `:wat::core::result::expect` → `:wat::core::Result/expect` \
-         at the offending site. The shape (-> :T <res> <msg>) and \
-         semantics (panic on Err with msg, carrying any \
-         `Vec<*DiedError>` chain) are unchanged."
-            .into(),
-    )
-}
+// Stone 241.15 — arc_109_try_verb_migration_hint, arc_109_option_expect_migration_hint,
+// and arc_109_result_expect_migration_hint DELETED. Soft-deprecation hints superseded
+// by HARD-CUT-rejection arms (MalformedForm). collect_hints callers removed below.
 
 fn arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(
     callee: &str,
@@ -1923,6 +1862,9 @@ fn arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(
 }
 
 fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
+    // Stone 241.15 — arc_109_try_verb_migration_hint, arc_109_option_expect_migration_hint,
+    // arc_109_result_expect_migration_hint removed; those three zombies are now HARD CUT
+    // (MalformedForm rejection arms), not soft-deprecation TypeMismatch hints.
     let hints: Vec<String> = [
         arc_114_migration_hint(callee, expected, got),
         arc_109_vec_verb_migration_hint(callee, expected, got),
@@ -1932,9 +1874,6 @@ fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
         arc_109_none_variant_migration_hint(callee, expected, got),
         arc_109_ok_variant_migration_hint(callee, expected, got),
         arc_109_err_variant_migration_hint(callee, expected, got),
-        arc_109_try_verb_migration_hint(callee, expected, got),
-        arc_109_option_expect_migration_hint(callee, expected, got),
-        arc_109_result_expect_migration_hint(callee, expected, got),
         arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(callee, expected, got),
     ]
     .into_iter()
@@ -2700,14 +2639,12 @@ fn validate_comm_positions(
 
         // (3) Result-side `expect` form — items[3] is the value-position.
         //     Layout: (Result/expect -> :T <res> <msg>). Arc 109 slice 1j
-        //     renamed `:wat::core::result::expect` to
-        //     `:wat::core::Result/expect`; both heads still dispatch (the
-        //     retired form fires a Pattern 2 poison) so both are
-        //     recognized here for the duration of the migration.
+        //     renamed `:wat::core::result::expect` to `:wat::core::Result/expect`.
+        //     Stone 241.15: the retired lowercase form is HARD CUT; only
+        //     the canonical head recognized here.
         //     Arc 111: send/recv now return Result<Option<_>, _>; this is
         //     their natural panic-on-Err home.
-        if (head_str == ":wat::core::Result/expect"
-            || head_str == ":wat::core::result::expect")
+        if head_str == ":wat::core::Result/expect"
             && items.len() >= 5
         {
             for (i, child) in items.iter().enumerate() {
@@ -2723,15 +2660,12 @@ fn validate_comm_positions(
 
         // (4) Option-side `expect` form — items[3] is the value-position.
         //     Layout: (Option/expect -> :T <opt> <msg>). Arc 109 slice 1j
-        //     renamed `:wat::core::option::expect` to
-        //     `:wat::core::Option/expect`; both heads recognized for the
-        //     migration window (same poison-and-dispatch shape as the
-        //     Result form above). Pre-arc-111 home for kernel comm; kept
-        //     for callers who have ALREADY unwrapped the outer Result
-        //     (their own match/expect) and want to panic on the inner
-        //     :None.
-        if (head_str == ":wat::core::Option/expect"
-            || head_str == ":wat::core::option::expect")
+        //     renamed `:wat::core::option::expect` to `:wat::core::Option/expect`.
+        //     Stone 241.15: the retired lowercase form is HARD CUT; only
+        //     the canonical head recognized here.
+        //     Pre-arc-111 home for kernel comm; kept for callers who have
+        //     ALREADY unwrapped the outer Result and want to panic on :None.
+        if head_str == ":wat::core::Option/expect"
             && items.len() >= 5
         {
             for (i, child) in items.iter().enumerate() {
@@ -2774,9 +2708,9 @@ fn validate_comm_positions(
 /// "Consumed" means the name appears as:
 /// - The first argument of `(:wat::core::match <name> ...)`
 /// - The value argument (position 3) of `(:wat::core::Result/expect -> :T <name> "msg")`
-///   or `(:wat::core::result::expect -> :T <name> "msg")`
+///   (Stone 241.15: `:wat::core::result::expect` is HARD CUT; canonical form only)
 /// - The value argument of `(:wat::core::Option/expect -> :T <name> "msg")`
-///   or `(:wat::core::option::expect -> :T <name> "msg")`
+///   (Stone 241.15: `:wat::core::option::expect` is HARD CUT; canonical form only)
 fn collect_consumed_names_in_let(
     binding_items: &[WatAST],
     body_forms: &[WatAST],
@@ -2820,10 +2754,9 @@ fn collect_consumed_names_in_let(
         }
 
         // (:wat::core::Result/expect -> :T <value> "msg")
-        // (:wat::core::result::expect -> :T <value> "msg")
+        // Stone 241.15: retired `:wat::core::result::expect` is HARD CUT; canonical form only.
         // items[3] is the value — collect if it's a bare symbol.
-        if (head_str == ":wat::core::Result/expect"
-            || head_str == ":wat::core::result::expect")
+        if head_str == ":wat::core::Result/expect"
             && items.len() >= 5
         {
             if let Some(WatAST::Symbol(ident, _)) = items.get(3) {
@@ -2836,9 +2769,8 @@ fn collect_consumed_names_in_let(
         }
 
         // (:wat::core::Option/expect -> :T <value> "msg")
-        // (:wat::core::option::expect -> :T <value> "msg")
-        if (head_str == ":wat::core::Option/expect"
-            || head_str == ":wat::core::option::expect")
+        // Stone 241.15: retired `:wat::core::option::expect` is HARD CUT; canonical form only.
+        if head_str == ":wat::core::Option/expect"
             && items.len() >= 5
         {
             if let Some(WatAST::Symbol(ident, _)) = items.get(3) {
@@ -5860,59 +5792,36 @@ fn infer_list(
                 };
             }
             // Arc 109 slice 1j — § D' Option/Result method forms.
-            // Three retired verbs (Pattern 2 poison + dispatch) and
-            // four new canonical heads (the three renames plus the
-            // brand-new Option-side propagation primitive).
+            // Four canonical heads (the three renames plus the brand-new
+            // Option-side propagation primitive).
+            //
+            // Stone 241.15 — Zombie A: :wat::core::try HARD CUT.
+            // Soft-deprecation arm (arc 109 Pattern 2 poison) superseded; HARD CUT total.
             ":wat::core::try" => {
-                local_errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::try".into(),
-                    param: "(retired verb)".into(),
-                    expected: ":wat::core::Result/try".into(),
-                    got: ":wat::core::try".into(),
+                return CheckResult::errs(vec![CheckError::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!("'{}' is retired (Stone 241.15); use ':wat::core::Result/try' instead", k),
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
                     span: head_span.clone(),
-                });
-                let (val, mut errs) = infer_try(":wat::core::try", head_span, args, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
+                }]);
             }
+            // Stone 241.15 — Zombie B: :wat::core::option::expect HARD CUT.
             ":wat::core::option::expect" => {
-                local_errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::option::expect".into(),
-                    param: "(retired verb)".into(),
-                    expected: ":wat::core::Option/expect".into(),
-                    got: ":wat::core::option::expect".into(),
+                return CheckResult::errs(vec![CheckError::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!("'{}' is retired (Stone 241.15); use ':wat::core::Option/expect' instead", k),
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
                     span: head_span.clone(),
-                });
-                let (val, mut errs) = infer_option_expect(
-                    ":wat::core::option::expect",
-                    head_span, args, env, locals, fresh, subst,
-                ).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
+                }]);
             }
+            // Stone 241.15 — Zombie C: :wat::core::result::expect HARD CUT.
             ":wat::core::result::expect" => {
-                local_errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::result::expect".into(),
-                    param: "(retired verb)".into(),
-                    expected: ":wat::core::Result/expect".into(),
-                    got: ":wat::core::result::expect".into(),
+                return CheckResult::errs(vec![CheckError::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!("'{}' is retired (Stone 241.15); use ':wat::core::Result/expect' instead", k),
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
                     span: head_span.clone(),
-                });
-                let (val, mut errs) = infer_result_expect(
-                    ":wat::core::result::expect",
-                    head_span, args, env, locals, fresh, subst,
-                ).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
+                }]);
             }
             ":wat::core::Result/try" => {
                 let (val, mut errs) = infer_try(":wat::core::Result/try", head_span, args, env, locals, fresh, subst).into_parts();

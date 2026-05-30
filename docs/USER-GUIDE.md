@@ -1081,7 +1081,7 @@ are partial; add a fallback `_` arm.)
 (:wat::core::define (:my::app::pipeline (items :wat::holon::Holons)
                     -> :wat::holon::BundleResult)
   (:wat::core::let
-    (((bundled :wat::holon::HolonAST) (:wat::core::try (:wat::holon::Bundle items))))
+    (((bundled :wat::holon::HolonAST) (:wat::core::Result/try (:wat::holon::Bundle items))))
     (Ok bundled)))
 ```
 
@@ -1094,12 +1094,12 @@ Details in section 12.
 
 ```scheme
 ((v :i64)
- (:wat::core::option::expect -> :i64
+ (:wat::core::Option/expect -> :i64
    (:wat::kernel::send tx msg)
    "send to broker disconnected — broker died unexpectedly"))
 
 ((v :wat::holon::HolonAST)
- (:wat::core::result::expect -> :wat::holon::HolonAST
+ (:wat::core::Result/expect -> :wat::holon::HolonAST
    (:wat::sqlite::ReadHandle/open path)
    "rundb read-handle could not open — file missing?"))
 ```
@@ -1112,9 +1112,9 @@ violation, not data the caller will handle.
 
 | Verb | Failure case | Where |
 |---|---|---|
-| `:wat::core::try` | `Err(e)` propagates UP | inside a fn returning `:Result<_, E>` |
-| `:wat::core::option::expect` | `:None` panics with message | anywhere |
-| `:wat::core::result::expect` | `Err(_)` panics with message | anywhere |
+| `:wat::core::Result/try` | `Err(e)` propagates UP | inside a fn returning `:Result<_, E>` |
+| `:wat::core::Option/expect` | `:None` panics with message | anywhere |
+| `:wat::core::Result/expect` | `Err(_)` panics with message | anywhere |
 
 Mirrors Rust: `?` (try) propagates; `.expect("msg")` panics.
 
@@ -1785,8 +1785,8 @@ carries `ChannelDisconnected` as a stand-in.
 **Arc 110 — silent disconnect is a compile error.** Every
 `:wat::kernel::send` / `:wat::kernel::recv` call MUST appear as
 the scrutinee of `:wat::core::match`, the value-position of
-`:wat::core::result::expect`, or the value-position of
-`:wat::core::option::expect`. Any other context — let-binding
+`:wat::core::Result/expect`, or the value-position of
+`:wat::core::Option/expect`. Any other context — let-binding
 RHS, function-call argument, struct field, bare return value —
 is a compile-time error (`CommCallOutOfPosition`). The substrate
 refuses to compile programs that ignore the comm result; the
@@ -1794,7 +1794,7 @@ silent producer-keeps-going-on-dead-peer hang from proof_004 is
 structurally impossible.
 
 In-memory peer-death is catastrophic — there's no remote host,
-no recoverable disconnect — so `:wat::core::result::expect` is
+no recoverable disconnect — so `:wat::core::Result/expect` is
 the default. The 3-arm `match` is the narrow case: worker
 recv-loops where `Ok(:None)` IS the legitimate end-of-work
 signal (all clients dropped their Senders), and producer stages
@@ -1828,7 +1828,7 @@ this recv's value:
 
 ```scheme
 ((maybe-v :Option<T>)
-  (:wat::core::result::expect -> :Option<T>
+  (:wat::core::Result/expect -> :Option<T>
     (:wat::kernel::recv rx)
     "rx: peer thread died — driver panicked?"))
 ```
@@ -1846,8 +1846,8 @@ nest:
 
 ```scheme
 ((v :T)
-  (:wat::core::option::expect -> :T
-    (:wat::core::result::expect -> :Option<T>
+  (:wat::core::Option/expect -> :T
+    (:wat::core::Result/expect -> :Option<T>
       (:wat::kernel::recv rx)
       "rx: peer thread died")
     "rx: clean disconnect — peer dropped its sender"))
@@ -1857,7 +1857,7 @@ nest:
 
 ```scheme
 ((_send :())
-  (:wat::core::result::expect -> :()
+  (:wat::core::Result/expect -> :()
     (:wat::kernel::send tx msg)
     "tx disconnected — driver died?"))
 ```
@@ -1916,7 +1916,7 @@ exits, every `Sender` Arc bound there decrements; the worker's next
        ((h :wat::kernel::Thread<(),i64>)
         (:wat::kernel::spawn-thread ...))
        ((_send :Result<(),:Vec<wat::kernel::ThreadDiedError>>)
-        (:wat::core::result::expect -> :()
+        (:wat::core::Result/expect -> :()
           (:wat::kernel::send tx 1)
           "send 1: tx disconnected — worker died?")))
       h)))                                    ;; ← pair, tx, rx all drop here
@@ -2041,12 +2041,12 @@ the arc-111 three-state shape (`Ok(Some)`/`Ok(:None)`/`Err(died)`).
 ```scheme
 (:wat::core::let
   (((proc :wat::kernel::Process<MyRequest,MyResponse>)
-    (:wat::core::result::expect -> :wat::kernel::Process<MyRequest,MyResponse>
+    (:wat::core::Result/expect -> :wat::kernel::Process<MyRequest,MyResponse>
       (:wat::kernel::spawn-program inner-src :None)
       "spawn-program failed"))
    ;; typed send — substrate handles EDN render + newline + write
    ((_sent :())
-    (:wat::core::result::expect -> :()
+    (:wat::core::Result/expect -> :()
       (:wat::kernel::process-send proc request-value)
       "send to inner program failed")))
   ;; typed recv — three-arm match required by arc 110 + 112 slice 3
@@ -2605,7 +2605,7 @@ Constructors are bare: `(Ok v)`, `(Err e)`. Consumers match or `try`.
 
 ;; TRY — propagate; the enclosing function must return :Result<_, E> with the same E
 (:wat::core::define (:my::app::pipeline (x :T) -> :Result<U,E>)
-  (Ok (:wat::core::try (:my::app::fallible-compute x))))
+  (Ok (:wat::core::Result/try (:my::app::fallible-compute x))))
 ```
 
 ### Bundle's capacity — the canonical Result in the algebra
@@ -2622,7 +2622,7 @@ DimRouter, arc 037) is exceeded.
 ```scheme
 (:wat::core::define (:my::app::build (items :wat::holon::Holons)
                     -> :wat::holon::BundleResult)
-  (Ok (:wat::core::try (:wat::holon::Bundle items))))
+  (Ok (:wat::core::Result/try (:wat::holon::Bundle items))))
 
 (:wat::core::match (:my::app::build huge-list) -> :i64
   ((Ok _h) 0)
@@ -3278,7 +3278,7 @@ on join-result                    extract-panics from stderr
 Result<R, ThreadPanics>           Result<R, ProcessPanics>
 ```
 
-The conj-on-panic mechanism: `:wat::core::result::expect` on an
+The conj-on-panic mechanism: `:wat::core::Result/expect` on an
 Err arm carries the inherited chain through the panic via the
 substrate's `AssertionPayload.upstream_chain`. When this thread's
 death lands at the spawn driver's catch_unwind, this thread's
@@ -3342,7 +3342,7 @@ items (where `d` is the dim the active DimRouter picks for that
 construction) under `:error` mode returns
 `(Err (CapacityExceeded ...))`. Callers who ignore the Err by
 unwrap will panic at `match` time. Fix: either handle the Err
-arm, use `:wat::core::try` in a Result-returning function, or
+arm, use `:wat::core::Result/try` in a Result-returning function, or
 pre-filter the list to the budget. The thrown `CapacityExceeded`
 struct carries `/cost` (actual count) and `/budget` (the limit
 at the active `d`) accessors so the error path can shape its
@@ -3463,7 +3463,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::match` | `scrutinee -> :T arm1 arm2 ...` | arm result (type `T`) |
 | `:wat::core::if` | `cond -> :T then else` | branch result (type `T`) |
 | `:wat::core::cond` | `-> :T ((test) body) ... (:else body)` | arm result (type `T`) |
-| `:wat::core::try` | `<result-expr>` | Ok-inner type |
+| `:wat::core::Result/try` | `<result-expr>` | Ok-inner type |
 | `:wat::core::struct` | `(:path (f :T) ...)` | declares struct |
 | `:wat::core::enum` | `(:path v1 v2 (v3 (f :T)) ...)` | declares enum (variants PascalCase per arc 048) |
 | `:Enum::Variant` (bare keyword) | — | constructs unit variant (arc 048) |
