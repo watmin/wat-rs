@@ -30,24 +30,26 @@
 //! - User-define body vs signature mismatches. Rigid type params
 //!   mean a body of `:i64` in a `∀T. T -> T` signature is rejected.
 //!
-//! # What this does NOT catch (explicitly deferred)
+//! # What this does NOT catch
 //!
-//! - **Fn-value call-site typing.** Fn values don't carry
-//!   structured signatures through [`crate::runtime::Function`] yet,
-//!   so calling a fn stays Unknown at the check layer.
+//! - **Fn-value call-site typing.** Fn values don't carry structured
+//!   signatures through [`crate::runtime::Function`]; calling a fn
+//!   stays Unknown at the check layer.
 //! - **`:Union<T,U,V>` coproduct discipline.** `:Union` is a
-//!   first-class type form in the grammar; full subtype / variant
-//!   checks land when stdlib needs demand them.
+//!   first-class type form in the grammar; its check-layer surface
+//!   is intentionally permissive — full subtype/variant discipline
+//!   is outside the check layer by design.
 //! - **Typed-macro parameter checks (058-032).** Macros expand before
 //!   check; macro-definition-time checks (`:AST<T>` against body
-//!   positions) are future work.
+//!   positions) are outside the check layer by design (expansion-time
+//!   discipline is a separate concern if pursued).
 //! - **Numeric promotion.** `:i64` does not promote to `:f64` statically;
 //!   mixing numeric types in arithmetic is rejected.
 
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
 use crate::runtime::{Function, SymbolTable};
-use crate::span::Span;
+use crate::span::{span_prefix, Span};
 use crate::types::{TypeEnv, TypeExpr};
 use std::collections::HashMap;
 use std::fmt;
@@ -635,7 +637,7 @@ pub enum CheckError {
     /// (stdout), `:wat::kernel::eprintln` (stderr),
     /// `:wat::kernel::readln` (stdin). All three are EDN-only — any
     /// value EDN-encodes; no manual string formatting. Pattern 3
-    /// walker (`validate_bare_legacy_console_path`); prefix-match on
+    /// walker (`walk_for_bare_legacy_console`); prefix-match on
     /// `:wat::console::` catches every verb in the namespace including
     /// `:wat::console::spawn`, `:wat::console::out`,
     /// `:wat::console::Console/out`, `:wat::console::log`, etc.
@@ -721,18 +723,6 @@ pub enum CheckError {
         reason: String,
         span: Span,
     },
-}
-
-/// Arc 138 slice 1 — render the file:line:col prefix for an error,
-/// or empty when the span is unknown (synthetic check rule with no
-/// originating node). The prefix shape mirrors `ScopeDeadlock` /
-/// `ChannelPairDeadlock` / `BareLegacyPrimitive` — `<file>:<line>:<col>: `.
-fn span_prefix(span: &Span) -> String {
-    if span.is_unknown() {
-        String::new()
-    } else {
-        format!("{}: ", span)
-    }
 }
 
 impl fmt::Display for CheckError {
@@ -1688,6 +1678,9 @@ impl CheckError {
 /// scenario, add a `<scenario>_migration_hint(callee, expected, got)` entry
 /// to the array below. The check pass invokes each entry; the first that
 /// returns Some wins.
+// CONVENTION: migration-hint functions take (callee, expected, got);
+// hints that only need `callee` underscore-prefix the others. `collect_hints`
+// dispatches uniformly so the trait surface stays consistent across the family.
 /// Arc 109 slice 1f — fires when the dispatcher has poisoned the
 /// retired `:wat::core::vec` head. The hint names the canonical
 /// replacement (`:wat::core::Vector`, verb-equals-type per
@@ -1986,7 +1979,7 @@ pub struct CheckEnv {
     ///
     /// Generic storage: the substrate does NOT enforce specific keys; each
     /// downstream consumer projects to its typed needs.
-    pub binding_metadata: HashMap<String, HashMap<String, WatAST>>,
+    pub binding_metadata: Arc<HashMap<String, HashMap<String, WatAST>>>,
     /// Arc 157 slice 1a-ii — compile-time redef-allowed flag. Default
     /// `false` (strict default: every redef is an error). Updated
     /// in-line by `check_program` when it encounters a top-level
@@ -2033,7 +2026,7 @@ impl CheckEnv {
         // metadata-map (or the inventory channel submits restrictions). The
         // walker `walk_for_restricted_call` consults the `:restricted-to`
         // key at check time.
-        env.binding_metadata = sym.binding_metadata.clone();
+        env.binding_metadata = Arc::new(sym.binding_metadata.clone());
         env
     }
 
@@ -2070,7 +2063,7 @@ impl CheckEnv {
             types,
             defined_values: HashMap::new(),
             defined_value_spans: HashMap::new(),
-            binding_metadata: HashMap::new(),
+            binding_metadata: Arc::new(HashMap::new()),
             redef_allowed: false,
             defclause_registrations: HashMap::new(),
         }
@@ -2300,10 +2293,10 @@ pub fn check_program(
     // organization. Walks every keyword token in the AST and emits
     // one BareLegacyStreamPath per occurrence.
     for func in sym.functions.values() {
-        validate_legacy_stream_path(&func.body, &mut errors);
+        walk_for_legacy_stream(&func.body, &mut errors);
     }
     for form in forms {
-        validate_legacy_stream_path(form, &mut errors);
+        walk_for_legacy_stream(form, &mut errors);
     }
 
     // Arc 109 slice K.telemetry — refuse the legacy
@@ -2313,10 +2306,10 @@ pub fn check_program(
     // doctrine; verbs and typealiases live at the namespace level.
     // Real types Stats and MetricsCadence keep their /methods.
     for func in sym.functions.values() {
-        validate_legacy_telemetry_service_path(&func.body, &mut errors);
+        walk_for_legacy_telemetry_service(&func.body, &mut errors);
     }
     for form in forms {
-        validate_legacy_telemetry_service_path(form, &mut errors);
+        walk_for_legacy_telemetry_service(form, &mut errors);
     }
 
     // Arc 109 slice K.lru — refuse the legacy
@@ -2327,10 +2320,10 @@ pub fn check_program(
     // ReqChannel (gaze 2026-05-01); ReplyRx + ReplyChannel
     // typealiases minted to complete Pattern B.
     for func in sym.functions.values() {
-        validate_legacy_lru_cache_service_path(&func.body, &mut errors);
+        walk_for_legacy_lru_cache_service(&func.body, &mut errors);
     }
     for form in forms {
-        validate_legacy_lru_cache_service_path(form, &mut errors);
+        walk_for_legacy_lru_cache_service(form, &mut errors);
     }
 
     // Arc 109 slice K.kernel-channel — refuse the legacy
@@ -2339,10 +2332,10 @@ pub fn check_program(
     // data-structure name) to the canonical Channel / Sender /
     // Receiver family.
     for func in sym.functions.values() {
-        validate_legacy_kernel_queue_path(&func.body, &mut errors);
+        walk_for_legacy_kernel_queue(&func.body, &mut errors);
     }
     for form in forms {
-        validate_legacy_kernel_queue_path(form, &mut errors);
+        walk_for_legacy_kernel_queue(form, &mut errors);
     }
 
     // Arc 109 § kill-std / Arc 170 slice 1f-η — refuse ANY token in
@@ -2355,10 +2348,10 @@ pub fn check_program(
     // diagnostic teaching the ambient kernel trio. Walker is
     // permanent — no sweep window; console is fully retired.
     for func in sym.functions.values() {
-        validate_bare_legacy_console_path(&func.body, &mut errors);
+        walk_for_bare_legacy_console(&func.body, &mut errors);
     }
     for form in forms {
-        validate_bare_legacy_console_path(form, &mut errors);
+        walk_for_bare_legacy_console(form, &mut errors);
     }
 
     // Stone 241.14 — generic restriction walker (`walk_for_restricted_call`).
@@ -3281,8 +3274,8 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 // firing body. Variant + Display preserved as orphaned
 // scaffolding per arc 113 precedent.
 //
-// Reintroduction recipe (if a future arc needs walker-driven
-// migration on a similar single-token keyword retirement):
+// Walker pattern (preserved per substrate-as-teacher § Pattern 3 —
+// mirror this shape for similar single-token keyword retirements):
 // match `WatAST::Keyword(s, span)` for the retired FQDN; recurse
 // into `WatAST::List(items, _)` children; emit one CheckError
 // per offending site. Mirror arc 153's `walk_type_for_legacy_unit_name`
@@ -3306,9 +3299,10 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 // slice 2; source-level use surfaces BareLegacyLambda fatal at check
 // time (arc 163 re-armed that walker for let* as well).
 //
-// Reintroduction recipe: see arc 153/154 walker shapes; mirror
-// `WatAST::Keyword(s)` match for the retired FQDN, recurse
-// into `WatAST::List(items, _)` children, emit one CheckError
+// Walker pattern (preserved per substrate-as-teacher § Pattern 3 —
+// mirror this shape for similar retirements): see arc 153/154 walker
+// shapes; mirror `WatAST::Keyword(s)` match for the retired FQDN,
+// recurse into `WatAST::List(items, _)` children, emit one CheckError
 // per offending site.
 
 // Arc 155 slice 2 — `validate_legacy_lowercase_fn` +
@@ -3345,8 +3339,8 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 // closure retires the firing body. `LegacyTypedLetBinding` variant +
 // Display preserved as orphaned scaffolding (arc 113 precedent).
 //
-// Reintroduction recipe (if a future arc needs walker-driven
-// migration on a similar inner-let-binding shape change):
+// Walker pattern (preserved per substrate-as-teacher § Pattern 3 —
+// mirror this shape for similar inner-let-binding shape changes):
 //   - public entry: walks all `:wat::core::let` forms; for each
 //     bindings-list pair, checks the binding shape; emits one
 //     CheckError per offending site
@@ -3438,10 +3432,6 @@ fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) 
 /// Catches all positions uniformly (callable head, type
 /// annotation, value position) since every legacy use surfaces as
 /// a `WatAST::Keyword` node carrying the prefix.
-fn validate_legacy_stream_path(node: &WatAST, errors: &mut Vec<CheckError>) {
-    walk_for_legacy_stream(node, errors);
-}
-
 const LEGACY_STREAM_PREFIX: &str = ":wat::std::stream::";
 const CANONICAL_STREAM_PREFIX: &str = ":wat::stream::";
 
@@ -3470,16 +3460,6 @@ fn walk_for_legacy_stream(node: &WatAST, errors: &mut Vec<CheckError>) {
     }
 }
 
-/// Arc 109 slice K.telemetry — same shape as `validate_legacy_stream_path`
-/// but for the two Service grouping-noun prefixes. Catches both
-/// `:wat::telemetry::Service::X` (typealias path) and
-/// `:wat::telemetry::Service/X` (verb path); canonical replacement
-/// strips the `Service::` or `Service/` segment so the path becomes
-/// `:wat::telemetry::X`.
-fn validate_legacy_telemetry_service_path(node: &WatAST, errors: &mut Vec<CheckError>) {
-    walk_for_legacy_telemetry_service(node, errors);
-}
-
 const LEGACY_TELEMETRY_SERVICE_TYPEALIAS_PREFIX: &str = ":wat::telemetry::Service::";
 const LEGACY_TELEMETRY_SERVICE_VERB_PREFIX: &str = ":wat::telemetry::Service/";
 const CANONICAL_TELEMETRY_PREFIX: &str = ":wat::telemetry::";
@@ -3506,16 +3486,6 @@ fn walk_for_legacy_telemetry_service(node: &WatAST, errors: &mut Vec<CheckError>
     for child in node.children() {
         walk_for_legacy_telemetry_service(child, errors);
     }
-}
-
-/// Arc 109 slice K.lru — Pattern B canonicalization for ReqPair →
-/// ReqChannel. Catches both
-/// `:wat::lru::CacheService::X` (typealias) and
-/// `:wat::lru::CacheService/X` (verb); canonical replacement
-/// strips the segment and substitutes the canonical leaf for
-/// `ReqPair`.
-fn validate_legacy_lru_cache_service_path(node: &WatAST, errors: &mut Vec<CheckError>) {
-    walk_for_legacy_lru_cache_service(node, errors);
 }
 
 const LEGACY_LRU_CACHE_SERVICE_TYPEALIAS_PREFIX: &str = ":wat::lru::CacheService::";
@@ -3559,14 +3529,6 @@ fn walk_for_legacy_lru_cache_service(node: &WatAST, errors: &mut Vec<CheckError>
     for child in node.children() {
         walk_for_legacy_lru_cache_service(child, errors);
     }
-}
-
-/// Arc 109 slice K.kernel-channel — walks every WatAST keyword
-/// looking for the five retired kernel `Queue*` family names.
-/// Each retired name has a single canonical replacement; the
-/// substitution table is hard-coded.
-fn validate_legacy_kernel_queue_path(node: &WatAST, errors: &mut Vec<CheckError>) {
-    walk_for_legacy_kernel_queue(node, errors);
 }
 
 /// Retired kernel `Queue*` family — paired with their canonical
@@ -3627,20 +3589,6 @@ fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
     for child in node.children() {
         walk_for_legacy_kernel_queue(child, errors);
     }
-}
-
-/// Arc 109 § kill-std / Arc 170 slice 1f-η — refuse ANY token that
-/// starts with the fully-retired `:wat::console::` prefix. The
-/// Console driver + handle plumbing + ConsoleLogger were annihilated
-/// in slice 1f-η; no dispatch arms remain. Prefix-match catches
-/// every verb and type in the namespace (`:wat::console::spawn`,
-/// `:wat::console::out`, `:wat::console::Console/out`,
-/// `:wat::console::log`, etc.) without enumerating them individually.
-///
-/// Walker is permanent — no sweep window; no in-tree consumer code;
-/// the namespace is fully retired. Pattern 3 per SUBSTRATE-AS-TEACHER.md.
-fn validate_bare_legacy_console_path(node: &WatAST, errors: &mut Vec<CheckError>) {
-    walk_for_bare_legacy_console(node, errors);
 }
 
 const LEGACY_CONSOLE_PREFIX: &str = ":wat::console::";
@@ -5086,9 +5034,6 @@ fn check_form(
 
 // ─── Inference ──────────────────────────────────────────────────────────
 
-/// Infer the type of an expression.
-///
-/// Returns `CheckResult::ok(type)` when a type can be assigned cleanly,
 /// Stone 242.2 — Doctrine 1 guard: returns true when `k` is a primitive scalar
 /// type keyword that is ILLEGAL in value position.
 ///
@@ -5110,11 +5055,13 @@ fn is_primitive_type_keyword_in_value_position(k: &str) -> bool {
     )
 }
 
-/// `CheckResult::partial_with(type, errors)` when a type is assigned but
-/// diagnostics were accumulated, or `CheckResult::errs(errors)` when the
-/// expression's type cannot be determined. Errors are collected internally;
-/// callers holding a legacy `&mut Vec<CheckError>` sink use the
-/// `.drain_errors_into(errors)` bridge combinator.
+/// Infer the type of an expression. Returns `CheckResult::ok(type)` when a
+/// type can be assigned cleanly, `CheckResult::partial_with(type, errors)`
+/// when a type is assigned but diagnostics were accumulated, or
+/// `CheckResult::errs(errors)` when the expression's type cannot be
+/// determined. Errors are collected internally; callers holding a legacy
+/// `&mut Vec<CheckError>` sink use the `.drain_errors_into(errors)` bridge
+/// combinator.
 ///
 /// Arc 236.1: primary fn infer() migrated from Option<TypeExpr> +
 /// &mut Vec<CheckError> dual-channel to CheckResult<TypeExpr> single-channel.
@@ -9329,6 +9276,10 @@ fn infer_cond(
 /// type is `:wat::core::nil`). Non-Vector outer shape (e.g. legacy
 /// nested-pair List `((n e) ...)`) produces a clean `MalformedForm`
 /// — slice 3 retired the transitional fall-through.
+// CONVENTION: infer_* functions take (..., head_span) for structural
+// uniformity; functions that don't emit errors at the head site
+// underscore-prefix the parameter (`_head_span`) — the signature stays
+// consistent across the family.
 fn infer_let(
     args: &[WatAST],
     _head_span: &Span,
@@ -9997,6 +9948,32 @@ fn collect_and_register_splice_defs(
     collect_splice_defs_ctx(form, true, env, fresh, errors);
 }
 
+/// Stone 237.2/237.3 — shared defclause registration: parse a top-level
+/// `(:wat::core::defclause ...)` form and register its clause table into
+/// `env.defclause_registrations`. Returns true when registered, false when
+/// parse fails or the name is already registered (when `idempotent=true`).
+fn register_defclause_from_form(form: &WatAST, env: &mut CheckEnv, idempotent: bool) -> bool {
+    let span = form.span().clone();
+    let (name, cs) = match crate::runtime::parse_defclause_form(form) {
+        Ok(pair) => pair,
+        Err(_) => return false,
+    };
+    if idempotent && env.get_defclause_clauses(&name).is_some() {
+        return false;
+    }
+    let clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)> = cs
+        .clauses
+        .iter()
+        .map(|cl| {
+            let arg_types: Vec<TypeExpr> =
+                cl.args.iter().map(|(_, ty)| ty.clone()).collect();
+            (arg_types, cl.return_type.clone(), cl.rest_param.is_some())
+        })
+        .collect();
+    env.register_defclause(name, clauses, span);
+    true
+}
+
 fn collect_splice_defs_ctx(
     form: &WatAST,
     is_top: bool,
@@ -10046,26 +10023,10 @@ fn collect_splice_defs_ctx(
         // into env.defclause_registrations so subsequent call sites see
         // the correct per-clause type signatures.
         ":wat::core::defclause" if is_top => {
-            let span = form.span().clone();
-            match crate::runtime::parse_defclause_form(form) {
-                Ok((name, cs)) => {
-                    let clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)> = cs
-                        .clauses
-                        .iter()
-                        .map(|cl| {
-                            let arg_types: Vec<TypeExpr> =
-                                cl.args.iter().map(|(_, ty)| ty.clone()).collect();
-                            (arg_types, cl.return_type.clone(), cl.rest_param.is_some())
-                        })
-                        .collect();
-                    env.register_defclause(name, clauses, span);
-                }
-                Err(_) => {
-                    // Parse error will be reported by infer_defclause.
-                    // Don't register anything — subsequent references
-                    // to the name will use a fresh Var (permissive).
-                }
-            }
+            // Non-idempotent: collect_splice_defs_ctx runs in the main
+            // sequential loop where the most-recently-seen registration wins.
+            // Parse errors are silently skipped here (infer_defclause reports them).
+            register_defclause_from_form(form, env, false);
         }
         ":wat::core::do" if is_top => {
             for child in &items[1..] {
@@ -10102,22 +10063,9 @@ fn preregister_defclause_in_env(form: &WatAST, env: &mut CheckEnv) {
         Some(WatAST::Keyword(k, _)) if k.as_str() == ":wat::core::defclause" => {}
         _ => return,
     }
-    let span = form.span().clone();
-    if let Ok((name, cs)) = crate::runtime::parse_defclause_form(form) {
-        // Only pre-register if not already registered (first-registration wins).
-        if env.get_defclause_clauses(&name).is_none() {
-            let clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)> = cs
-                .clauses
-                .iter()
-                .map(|cl| {
-                    let arg_types: Vec<TypeExpr> =
-                        cl.args.iter().map(|(_, ty)| ty.clone()).collect();
-                    (arg_types, cl.return_type.clone(), cl.rest_param.is_some())
-                })
-                .collect();
-            env.register_defclause(name, clauses, span);
-        }
-    }
+    // Idempotent: first-registration wins; subsequent defclause forms
+    // with the same name are silently skipped.
+    register_defclause_from_form(form, env, true);
 }
 
 /// Arc 157 — extract the `(name, TypeExpr, Span)` triple from a
@@ -11373,8 +11321,7 @@ fn infer_program_env_get_default(
 // Three multi-step accessors over `:wat::program::Env`.  Arg layouts mirror
 // Stone 4.2 exactly except `key` is replaced by `path` (must unify with
 // `Vector<keyword>`).  Design call: path is Vector<keyword> at the WAT surface
-// — each step is a keyword key for HashMap lookup.  Future arcs may generalise
-// to Vector<HolonAST> when integer index or tuple steps are needed.
+// — each step is a keyword key for HashMap lookup.
 //
 //   /dig          → args[0]=env  args[1]=path  args[2]=->  args[3]=:T
 //   /expect-dig   → args[0]=env  args[1]=path  args[2]=->  args[3]=:T
@@ -15310,6 +15257,10 @@ fn instantiate(scheme: &TypeScheme, fresh: &mut InferCtx) -> (Vec<TypeExpr>, Typ
 /// Replace `Path(":T")` occurrences where T is a key in `mapping`
 /// with the mapping's value. Used by [`instantiate`] to convert a
 /// rigid type variable name into a fresh unification var.
+///
+/// Called from `instantiate` to convert each rigid type-variable name
+/// (`:T`, `:K`, `:V`) into a fresh unification variable for a call site,
+/// so independent call sites don't alias.
 fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> TypeExpr {
     match ty {
         TypeExpr::Path(p) => {
@@ -15372,7 +15323,7 @@ pub fn format_type(t: &TypeExpr) -> String {
 
 /// Arc 143 — exposed as companion to `format_type` (used recursively
 /// for inner type arguments where the leading `:` is omitted).
-pub fn format_type_inner(t: &TypeExpr) -> String {
+fn format_type_inner(t: &TypeExpr) -> String {
     match t {
         TypeExpr::Path(p) => p.strip_prefix(':').unwrap_or(p).to_string(),
         TypeExpr::Parametric { head, args } => {

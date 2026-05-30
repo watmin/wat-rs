@@ -8,75 +8,105 @@ Stone 241.18a's vigilia surfaced a class of substrate-level diagnostic-quality f
 
 - `ParseStep::ArityMismatch { actual: usize }` — no span field; the variant lies about being a structurally-spanned error type
 - `TypeError::CyclicSubtype { child: String, parent: String }` — no span field; same class
-- `TypeError` has no `.span()` accessor — every consumer must exhaustively match across all variants (parse.rs has a 16-arm match for this exact reason)
+- `TypeError` has no `.span()` accessor — every consumer must exhaustively match across all variants (parse.rs had a 16-arm match for this exact reason)
 - `parse_fn_signature` API takes a bare `&[WatAST]` slice with no head-span parameter — callers (eval_fn, infer_fn) HAVE span context but the parser boundary discards it
 - Other error types (`RuntimeError`, `CheckError`, `StartupError`, `ArgSpecError`) may have similar gaps — uncatalogued
 
-**Rust's type system has no opinion on "errors must carry span."** Each error type's adherence to the span discipline is by hand-written convention (the argspec home documented this explicitly at `src/argspec/error.rs:6`). Without a trait + audit spell + convention doc, future error types continue to silently lack spans.
+**Rust's type system has no opinion on "errors must carry span."** Each error type's adherence to the span discipline is by hand-written convention (the argspec home documented this explicitly at `src/argspec/error.rs:6`). Without a structural shape + audit spell + convention doc, future error types continue to silently lack spans.
 
-Per `scratch/FAILURE-ENGINEERING.md` discipline: **eliminate the CLASS by making the wrong shape STRUCTURALLY UNAVAILABLE.** Catching instance-by-instance via vigilia is reactive vigilance; minting the trait + spell + doctrine makes the class structurally impossible going forward.
+Per `scratch/FAILURE-ENGINEERING.md` discipline: **eliminate the CLASS by making the wrong shape STRUCTURALLY UNAVAILABLE.** Catching instance-by-instance via vigilia is reactive vigilance; minting the shape + spell + doctrine makes the class structurally impossible going forward.
 
-## What this arc delivers
+## The doctrine (Pattern A) — and why not a trait
 
-Multi-layer skill (precedent: ZERO-MUTEX.md):
+The original design (this doc, pre-243.3) proposed a `trait Conformare` with a `span()` accessor. **The CONFORMARE-FIRST-CAST four-questions superseded that** with **Pattern A**: a trait can only enforce "you have a span accessor" — a variant can still return `Span::unknown()` and lie at the value level. An outer struct makes the spanless error **structurally unrepresentable** at construction:
 
-1. **`docs/CONFORMARE.md`** — substrate convention doc; the WHY + the discipline statement; lists existing exemptions (`CyclicSubtype` legitimately has no source location — registry cycle, not source error) with reasoning.
+```rust
+pub struct SomeError {
+    pub span: Span,
+    pub kind: SomeErrorKind,
+}
 
-2. **`datamancy.dev/conformare/SKILL.md`** — audit spell; casts on error-type enum definitions + `From` impl boundaries + parser API signatures. Flags non-conformance at L1/L2. Joins vigilia default set.
+pub enum SomeErrorKind {
+    // variants — NONE carry a span field
+}
+```
 
-3. **`trait Conformare`** (Rust trait in `src/error.rs` or similar) — type-level guard. Every error type implements; the trait's bound enforces what Rust CAN enforce ("you must have a span accessor"). The audit spell catches what Rust can't (e.g., "your span is always Span::unknown" — the value-level dishonesty the type system doesn't see).
+The compiler enforces the location field; the kind enum holds variant data; every consumer reads `err.span` (one path, not an N-arm match).
 
-4. **Per-error-type retrofit** — every existing error type implements `Conformare`; variants gain span fields where structurally available; `Span::unknown()` is acceptable ONLY when documented (CyclicSubtype: no source location; registry-cycle context).
+**Zero exceptions** (user direction 2026-05-30): anything wat can toss from Rust must be location-aware. The outer field is `Span` for the common case; a domain whose location is genuinely not a source span carries the appropriate location type (Path, Position, …) — but the *shape* (outer struct + kind enum + mandatory location) is universal. The `spanless-by-domain` rune kind is retired by Stone 243.4: a registration that lacks an AST node threads the caller's span rather than excusing itself.
 
-5. **Parser-API sister-walk** — every parser/check API that takes a bare slice without span context gains a `head_span: &Span` parameter. Closes the ArityMismatch class at the API boundary.
+## The namespaced-home vision
+
+Arc 243 is the substrate-maturation arc. `src/` unwinds to near-empty; every domain becomes a vigilia-protected `src/<noun>/` home. The flat `src/*.rs` files are pre-spell-library debt; the homes are the protected substrate. Each error type's Pattern A retrofit rides the carve-out of its home — the error file (`<noun>/error.rs`) is the home's first honest neighbor; `mod.rs` absorbs the legacy mass on day one (`mv <noun>.rs → <noun>/mod.rs` preserves all content + import paths); future arcs grow the home as the domain earns decomposition.
+
+The conformance vehicle and the home-carving vehicle are the same stone chain.
 
 ## Stone chain
 
-Provisional; each stone gets its own DESIGN-STONE-N.md before strike.
+Each stone gets its own DESIGN-STONE-N.md before strike.
 
-| Stone | Scope |
-|---|---|
-| **243.1** | `docs/CONFORMARE.md` doctrine. Orchestrator-direct authorship (substrate convention doc, sibling to ZERO-MUTEX.md). Establishes the WHY, the discipline statement, the exemption framework. |
-| **243.2** | Mint `datamancy.dev/conformare/SKILL.md` spell + first-cast audit on the entire substrate. Catalog every error-type variant + From impl + parser-API signature that violates the discipline. Output: a substrate-wide non-conformance manifest. |
-| **243.3** | Mint `trait Conformare` in Rust. Choose the right home (`src/error.rs` new file? In an existing module?). Pure mint stone (no usage yet). |
-| **243.4..N** | Per-error-type retrofit stones — each major error type gets a stone: implement `Conformare`, add span fields to variants, update From impls to preserve span. Likely stones: TypeError, ArgSpecError, RuntimeError, CheckError, StartupError, ParseStep (Stone 241.18a's leftover NEW-2 closes here). |
-| **243.M** | Parser-API sister-walk — every parser/check API taking a bare slice gains `head_span: &Span`. Closes the ArityMismatch-style defensive-class at the boundary. |
-| **243.M+1** | Add `conformare` to vigilia default defensive set for code files. |
-| **243.Z** | INSCRIPTION — class structurally eliminated. |
+| Stone | Scope | Status |
+|---|---|---|
+| **243.1** | `docs/CONFORMARE.md` doctrine (orchestrator-direct; sibling to ZERO-MUTEX.md) | SHIPPED (`21cd77ff`) |
+| **243.2** | Mint `conformare` spell + first-cast audit. FOLDED: the spell was minted (datamancy.dev/conformare) + earned its seat via CONFORMARE-FIRST-CAST; its R2 cast on the 243.3 surface identified CheckError as the next retrofit + confirmed the broader "everything bears a location" scope. Remaining error types enumerated by rolling audit as they surface. | FOLDED |
+| **243.3** | TypeError Pattern A retrofit (outer struct + kind enum) + R2 vigilia convergence on `types.rs`/`check.rs` | IN PROGRESS |
+| **243.4** | `docs/CONFORMARE.md` doctrine rewrite — zero exceptions + namespaced-home requirement; retire Tier framework + `spanless-by-domain` rune kind | PLANNED |
+| **243.5** | Mint `src/types/` home — `mv types.rs → types/mod.rs`; carve `TypeError` → `types/error.rs`; `parse_defstruct` decomposition (`types/parse.rs` / `types/defstruct.rs`); thread `register_subtype` caller-span (retire CyclicSubtype rune); vigilia REMARKABLE bar | PLANNED |
+| **243.6** | Mint `src/check/` home — `mv check.rs → check/mod.rs`; carve `CheckError` → `check/error.rs` under Pattern A (multi-span variants per CONFORMARE.md § Multi-span); fuse `check_program` walker chain (10× → 1×); fold `collect_hints` caching into outer struct; vigilia REMARKABLE bar | PLANNED |
+| **243.7…** | Remaining error types per rolling audit (RuntimeError, ParseStep [Stone 241.18a's NEW-2 closes here], LexError, LoadError, ResolveError, StdlibError, HashError, ExtractionError, …) — one home-carve + Pattern A retrofit per fat file | PENDING |
+| **243.M** | Parser-API sister-walk — every parser/check API taking a bare slice gains `head_span: &Span`. Closes the ArityMismatch-style defensive class at the boundary. | PENDING |
+| **243.N** | INSCRIPTION (fires last, after all spawned stones close) — class structurally eliminated | PENDING |
+
+## Deferrals attested into this chain (Stone 243.3 R2 vigilia)
+
+The R2 vigilia round on `types.rs`/`check.rs` (8 spells) surfaced architectural findings whose structurally-right owner is a later stone in THIS arc (within reach — child stones of the open arc, per the within-reach deferral doctrine):
+
+| Finding | Owner | Why deferred here |
+|---|---|---|
+| `parse_defstruct` 350-line, 7 concerns (struere F3) | 243.5 | the types/ home carve is where deliberate decomposition belongs |
+| `check_program` walker chain 10× traversal (temperare T-L1-4) | 243.6 | walker fusion is check/ decomposition work; sequi confirmed walkers independent (state-safe to fuse) |
+| `collect_hints` double-compute (temperare T-L1-5) | 243.6 | hint-caching is a facet of the CheckError outer-struct design |
+| `CheckError` not Pattern A — flat 34-variant enum, 5 multi-span variants, N-path `diagnostic()` (conformare F-CE-1/2/3) | 243.6 | CheckError Pattern A is what 243.6 IS — peer retrofit to TypeError (243.3) |
+
+These carry attested-stone runes in the code citing their owner stone. DISTINCT from stalled-arc runes (the reversed R3.10/R3.11): these cite NEXT-in-chain stones of the currently-OPEN arc, not stalled/distant work.
+
+One finding was triaged **LEAVE-DISPUTED** (not deferred, not runed): `check_program`'s `Arc::new(types.clone())` (temperare T-L1-3) — startup-only cost; the "redundant-call" premise is unverified (the clone may be the ownership boundary). Per `feedback_let_need_reveal_through_work`, left to reveal through real work; recorded in SCORE.
 
 ## Trap-doors
 
 | # | Risk | Detection | Resolution |
 |---|---|---|---|
-| **T1** | `CyclicSubtype` (and possibly others) genuinely have no source location — registry-cycle errors fire at registration time, not at a source position | The audit spell at Stone 243.2 catalogs; per-variant judgment at Stone 243.4+ | `trait Conformare`'s `span() -> Span` returns `Span::unknown()` for these; the convention doc lists them as documented exemptions; rune mechanism at the variant level captures the WHY |
-| **T2** | The retrofit cascade is potentially very large (every error type touches every consumer of its variants) | Stone 243.2's audit gives the size | Per-error-type stones; substrate-as-teacher discipline handles the cascade per stone |
-| **T3** | `From<E1> for E2` impls that drop span data | Stone 243.2's audit + Stone 243.4+ per-type review | Update From impls; the audit spell catches them going forward |
-| **T4** | Parser APIs taking bare slices are numerous; the sister-walk could be its own arc | Stone 243.2's audit reveals the count | Stone 243.M handles; if scope creeps, spawn arc 244 for the parser-API discipline specifically |
-| **T5** | `trait Conformare` design (associated types? generic over Span? do we want Result<Span, Reason> for documented-exempt cases?) | Stone 243.3 design phase | Four-questions cast at Stone 243.3 prep; intueri on the trait method names |
+| **T1** | `CyclicSubtype` and similar fire at registration time, not a source position | per-variant judgment at the owning home-carve stone | Stone 243.5 threads the caller's span through `register_subtype` (retires the `spanless-by-domain` rune entirely — zero exceptions) |
+| **T2** | Retrofit cascade is large (every error type touches every consumer) | per-type audit at each stone | per-error-type stones; substrate-as-teacher cascade per stone; FM 2-bis probe per retrofit (as 243.3 did) |
+| **T3** | `From<E1> for E2` impls that drop span data | per-type review at each stone | update From impls; conformare catches them going forward (it confirmed TypeError's From impls preserve span at 243.3) |
+| **T4** | Parser APIs taking bare slices are numerous; the sister-walk (243.M) could itself be large | rolling audit reveals the count | Stone 243.M handles; if scope creeps it spawns its own stone chain — NOT a new arc (opener-blocks) until 243 closes |
+| **T5** | Multi-span variants (5 in CheckError) have no canonical primary span | conformare F-CE-2 flagged at 243.3 R2 | CONFORMARE.md § Multi-span: most-actionable location → outer `span`; secondaries → kind-variant fields with domain-descriptive names |
 
 ## What this arc DOES NOT do
 
-- Does not retrofit `wat` source-level error reporting (that's a separate concern: how errors RENDER to users at the command line)
-- Does not change the substrate's error semantics (no error-merging, no error-recovery; just span-discipline)
-- Does not address non-error types that might have similar span-discipline gaps (Bundles? AST nodes? — separate audit, separate arc if needed)
+- Does not retrofit `wat` source-level error RENDERING (how errors display at the CLI — separate concern)
+- Does not change error semantics (no error-merging, no error-recovery; just location-discipline + homes)
+- Does not address non-error types with possible span gaps (Bundles? AST nodes? — separate audit/arc if needed)
 
 ## Cross-references
 
 - `scratch/FAILURE-ENGINEERING.md` — the principle this arc embodies
 - `docs/ZERO-MUTEX.md` — the multi-layer skill precedent
+- `docs/CONFORMARE.md` — Pattern A doctrine (Stone 243.1; rewritten at 243.4)
+- `docs/arc/2026/05/243-conformare-error-shape/CONFORMARE-FIRST-CAST.md` — the spell's grimoire-earning verdict (chose Pattern A over trait)
 - `docs/arc/2026/05/241-function-signature-unification/SCORE-STONE-241.18a.md` § Phase B — the vigilia rounds that surfaced this class
-- `docs/COMPACTION-AMNESIA-RECOVERY.md` § FM 11 — deferral-language discipline (the orchestrator-doctrine sibling)
-- `datamancy.dev/exigere/SKILL.md` — sibling spell for deferral-language (minted during Stone 241.18a; same authoring pattern as conformare will follow)
-- Memories: `feedback_correctness_makes_honesty`; `feedback_runes_illegal_when_solvable`; `feedback_dont_document_non_fixes` — doctrines that landed during the realization
+- `docs/COMPACTION-AMNESIA-RECOVERY.md` § FM 11 — deferral-language discipline (orchestrator-doctrine sibling)
+- `datamancy.dev/exigere/SKILL.md` — sibling deferral-language spell (same authoring pattern)
+- Memories: `feedback_correctness_makes_honesty`; `feedback_runes_illegal_when_solvable`; `feedback_dont_document_non_fixes`; `feedback_pre_existing_is_not_exemption`; `feedback_defers_within_reach_tolerable`; `feedback_let_need_reveal_through_work` — doctrines that landed during this arc
 
-## What's deferred until arc 243 lands
+## Deferred until arc 243 lands
 
-- arc 241 Stone 241.18b-g (def-family migration: src/def/ + defmacro/defstruct/defenum/defclause/defalias retrofits) — these continue after conformare's class-elimination work completes. Conformare may inform their error-type designs.
+- arc 241 Stone 241.18b-g (def-family migration: src/def/ + defmacro/defstruct/defenum/defclause/defalias) — continue after conformare's class-elimination completes. Conformare informs their error-type designs.
 
 ## Status header (live)
 
-- **Opened:** 2026-05-30
-- **Trigger:** Stone 241.18a vigilia surfaced the substrate-wide error-shape class
+- **Opened:** 2026-05-30 (trigger: Stone 241.18a vigilia surfaced the substrate-wide error-shape class)
 - **Spell name verdict:** `conformare` (intueri cast 2026-05-30; runners-up `normare`, `redigere`, `respuere`)
-- **Failure-engineering frame:** catastrophic class; cannot proceed with other substrate work until the structural fix lands
-- **First stone:** 243.1 (CONFORMARE.md doctrine; orchestrator-direct)
+- **Design evolution:** trait Conformare (original) → Pattern A outer-struct (CONFORMARE-FIRST-CAST) — structural enforcement beats convention enforcement
+- **Failure-engineering frame:** catastrophic class; the structural fix + home-carving is the substrate maturation arc
+- **Opener-blocks** (`feedback_spawn_block_winding`): arc 243 cannot close until ALL stones (243.4 … 243.N) close

@@ -128,3 +128,17 @@ impl Eq for Span {}
 impl std::hash::Hash for Span {
     fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
 }
+
+/// Arc 138 — render the file:line:col prefix for an error, or empty when
+/// the span is unknown (synthetic check rule with no originating node).
+/// The prefix shape is `<file>:<line>:<col>: `.
+///
+/// Shared by `src/check.rs` (CheckError Display) and `src/types.rs`
+/// (TypeError Display) — both were carrying identical private copies.
+pub fn span_prefix(span: &Span) -> String {
+    if span.is_unknown() {
+        String::new()
+    } else {
+        format!("{}: ", span)
+    }
+}

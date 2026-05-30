@@ -31,11 +31,11 @@
 //!
 //! The name-resolution pass resolves call heads; field-position type
 //! references are validated at use site, not at registration time.
-//! Code generation for Rust-backed compiled binaries is out of wat-rs
-//! scope (058 backlog Track 2 tracks this concern).
+//! Code generation for Rust-backed compiled binaries is outside wat-rs
+//! scope by design — the substrate compiles to its own runtime.
 
 use crate::ast::WatAST;
-use crate::span::Span;
+use crate::span::{span_prefix, Span};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -239,6 +239,13 @@ pub struct TypeEnv {
     subtype_edges: HashMap<String, Vec<String>>,
 }
 
+/// Distinguishes user-source registration (subject to reserved-prefix gate)
+/// from stdlib registration (privileged to register `:wat::*` directly).
+enum RegistrationPrivilege {
+    User,
+    Stdlib,
+}
+
 impl TypeEnv {
     pub fn new() -> Self {
         Self::default()
@@ -290,7 +297,7 @@ impl TypeEnv {
     /// `CyclicAlias` errors so consumers (humans + agents) navigate to
     /// the offending decl.
     pub fn register_with_span(&mut self, def: TypeDef, span: Span) -> Result<(), TypeError> {
-        self.register_validated(def, span, false)
+        self.register_validated(def, span, RegistrationPrivilege::User)
     }
 
     /// Register a TRUSTED stdlib type declaration. Bypasses the
@@ -317,21 +324,23 @@ impl TypeEnv {
         def: TypeDef,
         span: Span,
     ) -> Result<(), TypeError> {
-        self.register_validated(def, span, true)
+        self.register_validated(def, span, RegistrationPrivilege::Stdlib)
     }
 
     /// Shared guard chain for [`register_with_span`] and
-    /// [`register_stdlib_with_span`]. The `bypass_prefix_gate` parameter
+    /// [`register_stdlib_with_span`]. The `privilege` parameter
     /// distinguishes the stdlib path (which bypasses the reserved-prefix
     /// check because stdlib types ARE in the reserved namespace).
     fn register_validated(
         &mut self,
         def: TypeDef,
         span: Span,
-        bypass_prefix_gate: bool,
+        privilege: RegistrationPrivilege,
     ) -> Result<(), TypeError> {
         let name = def.name().to_string();
-        if !bypass_prefix_gate && crate::resolve::is_reserved_prefix(&name) {
+        if matches!(privilege, RegistrationPrivilege::User)
+            && crate::resolve::is_reserved_prefix(&name)
+        {
             return Err(TypeError { span, kind: TypeErrorKind::ReservedPrefix { name } });
         }
         // Arc 054: idempotent re-declaration. If the same name is already
@@ -434,13 +443,10 @@ impl TypeEnv {
     }
 
     /// Return the direct parent FQDNs of `name` in the `typesub` hierarchy.
-    /// Returns an empty slice if `name` has no registered parent edges.
+    /// Returns `None` if `name` has no registered parent edges.
     /// Internal helper consumed by [`is_subtype`].
-    fn subtype_parents(&self, name: &str) -> Vec<&str> {
-        match self.subtype_edges.get(name) {
-            Some(parents) => parents.iter().map(|s| s.as_str()).collect(),
-            None => vec![],
-        }
+    fn subtype_parents(&self, name: &str) -> Option<&[String]> {
+        self.subtype_edges.get(name).map(|v| v.as_slice())
     }
 }
 
@@ -1535,16 +1541,6 @@ pub enum TypeErrorKind {
     CyclicSubtype { child: String, parent: String },
 }
 
-/// Arc 138 slice 2 — render the file:line:col prefix for a TypeError,
-/// or empty when the span is unknown (synthetic check rule with no
-/// originating node). Mirrors `src/check.rs::span_prefix` exactly.
-fn span_prefix(span: &Span) -> String {
-    if span.is_unknown() {
-        String::new()
-    } else {
-        format!("{}: ", span)
-    }
-}
 
 impl fmt::Display for TypeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1659,6 +1655,36 @@ impl fmt::Display for TypeError {
 
 impl std::error::Error for TypeError {}
 
+/// Shared loop body for [`register_types`] and [`register_stdlib_types`].
+/// Differs only in which `env` registration method is called — passed as
+/// `register`. Non-type-decl forms are spliced via `splice` (handles
+/// do/let recursion per Arc 170 slice 3 Gap J).
+fn register_types_impl(
+    forms: Vec<WatAST>,
+    env: &mut TypeEnv,
+    register: &dyn Fn(&mut TypeEnv, TypeDef, Span) -> Result<(), TypeError>,
+    splice: &dyn Fn(WatAST, &mut TypeEnv) -> Result<WatAST, TypeError>,
+) -> Result<Vec<WatAST>, TypeError> {
+    let mut rest = Vec::with_capacity(forms.len());
+    for form in forms {
+        match classify_type_decl(&form) {
+            Some(head) => {
+                // Arc 138 slice 2 — capture decl span BEFORE the form
+                // is consumed by `parse_type_decl`. Threaded through
+                // every emission site for source-coordinate prefixes.
+                let decl_span = form.span().clone();
+                let def = parse_type_decl(head, form, decl_span.clone())?;
+                register(env, def, decl_span)?;
+            }
+            None => {
+                let spliced = splice(form, env)?;
+                rest.push(spliced);
+            }
+        }
+    }
+    Ok(rest)
+}
+
 /// Walk `forms`, register every type declaration, return the remaining
 /// forms in order.
 ///
@@ -1671,29 +1697,12 @@ pub fn register_types(
     forms: Vec<WatAST>,
     env: &mut TypeEnv,
 ) -> Result<Vec<WatAST>, TypeError> {
-    let mut rest = Vec::with_capacity(forms.len());
-    for form in forms {
-        match classify_type_decl(&form) {
-            Some(head) => {
-                // Arc 138 slice 2 — capture decl span BEFORE the form
-                // is consumed by `parse_type_decl`. Threaded through
-                // every emission site for source-coordinate prefixes.
-                let decl_span = form.span().clone();
-                let def = parse_type_decl(head, form, decl_span.clone())?;
-                env.register_with_span(def, decl_span)?;
-            }
-            None => {
-                // Arc 170 slice 3 Gap J — splice-awareness: recurse into
-                // top-level do/let forms so nested type declarations land
-                // in TypeEnv (same fix as preregister_fn_defs_in_do for
-                // function stubs). The form is pushed back (possibly with
-                // type-decl children stripped) for downstream pipeline steps.
-                let spliced = splice_type_decls_user(form, env)?;
-                rest.push(spliced);
-            }
-        }
-    }
-    Ok(rest)
+    register_types_impl(
+        forms,
+        env,
+        &|env, def, span| env.register_with_span(def, span),
+        &splice_type_decls_user,
+    )
 }
 
 /// Stdlib-registration variant of [`register_types`] that bypasses the
@@ -1709,27 +1718,17 @@ pub fn register_stdlib_types(
     forms: Vec<WatAST>,
     env: &mut TypeEnv,
 ) -> Result<Vec<WatAST>, TypeError> {
-    let mut rest = Vec::with_capacity(forms.len());
-    for form in forms {
-        match classify_type_decl(&form) {
-            Some(head) => {
-                let decl_span = form.span().clone();
-                let def = parse_type_decl(head, form, decl_span.clone())?;
-                env.register_stdlib_with_span(def, decl_span)?;
-            }
-            None => {
-                // Arc 170 slice 3 Gap J — splice-awareness for stdlib forms.
-                let spliced = splice_type_decls_stdlib(form, env)?;
-                rest.push(spliced);
-            }
-        }
-    }
-    Ok(rest)
+    register_types_impl(
+        forms,
+        env,
+        &|env, def, span| env.register_stdlib_with_span(def, span),
+        &splice_type_decls_stdlib,
+    )
 }
 
-/// Arc 170 slice 3 Gap J — recurse into a top-level `do` or `let` form
-/// (user source variant), registering any type declarations found in the body
-/// and returning the reconstructed form with type decls stripped.
+/// Arc 170 slice 3 Gap J — recurse into a top-level `do` or `let` form,
+/// registering any type declarations found in the body and returning the
+/// reconstructed form with type decls stripped.
 ///
 /// Non-do/non-let forms are returned unchanged. For do/let forms, the
 /// keyword (and for let, the bindings vector) is preserved; type-decl body
@@ -1739,58 +1738,54 @@ pub fn register_stdlib_types(
 ///
 /// Mirrors the splice-recursion pattern in `preregister_fn_defs_in_do`
 /// (runtime.rs).
-fn splice_type_decls_user(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, TypeError> {
+fn splice_type_decls(
+    form: WatAST,
+    env: &mut TypeEnv,
+    register: &dyn Fn(&mut TypeEnv, TypeDef, Span) -> Result<(), TypeError>,
+) -> Result<WatAST, TypeError> {
     let (items, span) = match form {
         WatAST::List(items, span) => (items, span),
         other => return Ok(other),
     };
     let head_kw = match items.first() {
         Some(WatAST::Keyword(k, _)) => k.as_str(),
-        _ => {
-            return Ok(WatAST::List(items, span));
-        }
+        _ => return Ok(WatAST::List(items, span)),
     };
     match head_kw {
         ":wat::core::do" => {
-            // items[0] = :wat::core::do; items[1..] = body forms
             let mut new_children = Vec::with_capacity(items.len());
             let mut iter = items.into_iter();
             new_children.push(iter.next().expect("do has keyword"));
             for child in iter {
                 match classify_type_decl(&child) {
                     Some(head) => {
-                        // Strip from body; register in TypeEnv.
                         let decl_span = child.span().clone();
                         let def = parse_type_decl(head, child, decl_span.clone())?;
-                        env.register_with_span(def, decl_span)?;
+                        register(env, def, decl_span)?;
                     }
                     None => {
-                        // Recurse into nested do/let; keep everything else.
-                        new_children.push(splice_type_decls_user(child, env)?);
+                        new_children.push(splice_type_decls(child, env, register)?);
                     }
                 }
             }
             Ok(WatAST::List(new_children, span))
         }
         ":wat::core::let" => {
-            // items[0] = :wat::core::let; items[1] = bindings; items[2..] = body
             let mut new_children = Vec::with_capacity(items.len());
             let mut iter = items.into_iter();
             new_children.push(iter.next().expect("let has keyword"));
-            // Preserve bindings vector unchanged.
             if let Some(bindings) = iter.next() {
                 new_children.push(bindings);
             }
-            // Splice type decls from body (items[2..]).
             for child in iter {
                 match classify_type_decl(&child) {
                     Some(head) => {
                         let decl_span = child.span().clone();
                         let def = parse_type_decl(head, child, decl_span.clone())?;
-                        env.register_with_span(def, decl_span)?;
+                        register(env, def, decl_span)?;
                     }
                     None => {
-                        new_children.push(splice_type_decls_user(child, env)?);
+                        new_children.push(splice_type_decls(child, env, register)?);
                     }
                 }
             }
@@ -1800,61 +1795,12 @@ fn splice_type_decls_user(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, Typ
     }
 }
 
-/// Arc 170 slice 3 Gap J — stdlib variant of [`splice_type_decls_user`].
-/// Uses `register_stdlib_with_span` instead of `register_with_span`.
+fn splice_type_decls_user(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, TypeError> {
+    splice_type_decls(form, env, &|env, def, span| env.register_with_span(def, span))
+}
+
 fn splice_type_decls_stdlib(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, TypeError> {
-    let (items, span) = match form {
-        WatAST::List(items, span) => (items, span),
-        other => return Ok(other),
-    };
-    let head_kw = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
-        _ => {
-            return Ok(WatAST::List(items, span));
-        }
-    };
-    match head_kw {
-        ":wat::core::do" => {
-            let mut new_children = Vec::with_capacity(items.len());
-            let mut iter = items.into_iter();
-            new_children.push(iter.next().expect("do has keyword"));
-            for child in iter {
-                match classify_type_decl(&child) {
-                    Some(head) => {
-                        let decl_span = child.span().clone();
-                        let def = parse_type_decl(head, child, decl_span.clone())?;
-                        env.register_stdlib_with_span(def, decl_span)?;
-                    }
-                    None => {
-                        new_children.push(splice_type_decls_stdlib(child, env)?);
-                    }
-                }
-            }
-            Ok(WatAST::List(new_children, span))
-        }
-        ":wat::core::let" => {
-            let mut new_children = Vec::with_capacity(items.len());
-            let mut iter = items.into_iter();
-            new_children.push(iter.next().expect("let has keyword"));
-            if let Some(bindings) = iter.next() {
-                new_children.push(bindings);
-            }
-            for child in iter {
-                match classify_type_decl(&child) {
-                    Some(head) => {
-                        let decl_span = child.span().clone();
-                        let def = parse_type_decl(head, child, decl_span.clone())?;
-                        env.register_stdlib_with_span(def, decl_span)?;
-                    }
-                    None => {
-                        new_children.push(splice_type_decls_stdlib(child, env)?);
-                    }
-                }
-            }
-            Ok(WatAST::List(new_children, span))
-        }
-        _ => Ok(WatAST::List(items, span)),
-    }
+    splice_type_decls(form, env, &|env, def, span| env.register_stdlib_with_span(def, span))
 }
 
 fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
@@ -2030,9 +1976,9 @@ fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
             });
         }
         // Walk key/value pairs.
-        let mut idx = 0;
-        while idx + 1 < pairs.len() {
-            let key_str = match &pairs[idx] {
+        let mut meta_pair_idx = 0;
+        while meta_pair_idx + 1 < pairs.len() {
+            let key_str = match &pairs[meta_pair_idx] {
                 WatAST::Keyword(k, _) => k.clone(),
                 other => {
                     return Err(TypeError {
@@ -2044,7 +1990,7 @@ fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                     });
                 }
             };
-            let val = &pairs[idx + 1];
+            let val = &pairs[meta_pair_idx + 1];
             match key_str.as_str() {
                 ":restricted-to" => {
                     // Value must be a Vector of keyword prefixes.
@@ -2114,13 +2060,13 @@ fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                         });
                     }
                     let fm_pairs = &fm_items[3..];
-                    let mut fi = 0;
-                    while fi + 1 < fm_pairs.len() {
+                    let mut field_pair_idx = 0;
+                    while field_pair_idx + 1 < fm_pairs.len() {
                         // field identifier — Keyword with optional leading colon stripped to get bare name.
                         // In the HashMap literal form {witness {meta}}, `witness` must be written as
                         // `:witness` (keyword) because the parser routes `{sym {map}}` to
                         // struct-destructure (parse error). Keyword `:witness` → strip colon → "witness".
-                        let field_sym = match &fm_pairs[fi] {
+                        let field_sym = match &fm_pairs[field_pair_idx] {
                             WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
                             WatAST::Symbol(ident, _) => ident.name.clone(),
                             other => {
@@ -2134,7 +2080,7 @@ fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                             }
                         };
                         // field metadata-map — a HashMap list.
-                        let fmeta = &fm_pairs[fi + 1];
+                        let fmeta = &fm_pairs[field_pair_idx + 1];
                         let fmeta_items = match fmeta {
                             WatAST::List(items, _) => items,
                             _ => {
@@ -2180,9 +2126,9 @@ fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                         let fpairs = &fmeta_items[3..];
                         // Parse inner keys: recognize :restricted-to.
                         let mut field_wlist: Vec<String> = Vec::new();
-                        let mut fpi = 0;
-                        while fpi + 1 < fpairs.len() {
-                            let fkey = match &fpairs[fpi] {
+                        let mut inner_key_idx = 0;
+                        while inner_key_idx + 1 < fpairs.len() {
+                            let fkey = match &fpairs[inner_key_idx] {
                                 WatAST::Keyword(k, _) => k.clone(),
                                 other => {
                                     return Err(TypeError {
@@ -2197,7 +2143,7 @@ fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                                     });
                                 }
                             };
-                            let fval = &fpairs[fpi + 1];
+                            let fval = &fpairs[inner_key_idx + 1];
                             if fkey == ":restricted-to" {
                                 match fval {
                                     WatAST::Vector(prefix_items, _) => {
@@ -2234,19 +2180,19 @@ fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                                 }
                             }
                             // Unknown inner keys silently accepted (D5).
-                            fpi += 2;
+                            inner_key_idx += 2;
                         }
                         if !field_wlist.is_empty() {
                             field_restrictions.insert(field_sym, field_wlist);
                         }
-                        fi += 2;
+                        field_pair_idx += 2;
                     }
                 }
                 _ => {
                     // Unknown metadata keys silently accepted (D5).
                 }
             }
-            idx += 2;
+            meta_pair_idx += 2;
         }
     }
 
@@ -2850,12 +2796,6 @@ fn parse_declared_name(
 /// `:Any` has a principled named alternative (`:wat::holon::HolonAST` for algebra
 /// values, parametric `T`/`K`/`V` for generics, a named enum for
 /// closed heterogeneous sets).
-///
-/// Arc 138 slice 2 — public surface preserved; in-types-rs callers go
-/// through [`parse_type_expr_with_span`] for source-coordinate prefixes
-/// in errors. External callers (check.rs / freeze.rs) keep this entry
-/// point and surface unknown-span errors; their downstream re-rendering
-/// already carries the call-site span via CheckError.
 // rune:struere(host-constraint) — public surface preserved for callers
 // without a keyword span in scope (arc 138 lineage); Span::unknown() is
 // the honest placeholder when no source position is available. Span-aware
@@ -3502,21 +3442,22 @@ pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
         return true; // reflexive
     }
     let mut visited = std::collections::HashSet::new();
-    let mut stack: Vec<String> = env.subtype_parents(sub)
-        .into_iter()
-        .map(|s| s.to_string())
-        .collect();
+    let mut stack: Vec<String> = if let Some(parents) = env.subtype_parents(sub) {
+        parents.to_vec()
+    } else {
+        return false;
+    };
     while let Some(p) = stack.pop() {
         if p == sup {
             return true;
         }
         if visited.insert(p.clone()) {
             // Extend with p's own parents (transitive).
-            let parents: Vec<String> = env.subtype_parents(&p)
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect();
-            stack.extend(parents);
+            if let Some(parents) = env.subtype_parents(&p) {
+                for parent in parents {
+                    stack.push(parent.clone());
+                }
+            }
         }
     }
     false
