@@ -46,8 +46,9 @@ fn probe_let_struct_accessor_visible() {
 #[test]
 fn probe_let_struct_via_macro_emission() {
     let src = r#"
-        (:wat::core::defmacro
-          (:my::probe (body :AST<wat::core::nil>) -> :AST<wat::core::nil>)
+        (:wat::core::defmacro :my::probe
+          [body <- :AST<wat::core::nil>]
+          -> :AST<wat::core::nil>
           `(:wat::core::let []
              (:wat::core::defstruct :my::probe::Point
                [x <- :wat::core::i64

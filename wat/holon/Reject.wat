@@ -14,11 +14,10 @@
 ;; (Challenge 010, F1=1.000) — reject(packet, baseline_subspace).
 ;; Engram matching — residual vs subspace.
 
-(:wat::core::defmacro
-  (:wat::holon::Reject
-    (x :AST<wat::holon::HolonAST>)
-    (y :AST<wat::holon::HolonAST>)
-    -> :AST<wat::holon::HolonAST>)
+(:wat::core::defmacro :wat::holon::Reject
+  [x <- :AST<wat::holon::HolonAST>
+   y <- :AST<wat::holon::HolonAST>]
+  -> :AST<wat::holon::HolonAST>
   `(:wat::holon::Blend
      ~x
      ~y

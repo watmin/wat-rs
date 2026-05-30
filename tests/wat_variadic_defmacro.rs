@@ -55,10 +55,9 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
     // collects the trailing 1 2 3 into a list; `,@items` splices them.
     let src = r#"
 
-        (:wat::core::defmacro
-          (:my::vec-of
-            & (items :AST<wat::holon::Holons>)
-            -> :AST<wat::holon::HolonAST>)
+        (:wat::core::defmacro :my::vec-of
+          [& items <- :AST<wat::holon::Holons>]
+          -> :AST<wat::holon::HolonAST>
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
@@ -75,10 +74,9 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
 fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
     let src = r#"
 
-        (:wat::core::defmacro
-          (:my::empty-vec
-            & (items :AST<wat::holon::Holons>)
-            -> :AST<wat::holon::HolonAST>)
+        (:wat::core::defmacro :my::empty-vec
+          [& items <- :AST<wat::holon::Holons>]
+          -> :AST<wat::holon::HolonAST>
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
         (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64> (:my::empty-vec))
@@ -101,11 +99,10 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
     // we sum-fold the result. Keeps the splice the point of the test.
     let src = r#"
 
-        (:wat::core::defmacro
-          (:my::sum-of
-            (init :AST<wat::core::i64>)
-            & (items :AST<wat::holon::Holons>)
-            -> :AST<wat::holon::HolonAST>)
+        (:wat::core::defmacro :my::sum-of
+          [init <- :AST<wat::core::i64>
+           & items <- :AST<wat::holon::Holons>]
+          -> :AST<wat::holon::HolonAST>
           `(:wat::core::foldl
               (:wat::core::Vector :wat::core::i64 ~@items)
               ~init
@@ -126,11 +123,10 @@ fn variadic_macro_requires_at_least_fixed_arity() {
     // ArityMismatch during startup.
     let src = r#"
 
-        (:wat::core::defmacro
-          (:my::sum-of
-            (init :AST<wat::core::i64>)
-            & (items :AST<wat::holon::Holons>)
-            -> :AST<wat::holon::HolonAST>)
+        (:wat::core::defmacro :my::sum-of
+          [init <- :AST<wat::core::i64>
+           & items <- :AST<wat::holon::Holons>]
+          -> :AST<wat::holon::HolonAST>
           `(:wat::core::foldl
               (:wat::core::Vector :wat::core::i64 ~@items)
               ~init
@@ -152,12 +148,9 @@ fn variadic_macro_requires_at_least_fixed_arity() {
 fn double_rest_marker_refused_at_registration() {
     let src = r#"
 
-        (:wat::core::defmacro
-          (:my::bogus
-            &
-            &
-            (items :AST<wat::holon::Holons>)
-            -> :AST<wat::holon::HolonAST>)
+        (:wat::core::defmacro :my::bogus
+          [& & items <- :AST<wat::holon::Holons>]
+          -> :AST<wat::holon::HolonAST>
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
         (:wat::core::defn :user::main [] -> :wat::core::i64 0)
@@ -173,11 +166,10 @@ fn double_rest_marker_refused_at_registration() {
 fn rest_marker_without_binder_refused_at_registration() {
     let src = r#"
 
-        (:wat::core::defmacro
-          (:my::bogus
-            (x :AST<wat::core::i64>)
-            &
-            -> :AST<wat::holon::HolonAST>)
+        (:wat::core::defmacro :my::bogus
+          [x <- :AST<wat::core::i64>
+           &]
+          -> :AST<wat::holon::HolonAST>
           `(:wat::core::i64::+'2 ~x 0))
 
         (:wat::core::defn :user::main [] -> :wat::core::i64 0)

@@ -7,8 +7,7 @@
 ;; reaches for Trigrams over candle windows specifically for this
 ;; reason. Pure sugar — same semantics as `(Ngram 3 xs)`.
 
-(:wat::core::defmacro
-  (:wat::holon::Trigram
-    (xs :AST<List<wat::holon::HolonAST>>)
-    -> :AST<wat::holon::BundleResult>)
+(:wat::core::defmacro :wat::holon::Trigram
+  [xs <- :AST<List<wat::holon::HolonAST>>]
+  -> :AST<wat::holon::BundleResult>
   `(:wat::holon::Ngram 3 ~xs))

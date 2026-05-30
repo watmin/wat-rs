@@ -59,8 +59,9 @@ fn probe_do_defn_via_expansion() {
 #[test]
 fn probe_do_def_via_macro_emission() {
     let src = r#"
-        (:wat::core::defmacro
-          (:my::probe (body :AST<wat::core::nil>) -> :AST<wat::core::nil>)
+        (:wat::core::defmacro :my::probe
+          [body <- :AST<wat::core::nil>]
+          -> :AST<wat::core::nil>
           `(:wat::core::do
              (:wat::core::defn :my::helper [] -> :wat::core::i64 42)
              ~body))

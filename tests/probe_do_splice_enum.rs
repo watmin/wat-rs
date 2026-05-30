@@ -49,8 +49,9 @@ fn probe_do_enum_constructor_visible() {
 #[test]
 fn probe_do_enum_via_macro_emission() {
     let src = r#"
-        (:wat::core::defmacro
-          (:my::probe (body :AST<wat::core::nil>) -> :AST<wat::core::nil>)
+        (:wat::core::defmacro :my::probe
+          [body <- :AST<wat::core::nil>]
+          -> :AST<wat::core::nil>
           `(:wat::core::do
              (:wat::core::defenum :my::probe::Event
                :Created [id <- :wat::core::i64]

@@ -16,10 +16,9 @@
 ;; over tail from head. Uses existing core + std::list combinators
 ;; (no new primitives).
 
-(:wat::core::defmacro
-  (:wat::holon::Sequential
-    (items :AST<List<wat::holon::HolonAST>>)
-    -> :AST<wat::holon::HolonAST>)
+(:wat::core::defmacro :wat::holon::Sequential
+  [items <- :AST<List<wat::holon::HolonAST>>]
+  -> :AST<wat::holon::HolonAST>
   `(:wat::core::let
      [positioned
        (:wat::std::list::map-with-index ~items

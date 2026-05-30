@@ -18,11 +18,10 @@
 ;;   - let bindings carry explicit `:wat::core::f64` types.
 ;; Same math, enforcement-correct wat.
 
-(:wat::core::defmacro
-  (:wat::holon::Circular
-    (value :AST<wat::core::f64>)
-    (period :AST<wat::core::f64>)
-    -> :AST<wat::holon::HolonAST>)
+(:wat::core::defmacro :wat::holon::Circular
+  [value  <- :AST<wat::core::f64>
+   period <- :AST<wat::core::f64>]
+  -> :AST<wat::holon::HolonAST>
   `(:wat::core::let
      [frac
        (:wat::core::/ ~value ~period)

@@ -187,9 +187,9 @@
 ;; `:wat::WatAST`; the result is `:wat::core::Vector<wat::WatAST>` ready to hand
 ;; to `:wat::kernel::run-sandboxed-ast`.
 
-(:wat::core::defmacro
-  (:wat::test::program & (forms :AST<wat::core::Vector<wat::WatAST>>)
-    -> :AST<wat::core::Vector<wat::WatAST>>)
+(:wat::core::defmacro :wat::test::program
+  [& forms <- :AST<wat::core::Vector<wat::WatAST>>]
+  -> :AST<wat::core::Vector<wat::WatAST>>
   `(:wat::core::forms ~@forms))
 
 (:wat::core::defn :wat::test::run-ast [forms <- :wat::core::Vector<wat::WatAST> stdin <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed-ast forms stdin :wat::core::None))
@@ -247,12 +247,11 @@
 ;;     <prelude spliced here — top-level forms registered at freeze time>
 ;;     (:wat::core::define (:my::test::two-plus-two -> :wat::test::TestResult)
 ;;       (:wat::test::run-thread <body>)))
-(:wat::core::defmacro
-  (:wat::test::deftest
-    (name :AST<wat::core::nil>)
-    (prelude :AST<wat::core::nil>)
-    (body :AST<wat::core::nil>)
-    -> :AST<wat::core::nil>)
+(:wat::core::defmacro :wat::test::deftest
+  [name    <- :AST<wat::core::nil>
+   prelude <- :AST<wat::core::nil>
+   body    <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
   `(:wat::core::do
      ~@prelude
      (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread ~body))))
@@ -277,12 +276,11 @@
 ;; declaration heads (define / def / defmacro / define-dispatch / struct /
 ;; enum / newtype / typealias) and `extract_closure`'s `split_body_prelude`
 ;; lifts them to the closure prologue before child eval sees them.
-(:wat::core::defmacro
-  (:wat::test::deftest-hermetic
-    (name :AST<wat::core::nil>)
-    (prelude :AST<wat::core::nil>)
-    (body :AST<wat::core::nil>)
-    -> :AST<wat::core::nil>)
+(:wat::core::defmacro :wat::test::deftest-hermetic
+  [name    <- :AST<wat::core::nil>
+   prelude <- :AST<wat::core::nil>
+   body    <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
   ;; Arc 170 slice 6 — route through run-hermetic-with-prelude so the
   ;; prelude declarations land as TOP-LEVEL program forms in the spawned
   ;; child. Pre-slice-6 the prelude was spliced into the fn body's do-
@@ -327,16 +325,15 @@
 ;; literals in the generated defmacro's body). ,test-name and ,body
 ;; preserve across the outer pass — they're the inner macro's own
 ;; parameters and fire when the user calls the configured variant.
-(:wat::core::defmacro
-  (:wat::test::make-deftest
-    (name :AST<wat::core::nil>)
-    (default-prelude :AST<wat::core::nil>)
-    -> :AST<wat::core::nil>)
+(:wat::core::defmacro :wat::test::make-deftest
+  [name           <- :AST<wat::core::nil>
+   default-prelude <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
   `(:wat::core::defmacro
-     (~name
-       (test-name :AST<wat::core::nil>)
-       (body :AST<wat::core::nil>)
-       -> :AST<wat::core::nil>)
+     ~name
+     [test-name <- :AST<wat::core::nil>
+      body      <- :AST<wat::core::nil>]
+     -> :AST<wat::core::nil>
      `(:wat::test::deftest ~test-name ~~default-prelude ~body)))
 
 ;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
@@ -344,16 +341,15 @@
 ;; Same shape as make-deftest; generated macro expands to
 ;; :wat::test::deftest-hermetic. Use when the configured tests
 ;; spawn driver threads and need subprocess isolation.
-(:wat::core::defmacro
-  (:wat::test::make-deftest-hermetic
-    (name :AST<wat::core::nil>)
-    (default-prelude :AST<wat::core::nil>)
-    -> :AST<wat::core::nil>)
+(:wat::core::defmacro :wat::test::make-deftest-hermetic
+  [name           <- :AST<wat::core::nil>
+   default-prelude <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
   `(:wat::core::defmacro
-     (~name
-       (test-name :AST<wat::core::nil>)
-       (body :AST<wat::core::nil>)
-       -> :AST<wat::core::nil>)
+     ~name
+     [test-name <- :AST<wat::core::nil>
+      body      <- :AST<wat::core::nil>]
+     -> :AST<wat::core::nil>
      `(:wat::test::deftest-hermetic ~test-name ~~default-prelude ~body)))
 
 ;; ─── Per-test attributes (arc 122) — :ignore + :should-panic ──────────
@@ -539,10 +535,9 @@
 ;; DO NOT MODIFY deftest or deftest-hermetic above — this is a new
 ;; entry point running in PARALLEL to the existing macros. Consumer
 ;; sweep (migrating deftest callers to run-hermetic) is phase E.
-(:wat::core::defmacro
-  (:wat::test::run-hermetic
-    (body :AST<wat::core::nil>)
-    -> :AST<wat::core::nil>)
+(:wat::core::defmacro :wat::test::run-hermetic
+  [body <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
   `(:wat::test::run-hermetic-driver
      (:wat::kernel::spawn-process
        (:wat::core::forms
@@ -602,11 +597,10 @@
 ;; The driver is shared with run-hermetic — same Process<nil,nil> →
 ;; RunResult flow; the only difference is the spawn-process program
 ;; shape carries a prelude slot.
-(:wat::core::defmacro
-  (:wat::test::run-hermetic-with-prelude
-    (prelude :AST<wat::core::nil>)
-    (body    :AST<wat::core::nil>)
-    -> :AST<wat::core::nil>)
+(:wat::core::defmacro :wat::test::run-hermetic-with-prelude
+  [prelude <- :AST<wat::core::nil>
+   body    <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
   `(:wat::test::run-hermetic-driver
      (:wat::kernel::spawn-process
        (:wat::core::forms
@@ -714,10 +708,9 @@
 ;; DO NOT MODIFY deftest's body (currently expands to run-hermetic) —
 ;; the deftest-default flip belongs to a future stone (arc 170 slice
 ;; 4a-γ). This mint stands on its own; sweep + flip are downstream.
-(:wat::core::defmacro
-  (:wat::test::run-thread
-    (body :AST<wat::core::nil>)
-    -> :AST<wat::core::nil>)
+(:wat::core::defmacro :wat::test::run-thread
+  [body <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
   `(:wat::test::run-thread-driver
      (:wat::kernel::spawn-thread
        (:wat::core::fn
@@ -922,13 +915,12 @@
 ;;
 ;; DO NOT MODIFY run-hermetic (Layer 1) above — this is an ADDITION.
 ;; DO NOT touch deftest / deftest-hermetic macro definitions (phase E).
-(:wat::core::defmacro
-  (:wat::test::run-hermetic-with-io
-    (input-type  :AST<wat::core::nil>)
-    (output-type :AST<wat::core::nil>)
-    (inputs      :AST<wat::core::nil>)
-    (body        :AST<wat::core::nil>)
-    -> :AST<wat::core::nil>)
+(:wat::core::defmacro :wat::test::run-hermetic-with-io
+  [input-type  <- :AST<wat::core::nil>
+   output-type <- :AST<wat::core::nil>
+   inputs      <- :AST<wat::core::nil>
+   body        <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
   ;; Arc 170 slice 6 pivot — spawn-process takes a wat PROGRAM
   ;; (Vector<wat::WatAST>). The body becomes the entry-point define's
   ;; body. See run-hermetic above for the full IPC-contract rationale.

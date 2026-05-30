@@ -283,7 +283,7 @@ fn probe_mixed_declaration_prelude_now_includes_def() {
                         (:wat::core::typealias :h::MixCount8 :wat::core::i64)
                         (:wat::core::defn :h::mix-i64-fn8 [v <- :wat::core::i64] -> :h::MixCount8
                           v)
-                        (:wat::core::defmacro (:h::mix-id8 (z :AST) -> :AST) `~z)
+                        (:wat::core::defmacro :h::mix-id8 [z <- :AST] -> :AST `~z)
                         (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [_ans :h::def-answer

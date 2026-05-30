@@ -1215,11 +1215,12 @@ primitives.
 ### `defmacro` — compile-time rewriting
 
 ```scheme
-(:wat::core::defmacro (:my::app::when (cond :wat::WatAST)
-                                      (body :wat::WatAST)
-                                      -> :wat::WatAST)
-  `(:wat::core::if ,cond -> :()
-     ,body
+(:wat::core::defmacro :my::app::when
+  [cond <- :wat::WatAST
+   body <- :wat::WatAST]
+  -> :wat::WatAST
+  `(:wat::core::if ~cond -> :()
+     ~body
      ()))
 ```
 
@@ -1239,11 +1240,13 @@ when you write a macro that BUILDS another macro's body. Each `,`
 peels one layer of quasiquote nesting:
 
 ```scheme
-(:wat::core::defmacro (:my::factory (helper-name :wat::WatAST)
-                                    -> :wat::WatAST)
-  `(:wat::core::defmacro (:my::made-by-factory (x :wat::WatAST)
-                                               -> :wat::WatAST)
-     `(,,helper-name ,x)))     ;; ,,helper-name escapes both quotes
+(:wat::core::defmacro :my::factory
+  [helper-name <- :wat::WatAST]
+  -> :wat::WatAST
+  `(:wat::core::defmacro ~helper-name
+     [x <- :wat::WatAST]
+     -> :wat::WatAST
+     `(~~helper-name ~x)))     ;; ~~helper-name escapes both quotes
 ```
 
 The outer `\`` defines the inner defmacro; the inner `\`` produces

@@ -28,11 +28,10 @@
 ;;
 ;; Arc 034; named via `/gaze`.
 
-(:wat::core::defmacro
-  (:wat::holon::ReciprocalLog
-    (n :AST<wat::core::f64>)
-    (value :AST<wat::core::f64>)
-    -> :AST<wat::holon::HolonAST>)
+(:wat::core::defmacro :wat::holon::ReciprocalLog
+  [n     <- :AST<wat::core::f64>
+   value <- :AST<wat::core::f64>]
+  -> :AST<wat::holon::HolonAST>
   `(:wat::holon::Log
      ~value
      (:wat::core::/ 1.0 ~n)

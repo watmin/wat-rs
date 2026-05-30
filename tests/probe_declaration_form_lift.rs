@@ -190,7 +190,7 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
         (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
                       (:wat::core::forms
-                        (:wat::core::defmacro (:h::id-macro (x :AST) -> :AST) `~x)
+                        (:wat::core::defmacro :h::id-macro [x <- :AST] -> :AST `~x)
                         (:wat::core::defn :user::main [] -> :wat::core::nil nil))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -317,7 +317,7 @@ fn probe_mixed_declaration_prelude_all_lift() {
                         (:wat::core::typealias :h::MixCount :wat::core::i64)
                         (:wat::core::defn :h::mix-i64 [v <- :wat::core::i64] -> :h::MixCount
                           v)
-                        (:wat::core::defmacro (:h::mix-id (z :AST) -> :AST) `~z)
+                        (:wat::core::defmacro :h::mix-id [z <- :AST] -> :AST `~z)
                         (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [_p  (:h::MixPoint/new 1 2)

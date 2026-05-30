@@ -67,8 +67,9 @@ fn run_compute(src: &str) -> Value {
 #[test]
 fn splice_of_vector_bound_symbol_succeeds() {
     let src = r#"
-        (:wat::core::defmacro
-          (:my::splice-vec (xs :AST<wat::core::nil>) -> :AST<wat::core::nil>)
+        (:wat::core::defmacro :my::splice-vec
+          [xs <- :AST<wat::core::nil>]
+          -> :AST<wat::core::nil>
           `(:wat::core::Vector :wat::core::i64 ~@xs))
 
         (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64> (:my::splice-vec [10 20 30]))
@@ -109,10 +110,9 @@ fn splice_inside_vector_template_fires() {
     // correctly. Pre-arc-200 the splice was preserved literally, breaking
     // the fn-sig consumer.
     let src = r#"
-        (:wat::core::defmacro
-          (:my::make-adder
-            & (params :AST<wat::core::Vector<wat::WatAST>>)
-            -> :AST<wat::core::nil>)
+        (:wat::core::defmacro :my::make-adder
+          [& params <- :AST<wat::core::Vector<wat::WatAST>>]
+          -> :AST<wat::core::nil>
           `(:wat::core::fn [~@params] -> :wat::core::i64
               (:wat::core::i64::+'2 a b)))
 
@@ -140,12 +140,14 @@ fn vector_splice_round_trip_matches_list_splice() {
     // positional and splices into a List template. Both should yield
     // the same runtime value. Pre-arc-200 only the first worked.
     let src = r#"
-        (:wat::core::defmacro
-          (:my::sum-list & (xs :AST<wat::core::Vector<wat::WatAST>>) -> :AST<wat::core::nil>)
+        (:wat::core::defmacro :my::sum-list
+          [& xs <- :AST<wat::core::Vector<wat::WatAST>>]
+          -> :AST<wat::core::nil>
           `(:wat::core::i64::+ ~@xs))
 
-        (:wat::core::defmacro
-          (:my::sum-vec (xs :AST<wat::core::nil>) -> :AST<wat::core::nil>)
+        (:wat::core::defmacro :my::sum-vec
+          [xs <- :AST<wat::core::nil>]
+          -> :AST<wat::core::nil>
           `(:wat::core::i64::+ ~@xs))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64

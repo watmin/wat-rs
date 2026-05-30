@@ -9,12 +9,11 @@
 ;; by ratio. Callers guarantee positive inputs (user responsibility —
 ;; trading-lab callers use `.max(0.0001)` guards).
 
-(:wat::core::defmacro
-  (:wat::holon::Log
-    (value :AST<wat::core::f64>)
-    (min :AST<wat::core::f64>)
-    (max :AST<wat::core::f64>)
-    -> :AST<wat::holon::HolonAST>)
+(:wat::core::defmacro :wat::holon::Log
+  [value <- :AST<wat::core::f64>
+   min   <- :AST<wat::core::f64>
+   max   <- :AST<wat::core::f64>]
+  -> :AST<wat::holon::HolonAST>
   `(:wat::holon::Thermometer
      (:wat::std::math::ln ~value)
      (:wat::std::math::ln ~min)

@@ -685,7 +685,9 @@ fn t13_body_uses_user_defined_macro_post_expansion() {
     // itself does NOT need to be in `package.prologue` (no runtime
     // dependency).
     let src = r#"
-        (:wat::core::defmacro (:my::triple (x))
+        (:wat::core::defmacro :my::triple
+          [x <- :AST]
+          -> :AST
           (:wat::core::quasiquote
             (:wat::core::i64::*'2 (:wat::core::unquote x) 3)))
         (:wat::core::defn :my::compute [n <- :wat::core::i64] -> :wat::core::i64 (:my::triple n))

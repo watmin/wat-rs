@@ -19,11 +19,10 @@
 ;; to Bundle inherits Bundle's Result wrap. Callers either match
 ;; explicitly or propagate with `:wat::core::Result/try`.
 
-(:wat::core::defmacro
-  (:wat::holon::Ngram
-    (n :AST<wat::core::i64>)
-    (xs :AST<List<wat::holon::HolonAST>>)
-    -> :AST<wat::holon::BundleResult>)
+(:wat::core::defmacro :wat::holon::Ngram
+  [n  <- :AST<wat::core::i64>
+   xs <- :AST<List<wat::holon::HolonAST>>]
+  -> :AST<wat::holon::BundleResult>
   `(:wat::holon::Bundle
      (:wat::core::map
        (:wat::std::list::window ~xs ~n)

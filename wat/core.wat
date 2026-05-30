@@ -177,11 +177,10 @@
 ;;
 ;; The rest-binder uses the variadic-defmacro shape per arc 150 / per
 ;; `wat/test.wat` § :wat::test::program (`:AST<wat::core::Vector<wat::WatAST>>`).
-(:wat::core::defmacro
-  (:wat::core::defn
-    (name :AST<wat::core::nil>)
-    & (rest :AST<wat::core::Vector<wat::WatAST>>)
-    -> :AST<wat::core::nil>)
+(:wat::core::defmacro :wat::core::defn
+  [name <- :AST<wat::core::nil>
+   & rest <- :AST<wat::core::Vector<wat::WatAST>>]
+  -> :AST<wat::core::nil>
   `(:wat::core::def ~name (:wat::core::fn ~@rest)))
 
 ;; Arc 198 defined `:wat::core::defn-restricted` as mechanical sugar over

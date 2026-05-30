@@ -63,9 +63,9 @@ fn run(src: &str) -> Value {
 #[test]
 fn probe_1_splice_from_let_vec_of_i64() {
     let src = r##"
-        (:wat::core::defmacro
-          (:probe::splice-i64
-            (xs :AST<wat::core::nil>))
+        (:wat::core::defmacro :probe::splice-i64
+          [xs <- :AST<wat::core::nil>]
+          -> :AST<wat::core::nil>
           (:wat::core::quasiquote
             (:wat::core::Vector :wat::core::i64
               (:wat::core::unquote-splicing
@@ -122,9 +122,9 @@ fn probe_1_splice_from_let_vec_of_i64() {
 #[test]
 fn probe_2_splice_from_let_vec_of_watast_via_runtime_quasiquote() {
     let src = r##"
-        (:wat::core::defmacro
-          (:probe::splice-watast
-            (xs :AST<wat::core::nil>))
+        (:wat::core::defmacro :probe::splice-watast
+          [xs <- :AST<wat::core::nil>]
+          -> :AST<wat::core::nil>
           (:wat::core::quasiquote
             (:wat::core::Vector :wat::core::i64
               (:wat::core::unquote-splicing

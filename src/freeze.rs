@@ -1428,7 +1428,9 @@ mod tests {
     fn user_macro_registers() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defmacro (:my::vocab::Double (x :AST<wat::holon::HolonAST>) -> :AST<wat::holon::HolonAST>)
+            (:wat::core::defmacro :my::vocab::Double
+              [x <- :AST<wat::holon::HolonAST>]
+              -> :AST<wat::holon::HolonAST>
               `(:wat::holon::Blend ,x ,x 1 1))
         "#;
         let world = startup(src).expect("startup");
@@ -1665,7 +1667,7 @@ mod tests {
         "#,
         );
         let ast = crate::parse_one!(
-            r#"(:wat::core::defmacro (:evil::M (x :AST<wat::holon::HolonAST>) -> :AST<wat::holon::HolonAST>) x)"#,
+            r#"(:wat::core::defmacro :evil::M [x <- :AST<wat::holon::HolonAST>] -> :AST<wat::holon::HolonAST> x)"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();

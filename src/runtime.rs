@@ -12601,60 +12601,60 @@ fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> Wat
 /// param IS an AST; the specific T isn't tracked.
 ///
 /// Shape: `(<name> (p1 :AST<wat::WatAST>) ... [& (rest :AST<Vec<wat::WatAST>>)] -> :AST<wat::WatAST>)`.
+/// Build the canonical argspec Vector `[name <- :AST ... & rest <- :AST]`
+/// for a registered defmacro. Stone 241.17 — mirrors the canonical argspec
+/// form that `parse_argspec_triples` parses.
 fn macrodef_to_signature_ast(def: &crate::macros::MacroDef) -> WatAST {
     let span = Span::unknown();
     let ast_kw = WatAST::Keyword(":AST<wat::WatAST>".into(), span.clone());
-    let mut items: Vec<WatAST> = Vec::with_capacity(3 + def.params.len() * 2 + 4);
-    items.push(WatAST::Keyword(def.name.clone(), span.clone()));
+    let mut items: Vec<WatAST> = Vec::new();
     for p in def.params.iter() {
-        items.push(WatAST::List(
-            vec![
-                WatAST::Symbol(
-                    crate::identifier::Identifier::bare(p.clone()),
-                    span.clone(),
-                ),
-                ast_kw.clone(),
-            ],
+        items.push(WatAST::Symbol(
+            crate::identifier::Identifier::bare(p.clone()),
             span.clone(),
         ));
+        items.push(WatAST::Symbol(
+            crate::identifier::Identifier::bare("<-"),
+            span.clone(),
+        ));
+        items.push(ast_kw.clone());
     }
     if let Some(rest) = &def.rest_param {
         items.push(WatAST::Symbol(
             crate::identifier::Identifier::bare("&"),
             span.clone(),
         ));
-        items.push(WatAST::List(
-            vec![
-                WatAST::Symbol(
-                    crate::identifier::Identifier::bare(rest.clone()),
-                    span.clone(),
-                ),
-                WatAST::Keyword(":AST<Vec<wat::WatAST>>".into(), span.clone()),
-            ],
+        items.push(WatAST::Symbol(
+            crate::identifier::Identifier::bare(rest.clone()),
             span.clone(),
         ));
+        items.push(WatAST::Symbol(
+            crate::identifier::Identifier::bare("<-"),
+            span.clone(),
+        ));
+        items.push(WatAST::Keyword(":AST<Vec<wat::WatAST>>".into(), span.clone()));
     }
-    items.push(WatAST::Symbol(
-        crate::identifier::Identifier::bare("->"),
-        span.clone(),
-    ));
-    items.push(ast_kw);
-    WatAST::List(items, span)
+    WatAST::Vector(items, span)
 }
 
-/// Build the full `(:wat::core::defmacro <head> <template>)` AST for
-/// a registered defmacro. The template is the stored `def.body` WatAST
-/// verbatim (the same value the expander uses).
+/// Build the full `(:wat::core::defmacro :name [argspec] -> :Ret body)` AST
+/// for a registered defmacro. Stone 241.17 — canonical 6-item form.
+/// The template is the stored `def.body` WatAST verbatim (the same value
+/// the expander uses).
 fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
-    let head = macrodef_to_signature_ast(def);
+    let span = Span::unknown();
+    let argvec = macrodef_to_signature_ast(def);
     let body = def.body.clone();
     WatAST::List(
         vec![
-            WatAST::Keyword(":wat::core::defmacro".into(), Span::unknown()),
-            head,
+            WatAST::Keyword(":wat::core::defmacro".into(), span.clone()),
+            WatAST::Keyword(def.name.clone(), span.clone()),
+            argvec,
+            WatAST::Symbol(crate::identifier::Identifier::bare("->"), span.clone()),
+            WatAST::Keyword(":AST<wat::WatAST>".into(), span.clone()),
             body,
         ],
-        Span::unknown(),
+        span,
     )
 }
 

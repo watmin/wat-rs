@@ -316,7 +316,33 @@ fn is_defmacro_form(form: &WatAST) -> bool {
     )
 }
 
-/// Parse `(:wat::core::defmacro (:name::path (p :AST<T>) ... -> :AST<R>) body)`.
+/// Parse `(:wat::core::defmacro :name::path [p <- :T ...] -> :Ret body)`.
+///
+/// Stone 241.17 — canonical Vector-of-triples shape mirroring defn (arc 166).
+///
+/// New shape (6 items):
+///   items[0] = `:wat::core::defmacro` keyword (head)
+///   items[1] = macro name keyword
+///   items[2] = argspec Vector (`[name <- :T ...]`)
+///   items[3] = `->` symbol
+///   items[4] = return-type keyword
+///   items[5] = body
+///
+/// Optional metadata-map shape (7 items):
+///   items[0] = `:wat::core::defmacro` keyword (head)
+///   items[1] = macro name keyword
+///   items[2] = metadata map (`{...}`) — stored per Stone 241.6 binding_metadata discipline
+///   items[3] = argspec Vector
+///   items[4] = `->` symbol
+///   items[5] = return-type keyword
+///   items[6] = body
+///
+/// HARD-CUT rejection (Stone 241.17): old 3-item paren-pair-with-type form emits
+/// `MalformedDefmacro` with structured reason pointing at the canonical shape.
+/// Per `feedback_hard_cut_admits_no_bypasses` — no compatibility shim.
+///
+/// `parse_defmacro_signature` DELETED (Stone 241.17). The canonical argspec parser
+/// (`parse_argspec_triples`) is the sole argspec parser across fn/defn/defclause/defmacro.
 fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let (items, list_span) = match form {
         WatAST::List(items, span) => (items, span),
@@ -328,121 +354,158 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
             })
         }
     };
-    if items.len() != 3 {
-        return Err(MacroError::MalformedDefmacro {
-            reason: format!(
-                "expected (:wat::core::defmacro signature body); got {} elements",
-                items.len()
-            ),
-            span: list_span, // Pattern B: outer list span
-        });
-    }
-    let mut iter = items.into_iter();
-    let _defmacro_kw = iter.next();
-    let signature = iter.next().expect("length checked");
-    let body = iter.next().expect("length checked");
 
-    let (name, params, rest_param) = parse_defmacro_signature(signature, list_span.clone())?;
+    // HARD-CUT: 3-item old paren-pair form is REJECTED (Stone 241.17).
+    // Old form: (:wat::core::defmacro (:name (param :T) ... -> :Ret) body)
+    // Per `feedback_hard_cut_admits_no_bypasses` — no shim; no backward compat path.
+    if items.len() == 3 {
+        if matches!(items.get(1), Some(WatAST::List(_, _))) {
+            return Err(MacroError::MalformedDefmacro {
+                reason: "old defmacro signature shape (paren-pair-with-type) is retired (Stone 241.17); use canonical Vector-of-triples form: (:wat::core::defmacro :name [param <- :Type ...] -> :Ret body)".into(),
+                span: list_span,
+            });
+        }
+    }
+
+    // Determine if metadata-map is present: 7 items vs 6 items.
+    // 6-item canonical: head name argvec -> rettype body
+    // 7-item with-metadata: head name meta argvec -> rettype body
+    let (name_item, argvec_item, arrow_item, rettype_item, body_item) =
+        match items.len() {
+            6 => {
+                let mut it = items.into_iter();
+                let _head = it.next();
+                let name  = it.next().expect("len=6");
+                let argvec = it.next().expect("len=6");
+                let arrow  = it.next().expect("len=6");
+                let rettype = it.next().expect("len=6");
+                let body   = it.next().expect("len=6");
+                (name, argvec, arrow, rettype, body)
+            }
+            7 => {
+                let mut it = items.into_iter();
+                let _head  = it.next();
+                let name   = it.next().expect("len=7");
+                let _meta  = it.next().expect("len=7"); // metadata-map — stored by binding_metadata discipline; ignored in macro parse
+                let argvec  = it.next().expect("len=7");
+                let arrow  = it.next().expect("len=7");
+                let rettype = it.next().expect("len=7");
+                let body   = it.next().expect("len=7");
+                (name, argvec, arrow, rettype, body)
+            }
+            n => {
+                return Err(MacroError::MalformedDefmacro {
+                    reason: format!(
+                        "expected (:wat::core::defmacro :name [arg <- :T ...] -> :Ret body) — 6 items (or 7 with metadata-map); got {} elements",
+                        n
+                    ),
+                    span: list_span,
+                });
+            }
+        };
+
+    // items[1] must be the macro name keyword.
+    let name = match name_item {
+        WatAST::Keyword(k, _) => k,
+        other => {
+            return Err(MacroError::MalformedDefmacro {
+                reason: "macro name (item 1) must be a keyword-path (e.g. `:my::macro`)".into(),
+                span: other.span().clone(),
+            });
+        }
+    };
+
+    // items[2] (or items[3] with metadata) must be the argspec Vector.
+    let (argvec_items, argvec_span) = match argvec_item {
+        WatAST::Vector(items, span) => (items, span),
+        other => {
+            return Err(MacroError::MalformedDefmacro {
+                reason: "argspec must be a Vector `[name <- :T ...]`".into(),
+                span: other.span().clone(),
+            });
+        }
+    };
+
+    // Arrow symbol `->` must follow argspec.
+    match &arrow_item {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        other => {
+            return Err(MacroError::MalformedDefmacro {
+                reason: "expected `->` symbol after argspec Vector".into(),
+                span: other.span().clone(),
+            });
+        }
+    }
+
+    // Return-type keyword.
+    match &rettype_item {
+        WatAST::Keyword(_, _) => {}
+        other => {
+            return Err(MacroError::MalformedDefmacro {
+                reason: "expected return-type keyword after `->`".into(),
+                span: other.span().clone(),
+            });
+        }
+    }
+
+    // Route argspec through canonical parser — third major consumer after fn + defclause.
+    // `allow_rest_binder: true` mirrors defclause (arc 174 / Stone 241.3/241.4).
+    let spec = crate::argspec::parse_argspec_triples(
+        &argvec_items,
+        ":wat::core::defmacro",
+        &argvec_span,
+        crate::argspec::ParseOptions { allow_rest_binder: true },
+    ).map_err(|e| {
+        // Convert ArgSpecError → MacroError::MalformedDefmacro.
+        // ArgSpecError carries (span, head, reason) via classify(); replicate here.
+        let reason = match &e {
+            crate::argspec::ArgSpecError::NameNotSymbol { .. } =>
+                "name slot must be a plain symbol (not a keyword, literal, or nested form)".to_string(),
+            crate::argspec::ArgSpecError::MissingArrow { .. } =>
+                "triple must be `name <- :T`; `<-` arrow not found at slot 1".to_string(),
+            crate::argspec::ArgSpecError::TypeNotKeyword { .. } =>
+                "type slot must be a keyword (e.g. `:wat::core::i64`); got a non-keyword".to_string(),
+            crate::argspec::ArgSpecError::MalformedTypeKeyword { inner, .. } =>
+                format!("type keyword is malformed: {inner}"),
+            crate::argspec::ArgSpecError::TrailingItems { count, .. } =>
+                format!("{count} trailing item(s) beyond the expected argspec shape"),
+            crate::argspec::ArgSpecError::IncompleteTriple { .. } =>
+                "triple is incomplete; expected `name <- :T` but ran out of items".to_string(),
+            crate::argspec::ArgSpecError::RestBinderNotSupported { .. } =>
+                "`&` rest-binder is not supported at this binding site".to_string(),
+        };
+        let span = match e {
+            crate::argspec::ArgSpecError::NameNotSymbol { span, .. } => span,
+            crate::argspec::ArgSpecError::MissingArrow { span, .. } => span,
+            crate::argspec::ArgSpecError::TypeNotKeyword { span, .. } => span,
+            crate::argspec::ArgSpecError::MalformedTypeKeyword { span, .. } => span,
+            crate::argspec::ArgSpecError::TrailingItems { span, .. } => span,
+            crate::argspec::ArgSpecError::IncompleteTriple { span, .. } => span,
+            crate::argspec::ArgSpecError::RestBinderNotSupported { span, .. } => span,
+        };
+        MacroError::MalformedDefmacro { reason, span }
+    })?;
+
+    // Extract param names only — MacroDef carries names, not types.
+    let params: Vec<String> = spec.fixed_params.into_iter().map(|(name, _ty)| name).collect();
+    let rest_param: Option<String> = spec.rest_param.map(|(name, _ty)| name);
+
     Ok(MacroDef {
         name,
         params,
         rest_param,
-        body,
+        body: body_item,
         span: list_span,
     })
 }
 
-fn parse_defmacro_signature(
-    sig: WatAST,
-    defmacro_span: Span,
-) -> Result<(String, Vec<String>, Option<String>), MacroError> {
-    let (items, sig_span) = match sig {
-        WatAST::List(items, span) => (items, span),
-        _ => {
-            return Err(MacroError::MalformedDefmacro {
-                reason: "signature must be a list".into(),
-                span: defmacro_span, // Pattern F: propagated from parse_defmacro_form
-            })
-        }
-    };
-    let mut iter = items.into_iter();
-    let name = match iter.next() {
-        Some(WatAST::Keyword(k, _)) => k,
-        Some(other) => {
-            return Err(MacroError::MalformedDefmacro {
-                reason: "macro name must be a keyword-path".into(),
-                span: other.span().clone(), // Pattern A: offending element span
-            })
-        }
-        None => {
-            return Err(MacroError::MalformedDefmacro {
-                reason: "signature is empty".into(),
-                span: sig_span.clone(), // Pattern B: signature list span
-            })
-        }
-    };
-    let mut params = Vec::new();
-    let mut rest_param: Option<String> = None;
-    let mut saw_rest_marker = false;
-    for item in iter {
-        match item {
-            WatAST::Symbol(ref s, _) if s.as_str() == "->" => break,
-            // `&` marker — the next binder is the rest-param. Only one
-            // rest-binder is allowed; additional params after it are
-            // rejected (same as Common Lisp's `&rest` discipline).
-            WatAST::Symbol(ref s, ref item_span) if s.as_str() == "&" => {
-                if saw_rest_marker {
-                    return Err(MacroError::MalformedDefmacro {
-                        reason: "duplicate `&` rest-marker in macro signature".into(),
-                        span: item_span.clone(), // Pattern A: offending `&` span
-                    });
-                }
-                if rest_param.is_some() {
-                    return Err(MacroError::MalformedDefmacro {
-                        reason: "`&` must precede its rest-binder".into(),
-                        span: item_span.clone(), // Pattern A
-                    });
-                }
-                saw_rest_marker = true;
-            }
-            WatAST::List(pair, pair_span) => {
-                let paramname = match pair.into_iter().next() {
-                    Some(WatAST::Symbol(ident, _)) => ident.name,
-                    _ => {
-                        return Err(MacroError::MalformedDefmacro {
-                            reason: "parameter name must be a bare symbol".into(),
-                            span: pair_span, // Pattern B: param list span
-                        })
-                    }
-                };
-                if saw_rest_marker {
-                    if rest_param.is_some() {
-                        return Err(MacroError::MalformedDefmacro {
-                            reason: "only one rest-binder is allowed after `&`".into(),
-                            span: sig_span.clone(), // Pattern B: signature list span
-                        });
-                    }
-                    rest_param = Some(paramname);
-                } else {
-                    params.push(paramname);
-                }
-            }
-            other => {
-                return Err(MacroError::MalformedDefmacro {
-                    reason: "unexpected signature element".into(),
-                    span: other.span().clone(), // Pattern A: offending element span
-                })
-            }
-        }
-    }
-    if saw_rest_marker && rest_param.is_none() {
-        return Err(MacroError::MalformedDefmacro {
-            reason: "`&` rest-marker with no binder".into(),
-            span: sig_span, // Pattern B: signature list span
-        });
-    }
-    Ok((name, params, rest_param))
-}
+// Stone 241.17 — parse_defmacro_signature DELETED (~80 lines of arc 010/150 paren-pair parser).
+// `:wat::core::defmacro` signature shape migrated from paren-pair-with-type form to canonical
+// Vector-of-triples form mirroring arc 166 defn shape.
+// The HARD-CUT-rejection arm in parse_defmacro_form fires for any old 3-item paren-pair form.
+// `parse_argspec_triples` (Stone 241.1's canonical parser) is now the third major consumer
+// after fn (Stones 241.2) and defclause (Stone 241.3/241.4).
+// Per `feedback_hard_cut_admits_no_bypasses` — no compatibility shim.
 
 // ─── Expansion ──────────────────────────────────────────────────────────
 
@@ -1251,7 +1314,9 @@ mod tests {
     fn alias_macro_expands_to_primitive() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<wat::holon::HolonAST>>) -> :AST<wat::holon::HolonAST>)
+            (:wat::core::defmacro :my::vocab::Concurrent
+              [xs <- :AST<List<wat::holon::HolonAST>>]
+              -> :AST<wat::holon::HolonAST>
               `(:wat::holon::Bundle ~xs))
             (:my::vocab::Concurrent (:wat::core::Vector :wat::holon::HolonAST a b c))
             "#,
@@ -1274,7 +1339,10 @@ mod tests {
     fn subtract_macro_expansion() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::Subtract (x :AST<wat::holon::HolonAST>) (y :AST<wat::holon::HolonAST>) -> :AST<wat::holon::HolonAST>)
+            (:wat::core::defmacro :my::vocab::Subtract
+              [x <- :AST<wat::holon::HolonAST>
+               y <- :AST<wat::holon::HolonAST>]
+              -> :AST<wat::holon::HolonAST>
               `(:wat::holon::Blend ~x ~y 1 -1))
             (:my::vocab::Subtract foo bar)
             "#,
@@ -1300,7 +1368,9 @@ mod tests {
     fn splice_list_arg_into_template() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::SumAll (xs :AST<List<wat::holon::HolonAST>>) -> :AST<wat::holon::HolonAST>)
+            (:wat::core::defmacro :my::vocab::SumAll
+              [xs <- :AST<List<wat::holon::HolonAST>>]
+              -> :AST<wat::holon::HolonAST>
               `(:wat::holon::Bundle ~@xs))
             (:my::vocab::SumAll (a b c))
             "#,
@@ -1325,10 +1395,8 @@ mod tests {
     fn nested_macro_expands_to_fixpoint() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::outer (x :AST) -> :AST)
-              `(:my::inner ~x))
-            (:wat::core::defmacro (:my::inner (x :AST) -> :AST)
-              `(:wat::holon::Atom ~x))
+            (:wat::core::defmacro :my::outer [x <- :AST] -> :AST `(:my::inner ~x))
+            (:wat::core::defmacro :my::inner [x <- :AST] -> :AST `(:wat::holon::Atom ~x))
             (:my::outer 42)
             "#,
         )
@@ -1350,7 +1418,9 @@ mod tests {
     fn template_identifier_carries_macro_scope() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::WithTmp (body :AST) -> :AST)
+            (:wat::core::defmacro :my::vocab::WithTmp
+              [body <- :AST]
+              -> :AST
               `(:wat::core::let ((tmp 1)) ~body))
             (:my::vocab::WithTmp tmp)
             "#,
@@ -1404,8 +1474,7 @@ mod tests {
         // User passes a symbol; the macro should splice it verbatim.
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::wrap (v :AST) -> :AST)
-              `(:wat::holon::Atom ~v))
+            (:wat::core::defmacro :my::wrap [v <- :AST] -> :AST `(:wat::holon::Atom ~v))
             (:my::wrap some-var)
             "#,
         )
@@ -1432,7 +1501,9 @@ mod tests {
     fn two_macro_invocations_get_distinct_scopes() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::twice (x :AST) -> :AST)
+            (:wat::core::defmacro :my::twice
+              [x <- :AST]
+              -> :AST
               `(:wat::core::let (((t :i64) ~x)) t))
             (:my::twice 1)
             (:my::twice 2)
@@ -1480,7 +1551,7 @@ mod tests {
     #[test]
     fn reserved_prefix_macro_rejected() {
         let err = expand(
-            r#"(:wat::core::defmacro (:wat::std::MyMacro (x :AST) -> :AST) `~x)"#,
+            r#"(:wat::core::defmacro :wat::std::MyMacro [x <- :AST] -> :AST `~x)"#,
         )
         .unwrap_err();
         assert!(matches!(err, MacroError::ReservedPrefix(_, _)));
@@ -1494,9 +1565,8 @@ mod tests {
         // distinct templates.
         let err = expand(
             r#"
-            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `~x)
-            (:wat::core::defmacro (:my::m (x :AST) -> :AST)
-              `(:wat::core::Vector ~x))
+            (:wat::core::defmacro :my::m [x <- :AST] -> :AST `~x)
+            (:wat::core::defmacro :my::m [x <- :AST] -> :AST `(:wat::core::Vector ~x))
             "#,
         )
         .unwrap_err();
@@ -1510,8 +1580,8 @@ mod tests {
         // expands normally afterward.
         let result = expand(
             r#"
-            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `~x)
-            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `~x)
+            (:wat::core::defmacro :my::m [x <- :AST] -> :AST `~x)
+            (:wat::core::defmacro :my::m [x <- :AST] -> :AST `~x)
             (:my::m 42)
             "#,
         );
@@ -1522,7 +1592,9 @@ mod tests {
     fn macro_arity_mismatch() {
         let err = expand(
             r#"
-            (:wat::core::defmacro (:my::two (x :AST) (y :AST) -> :AST)
+            (:wat::core::defmacro :my::two
+              [x <- :AST y <- :AST]
+              -> :AST
               `(:wat::core::Vector ~x ~y))
             (:my::two 1)
             "#,
@@ -1537,7 +1609,7 @@ mod tests {
         // evaluate arbitrary macro bodies.
         let err = expand(
             r#"
-            (:wat::core::defmacro (:my::m (x :AST) -> :AST)
+            (:wat::core::defmacro :my::m [x <- :AST] -> :AST
               (:wat::core::Vector :bogus x))
             (:my::m 1)
             "#,
@@ -1550,8 +1622,7 @@ mod tests {
     fn splice_non_list_arg_rejected() {
         let err = expand(
             r#"
-            (:wat::core::defmacro (:my::s (xs :AST) -> :AST)
-              `(:wat::core::Vector ~@xs))
+            (:wat::core::defmacro :my::s [xs <- :AST] -> :AST `(:wat::core::Vector ~@xs))
             (:my::s 42)
             "#,
         )
@@ -1578,9 +1649,14 @@ mod tests {
         match form {
             WatAST::List(items, _) => {
                 assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::core::defmacro"));
-                // items[1] is the (name (param :T) ... -> :Ret) signature;
-                // items[2] is the body — a (:wat::core::quasiquote ...).
-                let body = &items[2];
+                // Stone 241.17 canonical shape (6 items):
+                //   items[0] = :wat::core::defmacro head
+                //   items[1] = macro name keyword
+                //   items[2] = argspec Vector
+                //   items[3] = -> symbol
+                //   items[4] = return-type keyword
+                //   items[5] = body — a (:wat::core::quasiquote ...)
+                let body = &items[5];
                 match body {
                     WatAST::List(b, _) => {
                         assert!(matches!(&b[0],
@@ -1615,8 +1691,13 @@ mod tests {
         // defmacro's body.
         let forms = expand_keeping_defmacros(
             r#"
-            (:wat::core::defmacro (:my::mkmac (name :AST<()>) -> :AST<()>)
-              `(:wat::core::defmacro (~name (x :AST) -> :AST)
+            (:wat::core::defmacro :my::mkmac
+              [name <- :AST<()>]
+              -> :AST<()>
+              `(:wat::core::defmacro
+                 ~name
+                 [x <- :AST]
+                 -> :AST
                  `(:wat::holon::Atom ~x)))
             (:my::mkmac :my::wrap)
             "#,
@@ -1646,8 +1727,13 @@ mod tests {
         // in an unquote that fires on the inner expansion pass.
         let forms = expand_keeping_defmacros(
             r#"
-            (:wat::core::defmacro (:my::mkmac (v :AST<i64>) -> :AST<()>)
-              `(:wat::core::defmacro (:my::configured -> :AST)
+            (:wat::core::defmacro :my::mkmac
+              [v <- :AST<i64>]
+              -> :AST<()>
+              `(:wat::core::defmacro
+                 :my::configured
+                 []
+                 -> :AST
                  `(:wat::holon::Atom ~~v)))
             (:my::mkmac 42)
             "#,
@@ -1700,8 +1786,13 @@ mod tests {
         // wrapper.
         let forms = expand_keeping_defmacros(
             r#"
-            (:wat::core::defmacro (:my::mkmac (name :AST<()>) -> :AST<()>)
-              `(:wat::core::defmacro (~name (xs :AST) -> :AST)
+            (:wat::core::defmacro :my::mkmac
+              [name <- :AST<()>]
+              -> :AST<()>
+              `(:wat::core::defmacro
+                 ~name
+                 [xs <- :AST]
+                 -> :AST
                  `(:wat::holon::Bundle ~@xs)))
             (:my::mkmac :my::wrap)
             "#,
@@ -1746,18 +1837,17 @@ mod tests {
         // new macro; then the user calls the new macro.
         let forms = expand(
             r#"
-            (:wat::core::defmacro
-              (:my::make-mac
-                (name :AST<()>)
-                (dims :AST<i64>)
-                (mode :AST<wat::core::keyword>)
-                (extras :AST)
-                -> :AST<()>)
+            (:wat::core::defmacro :my::make-mac
+              [name   <- :AST<()>
+               dims   <- :AST<i64>
+               mode   <- :AST<wat::core::keyword>
+               extras <- :AST]
+              -> :AST<()>
               `(:wat::core::defmacro
-                 (~name
-                   (test-name :AST<()>)
-                   (body :AST<()>)
-                   -> :AST<()>)
+                 ~name
+                 [test-name <- :AST<()>
+                  body      <- :AST<()>]
+                 -> :AST<()>
                  `(:wat::holon::configured
                     ~test-name
                     ~~dims
@@ -1810,7 +1900,10 @@ mod tests {
         // `<test>:` when the variant's span is known.
         let err = expand(
             r#"
-            (:wat::core::defmacro (:my::two (x :AST) (y :AST) -> :AST)
+            (:wat::core::defmacro :my::two
+              [x <- :AST
+               y <- :AST]
+              -> :AST
               `(:wat::core::Vector ~x ~y))
             (:my::two 1)
             "#,
@@ -1905,7 +1998,9 @@ mod tests {
     fn computed_unquote_evaluates_substrate_call() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::computed-test -> :AST)
+            (:wat::core::defmacro :my::computed-test
+              []
+              -> :AST
               `(:result ~(:wat::core::i64::+'2 10 32)))
             (:my::computed-test)
             "#,
@@ -1930,7 +2025,9 @@ mod tests {
     fn computed_unquote_substitutes_params_before_eval() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::succ (n :AST<i64>) -> :AST)
+            (:wat::core::defmacro :my::succ
+              [n <- :AST<i64>]
+              -> :AST
               `(:result ~(:wat::core::i64::+'2 n 1)))
             (:my::succ 41)
             "#,
@@ -1955,7 +2052,9 @@ mod tests {
     fn computed_unquote_splicing_evaluates_and_splices() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::trio -> :AST)
+            (:wat::core::defmacro :my::trio
+              []
+              -> :AST
               `(:wrapper ~@(:wat::core::Vector :wat::core::i64 1 2 3)))
             (:my::trio)
             "#,
@@ -1986,8 +2085,13 @@ mod tests {
         // only depth-1 unquotes fire at the outer level.
         let forms = expand_keeping_defmacros(
             r#"
-            (:wat::core::defmacro (:my::make-inner (name :AST<()>) -> :AST<()>)
-              `(:wat::core::defmacro (~name -> :AST)
+            (:wat::core::defmacro :my::make-inner
+              [name <- :AST<()>]
+              -> :AST<()>
+              `(:wat::core::defmacro
+                 ~name
+                 []
+                 -> :AST
                  `(:result ~(:wat::core::i64::+'2 1 2))))
             (:my::make-inner :my::inner)
             "#,
@@ -2054,8 +2158,9 @@ mod tests {
     fn keyword_of_inside_macro_template_with_unquote() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro
-              (:my::test::make-receiver (elem-type :AST<wat::core::nil>) -> :AST<wat::core::nil>)
+            (:wat::core::defmacro :my::test::make-receiver
+              [elem-type <- :AST<wat::core::nil>]
+              -> :AST<wat::core::nil>
               `(:wat::core::keyword/of :wat::kernel::Receiver ~elem-type))
             (:my::test::make-receiver :wat::core::i64)
             "#,

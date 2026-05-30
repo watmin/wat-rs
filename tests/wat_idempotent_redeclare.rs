@@ -90,8 +90,8 @@ fn define_divergent_body_errors() {
 #[test]
 fn defmacro_byte_equivalent_is_noop() {
     let src = r##"
-        (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
-        (:wat::core::defmacro (:my::ident (x :AST) -> :AST) `~x)
+        (:wat::core::defmacro :my::ident [x <- :AST] -> :AST `~x)
+        (:wat::core::defmacro :my::ident [x <- :AST] -> :AST `~x)
 
         (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::io::IOWriter/println stdout "ok"))
     "##;
