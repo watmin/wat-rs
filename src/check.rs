@@ -1956,11 +1956,11 @@ pub struct CheckEnv {
     /// type-checked, the bound name + inferred type are inserted so
     /// subsequent forms can reference it. Also tracks the span for
     /// redef diagnostics (via `defined_value_spans`).
-    pub defined_values: HashMap<String, TypeExpr>,
+    pub(crate) defined_values: HashMap<String, TypeExpr>,
     /// Arc 157 — parallel to `defined_values`: maps name → span of
     /// the binding site. Used to emit `DefRedefForbidden` with the
     /// prior location when a collision is detected.
-    pub defined_value_spans: HashMap<String, Span>,
+    pub(crate) defined_value_spans: HashMap<String, Span>,
     /// Stone 241.14 — binding-level metadata mirrored from
     /// [`crate::runtime::SymbolTable::binding_metadata`] at `from_symbols`
     /// time. The `:restricted-to` key carries a Vector of prefix keywords;
@@ -1969,14 +1969,14 @@ pub struct CheckEnv {
     ///
     /// Generic storage: the substrate does NOT enforce specific keys; each
     /// downstream consumer projects to its typed needs.
-    pub binding_metadata: Arc<HashMap<String, HashMap<String, WatAST>>>,
+    pub(crate) binding_metadata: Arc<HashMap<String, HashMap<String, WatAST>>>,
     /// Arc 157 slice 1a-ii — compile-time redef-allowed flag. Default
     /// `false` (strict default: every redef is an error). Updated
     /// in-line by `check_program` when it encounters a top-level
     /// `(:wat::config::set-redef! <bool>)` form (single-pass
     /// program-order semantics). Consulted by `infer_def` at the
     /// redef-collision site.
-    pub redef_allowed: bool,
+    pub(crate) redef_allowed: bool,
     /// Stone 237.2 — per-defclause clause registrations.
     ///
     /// Maps FQDN name → list of `(arg_types, return_type)` per clause,
@@ -1985,7 +1985,7 @@ pub struct CheckEnv {
     /// encounters a `:wat::core::defclause` top-level form. Consumed
     /// in `infer_list` for call-site dispatch type-checking.
     /// Stone 241.5 — tuple is (fixed_arg_types, return_type, has_rest_binder).
-    pub defclause_registrations: HashMap<String, Vec<(Vec<TypeExpr>, TypeExpr, bool)>>,
+    pub(crate) defclause_registrations: HashMap<String, Vec<(Vec<TypeExpr>, TypeExpr, bool)>>,
 }
 
 impl CheckEnv {
@@ -2009,7 +2009,7 @@ impl CheckEnv {
         // SymbolTable carrier (populated from Config at freeze time) so
         // `infer_def` can gate the collision check without needing direct
         // SymbolTable access. Option (b) per the BRIEF: mirror, not direct.
-        env.redef_allowed = sym.redef_allowed;
+        env.set_redef_allowed(sym.redef_allowed);
         // Stone 241.14 — mirror binding-level metadata from the SymbolTable
         // carrier. Populated during `register_defines` / freeze-time
         // RestrictionEntry iteration when a `def`/`defn` form carries a
@@ -2110,6 +2110,13 @@ impl CheckEnv {
     /// extract the `:restricted-to` prefix whitelist.
     pub fn get_binding_metadata(&self, name: &str) -> Option<&HashMap<String, WatAST>> {
         self.binding_metadata.get(name)
+    }
+
+    /// Stone 243.3 — setter for the compile-time redef-allowed flag.
+    /// Replaces direct field mutation at call sites; keeps the field
+    /// write path explicit and under accessor control.
+    pub(crate) fn set_redef_allowed(&mut self, flag: bool) {
+        self.redef_allowed = flag;
     }
 
     /// Stone 237.2 — register a defclause binding's clause table.
@@ -2439,7 +2446,7 @@ pub fn check_program(
         // update env.redef_allowed in-line so subsequent def forms see
         // the new flag (single-pass program-order semantics).
         if let Some(flag) = extract_redef_setter(form) {
-            env.redef_allowed = flag;
+            env.set_redef_allowed(flag);
         }
     }
 

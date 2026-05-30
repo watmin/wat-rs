@@ -52,10 +52,23 @@ Each stone gets its own DESIGN-STONE-N.md before strike.
 | **243.3** | TypeError Pattern A retrofit (outer struct + kind enum) + R2 vigilia convergence on `types.rs`/`check.rs` | IN PROGRESS |
 | **243.4** | `docs/CONFORMARE.md` doctrine rewrite — zero exceptions + namespaced-home requirement; retire Tier framework + `spanless-by-domain` rune kind | PLANNED |
 | **243.5** | Mint `src/types/` home — `mv types.rs → types/mod.rs`; carve `TypeError` → `types/error.rs`; `parse_defstruct` decomposition (`types/parse.rs` / `types/defstruct.rs`); thread `register_subtype` caller-span (retire CyclicSubtype rune); vigilia REMARKABLE bar | PLANNED |
-| **243.6** | Mint `src/check/` home — `mv check.rs → check/mod.rs`; carve `CheckError` → `check/error.rs` under Pattern A (multi-span variants per CONFORMARE.md § Multi-span); fuse `check_program` walker chain (10× → 1×); fold `collect_hints` caching into outer struct; vigilia REMARKABLE bar | PLANNED |
+| **243.6** | Mint `src/check/` home — `mv check.rs → check/mod.rs`; carve `CheckError` → `check/error.rs` under Pattern A (multi-span variants per CONFORMARE.md § Multi-span); fuse `check_program` walker chain (10× → 1×); fold `collect_hints` caching into outer struct; **CheckEnv ownership redesign — hold the `SymbolTable` by handle (`Arc<SymbolTable>` or `&'a`), eliminate ALL field-mirroring** (see § CheckEnv mirror below); vigilia REMARKABLE bar | PLANNED |
 | **243.7…** | Remaining error types per rolling audit (RuntimeError, ParseStep [Stone 241.18a's NEW-2 closes here], LexError, LoadError, ResolveError, StdlibError, HashError, ExtractionError, …) — one home-carve + Pattern A retrofit per fat file | PENDING |
 | **243.M** | Parser-API sister-walk — every parser/check API taking a bare slice gains `head_span: &Span`. Closes the ArityMismatch-style defensive class at the boundary. | PENDING |
 | **243.N** | INSCRIPTION (fires last, after all spawned stones close) — class structurally eliminated | PENDING |
+
+## The CheckEnv mirror — one thing stored twice (surfaced 2026-05-30, owner: 243.6)
+
+Investigation during Stone 243.3 (user question: "is binding_metadata not exactly one thing?") found that **`CheckEnv` snapshots fields from `SymbolTable` rather than sharing it**, producing physical duplication of one logical thing:
+
+- `SymbolTable.binding_metadata` (runtime.rs:1766, `HashMap`) — the OWNER. Built at freeze.
+- `CheckEnv.binding_metadata` (check.rs:1972, `Arc<HashMap>`) — a DEEP-CLONE mirror set once at `from_symbols` (`Arc::new(sym.binding_metadata.clone())`), never mutated afterward (verified: 1 write, 0 mutations).
+
+Root cause: `from_symbols(sym: &SymbolTable) -> Self` returns an OWNED `CheckEnv` with no lifetime — so it cannot hold a `&SymbolTable` borrow; it copies instead. CheckEnv mirrors THREE things this way: `binding_metadata` (deep clone), `redef_allowed` (copy), function schemes (derived). And the `types: Arc<TypeEnv>` field — the one correct shared-by-handle pattern — is undermined at the call site (check.rs:2175 `Arc::new(types.clone())` deep-clones the very thing built to be shared; this is finding ⑬).
+
+**The correct tooling (Stone 243.6 design goal):** CheckEnv holds ONE handle to the SymbolTable (`Arc<SymbolTable>`, mirroring the existing `outer_symbols: Option<Arc<SymbolTable>>` at runtime.rs:1699) and READS `binding_metadata` / `redef_allowed` through it — no mirror fields. The mirroring is the smell; the clones (⑬ + the 2175 double-clone + the binding_metadata deep copy) are symptoms. One owner, CheckEnv as a view. This absorbs finding ⑬ (it stops being LEAVE-DISPUTED — 243.6 is its real owner) and the binding_metadata duplication into ONE coherent ownership fix.
+
+Interim state (shipped in 243.3 R3-β + ⑦): `CheckEnv` fields are `pub(crate)` with a `set_redef_allowed` setter — the visibility surface is locked, which is orthogonal to and compatible with the 243.6 ownership redesign.
 
 ## Deferrals attested into this chain (Stone 243.3 R2 vigilia)
 
@@ -70,7 +83,7 @@ The R2 vigilia round on `types.rs`/`check.rs` (8 spells) surfaced architectural 
 
 These carry attested-stone runes in the code citing their owner stone. DISTINCT from stalled-arc runes (the reversed R3.10/R3.11): these cite NEXT-in-chain stones of the currently-OPEN arc, not stalled/distant work.
 
-One finding was triaged **LEAVE-DISPUTED** (not deferred, not runed): `check_program`'s `Arc::new(types.clone())` (temperare T-L1-3) — startup-only cost; the "redundant-call" premise is unverified (the clone may be the ownership boundary). Per `feedback_let_need_reveal_through_work`, left to reveal through real work; recorded in SCORE.
+⑬ `check_program`'s `Arc::new(types.clone())` (temperare T-L1-3) was initially triaged LEAVE-DISPUTED, but the CheckEnv-mirror investigation (above) gave it a real owner: it is the same shared-by-handle ownership defect, and Stone 243.6's CheckEnv redesign closes it. Reclassified from LEAVE-DISPUTED to DEFER → 243.6.
 
 ## Trap-doors
 
