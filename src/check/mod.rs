@@ -46,6 +46,9 @@
 //! - **Numeric promotion.** `:i64` does not promote to `:f64` statically;
 //!   mixing numeric types in arithmetic is rejected.
 
+pub mod env;
+pub use env::CheckEnv;
+
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
 use crate::runtime::{Function, SymbolTable};
@@ -53,7 +56,6 @@ use crate::span::{span_prefix, Span};
 use crate::types::{TypeEnv, TypeExpr};
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
 
 /// A function's declared signature: universally-quantified type
 /// parameters, then parameter types and return type.
@@ -1930,235 +1932,6 @@ impl InferCtx {
 /// resolve a type to its canonical form.
 pub(crate) type Subst = HashMap<u64, TypeExpr>;
 
-/// The type-check environment: built-in + user function schemes plus
-/// a shared handle to the [`TypeEnv`] (user type declarations).
-/// Unification consults the type-env to expand typealiases to their
-/// structural definitions before the structural match.
-#[derive(Debug)]
-pub struct CheckEnv {
-    schemes: HashMap<String, TypeScheme>,
-    /// Arc 048 — keyword paths for user-enum unit variants mapped to
-    /// the enum's type. When `infer` sees one of these as a value-
-    /// position keyword (e.g. `:trading::types::PhaseLabel::Valley`),
-    /// it returns the enum's type instead of the generic
-    /// `:wat::core::keyword`. Mirrors the runtime's
-    /// `SymbolTable.unit_variants`. Populated at construction by
-    /// walking every `:wat::core::enum` declaration in `types`.
-    unit_variant_types: HashMap<String, TypeExpr>,
-    types: Arc<TypeEnv>,
-    /// Arc 157 — names bound via `:wat::core::def` at top-level
-    /// position. Maps name → inferred TypeExpr of the binding. Keyword
-    /// references to a `def`'d name resolve here instead of falling
-    /// through to the generic `:wat::core::keyword` type.
-    ///
-    /// Populated incrementally by `check_program` as it processes
-    /// top-level forms left-to-right: after each `def` form is
-    /// type-checked, the bound name + inferred type are inserted so
-    /// subsequent forms can reference it. Also tracks the span for
-    /// redef diagnostics (via `defined_value_spans`).
-    pub(crate) defined_values: HashMap<String, TypeExpr>,
-    /// Arc 157 — parallel to `defined_values`: maps name → span of
-    /// the binding site. Used to emit `DefRedefForbidden` with the
-    /// prior location when a collision is detected.
-    pub(crate) defined_value_spans: HashMap<String, Span>,
-    /// Stone 241.14 — binding-level metadata mirrored from
-    /// [`crate::runtime::SymbolTable::binding_metadata`] at `from_symbols`
-    /// time. The `:restricted-to` key carries a Vector of prefix keywords;
-    /// the walker `walk_for_restricted_call` reads from this map to enforce
-    /// caller-prefix whitelists declared via metadata-map on `def`/`defn`.
-    ///
-    /// Generic storage: the substrate does NOT enforce specific keys; each
-    /// downstream consumer projects to its typed needs.
-    pub(crate) binding_metadata: Arc<HashMap<String, HashMap<String, WatAST>>>,
-    /// Arc 157 slice 1a-ii — compile-time redef-allowed flag. Default
-    /// `false` (strict default: every redef is an error). Updated
-    /// in-line by `check_program` when it encounters a top-level
-    /// `(:wat::config::set-redef! <bool>)` form (single-pass
-    /// program-order semantics). Consulted by `infer_def` at the
-    /// redef-collision site.
-    pub(crate) redef_allowed: bool,
-    /// Stone 237.2 — per-defclause clause registrations.
-    ///
-    /// Maps FQDN name → list of `(arg_types, return_type)` per clause,
-    /// in declaration order (first-match-wins at call sites).
-    /// Populated incrementally by `collect_splice_defs_ctx` when it
-    /// encounters a `:wat::core::defclause` top-level form. Consumed
-    /// in `infer_list` for call-site dispatch type-checking.
-    /// Stone 241.5 — tuple is (fixed_arg_types, return_type, has_rest_binder).
-    pub(crate) defclause_registrations: HashMap<String, Vec<(Vec<TypeExpr>, TypeExpr, bool)>>,
-}
-
-impl CheckEnv {
-    pub fn new() -> Self {
-        Self::with_types(Arc::new(TypeEnv::with_builtins()))
-    }
-
-    /// Build an env with built-in schemes for `:wat::core::*` and
-    /// `:wat::holon::*` forms, then overlay user-define signatures
-    /// from `sym`. `types` carries the registered user type
-    /// declarations (struct/enum/newtype/typealias) — unification uses
-    /// it to expand aliases.
-    pub fn from_symbols(sym: &SymbolTable, types: Arc<TypeEnv>) -> Self {
-        let mut env = Self::with_builtins_and_types(types);
-        for (path, func) in &sym.functions {
-            if let Some(scheme) = derive_scheme_from_function(func) {
-                env.register(path.clone(), scheme);
-            }
-        }
-        // Arc 157 slice 1a-ii — mirror the redef-allowed flag from the
-        // SymbolTable carrier (populated from Config at freeze time) so
-        // `infer_def` can gate the collision check without needing direct
-        // SymbolTable access. Option (b) per the BRIEF: mirror, not direct.
-        env.set_redef_allowed(sym.redef_allowed);
-        // Stone 241.14 — mirror binding-level metadata from the SymbolTable
-        // carrier. Populated during `register_defines` / freeze-time
-        // RestrictionEntry iteration when a `def`/`defn` form carries a
-        // metadata-map (or the inventory channel submits restrictions). The
-        // walker `walk_for_restricted_call` consults the `:restricted-to`
-        // key at check time.
-        env.binding_metadata = Arc::new(sym.binding_metadata.clone());
-        env
-    }
-
-    pub fn with_builtins() -> Self {
-        Self::with_builtins_and_types(Arc::new(TypeEnv::with_builtins()))
-    }
-
-    pub fn with_builtins_and_types(types: Arc<TypeEnv>) -> Self {
-        let mut env = Self::with_types(types);
-        register_builtins(&mut env);
-        env
-    }
-
-    fn with_types(types: Arc<TypeEnv>) -> Self {
-        // Arc 048 — pre-populate unit-variant keyword types from the
-        // declared enums. Walks every TypeDef::Enum and registers each
-        // unit variant's full keyword path (`:enum::Variant`) → enum
-        // type, so `infer` can return the enum type when the bare
-        // keyword appears in expression position.
-        let mut unit_variant_types = HashMap::new();
-        for (name, def) in types.iter() {
-            if let crate::types::TypeDef::Enum(e) = def {
-                for variant in &e.variants {
-                    if let crate::types::EnumVariant::Unit(variant_name) = variant {
-                        let key = format!("{}::{}", name, variant_name);
-                        unit_variant_types.insert(key, TypeExpr::Path(name.clone()));
-                    }
-                }
-            }
-        }
-        CheckEnv {
-            schemes: HashMap::new(),
-            unit_variant_types,
-            types,
-            defined_values: HashMap::new(),
-            defined_value_spans: HashMap::new(),
-            binding_metadata: Arc::new(HashMap::new()),
-            redef_allowed: false,
-            defclause_registrations: HashMap::new(),
-        }
-    }
-
-    /// Arc 048 — look up the enum type for a unit-variant keyword
-    /// path. Returns `None` for non-variant keywords.
-    pub fn unit_variant_type(&self, key: &str) -> Option<&TypeExpr> {
-        self.unit_variant_types.get(key)
-    }
-
-    pub fn register(&mut self, name: String, scheme: TypeScheme) {
-        self.schemes.insert(name, scheme);
-    }
-
-    pub fn get(&self, name: &str) -> Option<&TypeScheme> {
-        self.schemes.get(name)
-    }
-
-    /// Handle to the user/builtin type declarations. Used by `unify`
-    /// to expand typealiases to their structural form before the
-    /// structural match.
-    pub fn types(&self) -> &TypeEnv {
-        &self.types
-    }
-
-    /// Arc 157 — look up the inferred type for a `def`-bound name.
-    /// Returns `Some(&TypeExpr)` when the name was bound via
-    /// `:wat::core::def`; `None` otherwise. Consulted in `infer`
-    /// before the generic keyword fall-through.
-    pub fn get_defined_value_type(&self, name: &str) -> Option<&TypeExpr> {
-        self.defined_values.get(name)
-    }
-
-    /// Arc 157 — look up the span of a prior `def` binding. Used to
-    /// emit `DefRedefForbidden` with the prior location.
-    pub fn get_defined_value_span(&self, name: &str) -> Option<&Span> {
-        self.defined_value_spans.get(name)
-    }
-
-    /// Arc 157 — register a new `def` binding. Called from
-    /// `infer_def` when a `def` form passes position + redef checks.
-    /// Subsequent forms in `check_program`'s sequential loop will see
-    /// this name in `get_defined_value_type`.
-    pub fn register_defined_value(&mut self, name: String, ty: TypeExpr, span: Span) {
-        self.defined_values.insert(name.clone(), ty);
-        self.defined_value_spans.insert(name, span);
-    }
-
-    /// Stone 241.14 — look up binding-level metadata for a named binding.
-    /// Returns `Some(&HashMap<String, WatAST>)` when the binding carries
-    /// metadata (e.g. `:restricted-to`); `None` otherwise.
-    /// Consulted by `walk_for_restricted_call` at every call site to
-    /// extract the `:restricted-to` prefix whitelist.
-    pub fn get_binding_metadata(&self, name: &str) -> Option<&HashMap<String, WatAST>> {
-        self.binding_metadata.get(name)
-    }
-
-    /// Stone 243.3 — setter for the compile-time redef-allowed flag.
-    /// Replaces direct field mutation at call sites; keeps the field
-    /// write path explicit and under accessor control.
-    pub(crate) fn set_redef_allowed(&mut self, flag: bool) {
-        self.redef_allowed = flag;
-    }
-
-    /// Stone 237.2 — register a defclause binding's clause table.
-    ///
-    /// Each `(arg_types, return_type)` pair represents one clause in
-    /// declaration order. Called by `collect_splice_defs_ctx` when it
-    /// encounters a top-level `:wat::core::defclause` form.
-    pub fn register_defclause(
-        &mut self,
-        name: String,
-        clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)>,
-        span: Span,
-    ) {
-        // Also register in defined_values so keyword references to the
-        // name in value position (e.g. passing it as :fn argument) see
-        // a type. Use a fresh Var(u64::MAX) sentinel — actual call-site
-        // dispatch uses defclause_registrations, not defined_values.
-        // The sentinel prevents `UnknownCallee` from firing for the name
-        // in call-head position when there is no scheme.
-        if !self.defined_values.contains_key(&name) {
-            self.defined_values
-                .insert(name.clone(), TypeExpr::Var(u64::MAX));
-            self.defined_value_spans.insert(name.clone(), span);
-        }
-        self.defclause_registrations.insert(name, clauses);
-    }
-
-    /// Stone 237.2 — look up a defclause's clause table by name.
-    /// Returns `None` if the name was not bound via defclause.
-    pub fn get_defclause_clauses(
-        &self,
-        name: &str,
-    ) -> Option<&Vec<(Vec<TypeExpr>, TypeExpr, bool)>> {
-        self.defclause_registrations.get(name)
-    }
-}
-
-impl Default for CheckEnv {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// Check every user define's body against its declared return type;
 /// verify every call-position form in the `forms` list has correct
@@ -2172,7 +1945,9 @@ pub fn check_program(
 ) -> Result<(), CheckErrors> {
     // Arc 157 — `env` must be `mut` so `defined_values` / `defined_value_spans`
     // can be updated incrementally as top-level `def` forms are processed.
-    let mut env = CheckEnv::from_symbols(sym, Arc::new(types.clone()));
+    // Stone 243.3.1 — pass `types` by reference (borrow); CheckEnv borrows it.
+    // No Arc::new(types.clone()) — the borrow makes the deep-clone unrepresentable.
+    let mut env = CheckEnv::from_symbols(sym, types);
     let mut errors = Vec::new();
     let mut fresh = InferCtx::default();
 
@@ -6907,7 +6682,7 @@ fn infer_list(
         // through to the generic scheme path.
         let canonical_k = crate::runtime::canonical_callable_name(k);
         if let Some(clauses) = env.get_defclause_clauses(canonical_k) {
-            let clauses = clauses.clone();
+            let clauses = clauses.to_vec();
             // Infer each arg's type (side-effects + type collection).
             let arg_tys: Vec<Option<TypeExpr>> = args
                 .iter()
@@ -14893,6 +14668,10 @@ fn dispatch_rust_scheme(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
+    // rune:sequi(ambient-context) — rust-deps registry is a write-once dispatch
+    // table installed at startup; threading it through every infer/dispatch
+    // signature would bloat every call site for a read-only config surface, not
+    // domain state.
     let registry = crate::rust_deps::get();
     let sym_entry = match registry.get_symbol(keyword) {
         Some(s) => s,
@@ -14930,15 +14709,15 @@ fn dispatch_rust_scheme(
 /// scheme functions without depending on `check.rs`'s private types.
 /// Owns its error accumulator so `dispatch_rust_scheme` can return
 /// `CheckResult<TypeExpr>` rather than the dual-channel anti-pattern.
-struct CheckSchemeCtx<'a> {
-    env: &'a CheckEnv,
+struct CheckSchemeCtx<'a, 'b: 'a> {
+    env: &'a CheckEnv<'b>,
     locals: &'a HashMap<String, TypeExpr>,
     fresh: &'a mut InferCtx,
     subst: &'a mut Subst,
     errors: Vec<CheckError>,
 }
 
-impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
+impl<'a, 'b: 'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a, 'b> {
     fn fresh_var(&mut self) -> TypeExpr {
         self.fresh.fresh()
     }

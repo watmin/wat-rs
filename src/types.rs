@@ -284,6 +284,26 @@ impl TypeEnv {
         self.types.iter()
     }
 
+    /// Build a map from every unit-variant keyword path (`:enum::Variant`) to its
+    /// enum type. Allocates a fresh map; the checker calls this once at CheckEnv
+    /// construction to seed value-position unit-variant resolution.
+    pub fn build_unit_variant_map(&self) -> HashMap<String, TypeExpr> {
+        let mut out = HashMap::new();
+        for (name, def) in self.iter() {
+            if let TypeDef::Enum(e) = def {
+                for variant in &e.variants {
+                    if let EnumVariant::Unit(variant_name) = variant {
+                        out.insert(
+                            format!("{}::{}", name, variant_name),
+                            TypeExpr::Path(name.clone()),
+                        );
+                    }
+                }
+            }
+        }
+        out
+    }
+
     pub fn register(&mut self, def: TypeDef) -> Result<(), TypeError> {
         // arc 138: no span — public surface preserved; external callers
         // (lib re-export, test helpers) bind a TypeDef without a source

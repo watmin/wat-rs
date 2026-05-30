@@ -116,10 +116,12 @@ fn unwrap_err_chain(v: Value, label: &str) -> Value {
 
 #[test]
 fn arc208_t1_process_readln_println_registered_as_result_returning() {
-    // CheckEnv::with_builtins() is the canonical source of substrate
+    // CheckEnv::with_builtins_and_types() is the canonical source of substrate
     // type-scheme registrations — mirrors what the type-checker uses at
     // freeze time. We query it directly (no FrozenWorld needed).
-    let check_env = CheckEnv::with_builtins();
+    // Stone 243.3.1 — with_builtins() removed; caller binds TypeEnv first.
+    let types = wat::types::TypeEnv::with_builtins();
+    let check_env = CheckEnv::with_builtins_and_types(&types);
 
     // Process/readln: Result<I, Vector<ProcessDiedError>> — not bare :I.
     let readln_scheme = check_env

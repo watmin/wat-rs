@@ -3632,8 +3632,10 @@ fn register_defalias(
         return Ok(());
     }
 
-    // Case 2: target is a substrate primitive (in CheckEnv::with_builtins).
-    let builtin_env = crate::check::CheckEnv::with_builtins();
+    // Case 2: target is a substrate primitive (in CheckEnv::with_builtins_and_types).
+    // Stone 243.3.1 — with_builtins() removed; caller binds TypeEnv first.
+    let _builtin_types = crate::types::TypeEnv::with_builtins();
+    let builtin_env = crate::check::CheckEnv::with_builtins_and_types(&_builtin_types);
     if let Some(scheme) = builtin_env.get(target) {
         // Synthesize param names _p0, _p1, ... from scheme.params.
         let param_names: Vec<String> = scheme.params
@@ -12700,7 +12702,9 @@ pub fn lookup_form<'a>(
         }
     }
     // 3. Substrate primitives via on-demand CheckEnv.
-    let env = crate::check::CheckEnv::with_builtins();
+    // Stone 243.3.1 — with_builtins() removed; caller binds TypeEnv first.
+    let _builtin_types = crate::types::TypeEnv::with_builtins();
+    let env = crate::check::CheckEnv::with_builtins_and_types(&_builtin_types);
     if let Some(scheme) = env.get(name) {
         return Some(Binding::Primitive {
             name: name.to_string(),
