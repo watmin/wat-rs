@@ -1319,9 +1319,8 @@ fn is_mutation_form(head: &str) -> bool {
         // only at startup (the startup pipeline's `check_program` +
         // `run_program` path; not the frozen `eval_in_frozen` path).
         ":wat::core::def"
-            // Stone 241.14 — `:wat::core::def-restricted` HARD CUT (retired;
-            // restrictions now live as {:restricted-to [...]} metadata on def/defn).
-            | ":wat::core::define"
+            // Stone 241.16 — `:wat::core::define` arm DELETED. HARD CUT is total;
+            // define is no longer a recognized mutation form at eval time.
             | ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
@@ -1356,9 +1355,8 @@ pub fn is_declaration_form(head: &str) -> bool {
     matches!(
         head,
         ":wat::core::def"
-            // Stone 241.14 — `:wat::core::def-restricted` HARD CUT (retired;
-            // restrictions now live as {:restricted-to [...]} metadata on def/defn).
-            | ":wat::core::define"
+            // Stone 241.16 — `:wat::core::define` arm DELETED from is_declaration_form.
+            // HARD CUT is total; define is no longer a declaration form.
             | ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
@@ -1635,27 +1633,25 @@ mod tests {
 
     #[test]
     fn eval_refuses_define() {
-        // Stone 241.11 — `:wat::core::define` is HARD CUT at startup (check time).
-        // At eval time (eval_in_frozen), `:wat::core::define` is still a mutation
-        // form and is refused via `is_mutation_head`. This test bypasses startup
-        // (uses parse_one! + eval_in_frozen directly) to verify the eval-time guard
-        // independently of the startup-time HARD CUT. The test input is a raw
-        // `define` form — never reaches a user at startup time, but the eval guard
-        // must still fire for defense-in-depth.
+        // Stone 241.16 — migrated from `:wat::core::define` (HARD CUT total; no longer
+        // in is_mutation_head) to `:wat::core::defstruct` (still a recognized mutation form).
+        // The test bypasses startup (uses parse_one! + eval_in_frozen directly) to verify
+        // the eval-time guard independently of the startup-time HARD CUT.
+        // Mechanism under test: eval_in_frozen refuses ANY mutation-headed form.
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
         let ast = crate::parse_one!(
-            r#"(:wat::core::define (:evil::backdoor (x :i64) -> :i64) x)"#,
+            r#"(:wat::core::defstruct :evil::Backdoor [x <- :wat::core::i64])"#,
         )
         .unwrap();
         let env = Environment::new();
         let err = eval_in_frozen(&ast, &world, &env).unwrap_err();
         match err {
             RuntimeError::EvalForbidsMutationForm { head, .. } => {
-                assert_eq!(head, ":wat::core::define");
+                assert_eq!(head, ":wat::core::defstruct");
             }
             other => panic!("expected EvalForbidsMutationForm, got {:?}", other),
         }
@@ -1794,9 +1790,10 @@ mod tests {
     fn eval_refuses_mutation_form_at_any_depth() {
         // A mutation form nested inside otherwise-legal structure is
         // still refused. The walker descends into every child.
-        // Stone 241.11 — use `:wat::core::define` (still in is_mutation_head)
-        // since `:wat::core::defn` is not a mutation form (it's a macro);
-        // this test bypasses macro expansion via parse_one!.
+        // Stone 241.16 — migrated from `:wat::core::define` (HARD CUT total; no longer
+        // in is_mutation_head) to `:wat::core::defstruct` (still a recognized mutation form).
+        // parse_one! bypasses macro expansion; defstruct head preserved as-is.
+        // Mechanism under test: refuse_mutation_forms walker catches nested mutation heads.
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
@@ -1804,7 +1801,7 @@ mod tests {
         );
         let ast = crate::parse_one!(
             r#"(:wat::core::let ((x 1))
-                 (:wat::core::define (:evil (y :i64) -> :i64) y))"#,
+                 (:wat::core::defstruct :evil::Inner [y <- :wat::core::i64]))"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
@@ -1974,15 +1971,16 @@ mod tests {
         // Even a correctly-signed / correctly-digested AST that
         // contains a mutation form is refused — verification is BEFORE
         // the mutation-form walk, but both guards must pass.
-        // Stone 241.11 — use `:wat::core::define` (still in is_mutation_head)
-        // since `:wat::core::defn` is not a mutation form at eval time.
+        // Stone 241.16 — migrated from `:wat::core::define` (HARD CUT total; no longer
+        // in is_mutation_head) to `:wat::core::defstruct` (still a recognized mutation form).
+        // Mechanism: even a digest-verified AST is refused if it contains a mutation head.
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
         let ast = crate::parse_one!(
-            r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#,
+            r#"(:wat::core::defstruct :evil::E [x <- :wat::core::i64])"#,
         )
         .unwrap();
         let hex = digest_hex_for(&ast);

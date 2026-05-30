@@ -21,8 +21,9 @@
 //!    buried inside a function body; calling the function emits
 //!    `DeclarationInExpressionPosition` at runtime.
 //! 3. `probe_def_at_top_level_still_works` — regression; top-level def unaffected.
-//! 4. `probe_define_at_expression_position_still_emits_error` — regression; define's
-//!    position discipline unchanged (now via `DeclarationInExpressionPosition`).
+//! 4. `probe_define_rejected_at_startup_check` — regression; define is HARD CUT
+//!    at startup-check (Stone 241.11/241.16); startup fails (not runtime).
+//!    Stone 241.16 migrated: no longer uses freeze_ok + eval; asserts startup Err.
 //! 5. `probe_mixed_declaration_prelude_now_includes_def` — the mixed 8-form prelude
 //!    from Gap I-A probe 6, extended to include `def`. All 8 declaration forms
 //!    lift together.
@@ -108,15 +109,18 @@ fn probe_def_at_fn_body_do_prefix_lifts_to_prologue_end_to_end() {
     // spawn-process program shape; the lift mechanism is retired. The
     // probe still verifies the end-to-end binding flow: child registers
     // the def, body references the binding, child exits 0.
+    // Stone 241.16 — :wat::core::define HARD CUT total. Fixture migrated:
+    // `(:wat::core::define (:user::main -> :wat::core::nil) ...)` →
+    // `(:wat::core::defn :user::main [] -> :wat::core::nil ...)`.
     let src = r#"
         (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
                       (:wat::core::forms
                         (:wat::core::def :h::local-answer 42)
-                        (:wat::core::define (:user::main -> :wat::core::nil)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [v :h::local-answer]
-                            :wat::core::nil)))))
+                            nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -202,46 +206,39 @@ fn probe_def_at_top_level_still_works() {
     }
 }
 
-// ─── Probe 4 — define at expression position still emits error (regression) ───
+// ─── Probe 4 — define is rejected at startup-check (regression) ─────────────
 
-/// Regression: `define` at expression position is still rejected with
-/// `DeclarationInExpressionPosition` (now via the unified variant, carrying
-/// `":wat::core::define"` as the head).
+/// Regression: `define` anywhere in source is now rejected at startup-check
+/// by Stone 241.11's HARD-CUT arm (Stone 241.16 completed the total cut).
 ///
-/// Gap I-B routes `define` through `DeclarationInExpressionPosition` instead
-/// of the retired `DefineInExpressionPosition` variant. The behavior is
-/// identical from the user's perspective (loud rejection with a clear message),
-/// but the variant is now symmetric with `def`'s treatment.
+/// Prior behavior (Gap I-B): startup succeeded; the define arm in
+/// `dispatch_keyword_head` emitted `DeclarationInExpressionPosition` at
+/// runtime. Stone 241.16 deleted that eval-time dispatch arm, so define no
+/// longer reaches eval. Stone 241.11's startup-check arm fires first.
+///
+/// Stone 241.16 — HARD CUT total. Fixture migrated: no longer uses
+/// `freeze_ok` (define is caught before freeze completes). Now verifies
+/// startup FAILS and the rejection message names `:wat::core::define`.
 #[test]
-fn probe_define_at_expression_position_still_emits_error() {
+fn probe_define_rejected_at_startup_check() {
     let src = r#"
         (:wat::core::defn :my::bad-define [] -> :wat::core::nil (:wat::core::define (:my::inner -> :wat::core::nil) :wat::core::nil))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
-    // Startup succeeds (check-time validator silent for define-at-expression too;
-    // define has always been caught at runtime, not check-time).
-    let world = freeze_ok(src);
-
-    // Calling (:my::bad-define) evaluates the body which hits the define arm.
-    let call = wat::parse_one!("(:my::bad-define)").expect("parse");
-    let env = Environment::new();
-    let result = eval_in_frozen(&call, &world, &env);
+    // Stone 241.11 HARD-CUT arm fires at startup-check → startup FAILS.
+    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     match result {
-        Err(RuntimeError::DeclarationInExpressionPosition(ref head, _)) => {
-            assert_eq!(
-                head, ":wat::core::define",
-                "expected head ':wat::core::define'; got: {}",
-                head
+        Err(e) => {
+            let msg = format!("{:?}", e);
+            assert!(
+                msg.contains(":wat::core::define"),
+                "expected error to mention ':wat::core::define'; got: {}",
+                msg
             );
         }
-        Err(other) => panic!(
-            "expected DeclarationInExpressionPosition; got: {:?}",
-            other
-        ),
-        Ok(v) => panic!(
-            "expected runtime error; got Ok({:?})",
-            v
+        Ok(_) => panic!(
+            "expected startup to fail (define is HARD CUT at Stone 241.11); startup succeeded"
         ),
     }
 }
@@ -294,7 +291,7 @@ fn probe_mixed_declaration_prelude_now_includes_def() {
                              _d   :h::MixDir8::Up
                              _a   (:h::MixAmount8/new 10)
                              _n   (:h::mix-i64-fn8 7)]
-                            :wat::core::nil)))))
+                            nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;

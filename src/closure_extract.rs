@@ -599,9 +599,9 @@ fn walk_free_symbols(
                         ":wat::core::fn" => {
                             return walk_fn_form(rest, locals, state);
                         }
-                        ":wat::core::define" => {
-                            return walk_define_form(rest, locals, state);
-                        }
+                        // Stone 241.16 — `:wat::core::define` arm DELETED.
+                        // HARD CUT total (Stone 241.11 startup check + Stone 241.16 eval residue).
+                        // No define-headed form reaches closure extraction; arm is permanently unreachable.
                         ":wat::core::match" => {
                             return walk_match_form(rest, locals, state);
                         }
@@ -742,43 +742,9 @@ fn walk_fn_form(
     Ok(())
 }
 
-/// Walk a `(:wat::core::define <signature> <body>)` form. Parameters
-/// in the signature introduce scope for the body.
-fn walk_define_form(
-    args: &[WatAST],
-    outer_locals: &BTreeSet<String>,
-    state: &mut ExtractState<'_>,
-) -> Result<(), ExtractionError> {
-    if args.len() != 2 {
-        for a in args {
-            walk_free_symbols(a, outer_locals, state)?;
-        }
-        return Ok(());
-    }
-    let signature = &args[0];
-    let body = &args[1];
-    let mut new_locals = outer_locals.clone();
-    if let WatAST::List(sig_items, _) = signature {
-        // sig_items[0] is the function-name keyword; rest are
-        // (param :Type) pairs and the trailing -> :Ret.
-        for item in sig_items.iter().skip(1) {
-            if let WatAST::List(pair, _) = item {
-                if let Some(WatAST::Symbol(ident, _)) = pair.first() {
-                    new_locals.insert(ident.name.clone());
-                }
-                // Walk type keywords inside the pair for type-ref extraction.
-                for pi in pair.iter().skip(1) {
-                    walk_free_symbols(pi, outer_locals, state)?;
-                }
-            } else if let WatAST::Keyword(_, _) = item {
-                // Probably the `:Ret` type after `->`; walk for type-ref extraction.
-                walk_free_symbols(item, outer_locals, state)?;
-            }
-        }
-    }
-    walk_free_symbols(body, &new_locals, state)?;
-    Ok(())
-}
+// Stone 241.16 — `walk_define_form` DELETED. `:wat::core::define` HARD CUT total;
+// the dispatch arm that called this function was deleted (arm removal above).
+// No define-headed form reaches closure extraction. Function body dies with the arm.
 
 /// Walk a `(:wat::core::defstruct :TypeName [field <- :T1 ...])` or
 /// `(:wat::core::defstruct :TypeName {metadata} [field <- :T1 ...])` form.

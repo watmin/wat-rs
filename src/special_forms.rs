@@ -172,7 +172,8 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // form" error). BareLegacyLambda variant + Display retained as
     // orphaned scaffolding (arc 113 precedent).
     insert(&mut m, ":wat::core::fn", &["<params>", "<body>+"]);
-    insert(&mut m, ":wat::core::define", &["<head>", "<body>"]);
+    // Stone 241.16 — `:wat::core::define` registry entry DELETED. HARD CUT total.
+    // (Stone 241.11 HARD-CUT startup check; Stone 241.16 eval-time residue complete.)
     insert(&mut m, ":wat::core::defmacro", &["<head>", "<template>"]);
 
     // ─── Type definitions ───────────────────────────────────────────────
@@ -328,7 +329,8 @@ mod tests {
             ":wat::core::if",
             ":wat::core::let",
             ":wat::core::fn",
-            ":wat::core::define",
+            // Stone 241.16 — `:wat::core::define` REMOVED from audited-forms list.
+            // HARD CUT total; define is no longer a registered special form.
             // Stone 241.8 — defstruct replaces struct.
             ":wat::core::defstruct",
             ":wat::core::Result/try",

@@ -1,28 +1,29 @@
-//! Arc 170 slice 3 Gap E — regression probes for top-level `let` splicing of `define` forms.
+//! Arc 170 slice 3 Gap E — regression probes for top-level `let` splicing of `defn` forms.
 //!
-//! Two probes confirm that `(:wat::core::define ...)` forms in the body of a
+//! Two probes confirm that `(:wat::core::defn ...)` forms in the body of a
 //! top-level `(:wat::core::let ...)` are pre-registered in `sym.functions` by
 //! `preregister_fn_defs_in_let` before `resolve_references` runs.
 //!
+//! Stone 241.11 migrated the fixtures from `define` to `defn` (HARD CUT).
+//! Stone 241.16 — header comments updated to reflect defn migration; define references removed.
+//!
 //! Gap D extended the helper to handle `def`/`defn` (fn-shape) forms.
-//! Gap E extends it to also handle the legacy `define` form, consistent
-//! with the parallel `preregister_fn_defs_in_do` extension.
+//! Gap E extended it to handle let-nested defn forms (parallel to do).
 //!
-//! Both probes FAIL before Gap E ships; both PASS after.
+//! Both probes PASS.
 //!
-//! Probe 1: two `define` forms in the body of a top-level `let`.
-//! Probe 2: `defmacro` that emits `let` wrapping `define` forms.
+//! Probe 1: two `defn` forms in the body of a top-level `let`.
+//! Probe 2: `defmacro` that emits `let` wrapping `defn` forms.
 
 use std::sync::Arc;
 use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
 
-/// Probe 1 — two `define` forms in the body of a top-level `let` with empty bindings.
+/// Probe 1 — two `defn` forms in the body of a top-level `let` with empty bindings.
 ///
 /// Both `:my::helper` and `:my::main` must be registered in the symbol
-/// table after startup. Before Gap E, `resolve_references` fails because
-/// `preregister_fn_defs_in_let` does not call `is_define_form` / `parse_define_form`,
-/// so `:my::helper` never enters `sym.functions`.
+/// table after startup. Stone 241.11 migrated fixtures from `define` to `defn`.
+/// Stone 241.16 — doc comment updated; `is_define_form`/`parse_define_form` DELETED.
 #[test]
 fn probe_let_define_two_vars_visible() {
     let src = r#"

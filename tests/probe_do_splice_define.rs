@@ -1,28 +1,29 @@
-//! Arc 170 slice 3 Gap E — regression probes for top-level `do` splicing of `define` forms.
+//! Arc 170 slice 3 Gap E — regression probes for top-level `do` splicing of `defn` forms.
 //!
-//! Two probes confirm that `(:wat::core::define ...)` forms inside a top-level
+//! Two probes confirm that `(:wat::core::defn ...)` forms inside a top-level
 //! `(:wat::core::do ...)` are pre-registered in `sym.functions` by
 //! `preregister_fn_defs_in_do` before `resolve_references` runs.
 //!
+//! Stone 241.11 migrated the fixtures from `define` to `defn` (HARD CUT).
+//! Stone 241.16 — header comments updated to reflect defn migration; define references removed.
+//!
 //! Gap C V2 extended the helper to handle `def`/`defn` (fn-shape) forms.
-//! Gap E extends it to also handle the legacy `define` form, which is what
-//! `deftest` still emits (arc 170 slice 3 Phase E).
+//! Gap E extended it to also handle defn forms inside do (consistent with let variant).
 //!
-//! Both probes FAIL before Gap E ships; both PASS after.
+//! Both probes PASS.
 //!
-//! Probe 1: two `define` forms inside a top-level `do`.
-//! Probe 2: `defmacro` that emits `do` wrapping `define` — the Phase E use case directly.
+//! Probe 1: two `defn` forms inside a top-level `do`.
+//! Probe 2: `defmacro` that emits `do` wrapping `defn` forms.
 
 use std::sync::Arc;
 use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
 
-/// Probe 1 — two `define` forms inside a top-level `do`.
+/// Probe 1 — two `defn` forms inside a top-level `do`.
 ///
 /// Both `:my::helper` and `:my::main` must be registered in the symbol
-/// table after startup. Before Gap E, `resolve_references` fails because
-/// `preregister_fn_defs_in_do` does not call `is_define_form` / `parse_define_form`,
-/// so `:my::helper` never enters `sym.functions`.
+/// table after startup. Stone 241.11 migrated fixtures from `define` to `defn`.
+/// Stone 241.16 — doc comment updated; `is_define_form`/`parse_define_form` DELETED.
 #[test]
 fn probe_do_define_two_vars_visible() {
     let src = r#"
@@ -35,11 +36,12 @@ fn probe_do_define_two_vars_visible() {
     assert!(world.symbols().get(":my::main").is_some(), ":my::main not registered");
 }
 
-/// Probe 2 — `defmacro` that emits a top-level `do` wrapping a `define`.
+/// Probe 2 — `defmacro` that emits a top-level `do` wrapping a `defn`.
 ///
-/// The Phase E use case: a `deftest`-style macro emits
-/// `(:wat::core::do prelude-form (:wat::core::define (name -> type) body))`
-/// at top level. Both the prelude define and the body define must register.
+/// A `deftest`-style macro emits
+/// `(:wat::core::do prelude-form (:wat::core::defn :name [] -> :type body))`
+/// at top level. Both the prelude defn and the body defn must register.
+/// Stone 241.16 — doc comment updated to reflect defn migration.
 #[test]
 fn probe_do_define_via_macro_emission() {
     let src = r#"

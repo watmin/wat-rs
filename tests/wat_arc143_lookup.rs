@@ -264,9 +264,11 @@ fn signature_of_defn_foldl_renders_synthesised_shape() {
 }
 
 #[test]
-fn lookup_define_user_function_contains_define_keyword() {
+fn lookup_define_user_function_contains_defn_keyword() {
     // Verify lookup-define for a user function renders a structure that
-    // includes the "define" form marker.
+    // includes the "defn" form marker.
+    // Stone 241.16 — function_to_define_ast now emits :wat::core::defn head
+    // (not :wat::core::define); assertion updated to match. HARD CUT total.
     let src = r##"
 
         (:wat::core::defn :user::my-square [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x x))
@@ -282,10 +284,10 @@ fn lookup_define_user_function_contains_define_keyword() {
     let out = run(src);
     assert_eq!(out.len(), 1, "expected exactly one output line");
     let line = &out[0];
-    // The rendered HolonAST should contain both "define" and "my-square".
+    // The rendered HolonAST should contain both "defn" and "my-square".
     assert!(
-        line.contains("define"),
-        "expected 'define' in rendered define-ast, got: {}",
+        line.contains("defn"),
+        "expected 'defn' in rendered define-ast, got: {}",
         line
     );
     assert!(

@@ -910,7 +910,7 @@ impl fmt::Display for CheckError {
                 };
                 write!(
                     f,
-                    "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::define {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. The sandbox isolation is intentional — see wat/test.wat's deftest macro.",
+                    "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::defn {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. The sandbox isolation is intentional — see wat/test.wat's deftest macro.",
                     span_prefix(call_span), offending_name, define_loc, offending_name
                 )
             }
@@ -2411,7 +2411,7 @@ pub fn check_program(
         validate_def_position_with_wrapper(
             &func.body,
             DefCtx::NonTopLevel,
-            ":wat::core::define (body)",
+            ":wat::core::defn (body)",
             &mut errors,
         );
     }
@@ -2872,29 +2872,13 @@ fn validate_sandbox_scope_leak(
     }
     let inner_forms = &forms_items[1..];
 
-    // Collect names defined at the top level of the inner forms.
-    // Define forms are top-level only — no nested-define recursion
-    // needed. Strip `<T,...>` from each name so generic and concrete
-    // call sites both resolve against the canonical name.
-    let mut inner_names: std::collections::HashSet<String> =
-        std::collections::HashSet::new();
-    for form in inner_forms {
-        if let WatAST::List(items_d, _) = form {
-            if let Some(WatAST::Keyword(define_head, _)) = items_d.first() {
-                if define_head == ":wat::core::define" && items_d.len() == 3 {
-                    if let WatAST::List(sig, _) = &items_d[1] {
-                        if let Some(WatAST::Keyword(name, _)) = sig.first() {
-                            let canonical = match name.find('<') {
-                                Some(i) => name[..i].to_string(),
-                                None => name.clone(),
-                            };
-                            inner_names.insert(canonical);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Stone 241.16 — the `:wat::core::define` inner-form scan branch DELETED.
+    // This branch pre-collected define-form names from the sandbox's inner forms
+    // to whitelist them during sandbox-leak checks. Since `:wat::core::define` is
+    // HARD CUT (Stone 241.11 startup check; Stone 241.16 total), define forms never
+    // appear in inner_forms at check time — the branch is permanently unreachable.
+    // inner_names is empty (no define forms survive to check time).
+    let inner_names: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     // Walk each inner form, checking call heads.
     for form in inner_forms {
@@ -3137,56 +3121,10 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
         _ => return,
     };
 
+    // Stone 241.16 — `:wat::core::define` arm DELETED from check_legacy_user_main_signature.
+    // The define form is HARD CUT (Stone 241.11 startup-check; Stone 241.16 total);
+    // no define-headed form can reach this function post-Stone-241.11.
     let (main_span, param_types, ret_type) = match head {
-        ":wat::core::define" => {
-            // Shape: (:wat::core::define (sig...) body)
-            // sig = (:user::main (name :T) (name :T) ... -> :Ret)
-            if items.len() < 3 {
-                return;
-            }
-            let sig_list = match &items[1] {
-                WatAST::List(xs, _) => xs,
-                _ => return,
-            };
-            if sig_list.is_empty() {
-                return;
-            }
-            let name_span = match &sig_list[0] {
-                WatAST::Keyword(k, sp) if k == ":user::main" => sp.clone(),
-                _ => return,
-            };
-            // Walk sig_list[1..]; collect type keywords from
-            // (name :T) pair Lists; stop at `->` then capture the
-            // single keyword that follows as ret_type.
-            let mut params: Vec<String> = Vec::new();
-            let mut ret: Option<String> = None;
-            let mut after_arrow = false;
-            for item in &sig_list[1..] {
-                if after_arrow {
-                    if let WatAST::Keyword(k, _) = item {
-                        ret = Some(k.clone());
-                    }
-                    break;
-                }
-                // `->` arrow signals end of params.
-                if matches!(item, WatAST::Symbol(id, _) if id.name == "->")
-                    || matches!(item, WatAST::Keyword(k, _) if k == "->")
-                {
-                    after_arrow = true;
-                    continue;
-                }
-                // Each binder is a (name :T) two-element List.
-                if let WatAST::List(pair, _) = item {
-                    if pair.len() == 2 {
-                        if let WatAST::Keyword(ty_kw, _) = &pair[1] {
-                            params.push(ty_kw.clone());
-                            continue;
-                        }
-                    }
-                }
-            }
-            (name_span, params, ret)
-        }
         ":wat::core::defn" => {
             // Shape: (:wat::core::defn :user::main [name <- :T ...] -> :Ret body)
             if items.len() < 5 {
@@ -7045,11 +6983,15 @@ fn infer_list(
                 }]);
             }
             // Stone 241.11 — HARD CUT: legacy define form is REJECTED at check time.
+            // Stone 241.16 — eval-time residue completed: parse_define_form DELETED;
+            // is_define_form DELETED; is_mutation_head / is_mutation_form /
+            // is_declaration_form no longer recognize :wat::core::define;
+            // special_forms.rs registry entry DELETED. HARD CUT is now total.
             // It is no longer a recognized function-binding form; use :wat::core::defn.
             ":wat::core::define" => {
                 return CheckResult::errs(vec![CheckError::MalformedForm {
                     head: k.to_string(),
-                    reason: format!("'{}' is retired (Stone 241.11)", k),
+                    reason: format!("'{}' is retired (Stone 241.11; eval-time residue completed Stone 241.16)", k),
                     span: head_span.clone(),
                     // Stone 241.10: retirement_lookup hits the table → structured remedy.
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),

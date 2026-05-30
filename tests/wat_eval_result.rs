@@ -83,17 +83,19 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
 
 #[test]
 fn eval_ast_bang_mutation_form_surfaces_as_err() {
-    // An AST that contains `(:wat::core::define ...)` — a mutation
+    // An AST that contains `(:wat::core::defstruct ...)` — a mutation
     // form constrained eval refuses. Becomes
     // Err(EvalError{kind="mutation-form-refused"}).
     // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
+    // Stone 241.16 — :wat::core::define HARD CUT total; is_mutation_head no longer
+    // recognizes it. Fixture migrated to :wat::core::defstruct (still a mutation head).
     let src = r#"
 
         (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
           (:wat::core::let
                       [program
                         (:wat::core::quote
-                          (:wat::core::define (:evil (x :wat::core::i64) -> :wat::core::i64) x))]
+                          (:wat::core::defstruct :evil::T [x <- :wat::core::i64]))]
                       (:wat::eval-ast! program)))
     "#;
     let result = run(src);
@@ -168,11 +170,12 @@ fn try_propagates_eval_err_through_helper() {
           (:wat::core::let
                       [bad
                         (:wat::core::quote
-                          (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))]
+                          (:wat::core::defstruct :injected::T [x <- :wat::core::i64]))]
                       (:wat::core::match (:app::run-dynamic bad) -> :wat::core::String
                         ((:wat::core::Ok _) "should-not-reach")
                         ((:wat::core::Err e) (:wat::core::EvalError/kind e)))))
     "#;
+    // Stone 241.16 — :wat::core::define HARD CUT total; migrated to :wat::core::defstruct.
     match run(src) {
         Value::String(s) => {
             assert_eq!(&*s, "mutation-form-refused");
@@ -192,7 +195,7 @@ fn eval_err_exposes_both_kind_and_message() {
           (:wat::core::let
                       [bad
                         (:wat::core::quote
-                          (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))
+                          (:wat::core::defstruct :injected::T [x <- :wat::core::i64]))
                        r
                         (:wat::eval-ast! bad)]
                       (:wat::core::match r -> :(wat::core::String,wat::core::String)
@@ -203,6 +206,8 @@ fn eval_err_exposes_both_kind_and_message() {
                             (:wat::core::EvalError/kind e)
                             (:wat::core::EvalError/message e))))))
     "#;
+    // Stone 241.16 — :wat::core::define HARD CUT total; migrated to :wat::core::defstruct.
+    // is_mutation_head no longer recognizes define; defstruct still is a mutation head.
     match run(src) {
         Value::Tuple(t) => {
             assert_eq!(t.len(), 2);
@@ -216,7 +221,7 @@ fn eval_err_exposes_both_kind_and_message() {
             };
             assert_eq!(kind, "mutation-form-refused");
             assert!(
-                message.contains(":wat::core::define"),
+                message.contains(":wat::core::defstruct"),
                 "message should name the refused head; got {:?}",
                 message
             );

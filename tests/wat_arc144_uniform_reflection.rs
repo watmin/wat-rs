@@ -98,13 +98,12 @@ fn run_i64(src: &str) -> i64 {
 
 // ─── Kind 1: UserFunction — full trio + head verification ──────────────────
 //
-// Existing `wat_arc144_lookup_form.rs::lookup_define_user_function_still_returns_some_post_refactor`
-// only checks Some/None; this test additionally verifies the rendered AST
-// carries the `:wat::core::define` head keyword (the load-bearing claim
-// for "uniform" reflection: the head keyword distinguishes the kind).
+// Stone 241.16 — reflection now emits `:wat::core::defn` (not `:wat::core::define`).
+// `function_to_define_ast` updated to use `:wat::core::defn` head keyword.
+// The "uniform" reflection claim preserves: the head keyword still distinguishes kind.
 
 #[test]
-fn user_function_lookup_define_emits_define_head() {
+fn user_function_lookup_define_emits_defn_head() {
     let src = r##"
         (:wat::core::defn :user::greet [n <- :wat::core::String] -> :wat::core::String n)
 
@@ -117,9 +116,15 @@ fn user_function_lookup_define_emits_define_head() {
                       rendered))
     "##;
     let line = run_string(src);
+    // Stone 241.16 — reflection emits :wat::core::defn (not :wat::core::define)
     assert!(
-        line.contains(":wat::core::define"),
-        "expected ':wat::core::define' head in user-function lookup-define AST, got: {}",
+        line.contains(":wat::core::defn"),
+        "expected ':wat::core::defn' head in user-function lookup-define AST post-Stone-241.16, got: {}",
+        line
+    );
+    assert!(
+        !line.contains(":wat::core::define"),
+        "expected NO ':wat::core::define' head in user-function lookup-define AST post-Stone-241.16, got: {}",
         line
     );
     assert!(
@@ -302,9 +307,15 @@ fn primitive_empty_lookup_define_emits_define_head() {
         "expected ':wat::core::empty?' name in rendered AST, got: {}",
         line
     );
+    // Stone 241.16 — primitive reflection now emits :wat::core::defn (not :wat::core::define).
     assert!(
-        line.contains(":wat::core::define"),
-        "expected ':wat::core::define' head in Primitive reflection, got: {}",
+        line.contains(":wat::core::defn"),
+        "expected ':wat::core::defn' head in Primitive reflection post-Stone-241.16, got: {}",
+        line
+    );
+    assert!(
+        !line.contains(":wat::core::define"),
+        "expected NO ':wat::core::define' head in Primitive reflection post-Stone-241.16, got: {}",
         line
     );
 }

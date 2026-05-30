@@ -119,21 +119,26 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 ///
 /// All 7 declaration keywords are verified together to confirm the complete
 /// predicate surface. Stone 241.13: `:wat::core::define-dispatch` retired;
-/// its slot is vacated from this list.
+/// Stone 241.16: `:wat::core::define` retired (HARD CUT total; eval-time residue completed).
+/// Its slot is vacated from this list; `:wat::core::defalias` replaces it.
 #[test]
 fn probe_is_declaration_form_covers_all_7_keywords() {
     // The 7 declaration forms that Gap I-A's is_declaration_form covers.
     // Stone 241.13 — define-dispatch removed (HARD CUT; defclause is the
-    // surviving dispatch entity kind, but it is handled by the defmacro/defn
-    // path rather than a standalone declaration-form predicate slot).
+    // surviving dispatch entity kind).
+    // Stone 241.16 — define removed (HARD CUT total; defn replaces define).
+    // defalias (Stone 241.12) now occupies the 7th slot.
     let covered = [
         ":wat::core::def",
-        ":wat::core::define",
+        // Stone 241.16 — `:wat::core::define` REMOVED from is_declaration_form.
+        // HARD CUT total; define is no longer recognized as a declaration form.
         ":wat::core::defmacro",
         ":wat::core::defstruct",
         ":wat::core::defenum",
         ":wat::core::newtype",
         ":wat::core::typealias",
+        // Stone 241.12 — defalias is a declaration form.
+        ":wat::core::defalias",
     ];
     for kw in &covered {
         assert!(

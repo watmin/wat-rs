@@ -20,12 +20,13 @@
 //! - [`Environment`] is a lexical-scope chain via `Arc`. Each `let` /
 //!   function application creates a child env; lookups walk outward.
 //! - [`SymbolTable`] holds keyword-path ↦ `Arc<Function>` entries
-//!   registered by `:wat::core::define`. Functions are looked up directly
+//!   registered by `:wat::core::defn`. Functions are looked up directly
 //!   by their full path.
 //!
 //! # Functions
 //!
-//! `define` registers at call to [`register_defines`]; the body is
+//! `defn` (Clojure-aligned; Stone 241.11/241.16 retired the old Scheme-style `define`)
+//! registers at call to [`register_defines`]; the body is
 //! stored as an AST and evaluated on each invocation. `fn` at
 //! evaluation time captures the enclosing [`Environment`] and produces
 //! a `Value::Function` that can be passed, stored, and invoked.
@@ -1410,10 +1411,10 @@ pub struct Function {
     /// time.
     pub type_params: Vec<String>,
     /// Declared parameter types, parallel to `params`. Populated from
-    /// the `(:wat::core::define (sig ...) body)` signature by
-    /// `parse_define_form`. Used by the type checker for call-site
-    /// unification and body-vs-signature checks. Empty only for
-    /// fn values (type-untracked).
+    /// the `(:wat::core::defn :name [p1 <- :T1 ...] -> :Ret body)` signature.
+    /// Stone 241.16 — `parse_define_form` DELETED; defn uses `parse_defn_signature`.
+    /// Used by the type checker for call-site unification and body-vs-signature
+    /// checks. Empty only for fn values (type-untracked).
     pub param_types: Vec<crate::types::TypeExpr>,
     /// Declared return type. `:()` (unit) if the signature omitted a
     /// return type. For fns, `:()` — the checker treats fn
@@ -1424,9 +1425,9 @@ pub struct Function {
     /// the first N args bind positionally to `params`, and the
     /// REMAINING args are wrapped in a `Value::Vec(Arc::new(rest))`
     /// and bound to this name. Mirrors `MacroDef.rest_param`. Syntax
-    /// at declaration:
-    /// `(:wat::core::define (:name (p1 :T1) ... & (rest :Vector<R>) -> :Ret) body)`.
-    /// `None` for strict-arity defines and for all fns.
+    /// at declaration (Stone 241.16 — defn form):
+    /// `(:wat::core::defn :name [p1 <- :T1 ... & xs <- :Vector<R>] -> :Ret body)`.
+    /// `None` for strict-arity defns and for all fns.
     pub rest_param: Option<String>,
     /// Arc 150 — declared type of the rest-parameter. Always
     /// `Some(TypeExpr::Parametric { head: "Vec", args: [T] })` when
@@ -2510,7 +2511,7 @@ impl fmt::Display for RuntimeError {
                 };
                 write!(
                     f,
-                    "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::define {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. Sandbox isolation is intentional — see wat/test.wat's deftest macro.",
+                    "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::defn {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. Sandbox isolation is intentional — see wat/test.wat's deftest macro.",
                     call_loc, offending_name, define_loc, offending_name
                 )
             }
@@ -3544,13 +3545,8 @@ fn register_runtime_defs_form(
     Ok(())
 }
 
-fn is_define_form(form: &WatAST) -> bool {
-    matches!(
-        form,
-        WatAST::List(items, _)
-            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::define")
-    )
-}
+// Stone 241.16 — `is_define_form` DELETED. Stone 241.11 already removed the caller;
+// the function itself is now dead code. `:wat::core::define` is HARD CUT (total).
 
 /// Stone 241.12 — detect `(:wat::core::defalias :alias-name :target-name)` shape.
 ///
@@ -4382,331 +4378,18 @@ fn preregister_fn_defs_in_let(
     Ok(())
 }
 
-/// Parsed pieces of a define signature.
-struct ParsedDefineSignature {
-    canonical_name: String,
-    type_params: Vec<String>,
-    params: Vec<String>,
-    param_types: Vec<crate::types::TypeExpr>,
-    ret_type: crate::types::TypeExpr,
-    /// Arc 150 — `Some((name, Vector<T>))` when the signature carries
-    /// a `& (rest :Vector<T>)` rest-binder; `None` for strict-arity
-    /// defines.
-    rest_param: Option<String>,
-    rest_param_type: Option<crate::types::TypeExpr>,
-}
-
-/// Parse `(:wat::core::define (:name::path<T,U> (p1 :T1) ... -> :R) body)`
-/// into `(path, Arc<Function>)`. Captures the declared name (with
-/// type-parameter list stripped from the keyword), parameter names
-/// and types, and return type so the type checker can run real
-/// signature checks.
-fn parse_define_form(form: WatAST) -> Result<(String, Arc<Function>), RuntimeError> {
-    let form_span = form.span().clone();
-    let items = match form {
-        WatAST::List(items, _) => items,
-        _ => return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::define".into(),
-            reason: "expected list".into(),
-            span: form_span.clone(),
-        }),
-    };
-    if items.len() != 3 {
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::define".into(),
-            reason: format!(
-                "expected (:wat::core::define signature body); got {} elements",
-                items.len()
-            ),
-            span: form_span,
-        });
-    }
-    let mut iter = items.into_iter();
-    let _define_kw = iter.next(); // already matched
-    let signature = iter.next().expect("length checked above");
-    let body = iter.next().expect("length checked above");
-
-    let ParsedDefineSignature {
-        canonical_name,
-        type_params,
-        params,
-        param_types,
-        ret_type,
-        rest_param,
-        rest_param_type,
-    } = parse_define_signature(signature)?;
-    Ok((
-        canonical_name.clone(),
-        Arc::new(Function {
-            name: Some(canonical_name),
-            params,
-            type_params,
-            param_types,
-            ret_type,
-            rest_param,
-            rest_param_type,
-            body: Arc::new(body),
-            closed_env: None,
-        }),
-    ))
-}
-
-/// Signature is a List: `(:name::path<T,U> (p1 :T1) ... -> :R)`.
-/// Extracts:
-/// - canonical_name (the keyword path with any `<T,U>` stripped, re-
-///   prefixed with ':' — matches the form used for symbol-table keys)
-/// - type_params (names from the `<...>` suffix, or empty)
-/// - params (parameter names)
-/// - param_types (parallel type expressions parsed via
-///   [`crate::types::parse_type_expr`])
-/// - ret_type (parsed type after `->`; defaults to `:()` if omitted)
-fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeError> {
-    let sig_span = sig.span().clone();
-    let items = match sig {
-        WatAST::List(items, _) => items,
-        _ => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::define".into(),
-                reason: "signature must be a list".into(),
-                span: sig_span,
-            })
-        }
-    };
-    let mut iter = items.into_iter();
-    let name_kw = match iter.next() {
-        Some(WatAST::Keyword(k, _)) => k,
-        Some(other) => {
-            let other_span = other.span().clone();
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::define".into(),
-                reason: format!(
-                    "function name must be a keyword-path; got {}",
-                    ast_variant_name(&other)
-                ),
-                span: other_span,
-            });
-        }
-        None => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::define".into(),
-                reason: "signature is empty".into(),
-                span: sig_span.clone(),
-            });
-        }
-    };
-
-    let (canonical_name, type_params) = split_name_and_type_params(&name_kw)?;
-
-    let mut params = Vec::new();
-    let mut param_types = Vec::new();
-    let mut ret_type: Option<crate::types::TypeExpr> = None;
-    let mut saw_arrow = false;
-    // Arc 150 — variadic rest-param state. Mirrors
-    // `parse_defmacro_signature` (`src/macros.rs:380-440`):
-    // - `&` may appear at most once before the arrow
-    // - exactly one `(name :Type)` binder must follow `&`
-    // - the rest-binder type is required and must be `Vector<T>`
-    // - no fixed param may follow the rest-binder
-    let mut rest_param: Option<String> = None;
-    let mut rest_param_type: Option<crate::types::TypeExpr> = None;
-    let mut saw_rest_marker = false;
-    for item in iter {
-        if saw_arrow {
-            // Only one form may follow `->` — the return type keyword.
-            if ret_type.is_some() {
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::define".into(),
-                    reason: "signature has more than one return type after '->'".into(),
-                    span: item.span().clone(),
-                });
-            }
-            // Arc 201 slice 1 — accept either a keyword (legacy source
-            // form) or a structured-AST list (from a re-spliced
-            // signature). `parse_type_slot` walks both shapes.
-            match item {
-                WatAST::Keyword(_, _) | WatAST::List(_, _) => {
-                    ret_type = Some(parse_type_slot(&item)?);
-                }
-                other => {
-                    let other_span = other.span().clone();
-                    return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::define".into(),
-                        reason: format!(
-                            "return type after '->' must be a type keyword or structured type list; got {}",
-                            ast_variant_name(&other)
-                        ),
-                        span: other_span,
-                    });
-                }
-            }
-            continue;
-        }
-        match item {
-            WatAST::Symbol(ref s, _) if s.as_str() == "->" => {
-                // Arc 150 — `& without binder` short-circuits here so the
-                // user gets a precise error pointing at the missing
-                // binder rather than a stray "->" complaint downstream.
-                if saw_rest_marker && rest_param.is_none() {
-                    return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::define".into(),
-                        reason: "`&` rest-marker with no binder".into(),
-                        span: sig_span,
-                    });
-                }
-                saw_arrow = true;
-            }
-            // Arc 150 — `&` rest-marker: the next List element is the
-            // rest-binder. Mirrors defmacro: only one rest-marker is
-            // allowed; multiple `&` markers are a parse error.
-            WatAST::Symbol(ref s, ref item_span) if s.as_str() == "&" => {
-                if saw_rest_marker {
-                    return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::define".into(),
-                        reason: "duplicate `&` rest-marker in define signature".into(),
-                        span: item_span.clone(),
-                    });
-                }
-                if rest_param.is_some() {
-                    return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::define".into(),
-                        reason: "`&` must precede its rest-binder".into(),
-                        span: item_span.clone(),
-                    });
-                }
-                saw_rest_marker = true;
-            }
-            WatAST::List(pair, pair_span) => {
-                let (pname, ptype) = parse_param_pair(pair)?;
-                if saw_rest_marker {
-                    if rest_param.is_some() {
-                        // A second binder follows the rest-binder — that's
-                        // a fixed param after rest, which is illegal.
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat::core::define".into(),
-                            reason: "fixed parameter cannot follow `&` rest-binder".into(),
-                            span: pair_span,
-                        });
-                    }
-                    // Arc 150 — rest-binder type MUST be `Vector<T>` (or
-                    // its alias `Vec<T>`). The substrate carries rest-args
-                    // as a `Value::Vec` at runtime; any other shape would
-                    // fail to bind. Reject at parse so the error points at
-                    // the source pair, not a later runtime mismatch.
-                    if !is_vector_type(&ptype) {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat::core::define".into(),
-                            reason: format!(
-                                "`& (rest :Type)` requires :Vector<T> (or :Vec<T>); got {}",
-                                crate::check::format_type(&ptype)
-                            ),
-                            span: pair_span,
-                        });
-                    }
-                    rest_param = Some(pname);
-                    rest_param_type = Some(ptype);
-                } else {
-                    params.push(pname);
-                    param_types.push(ptype);
-                }
-            }
-            other => {
-                let other_span = other.span().clone();
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::define".into(),
-                    reason: format!(
-                        "unexpected signature element: {}",
-                        ast_variant_name(&other)
-                    ),
-                    span: other_span,
-                });
-            }
-        }
-    }
-    // Arc 150 — `&` with no following binder AND no `->` is also a
-    // malformed signature (the loop never hits the arrow short-circuit).
-    if saw_rest_marker && rest_param.is_none() {
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::define".into(),
-            reason: "`&` rest-marker with no binder".into(),
-            span: sig_span,
-        });
-    }
-
-    Ok(ParsedDefineSignature {
-        canonical_name,
-        type_params,
-        params,
-        param_types,
-        ret_type: ret_type.unwrap_or_else(|| crate::types::TypeExpr::Tuple(Vec::new())),
-        rest_param,
-        rest_param_type,
-    })
-}
-
-/// Arc 150 — does this TypeExpr denote a `Vector<T>` (alias) or
-/// `Vec<T>`? Both are accepted as the rest-binder type. The substrate
-/// canonicalises `Vector` → `Vec` at registration (see the type-alias
-/// list at `register_builtin`); we accept both spellings here so the
-/// parse-time check matches what the user wrote in source.
-fn is_vector_type(ty: &crate::types::TypeExpr) -> bool {
-    match ty {
-        crate::types::TypeExpr::Parametric { head, args } => {
-            (head == "wat::core::Vector")
-                && args.len() == 1
-        }
-        _ => false,
-    }
-}
-
-/// `(p1 :T1)` → (`"p1"`, `TypeExpr`). Refuses malformed shapes.
-fn parse_param_pair(
-    pair: Vec<WatAST>,
-) -> Result<(String, crate::types::TypeExpr), RuntimeError> {
-    if pair.len() != 2 {
-        // arc 138: no span — pair is consumed before length check; the
-        // synthetic enclosing-list span isn't tracked through this helper.
-        return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::define".into(),
-            reason: format!(
-                "parameter must be (name :Type); got {}-element list",
-                pair.len()
-            ),
-            span: Span::unknown(),
-        });
-    }
-    let mut it = pair.into_iter();
-    let name = match it.next() {
-        Some(WatAST::Symbol(ident, _)) => ident.name,
-        Some(other) => {
-            let other_span = other.span().clone();
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::define".into(),
-                reason: format!(
-                    "parameter name must be a bare symbol; got {}",
-                    ast_variant_name(&other)
-                ),
-                span: other_span,
-            });
-        }
-        None => unreachable!("length checked above"),
-    };
-    // Arc 201 slice 1 — accept either a keyword (legacy source form)
-    // or a structured-AST list (the shape `signature-of-defn` emits for
-    // Parametric / Tuple / Fn types, which arc-143 `define-alias`
-    // splices back into a fresh define). `parse_type_slot` walks both
-    // shapes to the same `TypeExpr`.
-    let ty = match it.next() {
-        Some(ast) => parse_type_slot(&ast)?,
-        None => unreachable!("length checked above"),
-    };
-    Ok((name, ty))
-}
+// Stone 241.16 — `ParsedDefineSignature`, `parse_define_form`, `parse_define_signature`,
+// and `parse_param_pair` DELETED. `:wat::core::define` eval-time residue is now complete.
+// These functions processed the old Scheme-style `(:wat::core::define sig body)` form.
+// The canonical replacement is `:wat::core::defn` (Clojure-aligned). HARD CUT is TOTAL.
+// See: Stone 241.11 (startup-check HARD CUT); Stone 241.16 (eval-time residue completion).
 
 fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> {
     // arc 138: no span — kw is a `&str` lifted from the keyword's payload;
     // the keyword's own span isn't carried through the parse helper.
+    // Stone 241.16 — error head updated from `:wat::core::define` to `:wat::core::defn`.
     crate::types::parse_type_expr(kw).map_err(|e| RuntimeError::MalformedForm {
-        head: ":wat::core::define".into(),
+        head: ":wat::core::defn".into(),
         reason: e.to_string(),
         span: Span::unknown(),
     })
@@ -4714,12 +4397,12 @@ fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> 
 
 /// Arc 201 slice 1 — accept EITHER a keyword (legacy source form) OR a
 /// structured-AST list (the shape `type_expr_to_ast` emits) as the
-/// type slot of a `define` parameter pair. The structured form arises
-/// when a reflection consumer (e.g. `:wat::runtime::define-alias`)
-/// takes a signature head from `signature-of-defn` and splices it back into
-/// a fresh `define`: the splice carries `WatAST::List` for every
+/// type slot of a type annotation. The structured form arises
+/// when a reflection consumer takes a signature head from `signature-of-defn`
+/// and splices it back into a fresh `defn`: the splice carries `WatAST::List` for every
 /// Parametric / Tuple / Fn type, where the original source wrote a
 /// `WatAST::Keyword`.
+/// (Stone 241.16 — doc updated; `:wat::core::define` reference removed.)
 ///
 /// Both routes converge on the same `TypeExpr`. Source-keyword inputs
 /// go through `crate::types::parse_type_expr` (which understands the
@@ -4740,7 +4423,7 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, RuntimeError>
         WatAST::List(items, span) => {
             if items.is_empty() {
                 return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::define".into(),
+                    head: ":wat::core::defn".into(),
                     reason: "structured type slot must be a non-empty list".into(),
                     span: span.clone(),
                 });
@@ -4749,7 +4432,7 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, RuntimeError>
                 WatAST::Keyword(k, _) => k.as_str(),
                 other => {
                     return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::define".into(),
+                        head: ":wat::core::defn".into(),
                         reason: format!(
                             "structured type slot head must be a keyword; got {}",
                             ast_variant_name(other)
@@ -4770,20 +4453,20 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, RuntimeError>
                     }
                 }
                 let arrow = arrow_idx.ok_or_else(|| RuntimeError::MalformedForm {
-                    head: ":wat::core::define".into(),
+                    head: ":wat::core::defn".into(),
                     reason: "structured :Fn type missing '->' arrow".into(),
                     span: span.clone(),
                 })?;
                 if arrow + 1 >= items.len() {
                     return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::define".into(),
+                        head: ":wat::core::defn".into(),
                         reason: "structured :Fn type missing return-type slot after '->'".into(),
                         span: span.clone(),
                     });
                 }
                 if arrow + 2 != items.len() {
                     return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::define".into(),
+                        head: ":wat::core::defn".into(),
                         reason: "structured :Fn type has extra slots after return type".into(),
                         span: span.clone(),
                     });
@@ -4823,7 +4506,7 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, RuntimeError>
             })
         }
         other => Err(RuntimeError::MalformedForm {
-            head: ":wat::core::define".into(),
+            head: ":wat::core::defn".into(),
             reason: format!(
                 "parameter type must be a type keyword or structured type list; got {}",
                 ast_variant_name(other)
@@ -4874,8 +4557,9 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), Runtime
     };
     if !kw.ends_with('>') {
         // arc 138: no span — kw is a `&str` lifted from the keyword payload.
+        // Stone 241.16 — error head updated from `:wat::core::define` to `:wat::core::defn`.
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::define".into(),
+            head: ":wat::core::defn".into(),
             reason: format!("name keyword {:?} opens '<' but does not close '>'", kw),
             span: Span::unknown(),
         });
@@ -5616,14 +5300,10 @@ fn dispatch_keyword_head_value(
             ":wat::core::defclause".into(),
             list_span.clone(),
         )),
-        // Arc 170 Gap I-B — `:wat::core::define` at expression position.
-        // Routes through the same `DeclarationInExpressionPosition` variant
-        // as `:wat::core::def`, replacing the retired `DefineInExpressionPosition`
-        // variant for full symmetry across all 8 declaration forms.
-        ":wat::core::define" => Err(RuntimeError::DeclarationInExpressionPosition(
-            ":wat::core::define".into(),
-            list_span.clone(),
-        )),
+        // Stone 241.16 — `:wat::core::define` eval dispatch arm DELETED.
+        // HARD CUT at check.rs (Stone 241.11 + 241.16) fires before eval;
+        // no define-headed form reaches this dispatch. DefineInExpressionPosition
+        // variant retired with this arm.
         // Arc 155 — `:wat::core::fn` is the canonical operator for
         // function values (Clojure-faithful lowercase verb; mirrors
         // arc 154's let retirement recipe). Routes to `eval_fn`
@@ -9218,7 +8898,7 @@ fn eval_apply(
     const SPECIAL_FORMS: &[&str] = &[
         ":wat::core::def",
         // Stone 241.14 — ":wat::core::def-restricted" removed (HARD CUT; can't reach eval).
-        ":wat::core::define",
+        // Stone 241.16 — ":wat::core::define" removed (HARD CUT total; eval-time residue completed).
         ":wat::core::defn",
         ":wat::core::fn",
         ":wat::core::let",
@@ -12815,14 +12495,17 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
     WatAST::List(items, span)
 }
 
-/// Build the full `(:wat::core::define <head> <body>)` AST for a
+/// Build the full `(:wat::core::defn <head> <body>)` AST for a
 /// user-defined function. The `body` field is the stored WatAST verbatim.
+/// Stone 241.16 — head keyword updated from `:wat::core::define` to `:wat::core::defn`.
+/// `:wat::core::define` is HARD CUT (eval-time residue completed); reflection
+/// now labels user-function declarations with the canonical `:wat::core::defn` head.
 fn function_to_define_ast(f: &Function) -> WatAST {
     let head = function_to_signature_ast(f);
     let body = (*f.body).clone();
     WatAST::List(
         vec![
-            WatAST::Keyword(":wat::core::define".into(), Span::unknown()),
+            WatAST::Keyword(":wat::core::defn".into(), Span::unknown()),
             head,
             body,
         ],
@@ -12864,12 +12547,13 @@ fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -
     WatAST::List(items, span)
 }
 
-/// Build the full `(:wat::core::define <head> <sentinel-body>)` for a
-/// substrate primitive.  The sentinel body
+/// Build the full `(:wat::core::defn <head> <sentinel-body>)` for a
+/// substrate primitive. The sentinel body
 /// `(:wat::core::__internal/primitive <name>)` is a marker — it is
 /// NEVER evaluated; substrate primitives use Rust dispatch, not wat
 /// bodies. `body-of` returns `:None` for primitives rather than this
 /// sentinel; it is exposed only through `lookup-define`.
+/// Stone 241.16 — head keyword updated from `:wat::core::define` to `:wat::core::defn`.
 fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> WatAST {
     let span = Span::unknown();
     let head = type_scheme_to_signature_ast(name, scheme);
@@ -12882,7 +12566,7 @@ fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> Wat
     );
     WatAST::List(
         vec![
-            WatAST::Keyword(":wat::core::define".into(), span.clone()),
+            WatAST::Keyword(":wat::core::defn".into(), span.clone()),
             head,
             sentinel,
         ],
@@ -27427,8 +27111,9 @@ fn refuse_mutation_forms_in(ast: &WatAST) -> Result<(), RuntimeError> {
 fn is_mutation_head(head: &str) -> bool {
     matches!(
         head,
-        ":wat::core::define"
-            | ":wat::core::defmacro"
+        // Stone 241.16 — `:wat::core::define` arm DELETED. HARD CUT is total;
+        // define is no longer a recognized mutation head at eval time.
+        ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
             // Stone 241.9 — defenum replaces enum (HARD CUT).
@@ -28520,11 +28205,12 @@ mod tests {
 
     #[test]
     fn eval_ast_bang_refuses_mutation_form() {
-        // Stone 241.11 — use `:wat::core::define` (still in is_mutation_head)
-        // since `:wat::core::defn` is a macro, not a mutation form at eval time.
-        // parse_one! bypasses macro expansion, so defn would not expand.
+        // Stone 241.16 — migrated from `:wat::core::define` (HARD CUT; no longer in
+        // is_mutation_head) to `:wat::core::defstruct` (still a recognized mutation form).
+        // parse_one! bypasses macro expansion so defstruct head is preserved as-is.
+        // Mechanism under test: eval-ast! refuses ANY mutation-headed form.
         let program = crate::parse_one!(
-            r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#
+            r#"(:wat::core::defstruct :evil::T [x <- :wat::core::i64])"#
         )
         .unwrap();
         let result = run_with_ast_local("(:wat::eval-ast! program)", program)
@@ -29775,11 +29461,12 @@ mod tests {
     fn eval_edn_bang_refuses_mutation_inside_string() {
         // The parsed AST from the string still walks through the
         // mutation-form guard — now surfaced as EvalError data.
-        // Stone 241.11 — use `:wat::core::define` (still in is_mutation_head)
-        // since `:wat::core::defn` is not a mutation form at eval time
-        // (it's a macro; eval-edn! does not expand macros before checking).
+        // Stone 241.16 — migrated from `:wat::core::define` (HARD CUT; no longer in
+        // is_mutation_head) to `:wat::core::defstruct` (still a recognized mutation form).
+        // eval-edn! does not expand macros before checking; defstruct head preserved as-is.
+        // Mechanism under test: eval-edn! refuses ANY mutation-headed form inside the string.
         let result = eval_expr(
-            r#"(:wat::eval-edn! "(:wat::core::define (:evil (x :i64) -> :i64) x)")"#,
+            r#"(:wat::eval-edn! "(:wat::core::defstruct :evil::T [x <- :i64])")"#,
         )
         .unwrap();
         let (kind, _) = eval_err_kind_and_message(result);

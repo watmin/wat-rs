@@ -206,13 +206,14 @@ fn lookup_form_fn_returns_special_form() {
 }
 
 #[test]
-fn lookup_form_define_returns_special_form() {
-    assert_special_form(":wat::core::define", ":wat::core::define");
-    let (_, sig, _) = three_probes(":wat::core::define");
+fn lookup_form_define_is_absent_from_registry() {
+    // Stone 241.16 — `:wat::core::define` HARD CUT (eval-time residue completed).
+    // The registry entry was DELETED; lookup must return None.
+    // This test migrated from asserting PRESENCE (pre-Stone-241.16) to asserting ABSENCE.
+    use wat::special_forms::lookup_special_form;
     assert!(
-        sig.contains("<head>") && sig.contains("<body>"),
-        "expected <head>/<body> in define signature, got: {}",
-        sig
+        lookup_special_form(":wat::core::define").is_none(),
+        "expected :wat::core::define to be ABSENT from special_forms registry post-Stone-241.16 (HARD CUT total)"
     );
 }
 
