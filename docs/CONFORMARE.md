@@ -50,6 +50,40 @@ let span: &Span = &err.span;  // ONE path, every variant
 
 Consumers do not exhaustive-match to extract span. The field is at the top.
 
+## First applied example — `TypeError` (Stone 243.3)
+
+Stone 243.3 is the first conformare retrofit. `TypeError` in `src/types.rs` now carries this shape:
+
+```rust
+pub struct TypeError {
+    pub span: Span,
+    pub kind: TypeErrorKind,
+}
+
+pub enum TypeErrorKind {
+    DuplicateType { name: String },
+    ReservedPrefix { name: String },
+    MalformedDecl { head: String, reason: String },
+    MalformedName { raw: String, reason: String },
+    MalformedField { reason: String },
+    MalformedVariant { enum_name: String, offending: String, reason: String, remedies: Vec<Remedy> },
+    MalformedTypeExpr { raw: String, reason: String },
+    AnyBanned { raw: String },
+    CyclicAlias { name: String },
+    AliasArityMismatch { name: String, expected: usize, got: usize },
+    InnerColonInCompoundArg { raw: String, offending: String },
+    CyclicUnion { name: String },
+    EmptyUnion { name: String },
+    SingleMemberUnion { name: String },
+    InvalidUnionMember { union_name: String, member_form: String, reason: String },
+    /// rune:conformare(spanless-by-domain) — register_subtype operates on
+    /// FQDN string arguments; no AST node in scope at registration time.
+    CyclicSubtype { child: String, parent: String },
+}
+```
+
+The pre-Stone-243.3 shape had all 16 variants as direct enum arms on `TypeError`, each carrying its own `span` field — and `CyclicSubtype` lacking one (the catastrophic-class instance this arc exists to annihilate). The 16-arm span-extraction match in `src/function/parse.rs` collapsed to `e.span` — the load-bearing UX win of Pattern A.
+
 ## Construction guarantees
 
 1. The outer struct's `span` field is `Span` (bare; not `Option<Span>`). Author MUST decide. If no source location exists by domain (registry-time errors, etc.), the author writes `Span::unknown()` explicitly + documents with a rune (see § Rune).

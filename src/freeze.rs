@@ -843,6 +843,11 @@ fn startup_from_forms_post_config(
     // of `[p1 p2 ...]`) and whose remaining items are prefix keywords. The
     // walker `walk_for_restricted_call` calls `extract_prefix_list_from_metadata`
     // to unpack this structure at check time.
+    // rune:sequi(ambient-context) — inventory::iter::<RestrictionEntry> consumes
+    // a compile-time static linker table populated by inventory::submit! entries
+    // across the workspace; the registry is link-time fixed binary state, not
+    // runtime domain state; threading it as a runtime parameter would impose
+    // the registry's compile-time nature into every startup-pipeline call site.
     for entry in inventory::iter::<crate::restriction_entry::RestrictionEntry> {
         let name = entry.wat_name.to_string();
         // Build WatAST::List([Keyword(":wat::core::Vector"), Keyword(p1), ...], Span)
@@ -1017,6 +1022,11 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
     // directly. Field 1 (the Receiver<O>) is unused by the
     // orchestrator (the service's only output Value is the final
     // `:wat::core::nil`, redundant with the ProgramHandle outcome).
+    // rune:struere(invariant-coupling) — field index 2 is the join
+    // ProgramHandle in :wat::kernel::Thread's declaration order
+    // (input=0, output=1, join=2); register_struct_methods synthesizes
+    // Thread/join using the same positional index; both must change
+    // together if Thread's field list changes.
     let handle_value = thread_struct.fields[2].clone();
     let handle_inner = match handle_value {
         Value::wat__kernel__ProgramHandle(h) => h,

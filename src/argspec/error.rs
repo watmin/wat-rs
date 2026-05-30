@@ -1,5 +1,5 @@
 use crate::span::Span;
-use crate::types::TypeError;
+use crate::types::{TypeError, TypeErrorKind};
 
 /// Sum of failure modes for canonical argspec parsing.
 ///
@@ -47,7 +47,7 @@ impl ArgSpecError {
     /// `:wat::core::defstruct`); reasons stay neutral — no "arg-vector"
     /// or "field/arg" prefix. Each `From<>` impl collapses to a 4-line
     /// wrapper around this method.
-    fn classify(self) -> (Span, String, String) {
+    fn into_parts(self) -> (Span, String, String) {
         match self {
             ArgSpecError::NameNotSymbol { span, head } => (
                 span,
@@ -96,21 +96,21 @@ impl ArgSpecError {
 
 impl From<ArgSpecError> for crate::runtime::RuntimeError {
     fn from(err: ArgSpecError) -> Self {
-        let (span, head, reason) = err.classify();
+        let (span, head, reason) = err.into_parts();
         Self::MalformedForm { head, reason, span }
     }
 }
 
 impl From<ArgSpecError> for crate::check::CheckError {
     fn from(err: ArgSpecError) -> Self {
-        let (span, head, reason) = err.classify();
+        let (span, head, reason) = err.into_parts();
         Self::MalformedForm { head, reason, span, remedies: vec![] }
     }
 }
 
 impl From<ArgSpecError> for TypeError {
     fn from(err: ArgSpecError) -> Self {
-        let (span, head, reason) = err.classify();
-        Self::MalformedDecl { head, reason, span }
+        let (span, head, reason) = err.into_parts();
+        TypeError { span, kind: TypeErrorKind::MalformedDecl { head, reason } }
     }
 }

@@ -1684,11 +1684,10 @@ impl CheckError {
 /// Returns `None` when no hint applies — currently the steady state
 /// (arcs 111 / 112 / 113 retired their helpers 2026-04-30 once the
 /// respective consumer waves swept clean). The function stays as
-/// scaffold for future arcs: add `arc_NNN_migration_hint(callee,
-/// expected, got)` to the array below; the rest of the substrate
-/// (Display impl + `CheckError::diagnostic`'s hint field) picks it
-/// up automatically. See the retirement note above for the helper
-/// shape.
+/// Migration-hint extensibility point: to add a hint for a new migration
+/// scenario, add a `<scenario>_migration_hint(callee, expected, got)` entry
+/// to the array below. The check pass invokes each entry; the first that
+/// returns Some wins.
 /// Arc 109 slice 1f — fires when the dispatcher has poisoned the
 /// retired `:wat::core::vec` head. The hint names the canonical
 /// replacement (`:wat::core::Vector`, verb-equals-type per
@@ -14378,8 +14377,8 @@ fn infer_polymorphic_holon_to_i64(
 ///   (type-preserving via `apply_subst(&coll_ty, subst)`).
 /// - `:wat::Record` (umbrella path) → arg1 must unify with `:wat::core::keyword`
 ///   (the field name). **arg2 is free ∀T — DO NOT unify it with anything.** Field-type
-///   stability is enforced at runtime by `eval_record_assoc`; check-time narrowing
-///   is deferred to arc 232.1. Returns `:wat::Record` (umbrella; flavor is a
+///   stability is enforced at runtime by `eval_record_assoc`.
+///   Returns `:wat::Record` (umbrella; flavor is a
 ///   runtime property per Liskov: base → base, holonic → holonic).
 /// - else → teaching `CheckError::TypeMismatch` (`"HashMap<K,V> or :wat::Record"`).
 fn infer_assoc(
@@ -16898,7 +16897,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 226 Stone 226.1 — type predicates via classifier-name match.
     // `(is? value class-name)` — polymorphic; accepts any classifier name as String.
     // 9 convenience forms for the classifier-wrapped typed entities.
-    // v1 is structural exact-match; VSA similarity scoring deferred to 226.2+.
+    // v1 implements structural exact-match.
     env.register(
         ":wat::holon::is?".into(),
         TypeScheme {
@@ -19668,7 +19667,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Returns a new record with the named field replaced by the new value.
     // Polymorphic-T over the value position; fixed 3-arity; returns :wat::Record.
     // Runtime enforces: field must exist (UnknownField); new value variant matches old
-    // (TypeMismatch). Check-time narrowing is deferred to arc 232.1 future lift.
+    // (TypeMismatch).
     env.register(
         ":wat::Record/assoc".into(),
         TypeScheme {
@@ -20102,25 +20101,25 @@ mod tests {
     fn any_as_param_type_rejected_at_parse() {
         // Parsing `:Any` in any position is an error.
         let err = parse_type_expr(":Any").unwrap_err();
-        assert!(matches!(err, crate::types::TypeError::AnyBanned { .. }));
+        assert!(matches!(err, crate::types::TypeError { kind: crate::types::TypeErrorKind::AnyBanned { .. }, .. }));
     }
 
     #[test]
     fn any_as_parametric_head_rejected_at_parse() {
         let err = parse_type_expr(":Any<i64>").unwrap_err();
-        assert!(matches!(err, crate::types::TypeError::AnyBanned { .. }));
+        assert!(matches!(err, crate::types::TypeError { kind: crate::types::TypeErrorKind::AnyBanned { .. }, .. }));
     }
 
     #[test]
     fn any_as_nested_arg_rejected_at_parse() {
         let err = parse_type_expr(":Vec<Any>").unwrap_err();
-        assert!(matches!(err, crate::types::TypeError::AnyBanned { .. }));
+        assert!(matches!(err, crate::types::TypeError { kind: crate::types::TypeErrorKind::AnyBanned { .. }, .. }));
     }
 
     #[test]
     fn any_in_fn_rejected_at_parse() {
         let err = parse_type_expr(":fn(Any)->i64").unwrap_err();
-        assert!(matches!(err, crate::types::TypeError::AnyBanned { .. }));
+        assert!(matches!(err, crate::types::TypeError { kind: crate::types::TypeErrorKind::AnyBanned { .. }, .. }));
     }
 
 

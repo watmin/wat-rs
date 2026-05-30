@@ -41,6 +41,9 @@ use crate::types::{parse_type_expr_with_span, TypeError, TypeExpr};
 /// (`parse_fn_signature`, `parse_fn_signature_for_check`,
 /// `parse_fn_signature_for_check_diag`) map this enum to their tier's
 /// error type; the prefix itself does NOT produce error messages.
+// WHY pub(in crate::function): ParseStep is a fn-form parser intermediary
+// shared by parse.rs and infer.rs; pub(crate) would expose an internal
+// ladder type to the whole substrate; private would prevent infer.rs access.
 pub(in crate::function) enum ParseStep {
     ArityMismatch { actual: usize },
     ArgsVecNotVector { found_variant: &'static str, span: Span },
@@ -151,31 +154,10 @@ pub(crate) fn parse_fn_signature(
             reason: "fn signature missing return-type keyword after `->`".into(),
             span,
         },
-        ParseStep::BadRetType(e) => {
-            // WHY: each TypeError variant carries its own span field; extract via match
-            let span = match &e {
-                TypeError::MalformedTypeExpr { span, .. } => span.clone(),
-                TypeError::AnyBanned { span, .. } => span.clone(),
-                TypeError::InnerColonInCompoundArg { span, .. } => span.clone(),
-                TypeError::AliasArityMismatch { span, .. } => span.clone(),
-                TypeError::DuplicateType { span, .. } => span.clone(),
-                TypeError::ReservedPrefix { span, .. } => span.clone(),
-                TypeError::MalformedDecl { span, .. } => span.clone(),
-                TypeError::MalformedName { span, .. } => span.clone(),
-                TypeError::MalformedField { span, .. } => span.clone(),
-                TypeError::MalformedVariant { span, .. } => span.clone(),
-                TypeError::CyclicAlias { span, .. } => span.clone(),
-                TypeError::CyclicUnion { span, .. } => span.clone(),
-                TypeError::EmptyUnion { span, .. } => span.clone(),
-                TypeError::SingleMemberUnion { span, .. } => span.clone(),
-                TypeError::InvalidUnionMember { span, .. } => span.clone(),
-                TypeError::CyclicSubtype { .. } => Span::unknown(),
-            };
-            RuntimeError::MalformedForm {
-                head: ":wat::core::fn".into(),
-                reason: e.to_string(),
-                span,
-            }
+        ParseStep::BadRetType(e) => RuntimeError::MalformedForm {
+            head: ":wat::core::fn".into(),
+            reason: e.to_string(),
+            span: e.span,
         },
         ParseStep::ArgSpecFailed(e) => {
             // WHY: map_err closure cannot use ?; convert explicitly via From impl
