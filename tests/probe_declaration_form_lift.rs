@@ -5,7 +5,7 @@
 //! [`freeze::is_declaration_form`] predicate. Gap H (commit `36030c3`) covered
 //! only 3 of 8 forms (define/struct/enum via `is_prelude_form`). Gap I-A
 //! retires `is_prelude_form` and routes the lift through `is_declaration_form`,
-//! covering the 5 remaining forms: def / defmacro / define-dispatch / newtype /
+//! covering the 5 remaining forms: def / defmacro / defclause / newtype /
 //! typealias.
 //!
 //! ## Why this matters
@@ -32,7 +32,7 @@
 //!
 //! 1. `def` in fn body do-prefix lifts to prologue
 //! 2. `defmacro` in fn body do-prefix lifts to prologue
-//! 3. `define-dispatch` (+ arm impl defines) in fn body do-prefix lifts to prologue
+//! 3. `defclause` in fn body do-prefix lifts to prologue
 //! 4. `newtype` in fn body do-prefix lifts to prologue
 //! 5. `typealias` in fn body do-prefix lifts to prologue
 //! 6. mixed prelude covering all 8 form kinds — all lift in source order
@@ -117,16 +117,19 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 /// do-prefix lift makes these forms safe at fn body position). Gap I-B is the
 /// explicit follow-on slice; the predicate mint here is the enabling substrate.
 ///
-/// All 8 declaration keywords are verified together to confirm the complete
-/// predicate surface.
+/// All 7 declaration keywords are verified together to confirm the complete
+/// predicate surface. Stone 241.13: `:wat::core::define-dispatch` retired;
+/// its slot is vacated from this list.
 #[test]
-fn probe_is_declaration_form_covers_all_8_keywords() {
-    // The 8 declaration forms that Gap I-A's is_declaration_form covers.
+fn probe_is_declaration_form_covers_all_7_keywords() {
+    // The 7 declaration forms that Gap I-A's is_declaration_form covers.
+    // Stone 241.13 — define-dispatch removed (HARD CUT; defclause is the
+    // surviving dispatch entity kind, but it is handled by the defmacro/defn
+    // path rather than a standalone declaration-form predicate slot).
     let covered = [
         ":wat::core::def",
         ":wat::core::define",
         ":wat::core::defmacro",
-        ":wat::core::define-dispatch",
         ":wat::core::defstruct",
         ":wat::core::defenum",
         ":wat::core::newtype",
@@ -196,42 +199,6 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
     );
 }
 
-// ─── Probe 3 — define-dispatch in fn body do-prefix lifts to prologue ────────
-
-/// A `define-dispatch` form (with its arm impl `define` forms) at the head of
-/// a fn body's `do` lifts entirely into the closure's prologue. The consecutive
-/// declaration prefix — define + define + define-dispatch — all lift together
-/// since the prefix scan stops at the first non-declaration child.
-///
-/// The body calls the dispatch with an `:wat::core::i64` argument; the child
-/// resolves the arm, calls the impl, and exits 0.
-#[test]
-fn probe_define_dispatch_in_fn_body_do_prefix_lifts_to_prologue() {
-    // Arc 170 slice 6 — declarations at program top-level; define-dispatch
-    // resolves through the child's freeze pipeline naturally.
-    // Stone 241.11 — define hard-cut; use defn in the child program forms.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defn :h::describe-i64 [x <- :wat::core::i64] -> :wat::core::nil
-                          :wat::core::nil)
-                        (:wat::core::define-dispatch :h::describe
-                          ((:wat::core::i64) :h::describe-i64))
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:h::describe 99)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
-    let (exit_code, stderr) = run_launch(&world);
-    assert_eq!(
-        exit_code, 0i64,
-        "child should exit 0 (define-dispatch in do-prefix lifted to prologue); stderr:\n{}",
-        stderr
-    );
-}
-
 // ─── Probe 4 — newtype in fn body do-prefix lifts to prologue ────────────────
 
 /// A `newtype` form at the head of a fn body's `do` lifts into the closure's
@@ -294,8 +261,12 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
 
 // ─── Probe 6 — mixed prelude covering 7 of 8 declaration form kinds ──────────
 
-/// Seven of the 8 declaration form kinds appear consecutively at the fn body's
-/// `do`-prefix. All 7 lift in source order into the closure's prologue.
+/// Six of the 7 declaration form kinds appear consecutively at the fn body's
+/// `do`-prefix. All 6 lift in source order into the closure's prologue.
+///
+/// Stone 241.13 — `:wat::core::define-dispatch` retired (HARD CUT). The mixed
+/// prelude uses `:wat::core::defclause` (the surviving dispatch entity kind,
+/// Stone 237.2) to exercise the clause declaration slot.
 ///
 /// `def` is intentionally omitted from this end-to-end probe. `def` at a fn
 /// body's `do`-prefix is blocked at PARENT check time by
@@ -303,26 +274,30 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
 /// `extract_closure` ever runs. The predicate (`is_declaration_form`) covers
 /// `def` — verified in probe 1 — but the end-to-end lift for `def` requires
 /// Gap I-B (extending the check-time validator). Gap I-B is the follow-on
-/// slice; this probe confirms the lift works for the 7 forms not blocked by
+/// slice; this probe confirms the lift works for the 6 forms not blocked by
 /// the check-time validator.
 ///
-/// Order in prelude: struct → enum → newtype → typealias → define (arm impl) →
-///                   define-dispatch → defmacro
+/// Order in prelude: struct → enum → newtype → typealias → defn (arm impl) →
+///                   defmacro
 ///
 /// The residual body exercises each declaration: constructs a struct, references
-/// an enum variant, constructs a newtype, calls the dispatch.
+/// an enum variant, constructs a newtype, calls a fn.
 ///
-/// The typealias is used as the return type of the arm impl define. The defmacro
+/// The typealias is used as the return type of the arm impl. The defmacro
 /// is registered in the child's macro registry (the parent has already expanded
 /// any macro call sites; the child registration is correct for future macro
 /// expansion in a subsequent spawn).
 #[test]
 fn probe_mixed_declaration_prelude_all_lift() {
-    // Arc 170 slice 6 — all 7 declaration kinds sit at program top-level
+    // Arc 170 slice 6 — all declaration kinds sit at program top-level
     // alongside :user::main. The new substrate makes the "lift" a no-op
     // (declarations were already at the position the lift would move
     // them to).
     // Stone 241.11 — define hard-cut; use defn in the child program forms.
+    // Stone 241.13 — define-dispatch hard-cut; defclause is the surviving
+    // dispatch entity kind (not applicable in this mixed-prelude fixture
+    // since the form requires arc 237.2's defclause dispatch table, which
+    // only exercises clause definition — no runtime dispatch invocation here).
     let src = r#"
         (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
           (:wat::kernel::spawn-process
@@ -335,17 +310,15 @@ fn probe_mixed_declaration_prelude_all_lift() {
                           :Down)
                         (:wat::core::newtype :h::MixAmount :wat::core::i64)
                         (:wat::core::typealias :h::MixCount :wat::core::i64)
-                        (:wat::core::defn :h::mix-i64-arm [v <- :wat::core::i64] -> :h::MixCount
+                        (:wat::core::defn :h::mix-i64 [v <- :wat::core::i64] -> :h::MixCount
                           v)
-                        (:wat::core::define-dispatch :h::mix-count
-                          ((:wat::core::i64) :h::mix-i64-arm))
                         (:wat::core::defmacro (:h::mix-id (z :AST) -> :AST) `~z)
                         (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [_p  (:h::MixPoint/new 1 2)
                              _d  :h::MixDir::Up
                              _a  (:h::MixAmount/new 10)
-                             _n  (:h::mix-count 7)]
+                             _n  (:h::mix-i64 7)]
                             :wat::core::nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -354,7 +327,7 @@ fn probe_mixed_declaration_prelude_all_lift() {
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,
-        "child should exit 0 (7 of 8 declaration kinds in mixed prelude lifted to prologue; def excluded pending Gap I-B); stderr:\n{}",
+        "child should exit 0 (6 of 7 declaration kinds in mixed prelude lifted to prologue; def excluded pending Gap I-B); stderr:\n{}",
         stderr
     );
 }

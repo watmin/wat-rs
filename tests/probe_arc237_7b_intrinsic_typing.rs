@@ -1,9 +1,9 @@
 //! FM-2-bis probe for Stone 237.7b — settle the ∀-scheme-vs-custom-inference
 //! fork for the collection ops BEFORE briefing the intrinsic migration.
 //!
-//! These exercise the CURRENT (define-dispatch) behavior of empty? / contains? /
-//! get / conj — establishing the regression contract the ∀T intrinsics must
-//! preserve, AND revealing the typing precision per op:
+//! These exercise the ∀T intrinsic behavior of empty? / contains? /
+//! get / conj (define-dispatch retired at Stone 241.13), AND reveal the
+//! typing precision per op required of the intrinsic impls:
 //!
 //!   - TIER A (concrete return): empty? (-> bool), contains? (-> bool).
 //!     If a plain typed use compiles, a plain ∀ scheme will suffice.
@@ -94,10 +94,8 @@ fn conj_vector_preserves_collection_type() {
 }
 
 // ─── TIER B — ELEMENT-TYPING ENFORCEMENT (wrong-elem rejection) ─────────────
-// The load-bearing question: does the CURRENT define-dispatch reject wrong-elem
-// calls (Vector<i64>.contains?("x") / .conj("x"))? If YES → contains?/conj need
-// CUSTOM inference arms (element extraction + constraint) as intrinsics, same
-// recipe as get. If NO (loose) → plain ∀T,E schemes suffice for those two.
+// Proven: the ∀T intrinsics reject wrong-elem calls (Vector<i64>.contains?("x")
+// / .conj("x")) at check time — confirming custom inference arms were needed.
 // Uses startup_from_source directly (no eval) — checks CHECK-time rejection.
 
 fn try_startup(src: &str) -> Result<(), String> {

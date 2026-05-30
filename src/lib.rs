@@ -79,7 +79,6 @@ pub mod lexer;
 pub mod load;
 pub mod lower;
 pub mod macros;
-pub mod dispatch;
 pub mod parser;
 pub mod resolve;
 pub mod restriction_entry;

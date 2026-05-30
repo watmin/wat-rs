@@ -34,6 +34,7 @@
 //! | `":wat::core::define"`            | 241.11 | define (function binding) | defn |
 //! | `":wat::core::Char"`              | 242.1  | Char (PascalCase scalar)  | char (lowercase per Doctrine 2) |
 //! | `":wat::runtime::define-alias"`   | 241.12 | runtime macro define-alias | defalias (native substrate form) |
+//! | `":wat::core::define-dispatch"`   | 241.13 | dispatch entity kind       | defclause (Stone 237.2)          |
 
 use super::{Remedy, RemedyKind};
 
@@ -53,6 +54,8 @@ const RETIREMENT_TABLE: &[(&str, &str)] = &[
     (":wat::core::Char",              ":wat::core::char"),
     // Stone 241.12 — defalias replaces runtime define-alias (native substrate form).
     (":wat::runtime::define-alias",   ":wat::core::defalias"),
+    // Stone 241.13 — defclause replaces define-dispatch.
+    (":wat::core::define-dispatch",   ":wat::core::defclause"),
 ];
 
 /// Look up `needle` in the retirement table.

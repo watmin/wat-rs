@@ -10,9 +10,9 @@
 //! `(:wat::core::define-dispatch :wat::core::length ...)` decl at core.wat:12. The per-type
 //! leaves (`:Vector/length` etc.) and the DispatchRegistry STAY (other ops still tenant it).
 //!
-//! This probe is a BEHAVIOR REGRESSION GUARD — `length` works TODAY via define-dispatch and
-//! must work IDENTICALLY after the mechanism swap. Green before AND after. The mechanism
-//! change itself (decl gone / builtin present) is verified by EXPECTATIONS grep, not here.
+//! This probe is a BEHAVIOR REGRESSION GUARD — `length` works as a ∀T intrinsic
+//! (Stone 237.7a shipped). The define-dispatch mechanism was retired at Stone 241.13.
+//! These contracts remain green as proof the intrinsic path is solid.
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};

@@ -319,17 +319,6 @@ fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry
     if sym.unit_variants.contains_key(canonical) {
         return true;
     }
-    // Stone 241.11 — dispatch-registered heads are valid call heads.
-    // Before this fix, `define` bodies were consumed by `register_defines`
-    // and never walked by the resolver. `defn` bodies stay in residue and
-    // ARE walked (step 7), so dispatch heads inside those bodies must be
-    // accepted here. `:h::describe`, `:h::mix-count`, etc. are registered
-    // at step 6b (before resolve at step 7).
-    if let Some(dr) = sym.dispatch_registry() {
-        if dr.contains(canonical) {
-            return true;
-        }
-    }
     // A macro call — shouldn't survive expansion, but accept for
     // completeness. The checker notes it as suspicious in the
     // context string when a macro is the reason.

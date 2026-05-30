@@ -56,10 +56,6 @@ use crate::load::{resolve_loads, LoadError, SourceLoader};
 use crate::macros::{
     expand_all, register_defmacros, register_stdlib_defmacros, MacroError, MacroRegistry,
 };
-use crate::dispatch::{
-    register_define_dispatches, register_stdlib_define_dispatches, DispatchError,
-    DispatchRegistry,
-};
 use crate::parser::{parse_all_with_file, ParseError};
 use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
@@ -292,12 +288,6 @@ pub struct FrozenWorld {
     pub config: Config,
     pub types: TypeEnv,
     pub macros: MacroRegistry,
-    /// Arc 146 slice 1 — dispatch registry. Stays accessible after
-    /// freeze for reflection (arc 144 `lookup_form` uses
-    /// `symbols.dispatch_registry` directly; this field is here to
-    /// mirror `macros` for callers that want a borrowable handle on the
-    /// frozen registry).
-    pub dispatchs: DispatchRegistry,
     pub symbols: SymbolTable,
     /// The post-load, post-expand, post-type-check AST — the
     /// residue of forms left after all definitions were registered.
@@ -322,7 +312,6 @@ impl FrozenWorld {
         config: Config,
         types: TypeEnv,
         macros: MacroRegistry,
-        dispatchs: DispatchRegistry,
         mut symbols: SymbolTable,
         program: Vec<WatAST>,
         loader: Arc<dyn crate::load::SourceLoader>,
@@ -333,10 +322,6 @@ impl FrozenWorld {
         // Arc 030: runtime macroexpand / macroexpand-1 primitives need
         // access to the frozen macro registry.
         symbols.set_macro_registry(Arc::new(macros.clone()));
-        // Arc 146 slice 1: check-time + runtime list-call dispatch consult
-        // the dispatch registry through SymbolTable (capability-carrier
-        // pattern, alongside macro_registry / encoding_ctx / source_loader).
-        symbols.set_dispatch_registry(Arc::new(dispatchs.clone()));
         // Arc 085: shims that reflect on declared types (auto-spawn
         // walks an enum decl) reach the registry through SymbolTable
         // alongside the other capability carriers.
@@ -423,7 +408,6 @@ impl FrozenWorld {
             config,
             types,
             macros,
-            dispatchs,
             symbols,
             program,
         })
@@ -435,10 +419,6 @@ impl FrozenWorld {
 
     pub fn types(&self) -> &TypeEnv {
         &self.types
-    }
-
-    pub fn dispatchs(&self) -> &DispatchRegistry {
-        &self.dispatchs
     }
 
     pub fn macros(&self) -> &MacroRegistry {
@@ -463,9 +443,6 @@ pub enum StartupError {
     Config(ConfigError),
     Load(LoadError),
     Macro(MacroError),
-    /// Arc 146 slice 1 — `(:wat::core::define-dispatch ...)` registration
-    /// failed (malformed form, duplicate name, reserved prefix, etc.).
-    Dispatch(DispatchError),
     Type(TypeError),
     Resolve(ResolveError),
     Check(CheckErrors),
@@ -492,7 +469,6 @@ impl fmt::Display for StartupError {
             StartupError::Config(e) => write!(f, "config: {}", e),
             StartupError::Load(e) => write!(f, "load: {}", e),
             StartupError::Macro(e) => write!(f, "macro: {}", e),
-            StartupError::Dispatch(e) => write!(f, "dispatch: {}", e),
             StartupError::Type(e) => write!(f, "types: {}", e),
             StartupError::Resolve(e) => write!(f, "resolve: {}", e),
             StartupError::Check(e) => write!(f, "check:\n{}", e),
@@ -562,9 +538,6 @@ impl StartupError {
             StartupError::Macro(e) => {
                 vec![Diagnostic::new("Macro").field("message", format!("{}", e))]
             }
-            StartupError::Dispatch(e) => {
-                vec![Diagnostic::new("Dispatch").field("message", format!("{}", e))]
-            }
             StartupError::Type(e) => {
                 vec![Diagnostic::new("Type").field("message", format!("{}", e))]
             }
@@ -604,11 +577,6 @@ impl From<LoadError> for StartupError {
 impl From<MacroError> for StartupError {
     fn from(e: MacroError) -> Self {
         StartupError::Macro(e)
-    }
-}
-impl From<DispatchError> for StartupError {
-    fn from(e: DispatchError) -> Self {
-        StartupError::Dispatch(e)
     }
 }
 impl From<TypeError> for StartupError {
@@ -755,37 +723,13 @@ fn startup_from_forms_post_config(
     let stdlib_post_macros = register_stdlib_defmacros(stdlib, &mut macros)?;
     let post_macro_reg = register_defmacros(loaded, &mut macros)?;
 
-    // 4a. Arc 146 slice 2 — stdlib dispatch registration BEFORE
-    //     macro expansion. Reflection-driven macros (e.g.
-    //     `:wat::runtime::define-alias`) call `signature-of-defn` /
-    //     `lookup-define` on substrate names during expansion; if a
-    //     substrate name is now a Dispatch (e.g. `:wat::core::length`
-    //     post-arc-146-slice-2), the dispatch_registry must be
-    //     attached before the expander runs or the reflection returns
-    //     None.
-    //
-    //     Stdlib dispatch impls are substrate primitives (known via
-    //     CheckEnv::with_builtins) so the impls are always available;
-    //     user dispatch registration stays at step 6b where it can
-    //     reference user-defined Function impls. Per arc 146 slice 1
-    //     Q4 (defines before user dispatches; substrate primitives
-    //     before stdlib dispatches).
-    let mut dispatchs = DispatchRegistry::new();
-    let stdlib_post_macros_post_dispatches =
-        register_stdlib_define_dispatches(stdlib_post_macros, &mut dispatchs)?;
-
     // Expand BOTH stdlib non-defmacro residue and user forms against
     // the combined macro registry. Stdlib functions are authored
     // against stdlib defmacros too — e.g., :wat::stream bodies
     // use :wat::holon::Subtract / list helpers / etc.
-    //
-    // The ambient SymbolTable carries the stdlib dispatch registry so
-    // reflection primitives invoked from macro bodies (signature-of-defn,
-    // lookup-define, body-of) see substrate dispatches.
-    let mut macro_sym = SymbolTable::default();
-    macro_sym.set_dispatch_registry(Arc::new(dispatchs.clone()));
+    let macro_sym = SymbolTable::default();
     let expanded_stdlib = expand_all(
-        stdlib_post_macros_post_dispatches,
+        stdlib_post_macros,
         &mut macros,
         &Environment::default(),
         &macro_sym,
@@ -895,22 +839,6 @@ fn startup_from_forms_post_config(
         );
     }
 
-    // 6b. User dispatch declarations — arc 146 slice 1 + slice 2.
-    //     Walks the residue left after define registration, peels
-    //     off every `(:wat::core::define-dispatch ...)` form, and
-    //     registers it into the existing `DispatchRegistry` (already
-    //     seeded with stdlib dispatches at step 4a). Per arc 146
-    //     BRIEF Q4: USER dispatches register AFTER user defines so
-    //     each arm's impl-keyword can refer to a fully-registered
-    //     Function (the impl-arity validation is deferred to first
-    //     check-time call per BRIEF Q1).
-    //
-    //     The `dispatchs` registry was created at step 4a (so stdlib
-    //     dispatches are visible to macro expansion); user dispatches
-    //     layer on top here.
-    let residue = register_define_dispatches(residue, &mut dispatchs)?;
-    symbols.set_dispatch_registry(Arc::new(dispatchs.clone()));
-
     // 7. Name resolution.
     resolve_references(&residue, &symbols, &macros)?;
 
@@ -933,7 +861,6 @@ fn startup_from_forms_post_config(
         config,
         types,
         macros,
-        dispatchs,
         symbols,
         residue,
         loader,
@@ -1379,7 +1306,6 @@ fn is_mutation_form(head: &str) -> bool {
             | ":wat::core::def-restricted"
             | ":wat::core::define"
             | ":wat::core::defmacro"
-            | ":wat::core::define-dispatch"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
             // Stone 241.9 — defenum replaces enum (HARD CUT).
@@ -1419,7 +1345,6 @@ pub fn is_declaration_form(head: &str) -> bool {
             | ":wat::core::def-restricted"
             | ":wat::core::define"
             | ":wat::core::defmacro"
-            | ":wat::core::define-dispatch"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
             // Stone 241.9 — defenum replaces enum (HARD CUT).

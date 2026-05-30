@@ -271,18 +271,15 @@ fn type_lookup_define_smoke() {
     );
 }
 
-// ─── Kind 6: Dispatch — real-builtin coverage on `:wat::core::empty?` ──────
+// ─── Kind 6: Primitive ∀T intrinsic — real-builtin coverage on `:wat::core::empty?` ──────
 //
-// `wat_arc146_dispatch_mechanism.rs` covers Dispatch on the SYNTHETIC
-// `:test::describe` (i64/f64 arms). Slice 4's contribution: pin the
-// reflection trio on a REAL `:wat::core::*` define-dispatch builtin.
-// `:wat::core::length` was evacuated to a Rust ∀T intrinsic in arc 237.7a
-// and is no longer a define-dispatch entity. `:wat::core::empty?` is the
-// canonical exemplar: still a define-dispatch with 3 arms (Vector, HashMap,
-// HashSet) — see `wat/core.wat:31-34`.
+// Stone 241.13 — define-dispatch is retired. All former dispatch entities
+// (length, empty?, contains?, get, conj, assoc) are ∀T intrinsic Primitives.
+// `:wat::core::empty?` is the canonical exemplar: lookup-define returns a
+// synthetic `:wat::core::define` form (Primitive reflection), not `:wat::core::define-dispatch`.
 
 #[test]
-fn dispatch_empty_lookup_define_emits_define_dispatch_head() {
+fn primitive_empty_lookup_define_emits_define_head() {
     let src = r##"
         (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
@@ -293,9 +290,11 @@ fn dispatch_empty_lookup_define_emits_define_dispatch_head() {
                       rendered))
     "##;
     let line = run_string(src);
+    // Primitive reflection emits `:wat::core::define` (not `:wat::core::define-dispatch`)
+    // and the synthetic internal-primitive sentinel body.
     assert!(
-        line.contains("define-dispatch"),
-        "expected 'define-dispatch' head in :wat::core::empty? lookup-define, got: {}",
+        !line.contains("define-dispatch"),
+        "expected NO 'define-dispatch' in :wat::core::empty? lookup-define post-241.13, got: {}",
         line
     );
     assert!(
@@ -303,31 +302,18 @@ fn dispatch_empty_lookup_define_emits_define_dispatch_head() {
         "expected ':wat::core::empty?' name in rendered AST, got: {}",
         line
     );
-    // The arms list is the load-bearing evidence for Dispatch reflection:
-    // Vector, HashMap, and HashSet arms (per wat/core.wat:31-34). Verify
-    // all three arm targets are present in the rendered emission.
     assert!(
-        line.contains("Vector/empty?"),
-        "expected Vector arm target in dispatch arms, got: {}",
-        line
-    );
-    assert!(
-        line.contains("HashMap/empty?"),
-        "expected HashMap arm target in dispatch arms, got: {}",
-        line
-    );
-    assert!(
-        line.contains("HashSet/empty?"),
-        "expected HashSet arm target in dispatch arms, got: {}",
+        line.contains(":wat::core::define"),
+        "expected ':wat::core::define' head in Primitive reflection, got: {}",
         line
     );
 }
 
 #[test]
 fn dispatch_length_signature_and_body_shape() {
-    // signature-of-defn returns Some (the dispatch declaration form);
-    // body-of returns :None (dispatchs have no wat-side body — the arms
-    // table IS the contract; per arc 146 slice 1 BRIEF).
+    // signature-of-defn returns Some (the ∀T intrinsic Primitive scheme);
+    // body-of returns :None (Primitives have no wat-side body — the Rust
+    // impl IS the contract; per arc 237.7a Stone + Stone 241.13 doctrine).
     let src = r##"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let

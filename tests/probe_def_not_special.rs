@@ -246,23 +246,30 @@ fn probe_define_at_expression_position_still_emits_error() {
     }
 }
 
-// ─── Probe 5 — mixed prelude now includes def (all 8 forms lift) ───────────────
+// ─── Probe 5 — mixed prelude now includes def (all 7 forms lift) ───────────────
 
 /// The mixed-prelude probe from Gap I-A (probe 6) extended to include `def`.
 ///
 /// Gap I-A's probe 6 covered 7 of 8 declaration forms, explicitly excluding
 /// `def` because the parent check-time validator blocked it. After Gap I-B,
 /// `def` is no longer blocked. This probe adds `def` to the mixed prelude and
-/// verifies all 8 declaration forms lift together.
+/// verifies all 7 declaration forms lift together.
 ///
-/// Prelude order: def → struct → enum → newtype → typealias → define (arm impl) →
-///               define-dispatch → defmacro
+/// Stone 241.13 — `:wat::core::define-dispatch` retired (HARD CUT). Fixture
+/// migrated: the arm-impl define + define-dispatch pair replaced with a plain
+/// `:wat::core::defn` that exercises the same declaration-lift path.
+///
+/// Stone 241.11 — `:wat::core::define` retired (HARD CUT). Fixture migrated:
+/// all `define` forms replaced with `defn`.
+///
+/// Prelude order: def → struct → enum → newtype → typealias → defn (arm fn) →
+///               defmacro
 ///
 /// The body references the def-bound value (`:h::def-answer = 99`), constructs
-/// a struct, references an enum variant, constructs a newtype, calls the dispatch.
+/// a struct, references an enum variant, constructs a newtype, calls the fn.
 #[test]
 fn probe_mixed_declaration_prelude_now_includes_def() {
-    // Arc 170 slice 6 — all 8 declaration kinds sit at program top-level
+    // Arc 170 slice 6 — all declaration kinds sit at program top-level
     // alongside :user::main via the new spawn-process program shape.
     let src = r#"
         (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
@@ -277,19 +284,16 @@ fn probe_mixed_declaration_prelude_now_includes_def() {
                           :Down)
                         (:wat::core::newtype :h::MixAmount8 :wat::core::i64)
                         (:wat::core::typealias :h::MixCount8 :wat::core::i64)
-                        (:wat::core::define
-                          (:h::mix-i64-arm8 (v :wat::core::i64) -> :h::MixCount8)
+                        (:wat::core::defn :h::mix-i64-fn8 [v <- :wat::core::i64] -> :h::MixCount8
                           v)
-                        (:wat::core::define-dispatch :h::mix-count8
-                          ((:wat::core::i64) :h::mix-i64-arm8))
                         (:wat::core::defmacro (:h::mix-id8 (z :AST) -> :AST) `~z)
-                        (:wat::core::define (:user::main -> :wat::core::nil)
+                        (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [_ans :h::def-answer
                              _p   (:h::MixPoint8/new 1 2)
                              _d   :h::MixDir8::Up
                              _a   (:h::MixAmount8/new 10)
-                             _n   (:h::mix-count8 7)]
+                             _n   (:h::mix-i64-fn8 7)]
                             :wat::core::nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -298,7 +302,7 @@ fn probe_mixed_declaration_prelude_now_includes_def() {
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,
-        "child should exit 0 (all 8 declaration forms in mixed prelude lifted to prologue — including def); stderr:\n{}",
+        "child should exit 0 (all 7 declaration forms in mixed prelude lifted to prologue — including def; define-dispatch retired Stone 241.13); stderr:\n{}",
         stderr
     );
 }

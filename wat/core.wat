@@ -1,12 +1,12 @@
-;; wat/core.wat — :wat::core::* dispatches.
+;; wat/core.wat — :wat::core::* stdlib forms.
 ;;
-;; Substrate dispatches that route polymorphic-name primitives to
-;; per-Type impls. Per arc 146 DESIGN: one entity-kind (dispatch) for
-;; genuinely-polymorphic primitives; per-Type impls live in Rust as
-;; clean rank-1 schemes registered in `register_builtins`.
+;; Originally used arc 146's `:wat::core::define-dispatch` (slice 1) to route
+;; polymorphic-name primitives to per-Type impls. All define-dispatch decls
+;; were evacuated to Rust ∀T intrinsics via arc 237 Stones 237.7a/7b/7c/7d/8a.
+;; Stone 241.13 retired `:wat::core::define-dispatch` entirely (HARD CUT);
+;; `:wat::core::defclause` (Stone 237.2) is the surviving dispatch entity kind.
 ;;
-;; Each declaration uses arc 146's `:wat::core::define-dispatch`
-;; (slice 1). Loads BEFORE `wat/runtime.wat` so the dispatches are
+;; Loads BEFORE `wat/runtime.wat` so aliases and variadic fns are
 ;; visible to any reflection-driven macro that might reference them.
 
 ;; Arc 237 Stone 237.7a — :wat::core::length evacuated to Rust ∀T intrinsic (src/check.rs +

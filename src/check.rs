@@ -2022,13 +2022,6 @@ pub struct CheckEnv {
     /// walking every `:wat::core::enum` declaration in `types`.
     unit_variant_types: HashMap<String, TypeExpr>,
     types: Arc<TypeEnv>,
-    /// Arc 146 slice 1 — dispatch registry, attached when CheckEnv
-    /// is built from a SymbolTable that has dispatchs registered
-    /// (post-freeze and check_program flows). `None` for test harnesses
-    /// that build a CheckEnv directly without a SymbolTable. Consulted
-    /// in `infer_list` BEFORE the substrate-primitive scheme path so
-    /// dispatch-declared names route to per-Type arm impls.
-    dispatch_registry: Option<Arc<crate::dispatch::DispatchRegistry>>,
     /// Arc 157 — names bound via `:wat::core::def` at top-level
     /// position. Maps name → inferred TypeExpr of the binding. Keyword
     /// references to a `def`'d name resolve here instead of falling
@@ -2090,12 +2083,6 @@ impl CheckEnv {
                 env.register(path.clone(), scheme);
             }
         }
-        // Arc 146 slice 1 — capture the dispatch registry through the
-        // SymbolTable's capability-carrier slot. `None` is a clean
-        // fall-through (no dispatchs registered).
-        if let Some(reg) = sym.dispatch_registry() {
-            env.dispatch_registry = Some(reg.clone());
-        }
         // Arc 157 slice 1a-ii — mirror the redef-allowed flag from the
         // SymbolTable carrier (populated from Config at freeze time) so
         // `infer_def` can gate the collision check without needing direct
@@ -2140,7 +2127,6 @@ impl CheckEnv {
             schemes: HashMap::new(),
             unit_variant_types,
             types,
-            dispatch_registry: None,
             defined_values: HashMap::new(),
             defined_value_spans: HashMap::new(),
             defined_value_restrictions: HashMap::new(),
@@ -2168,16 +2154,6 @@ impl CheckEnv {
     /// structural match.
     pub fn types(&self) -> &TypeEnv {
         &self.types
-    }
-
-    /// Arc 146 slice 1 — borrow the attached dispatch registry, if
-    /// one was attached via `from_symbols`. `infer_list` consults this
-    /// before the substrate-primitive scheme path so dispatch-
-    /// declared names route to per-Type arm impls.
-    pub fn dispatch_registry(
-        &self,
-    ) -> Option<&Arc<crate::dispatch::DispatchRegistry>> {
-        self.dispatch_registry.as_ref()
     }
 
     /// Arc 157 — look up the inferred type for a `def`-bound name.
@@ -5610,25 +5586,6 @@ fn infer_list(
 
     if let WatAST::Keyword(k, head_span) = head {
         let args = &items[1..];
-        // Arc 146 slice 1 — dispatch dispatch. If `k` names a
-        // registered dispatch, route to arm-pattern matching
-        // BEFORE the substrate special-case dispatch (dispatchs
-        // win per Q3 of the BRIEF — user-declarable names take
-        // precedence over substrate-fixed forms).
-        if let Some(reg) = env.dispatch_registry() {
-            if let Some(mm) = reg.get(k) {
-                let dispatch_result = infer_dispatch_call(
-                    mm, args, head_span, env, locals, fresh, subst,
-                );
-                let (dispatch_val, mut dispatch_errors) = dispatch_result.into_parts();
-                local_errors.append(&mut dispatch_errors);
-                return match dispatch_val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    // HARVEST (236.2): existing diagnostic; straight conversion.
-                    None => CheckResult::errs(local_errors),
-                };
-            }
-        }
         match k.as_str() {
             // Arc 157 — `:wat::core::def` type-check arm.
             // Position checking happens via `validate_def_position`
@@ -7134,6 +7091,18 @@ fn infer_list(
                 return CheckResult::errs(vec![CheckError::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.12); use ':wat::core::defalias' instead", k),
+                    span: head_span.clone(),
+                    // Stone 241.10: retirement_lookup hits the table → structured remedy.
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
+                }]);
+            }
+            // Stone 241.13 — HARD CUT: :wat::core::define-dispatch is retired.
+            // :wat::core::defclause (Stone 237.2) is the surviving dispatch entity kind.
+            // No privileged paths per `feedback_hard_cut_admits_no_bypasses`.
+            ":wat::core::define-dispatch" => {
+                return CheckResult::errs(vec![CheckError::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!("'{}' is retired (Stone 241.13); use ':wat::core::defclause' instead", k),
                     span: head_span.clone(),
                     // Stone 241.10: retirement_lookup hits the table → structured remedy.
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),
@@ -15079,304 +15048,6 @@ fn infer_string_concat(
     if local_errors.is_empty() { CheckResult::ok(string_ty) } else { CheckResult::partial_with(string_ty, local_errors) }
 }
 
-/// Arc 146 slice 1 — dispatch check-time dispatch.
-///
-/// Walks `mm.arms` in declaration order; for each arm, tries to unify
-/// each call-arg's inferred type with the arm's pattern (after
-/// instantiating arm-pattern type variables to fresh unification
-/// vars). The first arm whose pattern unifies wins; the call's return
-/// type is that arm's impl scheme's instantiated return type.
-///
-/// On no-match: emits a `TypeMismatch` listing every arm's pattern.
-/// On arm-impl arity disagreement: emits a `MalformedForm` carrying
-/// the dispatch's surface arity vs the arm impl's arity (per
-/// arc 146 BRIEF Q1, this validation is deferred from parse-time to
-/// first check-time call so freeze ordering stays simple).
-#[allow(clippy::too_many_arguments)]
-fn infer_dispatch_call(
-    mm: &crate::dispatch::Dispatch,
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    // Surface arity = arms[0].pattern.len() (parse-time enforced
-    // uniform across arms via InconsistentArmArity).
-    let surface_arity = mm.arms.first().map(|a| a.pattern.len()).unwrap_or(0);
-    if args.len() != surface_arity {
-        local_errors.push(CheckError::ArityMismatch {
-            callee: mm.name.clone(),
-            expected: surface_arity,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        // HARVEST (236.2): existing diagnostic; straight conversion.
-        return CheckResult::partial_with(fresh.fresh(), local_errors);
-    }
-
-    // Infer arg types eagerly (one shot) — pattern matching against each
-    // arm is structural and consumes the inferred types repeatedly.
-    let arg_types: Vec<Option<TypeExpr>> = args
-        .iter()
-        .map(|a| infer(a, env, locals, fresh, subst).drain_errors_into(&mut local_errors))
-        .collect();
-
-    // Try each arm in declaration order. Each arm forks the substitution
-    // so failed arms don't pollute later attempts.
-    for arm in &mm.arms {
-        // Instantiate arm-pattern type vars to fresh unification vars
-        // (treat `:T`, `:K`, `:V` etc. as universally quantified per arm).
-        let pattern_type_vars = collect_pattern_type_vars(&arm.pattern);
-        let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
-        for tv in &pattern_type_vars {
-            mapping.insert(tv.clone(), fresh.fresh());
-        }
-        let instantiated_pattern: Vec<TypeExpr> = arm
-            .pattern
-            .iter()
-            .map(|p| rename(p, &mapping))
-            .collect();
-
-        // Arc 146 slice 2: also instantiate user-named type-var Paths
-        // in the arg types to fresh unification vars. When a caller
-        // (e.g., the body of `define-alias :user::my-size :length`) has
-        // a parameter typed `:T`, the inferred arg type is `Path(":T")`
-        // — a user-named type-var that should behave polymorphically.
-        // Using a SEPARATE mapping per arm-attempt so arg-side Vars
-        // stay independent of pattern-side Vars (unify is symmetric on
-        // Var-vs-anything; both sides become unbound fresh Vars and the
-        // pattern's structural shape commits the binding).
-        //
-        // Stricter heuristic than `collect_pattern_type_vars`: only
-        // SINGLE-CHARACTER uppercase identifiers (T, K, V, A, B, ...)
-        // are treated as type variables. `String`, `Vec`, `Option`
-        // etc. — though they'd pass the bare-leading-uppercase test —
-        // are NOT type variables here because user code routinely
-        // calls into the dispatch with concrete types whose names
-        // happen to start with a capital. The arm-pattern-side helper
-        // can be permissive because the substrate authors arm patterns;
-        // the arg-side cannot.
-        let mut arg_type_vars: Vec<String> = Vec::new();
-        for t in arg_types.iter().flatten() {
-            collect_single_char_type_vars(t, &mut arg_type_vars);
-        }
-        let mut arg_mapping: HashMap<String, TypeExpr> = HashMap::new();
-        for tv in &arg_type_vars {
-            arg_mapping.insert(tv.clone(), fresh.fresh());
-        }
-        let renamed_arg_types: Vec<Option<TypeExpr>> = arg_types
-            .iter()
-            .map(|o| o.as_ref().map(|t| rename(t, &arg_mapping)))
-            .collect();
-
-        let mut trial_subst = subst.clone();
-        let mut all_match = true;
-        for (arg_ty_opt, arm_param) in renamed_arg_types.iter().zip(instantiated_pattern.iter()) {
-            let arg_ty = match arg_ty_opt {
-                Some(t) => t,
-                None => {
-                    // We couldn't infer the arg type at all (already
-                    // reported); treat as non-match so we don't push a
-                    // misleading TypeMismatch on top.
-                    all_match = false;
-                    break;
-                }
-            };
-            if unify(arg_ty, arm_param, &mut trial_subst, env.types()).is_err() {
-                all_match = false;
-                break;
-            }
-        }
-        if !all_match {
-            continue;
-        }
-        // Arm matches. Commit the trial substitution and resolve the
-        // arm's impl to determine the call's return type.
-        *subst = trial_subst;
-
-        // Look up the arm's impl scheme (BRIEF Q1: deferred arity check).
-        let impl_scheme = match env.get(&arm.impl_name) {
-            Some(s) => s.clone(),
-            None => {
-                local_errors.push(CheckError::UnknownCallee {
-                    callee: arm.impl_name.clone(),
-                    span: head_span.clone(),
-                });
-                // HARVEST (236.2): existing diagnostic; straight conversion.
-                return CheckResult::partial_with(fresh.fresh(), local_errors);
-            }
-        };
-        if impl_scheme.params.len() != surface_arity {
-            local_errors.push(CheckError::MalformedForm {
-                head: mm.name.clone(),
-                reason: format!(
-                    "dispatch {} surface arity {} disagrees with arm impl {}'s arity {}",
-                    mm.name,
-                    surface_arity,
-                    arm.impl_name,
-                    impl_scheme.params.len()
-                ),
-                span: head_span.clone(),
-                remedies: vec![],
-            });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::partial_with(fresh.fresh(), local_errors);
-        }
-        let (impl_params, impl_ret) = instantiate(&impl_scheme, fresh);
-        // Unify each arg against the impl's param types so type-vars
-        // in the impl scheme propagate into the return type. Use the
-        // user-type-var-renamed arg types (matching the arm-pattern
-        // matching above) so user-named polymorphic args (e.g. `:T`
-        // from an alias-synthesised body) unify cleanly with the
-        // impl's parametric param shape.
-        for (i, (arg_ty_opt, impl_param)) in
-            renamed_arg_types.iter().zip(impl_params.iter()).enumerate()
-        {
-            if let Some(arg_ty) = arg_ty_opt {
-                if unify(arg_ty, impl_param, subst, env.types()).is_err() {
-                    local_errors.push(CheckError::TypeMismatch {
-                        callee: arm.impl_name.clone(),
-                        param: format!("#{}", i + 1),
-                        expected: format_type(&apply_subst(impl_param, subst)),
-                        got: format_type(&apply_subst(arg_ty, subst)),
-                        span: args[i].span().clone(),
-                    });
-                }
-            }
-        }
-        let ty = apply_subst(&impl_ret, subst);
-        return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
-    }
-
-    // No arm matched. Emit a clean diagnostic listing every arm's pattern.
-    let arm_summaries: Vec<String> = mm
-        .arms
-        .iter()
-        .map(|a| {
-            let parts: Vec<String> = a.pattern.iter().map(format_type).collect();
-            format!("({})", parts.join(", "))
-        })
-        .collect();
-    let got_summary = if arg_types.iter().all(|t| t.is_some()) {
-        let parts: Vec<String> = arg_types
-            .iter()
-            .map(|t| format_type(&apply_subst(t.as_ref().expect("checked"), subst)))
-            .collect();
-        format!("({})", parts.join(", "))
-    } else {
-        "(<unresolved>)".to_string()
-    };
-    local_errors.push(CheckError::TypeMismatch {
-        callee: mm.name.clone(),
-        param: "(dispatch dispatch)".into(),
-        expected: format!("one of: {}", arm_summaries.join(" | ")),
-        got: got_summary,
-        span: head_span.clone(),
-    });
-    // HARVEST (236.2): existing diagnostic; straight conversion.
-    CheckResult::partial_with(fresh.fresh(), local_errors)
-}
-
-/// Walk a dispatch arm's pattern and collect every type-variable
-/// path (a `Path(":X")` whose first non-colon character is uppercase
-/// ASCII — matches the convention from `parse_define_form`'s scheme
-/// extraction). Used to instantiate arm patterns so a pattern like
-/// `(:wat::core::Vector<T>)` matches any `Vec<...>` at the call site.
-fn collect_pattern_type_vars(pattern: &[TypeExpr]) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for p in pattern {
-        collect_pattern_type_vars_inner(p, &mut out);
-    }
-    out
-}
-
-fn collect_pattern_type_vars_inner(ty: &TypeExpr, out: &mut Vec<String>) {
-    match ty {
-        TypeExpr::Path(p) => {
-            let stripped = p.strip_prefix(':').unwrap_or(p);
-            // Heuristic: a single bare uppercase-leading segment with no
-            // `::` is a type variable (`:T`, `:K`, `:V`). Anything with
-            // `::` (e.g. `:wat::core::i64`) is a concrete type path.
-            if !stripped.contains("::")
-                && stripped
-                    .chars()
-                    .next()
-                    .map(|c| c.is_ascii_uppercase())
-                    .unwrap_or(false)
-                && !out.iter().any(|s| s == stripped)
-            {
-                out.push(stripped.to_string());
-            }
-        }
-        TypeExpr::Parametric { args, .. } => {
-            for a in args {
-                collect_pattern_type_vars_inner(a, out);
-            }
-        }
-        TypeExpr::Fn { args, ret } => {
-            for a in args {
-                collect_pattern_type_vars_inner(a, out);
-            }
-            collect_pattern_type_vars_inner(ret, out);
-        }
-        TypeExpr::Tuple(elements) => {
-            for e in elements {
-                collect_pattern_type_vars_inner(e, out);
-            }
-        }
-        TypeExpr::Var(_) => {}
-    }
-}
-
-/// Arc 146 slice 2 — strict variant of `collect_pattern_type_vars_inner`
-/// for arg-side instantiation in `infer_dispatch_call`. Only
-/// SINGLE-CHARACTER uppercase identifiers (e.g. `:T`, `:K`, `:V`,
-/// `:A`, `:B`) are recognised as user-named type variables. Multi-
-/// character names (`:String`, `:Vec`, `:Option`, etc.) are treated
-/// as concrete types — they routinely appear as inferred arg types
-/// in user code and must NOT be quietly relabelled as polymorphic.
-///
-/// The arm-pattern-side helper above can be permissive because the
-/// substrate authors arm patterns; the arg-side cannot.
-fn collect_single_char_type_vars(ty: &TypeExpr, out: &mut Vec<String>) {
-    match ty {
-        TypeExpr::Path(p) => {
-            let stripped = p.strip_prefix(':').unwrap_or(p);
-            if !stripped.contains("::")
-                && stripped.len() == 1
-                && stripped
-                    .chars()
-                    .next()
-                    .map(|c| c.is_ascii_uppercase())
-                    .unwrap_or(false)
-                && !out.iter().any(|s| s == stripped)
-            {
-                out.push(stripped.to_string());
-            }
-        }
-        TypeExpr::Parametric { args, .. } => {
-            for a in args {
-                collect_single_char_type_vars(a, out);
-            }
-        }
-        TypeExpr::Fn { args, ret } => {
-            for a in args {
-                collect_single_char_type_vars(a, out);
-            }
-            collect_single_char_type_vars(ret, out);
-        }
-        TypeExpr::Tuple(elements) => {
-            for e in elements {
-                collect_single_char_type_vars(e, out);
-            }
-        }
-        TypeExpr::Var(_) => {}
-    }
-}
-
 fn infer_list_constructor(
     args: &[WatAST],
     head_span: &Span,
@@ -20623,31 +20294,11 @@ mod tests {
             let mut macros = MacroRegistry::new();
             let stdlib_post_macros =
                 register_stdlib_defmacros(stdlib, &mut macros).expect("stdlib defmacros");
-            // Arc 146 slice 3 — mirror production startup (freeze.rs
-            // step 4a): register stdlib dispatches BEFORE macro
-            // expansion, attach the registry to the ambient
-            // SymbolTable used during expansion, and carry it through
-            // to the SymbolTable returned to test callers. Without
-            // this the test fixture fails to type-check stdlib code
-            // that calls polymorphic primitives (length, get,
-            // contains?, empty?, conj) — those names are now
-            // Dispatches and the type checker reaches them via
-            // dispatch_registry, not via env.get on a fingerprint
-            // scheme.
-            let mut dispatchs = crate::dispatch::DispatchRegistry::new();
-            let stdlib_post_macros_post_dispatches =
-                crate::dispatch::register_stdlib_define_dispatches(
-                    stdlib_post_macros,
-                    &mut dispatchs,
-                )
-                .expect("stdlib dispatches");
-            let mut macro_sym = SymbolTable::default();
-            macro_sym.set_dispatch_registry(std::sync::Arc::new(dispatchs.clone()));
             let expanded_stdlib = expand_all(
-                stdlib_post_macros_post_dispatches,
+                stdlib_post_macros,
                 &mut macros,
                 &Environment::default(),
-                &macro_sym,
+                &SymbolTable::default(),
             )
             .expect("stdlib macro expansion");
             let mut types = TypeEnv::with_builtins();
@@ -20658,10 +20309,6 @@ mod tests {
                 .expect("stdlib defines");
             register_struct_methods(&types, &mut symbols)
                 .expect("built-in struct methods");
-            // Attach the dispatch registry to the symbols carried back
-            // to test callers so check_program reaches dispatches via
-            // CheckEnv::with_builtins's clone of sym.dispatch_registry().
-            symbols.set_dispatch_registry(std::sync::Arc::new(dispatchs));
             (symbols, macros, types)
         })
     }

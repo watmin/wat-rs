@@ -1662,13 +1662,6 @@ pub struct SymbolTable {
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn crate::load::SourceLoader>>,
     pub macro_registry: Option<Arc<crate::macros::MacroRegistry>>,
-    /// Arc 146 slice 1 — dispatch registry. Carries every
-    /// `(:wat::core::define-dispatch ...)` declaration registered at
-    /// freeze time. The check-time + runtime list-call dispatch sites
-    /// consult this BEFORE the substrate-primitive scheme path so
-    /// dispatch-declared names route to per-Type arm impls. Mirrors
-    /// `macro_registry` (capability-carrier pattern, arc 109).
-    pub dispatch_registry: Option<Arc<crate::dispatch::DispatchRegistry>>,
     /// Ambient presence-sigma function — `:fn(:i64) -> :i64`. Takes
     /// dim, returns σ count. Used by `presence?` to compute the
     /// per-d floor (`σ(d) / sqrt(d)`). Built-in default is
@@ -1787,7 +1780,6 @@ impl std::fmt::Debug for SymbolTable {
             .field("encoding_ctx", &self.encoding_ctx.is_some())
             .field("source_loader", &self.source_loader.is_some())
             .field("macro_registry", &self.macro_registry.is_some())
-            .field("dispatch_registry", &self.dispatch_registry.is_some())
             .field("presence_sigma_fn", &self.presence_sigma_fn.is_some())
             .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
             .field("types", &self.types.is_some())
@@ -1881,28 +1873,6 @@ impl SymbolTable {
     /// without going through freeze don't have macros attached.
     pub fn macro_registry(&self) -> Option<&Arc<crate::macros::MacroRegistry>> {
         self.macro_registry.as_ref()
-    }
-
-    /// Attach the dispatch registry. Called once at freeze time by
-    /// [`crate::freeze::FrozenWorld::freeze`] so check-time + runtime
-    /// list-call dispatch can consult registered dispatchs before
-    /// the scheme path. Arc 146 slice 1.
-    pub fn set_dispatch_registry(
-        &mut self,
-        registry: Arc<crate::dispatch::DispatchRegistry>,
-    ) {
-        self.dispatch_registry = Some(registry);
-    }
-
-    /// Borrow the dispatch registry, if one is attached. Test
-    /// harnesses that build a SymbolTable directly without going
-    /// through freeze don't have dispatchs attached; the
-    /// dispatch sites treat `None` as "no dispatchs registered"
-    /// and fall through to the scheme path.
-    pub fn dispatch_registry(
-        &self,
-    ) -> Option<&Arc<crate::dispatch::DispatchRegistry>> {
-        self.dispatch_registry.as_ref()
     }
 
     /// Attach the ambient presence-sigma function. Called once at
@@ -5660,15 +5630,6 @@ fn dispatch_keyword_head(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<TrackedValue, RuntimeError> {
-    // Arc 146 slice 1 — dispatch dispatch. If `head` names a
-    // registered dispatch, route to arm-pattern matching against
-    // the args' value tags (per Q3 of the BRIEF: dispatchs win over
-    // substrate-fixed forms).
-    if let Some(reg) = &sym.dispatch_registry {
-        if let Some(mm) = reg.get(head) {
-            return eval_dispatch_call(mm, args, list_span, env, sym).map(|v| TrackedValue::from(v));
-        }
-    }
     // Producers + forms that preserve provenance: return TrackedValue directly.
     match head {
         ":wat::core::keyword/from-string" => return eval_keyword_from_string(args, list_span, env, sym),
@@ -6982,75 +6943,6 @@ fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bo
         TypeExpr::Fn { .. } => v.type_name() == "wat::core::fn",
         TypeExpr::Var(_) => true,
     }
-}
-
-/// Arc 146 slice 1 — runtime dispatch dispatch.
-///
-/// Eval each arg, walk `mm.arms` in declaration order, match each
-/// arg's value tag against the arm's pattern, dispatch to the matched
-/// arm's impl by calling its registered `Function`. If no arm matches:
-/// emit `MalformedForm` carrying the actual arg type tags so the user
-/// can see why dispatch failed.
-fn eval_dispatch_call(
-    mm: &crate::dispatch::Dispatch,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    // Surface arity = arms[0].pattern.len().
-    let surface_arity = mm.arms.first().map(|a| a.pattern.len()).unwrap_or(0);
-    if args.len() != surface_arity {
-        return Err(RuntimeError::ArityMismatch {
-            op: mm.name.clone(),
-            expected: surface_arity,
-            got: args.len(),
-            span: list_span.clone(),
-        });
-    }
-    let vals: Vec<Value> = args
-        .iter()
-        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    for arm in &mm.arms {
-        if vals
-            .iter()
-            .zip(arm.pattern.iter())
-            .all(|(v, p)| value_matches_type_pattern(v, p))
-        {
-            // Arm matches. Resolve the impl as a registered Function
-            // and apply it with the same args. Arc 146 slice 2: if no
-            // user-defined Function exists under that name, fall
-            // through to the substrate-primitive impl table — that
-            // table receives the already-evaluated `vals` so side
-            // effects fire exactly once (mirroring the apply_function
-            // path's pre-evaluated invariant).
-            let canonical = canonical_callable_name(&arm.impl_name);
-            if let Some(f) = sym.get(canonical) {
-                return apply_function(f.clone(), vals, sym, list_span.clone());
-            }
-            if let Some(result) = dispatch_substrate_impl(&arm.impl_name, &vals) {
-                return result;
-            }
-            return Err(RuntimeError::UnknownFunction(
-                arm.impl_name.clone(),
-                list_span.clone(),
-            ));
-        }
-    }
-
-    // No arm matched. Build a clean diagnostic listing the actual arg
-    // type tags so the user can see what dispatch missed.
-    let actual: Vec<&str> = vals.iter().map(|v| v.type_name()).collect();
-    Err(RuntimeError::MalformedForm {
-        head: mm.name.clone(),
-        reason: format!(
-            "no dispatch arm matched the call; got args ({})",
-            actual.join(", ")
-        ),
-        span: list_span.clone(),
-    })
 }
 
 // ─── Language forms ─────────────────────────────────────────────────────
@@ -9529,70 +9421,16 @@ fn eval_apply(
         }
     }
 
-    // (c) dispatch registry (type-dispatch entities declared in core.wat).
-    if let Some(reg) = &sym.dispatch_registry {
-        if let Some(mm) = reg.get(head_kw.as_str()) {
-            return eval_dispatch_call_with_vals(mm, combined, &list_span, sym);
-        }
-    }
-
-    // (d) substrate arithmetic / dispatch-impl verbs (pre-evaluated path).
+    // (c) substrate arithmetic / dispatch-impl verbs (pre-evaluated path).
     if let Some(result) = dispatch_substrate_impl(head_kw.as_str(), &combined) {
         return result;
     }
 
-    // (e) Nothing found — UnknownFunction with the keyword name.
+    // (d) Nothing found — UnknownFunction with the keyword name.
     Err(RuntimeError::UnknownFunction(
         head_kw.as_str().to_string(),
         list_span,
     ))
-}
-
-/// Helper for `eval_apply`: dispatch a dispatch entity with pre-evaluated
-/// argument values, bypassing the `eval`-per-arg step of `eval_dispatch_call`.
-fn eval_dispatch_call_with_vals(
-    mm: &crate::dispatch::Dispatch,
-    vals: Vec<Value>,
-    list_span: &Span,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    let surface_arity = mm.arms.first().map(|a| a.pattern.len()).unwrap_or(0);
-    if vals.len() != surface_arity {
-        return Err(RuntimeError::ArityMismatch {
-            op: mm.name.clone(),
-            expected: surface_arity,
-            got: vals.len(),
-            span: list_span.clone(),
-        });
-    }
-    for arm in &mm.arms {
-        if vals
-            .iter()
-            .zip(arm.pattern.iter())
-            .all(|(v, p)| value_matches_type_pattern(v, p))
-        {
-            let canonical = canonical_callable_name(&arm.impl_name);
-            if let Some(f) = sym.get(canonical) {
-                return apply_function(f.clone(), vals, sym, list_span.clone());
-            }
-            if let Some(result) = dispatch_substrate_impl(&arm.impl_name, &vals) {
-                return result;
-            }
-            return Err(RuntimeError::UnknownFunction(
-                arm.impl_name.clone(),
-                list_span.clone(),
-            ));
-        }
-    }
-    let actual: Vec<&str> = vals.iter().map(|v| v.type_name()).collect();
-    Err(RuntimeError::MalformedForm {
-        head: mm.name.clone(),
-        reason: format!(
-            "no dispatch arm matched the call; got args ({})",
-            actual.join(", ")
-        ),
-        span: list_span.clone(),
-    })
 }
 
 /// `:wat::core::=` — structural equality. Composites (Vec, Tuple,
@@ -13369,132 +13207,6 @@ fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
     )
 }
 
-/// Arc 146 slice 1 — build the full `(:wat::core::define-dispatch ...)`
-/// declaration form for reflection. Reconstructs the original surface
-/// syntax: head keyword + dispatch name + each arm as
-/// `((<type-pattern>...) <impl-keyword>)`. Caller renders to EDN via
-/// the standard HolonAST round-trip.
-///
-/// Type patterns are emitted as keyword strings (the user's source
-/// spelling round-trips via `format_type` in check.rs; here we render
-/// the `TypeExpr` back to its `:`-prefixed keyword form).
-fn dispatch_to_define_ast(mm: &crate::dispatch::Dispatch) -> WatAST {
-    let span = Span::unknown();
-    let name_kw = WatAST::Keyword(mm.name.clone(), span.clone());
-    let mut children = vec![
-        WatAST::Keyword(":wat::core::define-dispatch".into(), span.clone()),
-        name_kw,
-    ];
-    for arm in &mm.arms {
-        let pattern_items: Vec<WatAST> = arm
-            .pattern
-            .iter()
-            .map(|t| WatAST::Keyword(type_expr_to_keyword(t), span.clone()))
-            .collect();
-        let pattern_list = WatAST::List(pattern_items, span.clone());
-        let impl_kw = WatAST::Keyword(arm.impl_name.clone(), span.clone());
-        children.push(WatAST::List(vec![pattern_list, impl_kw], span.clone()));
-    }
-    WatAST::List(children, span)
-}
-
-/// Render a `TypeExpr` back to its `:`-prefixed keyword spelling.
-/// `format_type` already emits the `:` prefix for top-level shapes
-/// (Path / Parametric / Fn / Tuple / Var), so this helper is a thin
-/// wrapper that forwards directly. Kept for naming clarity at call
-/// sites.
-fn type_expr_to_keyword(t: &crate::types::TypeExpr) -> String {
-    crate::check::format_type(t)
-}
-
-/// Arc 146 slice 2 — synthesise a generic signature head for a Dispatch
-/// so consumers expecting a function-shaped signature (notably the
-/// `:wat::runtime::define-alias` macro's `rename-callable-name` step)
-/// can treat a dispatch like any other callable.
-///
-/// Shape: `(<name><type-params>? (_a0 :T0) ... -> :ret)` where:
-/// - The arity is the dispatch's surface arity (uniform across arms,
-///   enforced at parse time via `InconsistentArmArity`).
-/// - The param types are user-named type variables (`:T`, `:U`, ...)
-///   so callers reading the head see "this is polymorphic".
-/// - The return type is taken from arm[0]'s impl scheme via
-///   `lookup_form` on the impl name. If lookup fails (impossible in
-///   practice — arms register-time-validate per BRIEF Q1's deferred
-///   check), the substrate falls back to `:T`.
-///
-/// Per-arm specifics (Vec<T> vs HashMap<K,V> vs HashSet<T>) are NOT
-/// rendered here — they're available via `lookup-define` (which emits
-/// the full `define-dispatch` form). The single-head shape exists for
-/// CALLABLE INTEROP (the dispatch presents as a polymorphic function
-/// to the alias machinery); the arms-as-data view stays on lookup-define.
-fn dispatch_to_signature_ast(mm: &crate::dispatch::Dispatch, sym: &SymbolTable) -> WatAST {
-    let span = Span::unknown();
-    let surface_arity = mm.arms.first().map(|a| a.pattern.len()).unwrap_or(0);
-
-    // Resolve the return type from arm[0]'s impl scheme. If unavailable,
-    // synthesise `:T` as the honest fallback. Letters cycle T, U, V, ...
-    // for param-type-var names (`:T0`-style would be ugly; T/U/V is the
-    // wat-rs convention).
-    // Arc 201 slice 1 — ret type emits as structured AST (Bundle for
-    // Parametric / Tuple / Fn shapes; Keyword for Path / Var). The
-    // synthetic `:T` fallback stays a Keyword (it's a placeholder, not a
-    // real TypeExpr).
-    let ret_kw: WatAST = match mm.arms.first() {
-        Some(arm) => {
-            if let Some(Binding::Primitive { scheme, .. }) =
-                lookup_form(&arm.impl_name, sym)
-            {
-                type_expr_to_ast(&scheme.ret)
-            } else {
-                WatAST::Keyword(":T".into(), span.clone())
-            }
-        }
-        None => WatAST::Keyword(":T".into(), span.clone()),
-    };
-
-    // Param-type-var letters — T, U, V, W, ... (wraps to TT after Z but
-    // realistic dispatch arities cap at 2-3 args).
-    let var_letter = |i: usize| -> String {
-        let c = char::from_u32('T' as u32 + i as u32).unwrap_or('T');
-        format!(":{}", c)
-    };
-
-    // Head keyword — include type-params <T,U,...> when arity > 0 so
-    // consumers reading the head see the polymorphic shape.
-    let head_kw = if surface_arity == 0 {
-        mm.name.clone()
-    } else {
-        let params: Vec<String> = (0..surface_arity)
-            .map(|i| {
-                let c = char::from_u32('T' as u32 + i as u32).unwrap_or('T');
-                c.to_string()
-            })
-            .collect();
-        format!("{}<{}>", mm.name, params.join(","))
-    };
-
-    let mut items: Vec<WatAST> = Vec::with_capacity(3 + surface_arity * 2);
-    items.push(WatAST::Keyword(head_kw, span.clone()));
-    for i in 0..surface_arity {
-        items.push(WatAST::List(
-            vec![
-                WatAST::Symbol(
-                    crate::identifier::Identifier::bare(format!("_a{}", i)),
-                    span.clone(),
-                ),
-                WatAST::Keyword(var_letter(i), span.clone()),
-            ],
-            span.clone(),
-        ));
-    }
-    items.push(WatAST::Symbol(
-        crate::identifier::Identifier::bare("->"),
-        span.clone(),
-    ));
-    items.push(ret_kw);
-    WatAST::List(items, span)
-}
-
 /// Extract the name string from a value that may be either a bare keyword
 /// or a function value (arc 009 "names are values" means keywords that
 /// refer to defined functions evaluate to their Function value). Returns
@@ -13565,14 +13277,6 @@ pub enum Binding<'a> {
         def: &'a crate::types::TypeDef,
         doc_string: Option<String>,
     },
-    /// Arc 146 slice 1 — a `(:wat::core::define-dispatch ...)`
-    /// declaration. Reflection emits the dispatch's full
-    /// declaration (head + name + arms) via `dispatch_to_define_ast`.
-    Dispatch {
-        name: String,
-        mm: &'a crate::dispatch::Dispatch,
-        doc_string: Option<String>,
-    },
 }
 
 /// Walk every form-kind registry in dispatch order, returning the
@@ -13608,21 +13312,6 @@ pub fn lookup_form<'a>(
             return Some(Binding::Macro {
                 name: name.to_string(),
                 def,
-                doc_string: None,
-            });
-        }
-    }
-    // 2a. Dispatchs — arc 146 slice 1. Per Q3 of the BRIEF,
-    //     dispatchs take precedence over substrate primitives /
-    //     special forms (they are user-declarable; substrate-fixed
-    //     names are not). Slot here so a future arc-146-migrated
-    //     primitive (e.g. `:wat::core::length` after slice 2) reflects
-    //     as a Dispatch, not as a stale Primitive.
-    if let Some(reg) = &sym.dispatch_registry {
-        if let Some(mm) = reg.get(name) {
-            return Some(Binding::Dispatch {
-                name: name.to_string(),
-                mm,
                 doc_string: None,
             });
         }
@@ -13741,14 +13430,6 @@ fn eval_lookup_define(
                 Arc::new(watast_to_holon(&ast)),
             )))))
         }
-        Some(Binding::Dispatch { mm, .. }) => {
-            // Arc 146 slice 1 — emit the full
-            // (:wat::core::define-dispatch :name <arm>+) declaration.
-            let ast = dispatch_to_define_ast(mm);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
-            )))))
-        }
         Some(Binding::SpecialForm { name: n, .. }) => {
             // Slice 2 populates the SpecialForm registry; until then
             // this arm is unreachable. Sentinel emission keeps the
@@ -13827,21 +13508,6 @@ fn eval_signature_of_defn(
         }
         Some(Binding::Type { def, .. }) => {
             let ast = typedef_to_signature_ast(def);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
-            )))))
-        }
-        Some(Binding::Dispatch { mm, .. }) => {
-            // Arc 146 slice 2 — emit a SYNTHETIC polymorphic signature
-            // head so consumers of `signature-of-defn` (notably
-            // `:wat::runtime::define-alias`'s `rename-callable-name`
-            // step) can treat a dispatch like any other callable. The
-            // synthetic head is `(<name> (_a0 :T) ... -> :ret)` where
-            // arity matches the dispatch's surface arity and `:ret` is
-            // taken from arm[0]'s impl scheme. The full declaration
-            // form (with arms) remains queryable via `lookup-define`
-            // / `body-of`.
-            let ast = dispatch_to_signature_ast(mm, sym);
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&ast)),
             )))))
@@ -13985,11 +13651,6 @@ fn eval_body_of(
         }
         Some(Binding::Primitive { .. }) => Ok(Value::Option(Arc::new(None))),
         Some(Binding::Type { .. }) => Ok(Value::Option(Arc::new(None))),
-        // Arc 146 slice 1 — dispatchs have no "body" in the function
-        // sense; the dispatch table IS the contract. body-of returns
-        // :None (honest about absence — the declaration is the
-        // lookup-define output).
-        Some(Binding::Dispatch { .. }) => Ok(Value::Option(Arc::new(None))),
         Some(Binding::SpecialForm { .. }) => Ok(Value::Option(Arc::new(None))),
         None => Ok(Value::Option(Arc::new(None))),
     }
@@ -27969,25 +27630,11 @@ mod tests {
             let stdlib_post_macros =
                 crate::macros::register_stdlib_defmacros(stdlib, &mut macros)
                     .expect("stdlib defmacros register");
-            // Arc 146 slice 2: stdlib dispatch registration BEFORE
-            // macro expansion (mirrors freeze.rs's step 4a). Reflection-
-            // driven macros invoke `signature-of-defn` on dispatch-promoted
-            // names (e.g. `:wat::core::length`); the dispatch_registry
-            // must be visible to the expander.
-            let mut dispatchs = crate::dispatch::DispatchRegistry::new();
-            let stdlib_post_macros_post_dispatches =
-                crate::dispatch::register_stdlib_define_dispatches(
-                    stdlib_post_macros,
-                    &mut dispatchs,
-                )
-                .expect("stdlib dispatches register");
-            let mut macro_sym = SymbolTable::default();
-            macro_sym.set_dispatch_registry(std::sync::Arc::new(dispatchs.clone()));
             let expanded_stdlib = crate::macros::expand_all(
-                stdlib_post_macros_post_dispatches,
+                stdlib_post_macros,
                 &mut macros,
                 &Environment::default(),
-                &macro_sym,
+                &SymbolTable::default(),
             )
             .expect("stdlib macro expansion");
             let mut types = crate::types::TypeEnv::with_builtins();
@@ -28001,9 +27648,6 @@ mod tests {
                 .expect("built-in struct methods register");
             register_enum_methods(&types, &mut symbols)
                 .expect("built-in enum methods register");
-            // Attach the dispatch registry so `eval` sees substrate
-            // dispatches (e.g. `:wat::core::length`).
-            symbols.set_dispatch_registry(std::sync::Arc::new(dispatchs));
             (symbols, macros, types)
         })
     }
