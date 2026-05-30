@@ -4,6 +4,8 @@
 **Mode:** A (sonnet substrate; orchestrator briefs/scores/commits/casts vigilia).
 **The roof:** the CheckEnv mirror (one logical thing deep-cloned into CheckEnv) eliminated by making deep-clone-into-CheckEnv a COMPILE ERROR — the borrow redesign. Failure engineering applied to ownership; ZERO-MUTEX's "never construct the situation" at the ownership layer.
 
+**SCOPE PRECISION (per `feedback_selective_lift_and_ward`):** this stone LIFTED one resident — `CheckEnv` → `src/check/env.rs` (266 lines) — and did the perfecting work IN the new home to L1+L2=0. The vigilia REMARKABLE bar below governs the **lifted resident (env.rs) + the redesign seams in mod.rs**, NOT the whole `src/check/` directory. The `src/check/mod.rs` remainder (~21k lines, the `git mv`'d former `check.rs`) is **functional-but-untrusted by honest default** — relocated, not yet lifted, correctly NOT at the bar. The home grows toward fully-warded through future selective lifts (243.6+ lifts CheckError etc. as each is found near-perfect-but-needing-work). The claim is "env.rs is at the bar," never "every line under src/check/ is."
+
 ## Phase A — substrate refactor verified
 
 ### Per-step audit
@@ -100,7 +102,7 @@ struere final re-cast: **CONVERGED** — I + J closed; full fresh scan of env.rs
 
 ### Phase B verdict
 
-**REMARKABLE bar achieved: L1 + L2 = 0** across all 8 spells. Three remediation rounds; the bar held the line each round (R2's fixes were themselves vigilia'd; R3 closed the debt R2 created). The watch verified the watch.
+**REMARKABLE bar achieved on the LIFTED RESIDENT: L1 + L2 = 0** across all 8 spells, scoped to `env.rs` + the redesign seams in `mod.rs` (NOT the ~21k-line `mod.rs` remainder, which is functional-but-untrusted-by-design per `feedback_selective_lift_and_ward` — relocated, awaiting future selective lifts). Three remediation rounds; the bar held the line each round (R2's fixes were themselves vigilia'd; R3 closed the debt R2 created). The watch verified the watch.
 
 ## Doctrines exercised / landed
 
