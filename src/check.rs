@@ -85,6 +85,12 @@ pub struct TypeScheme {
 
 /// Type-checking errors. Multiple errors accumulate in a single pass
 /// so users get one batch of findings.
+// rune:conformare(deferred-stone-243.6) — CheckError is a flat 34-variant
+// enum (some variants multi-span, no canonical primary; diagnostic() does
+// N-path span extraction). Pattern A retrofit (outer struct + kind enum;
+// multi-span per CONFORMARE.md § Multi-span) lands at Stone 243.6 — the
+// peer retrofit to TypeError (Stone 243.3). conformare attested this scope
+// in the 243.3 R2 cast.
 #[derive(Debug, Clone)]
 pub enum CheckError {
     ArityMismatch {
@@ -350,15 +356,6 @@ pub enum CheckError {
     /// one error per legacy binding site; consumer sweep (slice 2) does
     /// the mechanical `((name :T) expr)` → `(name expr)` transform.
     ///
-    /// **Slice 4 retirement.** Walker body retires after sweep clears
-    /// all in-tree legacy sites. Variant + Display stay as orphaned
-    /// scaffolding per arc 113 precedent.
-    LegacyTypedLetBinding {
-        /// Name of the bound variable at the legacy binding site.
-        binding_name: String,
-        /// Source location of the binding pair.
-        span: Span,
-    },
     /// Arc 155 — `:wat::core::lambda` retired in favor of
     /// `:wat::core::fn` (Clojure-faithful single-letform vocabulary;
     /// lowercase verb for function values). Mirror of arc 154's
@@ -851,11 +848,6 @@ impl fmt::Display for CheckError {
                 f,
                 "':wat::core::let*' at {} is retired (arc 154); canonical FQDN is ':wat::core::let'. Same sequential semantics, single name (Clojure-faithful: Clojure's user-facing `let` IS the sequential primitive; `let*` is a substrate-internal form not part of normal user code). Rename ':wat::core::let*' -> ':wat::core::let' at the offending site.",
                 span
-            ),
-            CheckError::LegacyTypedLetBinding { binding_name, span } => write!(
-                f,
-                "let binding '(({} :T) expr)' at {} is the legacy form post-arc-159; canonical shape is '({} expr)' — the type is inferred from the expression (arc 145 lesson applied to the inner-binding slot; same precedent as ':wat::core::def' in arc 157). Remove the type annotation wrapper: change '(({} :T) expr)' to '({} expr)' at the offending binding site.",
-                binding_name, span, binding_name, binding_name, binding_name
             ),
             CheckError::BareLegacyLambda { span } => write!(
                 f,
@@ -1500,12 +1492,6 @@ impl CheckError {
                     .field("fqdn", ":wat::core::let")
                     .field("location", format!("{}", span))
             }
-            CheckError::LegacyTypedLetBinding { binding_name, span } => {
-                Diagnostic::new("LegacyTypedLetBinding")
-                    .field("binding", binding_name.as_str())
-                    .field("canonical", format!("({} expr)", binding_name).as_str())
-                    .field("location", format!("{}", span))
-            }
             CheckError::BareLegacyLambda { span } => {
                 Diagnostic::new("BareLegacyLambda")
                     .field("retired", ":wat::core::lambda")
@@ -1853,6 +1839,10 @@ fn arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(
     )
 }
 
+// rune:temperare(deferred-stone-243.6) — collect_hints runs 9 hint fns and
+// is invoked from both Display and diagnostic() for the same error. Caching
+// (a computed-hints field on the CheckError outer struct) folds into the
+// CheckError Pattern A retrofit at Stone 243.6.
 fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     // Stone 241.15 — arc_109_try_verb_migration_hint, arc_109_option_expect_migration_hint,
     // arc_109_result_expect_migration_hint removed; those three zombies are now HARD CUT
@@ -2178,6 +2168,11 @@ pub fn check_program(
     let mut env = CheckEnv::from_symbols(sym, Arc::new(types.clone()));
     let mut errors = Vec::new();
     let mut fresh = InferCtx::default();
+
+    // rune:temperare(deferred-stone-243.6) — these independent walker passes
+    // each traverse all function bodies (10× total). sequi confirmed they are
+    // independent accumulator-drains (state-safe to fuse). Fusion into one
+    // per-body pass lands with the src/check/ home carve at Stone 243.6.
 
     // Arc 110 — every kernel-comm call must land in match-scrutinee
     // or option::expect-value position. Run the walk before inference
@@ -2969,17 +2964,6 @@ fn check_calls_for_sandbox_leak(
 //   `make-unbounded-queue` — no transitive helpers.
 // - `select` is not yet pattern-matched (only `recv` / `try-recv`).
 
-/// Arc 117's pre-inference structural scope-deadlock walker. Retired by
-/// arc 133 slice 1: the rule is now enforced inside `infer_let`
-/// after binding inference, covering both typed-name and tuple-destructure
-/// shapes. Kept as a reference for the arc 117 approach; callers in
-/// `check_program` were removed. Dead code intentional — documents the
-/// retired path.
-#[allow(dead_code)]
-fn validate_scope_deadlock(node: &WatAST, types: &TypeEnv, errors: &mut Vec<CheckError>) {
-    walk_for_deadlock(node, types, errors);
-}
-
 /// Arc 109 slice 1c — walk every WatAST node, parse keywords as
 /// type expressions WITHOUT canonicalization, and structurally
 /// detect bare primitive `Path` nodes (`:i64`, `:f64`, `:bool`,
@@ -3050,7 +3034,6 @@ fn walk_for_arc170_legacy(node: &WatAST, errors: &mut Vec<CheckError>) {
                     verb: s.clone(),
                     span: span.clone(),
                 });
-                return;
             }
         }
         WatAST::List(items, _) => {
@@ -3072,13 +3055,11 @@ fn walk_for_arc170_legacy(node: &WatAST, errors: &mut Vec<CheckError>) {
             for item in items {
                 walk_for_arc170_legacy(item, errors);
             }
-            return;
         }
         WatAST::Vector(items, _) => {
             for item in items {
                 walk_for_arc170_legacy(item, errors);
             }
-            return;
         }
         _ => {}
     }
@@ -3439,12 +3420,8 @@ fn walk_for_legacy_stream(node: &WatAST, errors: &mut Vec<CheckError>) {
     // Walker-specific Keyword-head logic: fire diagnostic when a legacy
     // stream prefix is found.
     if let WatAST::Keyword(s, span) = node {
-        if s.starts_with(LEGACY_STREAM_PREFIX) {
-            let new = format!(
-                "{}{}",
-                CANONICAL_STREAM_PREFIX,
-                &s[LEGACY_STREAM_PREFIX.len()..]
-            );
+        if let Some(rest) = s.strip_prefix(LEGACY_STREAM_PREFIX) {
+            let new = format!("{}{}", CANONICAL_STREAM_PREFIX, rest);
             errors.push(CheckError::BareLegacyStreamPath {
                 old: s.clone(),
                 new,
@@ -3756,171 +3733,6 @@ fn caller_matches_prefix_list(caller_fqdn: &str, prefixes: &[String]) -> bool {
             caller_fqdn == entry.as_str()
         }
     })
-}
-
-/// Arc 117's pre-inference recursive walker. Retired by arc 133 slice 1.
-/// Kept as a reference. Dead code intentional.
-#[allow(dead_code)]
-fn walk_for_deadlock(
-    node: &WatAST,
-    types: &TypeEnv,
-    errors: &mut Vec<CheckError>,
-) {
-    // Walker-specific List-head logic: sandbox boundary and let-form
-    // special-case handling apply only to List forms with Keyword heads.
-    if let WatAST::List(items, _) = node {
-        let head = match items.first() {
-            Some(WatAST::Keyword(k, _)) => k.as_str(),
-            _ => {
-                // No keyword head — recurse generically via children() below.
-                for child in node.children() {
-                    walk_for_deadlock(child, types, errors);
-                }
-                return;
-            }
-        };
-
-        // Arc 128 — sandbox-boundary guard. The first argument to a
-        // sandbox-program primitive is a `(:wat::core::forms ...)` block
-        // representing an INNER program; the inner program has its own
-        // freeze cycle when the primitive fires at runtime. Outer freeze
-        // must not redundantly walk the inner forms — doing so conflates
-        // outer/inner scope and emits errors that belong to the inner
-        // program. Skip arg 0 (the forms block); recurse into trailing
-        // args (type-list, config arg).
-        if matches!(
-            head,
-            ":wat::kernel::run-sandboxed-ast"
-                | ":wat::kernel::run-sandboxed-hermetic-ast"
-                | ":wat::kernel::fork-program-ast"
-                | ":wat::kernel::spawn-program-ast"
-        ) {
-            for child in items.iter().skip(2) {
-                walk_for_deadlock(child, types, errors);
-            }
-            return;
-        }
-
-        // Arc 154 — sequential semantics moved under `:wat::core::let`
-        // (single-letform vocabulary). Pre-arc-154 this matched
-        // `:wat::core::let*`. Dead code (parent `walk_for_deadlock` is
-        // dead-code-allowed) — updated for substrate self-consistency.
-        if head == ":wat::core::let" && items.len() >= 3 {
-            let bindings = match &items[1] {
-                WatAST::List(xs, _) => xs.clone(),
-                _ => return,
-            };
-            let body_forms: Vec<WatAST> = items[2..].to_vec();
-            // Recurse into each binding's RHS first (catches nested lets).
-            for binding in &bindings {
-                if let WatAST::List(parts, _) = binding {
-                    if parts.len() == 2 {
-                        walk_for_deadlock(&parts[1], types, errors);
-                    }
-                }
-            }
-            for body_form in &body_forms {
-                walk_for_deadlock(body_form, types, errors);
-            }
-            // Run the structural rule at THIS let's scope.
-            check_let_for_scope_deadlock(&bindings, &body_forms, types, errors);
-            return;
-        }
-    }
-
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly. The walker-specific head checks above handle
-    // the sandbox-boundary and let-form special cases; all remaining compound
-    // nodes recurse here. children() returns &[] for leaf nodes (no-op).
-    for child in node.children() {
-        walk_for_deadlock(child, types, errors);
-    }
-}
-
-/// Arc 117's pre-inference per-let structural scope-deadlock rule.
-/// Retired by arc 133 slice 1 — replaced by
-/// `check_let_for_scope_deadlock_inferred`. Kept as reference.
-/// Dead code intentional.
-#[allow(dead_code)]
-fn check_let_for_scope_deadlock(
-    bindings: &[WatAST],
-    body_forms: &[WatAST],
-    types: &TypeEnv,
-    errors: &mut Vec<CheckError>,
-) {
-    // Collect Thread bindings AND Sender-bearing bindings in this
-    // let's binding-block, using resolved TypeExpr structure.
-    let mut thread_bindings: Vec<(String, Span)> = Vec::new();
-    let mut sender_bearing_bindings: Vec<(String, &'static str)> = Vec::new();
-    for binding in bindings {
-        let (name, type_ann_str, span) = match parse_binding_for_typed_check(binding) {
-            Some(t) => t,
-            None => continue,
-        };
-        let parsed = match crate::types::parse_type_expr(&type_ann_str) {
-            Ok(t) => t,
-            Err(_) => continue,
-        };
-        if type_is_thread_kind(&parsed, types) {
-            thread_bindings.push((name, span));
-            continue;
-        }
-        if let Some(kind) = sender_kind_in_type(&parsed, types) {
-            sender_bearing_bindings.push((name, kind));
-        }
-    }
-    if thread_bindings.is_empty() || sender_bearing_bindings.is_empty() {
-        return;
-    }
-    // For each Thread binding, check whether `Thread/join-result thr`
-    // (or `Process/join-result`) appears in body_forms or in any
-    // binding's RHS in this let's extent.
-    for (thr_name, thr_span) in &thread_bindings {
-        let join_present = body_forms
-            .iter()
-            .any(|f| contains_join_on_thread(f, thr_name))
-            || bindings
-                .iter()
-                .any(|b| contains_join_on_thread(b, thr_name));
-        if !join_present {
-            continue;
-        }
-        for (sender_name, kind) in &sender_bearing_bindings {
-            errors.push(CheckError::ScopeDeadlock {
-                thread_binding: thr_name.clone(),
-                offending_binding: sender_name.clone(),
-                offending_kind: kind,
-                span: thr_span.clone(),
-            });
-        }
-    }
-}
-
-/// Parse a let binding `((name :type-annotation) rhs)` → (name,
-/// type_annotation_keyword, span). Returns None on shapes that don't
-/// fit (untyped bindings, tuple-destructure patterns).
-/// Arc 133 — called only by the retired `check_let_for_scope_deadlock`.
-/// Kept as reference; dead code intentional.
-#[allow(dead_code)]
-fn parse_binding_for_typed_check(binding: &WatAST) -> Option<(String, String, Span)> {
-    let WatAST::List(items, span) = binding else { return None; };
-    if items.len() != 2 {
-        return None;
-    }
-    let pattern = &items[0];
-    let WatAST::List(parts, _) = pattern else { return None; };
-    if parts.len() < 2 {
-        return None;
-    }
-    let name = match &parts[0] {
-        WatAST::Symbol(id, _) => id.name.clone(),
-        _ => return None,
-    };
-    let type_ann_str = match &parts[1] {
-        WatAST::Keyword(k, _) => k.clone(),
-        _ => return None,
-    };
-    Some((name, type_ann_str, span.clone()))
 }
 
 /// Does this type, after alias resolution, denote a Thread/Process/
@@ -6900,7 +6712,9 @@ fn infer_list(
                 return CheckResult::ok(TypeExpr::Tuple(vec![]));
             }
             _ if k.starts_with(":rust::") => {
-                let val = dispatch_rust_scheme(k, head_span, args, env, locals, fresh, subst, &mut local_errors);
+                let result = dispatch_rust_scheme(k, head_span, args, env, locals, fresh, subst);
+                let (val, mut scheme_errors) = result.into_parts();
+                local_errors.append(&mut scheme_errors);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
                     None => CheckResult::errs(local_errors),
@@ -7065,6 +6879,15 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Any keyword head not handled by an explicit arm above falls through to
+            // the defclause dispatch → env.get scheme lookup → unregistered-scheme
+            // fallback below. Reaches here legitimately: :wat::core::defn and other
+            // declaration forms (checked by separate pre-pass walkers, not infer_list),
+            // :wat::core::struct-new (intentional runtime-only dispatch, no scheme),
+            // and user functions called before scheme registration.
+            // Do NOT convert to MalformedForm — see arc 160 (constructors hoisted out)
+            // and arc 234 Stone 234.3c (the one real silent-pass was narrowed to
+            // UnknownCallee there). The remaining permissive paths are silent-by-intent.
             _ => {}
         }
 
@@ -8292,7 +8115,7 @@ fn pattern_coverage(
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "list pattern head must be a variant constructor; got {}",
-                            ast_variant_name_check(other)
+                            other.variant_name()
                         ),
                         span: other.span().clone(),
                         remedies: vec![],
@@ -8396,7 +8219,7 @@ fn pattern_coverage(
                 head: ":wat::core::match".into(),
                 reason: format!(
                     "pattern must be keyword, symbol, or list; got {}",
-                    ast_variant_name_check(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
                 remedies: vec![],
@@ -8877,20 +8700,6 @@ fn check_subpattern(
     }
 }
 
-fn ast_variant_name_check(ast: &WatAST) -> &'static str {
-    match ast {
-        WatAST::IntLit(_, _) => "int",
-        WatAST::FloatLit(_, _) => "float",
-        WatAST::BoolLit(_, _) => "bool",
-        WatAST::StringLit(_, _) => "string",
-        WatAST::Keyword(_, _) => "keyword",
-        WatAST::Symbol(_, _) => "symbol",
-        WatAST::List(_, _) => "list",
-        WatAST::Vector(_, _) => "vector",
-        WatAST::StructPattern(_, _) => "struct-pattern",
-    }
-}
-
 /// `(:wat::core::if cond -> :T then else)` — typed conditional per
 /// the 2026-04-20 INSCRIPTION.
 ///
@@ -9340,7 +9149,12 @@ fn infer_let(
         // through each RHS. Pre-arc-154 this lived under
         // `:wat::core::let*`; arc 154 collapses to one letform.
         let cumulative = extended.clone();
-        process_let_binding(pair, env, &cumulative, &mut extended, fresh, subst, &mut local_errors, ":wat::core::let");
+        let (new_bindings, mut binding_errs) =
+            process_let_binding(pair, env, &cumulative, fresh, subst, ":wat::core::let").into_parts();
+        local_errors.append(&mut binding_errs);
+        if let Some(bindings) = new_bindings {
+            extended.extend(bindings);
+        }
     }
 
     // Body is args[1..]. Arc 168 — implicit-do over trailing forms.
@@ -12762,15 +12576,15 @@ fn process_let_binding(
     pair: &WatAST,
     env: &CheckEnv,
     rhs_scope: &HashMap<String, TypeExpr>,
-    out_scope: &mut HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
     subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
     form: &str,
-) {
+) -> CheckResult<HashMap<String, TypeExpr>> {
+    let mut new_bindings: HashMap<String, TypeExpr> = HashMap::new();
+    let mut binding_errors: Vec<CheckError> = Vec::new();
     let kv = match pair {
         WatAST::List(items, _) if items.len() == 2 => items,
-        _ => return, // runtime parser surfaces the shape error
+        _ => return CheckResult::ok(new_bindings), // runtime parser surfaces the shape error
     };
 
     // Arc 159 — canonical new shape: `(name rhs)` where `name` is a
@@ -12783,11 +12597,15 @@ fn process_let_binding(
     if let WatAST::Symbol(ident, _) = &kv[0] {
         let name = ident.name.clone();
         let rhs = &kv[1];
-        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(errors);
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
         if let Some(ty) = rhs_ty {
-            out_scope.insert(name, ty);
+            new_bindings.insert(name, ty);
         }
-        return;
+        return if binding_errors.is_empty() {
+            CheckResult::ok(new_bindings)
+        } else {
+            CheckResult::partial_with(new_bindings, binding_errors)
+        };
     }
 
     // Arc 168 — Vector binder (destructure post-flat-shape):
@@ -12798,19 +12616,19 @@ fn process_let_binding(
         for item in inner {
             match item {
                 WatAST::Symbol(ident, _) => names.push(ident.name.clone()),
-                _ => return,
+                _ => return CheckResult::ok(new_bindings),
             }
         }
         if names.is_empty() {
-            return;
+            return CheckResult::ok(new_bindings);
         }
         let rhs = &kv[1];
         let elem_vars: Vec<TypeExpr> = (0..names.len()).map(|_| fresh.fresh()).collect();
         let tuple_ty = TypeExpr::Tuple(elem_vars.clone());
-        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(errors);
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
         if let Some(rhs_ty) = rhs_ty {
             if unify(&rhs_ty, &tuple_ty, subst, env.types()).is_err() {
-                errors.push(CheckError::TypeMismatch {
+                binding_errors.push(CheckError::TypeMismatch {
                     callee: form.into(),
                     param: format!("destructure ({})", names.join(" ")),
                     expected: format_type(&apply_subst(&tuple_ty, subst)),
@@ -12820,9 +12638,13 @@ fn process_let_binding(
             }
         }
         for (name, ev) in names.into_iter().zip(elem_vars.into_iter()) {
-            out_scope.insert(name, apply_subst(&ev, subst));
+            new_bindings.insert(name, apply_subst(&ev, subst));
         }
-        return;
+        return if binding_errors.is_empty() {
+            CheckResult::ok(new_bindings)
+        } else {
+            CheckResult::partial_with(new_bindings, binding_errors)
+        };
     }
 
     // Arc 169 — StructPattern binder (struct destructure):
@@ -12865,7 +12687,7 @@ fn process_let_binding(
             // We don't use it for binding-type assignment (polymorphic T
             // per D4), but inferring it catches type errors in the rhs
             // expression itself.
-            let _ = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(errors);
+            let _ = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
             let mut i = 0;
             while i + 1 < inner.len() {
                 let var_name = match &inner[i] {
@@ -12875,10 +12697,14 @@ fn process_let_binding(
                 // Assign a fresh type variable for each binding.
                 // The body's usage will unify it to the concrete type.
                 let binding_ty = fresh.fresh();
-                out_scope.insert(var_name, binding_ty);
+                new_bindings.insert(var_name, binding_ty);
                 i += 2;
             }
-            return;
+            return if binding_errors.is_empty() {
+                CheckResult::ok(new_bindings)
+            } else {
+                CheckResult::partial_with(new_bindings, binding_errors)
+            };
         }
 
         // Arc 169 — StructPattern binder (struct destructure):
@@ -12906,17 +12732,17 @@ fn process_let_binding(
         for item in inner {
             match item {
                 WatAST::Symbol(ident, _) => field_names.push(ident.name.clone()),
-                _ => return,
+                _ => return CheckResult::ok(new_bindings),
             }
         }
         if field_names.is_empty() {
-            return;
+            return CheckResult::ok(new_bindings);
         }
         let rhs = &kv[1];
-        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(errors);
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
         let rhs_ty = match rhs_ty {
             Some(t) => apply_subst(&t, subst),
-            None => return,
+            None => return CheckResult::errs(binding_errors),
         };
         // The rhs must be a struct type — TypeExpr::Path naming a
         // registered StructDef. Parametric struct instances flow
@@ -12933,27 +12759,27 @@ fn process_let_binding(
                 }
             }
             other => {
-                errors.push(CheckError::TypeMismatch {
+                binding_errors.push(CheckError::TypeMismatch {
                     callee: form.into(),
                     param: format!("struct-destructure ({})", field_names.join(" ")),
                     expected: "a struct type".into(),
                     got: format_type(other),
                     span: rhs.span().clone(),
                 });
-                return;
+                return CheckResult::errs(binding_errors);
             }
         };
         let struct_def = match env.types().get(&struct_name) {
             Some(crate::types::TypeDef::Struct(sd)) => sd.clone(),
             _ => {
-                errors.push(CheckError::TypeMismatch {
+                binding_errors.push(CheckError::TypeMismatch {
                     callee: form.into(),
                     param: format!("struct-destructure ({})", field_names.join(" ")),
                     expected: "a struct type".into(),
                     got: format_type(&rhs_ty),
                     span: rhs.span().clone(),
                 });
-                return;
+                return CheckResult::errs(binding_errors);
             }
         };
         // Look up each requested field; emit MalformedForm naming
@@ -12962,7 +12788,7 @@ fn process_let_binding(
         for fname in &field_names {
             match struct_def.fields.iter().find(|(n, _)| n == fname) {
                 Some((_, fty)) => {
-                    out_scope.insert(fname.clone(), apply_subst(fty, subst));
+                    new_bindings.insert(fname.clone(), apply_subst(fty, subst));
                 }
                 None => {
                     let declared = struct_def
@@ -12971,7 +12797,7 @@ fn process_let_binding(
                         .map(|(n, _)| n.as_str())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    errors.push(CheckError::MalformedForm {
+                    binding_errors.push(CheckError::MalformedForm {
                         head: form.into(),
                         reason: format!(
                             "struct-destructure: field {:?} is not declared on struct {} (declared fields: {})",
@@ -12983,7 +12809,11 @@ fn process_let_binding(
                 }
             }
         }
-        return;
+        return if binding_errors.is_empty() {
+            CheckResult::ok(new_bindings)
+        } else {
+            CheckResult::partial_with(new_bindings, binding_errors)
+        };
     }
 
     // Anything else — malformed binder shape. Arc 168 slice 3
@@ -12998,15 +12828,16 @@ fn process_let_binding(
     // at startup rather than silently accepting and letting the
     // runtime catch it.
     let binder = &kv[0];
-    errors.push(CheckError::MalformedForm {
+    binding_errors.push(CheckError::MalformedForm {
         head: form.into(),
         reason: format!(
             "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a {} in binder position",
-            ast_variant_name_check(binder)
+            binder.variant_name()
         ),
         span: binder.span().clone(),
         remedies: vec![],
     });
+    CheckResult::errs(binding_errors)
 }
 
 /// Type-check `(:wat::core::HashSet :T x1 x2 ...)`. First arg is a
@@ -14990,12 +14821,12 @@ fn unify_union_union(
     let members1 = crate::types::collect_union_members(u1, types);
     let members2 = crate::types::collect_union_members(u2, types);
     // Non-empty intersection means the two unions are compatible.
-    for m1 in &members1 {
-        for m2 in &members2 {
-            if m1 == m2 {
-                return Ok(());
-            }
-        }
+    // Build a HashSet keyed on format_type strings from u1's members,
+    // then probe u2's members — O(n+m) instead of O(n×m).
+    let set1: std::collections::HashSet<String> =
+        members1.iter().map(|m| format_type(m)).collect();
+    if members2.iter().any(|m| set1.contains(&format_type(m))) {
+        return Ok(());
     }
     Err(UnifyError)
 }
@@ -15054,17 +14885,15 @@ fn dispatch_rust_scheme(
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
     subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
+) -> CheckResult<TypeExpr> {
     let registry = crate::rust_deps::get();
     let sym_entry = match registry.get_symbol(keyword) {
         Some(s) => s,
         None => {
-            errors.push(CheckError::UnknownCallee {
+            return CheckResult::errs(vec![CheckError::UnknownCallee {
                 callee: keyword.to_string(),
                 span: head_span.clone(),
-            });
-            return None;
+            }]);
         }
     };
     let mut ctx = CheckSchemeCtx {
@@ -15072,21 +14901,34 @@ fn dispatch_rust_scheme(
         locals,
         fresh,
         subst,
-        errors,
+        errors: Vec::new(),
     };
-    (sym_entry.scheme)(args, &mut ctx)
+    let val = (sym_entry.scheme)(args, &mut ctx);
+    let errors = ctx.errors;
+    match val {
+        Some(ty) => {
+            if errors.is_empty() {
+                CheckResult::ok(ty)
+            } else {
+                CheckResult::partial_with(ty, errors)
+            }
+        }
+        None => CheckResult::errs(errors),
+    }
 }
 
 /// Adapter that presents the checker's internal state (`env`, `locals`,
-/// `fresh`, `subst`, `errors`) through the narrow
+/// `fresh`, `subst`) through the narrow
 /// [`crate::rust_deps::SchemeCtx`] trait. Lets shim authors write their
 /// scheme functions without depending on `check.rs`'s private types.
+/// Owns its error accumulator so `dispatch_rust_scheme` can return
+/// `CheckResult<TypeExpr>` rather than the dual-channel anti-pattern.
 struct CheckSchemeCtx<'a> {
     env: &'a CheckEnv,
     locals: &'a HashMap<String, TypeExpr>,
     fresh: &'a mut InferCtx,
     subst: &'a mut Subst,
-    errors: &'a mut Vec<CheckError>,
+    errors: Vec<CheckError>,
 }
 
 impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
@@ -15095,7 +14937,7 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
     }
 
     fn infer(&mut self, ast: &WatAST) -> Option<TypeExpr> {
-        infer(ast, self.env, self.locals, self.fresh, self.subst).drain_errors_into(self.errors)
+        infer(ast, self.env, self.locals, self.fresh, self.subst).drain_errors_into(&mut self.errors)
     }
 
     fn unify_types(&mut self, a: &TypeExpr, b: &TypeExpr) -> bool {

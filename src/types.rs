@@ -1875,6 +1875,11 @@ fn parse_type_decl(
 /// Empty `{}` is REJECTED per FORM-COLLAPSE-NOTES (divide-by-zero principle).
 /// Field-vector is parsed by `parse_argspec_triples` with
 /// `ParseOptions { allow_rest_binder: false }`.
+// rune:solvere(deferred-stone-243.5) — parse_defstruct braids 7 concerns
+// (arity, slot discrimination, metadata-map, field-vector, restrictions).
+// Decomposition (parse_metadata_map + parse_field_vector) lands with the
+// src/types/ home carve at Stone 243.5, where types.rs splits into a home;
+// deliberate decomposition belongs to that restructure, not a hygiene sweep.
 fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     const HEAD: &str = ":wat::core::defstruct";
 
@@ -2464,7 +2469,7 @@ fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                     head: "newtype".into(),
                     reason: format!(
                         "inner type must be a keyword; got {}",
-                        ast_variant_name(&other)
+                        other.variant_name()
                     ),
                 },
             })
@@ -2503,7 +2508,7 @@ fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                     head: "typealias".into(),
                     reason: format!(
                         "alias expression must be a keyword; got {}",
-                        ast_variant_name(&other)
+                        other.variant_name()
                     ),
                 },
             })
@@ -2551,7 +2556,7 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                     head: "typeunion".into(),
                     reason: format!(
                         "member list must be a Vector `[...]`; got {}",
-                        ast_variant_name(&other)
+                        other.variant_name()
                     ),
                 },
             })
@@ -2571,7 +2576,7 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                         head: "typeunion".into(),
                         reason: format!(
                             "member must be a type keyword; got {}",
-                            ast_variant_name(&other)
+                            other.variant_name()
                         ),
                     },
                 })
@@ -2635,7 +2640,7 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
                     head: "recordtype".into(),
                     reason: format!(
                         "name must be a keyword; got {}",
-                        ast_variant_name(other)
+                        other.variant_name()
                     ),
                 },
             })
@@ -2662,7 +2667,7 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
                     head: "recordtype".into(),
                     reason: format!(
                         "parent must be a type keyword; got {}",
-                        ast_variant_name(&other)
+                        other.variant_name()
                     ),
                 },
             })
@@ -2682,7 +2687,7 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
                                 head: "recordtype".into(),
                                 reason: format!(
                                     "field-names vector must contain string literals; got {}",
-                                    ast_variant_name(other)
+                                    other.variant_name()
                                 ),
                             },
                         });
@@ -2698,7 +2703,7 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
                     head: "recordtype".into(),
                     reason: format!(
                         "third arg must be a vector of field-name strings (e.g. [\"field1\" \"field2\"] or []); got {}",
-                        ast_variant_name(&other)
+                        other.variant_name()
                     ),
                 },
             });
@@ -2735,7 +2740,7 @@ fn parse_declared_name(
                     head: head.into(),
                     reason: format!(
                         "name must be a keyword; got {}",
-                        ast_variant_name(other)
+                        other.variant_name()
                     ),
                 },
             })
@@ -3135,23 +3140,6 @@ fn find_matching_close(s: &str, open: char, close: char) -> Option<usize> {
     None
 }
 
-// WHY: local copy of runtime::ast_variant_name — importing it directly from
-// runtime would close an import cycle (runtime depends on types for TypeExpr
-// + the type-related parsers). Keep in sync with crate::runtime::ast_variant_name.
-fn ast_variant_name(ast: &WatAST) -> &'static str {
-    match ast {
-        WatAST::IntLit(_, _) => "int literal",
-        WatAST::FloatLit(_, _) => "float literal",
-        WatAST::BoolLit(_, _) => "bool literal",
-        WatAST::StringLit(_, _) => "string literal",
-        WatAST::Keyword(_, _) => "keyword",
-        WatAST::Symbol(_, _) => "symbol",
-        WatAST::List(_, _) => "list",
-        WatAST::Vector(_, _) => "vector",
-        WatAST::StructPattern(_, _) => "struct-pattern",
-    }
-}
-
 // ─── Typealias expansion ─────────────────────────────────────────────
 //
 // 058-030 declares `:wat::core::typealias` as a structural alias:
@@ -3271,6 +3259,9 @@ fn check_alias_reaches(
     visiting: &mut std::collections::HashSet<String>,
     span: &Span,
 ) -> Result<(), TypeError> {
+    // INVARIANT: every `visiting.insert(name)` is paired with a `visiting.remove(name)`
+    // before any `?`-propagation can early-return — the cycle-detection set must not
+    // leak names across recursive calls. New `?`-paths must preserve this pairing.
     match expr {
         TypeExpr::Path(name) => {
             if name == target_name {
@@ -3399,6 +3390,9 @@ fn check_union_member_reaches(
     visiting: &mut std::collections::HashSet<String>,
     span: &Span,
 ) -> Result<(), TypeError> {
+    // INVARIANT: every `visiting.insert(name)` is paired with a `visiting.remove(name)`
+    // before any `?`-propagation can early-return — the cycle-detection set must not
+    // leak names across recursive calls. New `?`-paths must preserve this pairing.
     if let TypeExpr::Path(name) = expr {
         if name == target_name {
             return Err(TypeError {

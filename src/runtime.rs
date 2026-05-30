@@ -4433,7 +4433,7 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, RuntimeError>
                         head: ":wat::core::defn".into(),
                         reason: format!(
                             "structured type slot head must be a keyword; got {}",
-                            ast_variant_name(other)
+                            other.variant_name()
                         ),
                         span: other.span().clone(),
                     });
@@ -4507,7 +4507,7 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, RuntimeError>
             head: ":wat::core::defn".into(),
             reason: format!(
                 "parameter type must be a type keyword or structured type list; got {}",
-                ast_variant_name(other)
+                other.variant_name()
             ),
             span: other.span().clone(),
         }),
@@ -4716,7 +4716,7 @@ fn eval_if_tail(
                 head: ":wat::core::if".into(),
                 reason: format!(
                     "expected `->` at position 2; got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -4729,7 +4729,7 @@ fn eval_if_tail(
                 head: ":wat::core::if".into(),
                 reason: format!(
                     "expected type keyword at position 3 (after `->`); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -4892,7 +4892,7 @@ fn eval_match_tail(
                 head: ":wat::core::match".into(),
                 reason: format!(
                     "expected type keyword after `->`; got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -4907,7 +4907,7 @@ fn eval_match_tail(
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "each arm must be a list `(pattern body)`, got {}",
-                        ast_variant_name(other)
+                        other.variant_name()
                     ),
                     span: other.span().clone(),
                 });
@@ -5149,7 +5149,7 @@ fn eval_list(
             apply_tracked_callee(callee_tv, rest, env, sym)
         }
         other => Err(RuntimeError::MalformedForm {
-            head: ast_variant_name(other).into(),
+            head: other.variant_name().into(),
             reason: "call head must be a keyword, symbol, or list".into(),
             span: other.span().clone(),
         }),
@@ -6525,7 +6525,7 @@ fn parse_defclause_clause(
                 head: head.into(),
                 reason: format!(
                     "each defclause clause must be a list `([args] -> :Ret body)` or `([args] body)` (with shared return); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: form_span.clone(),
             });
@@ -6547,7 +6547,7 @@ fn parse_defclause_clause(
                 head: head.into(),
                 reason: format!(
                     "defclause clause must start with args-vector `[name <- :T ...]`; got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -6683,7 +6683,7 @@ fn parse_defclause_clause(
                     head: head.into(),
                     reason: format!(
                         "defclause clause `->` must be followed by a return type keyword; got {}",
-                        ast_variant_name(other)
+                        other.variant_name()
                     ),
                     span: other.span().clone(),
                 });
@@ -6788,7 +6788,7 @@ pub fn parse_defclause_form(
                 head: HEAD.into(),
                 reason: format!(
                     "defclause first arg must be a keyword name (e.g. `:my::name`); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -7640,7 +7640,7 @@ fn parse_let_binding<'a>(
                             head: ":wat::core::let".into(),
                             reason: format!(
                                 "destructure binder must be a vector of bare symbols; got {}",
-                                ast_variant_name(other)
+                                other.variant_name()
                             ),
                             span: other.span().clone(),
                         });
@@ -7689,7 +7689,7 @@ fn parse_let_binding<'a>(
                                 reason: format!(
                                     "hash-destructure: expected bare symbol at position {}; got {}",
                                     i,
-                                    ast_variant_name(other)
+                                    other.variant_name()
                                 ),
                                 span: other.span().clone(),
                             });
@@ -7703,7 +7703,7 @@ fn parse_let_binding<'a>(
                                 reason: format!(
                                     "hash-destructure: expected keyword (field name) at position {}; got {}",
                                     i + 1,
-                                    ast_variant_name(other)
+                                    other.variant_name()
                                 ),
                                 span: other.span().clone(),
                             });
@@ -7733,7 +7733,7 @@ fn parse_let_binding<'a>(
                             head: ":wat::core::let".into(),
                             reason: format!(
                                 "struct-destructure brace-form must contain only bare symbols; got {}",
-                                ast_variant_name(other)
+                                other.variant_name()
                             ),
                             span: other.span().clone(),
                         });
@@ -7753,7 +7753,7 @@ fn parse_let_binding<'a>(
             head: ":wat::core::let".into(),
             reason: format!(
                 "let binder must be a Symbol (single), a Vector of symbols (tuple destructure), or a StructPattern of symbols (struct destructure); got {}",
-                ast_variant_name(other)
+                other.variant_name()
             ),
             span: other.span().clone(),
         }),
@@ -7801,7 +7801,7 @@ fn eval_if(
                 head: ":wat::core::if".into(),
                 reason: format!(
                     "expected `->` at position 2; got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -7814,7 +7814,7 @@ fn eval_if(
                 head: ":wat::core::if".into(),
                 reason: format!(
                     "expected type keyword at position 3 (after `->`); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -7961,7 +7961,7 @@ fn validate_cond_shape(args: &[WatAST], list_span: &Span) -> Result<(), RuntimeE
                 head: ":wat::core::cond".into(),
                 reason: format!(
                     "expected `->` at position 1; got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -7974,7 +7974,7 @@ fn validate_cond_shape(args: &[WatAST], list_span: &Span) -> Result<(), RuntimeE
                 head: ":wat::core::cond".into(),
                 reason: format!(
                     "expected type keyword at position 2 (after `->`); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -8002,7 +8002,7 @@ fn validate_cond_shape(args: &[WatAST], list_span: &Span) -> Result<(), RuntimeE
                     reason: format!(
                         "arm #{} must be a list (test body); got {}",
                         i + 1,
-                        ast_variant_name(other)
+                        other.variant_name()
                     ),
                     span: other.span().clone(),
                 });
@@ -8679,7 +8679,7 @@ fn eval_apply(
                 head: ":wat::core::apply".into(),
                 reason: format!(
                     "position 1 must be the `->` symbol (inline return-type annotation); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -8692,7 +8692,7 @@ fn eval_apply(
                 head: ":wat::core::apply".into(),
                 reason: format!(
                     "position 2 must be a type keyword `:T` (e.g. `:wat::core::i64`); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -10303,7 +10303,7 @@ fn parse_arrow_ty(
                 reason: format!(
                     "expected `->` at position {}; got {}",
                     arrow_pos,
-                    crate::runtime::ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -14661,7 +14661,7 @@ fn eval_struct_new(
                 head: ":wat::core::struct-new".into(),
                 reason: format!(
                     "first argument must be a keyword literal (the struct's type name); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -14715,7 +14715,7 @@ fn eval_variant(
                 head: ":wat::core::variant".into(),
                 reason: format!(
                     "first argument must be a keyword literal (the enum's type path); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -14732,7 +14732,7 @@ fn eval_variant(
                 head: ":wat::core::variant".into(),
                 reason: format!(
                     "second argument must be a keyword literal (the variant identifier); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -14804,7 +14804,7 @@ fn eval_struct_field(
                 head: ":wat::core::struct-field".into(),
                 reason: format!(
                     "second argument must be an integer literal (the field index); got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -14896,7 +14896,7 @@ fn eval_match(
                 head: ":wat::core::match".into(),
                 reason: format!(
                     "expected type keyword after `->`; got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });
@@ -14911,7 +14911,7 @@ fn eval_match(
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "each arm must be a list `(pattern body)`, got {}",
-                        ast_variant_name(other)
+                        other.variant_name()
                     ),
                     span: other.span().clone(),
                 });
@@ -16934,7 +16934,7 @@ fn eval_holon_from_holon(
                     head: OP.into(),
                     reason: format!(
                         "expected `->` at position 2 for type annotation; got {}",
-                        ast_variant_name(other)
+                        other.variant_name()
                     ),
                     span: other.span().clone(),
                 });
@@ -16949,7 +16949,7 @@ fn eval_holon_from_holon(
                     head: OP.into(),
                     reason: format!(
                         "expected type keyword after `->` for annotation; got {}",
-                        ast_variant_name(other)
+                        other.variant_name()
                     ),
                     span: other.span().clone(),
                 });
@@ -21916,20 +21916,6 @@ pub fn snapshot_call_stack() -> Vec<FrameInfo> {
     })
 }
 
-pub(crate) fn ast_variant_name(ast: &WatAST) -> &'static str {
-    match ast {
-        WatAST::IntLit(_, _) => "int literal",
-        WatAST::FloatLit(_, _) => "float literal",
-        WatAST::BoolLit(_, _) => "bool literal",
-        WatAST::StringLit(_, _) => "string literal",
-        WatAST::Keyword(_, _) => "keyword",
-        WatAST::Symbol(_, _) => "symbol",
-        WatAST::List(_, _) => "list",
-        WatAST::Vector(_, _) => "vector",
-        WatAST::StructPattern(_, _) => "struct-pattern",
-    }
-}
-
 // ─── Seven eval forms ────────────────────────────────────────────────────
 //
 // Mirror of the six load forms, with one extra on the AST side. Arc 028
@@ -26297,7 +26283,7 @@ fn step_match(
         }
     }
     Err(RuntimeError::PatternMatchFailed {
-        value_type: ast_variant_name(scrut),
+        value_type: scrut.variant_name(),
         span: scrut.span().clone(),
     })
 }
@@ -26791,7 +26777,7 @@ fn resolve_verify_payload(
                 head: ":wat::verify::<iface>".into(),
                 reason: format!(
                     "verify payload interface must be a :wat::verify::<iface> keyword; got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: iface_ast.span().clone(),
             });
@@ -26865,7 +26851,7 @@ fn parse_verify_algo_keyword(
                 head: form.into(),
                 reason: format!(
                     "verification algorithm must be a :wat::verify::<kind>-<algo> keyword; got {}",
-                    ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: ast.span().clone(),
             });

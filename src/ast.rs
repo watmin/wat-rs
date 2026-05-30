@@ -186,6 +186,25 @@ impl WatAST {
             _ => &[],
         }
     }
+
+    /// Canonical bare-word name for this AST variant — "int", "float",
+    /// "bool", "string", "keyword", "symbol", "list", "vector",
+    /// "struct-pattern". Used in type-error messages across check.rs,
+    /// types.rs, and runtime.rs; one authoritative site so all paths
+    /// emit the same label for the same node kind.
+    pub fn variant_name(&self) -> &'static str {
+        match self {
+            WatAST::IntLit(_, _) => "int",
+            WatAST::FloatLit(_, _) => "float",
+            WatAST::BoolLit(_, _) => "bool",
+            WatAST::StringLit(_, _) => "string",
+            WatAST::Keyword(_, _) => "keyword",
+            WatAST::Symbol(_, _) => "symbol",
+            WatAST::List(_, _) => "list",
+            WatAST::Vector(_, _) => "vector",
+            WatAST::StructPattern(_, _) => "struct-pattern",
+        }
+    }
 }
 
 // wat_ast_to_source / wat_ast_program_to_source — RETIRED in arc

@@ -43,7 +43,7 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
           (:wat::core::let
             [n (:wat::kernel::readln -> :wat::core::i64)
              _ (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
-            :wat::core::nil))
+            nil))
 
         ;; Parent: spawn-process + wrap pipes + send/recv via Stone C wrappers.
         ;; The CLAIM under verification: send/recv verbs type-check correctly
@@ -72,7 +72,7 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
                               ((:wat::core::Ok (:wat::core::Some v)) v)
                               ((:wat::core::Ok :wat::core::None)    0)
                               ((:wat::core::Err _)                  0))]
-                      :wat::core::nil))
+                      nil))
     "##;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     if let Err(e) = result {

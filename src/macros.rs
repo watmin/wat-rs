@@ -1194,7 +1194,7 @@ fn splice_argument(
                 WatAST::Vector(items, _) => Ok(items.clone()),
                 other => Err(MacroError::SpliceNotSequence {
                     name: ident.name.clone(),
-                    got: ast_variant_name(other),
+                    got: other.variant_name(),
                     span: other.span().clone(), // Pattern A: bound value's span
                 }),
             }
@@ -1257,24 +1257,10 @@ fn splice_argument(
                 "macro {} — unquote-splicing ',@X' requires a list (parameter \
                  or already-substituted value); got {}",
                 macro_name,
-                ast_variant_name(other)
+                other.variant_name()
             ),
             span: other.span().clone(), // Pattern A: offending node's span
         }),
-    }
-}
-
-fn ast_variant_name(ast: &WatAST) -> &'static str {
-    match ast {
-        WatAST::IntLit(_, _) => "int literal",
-        WatAST::FloatLit(_, _) => "float literal",
-        WatAST::BoolLit(_, _) => "bool literal",
-        WatAST::StringLit(_, _) => "string literal",
-        WatAST::Keyword(_, _) => "keyword",
-        WatAST::Symbol(_, _) => "symbol",
-        WatAST::List(_, _) => "list",
-        WatAST::Vector(_, _) => "vector",
-        WatAST::StructPattern(_, _) => "struct-pattern",
     }
 }
 

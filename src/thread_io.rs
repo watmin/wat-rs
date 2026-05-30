@@ -301,7 +301,7 @@ pub fn eval_kernel_readln(
                 head: OP.into(),
                 reason: format!(
                     "expected `->` as the first argument; (:wat::kernel::readln -> :T); got {}",
-                    crate::runtime::ast_variant_name(other)
+                    other.variant_name()
                 ),
                 span: other.span().clone(),
             });

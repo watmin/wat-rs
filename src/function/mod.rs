@@ -19,7 +19,7 @@
 //!
 //! - `src/argspec/` — canonical triple parsing routed through `parse_argspec_triples`
 //! - `src/runtime.rs` — `Function`, `Value`, `Environment`, `RuntimeError`,
-//!   `synthesize_fn_body`, `ast_variant_name`
+//!   `synthesize_fn_body`
 //! - `src/types.rs` — `parse_type_expr_with_span`, `TypeError`, `TypeExpr`
 //! - `src/check.rs` — `CheckEnv`, `CheckError`, `CheckResult`, `InferCtx`,
 //!   `Subst`, `infer`, `unify`, `apply_subst`, `format_type`

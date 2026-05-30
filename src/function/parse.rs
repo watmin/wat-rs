@@ -30,7 +30,7 @@
 
 use crate::argspec::{parse_argspec_triples, ArgSpec, ArgSpecError, ParseOptions};
 use crate::ast::WatAST;
-use crate::runtime::{ast_variant_name, RuntimeError};
+use crate::runtime::RuntimeError;
 use crate::span::Span;
 use crate::types::{parse_type_expr_with_span, TypeError, TypeExpr};
 
@@ -73,7 +73,7 @@ pub(in crate::function) fn parse_fn_signature_prefix(
         WatAST::Vector(items, span) => (items.as_slice(), span),
         other => {
             return Err(ParseStep::ArgsVecNotVector {
-                found_variant: ast_variant_name(other),
+                found_variant: other.variant_name(),
                 span: other.span().clone(),
             });
         }
