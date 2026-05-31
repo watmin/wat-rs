@@ -24,7 +24,7 @@
 ///
 /// Returns the minimum number of single-character insertions, deletions,
 /// and substitutions to transform `a` into `b`. Both strings are treated
-/// as sequences of bytes (`chars().count()` semantics via `collect::<Vec<char>>`).
+/// as sequences of Unicode scalar values (`char`s), via `collect::<Vec<char>>()`.
 ///
 /// # Performance note
 ///
@@ -42,7 +42,7 @@ pub(crate) fn levenshtein(a: &str, b: &str) -> u32 {
     let b: Vec<char> = b.chars().collect();
 
     // Two-row rolling Wagner-Fischer table.
-    // `prev[j]` = cost to transform a[0..0] into b[0..j] (baseline: j deletions).
+    // `prev[j]` = cost to transform a[0..0] into b[0..j] (baseline: j insertions).
     let mut prev: Vec<u32> = (0..=(n as u32)).collect();
     let mut curr: Vec<u32> = vec![0; n + 1];
 

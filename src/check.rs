@@ -6502,12 +6502,27 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Stone 241.8 — HARD CUT: legacy struct forms are REJECTED at check time.
-            // They are no longer recognized type-declaration forms; use :wat::core::defstruct.
-            ":wat::core::struct" | ":wat::core::struct-restricted" => {
+            // Stone 241.8 — HARD CUT: legacy struct form is REJECTED at check time.
+            // It is no longer a recognized type-declaration form; use :wat::core::defstruct.
+            ":wat::core::struct" => {
                 return CheckResult::errs(vec![CheckError::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.8)", k),
+                    span: head_span.clone(),
+                    // Stone 241.10: retirement_lookup hits the table → structured remedy.
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
+                }]);
+            }
+            // Stone 241.8 — HARD CUT: legacy struct-restricted form is REJECTED at check time.
+            // Use :wat::core::defstruct with {:restricted-to [...]} for ctor restrictions and
+            // {:field-metadata {field {:restricted-to [...]}}} for per-field restrictions.
+            ":wat::core::struct-restricted" => {
+                return CheckResult::errs(vec![CheckError::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!(
+                        "'{}' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{{:restricted-to [<prefix-kw>...]}}` and per-field restrictions as `{{:field-metadata {{field {{:restricted-to [<prefix-kw>...]}}}}}}` on the defstruct binding",
+                        k
+                    ),
                     span: head_span.clone(),
                     // Stone 241.10: retirement_lookup hits the table → structured remedy.
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),

@@ -20,9 +20,15 @@
 //! ## Adding entries
 //!
 //! Each HARD CUT stone appends its retirement entry at the arc's ship time.
-//! The entry format is `(retired_form, replacement_form)`. Do NOT add entries
+//! The entry format is `(retired_form, replacement_form, optional_note)`. Do NOT add entries
 //! for forms that have not yet been retired — premature entries deceive the
 //! substrate.
+//!
+//! The optional note carries a migration caveat for replacements that need more
+//! than a form-swap (e.g. a retired restricted-def whose caller whitelist must be
+//! re-expressed as a `{:restricted-to [...]}` metadata-map on the binding). This
+//! caveat is carried in the remedy's `note` field so programmatic consumers
+//! (LLM agents, IDEs) receive the structured guidance, not just the replacement form.
 //!
 //! ## Arc history
 //!
@@ -43,48 +49,61 @@
 
 use super::{Remedy, RemedyKind};
 
-/// Explicit retirement-form → replacement-form table.
+/// Explicit retirement-form → replacement-form → optional migration note table.
 ///
-/// Each entry: `(retired, replacement)`. HARD CUT stones append entries
+/// Each entry: `(retired, replacement, note)`. HARD CUT stones append entries
 /// at ship time. No future-vapor entries.
-const RETIREMENT_TABLE: &[(&str, &str)] = &[
+///
+/// The note field carries a migration caveat for replacements that need more than
+/// a form-swap; `None` for pure renames. The caveat is surfaced to programmatic
+/// consumers via [`Remedy::note`].
+pub(crate) const RETIREMENT_TABLE: &[(&str, &str, Option<&str>)] = &[
     // Stone 241.8 — defstruct replaces struct + struct-restricted.
-    (":wat::core::struct",            ":wat::core::defstruct"),
-    (":wat::core::struct-restricted", ":wat::core::defstruct"),
+    (":wat::core::struct",            ":wat::core::defstruct", None),
+    (":wat::core::struct-restricted", ":wat::core::defstruct",
+        Some("re-express the ctor restriction as a `{:restricted-to [...]}` metadata-map, and per-field restrictions as `{:field-metadata {field {:restricted-to [...]}}}`, on the defstruct binding")),
     // Stone 241.9 — defenum replaces enum.
-    (":wat::core::enum",              ":wat::core::defenum"),
+    (":wat::core::enum",              ":wat::core::defenum",   None),
     // Stone 241.11 — defn replaces define.
-    (":wat::core::define",            ":wat::core::defn"),
+    (":wat::core::define",            ":wat::core::defn",      None),
     // Stone 242.1 — char (lowercase) replaces Char (per Doctrine 2; scalar types lowercase).
-    (":wat::core::Char",              ":wat::core::char"),
+    (":wat::core::Char",              ":wat::core::char",      None),
     // Stone 241.12 — defalias replaces runtime define-alias (native substrate form).
-    (":wat::runtime::define-alias",   ":wat::core::defalias"),
+    (":wat::runtime::define-alias",   ":wat::core::defalias",  None),
     // Stone 241.13 — defclause replaces define-dispatch.
-    (":wat::core::define-dispatch",   ":wat::core::defclause"),
+    (":wat::core::define-dispatch",   ":wat::core::defclause", None),
     // Stone 241.14 — def + metadata-map replaces def-restricted; defn + metadata-map replaces defn-restricted.
-    (":wat::core::def-restricted",    ":wat::core::def"),
-    (":wat::core::defn-restricted",   ":wat::core::defn"),
+    // The caller whitelist must be re-expressed as a {:restricted-to [...]} metadata-map
+    // on the binding — carried in the remedy note for programmatic consumers.
+    (":wat::core::def-restricted",    ":wat::core::def",
+        Some("re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding")),
+    (":wat::core::defn-restricted",   ":wat::core::defn",
+        Some("re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding")),
     // Stone 241.15 — zombie purge: arc-109-slice-1j retirements now HARD CUT.
-    (":wat::core::try",               ":wat::core::Result/try"),
-    (":wat::core::option::expect",    ":wat::core::Option/expect"),
-    (":wat::core::result::expect",    ":wat::core::Result/expect"),
+    (":wat::core::try",               ":wat::core::Result/try",    None),
+    (":wat::core::option::expect",    ":wat::core::Option/expect", None),
+    (":wat::core::result::expect",    ":wat::core::Result/expect", None),
 ];
 
 /// Look up `needle` in the retirement table.
 ///
-/// Returns `Some(Remedy { kind: Retirement, score: 0, form: replacement })`
+/// Returns `Some(Remedy { kind: Retirement, score: 0, form: replacement, note })`
 /// if the needle is a known retired form. Returns `None` if not retired.
 ///
 /// The score for a retirement remedy is always 0 — a direct table hit has no
-/// distance; it is an exact match on the retired form.
+/// distance; it is an exact match on the retired form. For entries that carry a
+/// migration caveat (e.g. `def-restricted` / `defn-restricted`), the `note`
+/// field carries the caveat in structured form so programmatic consumers receive
+/// it — not just the prose in this module's doc.
 pub(super) fn retirement_lookup(needle: &str) -> Option<Remedy> {
     RETIREMENT_TABLE
         .iter()
-        .find(|(retired, _)| *retired == needle)
-        .map(|(_, replacement)| Remedy {
+        .find(|(retired, _, _)| *retired == needle)
+        .map(|(_, replacement, note)| Remedy {
             form: replacement.to_string(),
             score: 0,
             kind: RemedyKind::Retirement,
+            note: note.map(str::to_string),
         })
 }
 
@@ -167,9 +186,21 @@ mod tests {
     // rune:complectens(property-over-table) — single contract enforced across all entries; loop is the structure, not multiple claims
     #[test]
     fn retirement_score_is_always_zero() {
-        for (retired, _) in RETIREMENT_TABLE {
+        for (retired, _, _) in RETIREMENT_TABLE {
             let r = retirement_lookup(retired).unwrap();
             assert_eq!(r.score, 0, "retirement score must be 0 for {}", retired);
         }
+    }
+
+    #[test]
+    fn def_restricted_retirement_note_is_some() {
+        let r = retirement_lookup(":wat::core::def-restricted").unwrap();
+        assert!(r.note.is_some(), "def-restricted retirement must carry a migration note");
+    }
+
+    #[test]
+    fn struct_restricted_retirement_note_is_some() {
+        let r = retirement_lookup(":wat::core::struct-restricted").unwrap();
+        assert!(r.note.is_some(), "struct-restricted retirement must carry a migration note");
     }
 }

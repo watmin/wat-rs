@@ -1,4 +1,4 @@
-//! Ranking logic — threshold tuning, top-N capping, candidate combination.
+//! Ranking logic — threshold tuning, top-N capping, `nearest_match`.
 //!
 //! ## Why this module exists
 //!
@@ -13,15 +13,15 @@
 //!
 //! ## Scope
 //!
-//! One public function: [`nearest_match`]. Two private helpers:
-//! [`typo_threshold`] and [`TOP_N`]. The `remedies_for` combinator lives in `mod.rs`.
+//! One public function: [`nearest_match`]. One private function (`typo_threshold`)
+//! + one private constant (`TOP_N`). The `remedies_for` combinator lives in `mod.rs`.
 
 use super::{Remedy, RemedyKind};
-use crate::remedy::distance::levenshtein;
+use super::distance::levenshtein;
 
 /// Maximum edit distance allowed for a typo remedy.
 ///
-/// Formula: `max(1, needle.len() / 3)`. Longer identifiers tolerate more
+/// Formula: `max(1, needle.chars().count() / 3)`. Longer identifiers tolerate more
 /// distance; short identifiers (len < 3) always allow 1 edit minimum.
 /// Mirrors the Rust compiler's heuristic.
 ///
@@ -64,6 +64,7 @@ pub fn nearest_match<'a>(
                     form: candidate.to_string(),
                     score: dist,
                     kind: RemedyKind::Typo,
+                    note: None,
                 })
             } else {
                 None

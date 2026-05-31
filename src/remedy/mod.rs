@@ -65,11 +65,15 @@ pub struct Remedy {
     /// For typo remedies: the nearest known form by edit distance.
     /// For retirement remedies: the explicit replacement from the retirement table.
     pub form: String,
-    /// Edit distance from the needle to this candidate.
-    /// Always 0 for [`RemedyKind::Retirement`]; ≥ 1 for [`RemedyKind::Typo`].
+    /// Ranking score: Levenshtein distance for `Typo`; `0` (ordering sentinel,
+    /// not a distance) for `Retirement`.
     pub score: u32,
     /// Discriminates the remedy source: typo vs retirement-table hit.
     pub(crate) kind: RemedyKind,
+    /// Optional migration caveat for replacements that need more than a form-swap
+    /// (e.g. a retired restricted-def whose whitelist must be re-expressed as a
+    /// `{:restricted-to [...]}` metadata-map). `None` for pure renames + all typos.
+    pub note: Option<String>,
 }
 
 /// Discriminates the source of a [`Remedy`].
@@ -114,23 +118,30 @@ impl Ord for Remedy {
 //
 // Kind annotations:
 //   - Typo:       "[typo, distance N]"
-//   - Retirement: "[retirement replacement]"
+//   - Retirement: "[replaces a retired form]"
 
 /// Render a slice of remedies as the "did you mean" section.
 ///
 /// Intended for embedding into `fmt::Display` impls on error variants.
 /// Returns an empty string when `remedies` is empty — no section rendered.
+///
+/// When a remedy carries `Some(note)`, the note is appended to that remedy's
+/// rendered line (e.g. `… [replaces a retired form] — <note>`).
 pub fn render_remedies(remedies: &[Remedy]) -> String {
     match remedies.len() {
         0 => String::new(),
         1 => {
             let r = &remedies[0];
-            format!("  did you mean: {} [{}]", r.form, kind_annotation(r))
+            let mut line = format!("  did you mean: {} [{}]", r.form, kind_annotation(r));
+            line.push_str(&note_suffix(r));
+            line
         }
         _ => {
             let mut out = String::from("  did you mean:");
             for r in remedies {
-                out.push_str(&format!("\n    {}  [{}]", r.form, kind_annotation(r)));
+                let mut entry = format!("\n    {}  [{}]", r.form, kind_annotation(r));
+                entry.push_str(&note_suffix(r));
+                out.push_str(&entry);
             }
             out
         }
@@ -140,7 +151,15 @@ pub fn render_remedies(remedies: &[Remedy]) -> String {
 fn kind_annotation(r: &Remedy) -> String {
     match r.kind {
         RemedyKind::Typo       => format!("typo, distance {}", r.score),
-        RemedyKind::Retirement => "retirement replacement".to_string(),
+        RemedyKind::Retirement => "replaces a retired form".to_string(),
+    }
+}
+
+/// The ` — <note>` suffix for a remedy that carries a migration caveat; empty when None.
+fn note_suffix(r: &Remedy) -> String {
+    match &r.note {
+        Some(note) => format!(" — {note}"),
+        None => String::new(),
     }
 }
 
@@ -186,8 +205,8 @@ mod tests {
 
     #[test]
     fn lower_score_sorts_first() {
-        let a = Remedy { form: "beta".into(), score: 2, kind: RemedyKind::Typo };
-        let b = Remedy { form: "alpha".into(), score: 1, kind: RemedyKind::Typo };
+        let a = Remedy { form: "beta".into(), score: 2, kind: RemedyKind::Typo, note: None };
+        let b = Remedy { form: "alpha".into(), score: 1, kind: RemedyKind::Typo, note: None };
         let mut v = vec![a, b];
         v.sort();
         assert_eq!(v[0].score, 1);
@@ -195,8 +214,8 @@ mod tests {
 
     #[test]
     fn lex_tiebreaker_on_equal_score() {
-        let a = Remedy { form: "zeta".into(), score: 1, kind: RemedyKind::Typo };
-        let b = Remedy { form: "alpha".into(), score: 1, kind: RemedyKind::Typo };
+        let a = Remedy { form: "zeta".into(), score: 1, kind: RemedyKind::Typo, note: None };
+        let b = Remedy { form: "alpha".into(), score: 1, kind: RemedyKind::Typo, note: None };
         let mut v = vec![a, b];
         v.sort();
         assert_eq!(v[0].form, "alpha");
@@ -300,28 +319,28 @@ mod tests {
 
     #[test]
     fn render_single_remedy_has_did_you_mean_prefix() {
-        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement };
+        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains("did you mean:"), "missing 'did you mean:' prefix");
     }
 
     #[test]
     fn render_single_remedy_contains_form() {
-        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement };
+        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains(":wat::core::defstruct"), "missing form in rendered output");
     }
 
     #[test]
     fn render_single_retirement_annotation_is_canonical() {
-        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement };
+        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
-        assert!(rendered.contains("[retirement replacement]"), "missing retirement annotation");
+        assert!(rendered.contains("[replaces a retired form]"), "missing retirement annotation");
     }
 
     #[test]
     fn render_single_remedy_is_one_line() {
-        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement };
+        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
         assert_eq!(rendered.lines().count(), 1, "single remedy should be one line");
     }
@@ -330,28 +349,28 @@ mod tests {
 
     #[test]
     fn render_single_typo_has_did_you_mean_prefix() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo };
+        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo, note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains("did you mean:"), "missing 'did you mean:' prefix");
     }
 
     #[test]
     fn render_single_typo_contains_form() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo };
+        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo, note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains(":my::Status::Ok"), "missing form in rendered output");
     }
 
     #[test]
     fn render_single_typo_annotation_includes_distance() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo };
+        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo, note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains("[typo, distance 1]"), "missing typo annotation with distance");
     }
 
     #[test]
     fn render_single_typo_is_one_line() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo };
+        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo, note: None };
         let rendered = render_remedies(&[r]);
         assert_eq!(rendered.lines().count(), 1, "single typo remedy should be one line");
     }
@@ -359,8 +378,8 @@ mod tests {
     #[test]
     fn render_multi_remedy_multi_line() {
         let remedies = vec![
-            Remedy { form: ":my::Status::Ok".into(),      score: 1, kind: RemedyKind::Typo },
-            Remedy { form: ":my::Status::Oke".into(),     score: 2, kind: RemedyKind::Typo },
+            Remedy { form: ":my::Status::Ok".into(),      score: 1, kind: RemedyKind::Typo, note: None },
+            Remedy { form: ":my::Status::Oke".into(),     score: 2, kind: RemedyKind::Typo, note: None },
         ];
         let rendered = render_remedies(&remedies);
         // Header "  did you mean:" on its own line; candidates on subsequent lines.
@@ -370,11 +389,26 @@ mod tests {
 
     #[test]
     fn render_remedies_typo_annotation_includes_exact_distance() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 3, kind: RemedyKind::Typo };
+        let r = Remedy { form: ":my::Status::Ok".into(), score: 3, kind: RemedyKind::Typo, note: None };
         let rendered = render_remedies(&[r]);
         assert!(
             rendered.contains("[typo, distance 3]"),
             "annotation should read '[typo, distance 3]'; got: {rendered:?}"
+        );
+    }
+
+    #[test]
+    fn render_remedy_with_note_appends_note_suffix() {
+        let r = Remedy {
+            form: ":wat::core::defstruct".into(),
+            score: 0,
+            kind: RemedyKind::Retirement,
+            note: Some("X".into()),
+        };
+        let rendered = render_remedies(&[r]);
+        assert!(
+            rendered.contains(" — X"),
+            "rendered string must contain ' — X' when note is Some(\"X\"); got: {rendered:?}"
         );
     }
 
