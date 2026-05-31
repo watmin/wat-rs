@@ -41,20 +41,28 @@ Build it (trap-door), then use it:
   This is a pure extract-and-delegate refactor. The ONLY behavior change anywhere
   is that argspec (FIX 1b) stops double-printing the span. Any `TypeError` rendered
   on its own prints exactly as before. Verify by reading both Displays side by side.
-- If a `remedies`-rendering arm or any arm has post-`write!` logic, preserve it
-  verbatim in the `TypeErrorKind` Display (move the whole arm body, drop only the
-  prefix token).
+- The `MalformedVariant` arm (types.rs:1588-1604) has post-`write!` logic (it
+  appends `render_remedies` with a `?`-chained second `write!`). Move that arm's
+  WHOLE body into `TypeErrorKind`'s Display, dropping ONLY the `prefix` token from
+  the first `write!`; keep the remedies block + `Ok(())` exactly. (It's the one
+  multi-statement arm — handle it carefully.)
+- The `CyclicSubtype` arm (types.rs:1666) has NO `prefix` token already — move it
+  verbatim, change nothing (see 1a-NOTE).
 
-**1a-NOTE — the CyclicSubtype delta (read carefully).** Of the 16 `TypeError`
-Display arms, EXACTLY ONE — `CyclicSubtype` (types.rs:~1666) — currently renders
-WITHOUT a span prefix (it's the lone anomaly; the other 15 all use `prefix`). When
-you move it verbatim into `TypeErrorKind`'s Display (no prefix) and `TypeError`
-delegates via `write!("{}{}", prefix, self.kind)`, `CyclicSubtype` will GAIN a
-prefix. This is the ONE intentional behavior change and it is an IMPROVEMENT (a
-span-bearing error showing its location). VERIFIED no test asserts CyclicSubtype's
-message text (grep: only src/check.rs + src/types.rs reference it). Make this
-change; flag it explicitly in your report as the single accepted delta. All other
-15 arms must be byte-identical (minus prefix).
+**1a-NOTE — CyclicSubtype is SAFE (verified, no delta).** Of the 16 `TypeError`
+Display arms, 15 use `prefix`; `CyclicSubtype` (types.rs:1666) is the lone arm
+that renders WITHOUT it. That is NOT a render anomaly to "fix" — it is correct,
+because CyclicSubtype's SOLE construction site (`register_subtype`, types.rs:451)
+ALWAYS sets `span: Span::unknown()` (it's `rune:conformare(spanless-by-domain)` —
+registration operates on FQDN strings, no source span exists). And
+`span_prefix(unknown)` returns `""`. So after the delegate-split — `TypeError`
+Display = `write!(f, "{}{}", span_prefix(&self.span), self.kind)` and the 16 arms
+move verbatim-minus-prefix into `TypeErrorKind`'s Display — CyclicSubtype renders
+`"" + <message>` = byte-identical to today. ALL 16 arms stay byte-identical for
+every real value. There is NO behavior change anywhere in `types.rs`; the ONLY
+behavior change in the whole sweep is argspec FIX 1b (the double-span dies).
+Do NOT add a prefix to CyclicSubtype's message text; just move it as-is (its
+write! has no `prefix` token — leave it that way).
 
 **1b. `src/argspec/error.rs:62`** — change to:
 ```rust
