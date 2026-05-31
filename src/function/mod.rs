@@ -1,3 +1,5 @@
+//! vigilatum: 2026-05-30 @ cb287bf3 — vigilia 8-spell L1+L2=0
+//!
 //! # Function — namespaced home for fn-form parsing, evaluation, and inference.
 //!
 //! ## Why this module exists
