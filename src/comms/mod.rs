@@ -1,3 +1,5 @@
+//! vigilatum: 2026-05-31T22:47:39Z — vigilia 9-spell L1+L2=0
+//!
 //! # Comms layer — substrate-internal tier primitives
 //!
 //! Layer 0a of arc 214's concurrency toolkit (the comms-layer redesign
@@ -26,24 +28,33 @@
 //!   on `trigger_shutdown()`, sending POLLHUP to all read-side receivers.
 //!   Pre-init (`fd == -1`) the recv falls back to bare io_uring Read.
 //!
-//! Callers cannot bypass the cascade because tier wrappers hide the underlying
-//! mechanism. Bare `crossbeam_channel::*` and bare `libc::pipe/read/write/
-//! poll/epoll/io_uring_*` are unreachable outside the tier wrapper modules
-//! (Slice 6 structural wall).
+//! **Intended invariant (NOT YET ENFORCED — Slice 6, pending):** tier wrappers
+//! should be the only path to the underlying mechanism. Today bare
+//! `crossbeam_channel::*` and bare `libc::pipe/read/write/poll/epoll/io_uring_*`
+//! remain reachable elsewhere in the crate; the structural wall (`pub(crate)`
+//! visibility reorg) lands in arc-214 Slice 6 (see
+//! `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md` § Slice 6).
 //!
 //! ## Mini-TCP at depth 1 (universal discipline)
 //!
-//! Each tier vends EXACTLY ONE factory: `pair()`. The factory returns a
-//! capacity-1 channel pair (thread: crossbeam `bounded(1)`; process: OS
-//! pipe, kernel-bounded by `PIPE_BUF`). `send` blocks when the buffer
-//! holds one value; `recv` drains it.
+//! Each tier vends EXACTLY ONE factory: `pair()`. Both tiers enforce the
+//! mini-TCP usage discipline (per `docs/ZERO-MUTEX.md` § "Mini-TCP via
+//! paired channels" line 252+): each send pairs with a recv before the
+//! next send. The backpressure mechanisms differ by tier:
 //!
-//! Capacity-1 is the structural enforcement of the mini-TCP usage
-//! discipline (per `docs/ZERO-MUTEX.md` § "Mini-TCP via paired channels"
-//! line 252+): each send pairs with a recv before the next send. The
-//! substrate doesn't enforce the pairing site-by-site, but capacity-1
-//! makes producers that try to outpace consumers block immediately
-//! rather than queuing up and amplifying drift.
+//! - **Thread tier:** crossbeam `bounded(1)` — structurally capacity-1;
+//!   `send` blocks when one value is queued; `recv` drains it.
+//! - **Process tier:** Linux anonymous pipe — kernel-buffered (~65536
+//!   bytes); individual writes ≤ `PIPE_BUF` (4096 bytes) are POSIX-atomic,
+//!   but the pipe is NOT capacity-1. Many frames can accumulate before the
+//!   writer blocks. The mini-TCP *discipline* (one send ↔ one recv) is a
+//!   usage convention the process tier does not structurally enforce at
+//!   depth-1 (per DESIGN.md § "Slice 2 forward-correction (2026-05-19)
+//!   — Mini-TCP at depth 1 (universal symmetry)").
+//!
+//! The substrate doesn't enforce the pairing site-by-site, but both tiers
+//! provide backpressure — the thread tier via a hard capacity ceiling, the
+//! process tier via the kernel pipe buffer filling under sustained load.
 //!
 //! There is no `bounded(N)` factory at any tier. The trading-lab
 //! convergence (pre-wat-rs origin) proved N > 1 produces massive perf
@@ -265,54 +276,6 @@ where
             }
             other => Err(WireError::new(format!(
                 "expected HolonAST::Bundle (vector-shape), got {:?}",
-                other
-            ))),
-        }
-    }
-}
-
-/// Arc 220 Stone 220.4 — `HolonRepresentable` for `LinkedList<T>`.
-///
-/// Mirrors the `HashSet<T>` impl pattern (Stone 1 above). Encodes as
-/// `HolonAST::Bundle(vec![T_holon, ...])` — the set-shape (no positional Bind keys)
-/// because LinkedList is accessed head-to-tail rather than by index. Order is preserved
-/// in the Bundle child list; reconstruction pushes elements back in order.
-///
-/// `from_holon_ast` reconstructs the LinkedList by matching `Bundle` shape and
-/// converting each child via `T::from_holon_ast` in traversal order.
-///
-/// Bounds: `T: HolonRepresentable + Send + 'static` — no `Hash + Eq` required
-/// (unlike HashSet) because LinkedList elements need not be hashable.
-impl<T> HolonRepresentable for std::collections::LinkedList<T>
-where
-    T: HolonRepresentable + Send + 'static,
-{
-    fn to_holon_ast(&self) -> holon::HolonAST {
-        let children: Vec<holon::HolonAST> = self.iter().map(|v| v.to_holon_ast()).collect();
-        holon::HolonAST::bundle(children)
-    }
-
-    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
-    where
-        Self: Sized,
-    {
-        match ast {
-            holon::HolonAST::Bundle(items) => {
-                let mut list = std::collections::LinkedList::new();
-                for (i, item) in items.iter().enumerate() {
-                    let v = T::from_holon_ast(item).map_err(|e| {
-                        WireError::new(format!(
-                            "LinkedList<T>[{}]: {}",
-                            i,
-                            e.message()
-                        ))
-                    })?;
-                    list.push_back(v);
-                }
-                Ok(list)
-            }
-            other => Err(WireError::new(format!(
-                "expected HolonAST::Bundle (list-shape), got {:?}",
                 other
             ))),
         }
@@ -632,9 +595,20 @@ pub trait CommReceiver<T> {
     /// have dropped. Cascade-irrelevant (does not block; shutdown does not change
     /// the result).
     fn try_recv(&self) -> Result<T, TryRecvError>;
-    /// Number of values currently queued in the channel awaiting recv.
-    /// Non-blocking; cascade-irrelevant. Useful for capacity-tracking callers
-    /// (e.g., `wat::kernel::HandlePool` checking for orphaned handles).
+    /// Number of values locally buffered and ready for immediate `recv`.
+    ///
+    /// Non-blocking; cascade-irrelevant.
+    ///
+    /// **Contract:** implementations MAY undercount when transport-buffered
+    /// values are not yet locally drained. The process tier counts only
+    /// frames already in the receiver's in-process accumulator; kernel-pipe
+    /// bytes not yet read are invisible until consumed via `recv` or
+    /// `try_recv`. The thread tier is exact (crossbeam's bounded(1) length).
+    ///
+    /// Callers needing an exact count should drain via `try_recv` until
+    /// `Empty`; the resulting `len()` then reflects all locally-available
+    /// frames. Useful for capacity-tracking callers (e.g.,
+    /// `wat::kernel::HandlePool` checking for orphaned handles).
     fn len(&self) -> usize;
     /// Signal end-of-stream from this receiver. Consumes self so the endpoint
     /// is gone after close. Other cloned `Receiver` handles (if any) remain
@@ -696,6 +670,41 @@ impl WireError {
     }
 }
 
+impl std::fmt::Display for WireError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for WireError {}
+
+impl std::fmt::Display for RecvError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("channel disconnected")
+    }
+}
+
+impl std::error::Error for RecvError {}
+
+impl std::fmt::Display for TryRecvError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TryRecvError::Empty => f.write_str("channel empty"),
+            TryRecvError::Disconnected => f.write_str("channel disconnected"),
+        }
+    }
+}
+
+impl std::error::Error for TryRecvError {}
+
+impl<T> std::fmt::Display for SendError<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("send failed: channel disconnected")
+    }
+}
+
+impl<T: std::fmt::Debug> std::error::Error for SendError<T> {}
+
 // ─── Tier modules ────────────────────────────────────────────────────────────
 
 /// Thread tier: in-process comms via crossbeam_channel. Cascade-aware.
@@ -723,6 +732,15 @@ pub struct ReceiverIndex(pub usize);
 /// Tier-specific `Select` types (Slice 2: `comms::thread::Select`,
 /// Slice 3: `comms::process::Select`) return this enum so callers
 /// handle substrate-shutdown uniformly regardless of which tier fired.
+///
+/// io_uring substrate failures (`process::Select`) are NOT represented
+/// here — they surface as `Err(std::io::Error)` on `process::Select::select()`
+/// (which returns `Result<SelectOutcome<T>, std::io::Error>`). The thread
+/// tier's `Select::select()` returns bare `SelectOutcome<T>` (the thread
+/// tier has no io_uring failure mode and is infallible beyond Recv/Shutdown).
+/// This asymmetry is HONEST: the tiers genuinely differ; a shared
+/// `SubstrateError` variant would force the thread tier to handle an
+/// impossible arm.
 #[derive(Debug)]
 pub enum SelectOutcome<T> {
     /// One of the registered receivers fired.
@@ -735,10 +753,4 @@ pub enum SelectOutcome<T> {
     },
     /// Substrate shutdown fired before any data receiver. Caller should unwind.
     Shutdown,
-    /// Substrate-level failure in the Select machinery itself (e.g., io_uring
-    /// ring creation, SQE submission, or submit_and_wait failure). Distinct
-    /// from any user-arm firing — `ReceiverIndex` is meaningless when the
-    /// substrate itself failed. Callers matching exhaustively will see this
-    /// arm and can report the error or treat it as fatal.
-    SubstrateError(std::io::Error),
 }

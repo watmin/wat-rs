@@ -3,7 +3,7 @@
 //! Layer 0a tier implementation per arc 214 (the comms-layer redesign;
 //! full design at `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md`).
 //! Builds on the Slice 1 traits (`crate::comms::{SendError, RecvError}`)
-//! using `libc::pipe` for the transport and `io_uring` for the wake
+//! using `libc::pipe2(O_CLOEXEC)` for the transport and `io_uring` for the wake
 //! mechanism.
 //!
 //! Wire chain (Stone C onward): `T → HolonAST → tagged-EDN string →
@@ -128,10 +128,18 @@ type Frame = Vec<u8>;
 /// `HolonRepresentable::to_holon_ast` → `write_holon_ast_tagged` →
 /// newline-framed bytes.
 ///
-/// Clone via `OwnedFd::try_clone` (Stone D1); cloned senders share the
-/// same kernel pipe (MPMC-style write fan-in). `close(self)` consumes
-/// the endpoint and drops the fd via OwnedFd Drop; peer sees EOF after
-/// ALL Sender clones close.
+/// Single-writer endpoint: this type deliberately does NOT implement
+/// `Clone`. POSIX only guarantees atomicity for writes ≤ `PIPE_BUF`
+/// (4096 bytes); two concurrent writers sharing an fd via `dup` could
+/// silently interleave frames larger than `PIPE_BUF`, corrupting the
+/// newline-framed wire format. With a single writer, any frame size is
+/// safe — there is no concurrent interleave to guard against.
+///
+/// If multi-producer fan-in is ever needed, it must be built with
+/// length-prefix framing (interleave-safe), not via raw-write `Clone`.
+///
+/// `close(self)` consumes the endpoint and drops the fd via OwnedFd Drop;
+/// the peer sees EOF when the sole Sender closes.
 #[derive(Debug)]
 pub struct Sender<T: HolonRepresentable> {
     write_fd: OwnedFd,
@@ -160,7 +168,9 @@ impl<T: HolonRepresentable> Sender<T> {
         let ast = value.to_holon_ast();
         let edn_str = crate::edn_shim::write_holon_ast_tagged(&ast);
 
-        // Frame: EDN bytes + '\n'. Single allocation; single contiguous write.
+        // Frame: EDN bytes + '\n'. One allocation, then a write loop
+        // (short writes resumed; EINTR retried). Single-writer endpoint —
+        // no concurrent interleave; writes ≤ PIPE_BUF (4096) are POSIX-atomic.
         let edn_bytes = edn_str.as_bytes();
         let mut framed: Vec<u8> = Vec::with_capacity(edn_bytes.len() + 1);
         framed.extend_from_slice(edn_bytes);
@@ -199,36 +209,17 @@ impl<T: HolonRepresentable> Sender<T> {
 
 impl<T: HolonRepresentable> Sender<T> {
     /// Signal end-of-stream from this sender. Consumes self so the
-    /// endpoint is gone after close. Other cloned `Sender` handles
-    /// (if any) remain valid. Peer receivers see EOF on their next
-    /// recv only after ALL `Sender` clones close (the pipe's write
-    /// reference count hits zero; kernel signals EOF on the read-end).
+    /// endpoint is gone after close. This is the SOLE write-end —
+    /// `process::Sender` is not `Clone` (single-writer by design, so
+    /// oversized frames cannot interleave). The peer sees EOF immediately
+    /// on its next recv: closing this sender drops the only write-end fd,
+    /// the pipe's write reference count hits zero, and the kernel signals
+    /// EOF on the read-end.
     ///
     /// Infallible: self drops at end of scope; OwnedFd's Drop calls
     /// libc::close(2). Move semantics make double-close a compile error.
     pub fn close(self) {
         // Drop happens at end of scope.
-    }
-}
-
-impl<T: HolonRepresentable> Clone for Sender<T> {
-    /// Clone the sender by duplicating its write-end fd via
-    /// `OwnedFd::try_clone` (which uses `libc::dup` internally). Both
-    /// clones reference the same kernel pipe; the pipe stays alive
-    /// as long as at least one fd to it exists.
-    ///
-    /// Panics on `libc::dup` failure — this only happens at EMFILE/
-    /// ENFILE (fd table exhaustion). A substrate-level fd-table
-    /// exhaustion is a fail-stop condition; panicking with a
-    /// diagnostic is honest reporting at this layer.
-    fn clone(&self) -> Self {
-        Self {
-            write_fd: self
-                .write_fd
-                .try_clone()
-                .expect("OwnedFd::try_clone (libc::dup) failed — fd table exhausted"),
-            _phantom: PhantomData,
-        }
     }
 }
 
@@ -609,7 +600,16 @@ fn wait_for_data_or_cascade(
             .map_err(|_| RecvError)?;
     }
 
-    ring.submit_and_wait(1).map_err(|_| RecvError)?;
+    // EINTR retry: a signal arriving during wait returns EINTR; resume waiting.
+    // Without retry, EINTR silently maps to RecvError (channel death) when the
+    // channel is healthy. Mirrors the proven template at process.rs:712-718.
+    loop {
+        match ring.submit_and_wait(1) {
+            Ok(_) => break,
+            Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
+            Err(_) => return Err(RecvError),
+        }
+    }
 
     // Drain ALL ready CQEs — both arms may fire simultaneously.
     let mut got_data = false;
@@ -633,9 +633,10 @@ fn wait_for_data_or_cascade(
     } else if got_data {
         Ok(PollOutcome::DataReady)
     } else {
-        // submit_and_wait(1) returned but no CQE drained — defensive.
-        // Should not happen with min_complete=1; if it does, treat as
-        // transient and let the caller retry via its loop.
+        // Unreachable with min_complete=1: submit_and_wait(1) success
+        // guarantees ≥1 CQE, so at least one arm fires. If this branch
+        // ever fires it is a substrate defect — propagate as Err(RecvError)
+        // (fatal; the caller's `?` surfaces it).
         Err(RecvError)
     }
 }
@@ -714,7 +715,17 @@ fn uring_read_into_acc(
         ring.submission().push(&read_e).map_err(|_| ())?;
     }
 
-    ring.submit_and_wait(1).map_err(|_| ())?;
+    // Retry submit_and_wait on EINTR (signal interrupted wait) — mirrors
+    // send()'s EINTR retry loop (process.rs send() fn). Without retry, a
+    // signal during wait silently maps to RecvError (channel death), when
+    // it should just resume waiting. All other errors are fatal.
+    loop {
+        match ring.submit_and_wait(1) {
+            Ok(_) => break,
+            Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
+            Err(_) => return Err(()),
+        }
+    }
     let cqe = ring.completion().next().ok_or(())?;
     let result = cqe.result();
     if result < 0 {
@@ -824,7 +835,13 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
     }
 
     /// Block until any registered receiver has a complete frame OR
-    /// substrate shutdown fires. Returns the outcome.
+    /// substrate shutdown fires. Returns `Ok(outcome)` on success or
+    /// `Err(io::Error)` on io_uring substrate failure (ring creation,
+    /// SQE submission, or submit_and_wait failure).
+    ///
+    /// Returning `Err` here means the Select machinery itself failed —
+    /// distinct from any user-arm firing. Callers treat this as fatal
+    /// or bubble it up.
     ///
     /// Fast path: check all receivers' accumulators for a buffered
     /// complete frame; if found, return that immediately (no io_uring).
@@ -834,14 +851,22 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
     /// for any to fire; drain CQEs; broadcast wins ties; if a data arm
     /// fired, Read from that arm via `rx.read_into_acc()`; if a complete
     /// frame is decoded, return; if partial, loop.
-    pub fn select(&mut self) -> SelectOutcome<T> {
+    pub fn select(&mut self) -> Result<SelectOutcome<T>, std::io::Error> {
+        // Guard: empty Select (no receivers + no broadcast) would hang forever
+        // in submit_and_wait(1) — caller misuse, not a representable-good state.
+        if self.receivers.is_empty() && current_broadcast_fd().is_none() {
+            return Err(std::io::Error::other(
+                "process::Select::select() called with zero registered receivers and no broadcast fd — would block forever"
+            ));
+        }
+
         // Fast path — any accumulator already has a complete frame?
         for (i, rx) in self.receivers.iter().enumerate() {
             if let Some(frame) = rx.take_buffered_frame() {
-                return SelectOutcome::Recv {
+                return Ok(SelectOutcome::Recv {
                     index: ReceiverIndex(i),
                     result: decode_frame::<T>(&frame),
-                };
+                });
             }
         }
 
@@ -869,10 +894,7 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                     Some((_, current_cap)) => *current_cap != needed_capacity,
                 };
                 if needs_rebuild {
-                    match IoUring::new(needed_capacity) {
-                        Ok(r) => *ring_slot = Some((r, needed_capacity)),
-                        Err(e) => return SelectOutcome::SubstrateError(e),
-                    }
+                    *ring_slot = Some((IoUring::new(needed_capacity)?, needed_capacity));
                 }
             }
             // Select-ring borrow released; safe to call Receiver methods below
@@ -899,9 +921,9 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                     // and remains valid for the lifetime of submit_and_wait.
                     unsafe {
                         if ring.submission().push(&poll_broadcast).is_err() {
-                            return SelectOutcome::SubstrateError(
-                                std::io::Error::other("io_uring SQE push (broadcast POLL_ADD) failed: submission queue full"),
-                            );
+                            return Err(std::io::Error::other(
+                                "io_uring SQE push (broadcast POLL_ADD) failed: submission queue full",
+                            ));
                         }
                     }
                 }
@@ -917,16 +939,14 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                     // by 'a; remains valid for the lifetime of submit_and_wait.
                     unsafe {
                         if ring.submission().push(&poll_data).is_err() {
-                            return SelectOutcome::SubstrateError(
-                                std::io::Error::other("io_uring SQE push (data POLL_ADD) failed: submission queue full"),
-                            );
+                            return Err(std::io::Error::other(
+                                "io_uring SQE push (data POLL_ADD) failed: submission queue full",
+                            ));
                         }
                     }
                 }
 
-                if let Err(e) = ring.submit_and_wait(1) {
-                    return SelectOutcome::SubstrateError(e);
-                }
+                ring.submit_and_wait(1)?;
 
                 // Drain ALL ready CQEs — both broadcast and data arms may
                 // fire simultaneously. Broadcast wins ties.
@@ -934,9 +954,7 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                 let mut first_data_arm: Option<usize> = None;
                 while let Some(cqe) = ring.completion().next() {
                     if cqe.result() < 0 {
-                        return SelectOutcome::SubstrateError(
-                            std::io::Error::from_raw_os_error(-cqe.result()),
-                        );
+                        return Err(std::io::Error::from_raw_os_error(-cqe.result()));
                     }
                     let token = cqe.user_data();
                     if token == BROADCAST_TOKEN {
@@ -951,7 +969,7 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
 
                 // Broadcast wins ties — substrate going down.
                 if fired_broadcast {
-                    return SelectOutcome::Shutdown;
+                    return Ok(SelectOutcome::Shutdown);
                 }
                 first_data_arm
             };
@@ -973,26 +991,26 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
             let rx = self.receivers[arm_idx];
             match rx.read_into_acc() {
                 Err(_) => {
-                    return SelectOutcome::Recv {
+                    return Ok(SelectOutcome::Recv {
                         index: ReceiverIndex(arm_idx),
                         result: Err(RecvError),
-                    };
+                    });
                 }
                 Ok(0) => {
                     // EOF — peer closed write end.
-                    return SelectOutcome::Recv {
+                    return Ok(SelectOutcome::Recv {
                         index: ReceiverIndex(arm_idx),
                         result: Err(RecvError),
-                    };
+                    });
                 }
                 Ok(_) => {}
             }
 
             if let Some(frame) = rx.take_buffered_frame() {
-                return SelectOutcome::Recv {
+                return Ok(SelectOutcome::Recv {
                     index: ReceiverIndex(arm_idx),
                     result: decode_frame::<T>(&frame),
-                };
+                });
             }
             // Partial bytes; no complete frame yet. Loop and re-poll
             // all arms (broadcast can fire mid-drain).
@@ -1004,12 +1022,12 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
 
 /// Create a new process-tier channel pair (Stone C — generic over T).
 ///
-/// Allocates an anonymous pipe via `libc::pipe(2)` and wraps the two
-/// file descriptors as `Sender<T>` / `Receiver<T>`. The type parameter
-/// `T` constrains what values flow through the channel; both endpoints
-/// must agree on `T` (typically inferred at call site).
+/// Allocates an anonymous pipe via `libc::pipe2(2)` with `O_CLOEXEC` and
+/// wraps the two file descriptors as `Sender<T>` / `Receiver<T>`. The type
+/// parameter `T` constrains what values flow through the channel; both
+/// endpoints must agree on `T` (typically inferred at call site).
 ///
-/// Returns the OS-level `io::Error` on `pipe(2)` failure (rare; out
+/// Returns the OS-level `io::Error` on `pipe2(2)` failure (rare; out
 /// of fds or kernel OOM).
 // rune:perspicere(read-once) — factory return shape
 // `Result<(Sender<T>, Receiver<T>)>` is 3 logical layers; a `ChannelPair<T>`
@@ -1021,13 +1039,15 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
 pub fn pair<T: HolonRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)> {
     let mut fds = [0i32; 2];
     // SAFETY: `fds` is a valid `[i32; 2]` stack allocation whose
-    // lifetime covers this call; `libc::pipe` writes two file
-    // descriptors into it.
-    let result = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    // lifetime covers this call; `libc::pipe2` writes two file
+    // descriptors into it. O_CLOEXEC: atomic flag at creation (belt for any
+    // future exec path); in fork-without-exec the flag doesn't auto-close
+    // inherited ends — close_range handles child fd hygiene.
+    let result = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if result != 0 {
         return Err(std::io::Error::last_os_error());
     }
-    // SAFETY: pipe(2) returned two valid, owned fds. Wrap each as OwnedFd
+    // SAFETY: pipe2(O_CLOEXEC) returned two valid, owned fds. Wrap each as OwnedFd
     // so Drop closes them; never call OwnedFd::from_raw_fd on the same
     // fd twice (would double-close).
     let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };

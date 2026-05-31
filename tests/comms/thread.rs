@@ -117,7 +117,6 @@ fn probe_slice2_select_picks_fired_receiver() {
             assert_eq!(result, Ok(7), "result must carry the sent value");
         }
         SelectOutcome::Shutdown => panic!("unexpected Shutdown — SHUTDOWN_RX not initialized in tests"),
-        SelectOutcome::SubstrateError(e) => panic!("unexpected SubstrateError: {e}"),
     }
 }
 

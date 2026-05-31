@@ -78,7 +78,6 @@ fn probe_slice1_select_outcome_constructs() {
             assert_eq!(result, Ok(42));
         }
         SelectOutcome::Shutdown => panic!("expected Recv"),
-        SelectOutcome::SubstrateError(e) => panic!("expected Recv, got SubstrateError: {e}"),
     }
 
     // Disconnected recv (the fired receiver's senders all dropped).
@@ -92,7 +91,6 @@ fn probe_slice1_select_outcome_constructs() {
             assert_eq!(result, Err(RecvError));
         }
         SelectOutcome::Shutdown => panic!("expected Recv"),
-        SelectOutcome::SubstrateError(e) => panic!("expected Recv, got SubstrateError: {e}"),
     }
 
     // Substrate-shutdown cascade fired before any data receiver.

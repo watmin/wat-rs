@@ -38,11 +38,13 @@
 //! consumers block immediately rather than queuing up and amplifying
 //! drift. The lock-step breathes with system load.
 //!
-//! This matches the process tier's kernel-bounded pipes structurally:
-//! Linux blocks writers when the pipe buffer fills (default 64KiB per
-//! `PIPE_BUF`). The unit differs (bytes vs frame-count) but the
+//! The process tier uses Linux anonymous pipes (~65536-byte kernel buffer;
+//! `PIPE_BUF` = 4096 is the per-write POSIX-atomicity threshold, NOT the
+//! pipe capacity). Linux blocks writers when the pipe buffer fills; the
+//! unit differs from the thread tier (bytes vs frame-count) but the
 //! backpressure shape is the same: substrate refuses to absorb work
-//! the consumer can't keep up with.
+//! the consumer can't keep up with. The process tier is NOT capacity-1
+//! — it holds many frames before blocking.
 //!
 //! Every load-bearing pattern this substrate ships (arc 119 ack-tx,
 //! defservice Request/Reply, Counter actor, dispatch loops) operates
@@ -202,50 +204,37 @@ impl<T: Send + 'static> CommReceiver<T> for Receiver<T> {
 
 // ─── Select ──────────────────────────────────────────────────────────────────
 
-/// Cascade-aware fan-in over multiple thread-tier receivers. Auto-registers
-/// `SHUTDOWN_RX` as an internal arm; user-registered receivers get
-/// `ReceiverIndex`es in registration order.
+/// Cascade-aware fan-in over multiple thread-tier receivers. Wires the
+/// substrate's `SHUTDOWN_RX` shutdown signal on every `select()` call
+/// (fresh read — no init-order trap).
+///
+/// User-registered receivers get `ReceiverIndex`es in registration order.
+/// The shutdown arm has no user-facing index; it surfaces as
+/// `SelectOutcome::Shutdown`.
 ///
 /// When `select()` fires, the shutdown arm wins iff substrate shutdown
 /// signaled (returns `SelectOutcome::Shutdown`); otherwise the fired
 /// user receiver's index + recv result is returned.
+///
+/// ## Init-order safety
+///
+/// `select()` reads `SHUTDOWN_RX` FRESH on every call (matching the
+/// `process::Select` pattern). A `Select` built before
+/// `init_shutdown_signal()` is NOT permanently broken — the next
+/// `select()` call picks up the now-initialized shutdown arm. This closes
+/// the init-order trap that the `new()`-time registration would create.
 pub struct Select<'a, T: Send + 'static> {
-    inner: crossbeam_channel::Select<'a>,
-    /// Crossbeam-internal arm index for SHUTDOWN_RX (if registered).
-    /// `None` only in bootstrap (SHUTDOWN_RX uninitialized).
-    shutdown_arm: Option<usize>,
-    /// Direct-index lookup table: `crossbeam_to_user[arm_idx]` returns the
-    /// `Some(user_pos)` mapping for that arm, or `None` for the shutdown arm.
-    /// O(1) lookup at `select()` time; sized to fit the largest crossbeam-arm-idx
-    /// registered. Built incrementally as `recv()` adds user arms.
-    crossbeam_to_user: Vec<Option<usize>>,
-    /// User-registered receivers indexed by user_pos (registration order).
-    /// `select()` returns `ReceiverIndex(user_pos)` so callers see registration
-    /// order, independent of the crossbeam-internal arm assignment.
+    /// User-registered receivers in registration order. The index
+    /// into this Vec is the user-facing `ReceiverIndex`.
     user_arms: Vec<&'a Receiver<T>>,
 }
 
 impl<'a, T: Send + 'static> Select<'a, T> {
-    /// Construct a new cascade-aware Select. Auto-registers `SHUTDOWN_RX`
-    /// internally so callers don't manually wire shutdown into every Select.
+    /// Construct a new cascade-aware Select. Empty until receivers are
+    /// registered via `recv`. The shutdown arm is NOT registered here —
+    /// it's wired per-`select()` call so there is no init-order trap.
     pub fn new() -> Self {
-        let mut inner = crossbeam_channel::Select::new();
-        // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
-        // Register SHUTDOWN_RX first (arm 0) when available so the cascade
-        // is always present regardless of how many user arms are added later.
-        let shutdown_arm = crate::runtime::SHUTDOWN_RX
-            .get()
-            .map(|srx| inner.recv(srx));
-        // Seed crossbeam_to_user with `None` at the shutdown arm's slot so the
-        // table is dense from arm 0 forward; user arms fill from arm 1+.
-        let mut crossbeam_to_user = Vec::new();
-        if let Some(sa) = shutdown_arm {
-            crossbeam_to_user.resize(sa + 1, None);
-        }
         Self {
-            inner,
-            shutdown_arm,
-            crossbeam_to_user,
             user_arms: Vec::new(),
         }
     }
@@ -255,14 +244,7 @@ impl<'a, T: Send + 'static> Select<'a, T> {
     /// Index is the registration order (0 for first registered, 1 for
     /// second, etc.) — independent of the crossbeam-internal arm index.
     pub fn recv(&mut self, rx: &'a Receiver<T>) -> ReceiverIndex {
-        let arm_idx = self.inner.recv(&rx.inner);
         let user_pos = self.user_arms.len();
-        // Grow the lookup table to cover this arm_idx (crossbeam assigns
-        // arms in ascending order; new arm_idx ≥ current table len).
-        if self.crossbeam_to_user.len() <= arm_idx {
-            self.crossbeam_to_user.resize(arm_idx + 1, None);
-        }
-        self.crossbeam_to_user[arm_idx] = Some(user_pos);
         self.user_arms.push(rx);
         ReceiverIndex(user_pos)
     }
@@ -270,29 +252,56 @@ impl<'a, T: Send + 'static> Select<'a, T> {
     /// Block until any registered receiver fires OR substrate shutdown
     /// signals. Returns the outcome — `Recv { index, result }` for a user
     /// receiver firing, `Shutdown` when the cascade fires.
+    ///
+    /// Panics if called with zero registered receivers and no
+    /// SHUTDOWN_RX initialized — crossbeam panics "cannot select with
+    /// no operations" in that case. With zero user arms, this Select is
+    /// only valid when SHUTDOWN_RX is initialized (cascade-only wait).
+    /// Prefer registering at least one user receiver before calling.
     pub fn select(&mut self) -> SelectOutcome<T> {
-        let selected_op = self.inner.select();
+        // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal;
+        // explicit threading would bloat every select() signature in the codebase.
+        // Fresh read per call — no init-order trap (mirrors process::Select pattern).
+        let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
+
+        // Guard: zero user arms + no shutdown = crossbeam would panic.
+        if self.user_arms.is_empty() && shutdown_rx.is_none() {
+            panic!(
+                "thread::Select::select() called with zero registered receivers \
+                 and SHUTDOWN_RX uninitialized — crossbeam would panic; register \
+                 at least one receiver or initialize the shutdown signal first"
+            );
+        }
+
+        // Build a fresh crossbeam Select for this call, wiring the shutdown
+        // arm first (so it has internal priority in crossbeam's selection).
+        let mut inner = crossbeam_channel::Select::new();
+
+        // Register shutdown arm first (arm 0 when present) so it has
+        // crossbeam-internal priority over user arms.
+        let shutdown_arm_idx: Option<usize> = shutdown_rx.map(|srx| inner.recv(srx));
+
+        // Register user arms; crossbeam assigns ascending indices starting
+        // after the shutdown arm (if any).
+        let user_arm_start = shutdown_arm_idx.map_or(0, |sa| sa + 1);
+        for rx in self.user_arms.iter() {
+            inner.recv(&rx.inner);
+        }
+
+        let selected_op = inner.select();
         let arm_idx = selected_op.index();
 
-        // Shutdown arm takes priority: if the substrate signaled shutdown,
-        // consume the operation and return Shutdown so callers unwind cleanly.
-        if self.shutdown_arm == Some(arm_idx) {
-            // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
-            let srx = crate::runtime::SHUTDOWN_RX
-                .get()
-                .expect("shutdown_arm was Some so SHUTDOWN_RX must be initialized");
-            // Consume the SelectedOperation — crossbeam requires this to
-            // avoid panicking on drop.
+        // Shutdown arm takes priority.
+        if shutdown_arm_idx == Some(arm_idx) {
+            let srx = shutdown_rx
+                .expect("shutdown_arm_idx was Some so shutdown_rx must be initialized");
             let _ = selected_op.recv(srx);
             return SelectOutcome::Shutdown;
         }
 
-        // O(1) lookup: crossbeam_to_user[arm_idx] gives the user position
-        // directly. Built incrementally as recv() registered each arm.
-        let user_pos = self.crossbeam_to_user[arm_idx]
-            .expect("registered receiver fired but not in crossbeam_to_user — internal bookkeeping bug");
+        // User arm — map crossbeam index back to user_pos.
+        let user_pos = arm_idx - user_arm_start;
         let fired_rx = self.user_arms[user_pos];
-
         let result = selected_op.recv(&fired_rx.inner).map_err(|_| RecvError);
         SelectOutcome::Recv {
             index: ReceiverIndex(user_pos),

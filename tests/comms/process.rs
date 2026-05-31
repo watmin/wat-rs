@@ -10,11 +10,11 @@
 //!   5. accumulator correctly splits two frames received in one read
 //!   6. large string spans multiple io_uring reads
 //!
-//! `probe_slice3d1_*` (10 tests; Stone D1 — mechanical methods + traits):
+//! `probe_slice3d1_*` (9 tests; Stone D1 — mechanical methods + traits):
 //!   1-3. try_recv: Empty, Disconnected, success
 //!   4. len reports accumulator frame count
 //!   5-6. Sender::close, Receiver::close consume the endpoint
-//!   7. Sender clone shares the write-end fd
+//!   7. (retired) Sender::clone — Clone impl removed; single-writer by design
 //!   8. Receiver clone has fresh accumulator + shares pipe fd
 //!   9-10. CommSender / CommReceiver trait dispatch
 //!
@@ -218,22 +218,6 @@ fn probe_slice3d1_receiver_close_consumes_endpoint() {
 }
 
 #[test]
-fn probe_slice3d1_sender_clone_shares_write_end() {
-    // Verifies cloned senders both write to the same channel: both
-    // values arrive on the receiver. Cloned senders share the kernel
-    // pipe via libc::dup.
-    let (tx, rx) = pair::<String>().expect("pair");
-    let tx2 = tx.clone();
-    tx.send("from tx".to_string()).expect("send via tx");
-    tx2.send("from tx2".to_string()).expect("send via tx2");
-    let first = rx.recv().expect("recv 1");
-    let second = rx.recv().expect("recv 2");
-    let mut got = [first, second];
-    got.sort();
-    assert_eq!(got, ["from tx".to_string(), "from tx2".to_string()]);
-}
-
-#[test]
 fn probe_slice3d1_receiver_clone_competes_for_frames() {
     // Verifies cloned receivers share the same kernel pipe: a clone
     // can independently recv frames sent on the channel. The clone
@@ -307,12 +291,12 @@ fn probe_slice3d2_select_picks_fired_receiver() {
     // returned index intentionally unused.
     let _idx_b = sel.recv(&rx_b);
     match sel.select() {
-        SelectOutcome::Recv { index, result } => {
+        Ok(SelectOutcome::Recv { index, result }) => {
             assert_eq!(index, idx_a, "fired index must match the receiver with data");
             assert_eq!(result, Ok("hello-a".to_string()), "result must carry the sent value");
         }
-        SelectOutcome::Shutdown => panic!("unexpected Shutdown"),
-        SelectOutcome::SubstrateError(e) => panic!("unexpected SubstrateError: {e}"),
+        Ok(SelectOutcome::Shutdown) => panic!("unexpected Shutdown"),
+        Err(e) => panic!("unexpected io_uring substrate error: {e}"),
     }
 }
 
