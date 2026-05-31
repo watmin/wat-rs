@@ -1,8 +1,8 @@
-//! Ranking logic — threshold tuning, top-N capping, `nearest_match`.
+//! Ranking logic — threshold tuning, top-N capping, `nearest_matches`.
 //!
 //! ## Why this module exists
 //!
-//! Given a needle and a candidate set, `nearest_match` must:
+//! Given a needle and a candidate set, `nearest_matches` must:
 //! 1. Filter candidates that are too far away (threshold)
 //! 2. Sort survivors ascending by distance (closest first)
 //! 3. Break ties lexicographically on form
@@ -13,8 +13,10 @@
 //!
 //! ## Scope
 //!
-//! One public function: [`nearest_match`]. One private function (`typo_threshold`)
+//! One public function: [`nearest_matches`]. One private function (`typo_threshold`)
 //! + one private constant (`TOP_N`). The `remedies_for` combinator lives in `mod.rs`.
+
+use std::num::NonZeroU32;
 
 use super::{Remedy, RemedyKind};
 use super::distance::levenshtein;
@@ -31,7 +33,7 @@ fn typo_threshold(needle: &str) -> u32 {
     std::cmp::max(1, (needle.chars().count() / 3) as u32)
 }
 
-/// Maximum number of candidates returned by `nearest_match`.
+/// Maximum number of candidates returned by `nearest_matches`.
 ///
 /// Beyond 5 = noise; the reader can't usefully discriminate.
 const TOP_N: usize = 5;
@@ -47,7 +49,7 @@ const TOP_N: usize = 5;
 ///
 /// The iterator is consumed once; no allocation per candidate beyond the
 /// score table. Suitable for small-to-medium candidate sets (≤ ~500 items).
-pub fn nearest_match<'a>(
+pub fn nearest_matches<'a>(
     needle: &str,
     candidates: impl Iterator<Item = &'a str>,
 ) -> Vec<Remedy> {
@@ -55,20 +57,12 @@ pub fn nearest_match<'a>(
 
     let mut hits: Vec<Remedy> = candidates
         .filter_map(|candidate| {
-            if candidate == needle {
-                return None; // exact match — not a typo
-            }
-            let dist = levenshtein(needle, candidate);
-            if dist <= threshold {
-                Some(Remedy {
-                    form: candidate.to_string(),
-                    score: dist,
-                    kind: RemedyKind::Typo,
-                    note: None,
-                })
-            } else {
-                None
-            }
+            let dist = NonZeroU32::new(levenshtein(needle, candidate))?; // None = exact match (distance 0) — not a typo
+            (dist.get() <= threshold).then(|| Remedy {
+                form: candidate.to_string(),
+                kind: RemedyKind::Typo(dist),
+                note: None,
+            })
         })
         .collect();
 
@@ -85,44 +79,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nearest_match_admits_candidate_within_threshold_short_needle() {
+    fn nearest_matches_admits_candidate_within_threshold_short_needle() {
         // needle "abcdef" (len=6): threshold = max(1, 6/3) = 2.
         // candidate "abcdXf" = distance 1 (≤ 2) — must be admitted.
-        let results = nearest_match("abcdef", ["abcdXf"].iter().copied());
+        let results = nearest_matches("abcdef", ["abcdXf"].iter().copied());
         assert_eq!(results[0].form, "abcdXf");
     }
 
     #[test]
-    fn nearest_match_rejects_candidate_beyond_threshold_short_needle() {
+    fn nearest_matches_rejects_candidate_beyond_threshold_short_needle() {
         // needle "abcdef" (len=6): threshold = max(1, 6/3) = 2.
         // candidate "abcXYZ" = distance 3 (> 2) — must be rejected.
-        let results = nearest_match("abcdef", ["abcXYZ"].iter().copied());
+        let results = nearest_matches("abcdef", ["abcXYZ"].iter().copied());
         assert!(results.is_empty(), "candidate beyond threshold should be rejected");
     }
 
     #[test]
-    fn nearest_match_admits_candidate_within_threshold_long_needle() {
+    fn nearest_matches_admits_candidate_within_threshold_long_needle() {
         // needle "abcdefghijkl" (len=12): threshold = max(1, 12/3) = 4.
         // candidate at distance 4 — must be admitted.
         let needle = "abcdefghijkl";
         // "abcdefghijXX" has 2 subs at pos 10,11 = distance 2 ≤ 4 → admitted.
-        let results = nearest_match(needle, ["abcdefghijXX"].iter().copied());
+        let results = nearest_matches(needle, ["abcdefghijXX"].iter().copied());
         assert!(!results.is_empty(), "candidate within threshold (long needle) should be admitted");
     }
 
     #[test]
-    fn nearest_match_rejects_candidate_beyond_threshold_long_needle() {
+    fn nearest_matches_rejects_candidate_beyond_threshold_long_needle() {
         // needle "abcdefghijkl" (len=12): threshold = max(1, 12/3) = 4.
         // candidate at distance 5 — must be rejected.
         let needle = "abcdefghijkl";
         // "abcdeXXXXXX" has 7 subs = distance 7 > 4 → rejected.
-        let results = nearest_match(needle, ["abcdeXXXXXXX"].iter().copied());
+        let results = nearest_matches(needle, ["abcdeXXXXXXX"].iter().copied());
         assert!(results.is_empty(), "candidate beyond threshold (long needle) should be rejected");
     }
 
     #[test]
     fn exact_match_excluded() {
-        let results = nearest_match(
+        let results = nearest_matches(
             ":wat::core::defenum",
             [":wat::core::defenum"].iter().copied(),
         );
@@ -132,7 +126,7 @@ mod tests {
     fn single_typo_results() -> Vec<Remedy> {
         // ":my::Status::Oks" vs ":my::Status::Ok" = distance 1; threshold = max(1, 16/3) = 5
         let candidates = [":my::Status::Ok", ":my::Status::Pending", ":my::Status::Error"];
-        nearest_match(":my::Status::Oks", candidates.iter().copied())
+        nearest_matches(":my::Status::Oks", candidates.iter().copied())
     }
 
     #[test]
@@ -142,18 +136,18 @@ mod tests {
 
     #[test]
     fn single_typo_first_result_has_distance_one() {
-        assert_eq!(single_typo_results()[0].score, 1);
+        assert_eq!(single_typo_results()[0].score(), 1);
     }
 
     #[test]
     fn single_typo_first_result_has_typo_kind() {
-        assert!(matches!(single_typo_results()[0].kind, RemedyKind::Typo));
+        assert!(matches!(single_typo_results()[0].kind, RemedyKind::Typo(_)));
     }
 
     #[test]
     fn distant_candidate_excluded() {
         let candidates = [":wat::core::completely_different_thing"];
-        let results = nearest_match(":wat::core::defenum", candidates.iter().copied());
+        let results = nearest_matches(":wat::core::defenum", candidates.iter().copied());
         assert!(results.is_empty(), "distant candidate should be filtered");
     }
 
@@ -163,7 +157,7 @@ mod tests {
         let candidates: Vec<String> = (b'a'..=b'j')
             .map(|c| format!("aaaa{}", c as char))
             .collect();
-        let results = nearest_match("aaaa", candidates.iter().map(|s| s.as_str()));
+        let results = nearest_matches("aaaa", candidates.iter().map(|s| s.as_str()));
         assert!(
             results.len() <= TOP_N,
             "results should be capped at TOP_N={}", TOP_N
@@ -176,10 +170,10 @@ mod tests {
             ":wat::core::defenmu",  // distance 2 from :wat::core::defenum
             ":wat::core::defenu",   // distance 1 from :wat::core::defenum
         ];
-        let results = nearest_match(":wat::core::defenum", candidates.iter().copied());
+        let results = nearest_matches(":wat::core::defenum", candidates.iter().copied());
         for w in results.windows(2) {
             assert!(
-                w[0].score <= w[1].score,
+                w[0].score() <= w[1].score(),
                 "results not sorted ascending: {:?}", w
             );
         }
@@ -190,7 +184,7 @@ mod tests {
         // needle = "aab"; "aac" and "aad" are both distance 1.
         // Threshold for "aab" (len=3) = max(1, 3/3) = 1, so both qualify.
         let candidates = ["aad", "aac"];
-        let forms: Vec<String> = nearest_match("aab", candidates.iter().copied())
+        let forms: Vec<String> = nearest_matches("aab", candidates.iter().copied())
             .into_iter()
             .map(|r| r.form)
             .collect();
@@ -204,7 +198,7 @@ mod tests {
         // candidate at distance 1 must be admitted.
         let needle = "éééééé"; // 6 chars
         let candidates = vec!["éééééx"]; // 1 substitution = distance 1
-        let results = nearest_match(needle, candidates.iter().copied());
+        let results = nearest_matches(needle, candidates.iter().copied());
         assert!(!results.is_empty(), "candidate at distance 1 must pass threshold for needle of 6 chars");
     }
 }

@@ -14,8 +14,8 @@
 //!
 //! The table is an EXPLICIT static mapping. No heuristic matching; no fuzzy
 //! lookup. Retirement is a deliberate language history event — the table records
-//! it exactly. Only shipped retirements appear here; future-vapor entries are
-//! forbidden (per D6).
+//! it exactly. Future-vapor entries are forbidden — only shipped retirements
+//! appear here.
 //!
 //! ## Adding entries
 //!
@@ -35,7 +35,7 @@
 //! | Entry | Stone | Retired | Replacement |
 //! |---|---|---|---|
 //! | `":wat::core::struct"`            | 241.8 | struct (original) | defstruct |
-//! | `":wat::core::struct-restricted"` | 241.8 | struct-restricted  | defstruct |
+//! | `":wat::core::struct-restricted"` | 241.8 | struct-restricted  | defstruct + metadata-map `{:restricted-to / :field-metadata}` |
 //! | `":wat::core::enum"`              | 241.9 | enum (original)    | defenum   |
 //! | `":wat::core::define"`            | 241.11 | define (function binding) | defn |
 //! | `":wat::core::Char"`              | 242.1  | Char (PascalCase scalar)  | char (lowercase per Doctrine 2) |
@@ -49,61 +49,68 @@
 
 use super::{Remedy, RemedyKind};
 
+/// One retirement-table row: a retired form, its current replacement, and an
+/// optional migration caveat. Named fields make a column swap a compile concern,
+/// not a test-caught accident.
+struct RetirementEntry {
+    retired: &'static str,
+    replacement: &'static str,
+    note: Option<&'static str>,
+}
+
 /// Explicit retirement-form → replacement-form → optional migration note table.
 ///
-/// Each entry: `(retired, replacement, note)`. HARD CUT stones append entries
-/// at ship time. No future-vapor entries.
+/// Each entry carries `retired`, `replacement`, and `note`. HARD CUT stones append
+/// entries at ship time. No future-vapor entries.
 ///
 /// The note field carries a migration caveat for replacements that need more than
 /// a form-swap; `None` for pure renames. The caveat is surfaced to programmatic
 /// consumers via [`Remedy::note`].
-pub(crate) const RETIREMENT_TABLE: &[(&str, &str, Option<&str>)] = &[
+const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // Stone 241.8 — defstruct replaces struct + struct-restricted.
-    (":wat::core::struct",            ":wat::core::defstruct", None),
-    (":wat::core::struct-restricted", ":wat::core::defstruct",
-        Some("re-express the ctor restriction as a `{:restricted-to [...]}` metadata-map, and per-field restrictions as `{:field-metadata {field {:restricted-to [...]}}}`, on the defstruct binding")),
+    RetirementEntry { retired: ":wat::core::struct",            replacement: ":wat::core::defstruct", note: None },
+    RetirementEntry { retired: ":wat::core::struct-restricted", replacement: ":wat::core::defstruct",
+        note: Some("re-express the ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding") },
     // Stone 241.9 — defenum replaces enum.
-    (":wat::core::enum",              ":wat::core::defenum",   None),
+    RetirementEntry { retired: ":wat::core::enum",              replacement: ":wat::core::defenum",   note: None },
     // Stone 241.11 — defn replaces define.
-    (":wat::core::define",            ":wat::core::defn",      None),
+    RetirementEntry { retired: ":wat::core::define",            replacement: ":wat::core::defn",      note: None },
     // Stone 242.1 — char (lowercase) replaces Char (per Doctrine 2; scalar types lowercase).
-    (":wat::core::Char",              ":wat::core::char",      None),
+    RetirementEntry { retired: ":wat::core::Char",              replacement: ":wat::core::char",      note: None },
     // Stone 241.12 — defalias replaces runtime define-alias (native substrate form).
-    (":wat::runtime::define-alias",   ":wat::core::defalias",  None),
+    RetirementEntry { retired: ":wat::runtime::define-alias",   replacement: ":wat::core::defalias",  note: None },
     // Stone 241.13 — defclause replaces define-dispatch.
-    (":wat::core::define-dispatch",   ":wat::core::defclause", None),
+    RetirementEntry { retired: ":wat::core::define-dispatch",   replacement: ":wat::core::defclause", note: None },
     // Stone 241.14 — def + metadata-map replaces def-restricted; defn + metadata-map replaces defn-restricted.
     // The caller whitelist must be re-expressed as a {:restricted-to [...]} metadata-map
     // on the binding — carried in the remedy note for programmatic consumers.
-    (":wat::core::def-restricted",    ":wat::core::def",
-        Some("re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding")),
-    (":wat::core::defn-restricted",   ":wat::core::defn",
-        Some("re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding")),
+    RetirementEntry { retired: ":wat::core::def-restricted",    replacement: ":wat::core::def",
+        note: Some("re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding") },
+    RetirementEntry { retired: ":wat::core::defn-restricted",   replacement: ":wat::core::defn",
+        note: Some("re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding") },
     // Stone 241.15 — zombie purge: arc-109-slice-1j retirements now HARD CUT.
-    (":wat::core::try",               ":wat::core::Result/try",    None),
-    (":wat::core::option::expect",    ":wat::core::Option/expect", None),
-    (":wat::core::result::expect",    ":wat::core::Result/expect", None),
+    RetirementEntry { retired: ":wat::core::try",               replacement: ":wat::core::Result/try",    note: None },
+    RetirementEntry { retired: ":wat::core::option::expect",    replacement: ":wat::core::Option/expect", note: None },
+    RetirementEntry { retired: ":wat::core::result::expect",    replacement: ":wat::core::Result/expect", note: None },
 ];
 
 /// Look up `needle` in the retirement table.
 ///
-/// Returns `Some(Remedy { kind: Retirement, score: 0, form: replacement, note })`
-/// if the needle is a known retired form. Returns `None` if not retired.
+/// Returns `Some(Remedy)` for a known retired form — `form` is the replacement,
+/// `note` carries any migration caveat, and `score()` is `0` (an exact table hit,
+/// not a fuzzy distance). Returns `None` if `needle` is not retired.
 ///
-/// The score for a retirement remedy is always 0 — a direct table hit has no
-/// distance; it is an exact match on the retired form. For entries that carry a
-/// migration caveat (e.g. `def-restricted` / `defn-restricted`), the `note`
-/// field carries the caveat in structured form so programmatic consumers receive
+/// For entries that carry a migration caveat (e.g. `def-restricted` / `defn-restricted`),
+/// the `note` field carries the caveat in structured form so programmatic consumers receive
 /// it — not just the prose in this module's doc.
 pub(super) fn retirement_lookup(needle: &str) -> Option<Remedy> {
     RETIREMENT_TABLE
         .iter()
-        .find(|(retired, _, _)| *retired == needle)
-        .map(|(_, replacement, note)| Remedy {
-            form: replacement.to_string(),
-            score: 0,
+        .find(|e| e.retired == needle)
+        .map(|e| Remedy {
+            form: e.replacement.to_string(),
             kind: RemedyKind::Retirement,
-            note: note.map(str::to_string),
+            note: e.note.map(str::to_string),
         })
 }
 
@@ -130,7 +137,7 @@ mod tests {
 
     #[test]
     fn struct_retires_with_score_zero() {
-        assert_eq!(struct_retirement().score, 0);
+        assert_eq!(struct_retirement().score(), 0);
     }
 
     #[test]
@@ -145,7 +152,7 @@ mod tests {
 
     #[test]
     fn struct_restricted_retires_with_score_zero() {
-        assert_eq!(struct_restricted_retirement().score, 0);
+        assert_eq!(struct_restricted_retirement().score(), 0);
     }
 
     #[test]
@@ -160,7 +167,7 @@ mod tests {
 
     #[test]
     fn enum_retires_with_score_zero() {
-        assert_eq!(enum_retirement().score, 0);
+        assert_eq!(enum_retirement().score(), 0);
     }
 
     #[test]
@@ -186,9 +193,9 @@ mod tests {
     // rune:complectens(property-over-table) — single contract enforced across all entries; loop is the structure, not multiple claims
     #[test]
     fn retirement_score_is_always_zero() {
-        for (retired, _, _) in RETIREMENT_TABLE {
-            let r = retirement_lookup(retired).unwrap();
-            assert_eq!(r.score, 0, "retirement score must be 0 for {}", retired);
+        for entry in RETIREMENT_TABLE {
+            let r = retirement_lookup(entry.retired).unwrap();
+            assert_eq!(r.score(), 0, "retirement score must be 0 for {}", entry.retired);
         }
     }
 
@@ -202,5 +209,11 @@ mod tests {
     fn struct_restricted_retirement_note_is_some() {
         let r = retirement_lookup(":wat::core::struct-restricted").unwrap();
         assert!(r.note.is_some(), "struct-restricted retirement must carry a migration note");
+    }
+
+    #[test]
+    fn defn_restricted_retirement_note_is_some() {
+        let r = retirement_lookup(":wat::core::defn-restricted").unwrap();
+        assert!(r.note.is_some(), "defn-restricted retirement must carry a migration note");
     }
 }

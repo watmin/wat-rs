@@ -4583,7 +4583,7 @@ fn variant_typo_remedies(
     types: &crate::types::TypeEnv,
 ) -> Vec<crate::remedy::Remedy> {
     use crate::types::{TypeDef, TypeExpr, EnumVariant};
-    use crate::remedy::nearest_match;
+    use crate::remedy::nearest_matches;
 
     // Only fires when the body is a bare keyword literal.
     let needle = match body {
@@ -4613,7 +4613,7 @@ fn variant_typo_remedies(
         format!("{}::{}", enum_path, variant_name)
     }).collect();
 
-    nearest_match(needle, candidates.iter().map(|s| s.as_str()))
+    nearest_matches(needle, candidates.iter().map(|s| s.as_str()))
 }
 
 fn check_form(

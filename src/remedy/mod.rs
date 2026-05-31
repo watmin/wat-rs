@@ -1,3 +1,5 @@
+//! vigilatum: 2026-05-31 — vigilia 8-spell L1+L2=0
+//!
 //! # Remedy — ranked structured error remediation for the wat substrate.
 //!
 //! ## Why this module exists — the failure class being eliminated
@@ -13,16 +15,16 @@
 //!
 //! ## What this module owns
 //!
-//! - [`Remedy`] — a single ranked candidate (form + score + kind)
+//! - [`Remedy`] — a single ranked candidate (form + kind + note; `score()` derived from kind)
 //! - [`RemedyKind`] — discriminates typo remedies from retirement-table hits
-//! - [`nearest_match`] — Levenshtein-ranked candidates from a candidate set
+//! - [`nearest_matches`] — Levenshtein-ranked candidates from a candidate set
 //! - [`remedies_for`] — convenience combinator: retirement (priority) + typo merged
 //!
 //! ## What this module does NOT own
 //!
 //! Error construction — each call site decides when to invoke `remedies_for` and
-//! what candidate set to provide. This module is purely algorithmic. Per D10
-//! (lazy invocation discipline): `remedies_for` is called ONLY at error
+//! what candidate set to provide. This module is purely algorithmic.
+//! Lazy invocation discipline: `remedies_for` is called ONLY at error
 //! construction paths, never as a defensive pre-compute.
 //!
 //! VSA / `coincident?` / vector similarity — not this module's geometry.
@@ -35,7 +37,7 @@
 //! ├── mod.rs        — this file; public API surface
 //! ├── distance.rs   — Levenshtein helper (~100 lines)
 //! ├── retirement.rs — explicit retirement-form → replacement table
-//! └── rank.rs       — threshold tuning, top-N capping, nearest_match
+//! └── rank.rs       — threshold tuning, top-N capping, nearest_matches
 //! ```
 
 mod distance;
@@ -43,21 +45,21 @@ mod retirement;
 mod rank;
 
 use retirement::retirement_lookup;
-pub use rank::nearest_match;
+pub use rank::nearest_matches;
 
 /// A single ranked remedy offered to the user when their input is rejected.
 ///
-/// Remedies are sorted ascending by `score` (closest first); ties broken
+/// Remedies are sorted ascending by `score()` (closest first); ties broken
 /// lexicographically on `form`. Use [`render_remedies`] to render a slice of
 /// remedies as a human-readable "did you mean" section.
 ///
 /// ## Kind semantics
 ///
 /// - [`RemedyKind::Typo`] — edit-distance derived from a candidate set.
-///   The `score` field carries the Levenshtein distance.
+///   The distance is carried inside the variant.
 /// - [`RemedyKind::Retirement`] — explicit retirement-table hit. The substrate
 ///   has recorded that the needle was a valid form in a prior arc and was
-///   HARD CUT to the remedy's form. `score` is always 0 (exact table hit, no
+///   HARD CUT to the remedy's form. Score is always 0 (exact table hit, no
 ///   distance).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Remedy {
@@ -65,10 +67,7 @@ pub struct Remedy {
     /// For typo remedies: the nearest known form by edit distance.
     /// For retirement remedies: the explicit replacement from the retirement table.
     pub form: String,
-    /// Ranking score: Levenshtein distance for `Typo`; `0` (ordering sentinel,
-    /// not a distance) for `Retirement`.
-    pub score: u32,
-    /// Discriminates the remedy source: typo vs retirement-table hit.
+    /// Discriminates the remedy source; for typos, carries the edit distance.
     pub(crate) kind: RemedyKind,
     /// Optional migration caveat for replacements that need more than a form-swap
     /// (e.g. a retired restricted-def whose whitelist must be re-expressed as a
@@ -76,21 +75,41 @@ pub struct Remedy {
     pub note: Option<String>,
 }
 
+impl Remedy {
+    /// Ranking score: the Levenshtein distance for a typo; `0` for a retirement
+    /// (an exact table hit — distance zero — which sorts ahead of every typo).
+    pub fn score(&self) -> u32 {
+        match self.kind {
+            RemedyKind::Typo(distance) => distance.get(),
+            RemedyKind::Retirement => 0,
+        }
+    }
+}
+
 /// Discriminates the source of a [`Remedy`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Variant declaration order IS the Eq-consistency tiebreaker in `Remedy`'s `Ord`
+/// (`Typo` before `Retirement`). The order carries ZERO ranking meaning — `score()`
+/// + `form` decide all real cases — but DO NOT reorder these variants: it would
+/// silently change tie resolution between otherwise-identical remedies.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum RemedyKind {
     /// Levenshtein-derived from a candidate set — the user likely mistyped.
-    Typo,
-    /// Explicit retirement-table lookup — the form was valid in a prior arc
-    /// and was HARD CUT. The replacement is the current canonical form.
+    /// Carries the edit distance (always ≥ 1; exact matches are filtered upstream).
+    Typo(std::num::NonZeroU32),
+    /// Explicit retirement-table lookup — the form was valid in a prior arc and was
+    /// HARD CUT. The replacement is the current canonical form. No distance: an exact
+    /// table hit, not a fuzzy match.
     Retirement,
 }
 
 // ─── Ordering ────────────────────────────────────────────────────────────────
 //
-// Ascending by score; ties broken lexicographically on form.
-// RemedyKind does not participate in ordering — kind is metadata,
-// not a ranking axis.
+// Ranking is by score (ascending) then form (lexicographic). kind and note are
+// appended as final tiebreakers ONLY for Eq-consistency (std contract: a==b iff
+// cmp==Equal). They carry ZERO ranking meaning — score+form decide all real cases;
+// kind+note only break ties between otherwise-identical remedies, which essentially
+// never occurs in practice.
 
 impl PartialOrd for Remedy {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -100,9 +119,16 @@ impl PartialOrd for Remedy {
 
 impl Ord for Remedy {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.score
-            .cmp(&other.score)
+        self.score()
+            .cmp(&other.score())
             .then_with(|| self.form.cmp(&other.form))
+            // Final tiebreakers: kind, then note — carry ZERO ranking meaning
+            // (score+form decide all real cases); present solely so the total
+            // order is consistent with the derived Eq (std contract: a==b iff
+            // cmp==Equal). Without them, two remedies equal on score+form but
+            // differing in kind/note would compare Equal yet be Eq-unequal.
+            .then_with(|| self.kind.cmp(&other.kind))
+            .then_with(|| self.note.cmp(&other.note))
     }
 }
 
@@ -111,7 +137,7 @@ impl Ord for Remedy {
 // The Display impl renders a list of remedies as the "did you mean" section
 // that gets appended to an error message.
 //
-// Format rules (per D7):
+// Format rules:
 //   - 0 remedies → empty string (caller omits section)
 //   - 1 remedy   → "  did you mean: <form> [<annotation>]"
 //   - ≥2 remedies → "  did you mean:\n    <form>  [<annotation>]\n    ..."
@@ -150,8 +176,8 @@ pub fn render_remedies(remedies: &[Remedy]) -> String {
 
 fn kind_annotation(r: &Remedy) -> String {
     match r.kind {
-        RemedyKind::Typo       => format!("typo, distance {}", r.score),
-        RemedyKind::Retirement => "replaces a retired form".to_string(),
+        RemedyKind::Typo(distance) => format!("typo, distance {distance}"),
+        RemedyKind::Retirement     => "replaces a retired form".to_string(),
     }
 }
 
@@ -173,13 +199,13 @@ fn note_suffix(r: &Remedy) -> String {
 /// against the retirement hit's form (a retirement replacement never appears again
 /// as a distance-derived candidate).
 ///
-/// Per D10 (lazy invocation): call ONLY at error construction paths.
+/// Lazy invocation discipline — call ONLY at error construction paths.
 pub fn remedies_for<'a>(
     needle: &str,
     candidates: impl Iterator<Item = &'a str>,
 ) -> Vec<Remedy> {
     let retirement = retirement_lookup(needle);
-    let mut typos = nearest_match(needle, candidates);
+    let mut typos = nearest_matches(needle, candidates);
 
     match retirement {
         None => typos,
@@ -189,8 +215,8 @@ pub fn remedies_for<'a>(
             let mut combined = vec![ret];
             combined.extend(typos);
             // No re-sort needed: retirement score=0 leads by construction (vec![ret]
-            // prepended); typos from `nearest_match` are already sorted ascending by
-            // score; exact matches filtered by `nearest_match` so no typo can have
+            // prepended); typos from `nearest_matches` are already sorted ascending by
+            // score; exact matches filtered by `nearest_matches` so no typo can have
             // score=0. The invariant is structural, not enforced by sort.
             combined
         }
@@ -205,17 +231,17 @@ mod tests {
 
     #[test]
     fn lower_score_sorts_first() {
-        let a = Remedy { form: "beta".into(), score: 2, kind: RemedyKind::Typo, note: None };
-        let b = Remedy { form: "alpha".into(), score: 1, kind: RemedyKind::Typo, note: None };
+        let a = Remedy { form: "beta".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(2).unwrap()), note: None };
+        let b = Remedy { form: "alpha".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let mut v = vec![a, b];
         v.sort();
-        assert_eq!(v[0].score, 1);
+        assert_eq!(v[0].score(), 1);
     }
 
     #[test]
     fn lex_tiebreaker_on_equal_score() {
-        let a = Remedy { form: "zeta".into(), score: 1, kind: RemedyKind::Typo, note: None };
-        let b = Remedy { form: "alpha".into(), score: 1, kind: RemedyKind::Typo, note: None };
+        let a = Remedy { form: "zeta".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
+        let b = Remedy { form: "alpha".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let mut v = vec![a, b];
         v.sort();
         assert_eq!(v[0].form, "alpha");
@@ -242,7 +268,7 @@ mod tests {
 
     #[test]
     fn remedies_for_unknown_needle_first_typo_has_typo_kind() {
-        assert!(matches!(remedies_for_unknown_setup()[0].kind, RemedyKind::Typo));
+        assert!(matches!(remedies_for_unknown_setup()[0].kind, RemedyKind::Typo(_)));
     }
 
     #[test]
@@ -275,37 +301,37 @@ mod tests {
     #[test]
     fn combined_retirement_has_score_zero() {
         let remedies = combined_remedy_setup();
-        assert_eq!(remedies[0].score, 0);
+        assert_eq!(remedies[0].score(), 0);
     }
 
     #[test]
     fn combined_has_exactly_two_typos() {
         let remedies = combined_remedy_setup();
-        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo)).collect();
+        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo(_))).collect();
         assert_eq!(typos.len(), 2);
     }
 
     #[test]
     fn combined_typos_sorted_ascending_by_score() {
         let remedies = combined_remedy_setup();
-        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo)).collect();
+        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo(_))).collect();
         for w in typos.windows(2) {
-            assert!(w[0].score <= w[1].score);
+            assert!(w[0].score() <= w[1].score());
         }
     }
 
     #[test]
     fn combined_first_typo_has_score_one() {
         let remedies = combined_remedy_setup();
-        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo)).collect();
-        assert_eq!(typos[0].score, 1);
+        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo(_))).collect();
+        assert_eq!(typos[0].score(), 1);
     }
 
     #[test]
     fn combined_second_typo_has_score_two() {
         let remedies = combined_remedy_setup();
-        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo)).collect();
-        assert_eq!(typos[1].score, 2);
+        let typos: Vec<&Remedy> = remedies.iter().filter(|r| matches!(r.kind, RemedyKind::Typo(_))).collect();
+        assert_eq!(typos[1].score(), 2);
     }
 
     // ─── render_remedies ─────────────────────────────────────────────────
@@ -319,28 +345,28 @@ mod tests {
 
     #[test]
     fn render_single_remedy_has_did_you_mean_prefix() {
-        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement, note: None };
+        let r = Remedy { form: ":wat::core::defstruct".into(), kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains("did you mean:"), "missing 'did you mean:' prefix");
     }
 
     #[test]
     fn render_single_remedy_contains_form() {
-        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement, note: None };
+        let r = Remedy { form: ":wat::core::defstruct".into(), kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains(":wat::core::defstruct"), "missing form in rendered output");
     }
 
     #[test]
     fn render_single_retirement_annotation_is_canonical() {
-        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement, note: None };
+        let r = Remedy { form: ":wat::core::defstruct".into(), kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains("[replaces a retired form]"), "missing retirement annotation");
     }
 
     #[test]
     fn render_single_remedy_is_one_line() {
-        let r = Remedy { form: ":wat::core::defstruct".into(), score: 0, kind: RemedyKind::Retirement, note: None };
+        let r = Remedy { form: ":wat::core::defstruct".into(), kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
         assert_eq!(rendered.lines().count(), 1, "single remedy should be one line");
     }
@@ -349,28 +375,28 @@ mod tests {
 
     #[test]
     fn render_single_typo_has_did_you_mean_prefix() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo, note: None };
+        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains("did you mean:"), "missing 'did you mean:' prefix");
     }
 
     #[test]
     fn render_single_typo_contains_form() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo, note: None };
+        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains(":my::Status::Ok"), "missing form in rendered output");
     }
 
     #[test]
     fn render_single_typo_annotation_includes_distance() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo, note: None };
+        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
         assert!(rendered.contains("[typo, distance 1]"), "missing typo annotation with distance");
     }
 
     #[test]
     fn render_single_typo_is_one_line() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 1, kind: RemedyKind::Typo, note: None };
+        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
         assert_eq!(rendered.lines().count(), 1, "single typo remedy should be one line");
     }
@@ -378,8 +404,8 @@ mod tests {
     #[test]
     fn render_multi_remedy_multi_line() {
         let remedies = vec![
-            Remedy { form: ":my::Status::Ok".into(),      score: 1, kind: RemedyKind::Typo, note: None },
-            Remedy { form: ":my::Status::Oke".into(),     score: 2, kind: RemedyKind::Typo, note: None },
+            Remedy { form: ":my::Status::Ok".into(),  kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None },
+            Remedy { form: ":my::Status::Oke".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(2).unwrap()), note: None },
         ];
         let rendered = render_remedies(&remedies);
         // Header "  did you mean:" on its own line; candidates on subsequent lines.
@@ -389,7 +415,7 @@ mod tests {
 
     #[test]
     fn render_remedies_typo_annotation_includes_exact_distance() {
-        let r = Remedy { form: ":my::Status::Ok".into(), score: 3, kind: RemedyKind::Typo, note: None };
+        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(3).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
         assert!(
             rendered.contains("[typo, distance 3]"),
@@ -401,7 +427,6 @@ mod tests {
     fn render_remedy_with_note_appends_note_suffix() {
         let r = Remedy {
             form: ":wat::core::defstruct".into(),
-            score: 0,
             kind: RemedyKind::Retirement,
             note: Some("X".into()),
         };
@@ -409,6 +434,28 @@ mod tests {
         assert!(
             rendered.contains(" — X"),
             "rendered string must contain ' — X' when note is Some(\"X\"); got: {rendered:?}"
+        );
+    }
+
+    #[test]
+    fn render_multi_remedy_note_suffix_appears_on_noted_entry() {
+        // Covers note_suffix's second call site: the multi-branch loop in render_remedies.
+        let remedies = vec![
+            Remedy {
+                form: ":wat::core::defstruct".into(),
+                kind: RemedyKind::Retirement,
+                note: Some("migrate the ctor restriction".into()),
+            },
+            Remedy {
+                form: ":wat::core::defenum".into(),
+                kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()),
+                note: None,
+            },
+        ];
+        let rendered = render_remedies(&remedies);
+        assert!(
+            rendered.contains(" — migrate the ctor restriction"),
+            "multi-remedy render must include note suffix on the noted entry; got: {rendered:?}"
         );
     }
 
