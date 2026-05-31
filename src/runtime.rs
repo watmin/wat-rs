@@ -47,6 +47,7 @@ use holon::{encode, HolonAST, Similarity};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
+use std::os::fd::FromRawFd;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use wat_macros::{restricted_to, wat_value};
@@ -243,13 +244,15 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     SHUTDOWN_TX_PTR.store(boxed, Ordering::SeqCst);
 
     // Create wake pipe (async-signal-safe write-end; blocking read-end).
+    // pipe2(O_CLOEXEC): atomic CLOEXEC — belt for any future exec path; in
+    // fork-without-exec the flag doesn't fire, close_range handles hygiene.
     let mut fds = [0_i32; 2];
-    let pipe_result = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    let pipe_result = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if pipe_result != 0 {
-        // pipe(2) failed — substrate cannot safely operate. Structured
+        // pipe2(2) failed — substrate cannot safely operate. Structured
         // stderr diagnostic + exit. Should never happen in practice on Linux.
         // (Using write(2) directly avoids stdio locking in this early context.)
-        let msg = b"substrate: pipe(2) failed during shutdown init\n";
+        let msg = b"substrate: pipe2(2) failed during shutdown init\n";
         unsafe { libc::write(2, msg.as_ptr() as *const _, msg.len()) };
         std::process::exit(1);
     }
@@ -261,14 +264,18 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     // Worker holds the write-end; drops it after trigger_shutdown().
     // All Receiver/from-pipe recvs poll the read-end; POLLHUP → Shutdown.
     let mut broadcast_fds = [0_i32; 2];
-    let broadcast_result = unsafe { libc::pipe(broadcast_fds.as_mut_ptr()) };
+    // pipe2(O_CLOEXEC): atomic CLOEXEC — belt for any future exec path.
+    let broadcast_result = unsafe { libc::pipe2(broadcast_fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if broadcast_result != 0 {
-        let msg = b"substrate: pipe(2) failed during broadcast init\n";
+        let msg = b"substrate: pipe2(2) failed during broadcast init\n";
         unsafe { libc::write(2, msg.as_ptr() as *const _, msg.len()) };
         std::process::exit(1);
     }
     let broadcast_r_fd = broadcast_fds[0];
-    let broadcast_w_fd = broadcast_fds[1];
+    // SAFETY: broadcast_fds[1] is a valid owned fd from pipe2(2); wrapping as
+    // OwnedFd ensures the write-end is closed unconditionally on any worker
+    // exit path (including panic), so POLLHUP propagates to all readers.
+    let broadcast_w_fd = unsafe { std::os::fd::OwnedFd::from_raw_fd(broadcast_fds[1]) };
     SHUTDOWN_BROADCAST_READ_FD.store(broadcast_r_fd, Ordering::SeqCst);
 
     // Build the worker's pollfd set: wake-pipe + caller-provided inputs.
@@ -312,8 +319,10 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
             // Wake received. Trigger shutdown in normal context.
             trigger_shutdown();
             // Phase 2 — propagate shutdown to tier-2 PipeFd consumers by
-            // closing the broadcast write-end. All readers see POLLHUP.
-            unsafe { libc::close(broadcast_w_fd); }
+            // dropping the broadcast write-end OwnedFd. All readers see POLLHUP.
+            // OwnedFd::drop calls libc::close(2) unconditionally — including on
+            // panic — so POLLHUP is guaranteed regardless of the exit path.
+            drop(broadcast_w_fd);
             // Worker exits — its job is done; subsequent attempts are no-ops.
         })
         .expect("wat-shutdown-worker thread spawn failed");

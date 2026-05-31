@@ -1,11 +1,11 @@
 //! `:wat::kernel::fork-program-ast` — the fork substrate (arc 012 slice 2).
 //!
-//! Creates three pipe pairs, calls `libc::fork(2)`, redirects the
+//! Creates three pipe pairs, forks via `clone3` (through `spawn_lifelined`), redirects the
 //! child's stdio to the pipes via `dup2`, runs the caller's forms
 //! through `startup_from_forms` + `invoke_user_main` in the child
 //! (inside `catch_unwind`), exits with a code per the `EXIT_*`
 //! convention below. The parent receives a
-//! `:wat::kernel::ForkedChild` struct holding the child's pid plus
+//! `:wat::kernel::Process` struct holding the child handle plus
 //! the three parent-side pipe ends.
 //!
 //! Fork-safety discipline (see DESIGN.md "Fork safety discipline"):
@@ -17,8 +17,8 @@
 //! - Child builds a fresh `FrozenWorld` via `startup_from_forms` on
 //!   the inherited `Vec<WatAST>` — parent's runtime state is visible
 //!   in memory (COW) but the child never touches it.
-//! - Child closes every inherited fd above 2 (best-effort
-//!   `/proc/self/fd` / `/dev/fd` iteration).
+//! - Child closes every inherited fd above 2 via `close_range(3, MAX, 0)`
+//!   (authoritative syscall — no filesystem traversal).
 
 use crate::ast::WatAST;
 use crate::config::Config;
@@ -348,13 +348,16 @@ pub fn eval_kernel_wait_child(
 /// (tier 1) or via the spawn primitives' Process/tx/rx (tier 2).
 pub fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
     let mut fds = [0i32; 2];
-    let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    // pipe2(O_CLOEXEC): atomic CLOEXEC at creation. In fork-without-exec the
+    // flag doesn't fire (no exec clears it), so inheritance is unchanged.
+    // Belt: any future exec path gets CLOEXEC for free; no racy fcntl needed.
+    let ret = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if ret != 0 {
         let err = std::io::Error::last_os_error();
         // arc 138: no span — make_pipe OS error; no WatAST context available
         return Err(RuntimeError::MalformedForm {
             head: op.into(),
-            reason: format!("pipe(2): {}", err),
+            reason: format!("pipe2(2): {}", err),
             span: crate::span::Span::unknown(),
         });
     }
@@ -363,39 +366,59 @@ pub fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
     Ok((r, w))
 }
 
-/// Best-effort: close every inherited fd above 2 in the child.
-/// Iterates `/proc/self/fd` (Linux) or `/dev/fd` (macOS / BSD).
+// ── SYS_close_range syscall number ───────────────────────────────────────────
+// close_range(2) is Linux 5.9+. Used via raw libc::syscall — mirrors the
+// SYS_PIDFD_SEND_SIGNAL raw-syscall pattern (fork.rs:1447+send_signal).
+// compile_error! arch-guard for future ports; x86_64 = 436.
+#[cfg(target_arch = "x86_64")]
+const SYS_CLOSE_RANGE: libc::c_long = 436;
+#[cfg(not(target_arch = "x86_64"))]
+compile_error!(
+    "close_range: SYS_close_range syscall number not defined for this arch — add it"
+);
+
+/// Close every inherited fd above stdio (fd > 2) in the fork child, skipping
+/// at most one "lifeline" fd that the child must keep.
 ///
-/// The iteration itself opens a directory fd which appears in the
-/// listing. Closing that fd mid-iteration aborts the walk
-/// (`closedir` sees EBADF and panics under std's read_dir). The
-/// fix: collect candidate fds first, let the iterator drop (closing
-/// its own fd cleanly), then close the collected fds. Any that
-/// were the iterator's own fd are already closed — `libc::close`
-/// returns -1 with EBADF which we ignore.
+/// Authoritative replacement for the old `/proc/self/fd` directory-walk oracle.
+/// Uses `close_range(2)` via raw syscall — one or two calls, no filesystem
+/// traversal, no allocation. Safe in a fork(2) child because a fork child is
+/// SINGLE-THREADED (fork duplicates only the calling thread), so the process-
+/// global range operation cannot race with sibling threads' fd opens.
+///
+/// When `skip` is non-empty the kept fd is skipped via a two-range sweep:
+///   close_range(3, keep-1, 0)   — fds below the lifeline
+///   close_range(keep+1, MAX, 0) — fds above the lifeline
+///
+/// When `skip` is empty one call covers [3, MAX].
+///
+/// Errors from `close_range` are ignored (consistent with the previous
+/// best-effort close(2) loop). EBADF from an already-closed fd is harmless.
 fn close_inherited_fds_above_stdio(skip: &[i32]) {
-    let mut to_close: Vec<i32> = Vec::new();
-    for candidate in ["/proc/self/fd", "/dev/fd"] {
-        if let Ok(entries) = std::fs::read_dir(candidate) {
-            for entry in entries.flatten() {
-                if let Some(fname) = entry.file_name().to_str() {
-                    if let Ok(fd) = fname.parse::<i32>() {
-                        if fd > 2 {
-                            to_close.push(fd);
-                        }
-                    }
-                }
-            }
-            break;
-        }
-    }
-    for fd in to_close {
-        if skip.contains(&fd) {
-            continue;
+    // Inline helper: close_range(lo, hi, flags=0) via raw syscall (mirrors
+    // SYS_PIDFD_SEND_SIGNAL at fork.rs send_signal). Ignore errors: best-effort.
+    let sweep = |lo: libc::c_uint, hi: libc::c_uint| {
+        if lo > hi {
+            return; // empty range — no-op
         }
         unsafe {
-            libc::close(fd);
+            libc::syscall(SYS_CLOSE_RANGE, lo as libc::c_ulong, hi as libc::c_ulong, 0u32);
         }
+    };
+
+    if skip.is_empty() {
+        // No fd to preserve — one call closes [3, MAX].
+        sweep(3, libc::c_uint::MAX);
+    } else {
+        // Preserve exactly the first entry in `skip` (the lifeline fd).
+        // The fn is called with at most one element in practice; additional
+        // entries in the slice are ignored (they would need more range splits,
+        // and the current call sites never pass more than one fd).
+        let keep = skip[0] as libc::c_uint;
+        // Below the lifeline: [3, keep-1].
+        sweep(3, keep.saturating_sub(1));
+        // Above the lifeline: [keep+1, MAX].
+        sweep(keep.saturating_add(1), libc::c_uint::MAX);
     }
 }
 
@@ -533,12 +556,12 @@ fn emit_structured_exit(
 }
 
 /// `(:wat::kernel::fork-program-ast (forms :wat::core::Vector<wat::WatAST>)) ->
-/// :wat::kernel::ForkedChild`.
+/// :wat::kernel::Process`.
 ///
 /// Forks a fresh wat evaluation on top of the current runtime's
 /// loaded substrate. The child runs the caller's forms as its own
 /// `:user::main`-bearing program with captured stdio; the parent
-/// gets the ForkedChild struct (handle + stdin writer + stdout
+/// gets the Process struct (handle + stdin writer + stdout
 /// reader + stderr reader).
 pub fn eval_kernel_fork_program_ast(
     args: &[WatAST],
@@ -921,7 +944,7 @@ fn child_branch(
 /// Bundle of pipe ends + child handle returned by
 /// `fork_program_from_source` for Rust callers (arc 104c's wat-cli).
 /// The wat-level `eval_kernel_fork_program` wraps these into a
-/// `:wat::kernel::ForkedChild` struct value.
+/// `:wat::kernel::Process` struct value.
 pub struct ForkedProgramHandles {
     pub child_handle: Arc<ChildHandleInner>,
     pub stdin_w: OwnedFd,
@@ -1098,11 +1121,11 @@ pub fn fork_program_from_source(
 }
 
 /// `(:wat::kernel::fork-program (src :String) (scope :Option<String>))
-/// -> :wat::kernel::ForkedChild`.
+/// -> :wat::kernel::Process`.
 ///
 /// Wat-level dispatch arm. Parses arguments, calls
 /// `fork_program_from_source`, wraps the resulting handles into a
-/// `:wat::kernel::ForkedChild` Value::Struct so wat callers see the
+/// `:wat::kernel::Process` Value::Struct so wat callers see the
 /// same shape as `fork-program-ast`.
 pub fn eval_kernel_fork_program(
     args: &[WatAST],

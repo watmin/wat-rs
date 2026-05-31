@@ -436,7 +436,7 @@ impl WatWriter for StringIoWriter {
 // deadlock on.
 //
 // Dual role: the `:wat::kernel::pipe` primitive produces these around
-// a fresh `pipe(2)` pair (parent-side pipe ends). The
+// a fresh `pipe2(O_CLOEXEC)` pair (parent-side pipe ends). The
 // `:wat::kernel::fork-program-ast` primitive (slice 2) produces them
 // around the child's dup2'd fd 0 / 1 / 2 via
 // `from_owned_fd(OwnedFd::from_raw_fd(0))` etc. Same type, different
@@ -1158,8 +1158,8 @@ pub fn eval_iowriter_close(
 
 /// `(:wat::kernel::pipe)` → `:(wat::io::IOWriter, wat::io::IOReader)`.
 ///
-/// Creates a fresh Unix pipe via `libc::pipe(2)`. The write end comes
-/// first in the returned tuple (you write to produce, read to consume
+/// Creates a fresh Unix pipe via `libc::pipe2(2)` with `O_CLOEXEC`. The write
+/// end comes first in the returned tuple (you write to produce, read to consume
 /// — same order a human says "producer then consumer"). Both ends are
 /// `PipeWriter` / `PipeReader` over an `OwnedFd`; `Drop` closes.
 ///
@@ -1172,17 +1172,19 @@ pub fn eval_kernel_pipe(args: &[WatAST], list_span: &Span) -> Result<Value, Runt
     let op = ":wat::kernel::pipe";
     arity(op, args, 0)?;
     let mut fds = [0i32; 2];
-    let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    // pipe2(O_CLOEXEC): atomic CLOEXEC at creation. Belt for any future exec
+    // path; in fork-without-exec the flag doesn't fire (no exec to clear it).
+    let ret = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if ret != 0 {
         let err = std::io::Error::last_os_error();
         // arc 138: no span — OS syscall error; no AST context available at the point of failure
         return Err(RuntimeError::MalformedForm {
             head: op.into(),
-            reason: format!("pipe(2) syscall failed: {}", err),
+            reason: format!("pipe2(2) syscall failed: {}", err),
             span: crate::span::Span::unknown(),
         });
     }
-    // SAFETY: libc::pipe returned 0, so fds[0] (read) and fds[1]
+    // SAFETY: libc::pipe2 returned 0, so fds[0] (read) and fds[1]
     // (write) are freshly-opened fds we now own; wrapping each in
     // OwnedFd transfers that ownership. `Drop` will call close(2).
     let reader_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
@@ -1401,14 +1403,14 @@ mod pipe_tests {
     use super::*;
     use std::os::fd::FromRawFd;
 
-    /// Build a fresh `pipe(2)` pair wrapped as our typed ends.
+    /// Build a fresh `pipe2(O_CLOEXEC)` pair wrapped as our typed ends.
     fn make_pipe() -> (PipeWriter, PipeReader) {
         let mut fds = [0i32; 2];
-        let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
+        let ret = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
         assert_eq!(
             ret,
             0,
-            "libc::pipe failed: {}",
+            "libc::pipe2 failed: {}",
             std::io::Error::last_os_error()
         );
         let reader_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
