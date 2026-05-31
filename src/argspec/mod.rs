@@ -16,7 +16,7 @@
 //! Per failure-engineering doctrine: **eliminate the class**. State to make
 //! unrepresentable: *two binding sites accepting different arg-vector forms*. This
 //! module mints the ONE canonical parser; subsequent stones (241.2/241.3) migrate
-//! callers; the class is closed when the four old parsers retire.
+//! callers; the class is closed: all four old parsers were migrated through Stones 241.1–241.5 and retired.
 //!
 //! ## Scope
 //!
@@ -63,4 +63,3 @@ mod parse;
 
 pub use error::{ArgSpecError, ArgSpecErrorKind};
 pub use parse::{parse_argspec_triples, ArgSpec, ParseOptions};
-pub(crate) use parse::is_bare_symbol;

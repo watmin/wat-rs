@@ -34,7 +34,7 @@ pub enum ArgSpecErrorKind {
     TypeNotKeyword,
     /// A type keyword in slot 2 failed `parse_type_expr_with_span`.
     /// The inner error carries the specific parse failure.
-    MalformedTypeKeyword { inner: Box<TypeError> },
+    MalformedTypeKeyword { inner: Box<TypeErrorKind> },
     /// Items remain after the expected end of the argspec
     /// (after the rest-binder triple).
     TrailingItems { count: usize },
@@ -53,15 +53,15 @@ impl ArgSpecErrorKind {
     pub(crate) fn reason(&self) -> String {
         match self {
             ArgSpecErrorKind::NameNotSymbol =>
-                "name slot must be a plain symbol (not a keyword, literal, or nested form)".into(),
+                "name must be a plain symbol (not a keyword, literal, or nested form)".into(),
             ArgSpecErrorKind::MissingArrow =>
-                "triple must be `name <- :T`; `<-` arrow not found at slot 1".into(),
+                "triple must be `name <- :T`; expected `<-` as the second element".into(),
             ArgSpecErrorKind::TypeNotKeyword =>
                 "type slot must be a keyword (e.g. `:wat::core::i64`); got a non-keyword".into(),
             ArgSpecErrorKind::MalformedTypeKeyword { inner } =>
-                format!("type keyword is malformed: {inner}"),
+                format!("invalid type keyword: {}", inner),
             ArgSpecErrorKind::TrailingItems { count } =>
-                format!("{count} trailing item(s) beyond the expected argspec shape"),
+                format!("{count} trailing item(s) after the rest-binder triple `& name <- :T`; nothing may follow it"),
             ArgSpecErrorKind::IncompleteTriple =>
                 "triple is incomplete; expected `name <- :T` but ran out of items".into(),
             ArgSpecErrorKind::RestBinderNotSupported =>
@@ -72,9 +72,8 @@ impl ArgSpecErrorKind {
 
 // ─── From<ArgSpecError> impls ─────────────────────────────────────────────────
 //
-// Per AUDIT.md "Recommendation for 241.1": these wire the canonical error into
-// each call-site's native error class. 241.2/241.3 callers convert at their
-// boundary; the parser itself emits only ArgSpecError.
+// Wire each call-site's native error class to the canonical `ArgSpecError`.
+// Callers convert at their site boundary; the parser itself emits only ArgSpecError.
 
 impl From<ArgSpecError> for crate::runtime::RuntimeError {
     fn from(e: ArgSpecError) -> Self {
@@ -100,6 +99,9 @@ impl From<ArgSpecError> for TypeError {
 impl From<ArgSpecError> for crate::macros::MacroError {
     fn from(e: ArgSpecError) -> Self {
         let reason = e.kind.reason();
+        // e.head is not threaded: MalformedDefmacro is defmacro-specific by variant name,
+        // so the form identity is structural here (unlike the generic MalformedForm/
+        // MalformedDecl variants that carry head because they serve many forms).
         crate::macros::MacroError::MalformedDefmacro { reason, span: e.span }
     }
 }

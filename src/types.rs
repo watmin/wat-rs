@@ -1562,28 +1562,26 @@ pub enum TypeErrorKind {
 }
 
 
-impl fmt::Display for TypeError {
+impl fmt::Display for TypeErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let prefix = span_prefix(&self.span);
-        match &self.kind {
+        match self {
             TypeErrorKind::DuplicateType { name } => {
-                write!(f, "{}duplicate type declaration: {}", prefix, name)
+                write!(f, "duplicate type declaration: {}", name)
             }
             TypeErrorKind::ReservedPrefix { name } => write!(
                 f,
-                "{}type name {} uses a reserved prefix ({}); user types must use their own prefix",
-                prefix,
+                "type name {} uses a reserved prefix ({}); user types must use their own prefix",
                 name,
                 crate::resolve::reserved_prefix_list()
             ),
             TypeErrorKind::MalformedDecl { head, reason } => {
-                write!(f, "{}malformed {} declaration: {}", prefix, head, reason)
+                write!(f, "malformed {} declaration: {}", head, reason)
             }
             TypeErrorKind::MalformedName { raw, reason } => {
-                write!(f, "{}malformed type name {:?}: {}", prefix, raw, reason)
+                write!(f, "malformed type name {:?}: {}", raw, reason)
             }
             TypeErrorKind::MalformedField { reason } => {
-                write!(f, "{}malformed field: {}", prefix, reason)
+                write!(f, "malformed field: {}", reason)
             }
             TypeErrorKind::MalformedVariant {
                 enum_name,
@@ -1593,8 +1591,8 @@ impl fmt::Display for TypeError {
             } => {
                 write!(
                     f,
-                    "{}malformed enum variant in '{}': '{}' — {}",
-                    prefix, enum_name, offending, reason
+                    "malformed enum variant in '{}': '{}' — {}",
+                    enum_name, offending, reason
                 )?;
                 let section = crate::remedy::render_remedies(remedies);
                 if !section.is_empty() {
@@ -1603,62 +1601,55 @@ impl fmt::Display for TypeError {
                 Ok(())
             }
             TypeErrorKind::MalformedTypeExpr { raw, reason } => {
-                write!(f, "{}malformed type expression {:?}: {}", prefix, raw, reason)
+                write!(f, "malformed type expression {:?}: {}", raw, reason)
             }
             TypeErrorKind::AnyBanned { raw } => write!(
                 f,
-                "{}:Any is not part of the type system (058-030); use :wat::holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
-                prefix,
+                ":Any is not part of the type system (058-030); use :wat::holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
                 raw
             ),
             TypeErrorKind::CyclicAlias { name } => write!(
                 f,
-                "{}typealias {} forms a cycle through the current alias graph — refused at registration time so unification doesn't loop",
-                prefix,
+                "typealias {} forms a cycle through the current alias graph — refused at registration time so unification doesn't loop",
                 name
             ),
             TypeErrorKind::AliasArityMismatch { name, expected, got } => write!(
                 f,
-                "{}typealias {} declared with {} type parameter(s), used with {}",
-                prefix, name, expected, got
+                "typealias {} declared with {} type parameter(s), used with {}",
+                name, expected, got
             ),
             TypeErrorKind::InnerColonInCompoundArg { raw, offending } => write!(
                 f,
-                "{}type expression {} contains an illegal leading ':' on the inner argument {}: \
+                "type expression {} contains an illegal leading ':' on the inner argument {}: \
                  inside `<>`, `()`, or `fn(...)`, type arguments are bare Rust symbols. \
                  The colon prefix marks wat keywords and lives at the OUTERMOST type position \
                  only. Drop the leading ':' on the inner: write {} instead.",
-                prefix,
                 raw,
                 offending,
                 raw.replacen(&format!(":{}", offending.trim_start_matches(':')), offending.trim_start_matches(':'), 1)
             ),
             TypeErrorKind::CyclicUnion { name } => write!(
                 f,
-                "{}typeunion {} forms a cycle through the current union graph — refused at \
+                "typeunion {} forms a cycle through the current union graph — refused at \
                  registration time so unification cannot loop",
-                prefix,
                 name
             ),
             TypeErrorKind::EmptyUnion { name } => write!(
                 f,
-                "{}typeunion {} has no members — use a non-empty member list `[...]` with at \
+                "typeunion {} has no members — use a non-empty member list `[...]` with at \
                  least two type paths",
-                prefix,
                 name
             ),
             TypeErrorKind::SingleMemberUnion { name } => write!(
                 f,
-                "{}typeunion {} has exactly one member — a single-member union is a typealias \
+                "typeunion {} has exactly one member — a single-member union is a typealias \
                  in disguise; use (:wat::core::typealias {name} :MemberType) instead",
-                prefix,
                 name
             ),
             TypeErrorKind::InvalidUnionMember { union_name, member_form, reason } => write!(
                 f,
-                "{}typeunion {} contains an invalid member {}: {}. \
+                "typeunion {} contains an invalid member {}: {}. \
                  Members must be Path, Parametric, or Tuple types.",
-                prefix,
                 union_name,
                 member_form,
                 reason
@@ -1670,6 +1661,13 @@ impl fmt::Display for TypeError {
                  refused at registration time so `is_subtype` cannot loop"
             ),
         }
+    }
+}
+
+impl fmt::Display for TypeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let prefix = span_prefix(&self.span);
+        write!(f, "{}{}", prefix, self.kind)
     }
 }
 

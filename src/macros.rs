@@ -427,7 +427,7 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     };
 
     // Arrow symbol `->` must follow argspec.
-    if !crate::argspec::is_bare_symbol(&arrow_item, "->") {
+    if !arrow_item.is_bare_symbol("->") {
         return Err(MacroError::MalformedDefmacro {
             reason: "expected `->` symbol after argspec Vector".into(),
             span: arrow_item.span().clone(),

@@ -78,7 +78,7 @@ pub(in crate::function) fn parse_fn_signature_prefix(
             });
         }
     };
-    if !crate::argspec::is_bare_symbol(&sig[1], "->") {
+    if !sig[1].is_bare_symbol("->") {
         return Err(ParseStep::ArrowMissing {
             span: sig[1].span().clone(),
         });
