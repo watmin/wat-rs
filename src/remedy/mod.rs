@@ -1,4 +1,4 @@
-//! vigilatum: 2026-05-31 — vigilia 8-spell L1+L2=0
+//! vigilatum: 2026-05-31T06:18:14Z — vigilia 8-spell L1+L2=0
 //!
 //! # Remedy — ranked structured error remediation for the wat substrate.
 //!

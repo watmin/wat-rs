@@ -7,10 +7,10 @@
 A single module-doc line that records a namespaced home's **ward provenance**: when the home last passed the vigilia REMARKABLE bar (L1 + L2 = 0), and what cast it. The anchor commit is not written in the line — git already holds it (see *Drift* below).
 
 ```rust
-//! vigilatum: 2026-05-30 — vigilia 8-spell L1+L2=0
+//! vigilatum: 2026-05-31T06:18:14Z — vigilia 8-spell L1+L2=0
 ```
 
-"Watched here. By vigilia. Zero divergence." The line is its own definition — no glossary, no lookup.
+"Watched here. At this instant. By vigilia. Zero divergence." The line is its own definition — no glossary, no lookup.
 
 ## Why it exists
 
@@ -49,10 +49,10 @@ The marker is the FIRST `//!` line of the file's module doc, followed by a blank
 ## Inscription form
 
 ```
-//! vigilatum: <YYYY-MM-DD> — vigilia <N>-spell L1+L2=0
+//! vigilatum: <ISO8601-UTC-seconds> — vigilia <N>-spell L1+L2=0
 ```
 
-- `<YYYY-MM-DD>` — the cast date (human-legible)
+- `<ISO8601-UTC-seconds>` — the instant the watch passed, second-resolution UTC (e.g. `2026-05-31T06:18:14Z`). For a NEW ward: compute it (`date -u +%Y-%m-%dT%H:%M:%SZ`) immediately before writing the stamp, then commit — the stamp instant is the convergence instant, a few seconds ahead of the commit instant; both honest. For a RETROFIT or recovered timestamp: lift it from the home's ward commit, not from memory — `TZ=UTC git show -s --date=format-local:'%Y-%m-%dT%H:%M:%SZ' --format=%cd <ward-commit>`. Git holds the truth; the marker surfaces it.
 - `vigilia <N>-spell L1+L2=0` — the verdict + how many spells stood the watch
 
 The marker carries no commit hash — git is the anchor (see *Drift*). The stamp ships in the ward commit itself.
