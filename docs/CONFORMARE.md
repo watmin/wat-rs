@@ -8,7 +8,7 @@ Sibling to `ZERO-MUTEX.md`. Same shape of doctrine: a class of failure made stru
 
 An error type whose variants are permitted by the type system to silently lack source location data. The Rust language does not enforce "every error variant has a span field"; without a structural discipline, error types accumulate variants that drop diagnostic data, the substrate's user-facing error messages degrade silently, and the practitioner cannot trust that any given error path will surface a usable source location.
 
-Worked example (pre-discipline, now retired): `ParseStep::ArityMismatch { actual: usize }` — no span field; the type accepts both this variant and `ArrowMissing { span: Span }` without complaint; consumer code that wants the span across variants must exhaustively match, and the spanless variant produces `Span::unknown()` at the consumer boundary. The substrate's diagnostic surface degrades to "something failed somewhere."
+Worked example (genuinely retired by Stone 243.4.1): `ParseStep::ArityMismatch { actual: usize }` — no span field; the type accepted both this variant and `ArrowMissing { span: Span }` without complaint; consumer code that wanted the span across variants had to exhaustively match, and the spanless variant produced `Span::unknown()` at the consumer boundary. The substrate's diagnostic surface degraded to "something failed somewhere." Retired by making `parse_fn_signature_prefix` take `&[WatAST; 3]` — arity is now type-impossible; the wrong-length case cannot reach the prefix at all.
 
 ## The principle
 

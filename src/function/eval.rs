@@ -13,6 +13,7 @@
 use crate::ast::WatAST;
 use crate::function::metadata::peel_metadata_preamble;
 use crate::function::parse::parse_fn_signature;
+use crate::function::FN_HEAD;
 use crate::runtime::{Environment, Function, RuntimeError, Value, synthesize_fn_body};
 use crate::span::Span;
 use std::sync::Arc;
@@ -41,16 +42,16 @@ pub(crate) fn eval_fn(
     let sig_args = peel_metadata_preamble(args);
     if sig_args.len() < 3 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::fn".into(),
-            reason: format!(
-                "expected (:wat::core::fn [name <- :T ...] -> :Ret body ...); got {} args",
-                sig_args.len()
-            ),
+            head: FN_HEAD.into(),
+            reason: format!("expected [name <- :T ...] -> :Ret body ...; got {} element(s)", sig_args.len()),
             span: list_span.clone(),
         });
     }
     let body = synthesize_fn_body(&sig_args[3..]);
-    let (params, param_types, ret_type) = parse_fn_signature(&sig_args[..3])?;
+    // Safety: sig_args.len() >= 3 gated above; try_into on a 3-element prefix
+    // cannot fail. The type guarantee eliminates the ArityMismatch class.
+    let sig3: &[WatAST; 3] = sig_args[..3].try_into().expect("len >= 3 gated above");
+    let (params, param_types, ret_type) = parse_fn_signature(sig3)?;
     Ok(Value::wat__core__fn(Arc::new(Function {
         name: None,
         params,

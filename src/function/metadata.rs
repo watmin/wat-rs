@@ -1,6 +1,6 @@
-//! # fn-form shared helpers
+//! # fn-form binding-metadata peel
 //!
-//! Domain-scoped utilities used by multiple sub-modules within `src/function/`.
+//! Domain-scoped utility used by sibling sub-modules within `src/function/`.
 //! Kept separate from parse.rs (parser logic) and eval.rs/infer.rs (tier logic)
 //! so each sub-file stays focused on its single concern.
 

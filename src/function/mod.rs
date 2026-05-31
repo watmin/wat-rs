@@ -38,8 +38,9 @@
 //! `tests/probe_arc241_stone7_metadata_of_reflection.rs` via `defn` macro
 //! expansion to `(fn {meta} [args] -> :ret body)`.
 //!
-//! `parse_fn_signature_for_check`'s primary call site at
-//! `src/check.rs` (~9810, `:ensure :fn defclause validation`) is exercised by
+//! `parse_fn_signature_for_check`'s primary call site — the `:ensure :fn`
+//! defclause validation in `src/check.rs` (the sole caller of
+//! `parse_fn_signature_for_check`) — is exercised by
 //! `tests/probe_arc237_stone3_guard_ensure.rs`; `tests/function/` focuses on
 //! fn-form preservation + error contracts; cross-arc coverage stays in its
 //! arc's probe.
@@ -48,6 +49,11 @@ mod eval;
 mod infer;
 mod metadata;
 mod parse;
+
+/// The canonical form head for all `:wat::core::fn` error messages.
+/// Declared once; all sub-modules reference this constant so the literal
+/// never drifts.
+pub(in crate::function) const FN_HEAD: &str = ":wat::core::fn";
 
 pub(crate) use eval::eval_fn;
 pub(crate) use infer::infer_fn;

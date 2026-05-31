@@ -9354,58 +9354,70 @@ fn infer_defclause(
             // Parse the fn signature: (fn [params] -> :ret body).
             // fn_items = items[1..] = [[params] -> :ret body ...]; pass only
             // the 3-element signature prefix (body is not a parser concern).
-            match crate::function::parse_fn_signature_for_check(
-                fn_items.get(..3).unwrap_or(fn_items),
-            ) {
-                Ok((param_names, param_types, ret_type)) => {
-                    // Rule 1: arity must be 1.
-                    if param_names.len() != 1 {
-                        local_errors.push(CheckError::EnsureFnInvalid {
-                            defclause_name: cs.name.clone(),
-                            clause_index: clause_idx,
-                            reason: format!(
-                                "arity must be 1 (one parameter for the result); got {}",
-                                param_names.len()
-                            ),
-                            span: ensure_span.clone(),
-                        });
-                    } else {
-                        // Rule 2: arg type must match clause return type.
-                        let arg_ty = &param_types[0];
-                        let mut ensure_subst = Subst::new();
-                        let clause_ret = apply_subst(&clause.return_type, &clause_subst);
-                        let resolved_arg = apply_subst(arg_ty, &ensure_subst);
-                        if unify(&resolved_arg, &clause_ret, &mut ensure_subst, env.types()).is_err() {
+            // A <3 slice is a malformed :fn shape — routes to the same
+            // EnsureFnInvalid diagnostic as a well-formed-but-invalid signature.
+            match fn_items.get(..3).and_then(|s| <&[WatAST; 3]>::try_from(s).ok()) {
+                Some(sig3) => match crate::function::parse_fn_signature_for_check(sig3) {
+                    Ok((param_names, param_types, ret_type)) => {
+                        // Rule 1: arity must be 1.
+                        if param_names.len() != 1 {
                             local_errors.push(CheckError::EnsureFnInvalid {
                                 defclause_name: cs.name.clone(),
                                 clause_index: clause_idx,
                                 reason: format!(
-                                    "arg type must match clause return type: :ensure :fn takes `{}` but clause returns `{}`",
-                                    format_type(arg_ty),
-                                    format_type(&clause_ret),
+                                    "arity must be 1 (one parameter for the result); got {}",
+                                    param_names.len()
                                 ),
                                 span: ensure_span.clone(),
                             });
+                        } else {
+                            // Rule 2: arg type must match clause return type.
+                            let arg_ty = &param_types[0];
+                            let mut ensure_subst = Subst::new();
+                            let clause_ret = apply_subst(&clause.return_type, &clause_subst);
+                            let resolved_arg = apply_subst(arg_ty, &ensure_subst);
+                            if unify(&resolved_arg, &clause_ret, &mut ensure_subst, env.types()).is_err() {
+                                local_errors.push(CheckError::EnsureFnInvalid {
+                                    defclause_name: cs.name.clone(),
+                                    clause_index: clause_idx,
+                                    reason: format!(
+                                        "arg type must match clause return type: :ensure :fn takes `{}` but clause returns `{}`",
+                                        format_type(arg_ty),
+                                        format_type(&clause_ret),
+                                    ),
+                                    span: ensure_span.clone(),
+                                });
+                            }
+                        }
+
+                        // Rule 3: return type must be :bool.
+                        let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                        let mut ret_subst = Subst::new();
+                        if unify(&ret_type, &bool_ty, &mut ret_subst, env.types()).is_err() {
+                            local_errors.push(CheckError::EnsureFnInvalid {
+                                defclause_name: cs.name.clone(),
+                                clause_index: clause_idx,
+                                reason: format!(
+                                    "return type must be :bool; got `{}`",
+                                    format_type(&ret_type),
+                                ),
+                                span: ensure_span,
+                            });
                         }
                     }
-
-                    // Rule 3: return type must be :bool.
-                    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
-                    let mut ret_subst = Subst::new();
-                    if unify(&ret_type, &bool_ty, &mut ret_subst, env.types()).is_err() {
+                    Err(()) => {
+                        // parse_fn_signature_for_check returns Err when shape doesn't match.
                         local_errors.push(CheckError::EnsureFnInvalid {
                             defclause_name: cs.name.clone(),
                             clause_index: clause_idx,
-                            reason: format!(
-                                "return type must be :bool; got `{}`",
-                                format_type(&ret_type),
-                            ),
+                            reason: "malformed :fn signature — expected (:wat::core::fn [param <- :T] -> :bool body)".into(),
                             span: ensure_span,
                         });
                     }
-                }
-                Err(()) => {
-                    // parse_fn_signature_for_check returns Err when shape doesn't match.
+                },
+                None => {
+                    // fn_items has fewer than 3 elements — a malformed :fn shape;
+                    // same diagnostic as the Err(()) arm above.
                     local_errors.push(CheckError::EnsureFnInvalid {
                         defclause_name: cs.name.clone(),
                         clause_index: clause_idx,
