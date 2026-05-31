@@ -1,4 +1,4 @@
-//! vigilatum: 2026-05-30 @ 7b89053e — vigilia 7-spell L1+L2=0
+//! vigilatum: 2026-05-30T22:16:13Z — vigilia 7-spell L1+L2=0
 //!
 //! `custodia` — ownership-scope custody primitives for the `:rust::` bridge.
 //!

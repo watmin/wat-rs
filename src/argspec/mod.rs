@@ -1,4 +1,4 @@
-//! vigilatum: 2026-05-30 @ b64b04b4 — vigilia 8-spell L1+L2=0
+//! vigilatum: 2026-05-31T01:34:28Z — vigilia 8-spell L1+L2=0
 //!
 //! # Argspec — canonical parser for the `[name <- :T name <- :T ... [& rest <- :T]]` triple form.
 //!

@@ -7,7 +7,7 @@
 A single module-doc line that records a namespaced home's **ward provenance**: when the home last passed the vigilia REMARKABLE bar (L1 + L2 = 0), and what cast it. The anchor commit is not written in the line — git already holds it (see *Drift* below).
 
 ```rust
-//! vigilatum: 2026-05-31T06:18:14Z — vigilia 8-spell L1+L2=0
+//! vigilatum: 2026-05-31T08:24:29Z — vigilia 8-spell L1+L2=0
 ```
 
 "Watched here. At this instant. By vigilia. Zero divergence." The line is its own definition — no glossary, no lookup.

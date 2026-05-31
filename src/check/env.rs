@@ -1,4 +1,4 @@
-//! vigilatum: 2026-05-30 @ 22c89e04 — vigilia 8-spell L1+L2=0
+//! vigilatum: 2026-05-30T20:46:58Z — vigilia 8-spell L1+L2=0
 //!
 //! `CheckEnv<'a>` — the type-check environment.
 //!
