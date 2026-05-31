@@ -1,3 +1,5 @@
+//! vigilatum: 2026-05-30 @ 9b832e21 — vigilia 8-spell L1+L2=0
+//!
 //! # Argspec — canonical parser for the `[name <- :T name <- :T ... [& rest <- :T]]` triple form.
 //!
 //! ## Why this module exists — the failure class being eliminated
