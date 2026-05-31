@@ -4,25 +4,32 @@
 
 ## What it is
 
-A single module-doc line that records a namespaced home's **ward provenance**: when, and at which git commit, the home last passed the vigilia REMARKABLE bar (L1 + L2 = 0), and what cast it.
+A single module-doc line that records a namespaced home's **ward provenance**: when the home last passed the vigilia REMARKABLE bar (L1 + L2 = 0), and what cast it. The anchor commit is not written in the line — git already holds it (see *Drift* below).
 
 ```rust
-//! vigilatum: 2026-05-30 @ 22c89e04 — vigilia 8-spell L1+L2=0
+//! vigilatum: 2026-05-30 — vigilia 8-spell L1+L2=0
 ```
 
-"Watched here. At this commit. By vigilia. Zero divergence." The line is its own definition — no glossary, no lookup.
+"Watched here. By vigilia. Zero divergence." The line is its own definition — no glossary, no lookup.
 
 ## Why it exists
 
 The substrate matures by selective lift-and-ward (`feedback_selective_lift_and_ward`): flat `src/*.rs` is functional-but-untrusted; a thing is lifted into a namespace home when it is brought to the REMARKABLE bar. `vigilatum` answers the question that was previously only answerable by guessing at file structure or reading git archaeology: **is this home actually warded, and has it drifted since?**
 
-The commit anchor is load-bearing. With `@ <commit>` recorded:
+### Drift — git is the anchor, not the line
+
+The stamp ships **in the same commit as the warded code** (one atomic commit — see *Why no commit hash* below). So the ward commit IS the drift baseline, and git recovers it directly:
 
 ```
-git diff <anchor>..HEAD -- src/<home>/
+anchor=$(git log -1 --format=%H -G'vigilatum:' -- src/<home>/mod.rs)
+git diff "$anchor"..HEAD -- src/<home>/
 ```
 
-answers drift directly. The ONLY expected hunk is the `vigilatum` line itself (added one commit after the convergence anchor). **Any other hunk = the home was touched since it was warded = a re-ward is owed.** The marker is past-tense and bounded to a moment (intueri chose `vigilatum` over ongoing-state candidates like `custodia` precisely for this): it claims the watch *passed* at the anchor, never that the code is *still* guaranteed — the diff is the instrument that discovers whether the moment has aged.
+An **empty** diff = warded and unchanged. **Any** hunk = the home was touched since it was warded = a re-ward is owed. The marker is past-tense and bounded to a moment (intueri chose `vigilatum` over ongoing-state candidates like `custodia` precisely for this): it claims the watch *passed*, never that the code is *still* guaranteed — the diff is the instrument that discovers whether the moment has aged.
+
+### Why no commit hash
+
+The marker once embedded `@ <commit>` — the hash of its own ward commit. That is a chicken-and-egg: the hash cannot exist until the commit exists, but the line lives *inside* the file that commit contains. It forced a two-commit dance (ward the code, then a second commit to write the hash) and a read-back step — and the read-back, shortcut from expectation, fabricated non-existent hashes four times in one session. A mechanism that manufactures false claims fails the substrate's first rule. The fix eliminates the class, not the symptom: **drop the hash.** Git already holds the provenance; the home wards in one honest commit; there is no hash to fabricate.
 
 ## The iron rule — EARNED, never asserted
 
@@ -42,12 +49,13 @@ The marker is the FIRST `//!` line of the file's module doc, followed by a blank
 ## Inscription form
 
 ```
-//! vigilatum: <YYYY-MM-DD> @ <short-commit> — vigilia <N>-spell L1+L2=0
+//! vigilatum: <YYYY-MM-DD> — vigilia <N>-spell L1+L2=0
 ```
 
 - `<YYYY-MM-DD>` — the cast date (human-legible)
-- `<short-commit>` — the convergence anchor (the commit at which the home passed; the drift baseline)
 - `vigilia <N>-spell L1+L2=0` — the verdict + how many spells stood the watch
+
+The marker carries no commit hash — git is the anchor (see *Drift*). The stamp ships in the ward commit itself.
 
 ## What it is NOT
 
