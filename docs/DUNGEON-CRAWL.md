@@ -144,6 +144,23 @@ waterfall (848 → 129 → 28 → 0). Never propose "stash + revert" in panic (F
 The brief for wide work is short: *"run cargo test; read the errors; apply the
 rule; iterate until green."*
 
+**For a large mechanical cascade (≥ ~50–100 sites), the weapon is an *ephemeral
+Cargo tool*, not a bash chain.** The firewall blocks `sed`/wrapper-script
+mass-edits (FM 16); a cold-booted Shadowdancer reaches instead for the toolchain
+it is *built on* and *allowed* to wield — it builds a Cargo binary that
+parses+rewrites, runs it, and **deletes it before the commit** (build → use →
+delete; the tool never lands in the substrate). Confirmed at three stones: 241.10
+`fix-defines` + 241.11 `fix-remedies` (wat-surface migrations) and 243.6a
+`transform-checkerror`, which **attacked Rust syntax itself** (the CheckError
+Pattern-A reshape) — proving the move is not wat-surface-bound: a clean substrate
+is programmatically refactorable at the *implementation* layer too. Sanction it
+in the cascade BRIEF as **method-guidance** (*"an ephemeral Cargo tool that
+drives the transform is the preferred path"*) — NEVER as tool-reassurance
+(*"cargo works"*), which trips the same FM-16 skepticism. The orchestrator
+verifies the tool's deletion at the kill (`git status` = deliverable + cascade,
+no scratch crate). (Memory: `feedback_cascade_ephemeral_tool`; chronicle: Song
+#58 *First Kill*.)
+
 ## Closure — INSCRIPTION = DONE
 
 - Run the **pre-INSCRIPTION grep** (`deferred|future arc|TODO|out of scope|…`)
