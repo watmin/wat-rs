@@ -1,4 +1,4 @@
-//! vigilatum: 2026-05-31T05:07:57Z — vigilia 8-spell L1+L2=0
+//! vigilatum: 2026-06-01T04:45:47Z — vigilia 8-spell L1+L2=0 (clippy clean-or-runed: result_large_err → excusare OPEN-DEFERRAL 243.7a)
 //!
 //! # Function — namespaced home for fn-form parsing, evaluation, and inference.
 //!

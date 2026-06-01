@@ -48,6 +48,8 @@ pub trait ToWat {
 /// carries the source location of the original call-site AST node so
 /// that type-mismatch errors surface with file:line:col coordinates.
 pub trait FromWat: Sized {
+    // rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
+    #[allow(clippy::result_large_err)]
     fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError>;
 }
 
@@ -354,6 +356,8 @@ pub fn make_rust_opaque<T: Any + Send + Sync>(type_path: &'static str, payload: 
 /// Validate `v` is a `RustOpaque` with the expected type path and return the
 /// inner `Arc`. Callers pass this to `downcast_ref_opaque` for a typed
 /// reference to the payload.
+// rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
+#[allow(clippy::result_large_err)]
 pub fn rust_opaque_arc(
     v: &Value,
     expected_path: &'static str,
@@ -385,6 +389,8 @@ pub fn rust_opaque_arc(
 /// dispatch code calls this for each `:rust::T` argument, bypassing
 /// the generic `FromWat` pathway (since opaque handles aren't cloneable
 /// and often need shared-ref access, not consumed-value access).
+// rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
+#[allow(clippy::result_large_err)]
 pub fn downcast_ref_opaque<'a, T: Any>(
     inner: &'a RustOpaqueInner,
     expected_path: &'static str,

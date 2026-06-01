@@ -13070,6 +13070,7 @@ fn eval_body_of(
 /// evaluates to a named fn value, `name_from_keyword_or_fn` recovers the
 /// name from the fn (supporting `(metadata-of my-fn-var)` call style).
 #[allow(clippy::mutable_key_type)]
+// rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
 #[allow(clippy::result_large_err)]
 fn eval_metadata_of(
     args: &[WatAST],

@@ -183,6 +183,8 @@ pub(in crate::function) fn parse_fn_signature_prefix(
 ///
 /// Caller synthesizes body independently; parser sees only the 3-element
 /// signature prefix. Moved from `src/runtime.rs` at Stone 241.18a.
+// rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
+#[allow(clippy::result_large_err)]
 pub(crate) fn parse_fn_signature(
     args: &[WatAST; 3],
 ) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), RuntimeError> {
