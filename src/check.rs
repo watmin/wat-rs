@@ -608,10 +608,6 @@ fn arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(
     )
 }
 
-// rune:temperare(deferred-stone-243.6) — collect_hints runs 9 hint fns and
-// is invoked from both Display and diagnostic() for the same error. Caching
-// (a computed-hints field on the CheckError outer struct) folds into the
-// CheckError Pattern A retrofit at Stone 243.6.
 pub(crate) fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     // Stone 241.15 — arc_109_try_verb_migration_hint, arc_109_option_expect_migration_hint,
     // arc_109_result_expect_migration_hint removed; those three zombies are now HARD CUT
@@ -713,183 +709,57 @@ pub fn check_program(
     let mut errors = Vec::new();
     let mut fresh = InferCtx::default();
 
-    // rune:temperare(deferred-stone-243.6) — these independent walker passes
-    // each traverse all function bodies (10× total). sequi confirmed they are
-    // independent accumulator-drains (state-safe to fuse). Fusion into one
-    // per-body pass lands with the src/check/ home carve at Stone 243.6.
-
-    // Arc 110 — every kernel-comm call must land in match-scrutinee
-    // or option::expect-value position. Run the walk before inference
-    // so a misplaced send/recv reports as the structural problem it
-    // is, not as a downstream type mismatch.
+    // Stone 243.6b — fused pre-inference validator pass. All 9 independent
+    // walker passes (sequi confirmed order-independent accumulator-drains)
+    // collapsed into one per-body traversal: one `for func` running all 9
+    // on `&func.body`, then one `for form` running all 9 on each top-level
+    // form. Relative order of the 9 validators is preserved.
+    //
+    // Arc 110 — validate_comm_positions: every kernel-comm call must land
+    // in match-scrutinee or option::expect-value position (pre-inference so
+    // a misplaced send/recv reports as the structural problem it is).
+    // Arc 126 — validate_channel_pair_deadlock: refuse call sites passing
+    // BOTH halves of one make-bounded-channel / make-unbounded-channel pair.
+    // Arc 140 — validate_sandbox_scope_leak: sandbox-primitive call sites
+    // must not reference names from the outer SymbolTable.
+    // Arc 109 slice 1c — validate_bare_legacy_primitives: bare primitive
+    // type tokens (`:i64`, `:f64`, `:bool`, `:String`, `:u8`) rejected.
+    // Arc 109 slice 9d — walk_for_legacy_stream: legacy `:wat::std::stream::*`
+    // prefix rejected.
+    // Arc 109 slice K.telemetry — walk_for_legacy_telemetry_service: legacy
+    // `:wat::telemetry::Service::*` / `:wat::telemetry::Service/*` rejected.
+    // Arc 109 slice K.lru — walk_for_legacy_lru_cache_service: legacy
+    // `:wat::lru::CacheService::*` / `:wat::lru::CacheService/*` rejected.
+    // Arc 109 slice K.kernel-channel — walk_for_legacy_kernel_queue: legacy
+    // `:wat::kernel::Queue*` family rejected.
+    // Arc 109 § kill-std / Arc 170 slice 1f-η — walk_for_bare_legacy_console:
+    // fully-retired `:wat::console::*` namespace rejected (permanent walker).
+    //
+    // Arc 117 / Arc 133 — validate_scope_deadlock retired (arc 133: rule
+    // enforced in-place inside `infer_let`; see `check_let_for_scope_deadlock_inferred`).
+    // Arc 153/154/155 — legacy unit-name / let-star / lambda walkers retired
+    // (sweep windows closed; variants + Display preserved as orphaned scaffolding).
+    // Arc 159 — validate_legacy_typed_let_binding retired (sweep window closed).
     for func in sym.functions.values() {
         validate_comm_positions(&func.body, CommCtx::Forbidden, &mut errors);
-    }
-    for form in forms {
-        validate_comm_positions(form, CommCtx::Forbidden, &mut errors);
-    }
-
-    // Arc 117 / Arc 133 — scope-deadlock prevention. The structural
-    // pre-inference walker (`validate_scope_deadlock`) was retired by
-    // arc 133: the rule is now enforced in-place inside
-    // `infer_let` after all bindings are processed. That path
-    // uses inferred TypeExprs from the `extended` scope map, covering
-    // BOTH typed-name bindings (the original arc 117 shape) AND
-    // untyped tuple-destructure bindings (the arc 133 gap).
-    // Duplicate-firing is impossible: inference drives both coverage
-    // and classification; the structural walker was redundant once
-    // the inference path fired for the same shapes.
-    //
-    // If you see this comment and are wondering why ScopeDeadlock
-    // fires at type-check time: look for `check_let_for_scope_deadlock_inferred`
-    // in `infer_let` (arc 133 slice 1).
-
-    // Arc 126 — refuse to compile a function-call site that passes
-    // BOTH halves of one `make-bounded-channel` / `make-unbounded-channel`
-    // pair. Sibling rule to ScopeDeadlock — same trace machinery
-    // applied at call sites instead of spawn-thread closure bodies.
-    // Catches the arc 119 "Pattern B Put-ack helper-verb cycle"
-    // deadlock at type-check time: when `tx` and `rx` both project
-    // off the same pair-anchor (`(first pair)` / `(second pair)`
-    // with `pair = (make-bounded-channel ...)`), passing them to
-    // one helper guarantees the helper's recv never sees EOF —
-    // the caller's Sender clone keeps the channel alive even when
-    // the receiver should disconnect.
-    for func in sym.functions.values() {
         validate_channel_pair_deadlock(&func.body, types, &mut errors);
-    }
-    for form in forms {
-        validate_channel_pair_deadlock(form, types, &mut errors);
-    }
-
-    // Arc 140 — sandbox-scope leak prevention. Walk every form for
-    // sandbox-primitive call sites. For each, build the inner-scope
-    // name set from the forms-block; walk inner-form bodies; fire
-    // `SandboxScopeLeak` when a call head resolves in the OUTER
-    // SymbolTable but NOT in the inner scope. The diagnostic carries
-    // both spans (offending invocation + outer-scope define) so users
-    // and agents navigate without grepping. See arc 140 DESIGN.md.
-    for func in sym.functions.values() {
         validate_sandbox_scope_leak(&func.body, sym, &mut errors);
-    }
-    for form in forms {
-        validate_sandbox_scope_leak(form, sym, &mut errors);
-    }
-
-    // Arc 109 slice 1c — refuse bare primitive types (`:i64`, `:f64`,
-    // `:bool`, `:String`, `:u8`) anywhere in the program. The
-    // canonical FQDN form (`:wat::core::i64`, etc.) is the
-    // substitute. Walks every keyword token in the AST, scans for
-    // bare-primitive substrings at type-token boundaries, emits one
-    // BareLegacyPrimitive per occurrence.
-    for func in sym.functions.values() {
         validate_bare_legacy_primitives(&func.body, &mut errors);
-    }
-    for form in forms {
-        validate_bare_legacy_primitives(form, &mut errors);
-    }
-
-    // Arc 153 slice 2 — signature-position walker call retired
-    // (paired with `walk_type_for_legacy_unit_name` body
-    // retirement). Migration window for `:wat::core::unit` ->
-    // `:wat::core::nil` closed; in-tree consumers swept; the
-    // walker pass would no longer fire.
-
-    // Arc 154 slice 2 — `validate_legacy_let_star` walker retired
-    // per substrate-as-teacher § "Retire the hint when its window
-    // closes." Walker shipped in slice 1a as the migration channel
-    // for `:wat::core::let*` → `:wat::core::let`; sweep 1b migrated
-    // every in-tree consumer (~806 sites); closure retires the
-    // firing body. `BareLegacyLetStar` variant + Display stay as
-    // orphaned scaffolding (arc 113 precedent).
-    //
-    // Arc 163 re-armed the walker at check.rs check-site (see below,
-    // ~line 2376). Arc 168 renamed step_let_star → step_let and
-    // eliminated all runtime dispatch arms for `:wat::core::let*`.
-    // There is NO runtime fall-through: the walker fires fatal at
-    // check time; no runtime ever sees the token. User-facing state
-    // post-arc-163+168: `:wat::core::let` is the ONLY letform;
-    // `:wat::core::let*` is dead at check time.
-
-    // Arc 155 slice 1a — refuse the legacy `:wat::core::lambda`
-    // keyword anywhere in the program. The canonical FQDN operator
-    // Arc 155 slice 2 — `validate_legacy_lambda` +
-    // `validate_legacy_lowercase_fn` walkers retired per
-    // substrate-as-teacher § "Retire the hint when its window
-    // closes." Both shipped slice 1a; sweep 1b cleared all in-tree
-    // consumers (~476 sites total: ~275 lambda + ~201 bare :fn);
-    // closure retires the firing bodies. `BareLegacyLambda` +
-    // `BareLegacyLowercaseFn` variants + Display retained as
-    // orphaned scaffolding (arc 113 precedent — testing/teaching/
-    // reintroduction surface preserved). Runtime dispatch arm for
-    // `:wat::core::lambda` retired in arc 155 slice 2; source-level
-    // use surfaces BareLegacyLambda fatal at check time (same shape
-    // as `:wat::core::let*` post-arc-163).
-
-    // Arc 109 slice 9d — refuse the legacy `:wat::std::stream::*`
-    // namespace prefix anywhere in the program. The stream stdlib
-    // graduated to `:wat::stream::*` per § G's three-tier substrate
-    // organization. Walks every keyword token in the AST and emits
-    // one BareLegacyStreamPath per occurrence.
-    for func in sym.functions.values() {
         walk_for_legacy_stream(&func.body, &mut errors);
-    }
-    for form in forms {
-        walk_for_legacy_stream(form, &mut errors);
-    }
-
-    // Arc 109 slice K.telemetry — refuse the legacy
-    // `:wat::telemetry::Service::*` (typealias) and
-    // `:wat::telemetry::Service/*` (verb) prefixes. The Service
-    // grouping noun retires per § K's "/ requires a real Type"
-    // doctrine; verbs and typealiases live at the namespace level.
-    // Real types Stats and MetricsCadence keep their /methods.
-    for func in sym.functions.values() {
         walk_for_legacy_telemetry_service(&func.body, &mut errors);
-    }
-    for form in forms {
-        walk_for_legacy_telemetry_service(form, &mut errors);
-    }
-
-    // Arc 109 slice K.lru — refuse the legacy
-    // `:wat::lru::CacheService::*` (typealias) and
-    // `:wat::lru::CacheService/*` (verb) prefixes. CacheService
-    // grouping noun retires per § K; verbs + typealiases live at
-    // `:wat::lru::*`. Plus Pattern B canonicalization: ReqPair →
-    // ReqChannel (gaze 2026-05-01); ReplyRx + ReplyChannel
-    // typealiases minted to complete Pattern B.
-    for func in sym.functions.values() {
         walk_for_legacy_lru_cache_service(&func.body, &mut errors);
-    }
-    for form in forms {
-        walk_for_legacy_lru_cache_service(form, &mut errors);
-    }
-
-    // Arc 109 slice K.kernel-channel — refuse the legacy
-    // `:wat::kernel::Queue*` family. Kernel channel-primitive
-    // vocabulary moved from Queue* (which leaked crossbeam's
-    // data-structure name) to the canonical Channel / Sender /
-    // Receiver family.
-    for func in sym.functions.values() {
         walk_for_legacy_kernel_queue(&func.body, &mut errors);
-    }
-    for form in forms {
-        walk_for_legacy_kernel_queue(form, &mut errors);
-    }
-
-    // Arc 109 § kill-std / Arc 170 slice 1f-η — refuse ANY token in
-    // the fully-retired `:wat::console::*` namespace. The Console
-    // driver (dispatch arms, spawn factory, handle plumbing,
-    // ConsoleLogger) was annihilated in slice 1f-η. Any user source
-    // using `:wat::console::*` (`:wat::console::spawn`,
-    // `:wat::console::out`, `:wat::console::Console/out`,
-    // `:wat::console::log`, etc.) fires a friendly migration
-    // diagnostic teaching the ambient kernel trio. Walker is
-    // permanent — no sweep window; console is fully retired.
-    for func in sym.functions.values() {
         walk_for_bare_legacy_console(&func.body, &mut errors);
     }
     for form in forms {
+        validate_comm_positions(form, CommCtx::Forbidden, &mut errors);
+        validate_channel_pair_deadlock(form, types, &mut errors);
+        validate_sandbox_scope_leak(form, sym, &mut errors);
+        validate_bare_legacy_primitives(form, &mut errors);
+        walk_for_legacy_stream(form, &mut errors);
+        walk_for_legacy_telemetry_service(form, &mut errors);
+        walk_for_legacy_lru_cache_service(form, &mut errors);
+        walk_for_legacy_kernel_queue(form, &mut errors);
         walk_for_bare_legacy_console(form, &mut errors);
     }
 
