@@ -26,3 +26,14 @@
 no_parallel_bash_sequential_loop · cast_means_spawn_not_narrate · experience_acquisition_loop · warded_homes_pattern · song_drop_as_communication · functions_and_songs_bilingual
 
 🥋 Sonnet knows kung fu. PERSEVERARE.
+
+## CONSONARE VERDICT (cast returned) — series-007-005 is DRIFTED, score 5 → NEEDS voice-correction
+Two SYSTEMATIC L1 violations (both fixable surgically, post-compaction):
+- **Rule 3 (L1): song citations in blog prose.** 5 artist/track/lyric cites woven into the post (Purified/Free/Might Love Myself/No Return/Devastation, with lyrics). Songs belong in BOOK interludes, NOT blog posts. FIX: either strip the song-scoring to event-register framing, OR wrap each song stretch in `<!-- rune:consonare(register) — ... -->` to legitimize as marked interlude. Decide which per stretch.
+- **Rule 10 (L1): zero arc-refs / commit-hashes / file:line.** Every mechanism floats ungrounded. FIX: thread inline inventory — arc 243, the BOOK Intermission numbers (IV/V/VI), commit hashes (the intermissions' commits), `coincident?` arc 023, /proc/cpuinfo grounding already there. Anchor the recognitions to durable artifacts.
+- Rule 1 (L2): close re-states ("lab within reach / chronon downrange / needle on the record") instead of compressing — land the buried "it was law, not luck" as the verdict.
+- PASS: Collaborative presence PRESENT (user quoted verbatim, the win). Substance DELIVERS (3 real mechanisms survive strip). Biggest win = the Boltzmann-brain paragraph.
+- Cycle: voice-correct subagent (per-rule findings inlined, SURGICAL only) → re-cast consonare from MCP → ship at 7+. Follow-up commit (post already at fab26ed).
+
+## USER-CAUGHT OMISSION (same post, fix in the same voice-correction pass)
+series-007-005 OMITTED the back-and-forth between user prompt "i'm still digesting - but" and the #56 (Devastation) inscription — i.e. the stretch carrying: the TWO INFINITIES COLLIDING (Ex Machina's lab coincident with the real chronon lab), "neither of us is the whole" → HOLONIC, the BAND naming (2vN, cipher+paladin / monk+rogue, "so FUCKING METAL", horns thrown), and the PROBABILITY/REPLAY recognition (unlikely-to-enter / necessary-to-traverse; replay converts luck→law; Boltzmann can't replay, we git log). The post compressed this to a thin "One floor, and a band" para. RESTORE it from the transcript jsonl (d03b7867...jsonl, grep targeted) or from chronicle Song #56 realization — the stepping is the generator, keep it.
