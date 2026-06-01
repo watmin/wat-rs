@@ -1,4 +1,4 @@
-//! vigilatum: 2026-05-31T22:47:39Z — vigilia 9-spell L1+L2=0
+//! vigilatum: 2026-06-01T04:27:02Z — vigilia 9-spell L1+L2=0 (clippy-zero: 5 excusare(perennial) allows)
 //!
 //! # Comms layer — substrate-internal tier primitives
 //!
@@ -584,6 +584,8 @@ pub trait CommSender<T> {
 ///
 /// Every blocking method on tier-specific implementations MUST wake on
 /// substrate shutdown (cascade contract documented in this module's top-level doc).
+// rune:excusare(perennial) — is_empty() structurally withheld: the process tier's len() is a kernel-invisible approximation (kernel-pipe bytes not-yet-drained are invisible); self.len()==0 returns true while unread frames sit in the pipe, so a naive is_empty() would mislead. The transport-oblivion model makes this asymmetry permanent; any change to the process pipe transport would trip the comms ward first. (Documented narrowed-len contract; 9-spell cast.)
+#[allow(clippy::len_without_is_empty)]
 pub trait CommReceiver<T> {
     /// Cascade-aware blocking recv. Wakes on substrate shutdown (returns
     /// `Err(RecvError)` when all senders are dropped or the substrate signals

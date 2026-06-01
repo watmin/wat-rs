@@ -470,6 +470,8 @@ impl<T: HolonRepresentable> Receiver<T> {
     /// Non-blocking; cascade-irrelevant. Useful for capacity-tracking
     /// callers (e.g., `wat::kernel::HandlePool`) that need a fast
     /// "is anything immediately available?" check.
+    // rune:excusare(perennial) — is_empty() structurally withheld: the process tier's len() is a kernel-invisible approximation (kernel-pipe bytes not-yet-drained are invisible); self.len()==0 returns true while unread frames sit in the pipe, so a naive is_empty() would mislead. The transport-oblivion model makes this asymmetry permanent; any change to the process pipe transport would trip the comms ward first. (Documented narrowed-len contract; 9-spell cast.)
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         // Count '\n' bytes in the accumulator — each marks the end of
         // a complete frame ready for take_frame to consume.
@@ -816,6 +818,8 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
     /// here — it's polled per-`select()` call based on the current
     /// `SHUTDOWN_BROADCAST_READ_FD` atomic value (idempotent-set per
     /// substrate init).
+    // rune:excusare(perennial) — Default withheld by design: an empty Select errors at select() time (no-arm footgun). A Default impl would produce the prohibited empty value with no call-site signal. Removing this guard would trip the comms ward first.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             receivers: Vec::new(),

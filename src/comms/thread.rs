@@ -160,6 +160,8 @@ impl<T> Receiver<T> {
     /// Non-blocking; cascade-irrelevant. Trivial passthrough to
     /// `crossbeam::Receiver::len`. Useful for capacity-tracking callers
     /// (e.g., `HandlePool` checking for orphaned handles).
+    // rune:excusare(perennial) — is_empty() withheld at the trait level for the kernel-invisible process-tier len() approximation (see CommReceiver); the thread tier's len() is exact but the trait contract is unified — adding is_empty() to one tier and not the other breaks the unified surface. Perennial per the transport model.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
@@ -233,6 +235,8 @@ impl<'a, T: Send + 'static> Select<'a, T> {
     /// Construct a new cascade-aware Select. Empty until receivers are
     /// registered via `recv`. The shutdown arm is NOT registered here —
     /// it's wired per-`select()` call so there is no init-order trap.
+    // rune:excusare(perennial) — Default withheld by design: an empty Select panics at select() time (no-arm footgun the comms vigilia eliminated). A Default impl would produce the exact prohibited empty value with no call-site signal that arm registration is required. Any relaxation would require removing the empty-Select guard, which would trip the comms ward (struere empty-Select finding) first.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             user_arms: Vec::new(),
